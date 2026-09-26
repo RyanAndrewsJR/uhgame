@@ -151,6 +151,7 @@ func on_hit(ctx: HitContext) -> void:
 	_flash()
 	if ctx.knockback_px > 0.0 and _alive:
 		_apply_knockback(ctx)
+	GameFeel.play_hit_feel(ctx)   # hitstop and shake by tier (COMBAT C3)
 	Events.unit_hit.emit(ctx)
 	if ctx.taken_damage > 0.0:
 		Events.unit_damaged.emit(ctx)
@@ -204,9 +205,12 @@ func _on_hurtbox_hurt(hitbox: Hitbox) -> void:
 	on_hit(ctx)
 
 
+## Every hit that gets through flashes the body white, then fades back over
+## GameFeel.hit_feel.flash_time (COMBAT C3).
 func _flash() -> void:
-	body.modulate = Color(3, 3, 3, 1)
-	create_tween().tween_property(body, "modulate", Color.WHITE, 0.12)
+	var feel := GameFeel.hit_feel
+	body.modulate = feel.flash_modulate
+	create_tween().tween_property(body, "modulate", Color.WHITE, feel.flash_time)
 
 
 func _spawn_damage_number(amount: float, highlight: bool = false) -> void:

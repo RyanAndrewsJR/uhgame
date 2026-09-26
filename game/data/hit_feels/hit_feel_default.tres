@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="HitFeel" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/hit_feel.gd" id="1_feel"]
+
+[resource]
+script = ExtResource("1_feel")
+light_hitstop = 0.03
+heavy_hitstop = 0.06
+kill_hitstop = 0.08
+light_shake = 0.0
+heavy_shake = 2.0
+kill_shake = 3.0
+flash_time = 0.06
+flash_modulate = Color(3, 3, 3, 1)
