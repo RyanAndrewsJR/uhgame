@@ -23,7 +23,7 @@ Example: an Akshan-style swing is an ability that asks `WorldQuery` for a grappl
 | 3 | enemies | enemy bodies | exists |
 | 4 | player_attack | player hitboxes and projectiles | exists |
 | 5 | enemy_attack | enemy hitboxes and projectiles | exists |
-| 6 | pit | chasms: block walking, not dashing or projectiles | planned |
+| 6 | pit | chasms (`Pits` TileMapLayer): block walking, not dashing or projectiles | planned |
 | 7 | low_obstacle | fences, rubble: block walking, not projectiles | planned |
 | 8 | interactable | chests, doors, shrines, NPC talk zones | planned |
 | 9 | pickup | dropped loot, gold, potions | planned |
@@ -54,16 +54,61 @@ To add when the first ability needs them:
 - `tether(anchor, max_length)`: free movement clamped to a radius around the anchor
 - `orbit(anchor, radius, angular_speed, dir_sign, max_angle)`: the swing
 
-Knockback into a wall reads the surface tags: `bounce` ricochets, `wall_slam` stuns.
+Movement methods emit `Events.unit_impacted(ImpactContext)` when a displacement hits a wall or a unit. Wall-slam stuns are `ReactionRule`s (trigger `IMPACT`, surface tag `wall_slam`), as in the CONVENTIONS.md worked example. Whether `bounce` is movement or an effect is an open question.
+`dash()` and `displace()` move with `move_and_slide()`, so a dash or knockback into a wall slides along it (like walking) instead of stopping; only a near-head-on hit stops.
 Each movement method defines how it starts, what ends it, and what happens on hitting a wall or a unit. A stun ends any of them immediately. They emit the existing `displacement_finished` signal.
 
 ## Interactables
 Scripts go in `res://scripts/interactables/`, scenes in `res://scenes/interactables/`.
 - `interaction_tags: Array[StringName]`, e.g. `&"pullable"`, `&"breakable"`, `&"ignitable"`
-- `on_ability_hit(caster: Unit, ability: Ability, ctx: CastContext)`
+- `on_hit(ctx: HitContext)`: any hit, so basic attacks, hazards and knockback can break or trigger things too, not only abilities. `ctx.ability` is null when no ability caused the hit.
 - `on_interact(player: Player)` for the F key
 
 Abilities check tags; they never check class names.
+
+## Pits and movement types *(proposed; movement step 8 builds this)*
+- `Unit` gets a movement type enum, `enum MovementType { GROUND, FLYING }` with `@export var movement_type`. FLYING ignores the pit layer and never falls.
+- One rule for all units: any displacement (dash, knockback, blink, swing) that ends with the unit's feet **8 px or more** inside a pit makes it fall. Less than 8 px snaps it back to the edge.
+- **The player falls:** takes 5% of max health (can't drop below 1 health), then respawns on the last safe tile (the last floor tile the player stood fully on).
+- **An enemy falls:** it dies, the kill goes to whoever caused the displacement (Kill credit), and its drops land on the nearest floor tile. **Bosses never fall;** they snap to the edge.
+- Pit tiles have no navigation polygon, so enemies never path into them. (Today `Room._bake_navigation()` only carves colliders on layer 1 from the `navigation_source` group, so step 8 has to add the pits to that bake.)
+- Pits get their own TileMapLayer, `Pits`, with physics on layer 6. Floor and walls stay on `Tiles`.
+
+## Hazards *(proposed)*
+A `Hazard` is an Area2D scene on layer 10 with:
+- `tags` (e.g. `&"oil"`, `&"fire"`)
+- `source`: the Unit that made it, or null = the environment
+- team filter (default: affects everyone)
+- `tick_interval` = 0.5 s
+- `lifetime` (-1 = permanent)
+- `arm_time`: a telegraph before it activates. Default 0.5 s for enemy- and trap-made hazards, 0 for player-made ones.
+
+Entering applies its status; re-entering refreshes it instead of stacking. It emits `hazard_entered` / `hazard_exited`. Timed traps are Hazards with an on/off cycle.
+
+## Knockback *(proposed)*
+- New stat `knockback_resistance`, 0–1, scales displacement distance by (1 − value). Bosses have 1. (Row in STATS.md.)
+- A displaced unit that hits another unit emits `unit_impacted` with that unit as the collider, so rules can make chain hits.
+- `ImpactContext` carries the impact speed, so rules can set thresholds.
+
+## Reaction triggers *(proposed; the full spec goes in COMBAT.md)*
+`IMPACT`, `HIT`, `HAZARD_ENTERED`, `HAZARD_EXITED`, `STATUS_APPLIED`, `UNIT_DIED`, `HAZARD_OVERLAP` (hazard meets hazard, e.g. fire + oil). Also listed as planned in CONVENTIONS.md, Extension pattern 1.
+
+## Destructibles *(proposed)*
+- `hits_to_break` (default 1). Any `HitContext` counts.
+- Drops come from a loot table (LOOT.md).
+- Navigation updates in their area when they break.
+- A grapple hooked to one detaches when it breaks.
+
+## Kill credit *(proposed)*
+- `HitContext`, `ImpactContext` and `Hazard` all carry a source Unit.
+- When the environment kills something (pit, wall slam, hazard), credit goes to whoever caused the displacement or owns the hazard; null = the environment.
+- On-kill effects and drops use this.
+
+## 3/4 depth *(proposed)*
+- The `Entities` node is y-sorted (already true in `sandbox.tscn`, and `room.gd` expects it).
+- Colliders sit at the feet (the player's already does).
+- Units behind tall walls get a silhouette (later).
+- `low_obstacle` never blocks projectiles.
 
 ## Ability spec template (matches the fields on `Ability`)
 ```
@@ -101,3 +146,15 @@ Detach: dash along the tangent, 300 u (96 px) over 0.15 s
 - Reusable spatial logic goes in `WorldQuery`, not in the ability.
 - Every new query or movement method gets a debug draw behind `debug_draw`.
 - Call out edge cases: tile corners, thin walls, an anchor very close to the unit, a hooked wall getting destroyed, swinging over a pit.
+
+## Open questions
+- **Bounce:** is `bounce` a movement behavior (MovementComponent reflects the displacement) or a GameplayEffect?
+- **Readability (art):** how grappleable, `wall_slam` and destructible surfaces look different from plain walls. Every hazard and trap shows a telegraph during its `arm_time`.
+- **Doors, room locking and room transitions** belong in DUNGEONS.md.
+- *(proposed)* Pits and movement types: GROUND/FLYING, the 8 px fall rule, player fall (5% max health, min 1, respawn on last safe tile), enemy fall (dies, kill credit, drops to nearest floor; bosses snap), no nav on pits, `Pits` TileMapLayer on layer 6.
+- *(proposed)* Hazards: fields and defaults (layer 10, source, team filter, 0.5 s tick, lifetime, arm_time 0.5 s / 0 s), refresh on re-entry, timed traps as on/off Hazards.
+- *(proposed)* Knockback: `knockback_resistance` 0–1 (bosses 1), unit-on-unit impacts, impact speed on ImpactContext.
+- *(proposed)* Reaction triggers: the seven listed above.
+- *(proposed)* Destructibles: `hits_to_break` 1, any HitContext, loot table drops, nav update, grapple detaches.
+- *(proposed)* Kill credit: source Unit on HitContext, ImpactContext and Hazard; environment kills credit the displacer or hazard owner.
+- *(proposed)* 3/4 depth: y-sorted Entities, colliders at the feet, silhouettes later, `low_obstacle` never blocks projectiles.

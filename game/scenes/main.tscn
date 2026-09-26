@@ -8,6 +8,7 @@
 script = ExtResource("1_main")
 
 [node name="Camera" type="Camera2D" parent="."]
+process_callback = 0
 script = ExtResource("3_camera")
 
 [node name="HUD" parent="." instance=ExtResource("2_hud")]

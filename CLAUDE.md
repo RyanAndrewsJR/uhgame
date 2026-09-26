@@ -21,7 +21,7 @@ When a request is ambiguous, prioritize responsiveness and feel over realism.
 
 ## Tech facts
 - **Godot 4.7.2**, GDScript, statically typed. Use Godot 4 APIs only. If you're unsure whether an API changed in 4.7, say so.
-- 2D top-down 3/4 view. Pixel art: viewport **640×360** (window 1280×720, `canvas_items` stretch), nearest filtering, snap to pixel.
+- 2D top-down 3/4 view. Pixel art: viewport **640×360** (window 1280×720, `canvas_items` stretch), nearest filtering, no transform snapping, 2D physics interpolation on, physics at 60 Hz.
 - Tiles are **32 px**. Rooms use `TileMapLayer` with `res://tilesets/dungeon_tileset.tres`.
 - Single-player.
 - Pathing for AI uses `NavigationServer2D` (in `MovementComponent`).
@@ -52,12 +52,12 @@ New subfolders inside these are fine. Ask before adding a new top-level folder.
 - `Unit` (CharacterBody2D) is the shared base. `Player` and `Enemy` extend it. **Don't go deeper:** champions are data plus ability scripts, never subclasses of Player.
 - Behavior lives in child components: `HealthComponent`, `AutoAttackComponent`, `MovementComponent`, `AbilityComponent`, `DashComponent` (player), `Hitbox`, `Hurtbox`.
 - `UnitStats` Resource = base stats. `Ability` Resource subclasses = one script per ability plus a .tres for its numbers.
-- `MovementComponent` already has move locks by id, speed modifiers, `displace()`, and `dash()` (passes through units, stops at walls).
+- `MovementComponent` already has move locks by id, speed modifiers, `displace()`, and `dash()` (passes through units; both use `move_and_slide()`, so they slide along walls instead of stopping).
 
 ## Conventions
 - **Data lives in Resources** (.tres); logic lives in scripts. Tuning never needs code edits. Every tunable is `@export`.
 - **Signals go up, calls go down.** Cross-system events go through an `Events` autoload (not created yet; create it the first time one is needed).
-- Gameplay motion happens in `_physics_process`.
+- Gameplay motion happens in `_physics_process`. Physics interpolation is on, so a teleport (respawn, blink) must call `reset_physics_interpolation()` on the moved node.
 - `snake_case` files and functions, `PascalCase` classes and nodes, `StringName` ids (`&"move_speed"`).
 - Debug visuals sit behind an `@export var debug_draw: bool` (existing code uses `debug_draw_path` in MovementComponent; that's fine).
 
@@ -98,17 +98,18 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 
 ## Current status
 <!-- OVERWRITE this whole section at the end of each session (Now / Last 3 done / Next). Never append. -->
-- **Now:** Waiting on Ryan's play test of movement steps 1 and 3–7 in the sandbox. Close Godot fully and reopen it before testing.
+- **Now:** Waiting on Ryan's play test of Feel pass F1 at 144 Hz (walk along the sandbox's long wall, dash back and forth), plus movement steps 1 and 3–7, and on the *(proposed)* items from the docs cleanup (pits, hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. Movement step 7: input buffer (0.15 s, newest press wins, pauses during dash/cast), `Ability.dash_cancelable`, `attack_pressed(dash_strike)` hook.
-  2. Cleanup: input map and LoL-era systems tables moved to MOVEMENT.md; VISION.md added to the Docs index.
-  3. Movement step 6: `DashComponent` (128 px / 0.18 s, i-frames, charges, end-lag, chaining); `aim_lead` 64 px.
-- **Next:** Movement step 8 (pits: needs the pit collision layer, WORLD_INTERACTION.md) → STATS.md → COMBAT.md → ABILITIES.md → LOOT.md → DUNGEONS.md
+  1. Feel pass F1: physics interpolation on, transform snapping off, camera in physics process mode, start-up camera slide fixed. Measured shake at 144 fps: 5.4 → 0.04 px.
+  2. Feel pass planned: F1–F3 added to MOVEMENT.md, before step 8.
+  3. Docs cleanup (no code): naming fixes, `on_hit(HitContext)`, `unit_impacted`, STATS step 4 read list, proposed WORLD_INTERACTION sections.
+- **Next:** Feel pass F2 → F3 → Movement step 8 (pits) → STATS build steps (STATS.md is already written) → then the Future docs in their listed order.
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.
 - HUD ability bar labels the W slot "W" though it's on right mouse (the label comes from the slot name).
 - Header comments in `game_camera.gd` ("Hold Space") and `player.gd` (right-click / A / S controls) describe the old keys.
+- The `MovementComponent.dash()` doc comment says it "stops at walls"; it slides along them (`move_and_slide()`).
 
 ## Decisions
 All decisions, grouped by system with date and why, are in `docs/DECISIONS.md`.

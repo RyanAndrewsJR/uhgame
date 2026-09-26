@@ -6,7 +6,8 @@
 
 ## Current code
 - `UnitStats` (`res://scripts/data/unit_stats.gd`): one .tres per unit in `res://data/units/`. Fields: display_name, max_health, attack_damage, attack_range, base_attack_speed, attack_windup, attack_speed_cap, ability_haste, move_speed, gameplay_radius, pathing_radius, dash_charges.
-- Code reads `unit.stats.<field>` directly, e.g. in `Unit._ready()` and `Ability.get_damage()`.
+- Code reads `unit.stats.<field>` directly. Every read is listed in Build order, step 4.
+- `AutoAttackComponent` has its own `bonus_attack_speed` var (nothing writes it yet): a second modifier store, like MovementComponent's speed modifiers.
 - `MovementComponent` has its own speed modifiers: flat, then additive %, then **only the strongest slow**, then soft caps. After MOVEMENT.md step 1 the soft cap thresholds are `@export`s on MovementComponent, scaled ×560/345 for Hades pace (357 / 674 / 795 instead of LoL's 220 / 415 / 490).
 - `HealthComponent` holds current and max health.
 - All values are in **LoL units** (see CLAUDE.md, `Units.to_px()`).
@@ -33,7 +34,7 @@ Existing `UnitStats` fields keep their names. New ones get added to `UnitStats`.
 | `resource_regen` | 6 | 0 / - | per second, new |
 | `attack_damage` | 60 | 0 / - | exists |
 | `ability_power` | 0 | 0 / - | new |
-| `attack_speed` | from `base_attack_speed` (0.65) | 0.2 / `attack_speed_cap` (2.5) | % modifiers = LoL bonus attack speed |
+| `attack_speed` | base = `UnitStats.base_attack_speed` (0.65) | 0.2 / the unit's `attack_speed_cap` (2.5) | % modifiers = LoL bonus attack speed. `attack_speed_cap` is a per-unit maximum for this stat, not a stat |
 | `crit_chance` | 0 | 0 / 1 | new |
 | `crit_damage` | 1.5 | 1 / - | multiplier, new |
 | `armor` | 30 | - / - | new, formula in COMBAT.md |
@@ -44,11 +45,12 @@ Existing `UnitStats` fields keep their names. New ones get added to `UnitStats`.
 | `attack_range` | 175 | - / - | exists, LoL units edge-to-edge |
 | `life_steal` | 0 | 0 / 1 | new |
 | `tenacity` | 0 | 0 / 0.8 | reduces crowd control duration, new |
+| `knockback_resistance` | 0 | 0 / 1 | *(proposed)* displacement distance × (1 − value); bosses 1. New, WORLD_INTERACTION.md |
 | `pickup_radius` | 200 | - / - | LoL units (64 px), new |
 | `magic_find` | 0 | 0 / - | new, LOOT.md |
 | `gold_find` | 0 | 0 / - | new |
 
-These are **not stats** (they're fixed identity fields and stay plain on UnitStats): `display_name`, `attack_windup`, `gameplay_radius`, `pathing_radius`.
+These are **not stats** (they're fixed identity fields and stay plain on UnitStats): `display_name`, `attack_windup`, `attack_speed_cap` (the max for `attack_speed`), `gameplay_radius`, `pathing_radius`.
 To add a stat: add a row here, a field to UnitStats, and an entry in the registry. Unknown keys cause a `push_error`, never a silent 0.
 
 ## Modifier math
@@ -61,7 +63,7 @@ final = clamp(final, min, max)          # integer stats round after the clamp
 
 **move_speed special rules** (moved over from MovementComponent): negative PERCENT_ADD modifiers are slows, and **only the strongest slow applies**. The soft caps are applied last. The caps carry over **scaled, not unchanged**: the thresholds are the scaled, tunable values from MovementComponent (defaults 357 / 674 / 795, i.e. LoL's 220 / 415 / 490 × 560/345), computed as "threshold + excess × factor" (factors 0.5 / 0.8 / 0.5). A unit whose MovementComponent overrides the thresholds (slimes keep the LoL values 220 / 415 / 490) keeps those overrides after the migration.
 
-A modifier has: `stat: StringName`, `type`, `value: float`, `source_id: StringName` (e.g. `&"item_4821"`, `&"buff_haste"`), and `scope: StringName` (empty = normal stat; see below).
+A modifier has: `stat: StringName`, `type`, `value: float`, `source_id: StringName` (e.g. `&"item_4821"`, `&"status_haste"`), and `scope: StringName` (empty = normal stat; see below).
 
 ## Items that change abilities
 | Kind | Example | Where |
@@ -71,7 +73,7 @@ A modifier has: `stat: StringName`, `type`, `value: float`, `source_id: StringNa
 
 ### Scoped modifiers
 - Ability params are the `@export` numbers on `Ability` (`cooldown`, `cast_time`, `cast_range`, `base_damage`, `ad_ratio`...). Subclasses may add more (`projectile_count`, `radius`, `duration`).
-- Each Ability gets `@export var id: StringName` and `@export var tags: Array[StringName]` (e.g. `&"projectile"`, `&"movement"`, `&"ultimate"`).
+- Each Ability gets `@export var id: StringName` (`<champion>_<ability>`, no slot, e.g. `&"knight_lunge"`; CONVENTIONS.md) and `@export var tags: Array[StringName]` (e.g. `&"projectile"`, `&"movement"`, `&"ultimate"`).
 - A modifier's `scope` decides what it affects:
   - `&""`: a normal stat
   - `&"ability:knight_lunge"`: one ability; `stat` = the param name
@@ -114,7 +116,22 @@ Equipping an item gives its modifiers to `StatsComponent` and its augments to `A
 1. StatModifier and the registry.
 2. StatsComponent with the math, move_speed rules, caching, and `stat_changed`. Include a test scene that adds/removes modifiers and prints the results.
 3. Add StatsComponent to player.tscn and slime.tscn. `Unit._ready()` wires it up.
-4. **Migrate reads:** Unit, Ability.get_damage, AutoAttackComponent, and MovementComponent use `get_stat`. Move MovementComponent's speed modifiers into StatsComponent (`add_speed_modifier` becomes a thin wrapper, so existing callers keep working).
+4. **Migrate reads.** Every `stats.` read in the code today:
+
+   | File | Reads | After step 4 |
+   |---|---|---|
+   | `units/unit.gd` `_ready()` | `max_health`, `move_speed` | `get_stat` |
+   | `units/unit.gd` `get_gameplay_radius_px()`, `get_pathing_radius_px()` | `gameplay_radius`, `pathing_radius` | stay on UnitStats (not stats) |
+   | `components/auto_attack_component.gd` `get_attack_speed()` | `base_attack_speed`, `attack_speed_cap` (+ its own `bonus_attack_speed`) | `get_stat(&"attack_speed")`; the cap is the stat's per-unit max |
+   | `components/auto_attack_component.gd` `get_windup_time()` | `attack_windup` | stays on UnitStats (not a stat) |
+   | `components/auto_attack_component.gd` `get_range_px()` | `attack_range` | `get_stat` |
+   | `components/auto_attack_component.gd` `_land_attack()` | `attack_damage` | `get_stat` |
+   | `components/ability_component.gd` `get_cooldown_duration()` | `ability_haste` | `get_stat` |
+   | `components/dash_component.gd` (max charges) | `dash_charges` | `get_stat` |
+   | `abilities/ability.gd` `get_damage()` | `attack_damage` | `get_stat` |
+   | `main.gd` `_process()` (HUD info line) | `player.stats.attack_damage`, `attack_range` | `get_stat` |
+
+   Also move MovementComponent's speed modifiers into StatsComponent (`add_speed_modifier` becomes a thin wrapper, so existing callers keep working). MovementComponent itself reads no `stats.` field; `Unit._ready()` hands it `move_speed`.
 5. ResourceComponent, plus the new stat fields on UnitStats.
 6. Scoped modifiers, `get_ability_param`, and `id`/`tags` on Ability. Route cooldowns through it.
 7. F3 debug overlay (`res://scripts/ui/stat_overlay.gd`): every stat, its base, final value, and each modifier with its source.
@@ -127,3 +144,5 @@ Equipping an item gives its modifiers to `StatsComponent` and its augments to `A
 - Enemy scaling by dungeon depth via modifiers (source `&"dungeon_scaling"`)? Proposed: yes.
 - Champion-specific items dropping for other champions? Proposed: no (LOOT.md).
 - Does the same augment from two items stack? Proposed: no (ABILITIES.md).
+- *(proposed)* `knockback_resistance` stat, 0–1, scales displacement distance; bosses 1 (WORLD_INTERACTION.md, Knockback).
+- What happens to `AutoAttackComponent.bonus_attack_speed` in step 4 (wrapper that adds a modifier, or removed after confirming)? Decide then.

@@ -77,6 +77,7 @@ The environment is both a **weapon** and a **traversal tool**.
 ## Scope
 - **In:** single-player, 2D pixel art at 640×360, multiple champions (Knight first), hand-made rooms stitched into dungeons, gear with affixes and augments.
 - **Out for now:** multiplayer/co-op, PvP, open world, procedural room geometry. *(assumed)*
+- **Out for now (decided):** gamepad. Keyboard and mouse only for now.
 
 ## Big open questions (answer these before the matching doc is written)
 1. **Run structure:** a Hades-style roguelite (gear and power reset each run, with meta-progression between runs), Diablo-style persistent character (you keep gear and level forever), or a hybrid? This affects LOOT, DUNGEONS, PROGRESSION, and STATS (leveling).

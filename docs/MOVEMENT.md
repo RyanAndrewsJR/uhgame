@@ -15,6 +15,11 @@
 
 Visuals are Polygon2D placeholders (`Body`, `SwordPivot`). The plan is **8-direction sprites**.
 
+**Player size** (`player.tscn`, `knight.tres`):
+- Collider: `CircleShape2D`, radius **11 px** (22 px wide), centered on the feet (the Player's origin). Set in the scene, not from stats. Collision layer 2, mask 7 (world, player, enemies).
+- `gameplay_radius` = 65 u ≈ 20.8 px: ranges, clicking on the unit, the hover ring. `pathing_radius` = 35 u ≈ 11.2 px: `MovementComponent.radius_px` (steering).
+- A 1-tile corridor is **32 px** wide, which leaves 5 px on each side of the collider.
+
 ## Target feel
 Instant and precise, never floaty. The player steers directly with almost no momentum. Treat the numbers as starting points.
 
@@ -28,9 +33,11 @@ Instant and precise, never floaty. The player steers directly with almost no mom
 | Walls | slide smoothly, never catch on tile corners |
 | Other units | the player collides but is **never steered/deflected**; steering stays for enemies |
 
+**Corner forgiveness** *(proposed, build later)*: while walking, if a tile corner blocks the player by 6 px or less on the side, nudge them around it at walk speed.
+
 ## Input and legacy systems
 ### Input map
-Only keys that physically collided with WASD changed. Action names never change.
+Only keys that physically collided with WASD changed. Action names never change. Keyboard and mouse only for now; no gamepad.
 
 | Action | Key | Notes |
 |---|---|---|
@@ -85,13 +92,13 @@ Only keys that physically collided with WASD changed. Action names never change.
 
 ## Dash
 - Space calls `DashComponent.try_dash()` from PlayerInput.
-- 128 px (`dash_distance` = 400 u) over `dash_duration` = 0.18 s at constant speed, through `MovementComponent.dash()` (passes through units, stops at walls).
+- 128 px (`dash_distance` = 400 u) over `dash_duration` = 0.18 s at constant speed, through `MovementComponent.dash()` (passes through units; `move_and_slide()`, so it slides along walls instead of stopping, and only a near-head-on dash stops).
 - Direction: the held input direction; with no input, `facing`.
 - I-frames for the whole dash via `Unit.add_invulnerability(&"dash")`: `take_damage()` and Hurtbox hits (damage and knockback) are ignored. This sits on Unit, not only the Hurtbox, because enemy basic attacks call `take_damage()` directly. The body turns half see-through.
 - Charges: `UnitStats.dash_charges` (default 1). One charge returns every `charge_recharge_time` = 0.35 s, one at a time, counted only while not dashing.
 - End-lag: `end_lag` = 0.05 s of locked walking after a dash. A dash can chain in during end-lag if a charge is left.
 - Not allowed while stunned or already displaced (dashing, knockback), or while casting unless the ability is `dash_cancelable` (then the dash cancels the cast). A press that isn't allowed is buffered (see below). Starting a dash cancels a basic attack windup and a queued walk-into-range cast.
-- Crosses pits (step 8). If the dash ends over a pit: small damage, then respawn at the last safe tile.
+- Crosses pits (step 8). Ending over a pit follows the fall rule in WORLD_INTERACTION.md, Pits and movement types *(proposed: 8 px or more inside falls, less snaps back; the player takes 5% of max health, min 1 left, and respawns on the last safe tile)*.
 
 ## Input buffering and cancels
 - **Buffer** (`PlayerInput`, `buffer_time` = 0.15 s): a `dash`, `attack` or Q/W/E/R press that isn't allowed yet fires as soon as it is.
@@ -123,8 +130,42 @@ Only keys that physically collided with WASD changed. Action names never change.
    | `IDLE` | none of the above |
 
    While dead, the state stops updating.
-4. **Camera:** `aim_lead` = 64 px (0 = off). While locked, the camera leans toward the mouse by `aim_lead` × the mouse's distance from the screen center (as a fraction of half the screen, capped at 1). Screen space, so camera movement doesn't feed back into it; position smoothing eases it in. Holding C centers with no lead. Room bounds still clamp, so there's no sideways lead near a room's left or right edge.
+4. **Camera:** `aim_lead` = 64 px (0 = off). While locked, the camera leans toward the mouse by `aim_lead` × the mouse's distance from the screen center (as a fraction of half the screen, capped at 1). Screen space, so camera movement doesn't feed back into it; position smoothing eases it in. Holding C centers with no lead. Room bounds still clamp, so there's no sideways lead near a room's left or right edge. The camera runs in physics process mode because physics interpolation is on (F1).
 5. **Signals:** `Player.state_changed(from, to)`; `DashComponent.dash_started(direction)`, `dash_ended`, `charges_changed(charges, max)` (`debug_draw` on DashComponent shows charge pips); `PlayerInput.attack_pressed(dash_strike)`; `AbilityComponent.cast_cancelled(slot, ability)`. Planned: `fell_in_pit` (step 8).
+
+## Feel pass
+Movement works but feels robotic: displacements run at constant speed and there's no on-screen feedback. Goal: closer to Hades. Dashes and knockback burst and then ease out, frames are smooth, and movement has visible weight. Every number here is a starting point and must be an `@export` or live in a .tres. Runs before step 8 (see Build order). For every F step, the Knight's 4 abilities, enemies chasing, and the HUD still work.
+
+### F1: Smooth frames
+- **Problem:** physics runs at 60 Hz with no physics interpolation, `snap_2d_transforms_to_pixel` is on, and the camera uses position smoothing (speed 10). At 179 px/s the player moves about 3 px per tick, which stutters, especially on monitors above 60 Hz.
+- **Scope:** investigate and recommend one option among 2D physics interpolation, the camera's process callback, the physics tick rate, and pixel snapping.
+- **Done means:** walking along the sandbox's long wall and dashing back and forth show no visible stutter at 60 Hz or at Ryan's monitor refresh rate (144 Hz), and the pixel art stays crisp.
+- **Built** (awaiting play test):
+  - `project.godot`: `physics/common/physics_interpolation` on; `rendering/2d/snap/snap_2d_transforms_to_pixel` off. Physics stays at 60 Hz. (Godot turns `physics_jitter_fix` off by itself when interpolation is on.)
+  - Camera: `process_callback` = Physics on the Camera node in `main.tscn`. Godot forces this when interpolation is on and prints a warning otherwise. The follow logic in `game_camera.gd` stays in `_process`; moving it to `_physics_process` measured no smoother.
+  - `GameCamera.snap_to_target()` calls `reset_physics_interpolation()` before `reset_smoothing()`, and again after the first physics tick. Without it the camera slides in from the top-left corner at every scene start.
+  - **Teleports:** anything that moves a node instantly (respawn, blink) must call `reset_physics_interpolation()` on it, or it visibly slides to the new spot.
+  - Measured with Godot's movie recorder, walking at full speed (on-screen shake of the player, screen px; 2 screen px = 1 game px): before 5.4 at 144 fps (the player moved on only 42% of frames); after 0.04 at 60, 75, 144, 165 and 240 fps. The world scrolls with about 0.2–0.9 px of unevenness, which is rounding to whole screen pixels. Keeping snapping on with interpolation left a 0.86 px shake at 144 fps.
+  - Sprites can now sit half a game pixel off the tile grid. They stay sharp (nearest filtering; no blended colors in test captures).
+  - Known limit: the screen shows each physics state up to one tick (≤16.7 ms) later than before.
+
+### F2: Displacement curves (ease out instead of constant speed)
+- **MovementComponent:** a displacement follows a progress `Curve` (x = time 0–1, y = share of the distance covered 0–1). Each physics frame it moves `total_offset × (p(now) − p(previous frame))` through `move_and_slide()`. The total distance stays exactly velocity × duration, so current distances don't change; only the speed profile does.
+- **Additive API:** an optional `curve: Curve = null` parameter on `displace()` and `dash()`. `null` = linear, today's behavior.
+- **Curves** are .tres files in `data/curves/` (`curve_dash.tres`, `curve_knockback.tres`), editable in the Inspector's curve editor. Starting shapes: dash = ease-out quad (peak speed about 2× average, roughly 1420 px/s on the first frame, easing to 0); knockback = ease-out cubic (hard burst, fast settle).
+- **Knockback default:** MovementComponent gets a `knockback_curve` export, used when `displace()` is called without a curve. The F2 plan lists which existing callers that changes.
+- **Lunge:** a curve export on its Ability, set to `curve_dash.tres`. The F2 plan says whether Lunge's hit logic depends on constant speed.
+- **Dash exit:** a `carry_into_run` export on DashComponent (default true). If a direction is held when the dash ends, walking starts at full speed instead of ramping up from 0. The F2 plan recommends how this interacts with `end_lag` (0.05 s of locked walking after a dash).
+- **Debug:** `debug_draw` on MovementComponent draws a graph of the last 1 s of speed (px/s) above the unit.
+- Stuns, walls and `displacement_finished` behave exactly as they do now.
+- **Done means:** the dash still covers exactly 128 px (the cracked tiles); the speed graph shows a burst and then an ease-out; there's no visible pause between the dash and running; knockback on slimes bursts and then settles.
+
+### F3: Movement feedback (VFX only, never changes gameplay state)
+- **Dash:** stretch the Body along the dash direction (1.25 × 0.8) for 0.06 s, then ease back; squash it slightly (0.9 × 1.1) for 0.05 s when the dash ends; spawn 3–4 afterimages about 0.03 s apart, each fading over 0.15 s; a small dust puff at the start.
+- **Walking:** a 1 px bob at a rate tied to speed, and a dust puff on a sharp direction reversal (more than 135°).
+- **Knockback:** any displaced unit stretches along the push direction, scaled by its current speed.
+- **Structure:** one reusable node in `scripts/vfx/`, named per CONVENTIONS. It listens to MovementComponent and DashComponent signals, has an on/off toggle, and exports every value. It must work on today's Polygon2D placeholders and on 8-direction sprites later. The F3 plan says whether pixel snapping makes the squash look jittery at 640×360.
+- **Done means:** the effects are visible but never hide where the player actually is, and turning the toggle off gives exactly today's visuals.
 
 ## Build order (one step per request)
 1. **Built** (awaiting play test): input map + WASD walking, done together (after the input map alone the player had no walk input). PlayerInput, `set_input_direction()`, `use_steering = false` on the player, Knight 560 move speed, scaled soft cap exports, LoL threshold overrides on `slime.tscn`.
@@ -134,7 +175,8 @@ Only keys that physically collided with WASD changed. Action names never change.
 5. **Built** (awaiting play test): player states.
 6. **Built** (awaiting play test): dash with charges, i-frames, end-lag and chaining.
 7. **Built** (awaiting play test): input buffer, dash cancels (`Ability.dash_cancelable`), and the dash-strike hook.
-8. Pit crossing and fall/respawn (needs the pit layer, see WORLD_INTERACTION.md).
+- **Feel pass F1 → F2 → F3** (see Feel pass) comes here, before step 8. F1 is built (awaiting play test).
+8. Pit crossing and fall/respawn (needs the pit layer; spec in WORLD_INTERACTION.md, Pits and movement types, still *proposed*). The respawn is a teleport: call `reset_physics_interpolation()` on the player and snap the camera (see F1).
 
 **Done means:** no errors; WASD works in play mode; the Knight's 4 abilities, enemies chasing, and the HUD still work as before. Exception (decided): the Knight's basic attacks stay dormant until COMBAT gives `attack` a reader.
 If a step needs removing or rewriting existing code, stop and explain why before doing it.
@@ -149,3 +191,7 @@ If a step needs removing or rewriting existing code, stop and explain why before
 - **`attack` vs `select` on left mouse:** both are bound to left mouse. No double-fire yet: `select` only acts while attack-move is armed (unbound A key), and `attack` only emits `attack_pressed`, which nothing listens to. Resolve in the COMBAT work. PlayerInput reads `attack` from the Input state, so a click on the ability bar also counts as an attack press; the bar's `MOUSE_FILTER_STOP` doesn't block that.
 - **`cast_mode`:** hold-to-aim (`QUICK_WITH_INDICATOR`, current) vs `QUICK`. Try `QUICK` in play testing.
 - Should the vertical speed be scaled (e.g. 0.9×) for the 3/4 view? Default: no.
+- **Movement during basic attacks** (root, slow, or a step forward) and **during casts** (slow %). Decided in COMBAT.
+- **Reacting to being hit:** knockback distance, and how long the player loses control. Decided in COMBAT.
+- *(proposed)* Corner forgiveness: 6 px side tolerance, nudge at walk speed (see Target feel).
+- *(proposed)* Pit falls for the dash: see WORLD_INTERACTION.md, Pits and movement types.

@@ -35,7 +35,20 @@ func shake(amount: float) -> void:
 func snap_to_target() -> void:
 	if target:
 		global_position = _clamp_to_bounds(target.global_position)
+		# Physics interpolation is on (MOVEMENT.md F1): without these resets the
+		# camera slides in from its old spot. The reset must come before
+		# reset_smoothing(), and once more after the first physics tick.
+		reset_physics_interpolation()
 		reset_smoothing()
+		_reset_after_physics_tick.call_deferred()
+
+
+func _reset_after_physics_tick() -> void:
+	await get_tree().physics_frame
+	if target:
+		global_position = _clamp_to_bounds(target.global_position)
+	reset_physics_interpolation()
+	reset_smoothing()
 
 
 func _unhandled_input(event: InputEvent) -> void:
