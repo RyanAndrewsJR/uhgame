@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://scripts/components/auto_attack_component.gd" id="5_attack"]
 [ext_resource type="Resource" path="res://data/units/slime.tres" id="6_stats"]
 [ext_resource type="Script" path="res://scripts/ui/health_bar.gd" id="7_bar"]
+[ext_resource type="Script" path="res://scripts/vfx/movement_vfx_component.gd" id="8_movement_vfx"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_body"]
 radius = 14.0
@@ -80,3 +81,8 @@ collision_mask = 1
 position = Vector2(0, -32)
 script = ExtResource("7_bar")
 width = 30.0
+
+[node name="MovementVFXComponent" type="Node2D" parent="."]
+script = ExtResource("8_movement_vfx")
+walk_bob_px = 0.0
+reversal_dust = false

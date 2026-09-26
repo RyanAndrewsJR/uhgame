@@ -99,17 +99,18 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 
 ## Current status
 <!-- OVERWRITE this whole section at the end of each session (Now / Last 3 done / Next). Never append. -->
-- **Now:** Waiting on Ryan's play test of Feel pass F1, F2 and F4 at 144 Hz, of movement steps 1 and 3–7, and on the *(proposed)* items from the docs cleanup (pits, hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of Feel pass F1–F4 at 144 Hz, of movement steps 1 and 3–7, and on the *(proposed)* items from the docs cleanup (pits, hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. Feel pass F4: camera aim lead rework (dead zone 0.35, ease-in curve, 0.6 vertical, own easing 4.0/s, full only while aiming/casting + 0.75 s hold, optional walk lean, `debug_draw`); after play testing: `aim_lead` 64 → 80 px, response curve linear, idle scale 0.5. Aim zoom parked.
-  2. Feel pass F2: displacement curves (`curve_dash`, `curve_knockback`), `carry_into_run`, speed graph.
-  3. Feel pass F1: physics interpolation on, transform snapping off, camera in physics process mode, start-up camera slide fixed.
-- **Next:** Feel pass F3 → Movement step 8 (pits) → STATS build steps (STATS.md is already written) → then the Future docs in their listed order.
+  1. Feel pass F3: `MovementVFXComponent` on the Player and slimes (dash stretch/squash, silhouette afterimages, dust, speed-tied 1 px bob, reversal dust, knockback stretch; draw-time only, toggle off = pixel-identical).
+  2. Feel pass F4: camera aim lead rework; after play testing `aim_lead` 80 px, linear response, idle scale 0.5. Aim zoom parked.
+  3. Feel pass F2: displacement curves (`curve_dash`, `curve_knockback`), `carry_into_run`, speed graph.
+- **Next:** Movement step 8 (pits) → STATS build steps (STATS.md is already written) → then the Future docs in their listed order.
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.
 - HUD ability bar labels the W slot "W" though it's on right mouse (the label comes from the slot name).
 - Header comments in `game_camera.gd` ("Hold Space") and `player.gd` (right-click / A / S controls) describe the old keys.
+- Lunge's afterimages (`VFX.afterimage`, `z_index` -1) draw under the floor tiles, so they never show.
 
 ## Decisions
 All decisions, grouped by system with date and why, are in `docs/DECISIONS.md`.
