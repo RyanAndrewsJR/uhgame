@@ -41,6 +41,9 @@
 - **Surface**: a wall or solid body with `SurfaceTags`. **Hazard**: an area on the floor with tags that affects units in it (oil, fire, spikes, ice).
 - **Interactable** (F key or ability-reactive object), **Pickup** (loot on the ground).
 - **Item**, **item base**, **affix**, **rarity** (LOOT.md). **Room**, **run**, **dungeon** (DUNGEONS.md).
+- **Swing**: one hit of the basic attack combo (windup, hit, recovery). **Combo**: the chain of swings; **finisher**: its last swing. A swing that hits nothing **whiffs**.
+- **Telegraph**: the floor shape that warns of an enemy attack and fills up until the hit.
+- **Proc**: a hit caused by another hit (on-hit damage, reaction damage). It's tagged `proc` and never triggers on-hit.
 - **VFX** means visuals only. It never changes gameplay state.
 
 If you need a new term, add it here first.
@@ -55,7 +58,7 @@ Anything that can take part in an interaction carries tags:
 - units (their active status effects add tags like `oiled`, `burning`, `displaced`)
 
 Cross-system interactions are **`ReactionRule`** Resources: *trigger* + *required tags* → list of **`GameplayEffect`**s.
-Planned triggers *(proposed; full spec in COMBAT.md, list in WORLD_INTERACTION.md)*: `IMPACT`, `HIT`, `HAZARD_ENTERED`, `HAZARD_EXITED`, `STATUS_APPLIED`, `UNIT_DIED`, `HAZARD_OVERLAP` (hazard meets hazard, e.g. fire + oil).
+Planned triggers *(spec in COMBAT.md, ReactionRule; list also in WORLD_INTERACTION.md)*: `IMPACT`, `HIT`, `HAZARD_ENTERED`, `HAZARD_EXITED`, `STATUS_APPLIED`, `UNIT_DIED`, `HAZARD_OVERLAP` (hazard meets hazard, e.g. fire + oil).
 Adding an interaction should mean adding a `.tres`. Code changes are only needed for a new trigger type or a new GameplayEffect type.
 
 ### 2. Context objects at every seam
@@ -87,7 +90,9 @@ Example: when `StatusComponent` arrives, `Unit.apply_stun()` and `add_speed_modi
 | `Events` | global signal bus autoload | here |
 | `WorldQuery`, `SurfaceTags` | spatial queries, surface tags | WORLD_INTERACTION.md |
 | `StatsComponent`, `StatModifier`, `StatDefinition`, `StatRegistry`, `ResourceComponent`, `ChampionData` | stats (the first four exist) | STATS.md |
-| `HitContext`, `DamageType`, `ImpactContext` | the hit pipeline | COMBAT.md |
+| `HitContext`, `DamageType` (enum `HitContext.DamageType`), `ImpactContext`, `HitPipeline` | the hit pipeline | COMBAT.md |
+| `AttackSwing`, `AttackCombo` | basic attack combo data | COMBAT.md |
+| `Telegraph` | enemy attack floor warning (VFX) | COMBAT.md |
 | `StatusEffect` (Resource), `StatusComponent` | buffs, debuffs, CC | COMBAT.md |
 | `ReactionRule`, `GameplayEffect` (+ subclasses like `ApplyStatusGameplayEffect`) | cross-system interactions | COMBAT.md |
 | `Hazard` | floor areas with tags | WORLD_INTERACTION.md |
@@ -112,4 +117,4 @@ The prompt would be: *"Read CONVENTIONS.md and COMBAT.md. Add wall-slam stun and
 - The F3 stat overlay is planned (STATS.md step 7), not built. It will need a new input action when it's built (none exists yet).
 
 ## Open questions
-- Reaction triggers *(proposed)*: see Extension pattern 1 and WORLD_INTERACTION.md, Reaction triggers.
+- Reaction triggers: specified in COMBAT.md (ReactionRule); `HIT`, `UNIT_DIED` and `STATUS_APPLIED` are built first (COMBAT C11).

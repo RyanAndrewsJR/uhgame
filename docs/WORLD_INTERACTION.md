@@ -6,7 +6,7 @@
 ## Current code
 - Rooms are `res://scenes/rooms/room_XX.tscn`, each with a `Tiles` TileMapLayer (`dungeon_tileset.tres`, 32 px, physics layer 0 → collision layer 1 "world"), an `Entities` node, and a `PlayerSpawn` marker.
 - Levels are hand-made rooms stitched together (DUNGEONS.md, when it exists).
-- `Hitbox` and `Hurtbox` Areas already exist. Hitboxes sit on the owner's attack layer and carry `damage` and `knockback`.
+- `Hitbox` and `Hurtbox` Areas already exist. Hitboxes sit on the owner's attack layer and carry `damage` and `knockback`. No scene uses a Hitbox yet; hits go through the hit pipeline (COMBAT.md).
 
 ## Core principle: three layers, one job each
 1. **Physics layers** answer *what collides with what*.
@@ -43,7 +43,7 @@ This is the only place raycasts are written. It's built on `PhysicsDirectSpaceSt
 - `find_grapple_point(from, dir, max_dist_px)`: the first world hit must be `grappleable`, otherwise empty
 - `resolve_valid_position(target, from)`: if an endpoint is in a wall or pit, returns the nearest valid floor point on the caster's side
 - `shape_sweep(from, to, radius, mask)`: the first block along the path (prevents tunneling)
-- `has_line_of_sight(a, b)`
+- `has_line_of_sight(a, b)`: built first, alone, in COMBAT C7 (basic attacks never hit through walls; abilities unless `ignores_walls`)
 - `get_units_in_radius(center, r, team_filter)`
 
 ## Ability movement (MovementComponent methods)
@@ -56,7 +56,7 @@ To add when the first ability needs them:
 
 Movement methods emit `Events.unit_impacted(ImpactContext)` when a displacement hits a wall or a unit. Wall-slam stuns are `ReactionRule`s (trigger `IMPACT`, surface tag `wall_slam`), as in the CONVENTIONS.md worked example. Whether `bounce` is movement or an effect is an open question.
 `dash()` and `displace()` move with `move_and_slide()`, so a dash or knockback into a wall slides along it (like walking) instead of stopping; only a near-head-on hit stops.
-Each movement method defines how it starts, what ends it, and what happens on hitting a wall or a unit. A stun ends any of them immediately. They emit the existing `displacement_finished` signal.
+Each movement method defines how it starts, what ends it, and what happens on hitting a wall or a unit. A stun doesn't end a displacement that's already running (knockback still moves a stunned unit; DECISIONS.md, Movement); it only stops the unit from starting new ones. They emit the existing `displacement_finished` signal.
 
 ## Interactables
 Scripts go in `res://scripts/interactables/`, scenes in `res://scenes/interactables/`.
@@ -89,8 +89,9 @@ Entering applies its status; re-entering refreshes it instead of stacking. It em
 - New stat `knockback_resistance`, 0–1, scales displacement distance by (1 − value). Bosses have 1. (Row in STATS.md.)
 - A displaced unit that hits another unit emits `unit_impacted` with that unit as the collider, so rules can make chain hits.
 - `ImpactContext` carries the impact speed, so rules can set thresholds.
+- Two knockbacks at once: the stronger wins (COMBAT.md, decided; built in COMBAT C4).
 
-## Reaction triggers *(proposed; the full spec goes in COMBAT.md)*
+## Reaction triggers *(specified in COMBAT.md, ReactionRule)*
 `IMPACT`, `HIT`, `HAZARD_ENTERED`, `HAZARD_EXITED`, `STATUS_APPLIED`, `UNIT_DIED`, `HAZARD_OVERLAP` (hazard meets hazard, e.g. fire + oil). Also listed as planned in CONVENTIONS.md, Extension pattern 1.
 
 ## Destructibles *(proposed)*

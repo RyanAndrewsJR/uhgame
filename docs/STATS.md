@@ -2,7 +2,7 @@
 
 **Read when:** the task involves any stat, health or mana, champion base stats, or anything that changes stats (gear, buffs, passives, levels), including items that change an ability's numbers.
 **Depends on:** CLAUDE.md.
-**Used by:** MOVEMENT (move_speed, dash_charges), COMBAT, ABILITIES, LOOT, CHAMPIONS, ENEMIES.
+**Used by:** MOVEMENT (move_speed, dash_charges), COMBAT.md (damage stats, attack_speed as combo speed), ABILITIES, LOOT, CHAMPIONS, ENEMIES.
 
 ## Current code
 - `UnitStats` (`res://scripts/data/unit_stats.gd`): one .tres per unit in `res://data/units/`. It has a field for every stat in the Stat list except `knockback_resistance` (proposed, added with the knockback work), plus the identity fields.
@@ -41,8 +41,8 @@ Existing `UnitStats` fields keep their names. New ones get added to `UnitStats`.
 | `ability_power` | 0 | 0 / - | |
 | `attack_speed` | base = `UnitStats.base_attack_speed` (0.65) | 0.2 / the unit's `attack_speed_cap` (2.5) | % modifiers = LoL bonus attack speed. `attack_speed_cap` is a per-unit maximum for this stat, not a stat |
 | `crit_chance` | 0 | 0 / 1 | |
-| `crit_damage` | 1 | 1 / - | multiplier (1 = no extra damage). A real crit multiplier (LoL: 1.75) gets picked in COMBAT.md |
-| `armor` | 0 | - / - | formula in COMBAT.md |
+| `crit_damage` | 1 (1.75 from COMBAT C8) | 1 / - | multiplier. COMBAT.md picks 1.75 as the default for every unit (still nothing changes in play: `crit_chance` is 0) |
+| `armor` | 0 | - / - | mitigation formula in COMBAT.md (proposed: damage × 100 / (100 + armor)) |
 | `magic_resist` | 0 | - / - | |
 | `move_speed` | 345 | scaled soft caps | exists. Knight base is 560 (≈179 px/s) for Hades pace; slime stays 285 (MOVEMENT.md) |
 | `ability_haste` | 0 | 0 / - | exists: cooldown × 100 / (100 + haste) |
@@ -54,6 +54,11 @@ Existing `UnitStats` fields keep their names. New ones get added to `UnitStats`.
 | `pickup_radius` | 0 | - / - | LoL units. The planned value is 200 (64 px); set per unit when pickups exist (LOOT.md) |
 | `magic_find` | 0 | 0 / - | LOOT.md |
 | `gold_find` | 0 | 0 / - | |
+| `damage_taken` | 1 | 0 / - | *(planned, COMBAT C8)* multiplier on damage after mitigation. Reductions are negative PERCENT_MULT modifiers, so they multiply (two 20% = × 0.64) |
+| `damage_increase` | 0 | - / - | *(planned, COMBAT C8)* "increased" damage, read with `hit:<tag>` / `target:<tag>` scopes (see Scoped modifiers) |
+| `on_hit_damage` | 0 | 0 / - | *(planned, COMBAT C8)* extra `proc` hit on basic attack and ability hits |
+| `life_on_hit` | 0 | 0 / - | *(planned, COMBAT C8)* heal per hit × proc_coefficient |
+| `resource_on_hit` | 0 | 0 / - | *(planned, COMBAT C8)* resource per hit × proc_coefficient |
 
 These are **not stats** (they're fixed identity fields and stay plain on UnitStats): `display_name`, `attack_windup`, `attack_speed_cap` (the max for `attack_speed`), `gameplay_radius`, `pathing_radius`.
 To add a stat: add a row here, a field to UnitStats, and an entry in the registry, all with a neutral default (see the rule above). Unknown keys cause a `push_error`, never a silent 0.
@@ -83,6 +88,7 @@ A modifier has: `stat: StringName`, `type`, `value: float`, `source_id: StringNa
   - `&""`: a normal stat
   - `&"ability:knight_lunge"`: one ability; `stat` = the param name
   - `&"tag:projectile"`: every ability with that tag
+  - `&"hit:<tag>"` / `&"target:<tag>"` *(planned, COMBAT C8)*: a stat (`damage_increase`) that counts only for hits carrying that tag, or against targets with that status tag (e.g. `&"target:burning"`)
 - `StatsComponent.get_ability_param(ability: Ability, param: StringName) -> float` reads the base with `ability.get(param)`, applies matching modifiers using the same formula, and caches the result per ability and param.
 - Cooldown order: `get_ability_param(ability, &"cooldown")`, then ability haste. `AbilityComponent.get_cooldown_duration()` becomes the one place this happens.
 - Damage order: params (base_damage, ratios), then stat scaling, then crit and mitigation (COMBAT.md).
@@ -150,7 +156,7 @@ Equipping an item gives its modifiers to `StatsComponent` and its augments to `A
 
 ## Open questions
 - Leveling, stat allocation, and the AD/AP split (see Fill in).
-- Armor/MR formula: proposed `100 / (100 + armor)`. Decide in COMBAT.md.
+- Armor/MR formula: proposed `100 / (100 + armor)` in COMBAT.md; still to confirm there (COMBAT.md, Open questions).
 - Enemy scaling by dungeon depth via modifiers (source `&"dungeon_scaling"`)? Proposed: yes.
 - Champion-specific items dropping for other champions? Proposed: no (LOOT.md).
 - Does the same augment from two items stack? Proposed: no (ABILITIES.md).
