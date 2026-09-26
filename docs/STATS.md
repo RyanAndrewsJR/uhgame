@@ -54,7 +54,7 @@ Existing `UnitStats` fields keep their names. New ones get added to `UnitStats`.
 | `pickup_radius` | 0 | - / - | LoL units. The planned value is 200 (64 px); set per unit when pickups exist (LOOT.md) |
 | `magic_find` | 0 | 0 / - | LOOT.md |
 | `gold_find` | 0 | 0 / - | |
-| `damage_taken` | 1 | 0 / - | *(planned, COMBAT C8)* multiplier on damage after mitigation. Reductions are negative PERCENT_MULT modifiers, so they multiply (two 20% = × 0.64) |
+| `incoming_damage` | 1 | 0 / - | *(planned, COMBAT C8)* multiplier on damage after mitigation (the result is "damage taken"). Reductions are negative PERCENT_MULT modifiers, so they multiply (two 20% = × 0.64) |
 | `damage_increase` | 0 | - / - | *(planned, COMBAT C8)* "increased" damage, read with `hit:<tag>` / `target:<tag>` scopes (see Scoped modifiers) |
 | `on_hit_damage` | 0 | 0 / - | *(planned, COMBAT C8)* extra `proc` hit on basic attack and ability hits |
 | `life_on_hit` | 0 | 0 / - | *(planned, COMBAT C8)* heal per hit × proc_coefficient |

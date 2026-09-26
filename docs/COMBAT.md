@@ -32,7 +32,7 @@ A fight is a short, readable brawl. You click and the Knight swings toward the c
 - Every swing roots the attacker for its duration (see Numbers).
 - A dash cancels a swing before its hit lands (windup) or during its recovery. The moment the hit lands can't be cancelled. Cancelling resets the combo.
 - Pressing attack during a swing queues the next combo hit (input buffer). Each swing needs its own press; holding the button doesn't repeat. The combo resets after combo_reset_time with no attack.
-- Q/W/E/R interrupt a swing only if that ability allows it, set per ability: never (the default), after the hit lands, or anytime. Otherwise the press waits for the swing to end (input buffer).
+- Q/W/E/R interrupt a swing only if that ability allows it, set per ability: never, after the hit lands (the default; all four Knight abilities), or anytime. Otherwise the press waits for the swing to end (input buffer).
 - attack_speed is a combo-speed multiplier for the player: every swing timing is divided by attack_speed ÷ base attack speed (1.0 at base; +20% bonus attack speed = swings 20% faster).
 - Dash-strike (proposed): an attack within dash_strike_window after a dash (existing hook) does a stronger variant. Numbers under TARGET.
 - attack vs select on left mouse: attack owns left mouse; select is unbound (disabled, not deleted).
@@ -40,7 +40,7 @@ A fight is a short, readable brawl. You click and the Knight swings toward the c
 
 ### Hits
 - Every application of damage or effects is one Hit, described by a HitContext. In new code all damage goes through the hit pipeline; existing direct take_damage() calls get wrapped, not rewritten.
-- Pipeline order: base → stat scaling (ratios) → conditional damage ("increased" by hit tags, `damage_increase`) → crit → mitigation (armor / magic_resist) → damage_taken ("more": each reduction multiplies separately) → shields → health. "Raw damage" = before mitigation; "damage taken" = after.
+- Pipeline order: base → stat scaling (ratios) → conditional damage ("increased" by hit tags, `damage_increase`) → crit → mitigation (armor / magic_resist) → incoming_damage ("more": each reduction multiplies separately) → shields → health. "Raw damage" = before mitigation; "damage taken" = after.
 - Damage types: PHYSICAL (armor), MAGIC (magic_resist), TRUE (ignores both). Proposed mitigation: damage × 100 / (100 + armor).
 - Invulnerability (dash i-frames, post-hit i-frames) blocks the whole hit: damage, knockback, statuses and on-hit.
 - Hit tags: basic_attack, ability, proc, dot, crit, the damage type, plus the source ability's tags.
@@ -149,7 +149,7 @@ One per hit. Built by the attacker, filled in by the pipeline.
 | `statuses` | `Array[StatusEffect]` | applied after damage (C9) |
 | `feel` | `HitContext.Feel` | `NONE`, `LIGHT`, `HEAVY`; a kill upgrades it (C3) |
 | `highlight` | `bool` | kept from `take_damage()` for number styling until abilities build their own contexts |
-| **filled in by the pipeline:** `raw_damage` (before mitigation), `taken_damage` (after mitigation and `damage_taken`), `absorbed` (by shields), `health_lost`, `is_crit`, `blocked` (i-frames), `killed` | | read by listeners, numbers, feel and on-hit |
+| **filled in by the pipeline:** `raw_damage` (before mitigation), `taken_damage` (after mitigation and `incoming_damage`), `absorbed` (by shields), `health_lost`, `is_crit`, `blocked` (i-frames), `killed` | | read by listeners, numbers, feel and on-hit |
 
 ### AttackSwing and AttackCombo (combo data)
 - `AttackSwing` (Resource, `res://scripts/data/attack_swing.gd`): one hit of the combo.
@@ -164,7 +164,7 @@ One per hit. Built by the attacker, filled in by the pipeline.
 ### New fields on Ability
 - `damage_type: HitContext.DamageType` (PHYSICAL; the Knight's descriptions already say physical)
 - `proc_coefficient: float` (1.0)
-- `cancels_swing: Ability.SwingCancel`: `NEVER` (default), `AFTER_HIT`, `ANYTIME`
+- `cancels_swing: Ability.SwingCancel`: `NEVER`, `AFTER_HIT` (default; the Knight's four abilities use it), `ANYTIME`
 - `ignores_walls: bool` (false): true = hits don't need line of sight (e.g. a meteor shower)
 
 ### StatusEffect (Resource, `res://scripts/data/status_effect.gd`; files `res://data/statuses/status_<name>.tres`)
@@ -184,7 +184,7 @@ One per hit. Built by the attacker, filled in by the pipeline.
 - Only `HIT`, `UNIT_DIED` and `STATUS_APPLIED` are built in C11. `IMPACT` and the hazard triggers come with WORLD_INTERACTION's impacts and Hazards.
 
 ### New stats (STATS.md; neutral defaults, added in C8)
-`damage_taken` (base 1; reductions are negative PERCENT_MULT modifiers, so two 20% reductions give × 0.64), `damage_increase` (0; read with `hit:<tag>` and `target:<tag>` scopes), `on_hit_damage`, `life_on_hit`, `resource_on_hit` (all 0). `crit_damage` defaults to 1.75.
+`incoming_damage` (base 1.0; reductions are negative PERCENT_MULT modifiers, so two 20% reductions give × 0.64), `damage_increase` (0; read with `hit:<tag>` and `target:<tag>` scopes), `on_hit_damage`, `life_on_hit`, `resource_on_hit` (all 0). `crit_damage` defaults to 1.75.
 
 ## Architecture / contracts
 ### New scripts
@@ -194,7 +194,7 @@ One per hit. Built by the attacker, filled in by the pipeline.
   - `static func basic_attack(source: Unit, target: Unit, swing: AttackSwing) -> HitContext` and `static func from_ability(caster: Unit, ability: Ability, target: Unit) -> HitContext`: builders that fill tags, type, ratios and feel.
 - `Unit.on_hit(ctx: HitContext) -> void` (C1), the same method name interactables use (WORLD_INTERACTION.md). In order:
   1. `blocked` if not alive or invulnerable → return (nothing else happens).
-  2. Mitigation by type, then × the target's `damage_taken`.
+  2. Mitigation by type, then × the target's `incoming_damage`.
   3. Shields (`StatusComponent.absorb_damage()`, C10), then `health.take_damage()`.
   4. Knockback (`movement.displace()`, even if a shield took all of it), then statuses.
   5. `damaged.emit()`, `Events.unit_hit`, `Events.unit_damaged` (when `taken_damage` > 0).
@@ -228,6 +228,7 @@ One per hit. Built by the attacker, filled in by the pipeline.
 - **MovementComponent** (C4): `displace()` keeps the running displacement if its remaining distance is larger than the new one's total distance.
 - **AutoAttackComponent, LoL mode** (C4): `@export var hit_knockback_px` (slime 12). `@export var enemy_hit_forgiveness` (0.10): the windup starts, and the hit lands, only within `attack_range × (1 − forgiveness)`; out of reach at the hit moment = whiff (no damage, the attack timer still runs).
 - **Unit** (C4): `@export var post_hit_iframes: float` (0 = none; the player 0.5). A hit that gets through adds `&"hit_iframes"` for that long; DoT ticks don't start it.
+- **MovementComponent / DashComponent** (C4): knockback from `Unit.on_hit` is marked as hit knockback (`is_hit_knockback()`). `DashComponent.can_dash()` allows a dash during it, and the dash replaces the displacement. Any other displacement still blocks the dash.
 - **Enemy** (C5): optional AbilityComponent use. When an ability is ready and the target is in its range, cast it (its `cast_time` is the telegraph).
 
 ## How each edge case is handled
@@ -244,13 +245,13 @@ One per hit. Built by the attacker, filled in by the pipeline.
 | Walls | Swing targets need `WorldQuery.has_line_of_sight(feet → target feet)`. Abilities filter the same way unless `ignores_walls`; UNIT abilities also need line of sight to start the cast. |
 | Shield absorbs a hit | Knockback and statuses still apply; `taken_damage` still counts for life steal; the number shows the absorbed part in a shield style. |
 | DoT ticks can't crit | DoT contexts have `can_crit = false`. |
-| Knockback on the player | The 12 px push (~0.1 s) is a displacement, so walking and dashing wait for it; a dash press is buffered and fires as the push ends. |
+| Knockback on the player | The 12 px push (~0.1 s) is a hit knockback: walking waits for it, but a dash replaces it at once (i-frames as usual). Other displacements (Lunge, pulls, knockback from anything but being hit) still block the dash; a press then is buffered and fires as they end. |
 
 ## Build order (one step per request)
 Combat starts now, before STATS step 6. Until step 6 adds `id` / `tags` to Ability, hits carry no ability tags. STATS step 6 runs before C8 (C8's `hit:<tag>` scopes need scoped modifiers); STATS step 7 (the F3 overlay) comes after M1.
 
 1. **C1 – Hit pipeline.** `Events`, `HitContext`, `HitPipeline`, `Unit.on_hit`; `take_damage()` and `_on_hurtbox_hurt` wrapped; `damage_type` and `proc_coefficient` on Ability. A test scene `res://scenes/tests/combat_test.tscn` (script in `scripts/tests/`).
-   **Done means:** the test passes: mitigation for all three types at 0 / 100 armor, `damage_taken`, i-frames block everything, the events fire. In play nothing changes: abilities deal the same numbers and slimes chase and hit as before.
+   **Done means:** the test passes: mitigation for all three types at 0 / 100 armor, `incoming_damage`, i-frames block everything, the events fire. In play nothing changes: abilities deal the same numbers and slimes chase and hit as before.
 2. **C2 – Knight combo.** `AttackSwing`, `AttackCombo`, `combo_knight.tres`, the combo mode, PlayerInput/Dash/Player changes, `cancels_swing`, `select` unbound, Iron Resolve through swings.
    **Done means:**
    - A click swings toward the cursor within 0.08 s; three clicks give the three swings (the third wider and stronger); 0.6 s without attacking resets the combo.
@@ -260,8 +261,8 @@ Combat starts now, before STATS step 6. Until step 6 adds `id` / `tags` to Abili
    - The Knight's abilities, enemies chasing and the HUD still work.
 3. **C3 – Hit feel.** Feel tiers from `HitContext.feel` (light / heavy / kill), longest-wins hitstop, 0.06 s flash, shake per tier.
    **Done means:** swings 1–2 freeze briefly with no shake; the finisher and kills freeze longer and shake; abilities feel as before.
-4. **C4 – Getting hit.** Post-hit i-frames, 12 px knockback on the player, enemy whiffs out of reach, stronger-knockback-wins, slime windup retuned into 0–0.3 s.
-   **Done means:** walking out of a slime's lunge avoids it; three slimes hitting at once cost one hit; after a hit the player is safe for 0.5 s (visible); a hit pushes the player 12 px.
+4. **C4 – Getting hit.** Post-hit i-frames, 12 px knockback on the player (marked as hit knockback, which a dash replaces), enemy whiffs out of reach, stronger-knockback-wins, slime windup retuned into 0–0.3 s.
+   **Done means:** walking out of a slime's lunge avoids it; three slimes hitting at once cost one hit; after a hit the player is safe for 0.5 s (visible); a hit pushes the player 12 px, and pressing dash during the push dashes at once.
 5. **C5 – Elite.** `slime_elite.tscn` (inherits `slime.tscn`) + `data/units/slime_elite.tres` (starting values: 900 health, 100 damage = 15% of the Knight's 650), a telegraphed slam ability (0.75 s telegraph, about 40 px circle), `Telegraph`, the Enemy cast hook, one elite in the sandbox.
    **Done means:** the elite shows a filling floor circle before each slam; dashing or walking out avoids it; standing in it costs about 15% health.
 6. **C6 – Damage numbers.** 3 log-scale size steps, crit style (placeholder until the font), colors by type, the player's damage red, healing green, DoT merge, rise 12 px / fade 0.6 s.
@@ -271,7 +272,8 @@ Combat starts now, before STATS step 6. Until step 6 adds `id` / `tags` to Abili
 
 **Milestone M1 – a one-room fight in the sandbox:** the Knight fights with the combo, slimes chip, one elite telegraphs a slam, and the player can die ("You died", Backspace restarts) and win ("Room cleared!").
 
-8. **C8 – Crits and on-hit.** Crit (1.75 default), `damage_increase` scopes, `damage_taken`, the on-hit stats, `proc_coefficient`.
+8. **C8 – Crits and on-hit.** Crit (1.75 default), `damage_increase` scopes, `incoming_damage`, the on-hit stats, `proc_coefficient`. Migrate the Knight's 4 abilities from `take_damage()` to `HitPipeline.from_ability()`, so ability hits get crits, `damage_increase`, on-hit and proper tags.
+   **Done means:** the ability numbers are unchanged with no crit or bonuses, and they crit once `crit_chance` > 0.
 9. **C9 – Statuses.** `StatusComponent`, `StatusEffect`, `status_stun` / `status_slow` / `status_haste`, the `apply_stun()` and `add_speed_modifier()` wrappers, tenacity, DoT with kill credit.
 10. **C10 – Shields** (shield statuses; absorb order: the one expiring soonest first, proposed).
 11. **C11 – Reaction rules** (`HIT`, `UNIT_DIED`, `STATUS_APPLIED`; the four GameplayEffects).
@@ -291,4 +293,5 @@ Items and affixes (LOOT.md); ability costs, recasts and augments (ABILITIES.md);
 - Confirm the armor formula; is penetration needed? Negative armor *(proposed: LoL's 2 − 100 / (100 − armor))*.
 - Life steal: basic attacks only *(proposed)*, or every hit?
 - "Your next <ability>" empowers (e.g. "your next Heavy Slam deals 30% bonus true damage") belong in ABILITIES.md (augments or ability buffs).
-- Which Knight abilities should interrupt swings (`cancels_swing`) or ignore walls: CHAMPIONS.md / ABILITIES.md.
+- Which Knight abilities should ignore walls: CHAMPIONS.md / ABILITIES.md.
+- Post-hit i-frames (0.5 s) cap swarm pressure at about 2 hits per second whatever the swarm size. Tune against swarms in M1 (try 0.3 s).

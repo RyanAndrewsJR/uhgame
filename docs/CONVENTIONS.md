@@ -34,6 +34,7 @@
 - **Basic attack**: the design term. The code keeps `AutoAttackComponent`.
 - **Hit**: one application of damage/effects to a unit, described by a `HitContext`.
 - **Damage type**: `PHYSICAL`, `MAGIC`, `TRUE`.
+- **Raw damage**: a hit's damage before mitigation. **Damage taken**: after mitigation and the `incoming_damage` stat (`HitContext.taken_damage`). "Damage taken" is never a stat name.
 - **Stat modifier**: a change to a number (STATS.md).
 - **Resource**: in design text, mana/energy/fury. In code the node is a `ResourceComponent` and the variable on Unit is `resource_pool`, so it isn't confused with Godot's `Resource`.
 - **Status effect**: any timed state on a unit. **Buff** = positive, **debuff** = negative. **Crowd control (CC)** = status effects tagged `cc` (stun, slow, root, silence). There's one system for all of them, not separate buff and debuff systems.
