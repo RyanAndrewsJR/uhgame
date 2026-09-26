@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="Ability" format=3]
+
+[ext_resource type="Script" path="res://scripts/abilities/knight/iron_resolve.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+display_name = "Iron Resolve"
+description = "Gain 35% movement speed for 2s. Your next attack within 4s deals 50 (+50% AD) bonus damage and slows the target by 40% for 1.5s."
+icon_color = Color(1, 0.78, 0.3, 1)
+targeting = 0
+cooldown = 8.0
+cast_time = 0.0
+cast_range = 0.0
+roots_during_cast = false
+base_damage = 50.0
+ad_ratio = 0.5
+move_speed_bonus = 0.35
+move_speed_duration = 2.0
+empower_window = 4.0
+slow_amount = 0.4
+slow_duration = 1.5

@@ -1,0 +1,82 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy.gd" id="1_enemy"]
+[ext_resource type="Script" path="res://scripts/components/health_component.gd" id="2_health"]
+[ext_resource type="Script" path="res://scripts/components/hurtbox.gd" id="3_hurtbox"]
+[ext_resource type="Script" path="res://scripts/components/movement_component.gd" id="4_movement"]
+[ext_resource type="Script" path="res://scripts/components/auto_attack_component.gd" id="5_attack"]
+[ext_resource type="Resource" path="res://data/units/slime.tres" id="6_stats"]
+[ext_resource type="Script" path="res://scripts/ui/health_bar.gd" id="7_bar"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_body"]
+radius = 14.0
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_hurt"]
+radius = 14.0
+
+[node name="Slime" type="CharacterBody2D"]
+collision_layer = 4
+collision_mask = 7
+motion_mode = 1
+script = ExtResource("1_enemy")
+stats = ExtResource("6_stats")
+body_center = Vector2(0, -10)
+
+[node name="Shadow" type="Polygon2D" parent="."]
+color = Color(0, 0, 0, 0.35)
+polygon = PackedVector2Array(-15, 0, -11, -3, 0, -4, 11, -3, 15, 0, 11, 3, 0, 4, -11, 3)
+
+[node name="Body" type="Node2D" parent="."]
+
+[node name="Blob" type="Polygon2D" parent="Body"]
+color = Color(0.35, 0.85, 0.4, 1)
+polygon = PackedVector2Array(-16, 0, -16, -8, -12, -16, -5, -21, 5, -21, 12, -16, 16, -8, 16, 0)
+
+[node name="Shine" type="Polygon2D" parent="Body"]
+color = Color(0.7, 1, 0.72, 0.8)
+polygon = PackedVector2Array(-10, -15, -6, -18, -4, -16, -8, -13)
+
+[node name="Eyes" type="Node2D" parent="Body"]
+
+[node name="EyeL" type="Polygon2D" parent="Body/Eyes"]
+color = Color(0.08, 0.15, 0.08, 1)
+polygon = PackedVector2Array(-7, -12, -3, -12, -3, -7, -7, -7)
+
+[node name="EyeR" type="Polygon2D" parent="Body/Eyes"]
+color = Color(0.08, 0.15, 0.08, 1)
+polygon = PackedVector2Array(3, -12, 7, -12, 7, -7, 3, -7)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_body")
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("2_health")
+
+[node name="AutoAttackComponent" type="Node" parent="."]
+script = ExtResource("5_attack")
+
+[node name="MovementComponent" type="Node2D" parent="."]
+script = ExtResource("4_movement")
+soft_cap_low = 220.0
+soft_cap_high = 415.0
+soft_cap_max = 490.0
+
+[node name="Hurtbox" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 8
+monitorable = false
+script = ExtResource("3_hurtbox")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+position = Vector2(0, -10)
+shape = SubResource("CircleShape2D_hurt")
+
+[node name="Sight" type="RayCast2D" parent="."]
+position = Vector2(0, -8)
+target_position = Vector2(0, 0)
+collision_mask = 1
+
+[node name="HealthBar" type="Node2D" parent="."]
+position = Vector2(0, -32)
+script = ExtResource("7_bar")
+width = 30.0

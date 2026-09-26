@@ -1,0 +1,13 @@
+[gd_resource type="Resource" format=3 uid="uid://b1uvvfn1s1dgo"]
+
+[ext_resource type="Script" uid="uid://8q2dq57tp2r8" path="res://scripts/abilities/knight/cleave.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+display_name = "Cleave"
+description = "Sweep your sword in a wide arc in front of you, dealing 70 (+70% AD) physical damage and knocking enemies back."
+icon_color = Color(0.85, 0.9, 1, 1)
+cooldown = 3.0
+cast_time = 0.2
+base_damage = 80.0
+ad_ratio = 0.7

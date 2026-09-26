@@ -1,0 +1,98 @@
+[gd_scene format=3 uid="uid://cd4tsmhd8ja6x"]
+
+[ext_resource type="Script" uid="uid://dusicip0fk5a0" path="res://scripts/player/player.gd" id="1_player"]
+[ext_resource type="Script" uid="uid://c7l4xagapqqgb" path="res://scripts/components/health_component.gd" id="2_health"]
+[ext_resource type="Script" uid="uid://cdtbs2i2kflsm" path="res://scripts/components/hurtbox.gd" id="3_hurtbox"]
+[ext_resource type="Script" uid="uid://34wje4qx84xq" path="res://scripts/components/movement_component.gd" id="5_movement"]
+[ext_resource type="Script" uid="uid://r8q52vn8x4ey" path="res://scripts/components/auto_attack_component.gd" id="6_attack"]
+[ext_resource type="Resource" path="res://data/units/knight.tres" id="7_stats"]
+[ext_resource type="Script" uid="uid://jptnq5e5u2u1" path="res://scripts/ui/health_bar.gd" id="8_bar"]
+[ext_resource type="Script" uid="uid://dwsh76h0hv38v" path="res://scripts/components/ability_component.gd" id="9_abilities"]
+[ext_resource type="Resource" path="res://data/abilities/knight_q_cleave.tres" id="10_q"]
+[ext_resource type="Resource" path="res://data/abilities/knight_w_iron_resolve.tres" id="11_w"]
+[ext_resource type="Resource" path="res://data/abilities/knight_e_lunge.tres" id="12_e"]
+[ext_resource type="Resource" path="res://data/abilities/knight_r_judgement.tres" id="13_r"]
+[ext_resource type="Script" path="res://scripts/player/player_input.gd" id="14_input"]
+[ext_resource type="Script" path="res://scripts/components/dash_component.gd" id="15_dash"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_body"]
+radius = 11.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_hurt"]
+size = Vector2(20, 30)
+
+[node name="Player" type="CharacterBody2D" unique_id=1398562208]
+collision_layer = 2
+collision_mask = 7
+motion_mode = 1
+script = ExtResource("1_player")
+stats = ExtResource("7_stats")
+team = 0
+body_center = Vector2(0, -15)
+
+[node name="Shadow" type="Polygon2D" parent="." unique_id=27522859]
+color = Color(0, 0, 0, 0.35)
+polygon = PackedVector2Array(-12, 0, -9, -3, 0, -4, 9, -3, 12, 0, 9, 3, 0, 4, -9, 3)
+
+[node name="Body" type="Node2D" parent="." unique_id=717559283]
+
+[node name="Torso" type="Polygon2D" parent="Body" unique_id=1439840026]
+color = Color(0.32, 0.56, 0.95, 1)
+polygon = PackedVector2Array(-9, -22, 9, -22, 10, -2, 6, 0, -6, 0, -10, -2)
+
+[node name="Head" type="Polygon2D" parent="Body" unique_id=1485716795]
+color = Color(0.45, 0.68, 1, 1)
+polygon = PackedVector2Array(-7, -33, 7, -33, 8, -22, -8, -22)
+
+[node name="Eye" type="Polygon2D" parent="Body" unique_id=7967742]
+polygon = PackedVector2Array(2, -30, 5, -30, 5, -26, 2, -26)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1281297545]
+shape = SubResource("CircleShape2D_body")
+
+[node name="HealthComponent" type="Node" parent="." unique_id=944555721]
+script = ExtResource("2_health")
+
+[node name="AutoAttackComponent" type="Node" parent="." unique_id=943748011]
+script = ExtResource("6_attack")
+
+[node name="MovementComponent" type="Node2D" parent="." unique_id=856784618]
+script = ExtResource("5_movement")
+use_steering = false
+
+[node name="PlayerInput" type="Node" parent="."]
+script = ExtResource("14_input")
+
+[node name="DashComponent" type="Node2D" parent="."]
+script = ExtResource("15_dash")
+
+[node name="AbilityComponent" type="Node" parent="." unique_id=1812066537]
+script = ExtResource("9_abilities")
+q = ExtResource("10_q")
+w = ExtResource("11_w")
+e = ExtResource("12_e")
+r = ExtResource("13_r")
+
+[node name="Hurtbox" type="Area2D" parent="." unique_id=64001934]
+collision_layer = 0
+collision_mask = 16
+monitorable = false
+script = ExtResource("3_hurtbox")
+invincibility_time = 0.0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox" unique_id=1471860320]
+position = Vector2(0, -15)
+shape = SubResource("RectangleShape2D_hurt")
+
+[node name="SwordPivot" type="Node2D" parent="." unique_id=911642853]
+position = Vector2(0, -14)
+
+[node name="Sword" type="Polygon2D" parent="SwordPivot" unique_id=1482157386]
+color = Color(0.85, 0.85, 0.9, 1)
+polygon = PackedVector2Array(12, -2, 34, -2, 37, 0, 34, 2, 12, 2)
+
+[node name="HealthBar" type="Node2D" parent="." unique_id=693053145]
+position = Vector2(0, -44)
+script = ExtResource("8_bar")
+width = 40.0
+fill_color = Color(0.3, 0.85, 0.35, 1)

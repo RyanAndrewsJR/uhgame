@@ -1,0 +1,15 @@
+[gd_resource type="Resource" format=3 uid="uid://dlwftnjvwcsk0"]
+
+[ext_resource type="Script" uid="uid://bak88ay0ax4ie" path="res://scripts/abilities/knight/judgement.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+display_name = "Judgement"
+description = "Strike an enemy for 150 (+100% AD) physical damage plus 20% of its missing health, and stun it for 0.75s. Walks into range if needed."
+icon_color = Color(1, 0.35, 0.3, 1)
+targeting = 3
+cooldown = 20.0
+cast_time = 0.3
+cast_range = 450.0
+base_damage = 150.0
+ad_ratio = 1.0

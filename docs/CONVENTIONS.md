@@ -1,0 +1,105 @@
+# CONVENTIONS.md: Naming, Vocabulary & Extension Patterns
+
+**Read when:** creating any new class, script, Resource, .tres, signal, autoload, tag, input action, or collision layer, or when adding an interaction between systems.
+**Why:** so every system uses the same names and plugs together the same way. A new mechanic (e.g. "knockback into oil stuns") should mostly be new data, not new code spread across files.
+
+## Naming (matches the existing code; don't rename existing things)
+| Thing | Rule | Examples |
+|---|---|---|
+| Class | PascalCase, `class_name` on every reusable script | `Unit`, `AbilityComponent` |
+| Component node | ends in `Component` (Area2D exceptions: `Hitbox`, `Hurtbox`) | `HealthComponent`, `StatusComponent` |
+| Data Resource | a plain noun for what it is; `Data` suffix only for bundles of other resources | `UnitStats`, `Ability`, `StatModifier`, `ChampionData` |
+| Per-event object | `<Thing>Context` (RefCounted) | `CastContext` (exists), `HitContext`, `ImpactContext` |
+| Script file | snake_case of the class | `health_component.gd` |
+| Ability script | `scripts/abilities/<champion>/<ability>.gd` | `knight/lunge.gd` |
+| Ability .tres | `<champion>_<slot>_<ability>.tres` | `knight_e_lunge.tres` |
+| Other .tres | `<kind>_<name>.tres` in `data/<kind>s/` | `status_stun.tres`, `item_grapplers_gauntlet.tres`, `affix_fire_damage.tres`, `reaction_wall_slam.tres` |
+| Signal | past tense, or `_started` / `_finished` / `_cancelled` / `_failed` / `_changed`; typed args | `died`, `cast_started`, `health_changed` |
+| Global event (on `Events`) | `<subject>_<past verb>` | `unit_hit`, `unit_impacted`, `status_applied` |
+| Query method | `get_`, `is_` / `has_` / `can_` (bool) | `get_move_speed()`, `can_cast()` |
+| Command method | `apply_`, `set_`; `add_` / `remove_` pairs that take an id; `try_` returns false on failure | `add_move_lock(id)`, `try_cast()` |
+| Callback others call | `on_<event>` | `on_ability_hit()`, `on_interact()` |
+| Signal handler | `_on_<emitter>_<signal>` | `_on_hurtbox_hurt` |
+| Ids and tags | `StringName`, snake_case | `&"iron_resolve_slow"`, `&"fire"` |
+| Source id (new code) | `<kind>_<name>` | `&"item_4821"`, `&"status_burning"`, `&"hazard_oil"` |
+| Constant / enum | `UPPER_SNAKE`; enum type PascalCase | `Targeting.SELF`, `Team.PLAYER` |
+| Units | pixels get a `_px` suffix; LoL units have no suffix; times are seconds (`_duration`, `_time`, `cooldown`) | `radius_px`, `cast_range` |
+
+## Vocabulary (use these words, not synonyms)
+- **Unit**: anything using `Unit` (champions, enemies, summons). Not "entity", "actor", or "character".
+- **Champion**: a playable kit. **Enemy**: a hostile Unit (**elite**, **boss** are enemy tiers).
+- **Ability**: a castable action in a slot. **Passive**: always-on champion behavior. **Augment**: an item-granted change to an ability's behavior.
+- **Basic attack**: the design term. The code keeps `AutoAttackComponent`.
+- **Hit**: one application of damage/effects to a unit, described by a `HitContext`.
+- **Damage type**: `PHYSICAL`, `MAGIC`, `TRUE`.
+- **Stat modifier**: a change to a number (STATS.md).
+- **Status effect**: any timed state on a unit. **Buff** = positive, **debuff** = negative. **Crowd control (CC)** = status effects tagged `cc` (stun, slow, root, silence). There's one system for all of them, not separate buff and debuff systems.
+- **Displacement**: any forced movement (dash, knockback, pull). **Knockback**: displacement caused by a hit. **Impact**: a displacement colliding with a wall or unit.
+- **Surface**: a wall or solid body with `SurfaceTags`. **Hazard**: an area on the floor with tags that affects units in it (oil, fire, spikes, ice).
+- **Interactable** (F key or ability-reactive object), **Pickup** (loot on the ground).
+- **Item**, **item base**, **affix**, **rarity** (LOOT.md). **Room**, **run**, **dungeon** (DUNGEONS.md).
+- **VFX** means visuals only. It never changes gameplay state.
+
+If you need a new term, add it here first.
+
+## Extension patterns
+### 1. Tags plus rules, not if-chains
+Anything that can take part in an interaction carries tags:
+- abilities (`tags`)
+- hits (`HitContext.tags`)
+- surfaces (`SurfaceTags`)
+- hazards
+- units (their active status effects add tags like `oiled`, `burning`, `displaced`)
+
+Cross-system interactions are **`ReactionRule`** Resources: *trigger* + *required tags* → list of **`GameplayEffect`**s.
+Adding an interaction should mean adding a `.tres`. Code changes are only needed for a new trigger type or a new GameplayEffect type.
+
+### 2. Context objects at every seam
+Pass one context object, not long argument lists, so new fields can be added without changing signatures:
+- `CastContext` (exists)
+- `HitContext`: source, target, amount, damage type, tags, knockback, effects to apply
+- `ImpactContext`: unit, velocity, impact speed, collider, surface tags, who caused the displacement
+
+### 3. Events at every seam
+Systems announce what happened on the `Events` autoload, and reactions listen there. Reserved names:
+- `unit_hit(ctx: HitContext)`, `unit_damaged(ctx)`, `unit_died(unit, ctx)`
+- `unit_impacted(ctx: ImpactContext)`
+- `status_applied(unit, status)`, `status_removed(unit, status)`
+- `hazard_entered(unit, hazard)`, `hazard_exited(unit, hazard)`
+- `ability_cast(unit, ability, ctx: CastContext)`
+- `item_equipped(unit, item)`, `item_unequipped(unit, item)`
+
+Existing local signals (`died`, `damaged`, `cast_started`...) stay. New code re-emits them on Events where cross-system listeners need them.
+
+### 4. Components own their state
+Other code uses a component's public methods, never its internal variables. Anything added through an `add_` method has an id so it can be removed exactly.
+
+### 5. Existing code gets wrapped, not replaced
+Example: when `StatusComponent` arrives, `Unit.apply_stun()` and `add_speed_modifier()` keep working as thin wrappers that create `status_stun` / slow statuses.
+
+## Reserved names (planned; specified in the doc named)
+| Name | What | Doc |
+|---|---|---|
+| `Events` | global signal bus autoload | here |
+| `WorldQuery`, `SurfaceTags` | spatial queries, surface tags | WORLD_INTERACTION.md |
+| `StatsComponent`, `StatModifier`, `ResourceComponent`, `ChampionData` | stats | STATS.md |
+| `HitContext`, `DamageType`, `ImpactContext` | the hit pipeline | COMBAT.md |
+| `StatusEffect` (Resource), `StatusComponent` | buffs, debuffs, CC | COMBAT.md |
+| `ReactionRule`, `GameplayEffect` (+ subclasses like `ApplyStatusGameplayEffect`) | cross-system interactions | COMBAT.md |
+| `Hazard` | floor areas with tags | WORLD_INTERACTION.md |
+| `AbilityAugment` | item-driven ability behavior | ABILITIES.md |
+
+## Worked example: "knocking an enemy into a wall or oil stuns or debuffs it"
+With these patterns in place, this request is:
+1. **One-time code** (if it doesn't exist yet): `MovementComponent` detects collisions during a displacement and emits `Events.unit_impacted(ImpactContext)`.
+2. **Oil**: a `Hazard` scene tagged `oil`. Entering it applies `status_oiled` (tag `oiled`).
+3. **Data only**:
+   - `reaction_wall_slam.tres`: trigger `IMPACT`, surface tag `wall_slam`, min impact speed 200 px/s → apply `status_stun` for 1.0 s
+   - `reaction_knocked_into_oil.tres`: trigger `HAZARD_ENTERED`, hazard tag `oil`, unit tag `displaced` → apply `status_slicked` for 3 s
+4. **No ability changes.** Every ability or item that causes knockback gets this behavior automatically.
+
+The prompt would be: *"Read CONVENTIONS.md and COMBAT.md. Add wall-slam stun and knocked-into-oil slick as reaction rules."*
+
+## Testing
+- `res://scenes/rooms/sandbox.tscn`: a test room with walls (grappleable and not), a pit, hazards, and training dummies (enemies that don't attack). Every new mechanic adds whatever it needs to test here.
+- Every new system has a `debug_draw` toggle, and stat/status details show in the F3 overlay.

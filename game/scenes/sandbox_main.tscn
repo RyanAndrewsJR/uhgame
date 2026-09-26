@@ -1,0 +1,7 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/main.tscn" id="1_main"]
+[ext_resource type="PackedScene" path="res://scenes/rooms/sandbox.tscn" id="2_sandbox"]
+
+[node name="Main" instance=ExtResource("1_main")]
+room_scene = ExtResource("2_sandbox")
