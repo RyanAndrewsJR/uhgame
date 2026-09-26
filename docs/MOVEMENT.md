@@ -60,7 +60,7 @@ Only keys that physically collided with WASD changed. Action names never change.
 | `click_marker.gd` | Dormant with right-click move. |
 | `game_camera.gd` lock toggle, edge pan, shake, bounds | Kept. Aim lead added (see Architecture). |
 | `AbilityComponent` Q/W/E/R slots | Unchanged. W is on right mouse. |
-| Aim cancel (`player.gd`) | Right mouse used to cancel an aimed ability; it now casts W. Esc (`ui_cancel`) cancels. |
+| Aim cancel (`player.gd`) | Right mouse used to cancel an aimed ability; it now casts W. Esc (`ui_cancel`) cancels. Esc while not aiming opens the pause menu (`main.gd`, `PauseMenu`); an Esc that cancels an aim is marked handled, so it doesn't also pause. |
 | `AutoAttackComponent` | Kept. Enemies use its League-style attack. The Knight uses its combo mode (COMBAT C2): left mouse swings toward the cursor. The Knight's League-style orders (right-click, A-click) stay dormant. |
 | `enemy.gd` | Kept. `passive` export turns an enemy into a training dummy: no wander, aggro, or attacks. |
 | `Ability.get_damage()` reading `caster.stats` | Kept until STATS.md step 4 puts StatsComponent behind the same values. |
@@ -95,6 +95,7 @@ Only keys that physically collided with WASD changed. Action names never change.
 - Space calls `DashComponent.try_dash()` from PlayerInput.
 - 128 px (`dash_distance` = 400 u) over `dash_duration` = 0.18 s, bursting and then easing out (`dash_curve`, F2), through `MovementComponent.dash()` (passes through units; `move_and_slide()`, so it slides along walls instead of stopping, and only a near-head-on dash stops).
 - Direction: toward the cursor at the moment Space is pressed (`Player.get_aim_direction()`: from the feet to the cursor, or `facing` if the cursor is on the player). A buffered dash keeps the direction from its press, even if the cursor moves before it fires. `PlayerInput.dash_toward_cursor = false` brings back the old rule: the held input direction, or `facing` with no input. (Changed 2026-09-26, DECISIONS.md.)
+- **The player chooses** between the two in the Esc pause menu ("Dash direction: Cursor / Move keys (WASD)"; default Cursor). The choice lives in the `Settings` autoload (`get_dash_direction()`, `DashDirection.CURSOR` / `MOVE_KEYS`), is saved to `user://settings.cfg`, and applies at once, even mid-run: PlayerInput copies it into `dash_toward_cursor` at start and on `Settings.setting_changed`, so an Inspector value there only lasts until then.
 - The run-on after the dash (`carry_into_run`, below) still follows the held WASD direction, so dashing one way while holding another runs off in the held direction.
 - I-frames for the whole dash via `Unit.add_invulnerability(&"dash")`: `take_damage()` and Hurtbox hits (damage and knockback) are ignored. This sits on Unit, not only the Hurtbox, because enemy basic attacks call `take_damage()` directly. The body turns half see-through.
 - Charges: the `dash_charges` stat (base `UnitStats.dash_charges`, default 1, read through StatsComponent). One charge returns every `charge_recharge_time` = 0.35 s, one at a time, counted only while not dashing.

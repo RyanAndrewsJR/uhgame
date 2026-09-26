@@ -90,6 +90,7 @@ Example: when `StatusComponent` arrives, `Unit.apply_stun()` and `add_speed_modi
 |---|---|---|
 | `Events` | global signal bus autoload | here |
 | `WorldQuery`, `SurfaceTags` | spatial queries, surface tags | WORLD_INTERACTION.md |
+| `Settings`, `PauseMenu` | the player's own options autoload (saved to `user://settings.cfg`) and the Esc pause menu that edits them (both exist) | MOVEMENT.md (Dash) until UI.md |
 | `StatsComponent`, `StatModifier`, `StatDefinition`, `StatRegistry`, `ResourceComponent`, `ChampionData` | stats (the first four exist) | STATS.md |
 | `HitContext`, `DamageType` (enum `HitContext.DamageType`), `ImpactContext`, `HitPipeline` | the hit pipeline | COMBAT.md |
 | `AttackSwing`, `AttackCombo` | basic attack combo data | COMBAT.md |

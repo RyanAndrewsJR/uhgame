@@ -72,6 +72,7 @@ New subfolders inside these are fine. Ask before adding a new top-level folder.
 - `GameFeel` (`scripts/autoload/game_feel.gd`): `hitstop()` (longest wins), `shake()`, `play_hit_feel(ctx)` (tiers from `hit_feel_default.tres`)
 - `Events` (`scripts/autoload/events.gd`): global signal bus. `unit_hit`, `unit_damaged`, `unit_died` (COMBAT.md)
 - `WorldQuery` (`scripts/autoload/world_query.gd`): spatial queries; only `has_line_of_sight()` so far (docs/WORLD_INTERACTION.md)
+- `Settings` (`scripts/autoload/settings.gd`): the player's own options, saved to `user://settings.cfg`; `setting_changed(key, value)`. Only dash direction so far (MOVEMENT.md, Dash). Changed in the Esc pause menu (`PauseMenu`, `scenes/ui/pause_menu.tscn`).
 
 ## Change policy (important)
 The game in `game/` is the **reference build**. It works, and changes build on it.
@@ -130,4 +131,4 @@ All decisions, grouped by system with date and why, are in `docs/DECISIONS.md`.
 4. `LOOT.md`: item bases, rarities, affix pools, drop tables
 5. `ENEMIES_AI.md`: behaviors, aggro, elites, spawning
 6. `DUNGEONS.md`: room stitching, run structure
-7. `NPCS.md`, `UI.md`, `PROGRESSION.md` as needed
+7. `NPCS.md`, `UI.md`, `PROGRESSION.md` as needed. `UI.md` takes over the Esc pause menu and the player options (`Settings`), now described in MOVEMENT.md (Dash) and DECISIONS.md (General).
