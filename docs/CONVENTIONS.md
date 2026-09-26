@@ -85,7 +85,7 @@ Example: when `StatusComponent` arrives, `Unit.apply_stun()` and `add_speed_modi
 |---|---|---|
 | `Events` | global signal bus autoload | here |
 | `WorldQuery`, `SurfaceTags` | spatial queries, surface tags | WORLD_INTERACTION.md |
-| `StatsComponent`, `StatModifier`, `ResourceComponent`, `ChampionData` | stats | STATS.md |
+| `StatsComponent`, `StatModifier`, `StatDefinition`, `StatRegistry`, `ResourceComponent`, `ChampionData` | stats (the first four exist) | STATS.md |
 | `HitContext`, `DamageType`, `ImpactContext` | the hit pipeline | COMBAT.md |
 | `StatusEffect` (Resource), `StatusComponent` | buffs, debuffs, CC | COMBAT.md |
 | `ReactionRule`, `GameplayEffect` (+ subclasses like `ApplyStatusGameplayEffect`) | cross-system interactions | COMBAT.md |
@@ -106,6 +106,7 @@ The prompt would be: *"Read CONVENTIONS.md and COMBAT.md. Add wall-slam stun and
 ## Testing
 - `res://scenes/sandbox_main.tscn` (open it, press F6) runs `main.tscn` with `res://scenes/rooms/sandbox.tscn` as the room. What's in it now (walls, corners, corridors, dash-length markers, three passive training dummies, two slimes) is listed in MOVEMENT.md, Testing.
 - Pits, hazards and grappleable walls get added to the sandbox with their systems (DECISIONS.md, Testing). Every new mechanic adds whatever it needs to test there.
+- Script-level test scenes live in `res://scenes/tests/` with their scripts in `res://scripts/tests/` (e.g. `stats_test.tscn`, F6). They print PASS/FAIL per check and a total; run headless, they quit with the failure count as the exit code.
 - Every new system has a `debug_draw` toggle.
 - The F3 stat overlay is planned (STATS.md step 7), not built. It will need a new input action when it's built (none exists yet).
 

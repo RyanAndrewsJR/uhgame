@@ -82,6 +82,12 @@
 | 2026-09-24 | move_speed soft caps carry over into StatsComponent scaled, not unchanged. Per-unit threshold overrides carry over too. | Follows the Knight 560 move speed decision (Movement). |
 | 2026-09-25 | STATS step 4 migrates every `stats.` read found in the code (Unit, AutoAttackComponent, AbilityComponent's ability_haste, DashComponent's dash_charges, Ability.get_damage, main.gd's HUD line); the list is in STATS.md. | The old list missed DashComponent, AbilityComponent and main.gd. |
 | 2026-09-25 | The `attack_speed` stat's base is `UnitStats.base_attack_speed`. `attack_speed_cap` is a per-unit maximum for `attack_speed`, not a stat. | Keeps the existing UnitStats fields; the cap is identity data like `attack_windup`. |
+| 2026-09-25 | STATS steps 1–2 run before Movement step 8 (pits). | Ryan's call. |
+| 2026-09-25 | The registry is a `StatRegistry` holding one `StatDefinition` Resource per stat. `base_field` / `max_field` on a definition map a stat to differently named UnitStats fields (`attack_speed` ← `base_attack_speed`, max `attack_speed_cap`). | Editable in the Inspector, and the attack_speed mapping is data rather than a special case in code. |
+| 2026-09-25 | The registry lists all 21 stats now. A stat with no UnitStats field yet (step 5 adds them) uses its registry default as the base. | Code can read any stat from day one, and step 5 only adds fields. |
+| 2026-09-25 | The move_speed slow is its own `× (1 − strongest slow)` factor (capped 0.99), not part of Σ PERCENT_ADD. Soft caps call the unit's `MovementComponent.get_soft_capped_speed()`; thresholds stay on MovementComponent. | Matches MovementComponent exactly, so step 4 changes nothing (checked by the parity tests in `stats_test.tscn`). Keeping the thresholds in one place means slime overrides keep working. |
+| 2026-09-25 | StatsComponent recalculates the affected stats when modifiers change (not lazily) and emits `stat_changed` only when a value actually moves. | `stat_changed` needs the old and new value. A weaker second slow or bonus attack speed past the cap emits nothing. |
+| 2026-09-25 | `set_level()` and per-level growth are built (`setup(..., growth)`) but nothing calls them; leveling stays open (STATS.md, Fill in). | Cheap to have, and at level 1 it changes nothing. |
 
 ## Combat
 | Date | Decision | Why |
@@ -107,4 +113,5 @@
 |---|---|---|
 | 2026-09-24 | The sandbox runs through `scenes/sandbox_main.tscn` (inherits `main.tscn`, with the sandbox as `room_scene`). room_01 stays the default game. | No edits to `main.tscn` or `main.gd`. |
 | 2026-09-24 | Sandbox pieces that need unbuilt systems (pits, hazards, grappleable walls) are added with those systems. | They depend on TileSet custom data, collision layer 6, and `Hazard`, which don't exist yet. |
+| 2026-09-25 | Script-level test scenes go in `scenes/tests/` + `scripts/tests/`, print PASS/FAIL, and exit with the failure count when run headless. | Lets Claude run them with Godot `--headless` before Ryan's play test. |
 | 2026-09-25 | CONVENTIONS.md, Testing describes the sandbox as it is now and points to MOVEMENT.md, Testing. The F3 stat overlay is planned (STATS.md step 7) and needs a new input action when it's built. | The old text described a pit, hazards and an F3 overlay that don't exist yet. |

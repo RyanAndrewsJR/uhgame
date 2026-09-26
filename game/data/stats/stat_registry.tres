@@ -1,0 +1,191 @@
+[gd_resource type="Resource" script_class="StatRegistry" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/stat_registry.gd" id="1_registry"]
+[ext_resource type="Script" path="res://scripts/data/stat_definition.gd" id="2_definition"]
+
+[sub_resource type="Resource" id="stat_max_health"]
+script = ExtResource("2_definition")
+key = &"max_health"
+display_name = "Max Health"
+default_value = 600.0
+has_min = true
+min_value = 1.0
+
+[sub_resource type="Resource" id="stat_health_regen"]
+script = ExtResource("2_definition")
+key = &"health_regen"
+display_name = "Health Regen"
+default_value = 1.5
+has_min = true
+min_value = 0.0
+format = 3
+
+[sub_resource type="Resource" id="stat_max_resource"]
+script = ExtResource("2_definition")
+key = &"max_resource"
+display_name = "Max Resource"
+default_value = 300.0
+has_min = true
+min_value = 0.0
+
+[sub_resource type="Resource" id="stat_resource_regen"]
+script = ExtResource("2_definition")
+key = &"resource_regen"
+display_name = "Resource Regen"
+default_value = 6.0
+has_min = true
+min_value = 0.0
+format = 3
+
+[sub_resource type="Resource" id="stat_attack_damage"]
+script = ExtResource("2_definition")
+key = &"attack_damage"
+display_name = "Attack Damage"
+default_value = 60.0
+has_min = true
+min_value = 0.0
+
+[sub_resource type="Resource" id="stat_ability_power"]
+script = ExtResource("2_definition")
+key = &"ability_power"
+display_name = "Ability Power"
+default_value = 0.0
+has_min = true
+min_value = 0.0
+
+[sub_resource type="Resource" id="stat_attack_speed"]
+script = ExtResource("2_definition")
+key = &"attack_speed"
+display_name = "Attack Speed"
+default_value = 0.65
+has_min = true
+min_value = 0.2
+has_max = true
+max_value = 2.5
+base_field = &"base_attack_speed"
+max_field = &"attack_speed_cap"
+format = 1
+
+[sub_resource type="Resource" id="stat_crit_chance"]
+script = ExtResource("2_definition")
+key = &"crit_chance"
+display_name = "Crit Chance"
+default_value = 0.0
+has_min = true
+min_value = 0.0
+has_max = true
+max_value = 1.0
+format = 2
+
+[sub_resource type="Resource" id="stat_crit_damage"]
+script = ExtResource("2_definition")
+key = &"crit_damage"
+display_name = "Crit Damage"
+default_value = 1.5
+has_min = true
+min_value = 1.0
+format = 2
+
+[sub_resource type="Resource" id="stat_armor"]
+script = ExtResource("2_definition")
+key = &"armor"
+display_name = "Armor"
+default_value = 30.0
+
+[sub_resource type="Resource" id="stat_magic_resist"]
+script = ExtResource("2_definition")
+key = &"magic_resist"
+display_name = "Magic Resist"
+default_value = 30.0
+
+[sub_resource type="Resource" id="stat_move_speed"]
+script = ExtResource("2_definition")
+key = &"move_speed"
+display_name = "Move Speed"
+default_value = 345.0
+
+[sub_resource type="Resource" id="stat_ability_haste"]
+script = ExtResource("2_definition")
+key = &"ability_haste"
+display_name = "Ability Haste"
+default_value = 0.0
+has_min = true
+min_value = 0.0
+
+[sub_resource type="Resource" id="stat_dash_charges"]
+script = ExtResource("2_definition")
+key = &"dash_charges"
+display_name = "Dash Charges"
+default_value = 1.0
+has_min = true
+min_value = 1.0
+has_max = true
+max_value = 5.0
+is_integer = true
+
+[sub_resource type="Resource" id="stat_attack_range"]
+script = ExtResource("2_definition")
+key = &"attack_range"
+display_name = "Attack Range"
+default_value = 175.0
+
+[sub_resource type="Resource" id="stat_life_steal"]
+script = ExtResource("2_definition")
+key = &"life_steal"
+display_name = "Life Steal"
+default_value = 0.0
+has_min = true
+min_value = 0.0
+has_max = true
+max_value = 1.0
+format = 2
+
+[sub_resource type="Resource" id="stat_tenacity"]
+script = ExtResource("2_definition")
+key = &"tenacity"
+display_name = "Tenacity"
+default_value = 0.0
+has_min = true
+min_value = 0.0
+has_max = true
+max_value = 0.8
+format = 2
+
+[sub_resource type="Resource" id="stat_knockback_resistance"]
+script = ExtResource("2_definition")
+key = &"knockback_resistance"
+display_name = "Knockback Resistance"
+default_value = 0.0
+has_min = true
+min_value = 0.0
+has_max = true
+max_value = 1.0
+format = 2
+
+[sub_resource type="Resource" id="stat_pickup_radius"]
+script = ExtResource("2_definition")
+key = &"pickup_radius"
+display_name = "Pickup Radius"
+default_value = 200.0
+
+[sub_resource type="Resource" id="stat_magic_find"]
+script = ExtResource("2_definition")
+key = &"magic_find"
+display_name = "Magic Find"
+default_value = 0.0
+has_min = true
+min_value = 0.0
+format = 2
+
+[sub_resource type="Resource" id="stat_gold_find"]
+script = ExtResource("2_definition")
+key = &"gold_find"
+display_name = "Gold Find"
+default_value = 0.0
+has_min = true
+min_value = 0.0
+format = 2
+
+[resource]
+script = ExtResource("1_registry")
+definitions = Array[ExtResource("2_definition")]([SubResource("stat_max_health"), SubResource("stat_health_regen"), SubResource("stat_max_resource"), SubResource("stat_resource_regen"), SubResource("stat_attack_damage"), SubResource("stat_ability_power"), SubResource("stat_attack_speed"), SubResource("stat_crit_chance"), SubResource("stat_crit_damage"), SubResource("stat_armor"), SubResource("stat_magic_resist"), SubResource("stat_move_speed"), SubResource("stat_ability_haste"), SubResource("stat_dash_charges"), SubResource("stat_attack_range"), SubResource("stat_life_steal"), SubResource("stat_tenacity"), SubResource("stat_knockback_resistance"), SubResource("stat_pickup_radius"), SubResource("stat_magic_find"), SubResource("stat_gold_find")])

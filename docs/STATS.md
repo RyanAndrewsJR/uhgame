@@ -11,6 +11,7 @@
 - `MovementComponent` has its own speed modifiers: flat, then additive %, then **only the strongest slow**, then soft caps. After MOVEMENT.md step 1 the soft cap thresholds are `@export`s on MovementComponent, scaled ×560/345 for Hades pace (357 / 674 / 795 instead of LoL's 220 / 415 / 490).
 - `HealthComponent` holds current and max health.
 - All values are in **LoL units** (see CLAUDE.md, `Units.to_px()`).
+- **Steps 1–2 are built:** `StatModifier`, `StatDefinition`, `StatRegistry` (+ `stat_registry.tres`, all 21 stats) and `StatsComponent`, tested by `res://scenes/tests/stats_test.tscn`. No Unit has a StatsComponent yet (step 3), so gameplay still reads `unit.stats.<field>`.
 
 ## Core principle
 - **Stats are what a unit IS. Abilities are what a unit DOES. Combat is how damage resolves.** Keep all three separate.
@@ -61,7 +62,7 @@ final = clamp(final, min, max)          # integer stats round after the clamp
 ```
 `base` = UnitStats value + growth × (level − 1).
 
-**move_speed special rules** (moved over from MovementComponent): negative PERCENT_ADD modifiers are slows, and **only the strongest slow applies**. The soft caps are applied last. The caps carry over **scaled, not unchanged**: the thresholds are the scaled, tunable values from MovementComponent (defaults 357 / 674 / 795, i.e. LoL's 220 / 415 / 490 × 560/345), computed as "threshold + excess × factor" (factors 0.5 / 0.8 / 0.5). A unit whose MovementComponent overrides the thresholds (slimes keep the LoL values 220 / 415 / 490) keeps those overrides after the migration.
+**move_speed special rules** (moved over from MovementComponent): negative PERCENT_ADD modifiers are slows, and **only the strongest slow applies**, as its own `× (1 − slow)` factor (capped at 0.99), not inside Σ percent_add, the same as MovementComponent today. The soft caps are applied last. StatsComponent calls the unit's `MovementComponent.get_soft_capped_speed()`, so the thresholds stay on MovementComponent; with no MovementComponent there are no soft caps. The caps carry over **scaled, not unchanged**: the thresholds are the scaled, tunable values from MovementComponent (defaults 357 / 674 / 795, i.e. LoL's 220 / 415 / 490 × 560/345), computed as "threshold + excess × factor" (factors 0.5 / 0.8 / 0.5). A unit whose MovementComponent overrides the thresholds (slimes keep the LoL values 220 / 415 / 490) keeps those overrides after the migration.
 
 A modifier has: `stat: StringName`, `type`, `value: float`, `source_id: StringName` (e.g. `&"item_4821"`, `&"status_haste"`), and `scope: StringName` (empty = normal stat; see below).
 
@@ -102,19 +103,24 @@ Equipping an item gives its modifiers to `StatsComponent` and its augments to `A
 
 ## Architecture (new files)
 - `res://scripts/data/stat_modifier.gd`: `StatModifier` Resource
-- `res://scripts/data/stat_registry.gd` + `res://data/stats/stat_registry.tres`: per stat: default, min, max, is_integer, display name, format
+- `res://scripts/data/stat_registry.gd` + `res://data/stats/stat_registry.tres`: `StatRegistry`, a list of `StatDefinition`s (`res://scripts/data/stat_definition.gd`), one per stat: key, display name, default, min, max, is_integer, format, plus
+  - `base_field`: the UnitStats field holding the base (empty = same as the key; `attack_speed` reads `base_attack_speed`)
+  - `max_field`: a UnitStats field used as a per-unit max (`attack_speed` → `attack_speed_cap`)
+  - A stat with no UnitStats field yet uses its registry default as the base.
 - `res://scripts/components/stats_component.gd`: `StatsComponent` (child of Unit)
-  - `get_stat(key)`, `get_ability_param(ability, param)`: cached, recalculated when dirty
+  - `setup(base_stats, movement = null, growth = {})`: Unit wires it (step 3); `movement` supplies the soft cap thresholds
+  - `get_stat(key)`, `get_ability_param(ability, param)` (step 6): cached. Adding or removing a modifier recalculates only the stats it touches
+  - `get_base_value(key)` (base + growth, before modifiers), `get_modifiers_from(source_id)`, `get_level()`: for the overlay and tooltips
   - `add_modifier(mod)`, `add_modifiers(arr)`, `remove_modifiers_from(source_id)`
-  - `set_level(n)`, signal `stat_changed(key, old, new)`
+  - `set_level(n)`, signal `stat_changed(key, old, new)`: emitted only when a value actually changes
   - helpers: `get_attack_interval()`, `get_cooldown(base)`
 - `res://scripts/components/resource_component.gd`: mana/energy/fury, same shape as HealthComponent (`spend`, `restore`, `can_afford`, regen, `changed`, `depleted`)
 - `HealthComponent` and `ResourceComponent` read their max from stats. When the max goes up, current goes up by the same amount; when it goes down, current is clamped.
 - `res://scripts/data/champion_data.gd` + `res://data/champions/<name>.tres`: `stats: UnitStats`, `growth: Dictionary[StringName, float]`, `resource_type` (MANA / ENERGY / FURY / NONE), passive, ability slots. (Details in CHAMPIONS.md.)
 
 ## Build order
-1. StatModifier and the registry.
-2. StatsComponent with the math, move_speed rules, caching, and `stat_changed`. Include a test scene that adds/removes modifiers and prints the results.
+1. StatModifier and the registry. *(done)*
+2. StatsComponent with the math, move_speed rules, caching, and `stat_changed`. Include a test scene that adds/removes modifiers and prints the results. *(done: `res://scenes/tests/stats_test.tscn`, F6. It prints PASS/FAIL per check and includes move_speed parity checks against a real MovementComponent.)*
 3. Add StatsComponent to player.tscn and slime.tscn. `Unit._ready()` wires it up.
 4. **Migrate reads.** Every `stats.` read in the code today:
 
@@ -146,3 +152,5 @@ Equipping an item gives its modifiers to `StatsComponent` and its augments to `A
 - Does the same augment from two items stack? Proposed: no (ABILITIES.md).
 - *(proposed)* `knockback_resistance` stat, 0–1, scales displacement distance; bosses 1 (WORLD_INTERACTION.md, Knockback).
 - What happens to `AutoAttackComponent.bonus_attack_speed` in step 4 (wrapper that adds a modifier, or removed after confirming)? Decide then.
+- Timed speed modifiers in step 4: `add_speed_modifier()` takes a duration, but `StatModifier` has none. Proposed: the wrapper keeps the timer and removes the modifier when it runs out (StatusComponent takes that over later).
+- Step 4 says `Unit._ready()` "hands" MovementComponent `move_speed`. A one-time hand-off would miss later modifiers. Proposed: MovementComponent reads `get_stat(&"move_speed")` live, with the soft caps already applied (not applied twice).

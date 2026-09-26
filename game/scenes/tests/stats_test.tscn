@@ -1,0 +1,28 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/tests/stats_test.gd" id="1_test"]
+[ext_resource type="Script" path="res://scripts/components/movement_component.gd" id="2_movement"]
+[ext_resource type="Script" path="res://scripts/components/stats_component.gd" id="3_stats"]
+
+[node name="StatsTest" type="Node"]
+script = ExtResource("1_test")
+
+[node name="KnightBody" type="CharacterBody2D" parent="."]
+
+[node name="MovementComponent" type="Node2D" parent="KnightBody"]
+script = ExtResource("2_movement")
+
+[node name="StatsComponent" type="Node" parent="KnightBody"]
+script = ExtResource("3_stats")
+
+[node name="SlimeBody" type="CharacterBody2D" parent="."]
+position = Vector2(100, 0)
+
+[node name="MovementComponent" type="Node2D" parent="SlimeBody"]
+script = ExtResource("2_movement")
+soft_cap_low = 220.0
+soft_cap_high = 415.0
+soft_cap_max = 490.0
+
+[node name="StatsComponent" type="Node" parent="SlimeBody"]
+script = ExtResource("3_stats")
