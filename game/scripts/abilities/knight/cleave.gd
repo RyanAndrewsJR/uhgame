@@ -15,7 +15,7 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 	VFX.slash(caster.get_parent(), caster.get_center(), ctx.direction.angle(), 10.0, reach + 6.0, half,
 		Color(1, 1, 1, 0.85), 0.13, side)
 
-	var hits := AbilityUtil.in_cone(caster, origin, ctx.direction, reach, half)
+	var hits := filter_by_walls(origin, AbilityUtil.in_cone(caster, origin, ctx.direction, reach, half))
 	var dmg := get_damage(caster)
 	for u in hits:
 		u.take_damage(dmg, caster, true)

@@ -44,7 +44,7 @@ This is the only place raycasts are written. It's built on `PhysicsDirectSpaceSt
 - `find_grapple_point(from, dir, max_dist_px)`: the first world hit must be `grappleable`, otherwise empty
 - `resolve_valid_position(target, from)`: if an endpoint is in a wall or pit, returns the nearest valid floor point on the caster's side
 - `shape_sweep(from, to, radius, mask)`: the first block along the path (prevents tunneling)
-- `has_line_of_sight(a, b)`: built first, alone, in COMBAT C7 (basic attacks never hit through walls; abilities unless `ignores_walls`)
+- `has_line_of_sight(a, b)`: built (melee pull, then every hit in COMBAT C7: basic attacks never hit through walls; abilities unless `ignores_walls`)
 - `get_units_in_radius(center, r, team_filter)`
 
 ## Ability movement (MovementComponent methods)

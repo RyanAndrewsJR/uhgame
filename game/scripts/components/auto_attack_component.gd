@@ -558,7 +558,8 @@ func _land_swing() -> void:
 	var forgiveness := 1.0 + combo.hit_forgiveness
 	var reach := get_swing_reach_px(_swing) * forgiveness
 	var half_arc := deg_to_rad(_swing.arc_deg) * 0.5 * forgiveness
-	var targets := AbilityUtil.in_cone(unit, unit.global_position, _swing_direction, reach, half_arc)
+	var targets := AbilityUtil.in_sight(unit.global_position,
+		AbilityUtil.in_cone(unit, unit.global_position, _swing_direction, reach, half_arc))   # no hits through walls
 	var bonus := 0.0
 	var on_hits: Array[Callable] = []
 	var empowered := not targets.is_empty() and not _next_attack_mods.is_empty()
@@ -610,8 +611,8 @@ func _land_attack() -> void:
 	unit.movement.remove_move_lock(&"attack_windup")
 	state = State.BACKSWING
 	var hit := target
-	if not is_in_range(hit):
-		attack_whiffed.emit(hit)   # Walked or dashed out of reach: a miss.
+	if not is_in_range(hit) or not WorldQuery.has_line_of_sight(unit.global_position, hit.global_position):
+		attack_whiffed.emit(hit)   # Out of reach, or a wall in between: a miss.
 		return
 	var dmg := unit.stats_component.get_stat(&"attack_damage")
 	var on_hits: Array[Callable] = []

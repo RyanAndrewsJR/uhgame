@@ -66,6 +66,21 @@ enum SwingCancel {
 ## Scales on-hit chances and effects (COMBAT C8). 1.0 = full; lower it for
 ## multi-hit or area abilities.
 @export var proc_coefficient: float = 1.0
+## Off (default): walls block this ability's hits, and a UNIT ability needs
+## line of sight to its target to start the cast (it walks around until it
+## has it). On: it hits through walls (e.g. a meteor shower). COMBAT C7.
+@export var ignores_walls: bool = false
+
+
+## The units among `units` this ability can hit from `from`: all of them if
+## it ignores walls, otherwise only those in line of sight (COMBAT C7).
+func filter_by_walls(from: Vector2, units: Array[Unit]) -> Array[Unit]:
+	return units if ignores_walls else AbilityUtil.in_sight(from, units)
+
+
+## True if walls don't stop this ability from reaching `target` from `from`.
+func can_reach_through_walls(from: Vector2, target: Unit) -> bool:
+	return ignores_walls or WorldQuery.has_line_of_sight(from, target.global_position)
 
 
 ## Damage this ability deals with the caster's current stats.
