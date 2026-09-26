@@ -131,7 +131,14 @@ Only keys that physically collided with WASD changed. Action names never change.
    | `IDLE` | none of the above |
 
    While dead, the state stops updating.
-4. **Camera:** `aim_lead` = 64 px (0 = off). While locked, the camera leans toward the mouse by `aim_lead` × the mouse's distance from the screen center (as a fraction of half the screen, capped at 1). Screen space, so camera movement doesn't feed back into it; position smoothing eases it in. Holding C centers with no lead. Room bounds still clamp, so there's no sideways lead near a room's left or right edge. The camera runs in physics process mode because physics interpolation is on (F1). **F4 (planned)** reworks the lead: a dead zone, a response curve, a smaller vertical lead, its own slower easing, and full lead only while aiming or casting (see Feel pass, F4).
+4. **Camera** (`game_camera.gd`; aim lead reworked in F4): while locked, the camera leans toward the cursor, but only once the cursor leaves a dead zone.
+   - **Target lean:** zero inside `aim_lead_dead_zone` = 0.35 of the half-screen (an oval: x and y each divided by their own half-size). From there to `aim_lead_full_at` = 0.9 it follows `aim_lead_curve` (`curve_camera_lead.tres`, linear: the lean grows evenly with distance). Full lean is `aim_lead` = 80 px sideways and 80 × `aim_lead_y_scale` (0.6) = 48 px vertically (while not aiming: 40 px / 24 px). After play testing, `aim_lead` went 64 → 80 px, the curve ease-in quad → linear, and the idle scale 0.3 → 0.5.
+   - **Context:** full lean while the player aims (`aiming_slot`), casts (CASTING) or winds up a basic attack (ATTACK), and for `aim_lead_hold_time` = 0.75 s after; otherwise × `aim_lead_idle_scale` = 0.5. Read through Player's public state; the camera only knows its `target`.
+   - **Easing:** the lean eases toward its target at `aim_lead_smoothing` = 4.0 per second (frame-rate independent, real time so hitstop doesn't freeze it). The follow smoothing stays at 10 and also acts on the lean, so a full swing settles in about 0.7 s.
+   - `move_lead_px` = 0 (off): an optional extra lean in the walking direction, eased the same way.
+   - `get_aim_lead()` returns the target lean (dead zone and curve, before context and easing); `get_current_lead()` returns the eased lean.
+   - Holding C centers with no lean and resets it; `snap_to_target()` resets it too. Room bounds still clamp, so there's no sideways lean near a room's left or right edge. The camera runs in physics process mode because physics interpolation is on (F1).
+   - `debug_draw` on the Camera: the dead zone oval (white), the target lean (yellow) and the current lean (green).
 5. **Signals:** `Player.state_changed(from, to)`; `DashComponent.dash_started(direction)`, `dash_ended`, `charges_changed(charges, max)` (`debug_draw` on DashComponent shows charge pips); `PlayerInput.attack_pressed(dash_strike)`; `AbilityComponent.cast_cancelled(slot, ability)`. Planned: `fell_in_pit` (step 8).
 
 ## Feel pass
@@ -191,7 +198,9 @@ Movement works but feels robotic: displacements run at constant speed and there'
   - Walking without aiming barely leans; holding an aimed ability toward an off-screen dummy leans fully.
   - F1 smoothness is unchanged (no new stutter).
   - The Knight's abilities, enemies chasing and the HUD still work.
-- **Planned, awaiting Ryan's OK** (a prototype in a test copy was measured; nothing written to the game yet). Measured at 144 fps (camera movement = how far the world under a still cursor slides, game px):
+- **Built** (awaiting play test). Additions agreed with Ryan: `aim_lead_hold_time` = 0.75 s (full lean stays this long after the last aim or cast, so it doesn't swing back between casts, and so QUICK cast mode still gets it); `aim_lead_smoothing` stays 4.0.
+- **Aim drift (accepted):** the world under a still cursor still slides whenever the lean changes. Full lean starts when you begin aiming, so while you hold an ability still, the spot under the cursor can move up to 80 px sideways / 48 px vertically over about 0.7 s (64 / 38 px when first measured), and a POINT ability like Lunge lands where the cursor is at release. Accepted because the indicator always shows the true landing spot (clarity), and the lean only grows outside the dead zone and while aiming. Revisit if play testing shows mis-aims.
+- Measured at 144 fps with `aim_lead` = 64 px, before it was raised to 80 (camera movement = how far the world under a still cursor slides, game px; lean amounts now scale by 80/64 = 1.25, timings don't change):
 
   | Test | Today | F4 idle | F4 aiming |
   |---|---|---|---|
@@ -216,7 +225,7 @@ Movement works but feels robotic: displacements run at constant speed and there'
 5. **Built** (awaiting play test): player states.
 6. **Built** (awaiting play test): dash with charges, i-frames, end-lag and chaining.
 7. **Built** (awaiting play test): input buffer, dash cancels (`Ability.dash_cancelable`), and the dash-strike hook.
-- **Feel pass F1 → F2 → F4 → F3** (see Feel pass) comes here, before step 8. F4 runs before F3. F1 and F2 are built (awaiting play test); F4 is planned.
+- **Feel pass F1 → F2 → F4 → F3** (see Feel pass) comes here, before step 8. F4 runs before F3. F1, F2 and F4 are built (awaiting play test).
 8. Pit crossing and fall/respawn (needs the pit layer; spec in WORLD_INTERACTION.md, Pits and movement types, still *proposed*). The respawn is a teleport: call `reset_physics_interpolation()` on the player and snap the camera (see F1).
 
 **Done means:** no errors; WASD works in play mode; the Knight's 4 abilities, enemies chasing, and the HUD still work as before. Exception (decided): the Knight's basic attacks stay dormant until COMBAT gives `attack` a reader.
@@ -226,7 +235,7 @@ If a step needs removing or rewriting existing code, stop and explain why before
 - `res://scenes/sandbox_main.tscn` (open it, press F6) runs `main.tscn` with `res://scenes/rooms/sandbox.tscn` as the room. room_01 stays the default game.
 - Sandbox test spots: open floor (start/stop), a long wall (sliding), a single pillar, an L-corner, a diagonal stair-step wall (corner catching), a 1-tile corridor and a 2-tile gap, and two cracked floor tiles 128 px apart (dash length).
 - Three passive training dummies (`Enemy.passive = true`) and two normal slimes in a pen (chase test).
-- The camera can only lean sideways in the middle third of the sandbox (room bounds).
+- The camera can only lean sideways in the middle third of the sandbox (room bounds). `debug_draw` on the Camera node (in `main.tscn`) shows the dead zone and the lean.
 
 ## Open questions
 - **`attack` vs `select` on left mouse:** both are bound to left mouse. No double-fire yet: `select` only acts while attack-move is armed (unbound A key), and `attack` only emits `attack_pressed`, which nothing listens to. Resolve in the COMBAT work. PlayerInput reads `attack` from the Input state, so a click on the ability bar also counts as an attack press; the bar's `MOUSE_FILTER_STOP` doesn't block that.
@@ -236,3 +245,4 @@ If a step needs removing or rewriting existing code, stop and explain why before
 - **Reacting to being hit:** knockback distance, and how long the player loses control. Decided in COMBAT.
 - *(proposed)* Corner forgiveness: 6 px side tolerance, nudge at walk speed (see Target feel).
 - *(proposed)* Pit falls for the dash: see WORLD_INTERACTION.md, Pits and movement types.
+- **Aim zoom (parked until the first long-range champion):** while aiming an ability, zoom out just enough to show its full range, keeping the cursor lean as is. The Knight's ranges (96–180 px) already fit on screen, so it would barely show today. Costs to weigh then: a zoom between 1.0 and 0.5 draws art pixels at uneven sizes (at 0.8 they're 1.6 screen px), and zooming around the screen center moves the world under a still cursor (about 36 px at the edge at 0.9, 80 px at 0.8) unless it zooms around the cursor. Alternative with neither cost: while aiming, lean just far enough that the ability's full range is on screen.

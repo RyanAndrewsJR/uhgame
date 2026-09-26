@@ -99,12 +99,12 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 
 ## Current status
 <!-- OVERWRITE this whole section at the end of each session (Now / Last 3 done / Next). Never append. -->
-- **Now:** Waiting on Ryan's OK on the Feel pass F4 plan (camera aim lead rework), his play test of F1 and F2 at 144 Hz and of movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits, hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of Feel pass F1, F2 and F4 at 144 Hz, of movement steps 1 and 3–7, and on the *(proposed)* items from the docs cleanup (pits, hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. Feel pass F4 planned: added to MOVEMENT.md (before F3), prototype measured in a test copy; `aim_lead` 64 px decision superseded.
-  2. Feel pass F2: displacement curves (`curve_dash` ease-out quad, `curve_knockback` ease-out cubic), `carry_into_run`, speed graph.
+  1. Feel pass F4: camera aim lead rework (dead zone 0.35, ease-in curve, 0.6 vertical, own easing 4.0/s, full only while aiming/casting + 0.75 s hold, optional walk lean, `debug_draw`); after play testing: `aim_lead` 64 → 80 px, response curve linear, idle scale 0.5. Aim zoom parked.
+  2. Feel pass F2: displacement curves (`curve_dash`, `curve_knockback`), `carry_into_run`, speed graph.
   3. Feel pass F1: physics interpolation on, transform snapping off, camera in physics process mode, start-up camera slide fixed.
-- **Next:** Feel pass F4 → F3 → Movement step 8 (pits) → STATS build steps (STATS.md is already written) → then the Future docs in their listed order.
+- **Next:** Feel pass F3 → Movement step 8 (pits) → STATS build steps (STATS.md is already written) → then the Future docs in their listed order.
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.
