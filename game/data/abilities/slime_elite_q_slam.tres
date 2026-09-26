@@ -5,15 +5,15 @@
 [resource]
 script = ExtResource("1_script")
 display_name = "Slam"
-description = "Marks a 40 px circle where the target stands, fills it over 0.75 s, then slams: 100 physical damage and a 20 px push to everyone inside."
+description = "Marks a 72 px circle where the target stands, fills it over 0.65 s, then slams: 100 physical damage and a 20 px push to everyone inside."
 icon_color = Color(1, 0.35, 0.15, 1)
 targeting = 2
 cooldown = 4.0
-cast_time = 0.75
+cast_time = 0.65
 cast_range = 250.0
 resets_auto_attack = false
 base_damage = 100.0
 ad_ratio = 0.0
-radius_px = 40.0
+radius_px = 72.0
 enemy_hit_forgiveness = 0.1
 knockback_px = 20.0

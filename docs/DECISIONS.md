@@ -178,6 +178,8 @@
 | 2026-09-26 | C6: `HitContext.highlight` no longer changes numbers (ability hits used to be orange and bigger); size comes from the amount and color from the damage type. The old `Unit._spawn_damage_number()` is kept unused until Ryan confirms C6. `Unit.show_heal_number()` exists for life steal and heals (C8+); health regen shows no numbers. | One rule for every hit; regen numbers would flood the screen. |
 | 2026-09-26 | C7: line of sight is one ray from the attacker's feet to the target's feet (walls only; units don't block). Lunge checks from the nearest point of its path, the slam from its circle's center. League-style enemy attacks across a wall whiff. | Simple and predictable. A target half behind a pillar corner can be missed; revisit if play testing shows it. |
 | 2026-09-26 | C7: a UNIT ability (Judgement) treats "no line of sight" like "out of range": it walks (pathing around walls) until it can see the target, then casts. A target that goes behind a wall during the cast is missed. | Ryan: "certain abilities need a target". Consistent with walking into range. |
+| 2026-09-26 | M1 passed (Ryan's play test). Post-hit i-frames 0.5 → 0.3 s (the Knight); the test elite's slam 40 → 72 px circle and 0.75 → 0.65 s telegraph. | Ryan: swarms felt too fair; the slam was readable but too easy to walk out of. At 72 px / 0.65 s only an instant reaction walks out; otherwise it takes the dash. |
+| 2026-09-26 | Combo length is per champion (2, 3, 5... swings), all data; the Knight's current combo reads as a rogue or diver pace. | Ryan's call. Tested with a 2-hit and a 5-hit combo. |
 
 ## World Interaction
 | Date | Decision | Why |

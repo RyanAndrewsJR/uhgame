@@ -28,7 +28,7 @@ A fight is a short, readable brawl. You click and the Knight swings toward the c
 
 ## Rules (MUST)
 ### Basic attack
-- Left mouse = an aimed basic attack toward the cursor (Hades-style): a 3-hit combo; hit 3 is the finisher.
+- Left mouse = an aimed basic attack toward the cursor (Hades-style): a combo of swings; the last one is the finisher. The Knight's is 3 hits; the number of swings is per champion (2, 3, 5...), all data (`AttackCombo.swings`). The Knight's current pace reads as a rogue or diver (M1).
 - Every swing roots the attacker for its duration (see Numbers). Melee swings still step during the root, and walking can end the recovery early (Melee basic attacks, below).
 - A dash cancels a swing before its hit lands (windup) or during its recovery. The moment the hit lands can't be cancelled. Cancelling resets the combo.
 - Pressing attack during a swing queues the next combo hit (input buffer). Each swing needs its own press; holding the button doesn't repeat. The combo resets after combo_reset_time with no attack.
@@ -108,12 +108,12 @@ Feel per hit (basic attacks, and the default for other hits; abilities set their
 - hit flash: white, 0.06 s
 
 Player getting hit:
-- post-hit i-frames: 0.5 s (0.3–0.8), starting from the first hit in a frame (the other hits in that frame are blocked). DoT ticks don't start them.
+- post-hit i-frames: 0.3 s (0.3–0.8; was 0.5 s until M1), starting from the first hit in a frame (the other hits in that frame are blocked). DoT ticks don't start them.
 - knockback on the player: 12 px (0–24); no loss of control beyond the push itself
 
 Enemy damage bands (per hit, as % of the player's max health; a tuning guide for each enemy's damage number, not a formula in-game):
 - swarm chip: 2–5%, telegraph 0–0.3 s. Slimes: 22 damage (3.4% of the Knight's 650), 0.25 s windup (`attack_windup` 0.175 at 0.7 attack speed; was 0.5 s), 12 px push
-- elite: 12–20%, telegraph 0.6–0.9 s. Elite slime slam: 100 (15.4% of the Knight's 650), 0.75 s telegraph, 40 px circle, 20 px push; its basic attack is 30 (4.6%), no telegraph
+- elite: 12–20%, telegraph 0.6–0.9 s. Elite slime slam (a test elite): 100 (15.4% of the Knight's 650), 0.65 s telegraph, 72 px circle, 20 px push (was 0.75 s / 40 px until M1: too easy to walk out of); its basic attack is 30 (4.6%), no telegraph
 - boss big hit: 25–40%, telegraph 0.9 s or more
 - Telegraph: a floor shape that fills up until the hit; one consistent enemy-threat color (FREE which).
 
@@ -331,6 +331,7 @@ Combat starts now, before STATS step 6. Until step 6 adds `id` / `tags` to Abili
    **Built** (awaiting play test): `Ability.ignores_walls` (default off), `Ability.filter_by_walls()` / `can_reach_through_walls()`, `AbilityUtil.in_sight()`. Walls now block: combo swings (feet to feet), League-style enemy attacks (a wall in between = a whiff), Cleave, Lunge (sight from the nearest point of its path), the elite slam (from the circle's center), and Judgement (a UNIT ability: out of sight counts like out of range, so it walks until it can see the target; a target that goes behind a wall during the cast is missed). Combat test 261/261 (11 new C7 checks, each with the target in reach so only the wall stops it); stats test 143/143; headless in-game check 38/38 (a swing and a Cleave at a dummy behind the sandbox pillar do nothing; the same swing hits in the open); room_01 runs with no errors.
 
 **Milestone M1 – a one-room fight in the sandbox:** the Knight fights with the combo, slimes chip, one elite telegraphs a slam, and the player can die ("You died", Backspace restarts) and win ("Room cleared!").
+   **Passed** (Ryan's play test, 2026-09-26): combo, dashes and abilities fine (reads as a rogue/diver pace); swarm pressure felt too fair, so post-hit i-frames 0.5 → 0.3 s; the elite slam was readable but too easy to escape, so 40 → 72 px and 0.75 → 0.65 s; death and restart, and the room clear, work. Combat test 263/263 after the changes (plus a 2-hit and a 5-hit combo check).
 
 8. **C8 – Crits and on-hit.** Crit (1.75 default), `damage_increase` scopes, `incoming_damage`, the on-hit stats, `proc_coefficient`. Migrate the Knight's 4 abilities from `take_damage()` to `HitPipeline.from_ability()`, so ability hits get crits, `damage_increase`, on-hit and proper tags.
    **Done means:** the ability numbers are unchanged with no crit or bonuses, and they crit once `crit_chance` > 0.
@@ -357,4 +358,3 @@ Items and affixes (LOOT.md); ability costs, recasts and augments (ABILITIES.md);
 - Life steal: basic attacks only *(proposed)*, or every hit?
 - "Your next <ability>" empowers (e.g. "your next Heavy Slam deals 30% bonus true damage") belong in ABILITIES.md (augments or ability buffs).
 - Which Knight abilities should ignore walls: CHAMPIONS.md / ABILITIES.md.
-- Post-hit i-frames (0.5 s) cap swarm pressure at about 2 hits per second whatever the swarm size. Tune against swarms in M1 (try 0.3 s).

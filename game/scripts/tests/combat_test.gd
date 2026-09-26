@@ -246,6 +246,7 @@ func _test_combo() -> void:
 	await _test_iron_resolve_swing()
 	await _test_attack_speed()
 	await _test_combo_pace()
+	await _test_combo_lengths()
 	await _test_hit_feel()
 	await _test_melee()
 	await _test_getting_hit()
@@ -507,6 +508,41 @@ func _test_combo_pace() -> void:
 	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
 	_check_near("a 0.3 s swing takes 0.15 s", _game_time - start, 0.15 + 1.0 / 60.0, 0.02)
 	combo.speed_scale = 1.0
+
+
+# --- Combo lengths: any number of swings --------------------------------------------
+
+func _test_combo_lengths() -> void:
+	_section("Combo length is data: a 2-hit and a 5-hit combo")
+	var knight_combo := knight.attack.combo
+	for count: int in [2, 5]:
+		var combo := AttackCombo.new()
+		for i in count:
+			var swing := AttackSwing.new()
+			swing.duration = 0.2
+			swing.ad_ratio = 0.2 * (i + 1)   # 12.8, 25.6, 38.4... so each swing is recognizable
+			combo.swings.append(swing)
+		knight.attack.combo = combo
+		await _reset_knight()
+		var dummy := _dummy_at(Vector2(50, 0))
+		await _frames(1)
+		var damage: Array = []
+		for i in count + 1:
+			dummy.health.heal(10000.0)
+			var before := dummy.health.current
+			knight.attack.try_swing(Vector2.RIGHT)
+			await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+			damage.append(roundi((before - dummy.health.current) / 12.8))
+			_place(dummy, knight.global_position + Vector2(50, 0))
+			await _frames(1)
+		var expected: Array = []
+		for i in count:
+			expected.append(i + 1)
+		expected.append(1)
+		_check("%d-hit combo: swings 1..%d, then it starts over" % [count, count], damage, expected)
+		dummy.queue_free()
+	knight.attack.combo = knight_combo
+	await _reset_knight()
 
 
 # --- C3: hit feel -------------------------------------------------------------------
@@ -881,7 +917,7 @@ func _test_getting_hit() -> void:
 func _test_getting_hit_data() -> void:
 	_section("C4: numbers")
 	var slime := _spawn_dummy()
-	_check("the Knight: 0.5 s post-hit i-frames", knight.post_hit_iframes, 0.5)
+	_check("the Knight: 0.3 s post-hit i-frames", knight.post_hit_iframes, 0.3)
 	_check("slimes: 12 px push, attacks reach 10% short", [slime.attack.hit_knockback_px, slime.attack.enemy_hit_forgiveness], [12.0, 0.1])
 	_check_near("slime windup 0.25 s (swarm band 0-0.3 s)", slime.attack.get_windup_time(), 0.25, 0.001)
 	_check("slimes take no i-frames", slime.post_hit_iframes, 0.0)
@@ -904,7 +940,7 @@ func _test_post_hit_iframes() -> void:
 		await get_tree().process_frame
 		if not knight.body.visible:
 			hidden_seen = true
-	_check_near("they last 0.5 s", _game_time - t0, 0.5, 0.05)
+	_check_near("they last 0.3 s", _game_time - t0, 0.3, 0.05)
 	_check("the Knight blinks meanwhile", hidden_seen, true)
 	await get_tree().process_frame
 	_check("and shows again after", knight.body.visible, true)
@@ -1022,8 +1058,8 @@ func _test_elite_data() -> void:
 	var slam := elite.abilities.get_ability(&"q")
 	_check("900 health, basic attack 30 (4.6%: swarm band)", [elite.health.max_health, elite.stats_component.get_stat(&"attack_damage")], [900.0, 30.0])
 	_check_near("its basic attack winds up 0.25 s", elite.attack.get_windup_time(), 0.25, 0.001)
-	_check("slam: 0.75 s telegraph, 40 px circle, 100 damage, 4 s cooldown",
-		[slam.cast_time, slam.get("radius_px"), slam.base_damage, slam.cooldown], [0.75, 40.0, 100.0, 4.0])
+	_check("slam: 0.65 s telegraph, 72 px circle, 100 damage, 4 s cooldown",
+		[slam.cast_time, slam.get("radius_px"), slam.base_damage, slam.cooldown], [0.65, 72.0, 100.0, 4.0])
 	_check_near("100 = 15.4% of the Knight's 650 (elite band 12-20%)", slam.base_damage / knight.health.max_health, 0.154, 0.001)
 	elite.queue_free()
 
@@ -1041,12 +1077,12 @@ func _test_slam_hits() -> void:
 	var telegraph := _find_telegraph()
 	_check("a telegraph appears where the Knight stands", telegraph != null and telegraph.global_position.distance_to(start) < 0.5, true)
 	_check("the elite is rooted while casting", elite.movement.can_move(), false)
-	await _frames(22)
-	_check_near("it fills up (about half at 0.37 s)", telegraph.get_progress() if telegraph else -1.0, 0.5, 0.1)
+	await _frames(19)
+	_check_near("it fills up (about half at 0.32 s)", telegraph.get_progress() if telegraph else -1.0, 0.5, 0.1)
 	_check("no damage before the slam", knight.health.current, hp)
 	var t0 := _game_time
 	await _wait_until(func() -> bool: return knight.health.current < hp, 40)
-	_check("100 damage at 0.75 s", hp - knight.health.current, 100.0)
+	_check("100 damage at 0.65 s", hp - knight.health.current, 100.0)
 	await _frames(12)
 	_check_near("pushed 20 px away from the elite", start.x - knight.global_position.x, 20.0, 1.0)
 	await _frames(10)
@@ -1064,7 +1100,7 @@ func _test_slam_dodges() -> void:
 	var hp := knight.health.current
 	elite.abilities.try_cast(&"q", knight.global_position, knight)
 	await _frames(20)
-	_place(knight, knight.global_position + Vector2(-60, 0))   # walked out
+	_place(knight, knight.global_position + Vector2(-120, 0))   # walked out (72 px circle)
 	await _wait_until(func() -> bool: return not elite.abilities.casting, 60)
 	await _frames(2)
 	_check("walked out: no damage", knight.health.current, hp)
@@ -1073,7 +1109,7 @@ func _test_slam_dodges() -> void:
 	_place(elite, knight.global_position + Vector2(60, 0))
 	await _wait_until(func() -> bool: return elite.abilities.can_cast(&"q"), 300)
 	elite.abilities.try_cast(&"q", knight.global_position, knight)
-	await _frames(35)
+	await _frames(30)
 	knight.dash.try_dash(Vector2.LEFT)
 	await _wait_until(func() -> bool: return not elite.abilities.casting, 60)
 	await _frames(2)
@@ -1108,7 +1144,7 @@ func _test_elite_ai() -> void:
 	var telegraph := _find_telegraph()
 	_check("aimed at the Knight", telegraph != null and telegraph.global_position.distance_to(knight.global_position) < 1.0, true)
 	var hp := knight.health.current
-	_place(knight, knight.global_position + Vector2(-90, 0))
+	_place(knight, knight.global_position + Vector2(-140, 0))
 	await _wait_until(func() -> bool: return not elite.abilities.casting, 60)
 	_check("the Knight walked out: no damage", knight.health.current, hp)
 	elite.passive = true
