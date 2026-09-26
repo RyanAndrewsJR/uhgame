@@ -83,6 +83,7 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 - Follow the Change policy. If a step needs to remove or replace existing code, stop and ask first.
 - Before naming anything new, check docs/CONVENTIONS.md (naming, vocabulary, reserved names). Don't invent synonyms.
 - When a decision gets made, add it to docs/DECISIONS.md (date, decision, why) in the right system section. If it changes how a system works, update that system's doc too.
+- Before a build step, ask me to run `git status` and confirm the working tree is clean. If it isn't, tell me to commit first. After a step passes my play test, suggest a one-line commit message.
 
 ## Docs index (read only what the task needs)
 | Doc | Read when the task involves |
