@@ -48,6 +48,16 @@ static func in_circle(caster: Unit, center: Vector2, radius_px: float) -> Array[
 	return out
 
 
+## Only the units in line of sight from `from` (walls block it, units don't;
+## feet to feet). COMBAT C7: attacks never hit through walls.
+static func in_sight(from: Vector2, units: Array[Unit]) -> Array[Unit]:
+	var out: Array[Unit] = []
+	for u in units:
+		if WorldQuery.has_line_of_sight(from, u.global_position):
+			out.append(u)
+	return out
+
+
 ## The enemy nearest to `point` within `max_dist_px` (for forgiving clicks).
 static func nearest_enemy_to(caster: Unit, point: Vector2, max_dist_px: float) -> Unit:
 	var best: Unit = null

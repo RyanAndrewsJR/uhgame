@@ -16,6 +16,8 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 	var target := ctx.target
 	if not is_instance_valid(target) or not target.is_alive():
 		return
+	if not can_reach_through_walls(caster.global_position, target):
+		return  # It went behind a wall during the cast: a miss (COMBAT C7).
 	var parent := target.get_parent()
 	VFX.impact(parent, target.global_position, Color(icon_color, 0.95), 90.0, 0.35)
 	VFX.slash(parent, target.get_center(), (target.global_position - caster.global_position).angle() + PI * 0.5,

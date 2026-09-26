@@ -72,7 +72,7 @@ New subfolders inside these are fine. Ask before adding a new top-level folder.
 ## Autoloads
 - `GameFeel` (`scripts/autoload/game_feel.gd`): `hitstop()` (longest wins), `shake()`, `play_hit_feel(ctx)` (tiers from `hit_feel_default.tres`)
 - `Events` (`scripts/autoload/events.gd`): global signal bus. `unit_hit`, `unit_damaged`, `unit_died` (COMBAT.md)
-- `WorldQuery` (`scripts/autoload/world_query.gd`): spatial queries; only `has_line_of_sight()` so far (docs/WORLD_INTERACTION.md)
+- `WorldQuery` (`scripts/autoload/world_query.gd`): spatial queries; only `has_line_of_sight()` so far, used by every hit (docs/WORLD_INTERACTION.md, COMBAT C7)
 - `Settings` (`scripts/autoload/settings.gd`): the player's own options, saved to `user://settings.cfg`; `setting_changed(key, value)`. Only dash direction so far (MOVEMENT.md, Dash). Changed in the Esc pause menu (`PauseMenu`, `scenes/ui/pause_menu.tscn`).
 
 ## Change policy (important)
@@ -109,12 +109,12 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 
 ## Current status
 <!-- OVERWRITE this whole section at the end of each session (Now / Last 3 done / Next). Never append. -->
-- **Now:** Waiting on Ryan's play test of COMBAT C6 (damage numbers) and the combo pace change (finisher breather, speed knob). Still open: play tests of COMBAT C3–C4, the dash direction option, STATS step 5, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of COMBAT C7 (walls block hits). Still open: play tests of COMBAT C3–C4, the dash direction option, STATS step 5, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. COMBAT C6: damage numbers (`DamageNumberStyle`, `damage_number_style_default.tres`): sizes 10 / 12 / 14 at 0 / 100 / 1000, crits bigger with "!", colors by damage type (physical orange, magic blue, true white), the player's damage red, heals green, DoT ticks merged, rise 12 px / fade 0.6 s. Combat test 250/250, stats test 143/143, in-game check 35/35.
-  2. Combo pace: per-swing breather `AttackSwing.pause_after` (Knight finisher 0.25 s), `AttackCombo.speed_scale` knob, no global cooldown; weapons-by-class planned.
-  3. COMBAT C5: elite slime with a telegraphed slam (`Telegraph`, `Ability.on_cast_started()`), the Enemy AI casts abilities.
-- **Next:** COMBAT C7 (line of sight on hits, `ignores_walls`) → milestone M1 (one-room fight in the sandbox) → STATS step 6 → COMBAT C8–C12. STATS step 7 (F3 overlay) after M1. Then the Future docs in their listed order.
+  1. COMBAT C7: nothing hits through walls: swings, enemy attacks, Cleave, Lunge, Judgement (walks until it can see its target) and the elite slam; `Ability.ignores_walls` opts out; `AbilityUtil.in_sight()`. Combat test 261/261, stats test 143/143, in-game check 38/38.
+  2. COMBAT C6: damage numbers (`DamageNumberStyle`): size steps, crit style, colors by damage type, red on the player, merged DoT ticks.
+  3. Combo pace: per-swing breather `AttackSwing.pause_after` (Knight finisher 0.25 s), `AttackCombo.speed_scale` knob, no global cooldown.
+- **Next:** milestone M1 (one-room fight in the sandbox: play-test C1–C7 together) → STATS step 6 → COMBAT C8–C12. STATS step 7 (F3 overlay) after M1. Then the Future docs in their listed order.
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.

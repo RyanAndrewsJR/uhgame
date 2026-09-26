@@ -117,7 +117,9 @@ func try_cast(slot: StringName, aim: Vector2, target_unit: Unit = null) -> bool:
 				cast_failed.emit(slot, "no target")
 				return false
 			ctx.target = target_unit
-			if unit.edge_distance_to(target_unit) > Units.to_px(ability.cast_range):
+			# Out of range, or no line of sight (COMBAT C7): walk until both hold.
+			if unit.edge_distance_to(target_unit) > Units.to_px(ability.cast_range) \
+					or not ability.can_reach_through_walls(unit.global_position, target_unit):
 				_pending = {"slot": slot, "target": target_unit}
 				_pending_repath = 0.0
 				unit.attack.cancel()
@@ -197,7 +199,8 @@ func _physics_process(delta: float) -> void:
 	if not is_instance_valid(target) or not target.is_alive() or not unit.is_alive():
 		_pending.clear()
 		return
-	if unit.edge_distance_to(target) <= Units.to_px(ability.cast_range):
+	if unit.edge_distance_to(target) <= Units.to_px(ability.cast_range) \
+			and ability.can_reach_through_walls(unit.global_position, target):
 		_pending.clear()
 		unit.movement.stop()
 		try_cast(slot, target.global_position, target)

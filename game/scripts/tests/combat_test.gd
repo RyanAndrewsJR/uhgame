@@ -19,6 +19,8 @@ extends Node2D
 ## walking and dashing out, a stun, the AI casting it by itself).
 ## C6: damage numbers (log size steps, crit, colors by type, red on the
 ## player, DoT merging, heals, rise and fade, none for blocked hits).
+## C7: line of sight (swings, enemy attacks, Cleave, Lunge, Judgement and the
+## slam don't hit through walls; ignores_walls does).
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
@@ -249,6 +251,7 @@ func _test_combo() -> void:
 	await _test_getting_hit()
 	await _test_elite()
 	await _test_damage_numbers()
+	await _test_line_of_sight()
 	await _test_death_mid_swing()
 
 
@@ -1231,6 +1234,112 @@ func _test_damage_numbers() -> void:
 func _numbers() -> Array:
 	return get_children().filter(func(n: Node) -> bool:
 		return n is Label and n.get_script() == NUMBER_SCRIPT and not n.is_queued_for_deletion())
+
+
+# --- C7: line of sight -------------------------------------------------------------
+
+func _test_line_of_sight() -> void:
+	_section("C7: walls block hits")
+	_check("abilities are blocked by walls by default",
+		[knight.abilities.q.ignores_walls, knight.abilities.e.ignores_walls, knight.abilities.r.ignores_walls], [false, false, false])
+
+	# Swing: a dummy in reach, behind a thin wall.
+	await _reset_knight()
+	await _hitstop_over()
+	var wall := _wall_at(knight.global_position + Vector2(24, 0), Vector2(4, 80))
+	var dummy := _dummy_at(Vector2(40, 0))
+	await _frames(2)
+	var hp := dummy.health.current
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+	_check("a swing doesn't hit through a wall", dummy.health.current, hp)
+	await _wait_until(func() -> bool: return not knight.attack.is_in_pause(), 30)
+
+	# Cleave, with and without ignores_walls.
+	await _reset_knight()
+	_place(wall, knight.global_position + Vector2(24, 0))
+	_place(dummy, knight.global_position + Vector2(50, 0))
+	await _frames(2)
+	hp = dummy.health.current
+	knight.abilities.try_cast(&"q", knight.global_position + Vector2(100, 0))
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 40)
+	_check("Cleave doesn't hit through a wall", dummy.health.current, hp)
+	await _wait_until(func() -> bool: return knight.abilities.is_ready(&"q"), 240)
+	knight.abilities.q.ignores_walls = true
+	knight.abilities.try_cast(&"q", knight.global_position + Vector2(100, 0))
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 40)
+	knight.abilities.q.ignores_walls = false
+	_check("with ignores_walls it does", dummy.health.current < hp, true)
+	await _hitstop_over()
+
+	# Lunge: a dummy beside the path, across a wall that runs along it.
+	await _reset_knight()
+	dummy.health.heal(1000.0)
+	_place(wall, knight.global_position + Vector2(60, 15))
+	wall.rotation = PI / 2.0   # now 80 px long along the path, 4 px thick
+	_place(dummy, knight.global_position + Vector2(60, 28))
+	await _frames(2)
+	hp = dummy.health.current
+	var lunge_path_ok := WorldQuery.has_line_of_sight(knight.global_position, knight.global_position + Vector2(120, 0))
+	var in_width := AbilityUtil.along_segment(knight, knight.global_position, knight.global_position + Vector2(120, 0),
+		Units.to_px(knight.abilities.e.get("hit_width")) * 0.5).has(dummy)
+	_check("(the dummy is inside Lunge's hit width: only the wall saves it)", in_width, true)
+	knight.abilities.try_cast(&"e", knight.global_position + Vector2(120, 0))
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 60)
+	_check("Lunge's path is clear", lunge_path_ok, true)
+	_check("Lunge doesn't hit a dummy across a wall beside its path", dummy.health.current, hp)
+	wall.rotation = 0.0
+
+	# Judgement: a target in range but behind a wall.
+	await _reset_knight()
+	_place(wall, knight.global_position + Vector2(40, 0))
+	wall.scale = Vector2(1, 3)   # 240 px tall: no quick way around
+	_place(dummy, knight.global_position + Vector2(90, 0))
+	await _frames(2)
+	knight.abilities.try_cast(&"r", dummy.global_position, dummy)
+	_check("Judgement behind a wall: no cast yet (walks to get a view)",
+		[knight.abilities.casting, knight.abilities.has_pending()], [false, true])
+	knight.abilities.cancel_pending()
+	knight.movement.stop()
+	knight.abilities.r.ignores_walls = true
+	knight.abilities.try_cast(&"r", dummy.global_position, dummy)
+	_check("with ignores_walls it casts at once", knight.abilities.casting, true)
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 120)
+	knight.abilities.r.ignores_walls = false
+	wall.scale = Vector2.ONE
+	dummy.queue_free()
+	await _hitstop_over()
+
+	# An enemy basic attack across a wall.
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	knight.health.heal(10000.0)
+	_place(wall, knight.global_position + Vector2(15, 0))
+	var slime := _dummy_at(Vector2(33, 0))
+	await _frames(2)
+	hp = knight.health.current
+	var whiffs: Array = []
+	slime.attack.attack_whiffed.connect(func(t: Unit) -> void: whiffs.append(t))
+	slime.attack.attack(knight)
+	await _wait_until(func() -> bool: return whiffs.size() > 0 or knight.health.current < hp, 60)
+	_check("a slime can't hit through a wall (whiff)", [knight.health.current, whiffs.size()], [hp, 1])
+	slime.attack.cancel()
+	slime.queue_free()
+
+	# The elite slam: the Knight inside the circle but across a wall from its center.
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	var elite := _spawn_elite(knight.global_position + Vector2(90, 0), true)
+	_place(wall, knight.global_position + Vector2(18, 0))
+	await _frames(2)
+	hp = knight.health.current
+	elite.abilities.try_cast(&"q", knight.global_position + Vector2(32, 0), knight)   # center 32 px away
+	await _wait_until(func() -> bool: return not elite.abilities.casting, 60)
+	await _frames(2)
+	_check("the slam doesn't hit through a wall", knight.health.current, hp)
+	elite.queue_free()
+	wall.queue_free()
+	await _frames(2)
 
 
 func _test_death_mid_swing() -> void:
