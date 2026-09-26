@@ -6,6 +6,7 @@
 script = ExtResource("1_stats")
 display_name = "Slime"
 max_health = 280.0
+health_regen = 0.0
 attack_damage = 22.0
 attack_range = 110.0
 base_attack_speed = 0.7

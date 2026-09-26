@@ -35,6 +35,7 @@
 - **Hit**: one application of damage/effects to a unit, described by a `HitContext`.
 - **Damage type**: `PHYSICAL`, `MAGIC`, `TRUE`.
 - **Stat modifier**: a change to a number (STATS.md).
+- **Resource**: in design text, mana/energy/fury. In code the node is a `ResourceComponent` and the variable on Unit is `resource_pool`, so it isn't confused with Godot's `Resource`.
 - **Status effect**: any timed state on a unit. **Buff** = positive, **debuff** = negative. **Crowd control (CC)** = status effects tagged `cc` (stun, slow, root, silence). There's one system for all of them, not separate buff and debuff systems.
 - **Displacement**: any forced movement (dash, knockback, pull). **Knockback**: displacement caused by a hit. **Impact**: a displacement colliding with a wall or unit.
 - **Surface**: a wall or solid body with `SurfaceTags`. **Hazard**: an area on the floor with tags that affects units in it (oil, fire, spikes, ice).

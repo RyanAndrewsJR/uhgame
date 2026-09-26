@@ -51,6 +51,7 @@ func _ready() -> void:
 	_test_helpers()
 	_test_unknown_keys()
 	await _test_speed_modifier_wrapper()
+	await _test_health_and_resource_pools()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -80,8 +81,12 @@ func _test_base_values() -> void:
 	_check("attack_range", knight_stats.get_stat(&"attack_range"), 175.0)
 	_check("move_speed 560 (inside the soft caps)", knight_stats.get_stat(&"move_speed"), 560.0)
 	_check("dash_charges", knight_stats.get_stat(&"dash_charges"), 1.0)
-	_check("armor (registry default, no UnitStats field yet)", knight_stats.get_stat(&"armor"), 30.0)
-	_check("crit_damage (registry default)", knight_stats.get_stat(&"crit_damage"), 1.5)
+	_check("armor: neutral default 0", knight_stats.get_stat(&"armor"), 0.0)
+	_check("crit_damage: neutral default 1 (no extra damage)", knight_stats.get_stat(&"crit_damage"), 1.0)
+	_check("max_resource 300 (knight.tres)", knight_stats.get_stat(&"max_resource"), 300.0)
+	_check("resource_regen 6 (knight.tres)", knight_stats.get_stat(&"resource_regen"), 6.0)
+	_check("health_regen 0 (knight.tres)", knight_stats.get_stat(&"health_regen"), 0.0)
+	_check("slime max_resource 0 (neutral default)", slime_stats.get_stat(&"max_resource"), 0.0)
 	_check("slime move_speed 285", slime_stats.get_stat(&"move_speed"), 285.0)
 
 
@@ -102,7 +107,7 @@ func _test_formula_and_exact_restore() -> void:
 	knight_stats.add_modifier(_mod(&"attack_damage", PERCENT_MULT, 0.5, &"status_rage"))
 	# (64 + 10) x (1 + 0.2 + 0.3) x 1.1 x 1.5
 	_check("AD = (64+10) x 1.5 x 1.1 x 1.5", knight_stats.get_stat(&"attack_damage"), 183.15)
-	_check("armor 30 + 25", knight_stats.get_stat(&"armor"), 55.0)
+	_check("armor 0 + 25", knight_stats.get_stat(&"armor"), 25.0)
 	_check("get_modifiers_from(item_a) has 3", knight_stats.get_modifiers_from(&"item_a").size(), 3)
 
 	knight_stats.remove_modifiers_from(&"item_b")
@@ -230,7 +235,7 @@ func _test_signals() -> void:
 		_mod(&"max_health", FLAT, 100.0, &"item_plate"),
 	]
 	knight_stats.add_modifiers(item_two_stats)
-	_check_signals("item with 2 stats: one signal per stat", [[&"armor", 30.0, 44.0], [&"max_health", 650.0, 750.0]])
+	_check_signals("item with 2 stats: one signal per stat", [[&"armor", 0.0, 11.0], [&"max_health", 650.0, 750.0]])
 	knight_stats.remove_modifiers_from(&"item_plate")
 	_signals.clear()
 
@@ -268,7 +273,7 @@ func _test_levels() -> void:
 	stats.set_level(5)
 	_check("level 5 AD = 64 + 3 x 4", stats.get_stat(&"attack_damage"), 76.0)
 	_check("level 5 max_health = 650 + 90 x 4", stats.get_stat(&"max_health"), 1010.0)
-	_check("stat without growth unchanged", stats.get_stat(&"armor"), 30.0)
+	_check("stat without growth unchanged", stats.get_stat(&"armor"), 0.0)
 	_check("set_level emitted 2 signals", _signals.size(), 2)
 	stats.add_modifier(_mod(&"attack_damage", PERCENT_ADD, 0.5, &"item_sword"))
 	_check("modifiers apply on top of growth: 76 x 1.5", stats.get_stat(&"attack_damage"), 114.0)
@@ -323,7 +328,83 @@ func _test_speed_modifier_wrapper() -> void:
 	_check("move_speed back to 560 after it", knight_movement.get_move_speed(), 560.0)
 
 
+func _test_health_and_resource_pools() -> void:
+	_section("HealthComponent and ResourceComponent following stats (step 5)")
+	var stats: StatsComponent = StatsComponent.new()
+	add_child(stats)
+	stats.setup(KNIGHT_STATS)
+	var health: HealthComponent = HealthComponent.new()
+	add_child(health)
+	health.set_stats_component(stats)
+	var pool: ResourceComponent = ResourceComponent.new()
+	add_child(pool)
+	pool.set_stats_component(stats)
+	var depleted_count := [0]
+	pool.depleted.connect(func() -> void: depleted_count[0] += 1)
+
+	_check("health starts full at max_health 650", health.current, 650.0)
+	_check("mana starts full at max_resource 300", pool.current, 300.0)
+
+	health.take_damage(100.0)
+	stats.add_modifier(_mod(&"max_health", FLAT, 200.0, &"item_heart"))
+	_check("max_health +200: max 850", health.max_health, 850.0)
+	_check("current rises by the same 200: 550 -> 750", health.current, 750.0)
+	stats.remove_modifiers_from(&"item_heart")
+	_check("item removed: max back to 650", health.max_health, 650.0)
+	_check("current 750 clamped to 650", health.current, 650.0)
+	health.take_damage(400.0)
+	stats.add_modifier(_mod(&"max_health", FLAT, -100.0, &"item_cursed"))
+	_check("max down to 550 with current 250 below it: current stays 250", health.current, 250.0)
+	stats.remove_modifiers_from(&"item_cursed")
+	_check("max back up 100: current 250 -> 350", health.current, 350.0)
+
+	await _physics_frames(30)
+	_check("health_regen 0: no regen", health.current, 350.0)
+	stats.add_modifier(_mod(&"health_regen", FLAT, 30.0, &"status_regen"))
+	await _physics_frames(30)
+	_check_near("health_regen 30/s for 0.5 s: about +15", health.current, 365.0, 0.6)
+	stats.remove_modifiers_from(&"status_regen")
+
+	_check("try_spend(100) succeeds", pool.try_spend(100.0), true)
+	_check("mana 300 -> 200", pool.current, 200.0)
+	_check("can_afford(250) is false", pool.can_afford(250.0), false)
+	_check("try_spend(250) fails", pool.try_spend(250.0), false)
+	_check("failed spend leaves mana at 200", pool.current, 200.0)
+	await _physics_frames(30)
+	_check_near("resource_regen 6/s for 0.5 s: about +3", pool.current, 203.0, 0.15)
+	stats.add_modifier(_mod(&"max_resource", FLAT, 100.0, &"item_tome"))
+	_check("max_resource +100: max 400", pool.max_resource, 400.0)
+	_check_near("current rises by the same 100", pool.current, 303.0, 0.15)
+	stats.remove_modifiers_from(&"item_tome")
+	_check_near("max back to 300: current 303 clamped", pool.current, 300.0, 0.001)
+	_check("spend everything", pool.try_spend(pool.current), true)
+	_check("depleted emitted once", depleted_count[0], 1)
+	_check("is_empty", pool.is_empty(), true)
+	pool.restore(1000.0)
+	_check("restore clamps to max", pool.current, 300.0)
+
+	stats.add_modifier(_mod(&"health_regen", FLAT, 30.0, &"status_regen"))
+	health.take_damage(10000.0)
+	await _physics_frames(30)
+	_check("no regen while dead", health.current, 0.0)
+	stats.add_modifier(_mod(&"max_health", FLAT, 200.0, &"item_heart"))
+	_check("a raised max doesn't revive", health.current, 0.0)
+	_check("but the max still follows", health.max_health, 850.0)
+
+	for node: Node in [stats, health, pool]:
+		node.queue_free()
+
+
 # --- Helpers ------------------------------------------------------------------
+
+func _physics_frames(n: int) -> void:
+	for i in n:
+		await get_tree().physics_frame
+
+
+func _check_near(label: String, actual: float, expected: float, tolerance: float) -> void:
+	_report(absf(actual - expected) <= tolerance, label, "got %s, expected %s ± %s" % [actual, expected, tolerance])
+
 
 func _mod(stat: StringName, type: StatModifier.Type, value: float, source_id: StringName, scope: StringName = &"") -> StatModifier:
 	return StatModifier.create(stat, type, value, source_id, scope)

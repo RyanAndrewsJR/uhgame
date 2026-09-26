@@ -15,7 +15,7 @@ min_value = 1.0
 script = ExtResource("2_definition")
 key = &"health_regen"
 display_name = "Health Regen"
-default_value = 1.5
+default_value = 0.0
 has_min = true
 min_value = 0.0
 format = 3
@@ -24,7 +24,7 @@ format = 3
 script = ExtResource("2_definition")
 key = &"max_resource"
 display_name = "Max Resource"
-default_value = 300.0
+default_value = 0.0
 has_min = true
 min_value = 0.0
 
@@ -32,7 +32,7 @@ min_value = 0.0
 script = ExtResource("2_definition")
 key = &"resource_regen"
 display_name = "Resource Regen"
-default_value = 6.0
+default_value = 0.0
 has_min = true
 min_value = 0.0
 format = 3
@@ -81,7 +81,7 @@ format = 2
 script = ExtResource("2_definition")
 key = &"crit_damage"
 display_name = "Crit Damage"
-default_value = 1.5
+default_value = 1.0
 has_min = true
 min_value = 1.0
 format = 2
@@ -90,13 +90,13 @@ format = 2
 script = ExtResource("2_definition")
 key = &"armor"
 display_name = "Armor"
-default_value = 30.0
+default_value = 0.0
 
 [sub_resource type="Resource" id="stat_magic_resist"]
 script = ExtResource("2_definition")
 key = &"magic_resist"
 display_name = "Magic Resist"
-default_value = 30.0
+default_value = 0.0
 
 [sub_resource type="Resource" id="stat_move_speed"]
 script = ExtResource("2_definition")
@@ -166,7 +166,7 @@ format = 2
 script = ExtResource("2_definition")
 key = &"pickup_radius"
 display_name = "Pickup Radius"
-default_value = 200.0
+default_value = 0.0
 
 [sub_resource type="Resource" id="stat_magic_find"]
 script = ExtResource("2_definition")

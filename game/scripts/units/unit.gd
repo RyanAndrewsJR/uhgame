@@ -4,8 +4,8 @@ extends CharacterBody2D
 ## auto-attacks, damage numbers and hover highlighting.
 ##
 ## Expected children: StatsComponent, HealthComponent, AutoAttackComponent,
-## MovementComponent, Body (Node2D with the visuals), optional Hurtbox and
-## HealthBar.
+## MovementComponent, Body (Node2D with the visuals), optional Hurtbox,
+## HealthBar, AbilityComponent and ResourceComponent.
 ##
 ## `stats` is the base UnitStats; `stats_component` holds the live values
 ## (base + modifiers, STATS.md).
@@ -31,6 +31,9 @@ const StunEffect := preload("res://scripts/vfx/stun_effect.gd")
 @onready var body: Node2D = $Body
 ## Optional: only units with abilities have one.
 @onready var abilities: AbilityComponent = get_node_or_null("AbilityComponent")
+## Optional: mana/energy/fury (ResourceComponent). Named resource_pool so it
+## isn't mixed up with Godot's Resource.
+@onready var resource_pool: ResourceComponent = get_node_or_null("ResourceComponent")
 
 var hovered: bool = false:
 	set(value):
@@ -46,8 +49,10 @@ func _ready() -> void:
 	add_to_group("units")
 	assert(stats != null, "%s has no UnitStats assigned" % name)
 	stats_component.setup(stats, movement)
-	health.setup(stats_component.get_stat(&"max_health"))
+	health.set_stats_component(stats_component)
 	health.died.connect(_on_died)
+	if resource_pool:
+		resource_pool.set_stats_component(stats_component)
 	movement.set_stats_component(stats_component)
 	movement.set_radius(get_pathing_radius_px())
 	if has_node("Hurtbox"):

@@ -5,12 +5,13 @@
 **Used by:** MOVEMENT (move_speed, dash_charges), COMBAT, ABILITIES, LOOT, CHAMPIONS, ENEMIES.
 
 ## Current code
-- `UnitStats` (`res://scripts/data/unit_stats.gd`): one .tres per unit in `res://data/units/`. Fields: display_name, max_health, attack_damage, attack_range, base_attack_speed, attack_windup, attack_speed_cap, ability_haste, move_speed, gameplay_radius, pathing_radius, dash_charges.
-- **Steps 1–4 are built:** `StatModifier`, `StatDefinition`, `StatRegistry` (+ `stat_registry.tres`, all 21 stats) and `StatsComponent`, tested by `res://scenes/tests/stats_test.tscn`. `player.tscn` and `slime.tscn` have a `StatsComponent` node; `Unit.stats_component` points to it and `Unit._ready()` calls `setup(stats, movement)`.
+- `UnitStats` (`res://scripts/data/unit_stats.gd`): one .tres per unit in `res://data/units/`. It has a field for every stat in the Stat list except `knockback_resistance` (proposed, added with the knockback work), plus the identity fields.
+- **Steps 1–5 are built:** `StatModifier`, `StatDefinition`, `StatRegistry` (+ `stat_registry.tres`, all 21 stats) and `StatsComponent`, tested by `res://scenes/tests/stats_test.tscn`. `player.tscn` and `slime.tscn` have a `StatsComponent` node; `Unit.stats_component` points to it and `Unit._ready()` calls `setup(stats, movement)`.
 - On `Unit`, `stats` stays the base `UnitStats` export and `stats_component` is the live StatsComponent. Gameplay reads go through `stats_component.get_stat(&"x")`. Only `attack_windup`, `gameplay_radius` and `pathing_radius` are still read from `unit.stats` (identity fields, not stats).
 - `MovementComponent.get_move_speed()` returns `get_stat(&"move_speed")` (soft caps included, applied once). `add_speed_modifier(id, flat, percent, duration)` is a thin wrapper: it adds FLAT / PERCENT_ADD `move_speed` modifiers with `source_id = id` (the same id replaces), and only the timer stays on MovementComponent. Without a StatsComponent (`set_stats_component()` not called) MovementComponent uses its old `base_move_speed` math; the stats test uses that path for its parity checks.
 - `AutoAttackComponent.bonus_attack_speed` is a thin wrapper too: setting it replaces one PERCENT_ADD `attack_speed` modifier (source `&"bonus_attack_speed"`). Nothing writes it yet; new code adds StatModifiers directly.
-- `HealthComponent` holds current and max health. Its max is taken from `get_stat(&"max_health")` once at `_ready()`; following later max_health changes comes with step 5.
+- `HealthComponent` holds current and max health. `Unit._ready()` calls `health.set_stats_component()`: the max follows `max_health` (a raised max adds the difference to current, a lowered max clamps it; a dead unit isn't revived), and `health_regen` heals per second while alive. The old `setup(maximum)` still works for a HealthComponent without stats.
+- `ResourceComponent` (`Unit.resource_pool`, optional) works the same way with `max_resource` and `resource_regen`: `try_spend()`, `restore()`, `can_afford()`, `is_empty()`, signals `resource_changed(current, maximum)` and `depleted`. Only the Knight has one (MANA, 300, 6/s: a placeholder until CHAMPIONS.md decides the Knight's real resource type). Nothing spends it yet and there's no HUD bar; the bar comes when something spends mana.
 - `DashComponent` takes its starting charges when the Unit is ready, since the StatsComponent is set up in `Unit._ready()`, which runs after the children's `_ready()`. A lower max later leaves extra charges until they're spent; a higher max recharges up to it.
 - All values are in **LoL units** (see CLAUDE.md, `Units.to_px()`).
 
@@ -28,32 +29,34 @@
 ## Stat list
 Existing `UnitStats` fields keep their names. New ones get added to `UnitStats`.
 
+**Neutral defaults (rule):** every stat added from step 5 on defaults to a neutral value that changes nothing in play (0 regen, 0 armor, 0 magic_resist, 0 crit chance, crit_damage 1 = no extra damage, 0 pickup radius...), in both UnitStats and the registry. A unit only gets a stat when its .tres sets a value. The Default column below is that neutral default; per-unit values are in the unit's .tres.
+
 | Key | Default | Min / Max | Notes |
 |---|---|---|---|
 | `max_health` | 600 | 1 / - | exists |
-| `health_regen` | 1.5 | 0 / - | per second, new |
-| `max_resource` | 300 | 0 / - | mana/energy/fury, new |
-| `resource_regen` | 6 | 0 / - | per second, new |
+| `health_regen` | 0 | 0 / - | per second. Knight and slime set 0 explicitly |
+| `max_resource` | 0 | 0 / - | mana/energy/fury. Knight 300 (placeholder, CHAMPIONS.md) |
+| `resource_regen` | 0 | 0 / - | per second. Knight 6 (placeholder) |
 | `attack_damage` | 60 | 0 / - | exists |
-| `ability_power` | 0 | 0 / - | new |
+| `ability_power` | 0 | 0 / - | |
 | `attack_speed` | base = `UnitStats.base_attack_speed` (0.65) | 0.2 / the unit's `attack_speed_cap` (2.5) | % modifiers = LoL bonus attack speed. `attack_speed_cap` is a per-unit maximum for this stat, not a stat |
-| `crit_chance` | 0 | 0 / 1 | new |
-| `crit_damage` | 1.5 | 1 / - | multiplier, new |
-| `armor` | 30 | - / - | new, formula in COMBAT.md |
-| `magic_resist` | 30 | - / - | new |
+| `crit_chance` | 0 | 0 / 1 | |
+| `crit_damage` | 1 | 1 / - | multiplier (1 = no extra damage). A real crit multiplier (LoL: 1.75) gets picked in COMBAT.md |
+| `armor` | 0 | - / - | formula in COMBAT.md |
+| `magic_resist` | 0 | - / - | |
 | `move_speed` | 345 | scaled soft caps | exists. Knight base is 560 (≈179 px/s) for Hades pace; slime stays 285 (MOVEMENT.md) |
 | `ability_haste` | 0 | 0 / - | exists: cooldown × 100 / (100 + haste) |
 | `dash_charges` | 1 | 1 / 5 | integer. Exists on UnitStats; read by DashComponent (MOVEMENT.md) |
 | `attack_range` | 175 | - / - | exists, LoL units edge-to-edge |
-| `life_steal` | 0 | 0 / 1 | new |
-| `tenacity` | 0 | 0 / 0.8 | reduces crowd control duration, new |
-| `knockback_resistance` | 0 | 0 / 1 | *(proposed)* displacement distance × (1 − value); bosses 1. New, WORLD_INTERACTION.md |
-| `pickup_radius` | 200 | - / - | LoL units (64 px), new |
-| `magic_find` | 0 | 0 / - | new, LOOT.md |
-| `gold_find` | 0 | 0 / - | new |
+| `life_steal` | 0 | 0 / 1 | |
+| `tenacity` | 0 | 0 / 0.8 | reduces crowd control duration |
+| `knockback_resistance` | 0 | 0 / 1 | *(proposed)* displacement distance × (1 − value); bosses 1 (WORLD_INTERACTION.md). Registry entry only; **not on UnitStats** until the knockback work |
+| `pickup_radius` | 0 | - / - | LoL units. The planned value is 200 (64 px); set per unit when pickups exist (LOOT.md) |
+| `magic_find` | 0 | 0 / - | LOOT.md |
+| `gold_find` | 0 | 0 / - | |
 
 These are **not stats** (they're fixed identity fields and stay plain on UnitStats): `display_name`, `attack_windup`, `attack_speed_cap` (the max for `attack_speed`), `gameplay_radius`, `pathing_radius`.
-To add a stat: add a row here, a field to UnitStats, and an entry in the registry. Unknown keys cause a `push_error`, never a silent 0.
+To add a stat: add a row here, a field to UnitStats, and an entry in the registry, all with a neutral default (see the rule above). Unknown keys cause a `push_error`, never a silent 0.
 
 ## Modifier math
 Types: `FLAT`, `PERCENT_ADD` ("increased", summed), `PERCENT_MULT` ("more", each multiplies separately).
@@ -107,7 +110,7 @@ Equipping an item gives its modifiers to `StatsComponent` and its augments to `A
 - `res://scripts/data/stat_registry.gd` + `res://data/stats/stat_registry.tres`: `StatRegistry`, a list of `StatDefinition`s (`res://scripts/data/stat_definition.gd`), one per stat: key, display name, default, min, max, is_integer, format, plus
   - `base_field`: the UnitStats field holding the base (empty = same as the key; `attack_speed` reads `base_attack_speed`)
   - `max_field`: a UnitStats field used as a per-unit max (`attack_speed` → `attack_speed_cap`)
-  - A stat with no UnitStats field yet uses its registry default as the base.
+  - A stat with no UnitStats field yet (now only `knockback_resistance`) uses its registry default as the base.
 - `res://scripts/components/stats_component.gd`: `StatsComponent` (child of Unit)
   - `setup(base_stats, movement = null, growth = {})`: Unit wires it (step 3); `movement` supplies the soft cap thresholds
   - `get_stat(key)`, `get_ability_param(ability, param)` (step 6): cached. Adding or removing a modifier recalculates only the stats it touches
@@ -115,8 +118,8 @@ Equipping an item gives its modifiers to `StatsComponent` and its augments to `A
   - `add_modifier(mod)`, `add_modifiers(arr)`, `remove_modifiers_from(source_id)`
   - `set_level(n)`, signal `stat_changed(key, old, new)`: emitted only when a value actually changes
   - helpers: `get_attack_interval()`, `get_cooldown(base)`
-- `res://scripts/components/resource_component.gd`: mana/energy/fury, same shape as HealthComponent (`spend`, `restore`, `can_afford`, regen, `changed`, `depleted`)
-- `HealthComponent` and `ResourceComponent` read their max from stats. When the max goes up, current goes up by the same amount; when it goes down, current is clamped.
+- `res://scripts/components/resource_component.gd`: `ResourceComponent`, mana/energy/fury, same shape as HealthComponent (`try_spend` (named per CONVENTIONS: returns false on failure), `restore`, `can_afford`, `is_empty`, regen, signals `resource_changed` (mirrors `health_changed`) and `depleted`). `resource_type` (MANA / ENERGY / FURY) is an export on it for now, only a label until ChampionData. On Unit it's `resource_pool` (CONVENTIONS.md, Vocabulary).
+- `HealthComponent` and `ResourceComponent` read their max from stats (`set_stats_component()`, called by `Unit._ready()`). When the max goes up, current goes up by the same amount; when it goes down, current is clamped.
 - `res://scripts/data/champion_data.gd` + `res://data/champions/<name>.tres`: `stats: UnitStats`, `growth: Dictionary[StringName, float]`, `resource_type` (MANA / ENERGY / FURY / NONE), passive, ability slots. (Details in CHAMPIONS.md.)
 
 ## Build order
@@ -139,7 +142,7 @@ Equipping an item gives its modifiers to `StatsComponent` and its augments to `A
    | `main.gd` `_process()` (HUD info line) | `player.stats.attack_damage`, `attack_range` | `get_stat` |
 
    Also move MovementComponent's speed modifiers into StatsComponent (`add_speed_modifier` becomes a thin wrapper, so existing callers keep working). MovementComponent itself reads no `stats.` field; `Unit._ready()` calls `movement.set_stats_component()`, and MovementComponent reads `get_stat(&"move_speed")` live.
-5. ResourceComponent, plus the new stat fields on UnitStats.
+5. ResourceComponent, plus the new stat fields on UnitStats. *(done: neutral defaults; HealthComponent follows max_health and regens; ResourceComponent on the Knight only; tested in `stats_test.tscn`)*
 6. Scoped modifiers, `get_ability_param`, and `id`/`tags` on Ability. Route cooldowns through it.
 7. F3 debug overlay (`res://scripts/ui/stat_overlay.gd`): every stat, its base, final value, and each modifier with its source.
 

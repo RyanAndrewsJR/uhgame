@@ -6,6 +6,9 @@
 script = ExtResource("1_stats")
 display_name = "Knight"
 max_health = 650.0
+health_regen = 0.0
+max_resource = 300.0
+resource_regen = 6.0
 attack_damage = 64.0
 attack_range = 175.0
 base_attack_speed = 0.7
