@@ -95,6 +95,7 @@ Example: when `StatusComponent` arrives, `Unit.apply_stun()` and `add_speed_modi
 | `HitContext`, `DamageType` (enum `HitContext.DamageType`), `ImpactContext`, `HitPipeline` | the hit pipeline | COMBAT.md |
 | `AttackSwing`, `AttackCombo` | basic attack combo data | COMBAT.md |
 | `HitFeel` | hit feel per tier (hitstop, shake, flash) | COMBAT.md |
+| `DamageNumberStyle` | how damage numbers look (sizes, colors, crit, DoT, motion) | COMBAT.md |
 | `Telegraph` | enemy attack floor warning (VFX) | COMBAT.md |
 | `StatusEffect` (Resource), `StatusComponent` | buffs, debuffs, CC | COMBAT.md |
 | `ReactionRule`, `GameplayEffect` (+ subclasses like `ApplyStatusGameplayEffect`) | cross-system interactions | COMBAT.md |

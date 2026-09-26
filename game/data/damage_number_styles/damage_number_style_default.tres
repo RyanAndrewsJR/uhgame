@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="DamageNumberStyle" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/damage_number_style.gd" id="1_style"]
+
+[resource]
+script = ExtResource("1_style")
+size_thresholds = PackedFloat32Array(0, 100, 1000)
+font_sizes = PackedInt32Array(10, 12, 14)
+crit_size_bonus = 3
+dot_font_size = 8
+dot_merge_window = 0.3
+rise_px = 12.0
+lifetime = 0.6

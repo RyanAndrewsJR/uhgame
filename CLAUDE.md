@@ -35,6 +35,7 @@ data/units/             UnitStats .tres per champion/monster (knight.tres, slime
 data/curves/            Curve .tres for displacement speed profiles (curve_dash.tres, curve_knockback.tres)
 data/combos/            AttackCombo .tres (combo_knight.tres: the Knight's basic attack)
 data/hit_feels/         HitFeel .tres (hit_feel_default.tres: hitstop/shake/flash per hit tier)
+data/damage_number_styles/  DamageNumberStyle .tres (damage_number_style_default.tres: number sizes, colors, motion)
 scenes/player|enemies|rooms|ui/
 scenes/sandbox_main.tscn  test run: main + rooms/sandbox.tscn (open it, press F6)
 scenes/tests/           script-level test scenes (stats_test.tscn, combat_test.tscn; F6; scripts in scripts/tests/)
@@ -108,12 +109,12 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 
 ## Current status
 <!-- OVERWRITE this whole section at the end of each session (Now / Last 3 done / Next). Never append. -->
-- **Now:** Waiting on Ryan's play test of COMBAT C5 (elite slime with a telegraphed slam). Still open: play tests of COMBAT C3–C4, the dash direction option, STATS step 5, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of COMBAT C6 (damage numbers) and the combo pace change (finisher breather, speed knob). Still open: play tests of COMBAT C3–C4, the dash direction option, STATS step 5, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. COMBAT C5: elite slime (`slime_elite.tscn`, `slime_elite.tres`, 900 health) in the sandbox's top-right corner; its slam (`slime/slam.gd`, `slime_elite_q_slam.tres`) marks a 40 px `Telegraph` circle for 0.75 s, then deals 100 (15%) and pushes 20 px; the Enemy AI casts abilities; `Ability.on_cast_started()` + `CastContext.telegraph`. Combat test 225/225, stats test 143/143, in-game check 33/33.
-  2. COMBAT C4: 0.5 s post-hit i-frames, 12 px slime push a dash cuts short, whiffs out of reach, slime windup 0.25 s, the stronger knockback wins.
-  3. COMBAT C3: hit feel per tier (`HitFeel`, `GameFeel.play_hit_feel()`), longest hitstop wins, 0.06 s flash.
-- **Next:** COMBAT C6 (damage numbers) → C7 (line of sight on hits) → milestone M1 (one-room fight in the sandbox) → STATS step 6 → COMBAT C8–C12. STATS step 7 (F3 overlay) after M1. Then the Future docs in their listed order.
+  1. COMBAT C6: damage numbers (`DamageNumberStyle`, `damage_number_style_default.tres`): sizes 10 / 12 / 14 at 0 / 100 / 1000, crits bigger with "!", colors by damage type (physical orange, magic blue, true white), the player's damage red, heals green, DoT ticks merged, rise 12 px / fade 0.6 s. Combat test 250/250, stats test 143/143, in-game check 35/35.
+  2. Combo pace: per-swing breather `AttackSwing.pause_after` (Knight finisher 0.25 s), `AttackCombo.speed_scale` knob, no global cooldown; weapons-by-class planned.
+  3. COMBAT C5: elite slime with a telegraphed slam (`Telegraph`, `Ability.on_cast_started()`), the Enemy AI casts abilities.
+- **Next:** COMBAT C7 (line of sight on hits, `ignores_walls`) → milestone M1 (one-room fight in the sandbox) → STATS step 6 → COMBAT C8–C12. STATS step 7 (F3 overlay) after M1. Then the Future docs in their listed order.
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.
