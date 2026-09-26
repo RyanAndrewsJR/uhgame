@@ -108,11 +108,11 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 
 ## Current status
 <!-- OVERWRITE this whole section at the end of each session (Now / Last 3 done / Next). Never append. -->
-- **Now:** Waiting on Ryan's play test of COMBAT C3 (hit feel). Still open: play tests of STATS step 5, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of COMBAT C3 (hit feel) and the dash direction option (Esc pause menu, `Settings` autoload). Still open: play tests of STATS step 5, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
   1. COMBAT C3: hit feel per tier (`HitFeel`, `hit_feel_default.tres`, `GameFeel.play_hit_feel()`): light swings freeze 0.03 s, the finisher 0.06 s + 2 px shake, kills 0.08 s + 3 px; the longest hitstop wins; 0.06 s flash on every hit; abilities and enemy hits unchanged. Combat test 173/173, stats test 143/143, in-game check 21/21.
-  2. Melee basic attacks: swing step, target pull with aim snap, walk-cancel of the recovery, `attack_style` MELEE/RANGED, minimal `WorldQuery.has_line_of_sight()`.
-  3. COMBAT C2: the Knight's combo on left mouse (`AttackSwing`, `AttackCombo`, `combo_knight.tres`), dash / stun / ability cancels, Iron Resolve through swings, `select` unbound.
+  2. Dash direction option: dash toward the cursor at press time (default) or WASD, chosen in a new Esc pause menu and saved by a new `Settings` autoload.
+  3. Melee basic attacks: swing step, target pull with aim snap, walk-cancel of the recovery, `attack_style` MELEE/RANGED, minimal `WorldQuery.has_line_of_sight()`.
 - **Next:** COMBAT C4 (getting hit) → C7 → milestone M1 (one-room fight in the sandbox) → STATS step 6 → COMBAT C8–C12. STATS step 7 (F3 overlay) after M1. Then the Future docs in their listed order.
 
 ## Known issues (leave for now)
