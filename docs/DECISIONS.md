@@ -28,7 +28,6 @@
 | 2026-09-25 | Ability `id` format is `<champion>_<ability>` with no slot (`knight_lunge`). The .tres filenames keep the slot (`knight_e_lunge.tres`). | Ids survive slot swaps; filenames stay as they are. |
 | 2026-09-25 | Move lock, speed modifier and invulnerability ids name their owner (`&"dash"`, `&"iron_resolve_slow"`). The `<kind>_<name>` rule applies to modifier and status source ids (e.g. `&"status_haste"`, which replaces `&"buff_haste"` in STATS.md). Existing ids don't change. | Matches the existing code; `<kind>_<name>` is for sources that get removed as a group. |
 | 2026-09-25 | `PlayerInput` (reads input) and `SurfaceTags` (data only) are exceptions to the `Component` suffix, next to `Hitbox` / `Hurtbox`. | Neither is a component in the usual sense, and `PlayerInput` already exists. |
-| 2026-09-26 | STATS step 6: ability ids and tags: `knight_cleave` [area], `knight_iron_resolve` [buff], `knight_lunge` [movement], `knight_judgement` [ultimate], `slime_elite_slam` [area]. Params never go below 0. The param cache is cleared whenever a scoped modifier is added or removed. Routed now: `cooldown`, `cast_range`, `base_damage`, `ad_ratio`; other params are routed when an item first needs them. | The STATS.md example item (Lunge range, Cleave cooldown) and damage work today; routing every param in every ability script up front would touch code no item uses yet. |
 
 ## Movement
 | Date | Decision | Why |
@@ -115,6 +114,7 @@
 | 2026-09-25 | ResourceComponent names: `try_spend()` (STATS.md said `spend`) and signal `resource_changed` (STATS.md said `changed`). `resource_type` is an export on ResourceComponent until ChampionData exists. | CONVENTIONS: a method returning false on failure starts with `try_`; `resource_changed` mirrors HealthComponent's `health_changed`. |
 | 2026-09-25 | HealthComponent regen and max-following only run after `set_stats_component()`; the old `setup(maximum)` is unchanged. A dead unit isn't revived by a raised max and doesn't regen. | Additive: a HealthComponent without stats behaves exactly as before. |
 | 2026-09-25 | `set_level()` and per-level growth are built (`setup(..., growth)`) but nothing calls them; leveling stays open (STATS.md, Fill in). | Cheap to have, and at level 1 it changes nothing. |
+| 2026-09-26 | STATS step 6: ability ids and tags: `knight_cleave` [area], `knight_iron_resolve` [buff], `knight_lunge` [movement], `knight_judgement` [ultimate], `slime_elite_slam` [area]. Params never go below 0. The param cache is cleared whenever a scoped modifier is added or removed. Routed now: `cooldown`, `cast_range`, `base_damage`, `ad_ratio`; other params are routed when an item first needs them. | The STATS.md example item (Lunge range, Cleave cooldown) and damage work today; routing every param in every ability script up front would touch code no item uses yet. |
 
 ## Combat
 | Date | Decision | Why |
