@@ -254,6 +254,7 @@ If a step needs removing or rewriting existing code, stop and explain why before
 - `res://scenes/sandbox_main.tscn` (open it, press F6) runs `main.tscn` with `res://scenes/rooms/sandbox.tscn` as the room. room_01 stays the default game.
 - Sandbox test spots: open floor (start/stop), a long wall (sliding), a single pillar, an L-corner, a diagonal stair-step wall (corner catching), a 1-tile corridor and a 2-tile gap, and two cracked floor tiles 128 px apart (dash length).
 - Three passive training dummies (`Enemy.passive = true`) and two normal slimes in a pen (chase test).
+- One elite slime (`slime_elite.tscn`) in the open top-right corner: it casts a telegraphed slam at the player (COMBAT C5).
 - The camera can only lean sideways in the middle third of the sandbox (room bounds). `debug_draw` on the Camera node (in `main.tscn`) shows the dead zone and the lean.
 
 ## Open questions

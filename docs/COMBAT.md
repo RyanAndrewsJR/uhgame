@@ -110,7 +110,7 @@ Player getting hit:
 
 Enemy damage bands (per hit, as % of the player's max health; a tuning guide for each enemy's damage number, not a formula in-game):
 - swarm chip: 2–5%, telegraph 0–0.3 s. Slimes: 22 damage (3.4% of the Knight's 650), 0.25 s windup (`attack_windup` 0.175 at 0.7 attack speed; was 0.5 s), 12 px push
-- elite: 12–20%, telegraph 0.6–0.9 s
+- elite: 12–20%, telegraph 0.6–0.9 s. Elite slime slam: 100 (15.4% of the Knight's 650), 0.75 s telegraph, 40 px circle, 20 px push; its basic attack is 30 (4.6%), no telegraph
 - boss big hit: 25–40%, telegraph 0.9 s or more
 - Telegraph: a floor shape that fills up until the hit; one consistent enemy-threat color (FREE which).
 
@@ -146,7 +146,7 @@ What exists today and what happens to each piece (see Build order for when).
 | `Unit.apply_stun()` + `res://scripts/vfx/stun_effect.gd` | A `StunEffect` child node holds `&"stun"` move and attack locks; re-stunning keeps the longer time. `is_stunned()` = has that node. | **Wrapped** (C9): creates `status_stun`; the stars become that status's VFX. |
 | `MovementComponent.add_speed_modifier()` | Wrapper over `move_speed` StatModifiers; only the timer is on MovementComponent. | **Wrapped** (C9): timed modifiers become statuses; the timer moves to StatusComponent. |
 | `MovementComponent.displace()` | A new displacement replaced the running one. | **Changed** (C4, built): the stronger displacement wins; `displace()` returns false when it's dropped. |
-| `res://scripts/enemies/enemy.gd` | Wander, aggro, chase, attack. `passive` = training dummy. Aggro on `damaged`. | **Kept.** C5 adds an optional ability cast for the elite. |
+| `res://scripts/enemies/enemy.gd` | Wander, aggro, chase, attack. `passive` = training dummy. Aggro on `damaged`. | **Kept.** C5 (built): an enemy with an AbilityComponent (the elite) casts a ready ability when the player is within its `cast_range` and in sight, never mid-windup; a whiff still lunges (C4). |
 | `res://scripts/main.gd` | "You died – press Backspace to restart" (`restart`), "Room cleared!". | **Kept.** Already covers "die and restart". |
 | `res://scripts/abilities/ability_util.gd` | Cone, segment, circle queries using the target's gameplay radius. No line of sight. | **Kept.** C7 adds a line-of-sight filter. |
 
@@ -236,7 +236,7 @@ The hit feel per tier (Numbers, "Feel per hit"), held by `GameFeel.hit_feel`: `l
   - Signals `status_applied(effect)`, `status_removed(effect)`, re-emitted on Events.
   - Locks through the existing `add_move_lock` / `AutoAttackComponent.add_lock` ids. DoT ticks are `dot` hits through `HitPipeline`.
 - `res://scripts/autoload/world_query.gd`, autoload **`WorldQuery`** (built early, with the melee target pull), with only `has_line_of_sight(from: Vector2, to: Vector2, mask = 1) -> bool` (world layer 1; units don't block it) for now. The rest of its API stays in WORLD_INTERACTION.md.
-- `res://scripts/vfx/telegraph.gd`, **`Telegraph`** (Node2D, C5): a floor shape (circle or cone) whose fill grows until the hit time, in the enemy-threat color. VFX only: the ability's own query decides the hit.
+- `res://scripts/vfx/telegraph.gd`, **`Telegraph`** (Node2D, C5, built): `Telegraph.circle(anchor, center, radius, time, color)` draws a true circle (not squashed, so it matches the hit area) with a faint fill, an outline and a fill that grows until the hit; `finish()` flashes and frees it; `get_progress()`. It goes on the room's floor (a child of the room just before `Entities`, like the click marker), under every unit. `THREAT_COLOR` = orange-red (1, 0.35, 0.15). VFX only: the ability's own query decides the hit.
 
 ### Changes to existing scripts (additive)
 - **AutoAttackComponent** (C2): `@export var combo: AttackCombo` (null = LoL mode).
@@ -266,7 +266,9 @@ The hit feel per tier (Numbers, "Feel per hit"), held by `GameFeel.hit_feel`: `l
 - **AutoAttackComponent, LoL mode** (C4, built): `hit_knockback_px` (slime 12) and `hit_knockback_duration` (0.1 s). `enemy_hit_forgiveness` (0.10): `is_in_range()` uses `attack_range × (1 − forgiveness)`, so the windup starts, and the hit lands, only within it; out of reach when the windup ends = a whiff (`attack_whiffed(target)`; no damage, the attack timer still runs; slimes still lunge). The hit goes through `make_hit_context()` + `on_hit()`; a blocked hit skips next-attack on-hit effects.
 - **Unit** (C4, built): `@export var post_hit_iframes: float` (0 = none; `player.tscn` 0.5). A hit that gets through adds `&"hit_iframes"` for that long in game time (it follows hitstop and pausing); DoT ticks don't start it. **Player** blinks while it lasts (`hit_iframes_blink_period` 0.1 s; visual only).
 - **Unit / MovementComponent** (C4, built): every knockback from `Unit.on_hit` uses `displace(..., dash_cancelable = true)`, so a unit that can dash (the player) dashes out of it at once. Any other displacement still blocks the dash.
-- **Enemy** (C5): optional AbilityComponent use. When an ability is ready and the target is in its range, cast it (its `cast_time` is the telegraph).
+- **Enemy** (C5, built): `_try_cast_ability()` in AGGRO: for each ready slot (q, w, e, r), cast at the player's position if the player is within `cast_range` of the enemy's center and in sight, and the enemy isn't mid-windup. The cast time is the telegraph; the cast roots it (and a stun at the end of the cast time interrupts it, as for every ability).
+- **Ability / CastContext / AbilityComponent** (C5, built): `Ability.on_cast_started(caster, ctx)` (virtual, called right after `cast_started`) lets an ability show a telegraph during its cast time; it sets `CastContext.telegraph`, and AbilityComponent frees it if the cast is cancelled (dash, move) or interrupted (stun, death).
+- **Elite slam** (`res://scripts/abilities/slime/slam.gd`, `res://data/abilities/slime_elite_q_slam.tres`, C5): POINT at the player's position at cast start (cast_range 250 u = 80 px), 0.75 s cast (the telegraph), 40 px circle (hit radius × 0.9, enemy forgiveness), 100 PHYSICAL through `HitPipeline.from_ability()`, 20 px push away from the elite, its own hitstop 0.06 s and 3 px shake when it lands, 4 s cooldown.
 
 ## How each edge case is handled
 | Edge case | Handling |
@@ -313,6 +315,7 @@ Combat starts now, before STATS step 6. Until step 6 adds `id` / `tags` to Abili
    **Built** (awaiting play test): combat test 205/205 (32 new C4 checks: the numbers; the first of two same-frame hits lands and the second is blocked; i-frames last 0.5 s and the Knight blinks; a DoT tick starts none; a slime winds up 0.25 s, hits for 22 and pushes 12 px away; the push is dash-cancelable and a dash replaces it; teleporting out of reach mid-windup is a whiff; a 6 px push during a 20 px one is dropped, a 30 px one replaces a 6 px one; a swing during a stronger knockback leaves it alone); stats test 143/143; headless in-game check 27/27 (the real slime AI hits, pushes 12 px and starts 0.5 s of i-frames; walking away with a real key press during its windup makes it miss); room_01 runs with no errors.
 5. **C5 – Elite.** `slime_elite.tscn` (inherits `slime.tscn`) + `data/units/slime_elite.tres` (starting values: 900 health, 100 damage = 15% of the Knight's 650), a telegraphed slam ability (0.75 s telegraph, about 40 px circle), `Telegraph`, the Enemy cast hook, one elite in the sandbox.
    **Done means:** the elite shows a filling floor circle before each slam; dashing or walking out avoids it; standing in it costs about 15% health.
+   **Built** (awaiting play test): `scenes/enemies/slime_elite.tscn` (inherits `slime.tscn`: purple, ×1.4 body, 19 px collider, AbilityComponent with the slam) + `data/units/slime_elite.tres` (900 health, 30 basic attack damage = 4.6% (swarm band) with a 0.25 s windup, 260 move speed); `Elite1` in the sandbox's open top-right corner (784, 112). Combat test 225/225 (20 new C5 checks: the numbers; a telegraph where the Knight stands, half full at 0.37 s; 100 damage and a 20 px push at 0.75 s; the telegraph gone after; walking and dashing out; a stunned elite's slam doesn't go off, its telegraph is removed and its cooldown refunded; the elite AI casting the slam by itself). Stats test 143/143; headless in-game check 33/33 (the sandbox elite casts at the real player, its telegraph is on the room floor under the units, standing in it costs 100, walking out with a real key press avoids it); room_01 and the sandbox run with no errors.
 6. **C6 – Damage numbers.** 3 log-scale size steps, crit style (placeholder until the font), colors by type, the player's damage red, healing green, DoT merge, rise 12 px / fade 0.6 s.
    **Done means:** finisher numbers are visibly bigger than swings 1–2; the player's damage shows red; nothing overlaps unreadably with 5 slimes.
 7. **C7 – Line of sight.** The filter in swing hits and `AbilityUtil`, `ignores_walls` on Ability (`WorldQuery.has_line_of_sight()` already exists, built with the melee pull).
@@ -333,6 +336,7 @@ For every step: no errors; the Knight's 4 abilities, enemies chasing and the HUD
 Items and affixes (LOOT.md); ability costs, recasts and augments (ABILITIES.md); enemy AI beyond one telegraphed attack (ENEMIES_AI.md); elite affixes; pits; controller support.
 
 ## Open questions
+- A stun during a cast interrupts it only if the caster is still stunned when the cast time ends (AbilityComponent checks then), though its header says "during the cast time". A short stun mid-cast lets the cast go off. Decide in ABILITIES.md.
 - Ranged basic attacks: design later (RANGED combos only get walk-cancel for now).
 - Dash-strike behavior and numbers.
 - What attack_speed means for enemies (AutoAttackComponent).

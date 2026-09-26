@@ -9,3 +9,7 @@ var point: Vector2
 var direction: Vector2 = Vector2.RIGHT
 ## The clicked unit, for UNIT abilities.
 var target: Unit
+## A floor warning shown during the cast time (Ability.on_cast_started()).
+## AbilityComponent removes it if the cast is cancelled or interrupted;
+## execute() usually calls finish() on it.
+var telegraph: Telegraph

@@ -61,6 +61,8 @@ func _physics_process(delta: float) -> void:
 				attack.cancel()
 				movement.stop()
 				_enter_idle()
+			elif _try_cast_ability():
+				pass  # Casting (rooted); the chase resumes after.
 			elif attack.target != _player:
 				attack.attack(_player)
 
@@ -101,6 +103,29 @@ func _on_damaged(_amount: float, source: Unit) -> void:
 		return
 	if ai != AI.AGGRO and source and source == _player:
 		_enter_aggro()
+
+
+## Enemies with an AbilityComponent (elites) cast a ready ability when the
+## player is within its cast_range (from the center) and in sight. Its cast
+## time is the telegraph (COMBAT.md). Not during a basic attack windup.
+## Returns true while casting.
+func _try_cast_ability() -> bool:
+	if abilities == null:
+		return false
+	if abilities.casting:
+		return true
+	if attack.is_winding_up():
+		return false
+	for slot in AbilityComponent.SLOTS:
+		var ability := abilities.get_ability(slot)
+		if ability == null or not abilities.can_cast(slot):
+			continue
+		if global_position.distance_to(_player.global_position) > Units.to_px(ability.cast_range):
+			continue
+		if not _can_see_player():
+			continue
+		return abilities.try_cast(slot, _player.global_position, _player)
+	return false
 
 
 func _can_see_player() -> bool:
