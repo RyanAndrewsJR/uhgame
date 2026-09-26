@@ -166,7 +166,7 @@ One per hit. Built by the attacker, filled in by the pipeline.
 | `ability` | `Ability` | null for basic attacks, statuses, hazards, knockback |
 | `base_damage`, `ad_ratio`, `ap_ratio` | `float` | stage 1–2 inputs |
 | `damage_type` | `HitContext.DamageType` | enum `PHYSICAL`, `MAGIC`, `TRUE` (the reserved `DamageType`, same pattern as `Ability.Targeting`) |
-| `tags` | `Array[StringName]` | `&"basic_attack"`, `&"ability"`, `&"proc"`, `&"dot"`, `&"crit"`, `&"physical"` / `&"magic"` / `&"true"`, plus the ability's tags (from STATS step 6) |
+| `tags` | `Array[StringName]` | `&"basic_attack"`, `&"ability"`, `&"proc"`, `&"dot"`, `&"crit"`, `&"physical"` / `&"magic"` / `&"true"`, plus the ability's tags (`from_ability()` adds them since STATS step 6; the Knight's abilities get them once C8 moves them onto `from_ability()`) |
 | `can_crit` | `bool` | false for DoT ticks and wrapped `take_damage()` calls |
 | `proc_coefficient` | `float` | 1.0 default |
 | `knockback_px`, `knockback_duration`, `knockback_curve` | `float`, `float`, `Curve` | 0 = none; null curve = the target's `knockback_curve` |

@@ -4,6 +4,8 @@
 
 [resource]
 script = ExtResource("1_script")
+id = &"knight_iron_resolve"
+tags = Array[StringName]([&"buff"])
 display_name = "Iron Resolve"
 description = "Gain 35% movement speed for 2s. Your next attack within 4s deals 50 (+50% AD) bonus damage and slows the target by 40% for 1.5s."
 icon_color = Color(1, 0.78, 0.3, 1)

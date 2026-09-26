@@ -23,6 +23,13 @@ enum SwingCancel {
 	ANYTIME,    ## Cuts the swing at once, even before its hit.
 }
 
+## <champion>_<ability>, no slot (CONVENTIONS.md), e.g. &"knight_lunge".
+## Scoped modifiers target it as &"ability:knight_lunge" (STATS.md).
+@export var id: StringName = &""
+## Snake_case tags (&"area", &"movement"...). Scoped modifiers target
+## every ability with a tag as &"tag:area" (STATS.md); hits carry them
+## (COMBAT.md).
+@export var tags: Array[StringName] = []
 @export var display_name: String = "Ability"
 @export_multiline var description: String = ""
 @export var icon_color: Color = Color(0.8, 0.8, 0.8)
@@ -83,9 +90,29 @@ func can_reach_through_walls(from: Vector2, target: Unit) -> bool:
 	return ignores_walls or WorldQuery.has_line_of_sight(from, target.global_position)
 
 
-## Damage this ability deals with the caster's current stats.
+## A number of this ability (an @export param like &"cooldown",
+## &"cast_range", &"base_damage") after the caster's scoped modifiers
+## (items, buffs; STATS.md). Without a caster: the plain value.
+func get_param(caster: Unit, param: StringName) -> float:
+	if is_instance_valid(caster) and caster.stats_component != null:
+		return caster.stats_component.get_ability_param(self, param)
+	return float(get(param))
+
+
+## The scopes a modifier can use to reach this ability: &"ability:<id>" and
+## &"tag:<tag>" for each tag.
+func get_modifier_scopes() -> Array[StringName]:
+	var scopes: Array[StringName] = [StringName("ability:" + id)]
+	for t in tags:
+		scopes.append(StringName("tag:" + t))
+	return scopes
+
+
+## Damage this ability deals with the caster's current stats (base_damage
+## and ad_ratio after scoped modifiers, then attack_damage).
 func get_damage(caster: Unit) -> float:
-	return base_damage + ad_ratio * caster.stats_component.get_stat(&"attack_damage")
+	return get_param(caster, &"base_damage") \
+		+ get_param(caster, &"ad_ratio") * caster.stats_component.get_stat(&"attack_damage")
 
 
 ## What the ability does. Override in each ability script.
@@ -102,7 +129,7 @@ func on_cast_started(_caster: Unit, _ctx: CastContext) -> void:
 ## Draws the aiming indicator. `canvas` is the caster (local coordinates),
 ## `aim` is the cursor in world space. Override for custom shapes.
 func draw_indicator(canvas: Node2D, caster: Unit, aim: Vector2) -> void:
-	var range_px := Units.to_px(cast_range)
+	var range_px := Units.to_px(get_param(caster, &"cast_range"))
 	var faint := Color(1, 1, 1, 0.25)
 	var fill := Color(icon_color, 0.22)
 	var edge := Color(icon_color, 0.8)

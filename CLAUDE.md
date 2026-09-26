@@ -109,12 +109,12 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 
 ## Current status
 <!-- OVERWRITE this whole section at the end of each session (Now / Last 3 done / Next). Never append. -->
-- **Now:** Milestone M1 passed (one-room fight in the sandbox). Next build step: STATS step 6. Still open: play tests of STATS step 5, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of STATS step 6 (nothing should change in play). Still open: play tests of STATS step 5, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. M1 tuning: post-hit i-frames 0.3 s; test elite slam 72 px circle, 0.65 s telegraph; a 2-hit and a 5-hit combo check. Combat test 263/263, stats test 143/143, in-game check 38/38.
-  2. COMBAT C7: nothing hits through walls; `Ability.ignores_walls` opts out; `AbilityUtil.in_sight()`.
-  3. COMBAT C6: damage numbers (`DamageNumberStyle`): size steps, crit style, colors by damage type, red on the player, merged DoT ticks.
-- **Next:** STATS step 6 (scoped modifiers, `get_ability_param`, `id`/`tags` on Ability, cooldowns routed through it) → COMBAT C8–C12. STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order.
+  1. STATS step 6: `id` and `tags` on every Ability; scoped modifiers (`ability:<id>`, `tag:<tag>`) through `StatsComponent.get_ability_param()` / `Ability.get_param()`; cooldown, cast range, base damage and AD ratio routed through them; `from_ability()` hits carry the ability's tags. Stats test 157/157, combat test 269/269, in-game check 38/38.
+  2. M1 tuning: post-hit i-frames 0.3 s; test elite slam 72 px circle, 0.65 s telegraph; a 2-hit and a 5-hit combo check.
+  3. COMBAT C7: nothing hits through walls; `Ability.ignores_walls` opts out; `AbilityUtil.in_sight()`.
+- **Next:** COMBAT C8 (crits, `damage_increase` / `incoming_damage`, on-hit stats, the Knight's abilities onto `HitPipeline.from_ability()`) → C9–C12. STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order.
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.

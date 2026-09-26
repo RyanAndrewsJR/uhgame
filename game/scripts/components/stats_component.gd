@@ -15,8 +15,10 @@ extends Node
 ##
 ## Values are cached. Adding or removing a modifier recalculates only the
 ## stats it touches and emits stat_changed for the ones whose value moved.
-## Scoped modifiers (ability params) are stored but not read until
-## get_ability_param() (STATS.md step 6).
+## Scoped modifiers change ability params instead of stats (STATS.md step 6):
+## get_ability_param(ability, &"cooldown") applies the ones whose stat is
+## the param and whose scope is &"ability:<id>" or &"tag:<tag>" of that
+## ability, with the same formula.
 
 signal stat_changed(key: StringName, old_value: float, new_value: float)
 
@@ -29,6 +31,7 @@ var _movement: MovementComponent
 var _growth: Dictionary = {}                 # StringName -> growth per level
 var _modifiers: Array[StatModifier] = []
 var _cache: Dictionary = {}                  # StringName -> float
+var _param_cache: Dictionary = {}            # "<ability instance id>/<param>" -> float
 
 
 ## movement: whose soft cap thresholds move_speed uses (none = no soft caps).
@@ -83,6 +86,37 @@ func get_attack_interval() -> float:
 	return 1.0 / maxf(get_stat(&"attack_speed"), 0.001)
 
 
+## An ability's param after scoped modifiers: base = the ability's own
+## @export value (ability.get(param)); modifiers with stat == param and a
+## scope in ability.get_modifier_scopes(); the stat formula; never below 0.
+## Cached per ability and param until a scoped modifier is added or removed.
+func get_ability_param(ability: Ability, param: StringName) -> float:
+	var key := "%d/%s" % [ability.get_instance_id(), param]
+	if _param_cache.has(key):
+		return _param_cache[key]
+	var base_value: Variant = ability.get(param)
+	if not (base_value is float or base_value is int):
+		push_error("StatsComponent: '%s' is not a number on ability '%s'" % [param, ability.id])
+		return 0.0
+	var scopes := ability.get_modifier_scopes()
+	var flat := 0.0
+	var percent_add := 0.0
+	var percent_mult := 1.0
+	for mod in _modifiers:
+		if mod.stat != param or not mod.is_scoped() or not scopes.has(mod.scope):
+			continue
+		match mod.type:
+			StatModifier.Type.FLAT:
+				flat += mod.value
+			StatModifier.Type.PERCENT_ADD:
+				percent_add += mod.value
+			StatModifier.Type.PERCENT_MULT:
+				percent_mult *= 1.0 + mod.value
+	var value := maxf((float(base_value) + flat) * (1.0 + percent_add) * percent_mult, 0.0)
+	_param_cache[key] = value
+	return value
+
+
 ## A cooldown after ability haste: base x 100 / (100 + haste).
 func get_cooldown(base: float) -> float:
 	return base * 100.0 / (100.0 + get_stat(&"ability_haste"))
@@ -103,6 +137,8 @@ func add_modifiers(mods: Array[StatModifier]) -> void:
 	var keys := _unscoped_keys(accepted)
 	var old := _snapshot(keys)
 	_modifiers.append_array(accepted)
+	if _has_scoped(accepted):
+		_param_cache.clear()
 	_apply_changes(old)
 
 
@@ -116,6 +152,8 @@ func remove_modifiers_from(source_id: StringName) -> void:
 		if mod.source_id != source_id:
 			kept.append(mod)
 	_modifiers = kept
+	if _has_scoped(removed):
+		_param_cache.clear()
 	_apply_changes(old)
 
 
@@ -185,6 +223,13 @@ func _is_valid(mod: StatModifier) -> bool:
 		push_error("StatsComponent: modifier for unknown stat '%s' (source '%s')" % [mod.stat, mod.source_id])
 		return false
 	return true
+
+
+func _has_scoped(mods: Array[StatModifier]) -> bool:
+	for mod in mods:
+		if mod.is_scoped():
+			return true
+	return false
 
 
 func _unscoped_keys(mods: Array[StatModifier]) -> Array[StringName]:

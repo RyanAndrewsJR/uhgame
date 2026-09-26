@@ -23,18 +23,21 @@ static func resolve(ctx: HitContext) -> HitContext:
 	return ctx
 
 
-## A hit from an ability: its damage numbers, damage type, proc coefficient
-## and the ability tag. Pass it to resolve().
+## A hit from an ability: its damage numbers (after scoped modifiers), damage
+## type, proc coefficient, the ability tag and the ability's own tags. Pass
+## it to resolve().
 static func from_ability(caster: Unit, ability: Ability, target: Node) -> HitContext:
 	var ctx := HitContext.new()
 	ctx.source = caster
 	ctx.target = target
 	ctx.ability = ability
-	ctx.base_damage = ability.base_damage
-	ctx.ad_ratio = ability.ad_ratio
+	ctx.base_damage = ability.get_param(caster, &"base_damage")   # after scoped modifiers
+	ctx.ad_ratio = ability.get_param(caster, &"ad_ratio")
 	ctx.damage_type = ability.damage_type
 	ctx.proc_coefficient = ability.proc_coefficient
 	ctx.add_tag(&"ability")
+	for t in ability.tags:   # the ability's own tags (STATS step 6)
+		ctx.add_tag(t)
 	return ctx
 
 

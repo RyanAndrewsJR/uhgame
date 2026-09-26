@@ -21,6 +21,9 @@ extends Node2D
 ## player, DoT merging, heals, rise and fade, none for blocked hits).
 ## C7: line of sight (swings, enemy attacks, Cleave, Lunge, Judgement and the
 ## slam don't hit through walls; ignores_walls does).
+## STATS step 6: a fake item with scoped modifiers changes the Knight's real
+## casts (Cleave cooldown and damage, Lunge range, hit tags) and removing it
+## restores them.
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
@@ -253,6 +256,7 @@ func _test_combo() -> void:
 	await _test_elite()
 	await _test_damage_numbers()
 	await _test_line_of_sight()
+	await _test_item_changes_abilities()
 	await _test_death_mid_swing()
 
 
@@ -1376,6 +1380,51 @@ func _test_line_of_sight() -> void:
 	elite.queue_free()
 	wall.queue_free()
 	await _frames(2)
+
+
+# --- STATS step 6: items change ability numbers ---------------------------------
+
+func _test_item_changes_abilities() -> void:
+	_section("STATS 6: a fake item changes the Knight's abilities")
+	await _reset_knight()
+	await _hitstop_over()
+	await _wait_until(func() -> bool: return knight.abilities.is_ready(&"q") and knight.abilities.is_ready(&"e"), 600)
+	var item: Array[StatModifier] = [
+		StatModifier.create(&"cooldown", FLAT, -1.5, &"item_test", &"ability:knight_cleave"),
+		StatModifier.create(&"base_damage", StatModifier.Type.PERCENT_MULT, 0.5, &"item_test", &"tag:area"),
+		StatModifier.create(&"cast_range", PERCENT_ADD, 0.30, &"item_test", &"ability:knight_lunge"),
+	]
+	knight.stats_component.add_modifiers(item)
+	var dummy := _dummy_at(Vector2(40, 0))
+	await _frames(1)
+	var hits: Array[HitContext] = []
+	var record := func(ctx: HitContext) -> void: hits.append(ctx)
+	Events.unit_hit.connect(record)
+	var hp := dummy.health.current
+	knight.abilities.try_cast(&"q", knight.global_position + Vector2(100, 0))
+	_check("Cleave's cooldown: 3 -> 1.5 s", knight.abilities.get_cooldown_duration(knight.abilities.q), 1.5)
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 40)
+	_check("Cleave deals 80 x 1.5 + 0.7 x 64 = 164.8", hp - dummy.health.current, 164.8)
+	# Cleave still hits through take_damage() until COMBAT C8 moves it onto
+	# HitPipeline.from_ability(); that builder is what adds the tags.
+	var built := HitPipeline.from_ability(knight, knight.abilities.q, dummy)
+	_check("from_ability() hits carry the ability's tags (area + ability) and modded damage",
+		[built.has_tag(&"area"), built.has_tag(&"ability"), built.base_damage], [true, true, 120.0])
+	Events.unit_hit.disconnect(record)
+	dummy.queue_free()
+	await _hitstop_over()
+
+	await _reset_knight()
+	var from := knight.global_position
+	knight.abilities.try_cast(&"e", from + Vector2(400, 0))
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 60)
+	_check_near("Lunge reaches 520 u = 166.4 px (was 400 u = 128 px)", knight.global_position.x - from.x, 166.4, 0.5)
+
+	knight.stats_component.remove_modifiers_from(&"item_test")
+	_check("item removed: cooldown and range back",
+		[knight.abilities.get_cooldown_duration(knight.abilities.q), knight.abilities.e.get_param(knight, &"cast_range")], [3.0, 400.0])
+	_check("Cleave damage back to 124.8", knight.abilities.q.get_damage(knight), 124.8)
+	await _frames(30)
 
 
 func _test_death_mid_swing() -> void:

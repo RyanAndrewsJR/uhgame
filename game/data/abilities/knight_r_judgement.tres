@@ -4,6 +4,8 @@
 
 [resource]
 script = ExtResource("1_script")
+id = &"knight_judgement"
+tags = Array[StringName]([&"ultimate"])
 display_name = "Judgement"
 description = "Strike an enemy for 150 (+100% AD) physical damage plus 20% of its missing health, and stun it for 0.75s. Walks into range if needed."
 icon_color = Color(1, 0.35, 0.3, 1)

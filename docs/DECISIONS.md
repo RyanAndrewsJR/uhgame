@@ -28,6 +28,7 @@
 | 2026-09-25 | Ability `id` format is `<champion>_<ability>` with no slot (`knight_lunge`). The .tres filenames keep the slot (`knight_e_lunge.tres`). | Ids survive slot swaps; filenames stay as they are. |
 | 2026-09-25 | Move lock, speed modifier and invulnerability ids name their owner (`&"dash"`, `&"iron_resolve_slow"`). The `<kind>_<name>` rule applies to modifier and status source ids (e.g. `&"status_haste"`, which replaces `&"buff_haste"` in STATS.md). Existing ids don't change. | Matches the existing code; `<kind>_<name>` is for sources that get removed as a group. |
 | 2026-09-25 | `PlayerInput` (reads input) and `SurfaceTags` (data only) are exceptions to the `Component` suffix, next to `Hitbox` / `Hurtbox`. | Neither is a component in the usual sense, and `PlayerInput` already exists. |
+| 2026-09-26 | STATS step 6: ability ids and tags: `knight_cleave` [area], `knight_iron_resolve` [buff], `knight_lunge` [movement], `knight_judgement` [ultimate], `slime_elite_slam` [area]. Params never go below 0. The param cache is cleared whenever a scoped modifier is added or removed. Routed now: `cooldown`, `cast_range`, `base_damage`, `ad_ratio`; other params are routed when an item first needs them. | The STATS.md example item (Lunge range, Cleave cooldown) and damage work today; routing every param in every ability script up front would touch code no item uses yet. |
 
 ## Movement
 | Date | Decision | Why |

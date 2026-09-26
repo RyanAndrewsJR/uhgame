@@ -19,6 +19,9 @@ const SLIME_STATS: UnitStats = preload("res://data/units/slime.tres")
 const FLAT := StatModifier.Type.FLAT
 const PERCENT_ADD := StatModifier.Type.PERCENT_ADD
 const PERCENT_MULT := StatModifier.Type.PERCENT_MULT
+const CLEAVE: Ability = preload("res://data/abilities/knight_q_cleave.tres")
+const LUNGE: Ability = preload("res://data/abilities/knight_e_lunge.tres")
+const SLAM: Ability = preload("res://data/abilities/slime_elite_q_slam.tres")
 
 @onready var knight_movement: MovementComponent = $KnightBody/MovementComponent
 @onready var knight_stats: StatsComponent = $KnightBody/StatsComponent
@@ -50,6 +53,7 @@ func _ready() -> void:
 	_test_levels()
 	_test_helpers()
 	_test_unknown_keys()
+	_test_scoped_modifiers()
 	await _test_speed_modifier_wrapper()
 	await _test_health_and_resource_pools()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
@@ -59,6 +63,40 @@ func _ready() -> void:
 
 
 # --- Tests --------------------------------------------------------------------
+
+## STATS step 6: ability params with scoped modifiers.
+func _test_scoped_modifiers() -> void:
+	_section("Scoped modifiers (ability params)")
+	_check("ids: knight_cleave / knight_lunge / slime_elite_slam", [CLEAVE.id, LUNGE.id, SLAM.id], [&"knight_cleave", &"knight_lunge", &"slime_elite_slam"])
+	_check("tags: cleave [area], lunge [movement]", [CLEAVE.tags, LUNGE.tags], [[&"area"], [&"movement"]])
+	_check("no modifiers: the plain values", [knight_stats.get_ability_param(CLEAVE, &"cooldown"), knight_stats.get_ability_param(LUNGE, &"cast_range")], [3.0, 400.0])
+	var before := _all_values(knight_stats)
+	_signals.clear()
+	var item: Array[StatModifier] = [
+		_mod(&"cast_range", PERCENT_ADD, 0.30, &"item_test", &"ability:knight_lunge"),
+		_mod(&"cooldown", FLAT, -1.5, &"item_test", &"ability:knight_cleave"),
+		_mod(&"base_damage", PERCENT_MULT, 0.5, &"item_test", &"tag:area"),
+		_mod(&"attack_speed", PERCENT_ADD, 0.10, &"item_test"),
+	]
+	knight_stats.add_modifiers(item)
+	_check("+30% Lunge range: 400 -> 520", knight_stats.get_ability_param(LUNGE, &"cast_range"), 520.0)
+	_check("-1.5 s Cleave cooldown: 3 -> 1.5", knight_stats.get_ability_param(CLEAVE, &"cooldown"), 1.5)
+	_check("x1.5 base damage on every 'area' ability: Cleave 80 -> 120, Slam 100 -> 150",
+		[knight_stats.get_ability_param(CLEAVE, &"base_damage"), knight_stats.get_ability_param(SLAM, &"base_damage")], [120.0, 150.0])
+	_check("other abilities and params untouched",
+		[knight_stats.get_ability_param(LUNGE, &"cooldown"), knight_stats.get_ability_param(CLEAVE, &"cast_range"), knight_stats.get_ability_param(LUNGE, &"base_damage")], [8.0, 300.0, 50.0])
+	_check("the unscoped part is a normal stat (+10% attack speed)", knight_stats.get_stat(&"attack_speed"), 0.77)
+	_check("scoped modifiers change no stat", _signals.map(func(e: Array) -> StringName: return e[0]), [&"attack_speed"])
+	_check("the resources themselves are untouched", [LUNGE.cast_range, CLEAVE.cooldown], [400.0, 3.0])
+	_check("slimes don't get the Knight's item", slime_stats.get_ability_param(CLEAVE, &"cooldown"), 3.0)
+	knight_stats.add_modifier(_mod(&"cooldown", FLAT, -10.0, &"item_big", &"ability:knight_cleave"))
+	_check("never below 0", knight_stats.get_ability_param(CLEAVE, &"cooldown"), 0.0)
+	knight_stats.remove_modifiers_from(&"item_big")
+	knight_stats.remove_modifiers_from(&"item_test")
+	_check("removing the item restores the params exactly",
+		[knight_stats.get_ability_param(LUNGE, &"cast_range"), knight_stats.get_ability_param(CLEAVE, &"cooldown"), knight_stats.get_ability_param(CLEAVE, &"base_damage")], [400.0, 3.0, 80.0])
+	_check_exact("and every stat exactly", _all_values(knight_stats), before)
+	_signals.clear()
 
 func _test_registry() -> void:
 	_section("Registry")

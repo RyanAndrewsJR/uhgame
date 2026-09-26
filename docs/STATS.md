@@ -6,7 +6,8 @@
 
 ## Current code
 - `UnitStats` (`res://scripts/data/unit_stats.gd`): one .tres per unit in `res://data/units/`. It has a field for every stat in the Stat list except `knockback_resistance` (proposed, added with the knockback work), plus the identity fields.
-- **Steps 1–5 are built:** `StatModifier`, `StatDefinition`, `StatRegistry` (+ `stat_registry.tres`, all 21 stats) and `StatsComponent`, tested by `res://scenes/tests/stats_test.tscn`. `player.tscn` and `slime.tscn` have a `StatsComponent` node; `Unit.stats_component` points to it and `Unit._ready()` calls `setup(stats, movement)`.
+- **Steps 1–6 are built:** `StatModifier`, `StatDefinition`, `StatRegistry` (+ `stat_registry.tres`, all 21 stats) and `StatsComponent`, tested by `res://scenes/tests/stats_test.tscn`. `player.tscn` and `slime.tscn` have a `StatsComponent` node; `Unit.stats_component` points to it and `Unit._ready()` calls `setup(stats, movement)`.
+- **Step 6 (scoped modifiers):** every Ability has `id` (`knight_cleave`, `knight_iron_resolve`, `knight_lunge`, `knight_judgement`, `slime_elite_slam`) and `tags` (Cleave and the slam `area`, Iron Resolve `buff`, Lunge `movement`, Judgement `ultimate`). `StatsComponent.get_ability_param(ability, param)` and `Ability.get_param(caster, param)` return a param after scoped modifiers. Routed through it so far: `cooldown` (then ability haste, in `AbilityComponent.get_cooldown_duration()`), `cast_range` (AbilityComponent range checks and POINT clamp, the enemy cast check, Cleave's reach, the indicator), `base_damage` and `ad_ratio` (`Ability.get_damage()`, `HitPipeline.from_ability()`). Other params (Cleave's cone angle, knockbacks, the slam radius...) are still read directly; each gets routed when an item first needs it.
 - On `Unit`, `stats` stays the base `UnitStats` export and `stats_component` is the live StatsComponent. Gameplay reads go through `stats_component.get_stat(&"x")`. Only `attack_windup`, `gameplay_radius` and `pathing_radius` are still read from `unit.stats` (identity fields, not stats).
 - `MovementComponent.get_move_speed()` returns `get_stat(&"move_speed")` (soft caps included, applied once). `add_speed_modifier(id, flat, percent, duration)` is a thin wrapper: it adds FLAT / PERCENT_ADD `move_speed` modifiers with `source_id = id` (the same id replaces), and only the timer stays on MovementComponent. Without a StatsComponent (`set_stats_component()` not called) MovementComponent uses its old `base_move_speed` math; the stats test uses that path for its parity checks.
 - `AutoAttackComponent.bonus_attack_speed` is a thin wrapper too: setting it replaces one PERCENT_ADD `attack_speed` modifier (source `&"bonus_attack_speed"`). Nothing writes it yet; new code adds StatModifiers directly.
@@ -89,8 +90,8 @@ A modifier has: `stat: StringName`, `type`, `value: float`, `source_id: StringNa
   - `&"ability:knight_lunge"`: one ability; `stat` = the param name
   - `&"tag:projectile"`: every ability with that tag
   - `&"hit:<tag>"` / `&"target:<tag>"` *(planned, COMBAT C8)*: a stat (`damage_increase`) that counts only for hits carrying that tag, or against targets with that status tag (e.g. `&"target:burning"`)
-- `StatsComponent.get_ability_param(ability: Ability, param: StringName) -> float` reads the base with `ability.get(param)`, applies matching modifiers using the same formula, and caches the result per ability and param.
-- Cooldown order: `get_ability_param(ability, &"cooldown")`, then ability haste. `AbilityComponent.get_cooldown_duration()` becomes the one place this happens.
+- `StatsComponent.get_ability_param(ability: Ability, param: StringName) -> float` reads the base with `ability.get(param)`, applies the modifiers whose `stat` is the param and whose `scope` is in `ability.get_modifier_scopes()` (`ability:<id>`, `tag:<tag>` for each tag) using the same formula, never returns below 0, and caches the result per ability and param until a scoped modifier is added or removed. *(built, step 6)* `Ability.get_param(caster, param)` is the shortcut abilities use (the plain value without a caster).
+- Cooldown order: `get_ability_param(ability, &"cooldown")`, then ability haste. `AbilityComponent.get_cooldown_duration()` is the one place this happens. *(built)*
 - Damage order: params (base_damage, ratios), then stat scaling, then crit and mitigation (COMBAT.md).
 - Tooltips use `get_ability_param()`, so the UI always shows real values.
 
@@ -149,7 +150,7 @@ Equipping an item gives its modifiers to `StatsComponent` and its augments to `A
 
    Also move MovementComponent's speed modifiers into StatsComponent (`add_speed_modifier` becomes a thin wrapper, so existing callers keep working). MovementComponent itself reads no `stats.` field; `Unit._ready()` calls `movement.set_stats_component()`, and MovementComponent reads `get_stat(&"move_speed")` live.
 5. ResourceComponent, plus the new stat fields on UnitStats. *(done: neutral defaults; HealthComponent follows max_health and regens; ResourceComponent on the Knight only; tested in `stats_test.tscn`)*
-6. Scoped modifiers, `get_ability_param`, and `id`/`tags` on Ability. Route cooldowns through it.
+6. Scoped modifiers, `get_ability_param`, and `id`/`tags` on Ability. Route cooldowns through it. *(done: also `cast_range`, `base_damage`, `ad_ratio`; stats test 157/157 with a fake item (+30% Lunge range, −1.5 s Cleave cooldown, ×1.5 base damage on `area` abilities) that restores every param and stat exactly when removed; combat test 269/269 checks it on real casts)*
 7. F3 debug overlay (`res://scripts/ui/stat_overlay.gd`): every stat, its base, final value, and each modifier with its source.
 
 **Done means:** a fake item (a modifier array) changes stats and ability params, and removing it restores them exactly; the Knight and slimes behave the same as before step 4; the overlay explains every number.

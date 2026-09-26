@@ -120,7 +120,7 @@ func _try_cast_ability() -> bool:
 		var ability := abilities.get_ability(slot)
 		if ability == null or not abilities.can_cast(slot):
 			continue
-		if global_position.distance_to(_player.global_position) > Units.to_px(ability.cast_range):
+		if global_position.distance_to(_player.global_position) > Units.to_px(ability.get_param(self, &"cast_range")):
 			continue
 		if not _can_see_player():
 			continue
