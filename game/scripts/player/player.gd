@@ -17,7 +17,8 @@ enum CastMode {
 
 ## What the player is doing, derived each physics frame from the components
 ## (MOVEMENT.md "Player states"). Priority: STUNNED > DASH > CASTING >
-## DISPLACED > ATTACK > MOVE > IDLE.
+## ATTACK (a rooted combo swing, whose melee step is a displacement) >
+## DISPLACED > ATTACK (League-style windup) > MOVE > IDLE.
 enum State {
 	IDLE,       ## Standing still, free to act.
 	MOVE,       ## Walking (WASD, or a path such as R walking into range).
@@ -257,7 +258,7 @@ func _process(delta: float) -> void:
 
 	# Facing and a little walk bob.
 	var dir := movement.get_move_direction()
-	var busy := abilities.casting or attack.is_winding_up() or attack.is_swinging()
+	var busy := abilities.casting or attack.is_winding_up() or attack.is_swing_rooted()
 	if not busy and dir != Vector2.ZERO:
 		sword_pivot.rotation = dir.angle()
 		if absf(dir.x) > 0.05:
@@ -308,9 +309,11 @@ func _update_state() -> void:
 		next = State.DASH
 	elif abilities.casting:
 		next = State.CASTING
+	elif attack.is_swing_rooted():
+		next = State.ATTACK  # Over DISPLACED: a melee swing steps (displace()).
 	elif movement.is_displaced():
 		next = State.DISPLACED
-	elif attack.is_winding_up() or attack.is_swinging():
+	elif attack.is_winding_up():
 		next = State.ATTACK
 	elif movement.get_move_direction() != Vector2.ZERO or movement.get_input_direction() != Vector2.ZERO:
 		# Holding a direction counts as moving, so there's no one-frame IDLE
@@ -353,7 +356,7 @@ func _update_facing() -> void:
 	var look := Vector2.ZERO
 	if abilities.casting and _cast_face_point != Vector2.INF:
 		look = _cast_face_point - global_position
-	elif attack.is_swinging():
+	elif attack.is_swing_rooted():
 		look = attack.get_swing_direction()
 	elif attack.is_winding_up() and is_instance_valid(attack.target):
 		look = attack.target.global_position - global_position

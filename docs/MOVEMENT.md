@@ -98,7 +98,7 @@ Only keys that physically collided with WASD changed. Action names never change.
 - I-frames for the whole dash via `Unit.add_invulnerability(&"dash")`: `take_damage()` and Hurtbox hits (damage and knockback) are ignored. This sits on Unit, not only the Hurtbox, because enemy basic attacks call `take_damage()` directly. The body turns half see-through.
 - Charges: the `dash_charges` stat (base `UnitStats.dash_charges`, default 1, read through StatsComponent). One charge returns every `charge_recharge_time` = 0.35 s, one at a time, counted only while not dashing.
 - Exit: if a direction is held when the dash ends, the player runs on at full speed (`carry_into_run`, F2). Otherwise `end_lag` = 0.05 s of locked walking follows. A dash can chain in during end-lag if a charge is left.
-- Not allowed while stunned or already displaced (dashing, knockback). *(Exception from COMBAT C4: knockback from being hit doesn't block the dash; the dash replaces it.)* While casting, only if the ability is `dash_cancelable` (then the dash cancels the cast). A press that isn't allowed is buffered (see below). Starting a dash cancels a basic attack swing (windup or recovery; the hit itself happens inside one frame) and resets the combo, and cancels a queued walk-into-range cast.
+- Not allowed while stunned or already displaced (dashing, knockback). Exceptions: a dash-cancelable displacement (a melee swing step, built; knockback from being hit, COMBAT C4) doesn't block the dash; the dash replaces it. While casting, only if the ability is `dash_cancelable` (then the dash cancels the cast). A press that isn't allowed is buffered (see below). Starting a dash cancels a basic attack swing (windup or recovery; the hit itself happens inside one frame) and resets the combo, and cancels a queued walk-into-range cast.
 - Pits: not scheduled (step 8 was removed 2026-09-25). If they come back, the dash crosses them and the fall rule is in WORLD_INTERACTION.md, Pits and movement types *(proposed)*.
 
 ## Input buffering and cancels
@@ -108,6 +108,7 @@ Only keys that physically collided with WASD changed. Action names never change.
   - When a press is allowed: dash = `DashComponent.can_dash()`. Ability = `can_cast(slot)` and not dashing (no casting mid-dash). Attack = not stunned, casting, dashing or swinging (`AutoAttackComponent.can_swing()`). An ability during a swing only if its `cancels_swing` allows it right now (`Player.can_interrupt_swing()`; COMBAT.md).
   - Q/W/E/R go through `Player.request_cast(slot)`: cast now if allowed, otherwise buffer.
 - **Dash cancels:** every basic attack swing roots for its whole duration (move lock `&"attack_swing"`), and a dash cancels it in its windup or its recovery (COMBAT C2). Each ability decides whether a dash cancels its cast time with `Ability.dash_cancelable` (default off for all Knight abilities). A cancelled cast releases its locks at once, refunds the cooldown, and emits `AbilityComponent.cast_cancelled` then `cast_finished`. The effect (`execute()`) can't be cancelled once it starts.
+- **Basic attack swings** (COMBAT.md, Melee basic attacks): a swing roots, but a melee swing steps forward (or is pulled toward an aimed enemy) during its windup, and after the hit a movement press or held direction ends the root once `recovery_move_cancel_after` (0.1 s) has passed. The swing still runs out its duration, so the next swing waits.
 - **Movement during casts** (per ability; the defaults keep every Knight ability as it was). These properties move to ABILITIES.md when it's written.
   - `roots_during_cast` (default on): the cast locks walking (`&"casting"`) until it finishes.
   - `cast_move_speed_multiplier` (default 1.0): with `roots_during_cast` off, walking speed during the cast is multiplied by this. It's a `PERCENT_MULT` `move_speed` StatModifier, source `&"ability_casting"`, removed when the cast finishes, is interrupted or is cancelled. Soft caps still apply after it: for the Knight, 0.75 gives exactly 420 u (134 px/s), 0.5 gives 318 u (102 px/s, not 90), and 0 still walks at 57 px/s.
@@ -123,7 +124,7 @@ Only keys that physically collided with WASD changed. Action names never change.
    - `use_steering` (the player sets it false). Not `avoidance_enabled`: that flag also makes other units ignore this one, so slimes would stop steering around the player. `use_steering = false` only skips this unit's own steering.
    - Soft cap exports (see Speed and soft caps).
    - Walls: diagonal input slides along a wall at close to full speed (Godot's floating-mode slide). Input within 15° of straight into a wall doesn't slide (Godot's default `wall_min_slide_angle`, kept: at 0° near-head-on pushes shot sideways). With 8-way keys this only shows on rounded corners.
-   - Displacements follow a progress curve (F2): `displace(velocity, duration, curve = null)` (null = `knockback_curve`), `dash(velocity, duration, ghosted = true, curve = null)` (null = constant speed), `set_input_speed_to_max()`.
+   - Displacements follow a progress curve (F2): `displace(velocity, duration, curve = null, dash_cancelable = false)` (null = `knockback_curve`; `dash_cancelable`: the unit may dash out of it, COMBAT.md), `dash(velocity, duration, ghosted = true, curve = null)` (null = constant speed), `set_input_speed_to_max()`.
    - **Priority: displacement > move lock > walking.** A displacement runs even while a move lock is held (knockback moves a stunned unit; Lunge moves during its own cast lock). New movement methods (`blink`, `pull_to`, `orbit`...) follow the same order.
 3. **Player states** (`Player.State`): worked out every physics frame from the components, highest priority first. They describe what's happening; the components still drive behavior. `Player.state`, `is_in_state()`, `state_changed(from, to)`; `debug_draw` on the Player shows the state name.
 
@@ -132,8 +133,8 @@ Only keys that physically collided with WASD changed. Action names never change.
    | `STUNNED` | `is_stunned()` |
    | `DASH` | the player's own dash (`DashComponent`) |
    | `CASTING` | `abilities.casting`, including Lunge's dash and R's cast. Instant casts (Iron Resolve) don't show. |
+   | `ATTACK` | a basic attack swing while it roots (windup and recovery; COMBAT C2). Ranked above DISPLACED, because a melee swing's step is a displacement. Once walking ends the recovery early, the state is MOVE. |
    | `DISPLACED` | pushed by something else (knockback, pull). Added beyond the original list. |
-   | `ATTACK` | a basic attack swing (windup and recovery; COMBAT C2) |
    | `MOVE` | walking or holding a direction; also R walking into range |
    | `IDLE` | none of the above |
 

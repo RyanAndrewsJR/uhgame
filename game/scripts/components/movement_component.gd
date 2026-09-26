@@ -110,6 +110,8 @@ var _displace_curve: Curve = null
 var _curve_start: float = 0.0
 var _curve_end: float = 1.0
 var _ghost_saved_mask: int = -1
+var _displace_dash_cancelable: bool = false
+var _displace_serial: int = 0   # bumped by every displacement start
 
 var _stuck_time: float = 0.0
 var _repath_time: float = 0.0
@@ -225,10 +227,13 @@ func can_move() -> bool:
 # --- Displacement (knockbacks, dashes) ----------------------------------------
 
 ## Push the unit: it covers velocity x duration in total. `curve` shapes
-## the speed; with no curve, knockback_curve is used.
-func displace(velocity: Vector2, duration: float, curve: Curve = null) -> void:
+## the speed; with no curve, knockback_curve is used. dash_cancelable: the
+## unit may dash during it, and the dash replaces it (a melee swing step,
+## COMBAT.md). Otherwise a displacement blocks the dash.
+func displace(velocity: Vector2, duration: float, curve: Curve = null, dash_cancelable: bool = false) -> void:
 	_end_ghost()
 	_start_displacement(velocity, duration, curve if curve != null else knockback_curve)
+	_displace_dash_cancelable = dash_cancelable
 
 
 ## Dash at `velocity` (average) for `duration` seconds. Ghosted by default:
@@ -253,7 +258,32 @@ func is_displaced() -> bool:
 	return _displace_time > 0.0
 
 
+## True while the running displacement was started with dash_cancelable.
+func is_displacement_dash_cancelable() -> bool:
+	return is_displaced() and _displace_dash_cancelable
+
+
+## Changes every time a displacement (dash, knockback, step) starts. A caller
+## keeps it to tell later whether the running displacement is still its own.
+func get_displacement_serial() -> int:
+	return _displace_serial
+
+
+## Ends the running displacement where the unit is now. Only for a caller
+## ending its own displacement (check get_displacement_serial() first): it
+## doesn't emit displacement_finished, so it must not be used on a dash.
+func stop_displacement() -> void:
+	if not is_displaced():
+		return
+	_displace_time = 0.0
+	_displace_dash_cancelable = false
+	body.velocity = Vector2.ZERO
+	_end_ghost()
+
+
 func _start_displacement(velocity: Vector2, duration: float, curve: Curve) -> void:
+	_displace_serial += 1
+	_displace_dash_cancelable = false
 	_displace_velocity = velocity
 	_displace_time = duration
 	_displace_duration = maxf(duration, 0.0001)

@@ -22,6 +22,17 @@ extends Node
 ## without attacking starts it over. cancel_swing() (dash, stun, a cast)
 ## stops a swing with no hit and resets the combo. The player uses this; the
 ## League-style orders above stay for enemies.
+##
+## MELEE combos (COMBAT.md, Melee basic attacks): at swing start the unit
+## looks for an aimed enemy (within reach + assist_range_bonus_px and
+## assist_angle_deg of the aim, in line of sight). The aim snaps toward it by
+## up to assist_snap_deg, and during the windup the unit steps: toward that
+## enemy until its edge is stop_at_reach_fraction x reach away (capped by
+## lunge_max_px), or lunge_px straight along the aim when nothing is aimed
+## at. The step is a dash-cancelable displace(), so walls and bodies stop it
+## and a dash replaces it. Any combo: after the hit, moving ends the root
+## (walk_cancels_recovery), but the next swing still waits for the swing's
+## full duration.
 
 signal windup_started(target: Unit, windup_time: float)
 signal attack_landed(target: Unit, damage: float)
@@ -53,6 +64,11 @@ const SWING_TIME_EPSILON := 0.0001
 ## Hades-style combo (COMBAT.md). Set = combo mode (the player); null = the
 ## League-style attack (enemies).
 @export var combo: AttackCombo
+## Speed profile of a melee swing step (ease-out, MOVEMENT.md F2).
+@export var step_curve: Curve = preload("res://data/curves/curve_dash.tres")
+## Draws the melee assist of the last swing: the assist cone (grey), the
+## aimed enemy (red) and the planned step (yellow).
+@export var debug_draw: bool = false
 
 var unit: Unit
 var state: State = State.IDLE
@@ -91,6 +107,12 @@ var _swing_left: float = 0.0           # until the swing ends
 var _swing_fresh: bool = false         # started this physics frame
 var _next_swing_index: int = 0
 var _combo_reset_left: float = 0.0
+var _root_released: bool = false       # walking ended the root early
+var _since_hit: float = 0.0
+var _step_serial: int = -1             # MovementComponent serial of our step
+var _assist_target: Unit               # the last swing's aimed enemy, or null
+var _debug_plan: Dictionary = {}       # the last swing's assist, for debug_draw
+var _debug_node: Node2D
 
 
 func _ready() -> void:
@@ -155,6 +177,17 @@ func get_combo_index() -> int:
 	return _swing_index if _swing != null else _next_swing_index
 
 
+## A swing is playing out and still roots the unit (walking hasn't ended
+## its recovery early).
+func is_swing_rooted() -> bool:
+	return _swing != null and not _root_released
+
+
+## The enemy the last melee swing was aimed at (target pull), or null.
+func get_assist_target() -> Unit:
+	return _assist_target if is_instance_valid(_assist_target) else null
+
+
 ## The swing playing out (null when not swinging). Still set when
 ## swing_landed is emitted.
 func get_current_swing() -> AttackSwing:
@@ -196,11 +229,17 @@ func try_swing(direction: Vector2, dash_strike: bool = false) -> bool:
 	_swing_index = index
 	_swing_direction = direction.normalized()
 	_swing_landed = false
+	_root_released = false
+	_since_hit = 0.0
 	_swing_windup_left = swing.windup / speed
 	_swing_left = maxf(swing.duration, swing.windup) / speed
 	_swing_fresh = true
 	_combo_reset_left = 0.0
+	_assist_target = null
+	_step_serial = -1
 	unit.movement.add_move_lock(SWING_LOCK)
+	if combo.attack_style == AttackCombo.AttackStyle.MELEE:
+		_start_melee_step(swing, _swing_windup_left)
 	swing_started.emit(index, _swing_direction, swing)
 	return true
 
@@ -210,6 +249,7 @@ func try_swing(direction: Vector2, dash_strike: bool = false) -> bool:
 func cancel_swing() -> void:
 	if _swing == null:
 		return
+	_stop_step()
 	_end_swing()
 	_next_swing_index = 0
 	_combo_reset_left = 0.0
@@ -361,9 +401,124 @@ func _update_combo(delta: float) -> void:
 		_swing_windup_left -= delta
 		if _swing_windup_left <= SWING_TIME_EPSILON:
 			_land_swing()
+	else:
+		_since_hit += delta
+		_update_walk_cancel()
 	_swing_left -= delta
 	if _swing_landed and _swing_left <= SWING_TIME_EPSILON:
 		_finish_swing()
+
+
+## After the hit, moving (a new press or a held direction) ends the root once
+## recovery_move_cancel_after has passed. The swing itself runs on, so the
+## next swing still waits for its full duration and the combo continues.
+func _update_walk_cancel() -> void:
+	if _root_released or not combo.walk_cancels_recovery:
+		return
+	if _since_hit + SWING_TIME_EPSILON < combo.recovery_move_cancel_after:
+		return
+	if unit.movement.get_input_direction() == Vector2.ZERO:
+		return
+	_root_released = true
+	unit.movement.remove_move_lock(SWING_LOCK)
+
+
+# --- Melee swing step and target pull -------------------------------------------
+
+## Picks the aimed enemy, snaps the aim toward it, and starts the step for
+## the swing's windup (`duration`). COMBAT.md, Melee basic attacks.
+func _start_melee_step(swing: AttackSwing, duration: float) -> void:
+	var reach := get_swing_reach_px(swing)
+	var raw_aim := _swing_direction
+	var target := _find_assist_target(raw_aim, reach)
+	var step_dir := raw_aim
+	var step_len := swing.lunge_px
+	if target:
+		var to := target.global_position - unit.global_position
+		var snap := deg_to_rad(combo.assist_snap_deg)
+		_swing_direction = raw_aim.rotated(clampf(raw_aim.angle_to(to), -snap, snap))
+		if to.length() > 0.01:
+			step_dir = to.normalized()
+		var edge := to.length() - target.get_gameplay_radius_px()
+		var wanted := edge - combo.stop_at_reach_fraction * reach
+		if wanted > swing.lunge_px:
+			step_len = minf(wanted, maxf(swing.lunge_max_px, swing.lunge_px))
+		# Never into its body: stop at its edge.
+		var room := to.length() - unit.get_pathing_radius_px() - target.get_pathing_radius_px()
+		step_len = clampf(step_len, 0.0, maxf(room, 0.0))
+	_assist_target = target
+	if step_len > 0.01:
+		var time := maxf(duration, 0.01)
+		unit.movement.displace(step_dir * step_len / time, time, step_curve, true)
+		_step_serial = unit.movement.get_displacement_serial()
+	if debug_draw:
+		_debug_plan = {"from": unit.global_position, "raw_aim": raw_aim, "aim": _swing_direction,
+			"range": reach + combo.assist_range_bonus_px, "target": target,
+			"step": step_dir * step_len}
+		_update_debug_draw()
+
+
+## The enemy the swing is aimed at: its edge within reach +
+## assist_range_bonus_px of the feet, within assist_angle_deg of the aim, in
+## line of sight. Smallest angle off the aim wins; ties go to the nearer one.
+func _find_assist_target(aim: Vector2, reach: float) -> Unit:
+	var max_range := reach + combo.assist_range_bonus_px
+	var max_angle := deg_to_rad(combo.assist_angle_deg)
+	var best: Unit = null
+	var best_angle := INF
+	var best_dist := INF
+	for other in AbilityUtil.enemies_of(unit):
+		var to := other.global_position - unit.global_position
+		var dist := to.length()
+		if dist - other.get_gameplay_radius_px() > max_range:
+			continue
+		var angle := absf(aim.angle_to(to)) if dist > 0.01 else 0.0
+		if angle > max_angle:
+			continue
+		if not WorldQuery.has_line_of_sight(unit.global_position, other.global_position):
+			continue
+		if angle < best_angle - 0.001 or (absf(angle - best_angle) <= 0.001 and dist < best_dist):
+			best = other
+			best_angle = angle
+			best_dist = dist
+	return best
+
+
+## Ends our step if it's still the running displacement (a stun, death or a
+## cast cancels the swing). A knockback or dash that replaced it stays.
+func _stop_step() -> void:
+	if _step_serial >= 0 and unit.movement.get_displacement_serial() == _step_serial:
+		unit.movement.stop_displacement()
+	_step_serial = -1
+
+
+func _update_debug_draw() -> void:
+	if _debug_node == null:
+		_debug_node = Node2D.new()
+		_debug_node.name = "SwingAssistDebug"
+		_debug_node.top_level = true
+		_debug_node.z_index = 100
+		_debug_node.draw.connect(_on_debug_node_draw)
+		unit.add_child(_debug_node)
+	_debug_node.queue_redraw()
+
+
+func _on_debug_node_draw() -> void:
+	if _debug_plan.is_empty():
+		return
+	var from: Vector2 = _debug_plan.from
+	var raw_aim: Vector2 = _debug_plan.raw_aim
+	var r: float = _debug_plan.range
+	var half := deg_to_rad(combo.assist_angle_deg)
+	var grey := Color(1, 1, 1, 0.35)
+	_debug_node.draw_arc(from, r, raw_aim.angle() - half, raw_aim.angle() + half, 24, grey, 1.0)
+	_debug_node.draw_line(from, from + raw_aim.rotated(-half) * r, grey, 1.0)
+	_debug_node.draw_line(from, from + raw_aim.rotated(half) * r, grey, 1.0)
+	_debug_node.draw_line(from, from + (_debug_plan.aim as Vector2) * r, Color(1, 1, 1, 0.8), 1.0)
+	var target: Unit = _debug_plan.target
+	if is_instance_valid(target):
+		_debug_node.draw_arc(target.global_position, target.get_gameplay_radius_px(), 0.0, TAU, 24, Color(1, 0.3, 0.3), 1.5)
+	_debug_node.draw_line(from, from + (_debug_plan.step as Vector2), Color(1, 0.9, 0.2), 2.0)
 
 
 ## The hit moment: every enemy in the arc (with hit forgiveness) takes a
@@ -408,6 +563,8 @@ func _end_swing() -> void:
 	_swing = null
 	_swing_landed = false
 	_swing_fresh = false
+	_root_released = false
+	_step_serial = -1
 	unit.movement.remove_move_lock(SWING_LOCK)
 
 

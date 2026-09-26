@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 GameFeel="*res://scripts/autoload/game_feel.gd"
 Events="*res://scripts/autoload/events.gd"
+WorldQuery="*res://scripts/autoload/world_query.gd"
 
 [display]
 
