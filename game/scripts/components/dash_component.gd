@@ -117,6 +117,10 @@ func try_dash(direction: Vector2) -> bool:
 	_clear_end_lag()
 	if unit.attack.is_winding_up():
 		unit.attack.cancel()
+	# A combo swing is cancelled in its windup (no hit) or its recovery, and
+	# the combo resets (COMBAT.md). Its hit happens inside one physics frame,
+	# so there's no moment where a dash could cancel the hit itself.
+	unit.attack.cancel_swing()
 	if iframes:
 		unit.add_invulnerability(INVULNERABILITY_ID)
 	var speed_px := Units.to_px(dash_distance) / maxf(dash_duration, 0.01)

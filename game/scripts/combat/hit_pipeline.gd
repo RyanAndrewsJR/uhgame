@@ -38,6 +38,23 @@ static func from_ability(caster: Unit, ability: Ability, target: Node) -> HitCon
 	return ctx
 
 
+## A basic attack swing's hit: ad_ratio x attack_damage, PHYSICAL, the
+## swing's knockback (away from the attacker) and feel. Pass it to resolve().
+static func basic_attack(source: Unit, target: Node, swing: AttackSwing) -> HitContext:
+	var ctx := HitContext.new()
+	ctx.source = source
+	ctx.target = target
+	ctx.ad_ratio = swing.ad_ratio
+	ctx.damage_type = HitContext.DamageType.PHYSICAL
+	ctx.proc_coefficient = swing.proc_coefficient
+	ctx.knockback_px = swing.knockback_px
+	ctx.knockback_duration = swing.knockback_duration
+	ctx.knockback_from = source.global_position
+	ctx.feel = swing.feel
+	ctx.add_tag(&"basic_attack")
+	return ctx
+
+
 ## Stages 1-2: base_damage plus the ratios of the source's stats. No source
 ## (the environment) = base_damage only.
 static func get_scaled_damage(ctx: HitContext) -> float:

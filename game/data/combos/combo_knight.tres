@@ -1,0 +1,43 @@
+[gd_resource type="Resource" script_class="AttackCombo" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/attack_combo.gd" id="1_combo"]
+[ext_resource type="Script" path="res://scripts/data/attack_swing.gd" id="2_swing"]
+
+[sub_resource type="Resource" id="swing_1"]
+script = ExtResource("2_swing")
+windup = 0.08
+duration = 0.3
+ad_ratio = 1.0
+reach_multiplier = 1.0
+arc_deg = 110.0
+knockback_px = 6.0
+knockback_duration = 0.1
+feel = 1
+
+[sub_resource type="Resource" id="swing_2"]
+script = ExtResource("2_swing")
+windup = 0.08
+duration = 0.3
+ad_ratio = 1.0
+reach_multiplier = 1.0
+arc_deg = 110.0
+knockback_px = 6.0
+knockback_duration = 0.1
+feel = 1
+
+[sub_resource type="Resource" id="swing_3"]
+script = ExtResource("2_swing")
+windup = 0.08
+duration = 0.4
+ad_ratio = 1.6
+reach_multiplier = 1.0
+arc_deg = 140.0
+knockback_px = 20.0
+knockback_duration = 0.1
+feel = 2
+
+[resource]
+script = ExtResource("1_combo")
+swings = Array[ExtResource("2_swing")]([SubResource("swing_1"), SubResource("swing_2"), SubResource("swing_3")])
+combo_reset_time = 0.6
+hit_forgiveness = 0.1

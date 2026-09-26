@@ -144,6 +144,10 @@
 | 2026-09-26 | C1: `Player.take_damage()`'s override is replaced by a `Player.on_hit()` override with the same 2 px shake, now only when the hit isn't blocked. | Pipeline hits don't go through `take_damage()`, so the shake had to move to reach them. The only difference: no shake when a dead player is hit. |
 | 2026-09-26 | C1: negative armor / magic_resist use LoL's `2 − 100 / (100 − r)` as the proposed formula already in COMBAT.md, so the multiplier never divides by zero. | Armor has no minimum in the registry; the plain formula breaks at −100. Still listed in Open questions. |
 | 2026-09-26 | C1: `Events` gets only the three hit signals now; `status_applied` / `status_removed` come with StatusEffect (C9). The `incoming_damage` check moves from C1's Done means to C8, where the stat is added. | A typed signal can't name a class that doesn't exist yet; C1 can't test a stat that isn't registered. |
+| 2026-09-26 | C2: the Knight's basic attacks are live: left mouse = the combo (`combo_knight.tres` on `AutoAttackComponent.combo`). Resolves the 2026-09-24 "basic attacks stay dormant" row. `select` has no key. | COMBAT C2. |
+| 2026-09-26 | C2: an attack press drops a queued walk-into-range cast (R walking into range), like a dash or WASD does. | Attacking is the player's own move; otherwise the Knight would walk off toward the R target right after the swing. |
+| 2026-09-26 | C2: swing timers skip the physics frame the swing started in (PlayerInput runs before AutoAttackComponent in that frame) and treat ≤ 0.0001 s as done. | Without the skip a swing ends a frame early; without the epsilon float residue (0.3 − 18/60) adds a frame. A 0.3 s swing is exactly 18 frames, the hit lands 5 frames after the click. |
+| 2026-09-26 | C2: a click on the HUD ability bar also swings (PlayerInput reads the `attack` action from the Input state). Left as is; noted in MOVEMENT.md, Open questions. | The bar has no clickable parts yet. |
 
 ## World Interaction
 | Date | Decision | Why |

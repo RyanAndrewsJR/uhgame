@@ -7,18 +7,24 @@ extends Node
 ## - Input buffer: dash, attack and Q/W/E/R presses that aren't allowed yet
 ##   wait up to buffer_time and fire as soon as they are. One buffered press
 ##   at a time: a newer press replaces an older one. The timer pauses while a
-##   dash or a cast is playing out, so a press during one fires when it ends.
+##   dash, a cast or a basic attack swing is playing out, so a press during
+##   one fires when it ends.
 ## - Dash (Space): the held direction, or facing if none.
-## - Attack (left mouse): nothing attacks yet (COMBAT.md). A legal press emits
+## - Attack (left mouse): the next swing of the basic attack combo toward the
+##   cursor (AutoAttackComponent.try_swing(), COMBAT.md). A press during a
+##   swing queues the next one. A legal press also emits
 ##   attack_pressed(dash_strike), where dash_strike means it came within
 ##   dash_strike_window seconds of a dash ending.
+## - Q/W/E/R during a swing: only if the ability's cancels_swing allows it
+##   right now (Player.can_interrupt_swing()); otherwise it waits.
 ## - A movement press that starts during a cast cancels it if the ability
 ##   has cancel_on_move (keys already held don't count).
 ## player.gd's own _unhandled_input still reads Q/W/E/R and routes them here
 ## through Player.request_cast() when they can't fire yet.
 
-## A basic attack press became legal. dash_strike: within dash_strike_window
-## of a dash ending. Hook for COMBAT.md; nothing listens yet.
+## A basic attack press became legal and a swing is starting. dash_strike:
+## within dash_strike_window of a dash ending (the dash-strike swing is
+## COMBAT C12).
 signal attack_pressed(dash_strike: bool)
 
 const DASH := &"dash"
@@ -121,8 +127,8 @@ func _update_buffer(delta: float) -> void:
 		clear_buffer()
 		_fire(action)
 		return
-	# A press during a dash or a cast waits for it to end.
-	if player.dash.is_dashing() or player.abilities.casting:
+	# A press during a dash, a cast or a swing waits for it to end.
+	if player.dash.is_dashing() or player.abilities.casting or player.attack.is_swinging():
 		return
 	_buffer_left -= delta
 	if _buffer_left <= 0.0:
@@ -135,9 +141,10 @@ func _is_legal(action: StringName) -> bool:
 			return player.dash.can_dash()
 		ATTACK:
 			return not player.is_stunned() and not player.abilities.casting \
-				and not player.dash.is_dashing()
+				and not player.dash.is_dashing() and player.attack.can_swing()
 		_:
-			return player.abilities.can_cast(action) and not player.dash.is_dashing()
+			return player.abilities.can_cast(action) and not player.dash.is_dashing() \
+				and player.can_interrupt_swing(action)
 
 
 func _fire(action: StringName) -> void:
@@ -149,6 +156,12 @@ func _fire(action: StringName) -> void:
 				player.abilities.cancel_pending()
 				player.movement.stop()
 		ATTACK:
-			attack_pressed.emit(player.dash.get_time_since_dash_end() <= dash_strike_window)
+			var dash_strike := player.dash.get_time_since_dash_end() <= dash_strike_window
+			attack_pressed.emit(dash_strike)
+			if player.attack.try_swing(player.get_aim_direction(), dash_strike) \
+					and player.abilities.has_pending():
+				# Attacking is your own move: drop a queued walk-into-range cast.
+				player.abilities.cancel_pending()
+				player.movement.stop()
 		_:
 			player.cast_ability(action)
