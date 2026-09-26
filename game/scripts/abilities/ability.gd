@@ -15,6 +15,14 @@ enum Targeting {
 	UNIT,       ## Must click an enemy; walks into range first if needed.
 }
 
+## Whether pressing this ability can cut short a basic attack swing
+## (COMBAT.md). Otherwise the press waits for the swing to end.
+enum SwingCancel {
+	NEVER,      ## Waits for the whole swing.
+	AFTER_HIT,  ## Cuts the recovery once the swing's hit has landed.
+	ANYTIME,    ## Cuts the swing at once, even before its hit.
+}
+
 @export var display_name: String = "Ability"
 @export_multiline var description: String = ""
 @export var icon_color: Color = Color(0.8, 0.8, 0.8)
@@ -45,6 +53,9 @@ enum Targeting {
 ## started don't count. On: the cast roots for its cast time even if
 ## roots_during_cast is false (a channel: stand still, move to cancel).
 @export var cancel_on_move: bool = false
+## Can this cast cut short a basic attack swing? AFTER_HIT (default): only
+## once the swing's hit has landed. Cutting a swing resets the combo.
+@export var cancels_swing: SwingCancel = SwingCancel.AFTER_HIT
 
 @export_group("Damage")
 @export var base_damage: float = 0.0

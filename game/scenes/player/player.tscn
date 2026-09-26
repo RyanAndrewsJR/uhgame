@@ -17,6 +17,7 @@
 [ext_resource type="Script" path="res://scripts/vfx/movement_vfx_component.gd" id="16_movement_vfx"]
 [ext_resource type="Script" path="res://scripts/components/stats_component.gd" id="17_stats_component"]
 [ext_resource type="Script" path="res://scripts/components/resource_component.gd" id="18_resource_component"]
+[ext_resource type="Resource" path="res://data/combos/combo_knight.tres" id="19_combo"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_body"]
 radius = 11.0
@@ -64,6 +65,7 @@ script = ExtResource("18_resource_component")
 
 [node name="AutoAttackComponent" type="Node" parent="." unique_id=943748011]
 script = ExtResource("6_attack")
+combo = ExtResource("19_combo")
 
 [node name="MovementComponent" type="Node2D" parent="." unique_id=856784618]
 script = ExtResource("5_movement")

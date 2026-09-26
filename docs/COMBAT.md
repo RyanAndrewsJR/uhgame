@@ -114,7 +114,7 @@ What exists today and what happens to each piece (see Build order for when).
 
 | Code | What it does today | Status |
 |---|---|---|
-| `res://scripts/components/auto_attack_component.gd` (`AutoAttackComponent`, `Unit.attack`) | LoL basic attacks: chase a target, windup (move lock `&"attack_windup"`), then `target.take_damage()` wherever the target is. Backswing doesn't lock movement. Next-attack modifiers (Iron Resolve). Locks by id (`&"stun"`, `&"casting"`). | **Kept and extended.** Enemies keep the LoL attack. C2 adds a combo mode for the player (`combo` export). The player's LoL orders (right-click, attack-move) stay dormant. C4 makes enemy hits whiff out of reach. |
+| `res://scripts/components/auto_attack_component.gd` (`AutoAttackComponent`, `Unit.attack`) | LoL basic attacks: chase a target, windup (move lock `&"attack_windup"`), then `target.take_damage()` wherever the target is. Backswing doesn't lock movement. Next-attack modifiers (Iron Resolve). Locks by id (`&"stun"`, `&"casting"`). | **Kept and extended.** Enemies keep the LoL attack. Combo mode for the player (`combo` export; C2, built). The player's LoL orders (right-click, attack-move) stay dormant. C4 makes enemy hits whiff out of reach. |
 | `Unit.take_damage(amount, source, highlight)` | Checks alive and invulnerable, lowers health, emits `damaged`, spawns a number, flashes. `Player.take_damage` adds a 2 px shake. Called by `AutoAttackComponent._land_attack`, `cleave.gd`, `lunge.gd`, `judgement.gd` and `Unit._on_hurtbox_hurt`. | **Wrapped** (C1, built): `make_hit_context()` builds a `HitContext` and `on_hit()` runs it from mitigation on. Armor is 0 everywhere, so nothing changes in play. `Player.take_damage`'s override is replaced by a `Player.on_hit` override with the same 2 px shake. |
 | `res://scripts/components/hitbox.gd`, `hurtbox.gd` | Area2D damage on overlap. `player.tscn` and `slime.tscn` have a Hurtbox (0.2 s own invincibility); **no scene has a Hitbox**. | **Kept, dormant.** `Unit._on_hurtbox_hurt` builds a `HitContext` (C1, built; the push is `Hitbox.knockback` px/s × 0.12 s, as before), so a future contact-damage enemy or projectile goes through the pipeline. |
 | `Unit.add_invulnerability(id)` | Dash i-frames (`&"dash"`) block `take_damage()` and Hurtbox hits. | **Kept.** `Unit.on_hit` checks it first. Post-hit i-frames add `&"hit_iframes"` (C4). |
@@ -218,12 +218,14 @@ One per hit. Built by the attacker, filled in by the pipeline.
   - Next-attack modifiers (Iron Resolve) are used up by the first swing that hits anything and apply to every target it hits.
   - `speed = attack_speed ÷ base attack_speed` (`StatsComponent.get_base_value(&"attack_speed")`). The combo index advances when a swing ends; `combo_reset_time` counts from the end of the swing's recovery.
   - `reset_attack_timer()` (`Ability.resets_auto_attack`) does nothing in combo mode.
+  - Also built: `get_current_swing()`, `get_swing_speed()`, `get_swing_reach_px(swing)`. `add_lock()` (stun, casting) and `cancel()` (death) cancel a swing. Swing timers don't count the physics frame the swing started in, and treat ≤ 0.0001 s as done, so a 0.3 s swing is exactly 18 frames.
+  - An attack press also drops a queued walk-into-range cast (R), like the dash does.
 - **PlayerInput** (C2): `attack_pressed` → `player.attack.try_swing(player.get_aim_direction(), dash_strike)`.
   - Attack is legal when not stunned, casting, dashing or swinging.
   - An ability press during a swing is legal only if its `cancels_swing` allows it at that moment (then the swing is cancelled first).
   - The buffer timer also pauses while a swing plays out, so a press early in a 0.3 s swing isn't lost after 0.15 s.
 - **DashComponent** (C2): `try_dash()` cancels a swing in windup or recovery (not on the hit frame; the hit resolves inside one physics frame, so there's nothing to cancel).
-- **Player** (C2): facing = the swing's aim, locked at swing start (same slot as "attack windup" today); `State.ATTACK` = the whole swing.
+- **Player** (C2): facing = the swing's aim, locked at swing start (the slot "attack windup" had); `State.ATTACK` = the whole swing. `can_interrupt_swing(slot)` applies `cancels_swing` for both `request_cast()` and the buffer. Swing visuals: the sword pulls back during the windup and a slash the size of the swing's reach and arc plays at the hit (brighter and longer on the finisher).
 - **Input map** (C2): `select` loses its left mouse binding (the action and the attack-move code stay).
 - **GameFeel** (C3): `hitstop()` keeps one end time (real time); a new call extends it if it ends later.
 - **MovementComponent** (C4): `displace()` keeps the running displacement if its remaining distance is larger than the new one's total distance.
@@ -258,9 +260,10 @@ Combat starts now, before STATS step 6. Until step 6 adds `id` / `tags` to Abili
    **Done means:**
    - A click swings toward the cursor within 0.08 s; three clicks give the three swings (the third wider and stronger); 0.6 s without attacking resets the combo.
    - Each swing roots; a dash during windup or recovery cancels it and resets the combo.
-   - A click during a swing queues the next one; Q during a swing waits for it to end.
+   - A click during a swing queues the next one; Q during a swing's windup waits for the hit, then cuts the recovery (AFTER_HIT).
    - Iron Resolve's next swing slows every slime it hits; a stun mid-swing cancels it.
    - The Knight's abilities, enemies chasing and the HUD still work.
+   **Built** (awaiting play test): combat test 109/109 (59 new C2 checks: hit 5 frames after the click, swing 18 frames, 64 / 64 / 102.4 damage, the finisher's 20 px push, reach 70 / 78 px hit and 82 px miss, arc, reset after 0.6 s, a click 1 frame into a swing starts swing 2 right as it ends, dash / stun / Q / death cancels, Iron Resolve on two slimes, +50% attack speed = 12-frame swings); stats test 143/143; headless in-game check 15/15 (a real left click swings and hits for 64; the Knight's abilities, slimes chasing and hitting, i-frames and the HUD unchanged); room_01 runs with no errors.
 3. **C3 – Hit feel.** Feel tiers from `HitContext.feel` (light / heavy / kill), longest-wins hitstop, 0.06 s flash, shake per tier.
    **Done means:** swings 1–2 freeze briefly with no shake; the finisher and kills freeze longer and shake; abilities feel as before.
 4. **C4 – Getting hit.** Post-hit i-frames, 12 px knockback on the player (marked as hit knockback, which a dash replaces), enemy whiffs out of reach, stronger-knockback-wins, slime windup retuned into 0–0.3 s.

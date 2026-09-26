@@ -44,13 +44,13 @@ Only keys that physically collided with WASD changed. Action names never change.
 |---|---|---|
 | `move_up` / `move_down` / `move_left` / `move_right` | W / S / A / D | new |
 | `dash` | Space | new |
-| `attack` | Left mouse | new; PlayerInput only emits `attack_pressed` (no attack yet). COMBAT C2 makes it the basic attack combo (COMBAT.md) |
+| `attack` | Left mouse | new; the basic attack combo (COMBAT.md, built in COMBAT C2) |
 | `interact` | F | new; nothing reads it yet |
 | `ability_q` / `ability_e` / `ability_r` | Q / E / R | unchanged |
 | `ability_w` | Right mouse | was W |
 | `camera_center` | C | was Space |
 | `move` / `stop` / `attack_move` | none | were right mouse / S / A. Actions and code stay, dormant. |
-| `select`, `restart`, `camera_toggle_lock`, `camera_left/right/up/down` | Left mouse, Backspace, Y, arrow keys | unchanged. COMBAT C2 unbinds `select` from left mouse (action and code stay) |
+| `select`, `restart`, `camera_toggle_lock`, `camera_left/right/up/down` | Left mouse, Backspace, Y, arrow keys | unchanged, except `select` has no key since COMBAT C2 (the action and the attack-move code stay) |
 
 ### LoL-era systems
 | System | Status |
@@ -61,7 +61,7 @@ Only keys that physically collided with WASD changed. Action names never change.
 | `game_camera.gd` lock toggle, edge pan, shake, bounds | Kept. Aim lead added (see Architecture). |
 | `AbilityComponent` Q/W/E/R slots | Unchanged. W is on right mouse. |
 | Aim cancel (`player.gd`) | Right mouse used to cancel an aimed ability; it now casts W. Esc (`ui_cancel`) cancels. |
-| `AutoAttackComponent` | Kept. The Knight's basic attacks are dormant (right-click and A-click were their only triggers); enemies still attack. COMBAT C2 adds a combo mode for the player (COMBAT.md, Current code). |
+| `AutoAttackComponent` | Kept. Enemies use its League-style attack. The Knight uses its combo mode (COMBAT C2): left mouse swings toward the cursor. The Knight's League-style orders (right-click, A-click) stay dormant. |
 | `enemy.gd` | Kept. `passive` export turns an enemy into a training dummy: no wander, aggro, or attacks. |
 | `Ability.get_damage()` reading `caster.stats` | Kept until STATS.md step 4 puts StatsComponent behind the same values. |
 
@@ -83,7 +83,7 @@ Only keys that physically collided with WASD changed. Action names never change.
 - Units don't rotate. `Player.facing` (unit vector) is the look direction; the animation layer will pick one of 8 sprites with `get_facing_octant()` (0 = right, clockwise: 2 = down, 4 = left, 6 = up).
 - Facing priority, updated each physics frame:
   1. **Casting:** toward the cast's aim, locked at cast start (DIRECTION/POINT: the aim point; UNIT: the target). SELF casts don't change facing.
-  2. **Attack windup:** toward the target. *(COMBAT C2: attacking = the swing's aim, locked at swing start, for the whole swing.)*
+  2. **Attacking:** a combo swing's aim, locked at swing start, for the whole swing (COMBAT C2). A League-style windup (dormant for the player) faces its target.
   3. **Dashing:** the dash direction.
   4. **Aiming an ability** (hold-to-aim): toward the cursor. The sword follows the cursor too.
   5. **Walking:** the move direction.
@@ -98,23 +98,23 @@ Only keys that physically collided with WASD changed. Action names never change.
 - I-frames for the whole dash via `Unit.add_invulnerability(&"dash")`: `take_damage()` and Hurtbox hits (damage and knockback) are ignored. This sits on Unit, not only the Hurtbox, because enemy basic attacks call `take_damage()` directly. The body turns half see-through.
 - Charges: the `dash_charges` stat (base `UnitStats.dash_charges`, default 1, read through StatsComponent). One charge returns every `charge_recharge_time` = 0.35 s, one at a time, counted only while not dashing.
 - Exit: if a direction is held when the dash ends, the player runs on at full speed (`carry_into_run`, F2). Otherwise `end_lag` = 0.05 s of locked walking follows. A dash can chain in during end-lag if a charge is left.
-- Not allowed while stunned or already displaced (dashing, knockback). *(Exception from COMBAT C4: knockback from being hit doesn't block the dash; the dash replaces it.)* While casting, only if the ability is `dash_cancelable` (then the dash cancels the cast). A press that isn't allowed is buffered (see below). Starting a dash cancels a basic attack windup and a queued walk-into-range cast. *(COMBAT C2: it cancels a swing's windup or recovery, never the hit frame, and resets the combo.)*
+- Not allowed while stunned or already displaced (dashing, knockback). *(Exception from COMBAT C4: knockback from being hit doesn't block the dash; the dash replaces it.)* While casting, only if the ability is `dash_cancelable` (then the dash cancels the cast). A press that isn't allowed is buffered (see below). Starting a dash cancels a basic attack swing (windup or recovery; the hit itself happens inside one frame) and resets the combo, and cancels a queued walk-into-range cast.
 - Pits: not scheduled (step 8 was removed 2026-09-25). If they come back, the dash crosses them and the fall rule is in WORLD_INTERACTION.md, Pits and movement types *(proposed)*.
 
 ## Input buffering and cancels
 - **Buffer** (`PlayerInput`, `buffer_time` = 0.15 s): a `dash`, `attack` or Q/W/E/R press that isn't allowed yet fires as soon as it is.
   - One buffered press at a time; a newer press replaces an older one.
-  - The timer pauses while a dash or a cast is playing out, so a press during one fires the moment it ends. It doesn't pause for stuns or cooldowns. *(COMBAT C2: it also pauses during a swing, so a press early in a 0.3 s swing queues the next one.)*
-  - When a press is allowed: dash = `DashComponent.can_dash()`. Ability = `can_cast(slot)` and not dashing (no casting mid-dash). Attack = not stunned, casting or dashing. *(COMBAT C2: attack also not mid-swing; an ability mid-swing only if its `cancels_swing` allows it.)*
+  - The timer pauses while a dash, a cast or a basic attack swing is playing out, so a press during one fires the moment it ends (a click early in a 0.3 s swing queues the next swing). It doesn't pause for stuns or cooldowns.
+  - When a press is allowed: dash = `DashComponent.can_dash()`. Ability = `can_cast(slot)` and not dashing (no casting mid-dash). Attack = not stunned, casting, dashing or swinging (`AutoAttackComponent.can_swing()`). An ability during a swing only if its `cancels_swing` allows it right now (`Player.can_interrupt_swing()`; COMBAT.md).
   - Q/W/E/R go through `Player.request_cast(slot)`: cast now if allowed, otherwise buffer.
-- **Dash cancels:** attack recovery (backswing) never locks movement, so a dash already cancels it. *(COMBAT C2: every swing roots for its whole duration, windup and recovery, and a dash cancels either.)* Each ability decides whether a dash cancels its cast time with `Ability.dash_cancelable` (default off for all Knight abilities). A cancelled cast releases its locks at once, refunds the cooldown, and emits `AbilityComponent.cast_cancelled` then `cast_finished`. The effect (`execute()`) can't be cancelled once it starts.
+- **Dash cancels:** every basic attack swing roots for its whole duration (move lock `&"attack_swing"`), and a dash cancels it in its windup or its recovery (COMBAT C2). Each ability decides whether a dash cancels its cast time with `Ability.dash_cancelable` (default off for all Knight abilities). A cancelled cast releases its locks at once, refunds the cooldown, and emits `AbilityComponent.cast_cancelled` then `cast_finished`. The effect (`execute()`) can't be cancelled once it starts.
 - **Movement during casts** (per ability; the defaults keep every Knight ability as it was). These properties move to ABILITIES.md when it's written.
   - `roots_during_cast` (default on): the cast locks walking (`&"casting"`) until it finishes.
   - `cast_move_speed_multiplier` (default 1.0): with `roots_during_cast` off, walking speed during the cast is multiplied by this. It's a `PERCENT_MULT` `move_speed` StatModifier, source `&"ability_casting"`, removed when the cast finishes, is interrupted or is cancelled. Soft caps still apply after it: for the Knight, 0.75 gives exactly 420 u (134 px/s), 0.5 gives 318 u (102 px/s, not 90), and 0 still walks at 57 px/s.
   - `cancel_on_move` (default off): a movement key pressed **after** the cast starts cancels it during its cast time, exactly like the dash cancel (locks released, cooldown refunded, `cast_cancelled` then `cast_finished`; `execute()` can't be cancelled). Keys already held when the cast started don't count; letting go and pressing again does. PlayerInput notes a `move_*` press in `_unhandled_input` only if a cast is already running (input events arrive in order, so Q then D in the same frame counts), and calls `AbilityComponent.try_cancel_cast_on_move()` in `_physics_process`, before MovementComponent, so the new key moves that same frame.
   - **`cancel_on_move` wins:** the cast always roots for its cast time (the player stops, and any `move_to` order is dropped), even if `roots_during_cast` is off, and the multiplier is ignored. It's a channel: stand still, move to cancel. With `cast_time` = 0 there's nothing to cancel.
   - Facing stays locked to the cast's aim while walking during a cast (see Facing and aim). SELF casts have no aim, so facing follows walking.
-- **Dash-strike hook:** when an `attack` press fires, PlayerInput emits `attack_pressed(dash_strike)`. `dash_strike` is true if it's within `dash_strike_window` = 0.1 s after a dash ended (`DashComponent.get_time_since_dash_end()`). An attack pressed mid-dash fires as the dash ends, so it counts. Nothing listens yet; COMBAT C2 connects it to `try_swing()`, and the dash-strike variant is COMBAT C12.
+- **Dash-strike hook:** when an `attack` press fires, PlayerInput emits `attack_pressed(dash_strike)`. `dash_strike` is true if it's within `dash_strike_window` = 0.1 s after a dash ended (`DashComponent.get_time_since_dash_end()`). An attack pressed mid-dash fires as the dash ends, so it counts. PlayerInput then calls `AutoAttackComponent.try_swing(aim, dash_strike)`; the dash-strike swing itself is COMBAT C12 (until then it's the normal next swing).
 
 ## Architecture (additive: see the Change policy in CLAUDE.md)
 1. **PlayerInput** (child of Player, runs before MovementComponent): each physics frame produces `move_dir` and `aim_point`, calls `movement.set_input_direction()`, and runs the input buffer (dash, attack, buffered Q/W/E/R). Holding a direction or dashing cancels a queued walk-into-range cast (like a LoL move order). player.gd's `_unhandled_input` still reads Q/W/E/R and calls `request_cast()`.
@@ -133,7 +133,7 @@ Only keys that physically collided with WASD changed. Action names never change.
    | `DASH` | the player's own dash (`DashComponent`) |
    | `CASTING` | `abilities.casting`, including Lunge's dash and R's cast. Instant casts (Iron Resolve) don't show. |
    | `DISPLACED` | pushed by something else (knockback, pull). Added beyond the original list. |
-   | `ATTACK` | basic attack windup (dormant until COMBAT; from COMBAT C2, the whole swing) |
+   | `ATTACK` | a basic attack swing (windup and recovery; COMBAT C2) |
    | `MOVE` | walking or holding a direction; also R walking into range |
    | `IDLE` | none of the above |
 
@@ -244,7 +244,7 @@ Movement works but feels robotic: displacements run at constant speed and there'
 - **Feel pass F1 → F2 → F4 → F3** (see Feel pass). F4 runs before F3. F1, F2, F4 and F3 are built (awaiting play test).
 8. *(removed 2026-09-25)* Pit crossing and fall/respawn is no longer planned (DECISIONS.md, Movement). The unscheduled design stays in WORLD_INTERACTION.md, Pits and movement types.
 
-**Done means:** no errors; WASD works in play mode; the Knight's 4 abilities, enemies chasing, and the HUD still work as before. Exception (decided): the Knight's basic attacks stay dormant until COMBAT gives `attack` a reader.
+**Done means:** no errors; WASD works in play mode; the Knight's 4 abilities, enemies chasing, and the HUD still work as before. (The Knight's basic attacks were dormant until COMBAT C2 gave `attack` a reader.)
 If a step needs removing or rewriting existing code, stop and explain why before doing it.
 
 ## Testing
@@ -254,7 +254,8 @@ If a step needs removing or rewriting existing code, stop and explain why before
 - The camera can only lean sideways in the middle third of the sandbox (room bounds). `debug_draw` on the Camera node (in `main.tscn`) shows the dead zone and the lean.
 
 ## Open questions
-- ~~**`attack` vs `select` on left mouse**~~ Decided (COMBAT.md): `attack` owns left mouse; `select` is unbound in COMBAT C2. Today both are bound, with no double-fire: `select` only acts while attack-move is armed (unbound A key), and `attack` only emits `attack_pressed`, which nothing listens to. PlayerInput reads `attack` from the Input state, so a click on the ability bar also counts as an attack press; the bar's `MOUSE_FILTER_STOP` doesn't block that.
+- ~~**`attack` vs `select` on left mouse**~~ Decided and built (COMBAT C2): `attack` owns left mouse; `select` has no key.
+- **Clicks on the HUD:** PlayerInput reads `attack` from the Input state, so a click on the ability bar also swings; the bar's `MOUSE_FILTER_STOP` doesn't block that. Fix when the HUD gets clickable parts (UI.md).
 - **`cast_mode`:** hold-to-aim (`QUICK_WITH_INDICATOR`, current) vs `QUICK`. Try `QUICK` in play testing.
 - Should the vertical speed be scaled (e.g. 0.9×) for the 3/4 view? Default: no.
 - ~~**Movement during basic attacks**~~ Decided (COMBAT.md): every swing roots for its duration (about 0.3 s); the dash is the way out. During casts it's now per ability (see Input buffering and cancels); each champion's values are set in CHAMPIONS.md.

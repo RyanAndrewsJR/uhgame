@@ -1,9 +1,13 @@
 extends Node2D
-## COMBAT.md step C1 test: open res://scenes/tests/combat_test.tscn and press F6.
+## COMBAT.md steps C1-C2 test: open res://scenes/tests/combat_test.tscn and press F6.
 ## Spawns the real player.tscn and passive slimes (training dummies) and
 ## runs hits through the hit pipeline: mitigation for all three damage types
 ## at 0 and 100 armor/magic_resist, stat scaling, the take_damage() and
-## Hurtbox wrappers, i-frames, knockback, kills and the Events signals.
+## Hurtbox wrappers, i-frames, knockback, kills and the Events signals (C1).
+## C2: the Knight's combo swings (timing, damage, reach and arc, root,
+## combo and reset, the input buffer, dash / stun / ability cancels, Iron
+## Resolve, attack speed). The C2 section runs last: it ends by killing the
+## Knight.
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
@@ -11,6 +15,11 @@ const PLAYER_SCENE: PackedScene = preload("res://scenes/player/player.tscn")
 const SLIME_SCENE: PackedScene = preload("res://scenes/enemies/slime.tscn")
 const CLEAVE: Ability = preload("res://data/abilities/knight_q_cleave.tres")
 const FLAT := StatModifier.Type.FLAT
+const PERCENT_ADD := StatModifier.Type.PERCENT_ADD
+## Where the C2 swing tests happen, away from the C1 dummies.
+const ARENA := Vector2(-2000, 0)
+## Slime gameplay radius: 55 u = 17.6 px.
+const SLIME_RADIUS_PX := 17.6
 
 var knight: Player
 
@@ -20,6 +29,8 @@ var _failed: int = 0
 var _hits: Array[HitContext] = []
 var _damaged: Array[HitContext] = []
 var _deaths: Array = []   # [unit, ctx]
+var _frame: int = 0
+var _landed: Array = []   # [frame, index, targets.size()]
 
 
 func _ready() -> void:
@@ -40,6 +51,7 @@ func _ready() -> void:
 	_test_hurtbox_wrapper()
 	_test_kill()
 	_test_non_unit_target()
+	await _test_combo()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -200,6 +212,274 @@ func _test_non_unit_target() -> void:
 	HitPipeline.resolve(ctx)
 	_check("blocked, no error", ctx.blocked, true)
 	node.queue_free()
+
+
+# --- C2: combo swings -------------------------------------------------------------
+
+func _test_combo() -> void:
+	knight.attack.swing_landed.connect(func(index: int, targets: Array[Unit]) -> void:
+		_landed.append([_frame, index, targets.size()]))
+	await _test_combo_data()
+	await _test_swing_timing_and_damage()
+	await _test_combo_chain_and_reset()
+	await _test_reach_and_arc()
+	await _test_buffered_press()
+	await _test_swing_cancels()
+	await _test_ability_during_swing()
+	await _test_iron_resolve_swing()
+	await _test_attack_speed()
+	await _test_death_mid_swing()
+
+
+func _test_combo_data() -> void:
+	_section("C2: combo data and input")
+	var combo := knight.attack.combo
+	_check("the Knight has combo_knight.tres, 3 swings", [combo != null, combo.swings.size() if combo else 0], [true, 3])
+	if combo == null or combo.swings.size() != 3:
+		return
+	var s := combo.swings
+	_check("windups 0.08", [s[0].windup, s[1].windup, s[2].windup], [0.08, 0.08, 0.08])
+	_check("durations 0.3 / 0.3 / 0.4", [s[0].duration, s[1].duration, s[2].duration], [0.3, 0.3, 0.4])
+	_check("damage 1.0 / 1.0 / 1.6 AD", [s[0].ad_ratio, s[1].ad_ratio, s[2].ad_ratio], [1.0, 1.0, 1.6])
+	_check("arcs 110 / 110 / 140", [s[0].arc_deg, s[1].arc_deg, s[2].arc_deg], [110.0, 110.0, 140.0])
+	_check("knockback 6 / 6 / 20 px", [s[0].knockback_px, s[1].knockback_px, s[2].knockback_px], [6.0, 6.0, 20.0])
+	_check("combo_reset_time 0.6, forgiveness 0.1", [combo.combo_reset_time, combo.hit_forgiveness], [0.6, 0.1])
+	_check("reach at base = 175 u = 56 px", knight.attack.get_swing_reach_px(s[0]), 56.0)
+	_check("select is unbound (left mouse is attack only)", InputMap.action_get_events(&"select").is_empty(), true)
+	_check("slimes have no combo (League-style attack)", _spawn_dummy().attack.can_swing(), false)
+	_check("Knight abilities default to cancels_swing AFTER_HIT",
+		[knight.abilities.q.cancels_swing, knight.abilities.w.cancels_swing, knight.abilities.e.cancels_swing, knight.abilities.r.cancels_swing],
+		[Ability.SwingCancel.AFTER_HIT, Ability.SwingCancel.AFTER_HIT, Ability.SwingCancel.AFTER_HIT, Ability.SwingCancel.AFTER_HIT])
+
+
+func _test_swing_timing_and_damage() -> void:
+	_section("C2: one swing")
+	await _reset_knight()
+	var dummy := _dummy_at(Vector2(50, 0))
+	_landed.clear()
+	var start := _frame
+	_check("try_swing starts a swing", knight.attack.try_swing(Vector2.RIGHT), true)
+	_check("rooted while swinging", knight.movement.can_move(), false)
+	_check("can't start another swing mid-swing", knight.attack.try_swing(Vector2.RIGHT), false)
+	await _frames(1)
+	_check("state ATTACK, facing locked to the swing", [knight.state, knight.facing], [Player.State.ATTACK, Vector2.RIGHT])
+	await _wait_until(func() -> bool: return not _landed.is_empty(), 30)
+	if _landed.is_empty():
+		_report(false, "the swing landed", "never")
+		return
+	var frames: int = _landed[0][0] - start
+	_check_near("hit lands ~0.08 s after the click (5 frames)", frames, 5.0, 1.0)
+	_check("swing 1 hits the dummy for 1.0 x 64 AD", dummy.health.max_health - dummy.health.current, 64.0)
+	_check("in recovery after the hit", knight.attack.is_in_recovery(), true)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 30)
+	var total := _frame - start
+	_check_near("the swing lasts 0.3 s (18 frames)", total, 18.0, 1.0)
+	_check("root released after the swing", knight.movement.can_move(), true)
+	_check("next swing is swing 2", knight.attack.get_combo_index(), 1)
+	dummy.queue_free()
+
+
+func _test_combo_chain_and_reset() -> void:
+	_section("C2: combo chain and reset")
+	await _reset_knight()
+	var dummy := _dummy_at(Vector2(50, 0))
+	var damage: Array = []
+	for i in 3:
+		dummy.health.heal(1000.0)
+		var before := dummy.health.current
+		var pos := dummy.global_position
+		knight.attack.try_swing(Vector2.RIGHT)
+		await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+		damage.append(before - dummy.health.current)
+		if i == 2:
+			await _frames(10)
+			_check_near("the finisher pushes 20 px", dummy.global_position.x - pos.x, 20.0, 1.0)
+		_place(dummy, knight.global_position + Vector2(50, 0))
+	_check("damage 64 / 64 / 102.4", damage, [64.0, 64.0, 102.4])
+	_check("after the finisher the combo starts over", knight.attack.get_combo_index(), 0)
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+	_check("next is swing 2 right after swing 1", knight.attack.get_combo_index(), 1)
+	dummy.health.heal(1000.0)
+	await _frames(40)   # 0.67 s > combo_reset_time
+	_check("0.6 s without attacking resets the combo", knight.attack.get_combo_index(), 0)
+	dummy.queue_free()
+
+
+func _test_reach_and_arc() -> void:
+	_section("C2: reach (feet to the target's edge, +10%) and arc")
+	await _reset_knight()
+	# 56 px reach x 1.1 = 61.6 px to the dummy's edge: center at 79.2 px.
+	var cases := [
+		["center 70 px ahead (in reach)", Vector2(70, 0), true],
+		["center 78 px ahead (only thanks to +10%)", Vector2(78, 0), true],
+		["center 82 px ahead (out of reach)", Vector2(82, 0), false],
+		["behind the Knight", Vector2(-40, 0), false],
+		["50 degrees off the aim (inside 55 degrees)", Vector2.from_angle(deg_to_rad(50.0)) * 50.0, true],
+		["100 degrees off the aim", Vector2.from_angle(deg_to_rad(100.0)) * 60.0, false],
+	]
+	for c: Array in cases:
+		var dummy := _dummy_at(c[1])
+		await _frames(1)
+		knight.attack.try_swing(Vector2.RIGHT)
+		await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+		_check("%s: %s" % [c[0], "hit" if c[2] else "miss"], dummy.health.current < dummy.health.max_health, c[2])
+		dummy.queue_free()
+		await _reset_knight()
+
+
+func _test_buffered_press() -> void:
+	_section("C2: a click during a swing queues the next one")
+	await _reset_knight()
+	var started: Array = []
+	var record := func(index: int, _dir: Vector2, _swing: AttackSwing) -> void: started.append([_frame, index])
+	knight.attack.swing_started.connect(record)
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _frames(1)
+	knight.player_input.buffer_action(&"attack")   # a click 1 frame into a 0.3 s swing
+	await _wait_until(func() -> bool: return started.size() >= 2, 40)
+	knight.attack.swing_started.disconnect(record)
+	_check("the queued click started swing 2 (the buffer waited out the swing)", started.size() >= 2 and started[1][1] == 1, true)
+	if started.size() >= 2:
+		_check_near("right after swing 1 ended (~18 frames)", started[1][0] - started[0][0], 18.0, 2.0)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+
+
+func _test_swing_cancels() -> void:
+	_section("C2: dash and stun cancel a swing")
+	await _reset_knight()
+	var dummy := _dummy_at(Vector2(50, 0))
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _frames(2)
+	_check("dash during the windup", knight.dash.try_dash(Vector2.DOWN), true)
+	_check("the swing is cancelled, root released", [knight.attack.is_swinging(), knight.movement.can_move()], [false, true])
+	await _frames(20)
+	_check("no hit", dummy.health.current, dummy.health.max_health)
+	_check("the combo reset", knight.attack.get_combo_index(), 0)
+
+	await _reset_knight()
+	_place(dummy, knight.global_position + Vector2(50, 0))
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20)
+	var after_hit := dummy.health.current
+	knight.dash.try_dash(Vector2.DOWN)
+	_check("dash during the recovery cancels it", knight.attack.is_swinging(), false)
+	_check("the hit already landed (64)", dummy.health.max_health - after_hit, 64.0)
+	_check("and the combo reset", knight.attack.get_combo_index(), 0)
+
+	await _reset_knight()
+	_place(dummy, knight.global_position + Vector2(50, 0))
+	var hp := dummy.health.current
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _frames(2)
+	knight.apply_stun(0.1)
+	_check("stunned mid-windup: swing cancelled", knight.attack.is_swinging(), false)
+	_check("can't swing while stunned", knight.attack.can_swing(), false)
+	await _frames(20)
+	_check("no hit, combo reset", [dummy.health.current, knight.attack.get_combo_index()], [hp, 0])
+	dummy.queue_free()
+
+
+func _test_ability_during_swing() -> void:
+	_section("C2: Q/W/E/R during a swing (cancels_swing AFTER_HIT)")
+	await _reset_knight()
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _frames(1)
+	_check("windup: Q may not interrupt", knight.can_interrupt_swing(&"q"), false)
+	knight.abilities.q.cancels_swing = Ability.SwingCancel.ANYTIME
+	_check("ANYTIME: Q may interrupt the windup", knight.can_interrupt_swing(&"q"), true)
+	knight.abilities.q.cancels_swing = Ability.SwingCancel.NEVER
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20)
+	_check("NEVER: not even in the recovery", knight.can_interrupt_swing(&"q"), false)
+	knight.abilities.q.cancels_swing = Ability.SwingCancel.AFTER_HIT
+	_check("AFTER_HIT: Q may cut the recovery", knight.can_interrupt_swing(&"q"), true)
+	knight.request_cast(&"q")
+	_check("casting Q cancels the swing", [knight.abilities.casting, knight.attack.is_swinging()], [true, false])
+	_check("and resets the combo", knight.attack.get_combo_index(), 0)
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 30)
+
+
+func _test_iron_resolve_swing() -> void:
+	_section("C2: Iron Resolve empowers the next swing (every enemy it hits)")
+	await _reset_knight()
+	var a := _dummy_at(Vector2(50, -15))
+	var b := _dummy_at(Vector2(50, 15))
+	var normal_speed := a.movement.get_move_speed()
+	knight.request_cast(&"w")
+	await _frames(1)
+	_check("empowered", knight.attack.is_empowered(), true)
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 30)
+	var bonus := 50.0 + 0.5 * 64.0
+	_check("both take 64 + 82 bonus", [a.health.max_health - a.health.current, b.health.max_health - b.health.current], [64.0 + bonus, 64.0 + bonus])
+	_check("both are slowed", [a.movement.get_move_speed() < normal_speed, b.movement.get_move_speed() < normal_speed], [true, true])
+	_check("used up", knight.attack.is_empowered(), false)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+	var hp := a.health.current
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+	_check("the next swing has no bonus (64)", hp - a.health.current, 64.0)
+	a.queue_free()
+	b.queue_free()
+
+
+func _test_attack_speed() -> void:
+	_section("C2: attack speed speeds up the combo")
+	await _reset_knight()
+	_check("base: combo speed 1.0", knight.attack.get_swing_speed(), 1.0)
+	knight.stats_component.add_modifier(StatModifier.create(&"attack_speed", PERCENT_ADD, 0.5, &"test_attack_speed"))
+	_check("+50% bonus attack speed: combo speed 1.5", knight.attack.get_swing_speed(), 1.5)
+	var start := _frame
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+	_check_near("the swing lasts 0.3 / 1.5 = 0.2 s (12 frames)", _frame - start, 12.0, 1.0)
+	knight.stats_component.remove_modifiers_from(&"test_attack_speed")
+
+
+func _test_death_mid_swing() -> void:
+	_section("C2: the attacker dies mid-swing")
+	await _reset_knight()
+	var dummy := _dummy_at(Vector2(50, 0))
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _frames(2)
+	knight.take_damage(100000.0)
+	await _frames(20)
+	_check("dead Knight: swing cancelled, no hit", [knight.attack.is_swinging(), dummy.health.current], [false, dummy.health.max_health])
+
+
+## Knight in the arena, not swinging, dash charges back, combo reset.
+func _reset_knight() -> void:
+	knight.attack.cancel_swing()
+	await _frames(40)   # > combo_reset_time; dash recharge, knockback and casts settle
+	_place(knight, ARENA)
+	await _frames(1)
+
+
+func _dummy_at(offset: Vector2) -> Enemy:
+	var dummy := _spawn_dummy()
+	_place(dummy, knight.global_position + offset)
+	return dummy
+
+
+func _place(node: Node2D, pos: Vector2) -> void:
+	node.global_position = pos
+	node.reset_physics_interpolation()
+
+
+func _frames(n: int) -> void:
+	for i in n:
+		await get_tree().physics_frame
+
+
+func _wait_until(condition: Callable, max_frames: int) -> void:
+	for i in max_frames:
+		if condition.call():
+			return
+		await get_tree().physics_frame
+
+
+func _physics_process(_delta: float) -> void:
+	_frame += 1
 
 
 # --- Helpers ------------------------------------------------------------------

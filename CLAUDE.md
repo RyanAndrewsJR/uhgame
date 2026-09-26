@@ -33,6 +33,7 @@ art/                    textures, sprites
 data/abilities/         Ability .tres (e.g. knight_q_cleave.tres)
 data/units/             UnitStats .tres per champion/monster (knight.tres, slime.tres)
 data/curves/            Curve .tres for displacement speed profiles (curve_dash.tres, curve_knockback.tres)
+data/combos/            AttackCombo .tres (combo_knight.tres: the Knight's basic attack)
 scenes/player|enemies|rooms|ui/
 scenes/sandbox_main.tscn  test run: main + rooms/sandbox.tscn (open it, press F6)
 scenes/tests/           script-level test scenes (stats_test.tscn, combat_test.tscn; F6; scripts in scripts/tests/)
@@ -54,7 +55,7 @@ New subfolders inside these are fine. Ask before adding a new top-level folder.
 ## Architecture (as it exists)
 - The reference build started as a LoL prototype: Knight with 4 abilities, slime enemies, room_01, HUD, auto-attacks, hitstop and shake.
 - `Unit` (CharacterBody2D) is the shared base. `Player` and `Enemy` extend it. **Don't go deeper:** champions are data plus ability scripts, never subclasses of Player.
-- Behavior lives in child components: `HealthComponent`, `AutoAttackComponent`, `MovementComponent`, `AbilityComponent`, `DashComponent` (player), `Hitbox`, `Hurtbox`.
+- Behavior lives in child components: `HealthComponent`, `AutoAttackComponent` (League-style attacks for enemies; combo mode for the Knight, COMBAT.md), `MovementComponent`, `AbilityComponent`, `DashComponent` (player), `Hitbox`, `Hurtbox`.
 - `UnitStats` Resource = base stats. `Ability` Resource subclasses = one script per ability plus a .tres for its numbers.
 - `MovementComponent` already has move locks by id, speed modifiers, `displace()`, and `dash()` (passes through units; both use `move_and_slide()`, so they slide along walls instead of stopping).
 - `StatsComponent` (`Unit.stats_component`) holds every unit's live stats: base from `UnitStats` (`Unit.stats`) plus source-tagged `StatModifier`s. Gameplay reads `stats_component.get_stat(&"x")`, never `unit.stats.x` (STATS.md).
@@ -105,12 +106,12 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 
 ## Current status
 <!-- OVERWRITE this whole section at the end of each session (Now / Last 3 done / Next). Never append. -->
-- **Now:** Waiting on Ryan's play test of COMBAT C1 (nothing should change in play). Still open: play tests of STATS step 5, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of COMBAT C2 (left mouse = the Knight's 3-hit combo). Still open: play tests of STATS step 5, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. COMBAT C1: `Events` autoload, `HitContext`, `HitPipeline`, `Unit.on_hit()`; `take_damage()` and Hurtbox hits wrapped; `damage_type` and `proc_coefficient` on Ability. Combat test 50/50, stats test 143/143, in-game check 11/11.
-  2. COMBAT.md follow-ups: `incoming_damage` stat name, dash out of hit knockback, `cancels_swing` default AFTER_HIT, C8 ability migration, i-frame swarm question.
-  3. COMBAT.md: Part 1 (vision) plus Part 2 from the code (current code, data, architecture, edge cases, build order C1–C12).
-- **Next:** COMBAT C2 (Knight combo) → C7 → milestone M1 (one-room fight in the sandbox) → STATS step 6 → COMBAT C8–C12. STATS step 7 (F3 overlay) after M1. Then the Future docs in their listed order.
+  1. COMBAT C2: the Knight's combo (`AttackSwing`, `AttackCombo`, `combo_knight.tres`, combo mode on AutoAttackComponent), rooted swings, dash / stun / ability (`Ability.cancels_swing`) cancels, the buffer waits out swings, Iron Resolve through swings, `select` unbound. Combat test 109/109, stats test 143/143, in-game check 15/15.
+  2. COMBAT C1: `Events` autoload, `HitContext`, `HitPipeline`, `Unit.on_hit()`; `take_damage()` and Hurtbox hits wrapped; `damage_type` and `proc_coefficient` on Ability.
+  3. COMBAT.md follow-ups: `incoming_damage` stat name, dash out of hit knockback, `cancels_swing` default AFTER_HIT, C8 ability migration, i-frame swarm question.
+- **Next:** COMBAT C3 (hit feel) → C7 → milestone M1 (one-room fight in the sandbox) → STATS step 6 → COMBAT C8–C12. STATS step 7 (F3 overlay) after M1. Then the Future docs in their listed order.
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.

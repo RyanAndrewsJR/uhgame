@@ -69,6 +69,8 @@ var _hovered_enemy: Unit
 var _walk_time: float = 0.0
 ## Where the current cast was aimed, locked at cast start (INF = none).
 var _cast_face_point: Vector2 = Vector2.INF
+## The sword pull-back tween of the current swing's windup.
+var _swing_tween: Tween
 
 
 func _ready() -> void:
@@ -78,6 +80,9 @@ func _ready() -> void:
 	attack.windup_started.connect(_on_windup_started)
 	attack.attack_landed.connect(_on_attack_landed)
 	attack.windup_cancelled.connect(_on_windup_cancelled)
+	attack.swing_started.connect(_on_swing_started)
+	attack.swing_landed.connect(_on_swing_landed)
+	attack.swing_cancelled.connect(_on_swing_cancelled)
 	abilities.cast_started.connect(_on_cast_started)
 	abilities.cast_finished.connect(_on_cast_finished)
 	dash.dash_started.connect(_on_dash_started)
@@ -149,12 +154,30 @@ func _on_ability_released(slot: StringName) -> void:
 
 ## Input path for Q/W/E/R: casts now if allowed, otherwise buffers the press
 ## in PlayerInput so it fires as soon as it's allowed (MOVEMENT.md step 7).
-## No casting while dashing.
+## No casting while dashing. During a basic attack swing only if the
+## ability's cancels_swing allows it (the cast then cancels the swing).
 func request_cast(slot: StringName) -> void:
-	if abilities.can_cast(slot) and not dash.is_dashing():
+	if abilities.can_cast(slot) and not dash.is_dashing() and can_interrupt_swing(slot):
 		cast_ability(slot)
 	else:
 		player_input.buffer_action(slot)
+
+
+## True if the ability in `slot` may start now as far as a basic attack
+## swing is concerned (Ability.cancels_swing, COMBAT.md): always when not
+## swinging; AFTER_HIT once the swing's hit has landed; ANYTIME always.
+func can_interrupt_swing(slot: StringName) -> bool:
+	if not attack.is_swinging():
+		return true
+	var ability := abilities.get_ability(slot)
+	if ability == null:
+		return false
+	match ability.cancels_swing:
+		Ability.SwingCancel.ANYTIME:
+			return true
+		Ability.SwingCancel.AFTER_HIT:
+			return attack.is_in_recovery()
+	return false
 
 
 ## Cast an ability at the cursor (also used by tests).
@@ -234,7 +257,7 @@ func _process(delta: float) -> void:
 
 	# Facing and a little walk bob.
 	var dir := movement.get_move_direction()
-	var busy := abilities.casting or attack.is_winding_up()
+	var busy := abilities.casting or attack.is_winding_up() or attack.is_swinging()
 	if not busy and dir != Vector2.ZERO:
 		sword_pivot.rotation = dir.angle()
 		if absf(dir.x) > 0.05:
@@ -287,7 +310,7 @@ func _update_state() -> void:
 		next = State.CASTING
 	elif movement.is_displaced():
 		next = State.DISPLACED
-	elif attack.is_winding_up():
+	elif attack.is_winding_up() or attack.is_swinging():
 		next = State.ATTACK
 	elif movement.get_move_direction() != Vector2.ZERO or movement.get_input_direction() != Vector2.ZERO:
 		# Holding a direction counts as moving, so there's no one-frame IDLE
@@ -321,14 +344,17 @@ func get_facing_octant() -> int:
 	return posmod(roundi(facing.angle() / (TAU / 8.0)), 8)
 
 
-## Facing priority: casting (the cast's aim, locked at cast start) > attack
-## windup (the target) > dashing (the dash direction) > aiming an ability
+## Facing priority: casting (the cast's aim, locked at cast start) >
+## attacking (a combo swing's aim, locked at swing start; or a League-style
+## windup's target) > dashing (the dash direction) > aiming an ability
 ## (the cursor) > walking (the move direction). Standing still keeps the last
 ## facing.
 func _update_facing() -> void:
 	var look := Vector2.ZERO
 	if abilities.casting and _cast_face_point != Vector2.INF:
 		look = _cast_face_point - global_position
+	elif attack.is_swinging():
+		look = attack.get_swing_direction()
 	elif attack.is_winding_up() and is_instance_valid(attack.target):
 		look = attack.target.global_position - global_position
 	elif dash.is_dashing():
@@ -368,6 +394,36 @@ func _on_attack_landed(target: Unit, _damage: float) -> void:
 
 
 func _on_windup_cancelled() -> void:
+	sword.rotation = 0.0
+
+
+## Combo swing visuals (visual only): pull the sword back during the windup,
+## then slash across the swing's arc at the hit.
+func _on_swing_started(_index: int, direction: Vector2, swing: AttackSwing) -> void:
+	face(sword_pivot.global_position + direction * 16.0)
+	if _swing_tween:
+		_swing_tween.kill()
+	_swing_tween = create_tween()
+	_swing_tween.tween_property(sword, "rotation", -0.9 * swing_side,
+		swing.windup / attack.get_swing_speed() * 0.8)
+
+
+func _on_swing_landed(index: int, _targets: Array[Unit]) -> void:
+	if _swing_tween:
+		_swing_tween.kill()
+	var swing := attack.get_current_swing()
+	var direction := attack.get_swing_direction()
+	var finisher := index == attack.combo.swings.size() - 1
+	sword.rotation = 0.0
+	_swing_sword(0.1)
+	VFX.slash(get_parent(), get_center(), direction.angle(), 8.0, attack.get_swing_reach_px(swing),
+		deg_to_rad(swing.arc_deg) * 0.5, Color(1, 1, 1, 0.95 if finisher else 0.75),
+		0.16 if finisher else 0.11, swing_side)
+
+
+func _on_swing_cancelled() -> void:
+	if _swing_tween:
+		_swing_tween.kill()
 	sword.rotation = 0.0
 
 
