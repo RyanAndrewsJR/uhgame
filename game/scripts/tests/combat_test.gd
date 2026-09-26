@@ -15,11 +15,14 @@ extends Node2D
 ## C4: getting hit (post-hit i-frames and their blink, a slime's 12 px push
 ## that a dash can cut short, whiffs out of reach, the 0.25 s slime windup,
 ## the stronger knockback winning).
+## C5: the elite slime's telegraphed slam (numbers, the telegraph, a hit,
+## walking and dashing out, a stun, the AI casting it by itself).
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
 const PLAYER_SCENE: PackedScene = preload("res://scenes/player/player.tscn")
 const SLIME_SCENE: PackedScene = preload("res://scenes/enemies/slime.tscn")
+const ELITE_SCENE: PackedScene = preload("res://scenes/enemies/slime_elite.tscn")
 const CLEAVE: Ability = preload("res://data/abilities/knight_q_cleave.tres")
 const FLAT := StatModifier.Type.FLAT
 const PERCENT_ADD := StatModifier.Type.PERCENT_ADD
@@ -241,6 +244,7 @@ func _test_combo() -> void:
 	await _test_hit_feel()
 	await _test_melee()
 	await _test_getting_hit()
+	await _test_elite()
 	await _test_death_mid_swing()
 
 
@@ -949,6 +953,131 @@ func _test_stronger_knockback() -> void:
 	knight.attack.cancel_swing()
 	_check("cancelling the swing leaves the knockback alone", knight.movement.is_displaced(), true)
 	await _frames(12)
+
+
+# --- C5: elite slime --------------------------------------------------------------
+
+func _test_elite() -> void:
+	await _test_elite_data()
+	await _test_slam_hits()
+	await _test_slam_dodges()
+	await _test_elite_ai()
+
+
+func _test_elite_data() -> void:
+	_section("C5: the elite and its slam")
+	var elite := _spawn_elite(Vector2(0, 0), true)
+	var slam := elite.abilities.get_ability(&"q")
+	_check("900 health, basic attack 30 (4.6%: swarm band)", [elite.health.max_health, elite.stats_component.get_stat(&"attack_damage")], [900.0, 30.0])
+	_check_near("its basic attack winds up 0.25 s", elite.attack.get_windup_time(), 0.25, 0.001)
+	_check("slam: 0.75 s telegraph, 40 px circle, 100 damage, 4 s cooldown",
+		[slam.cast_time, slam.get("radius_px"), slam.base_damage, slam.cooldown], [0.75, 40.0, 100.0, 4.0])
+	_check_near("100 = 15.4% of the Knight's 650 (elite band 12-20%)", slam.base_damage / knight.health.max_health, 0.154, 0.001)
+	elite.queue_free()
+
+
+func _test_slam_hits() -> void:
+	_section("C5: standing in the slam")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	knight.health.heal(10000.0)
+	var elite := _spawn_elite(knight.global_position + Vector2(60, 0), true)
+	await _frames(1)
+	var hp := knight.health.current
+	var start := knight.global_position
+	_check("the elite casts the slam at the Knight", elite.abilities.try_cast(&"q", knight.global_position, knight), true)
+	var telegraph := _find_telegraph()
+	_check("a telegraph appears where the Knight stands", telegraph != null and telegraph.global_position.distance_to(start) < 0.5, true)
+	_check("the elite is rooted while casting", elite.movement.can_move(), false)
+	await _frames(22)
+	_check_near("it fills up (about half at 0.37 s)", telegraph.get_progress() if telegraph else -1.0, 0.5, 0.1)
+	_check("no damage before the slam", knight.health.current, hp)
+	var t0 := _game_time
+	await _wait_until(func() -> bool: return knight.health.current < hp, 40)
+	_check("100 damage at 0.75 s", hp - knight.health.current, 100.0)
+	await _frames(12)
+	_check_near("pushed 20 px away from the elite", start.x - knight.global_position.x, 20.0, 1.0)
+	await _frames(10)
+	_check("the telegraph is gone after the slam", is_instance_valid(telegraph), false)
+	elite.queue_free()
+	knight.health.heal(10000.0)
+
+
+func _test_slam_dodges() -> void:
+	_section("C5: getting out of the slam")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	var elite := _spawn_elite(knight.global_position + Vector2(60, 0), true)
+	await _frames(1)
+	var hp := knight.health.current
+	elite.abilities.try_cast(&"q", knight.global_position, knight)
+	await _frames(20)
+	_place(knight, knight.global_position + Vector2(-60, 0))   # walked out
+	await _wait_until(func() -> bool: return not elite.abilities.casting, 60)
+	await _frames(2)
+	_check("walked out: no damage", knight.health.current, hp)
+
+	await _reset_knight()
+	_place(elite, knight.global_position + Vector2(60, 0))
+	await _wait_until(func() -> bool: return elite.abilities.can_cast(&"q"), 300)
+	elite.abilities.try_cast(&"q", knight.global_position, knight)
+	await _frames(35)
+	knight.dash.try_dash(Vector2.LEFT)
+	await _wait_until(func() -> bool: return not elite.abilities.casting, 60)
+	await _frames(2)
+	_check("dashed out: no damage", knight.health.current, hp)
+
+	await _reset_knight()
+	_place(elite, knight.global_position + Vector2(60, 0))
+	await _wait_until(func() -> bool: return elite.abilities.can_cast(&"q"), 300)
+	elite.abilities.try_cast(&"q", knight.global_position, knight)
+	var telegraph := _find_telegraph()
+	await _frames(10)
+	# Lasts past the cast's end: AbilityComponent checks for a stun when the
+	# cast time is over (a stun that ends earlier doesn't interrupt; see
+	# the report for C5).
+	elite.apply_stun(1.0)
+	await _wait_until(func() -> bool: return not elite.abilities.casting, 60)
+	await _frames(2)
+	_check("a stunned elite's slam doesn't go off", knight.health.current, hp)
+	_check("its telegraph is removed", is_instance_valid(telegraph), false)
+	_check("and the cooldown refunded", elite.abilities.is_ready(&"q"), true)
+	elite.queue_free()
+
+
+func _test_elite_ai() -> void:
+	_section("C5: the elite AI casts the slam by itself")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	knight.health.heal(10000.0)
+	var elite := _spawn_elite(knight.global_position + Vector2(70, 0), false)
+	await _wait_until(func() -> bool: return elite.abilities.casting, 90)
+	_check("it aggroes and casts the slam", elite.abilities.casting, true)
+	var telegraph := _find_telegraph()
+	_check("aimed at the Knight", telegraph != null and telegraph.global_position.distance_to(knight.global_position) < 1.0, true)
+	var hp := knight.health.current
+	_place(knight, knight.global_position + Vector2(-90, 0))
+	await _wait_until(func() -> bool: return not elite.abilities.casting, 60)
+	_check("the Knight walked out: no damage", knight.health.current, hp)
+	elite.passive = true
+	elite.attack.cancel()
+	elite.queue_free()
+	await _frames(2)
+
+
+func _spawn_elite(pos: Vector2, passive: bool) -> Enemy:
+	var elite: Enemy = ELITE_SCENE.instantiate()
+	elite.passive = passive
+	add_child(elite)
+	_place(elite, pos)
+	return elite
+
+
+func _find_telegraph() -> Telegraph:
+	for n in get_children():
+		if n is Telegraph and not n.is_queued_for_deletion():
+			return n
+	return null
 
 
 func _test_death_mid_swing() -> void:

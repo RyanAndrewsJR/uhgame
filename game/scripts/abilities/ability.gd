@@ -78,6 +78,12 @@ func execute(_caster: Unit, _ctx: CastContext) -> void:
 	pass
 
 
+## Called when the cast starts, before the cast time. Override to show a
+## telegraph (set ctx.telegraph so a cancelled or interrupted cast removes it).
+func on_cast_started(_caster: Unit, _ctx: CastContext) -> void:
+	pass
+
+
 ## Draws the aiming indicator. `canvas` is the caster (local coordinates),
 ## `aim` is the cursor in world space. Override for custom shapes.
 func draw_indicator(canvas: Node2D, caster: Unit, aim: Vector2) -> void:

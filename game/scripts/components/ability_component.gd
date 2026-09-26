@@ -39,6 +39,7 @@ var _pending_repath: float = 0.0
 var _cast_serial: int = 0        # bumped by each cast and by a cancel
 var _cast_rooted: bool = false
 var _executing: bool = false     # true while ability.execute() runs
+var _cast_ctx: CastContext       # the cast in progress (for its telegraph)
 
 
 func _ready() -> void:
@@ -170,6 +171,7 @@ func try_cancel_cast_on_move() -> bool:
 func _cancel_cast() -> void:
 	var slot := casting_slot
 	var ability := get_ability(slot)
+	_remove_telegraph(_cast_ctx)
 	_cast_serial += 1  # The _do_cast waiting on the cast time sees this and stops.
 	if _cast_rooted:
 		unit.movement.remove_move_lock(&"casting")
@@ -223,7 +225,9 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext) -> void:
 		unit.movement.stop()
 	_cast_rooted = rooted
 	_add_cast_move_speed(ability)
+	_cast_ctx = ctx
 	cast_started.emit(slot, ability, ctx)
+	ability.on_cast_started(unit, ctx)
 
 	if ability.cast_time > 0.0:
 		await unit.get_tree().create_timer(ability.cast_time, false, true).timeout
@@ -232,6 +236,7 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext) -> void:
 
 	var interrupted := not is_instance_valid(unit) or not unit.is_alive() or unit.is_stunned()
 	if interrupted:
+		_remove_telegraph(ctx)
 		if is_instance_valid(unit) and unit.is_alive():
 			_cooldown_left[slot] = 0.0  # Refund interrupted casts.
 	else:
@@ -262,6 +267,13 @@ func _add_cast_move_speed(ability: Ability) -> void:
 		return
 	unit.stats_component.add_modifier(StatModifier.create(&"move_speed",
 		StatModifier.Type.PERCENT_MULT, ability.cast_move_speed_multiplier - 1.0, CAST_MOVE_SPEED_SOURCE))
+
+
+## A cast that doesn't go off (cancelled, stunned, dead) takes its telegraph
+## with it.
+func _remove_telegraph(ctx: CastContext) -> void:
+	if ctx != null and is_instance_valid(ctx.telegraph):
+		ctx.telegraph.queue_free()
 
 
 func _remove_cast_move_speed() -> void:
