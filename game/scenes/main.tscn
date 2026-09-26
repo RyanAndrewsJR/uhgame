@@ -1,14 +1,14 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://drhxujekvn3l4"]
 
-[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" uid="uid://dfsmxt0mo6g62" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="2_hud"]
-[ext_resource type="Script" path="res://scripts/camera/game_camera.gd" id="3_camera"]
+[ext_resource type="Script" uid="uid://cn8tuoa45mshl" path="res://scripts/camera/game_camera.gd" id="3_camera"]
 
-[node name="Main" type="Node2D"]
+[node name="Main" type="Node2D" unique_id=526309964]
 script = ExtResource("1_main")
 
-[node name="Camera" type="Camera2D" parent="."]
+[node name="Camera" type="Camera2D" parent="." unique_id=652935470]
 process_callback = 0
 script = ExtResource("3_camera")
 
-[node name="HUD" parent="." instance=ExtResource("2_hud")]
+[node name="HUD" parent="." unique_id=1992915975 instance=ExtResource("2_hud")]
