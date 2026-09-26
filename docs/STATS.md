@@ -11,7 +11,8 @@
 - `MovementComponent` has its own speed modifiers: flat, then additive %, then **only the strongest slow**, then soft caps. After MOVEMENT.md step 1 the soft cap thresholds are `@export`s on MovementComponent, scaled ×560/345 for Hades pace (357 / 674 / 795 instead of LoL's 220 / 415 / 490).
 - `HealthComponent` holds current and max health.
 - All values are in **LoL units** (see CLAUDE.md, `Units.to_px()`).
-- **Steps 1–2 are built:** `StatModifier`, `StatDefinition`, `StatRegistry` (+ `stat_registry.tres`, all 21 stats) and `StatsComponent`, tested by `res://scenes/tests/stats_test.tscn`. No Unit has a StatsComponent yet (step 3), so gameplay still reads `unit.stats.<field>`.
+- **Steps 1–3 are built:** `StatModifier`, `StatDefinition`, `StatRegistry` (+ `stat_registry.tres`, all 21 stats) and `StatsComponent`, tested by `res://scenes/tests/stats_test.tscn`. `player.tscn` and `slime.tscn` have a `StatsComponent` node; `Unit.stats_component` points to it and `Unit._ready()` calls `setup(stats, movement)`. Nothing reads it yet: gameplay still reads `unit.stats.<field>` until step 4.
+- On `Unit`, `stats` stays the base `UnitStats` export and `stats_component` is the live StatsComponent. Step 4 reads become `stats_component.get_stat(&"x")`.
 
 ## Core principle
 - **Stats are what a unit IS. Abilities are what a unit DOES. Combat is how damage resolves.** Keep all three separate.
@@ -121,7 +122,7 @@ Equipping an item gives its modifiers to `StatsComponent` and its augments to `A
 ## Build order
 1. StatModifier and the registry. *(done)*
 2. StatsComponent with the math, move_speed rules, caching, and `stat_changed`. Include a test scene that adds/removes modifiers and prints the results. *(done: `res://scenes/tests/stats_test.tscn`, F6. It prints PASS/FAIL per check and includes move_speed parity checks against a real MovementComponent.)*
-3. Add StatsComponent to player.tscn and slime.tscn. `Unit._ready()` wires it up.
+3. Add StatsComponent to player.tscn and slime.tscn. `Unit._ready()` wires it up. *(done: `Unit.stats_component`, a required child like HealthComponent)*
 4. **Migrate reads.** Every `stats.` read in the code today:
 
    | File | Reads | After step 4 |

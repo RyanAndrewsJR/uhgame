@@ -3,8 +3,12 @@ extends CharacterBody2D
 ## Shared base for champions and monsters: stats, health, movement,
 ## auto-attacks, damage numbers and hover highlighting.
 ##
-## Expected children: HealthComponent, AutoAttackComponent, MovementComponent,
-## Body (Node2D with the visuals), optional Hurtbox and HealthBar.
+## Expected children: StatsComponent, HealthComponent, AutoAttackComponent,
+## MovementComponent, Body (Node2D with the visuals), optional Hurtbox and
+## HealthBar.
+##
+## `stats` is the base UnitStats; `stats_component` holds the live values
+## (base + modifiers, STATS.md).
 
 signal died(unit: Unit)
 signal damaged(amount: float, source: Unit)
@@ -20,6 +24,7 @@ const StunEffect := preload("res://scripts/vfx/stun_effect.gd")
 ## clicking on the unit and for health bar placement.
 @export var body_center: Vector2 = Vector2(0, -14)
 
+@onready var stats_component: StatsComponent = $StatsComponent
 @onready var health: HealthComponent = $HealthComponent
 @onready var attack: AutoAttackComponent = $AutoAttackComponent
 @onready var movement: MovementComponent = $MovementComponent
@@ -40,6 +45,7 @@ var _invulnerable: Dictionary = {}   # id -> true (e.g. &"dash" i-frames)
 func _ready() -> void:
 	add_to_group("units")
 	assert(stats != null, "%s has no UnitStats assigned" % name)
+	stats_component.setup(stats, movement)
 	health.setup(stats.max_health)
 	health.died.connect(_on_died)
 	movement.base_move_speed = stats.move_speed

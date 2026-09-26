@@ -16,7 +16,8 @@
 | 2026-09-24 | Docs live in `uhgame/docs/`, and CLAUDE.md is the only root brief. | CLAUDE.md is read at the start of every task, so it holds only what's true for every task; system details are read only when a task needs them. |
 | 2026-09-24 | Claude may touch the files the current build step lists, not only the files Ryan names; anything else still needs asking first. VISION.md and CONVENTIONS.md are in the CLAUDE.md Docs index. | Build steps already list the files they need, so asking again for each one only slows things down. Both docs existed but weren't in the index Claude reads first. |
 | 2026-09-24 | Decisions are recorded here, grouped by system, and also in the affected system doc when they change how it works. CLAUDE.md's "Current status" is overwritten each session (Now / Last 3 done / Next), not appended to. | Keeps CLAUDE.md short (under 150 lines) while the full decision history stays in one place. |
-| 2026-09-25 | Order of work: Movement step 8 (pits) → STATS build steps → then the Future docs in their listed order (CLAUDE.md). | STATS.md is already written, so its build steps come before writing COMBAT.md. |
+| 2026-09-25 | ~~Order of work: Movement step 8 (pits) → STATS build steps → then the Future docs in their listed order (CLAUDE.md).~~ Superseded 2026-09-25, see below. | STATS.md is already written, so its build steps come before writing COMBAT.md. |
+| 2026-09-25 | Order of work: STATS build steps → then the Future docs in their listed order (CLAUDE.md). Movement step 8 (pits) is removed from the plan. | Ryan's call. |
 
 ## Conventions
 | Date | Decision | Why |
@@ -29,6 +30,7 @@
 | Date | Decision | Why |
 |---|---|---|
 | 2026-09-24 | Switched from point-and-click to WASD. | Hades-style feel is the goal. |
+| 2026-09-25 | Movement step 8 (pit crossing, fall and respawn) is removed from the build order. The pit design in WORLD_INTERACTION.md stays as an unscheduled proposal. | Ryan's call. |
 | 2026-09-24 | Movement steps 1 (input map) and 2 (WASD walking) ship together as step 1. | After the input step alone the player had no walk input (right-click move is unbound). |
 | 2026-09-24 | MovementComponent priority is displacement > move lock > walking. MOVEMENT.md was corrected to match the code. | Knockback must still move a stunned or casting unit, and Lunge moves the Knight during its own cast lock. |
 | 2026-09-24 | The player opts out of steering with `use_steering = false`; `avoidance_enabled` is not reused for this. | Turning `avoidance_enabled` off would also make other units stop steering around the player. |
@@ -82,11 +84,12 @@
 | 2026-09-24 | move_speed soft caps carry over into StatsComponent scaled, not unchanged. Per-unit threshold overrides carry over too. | Follows the Knight 560 move speed decision (Movement). |
 | 2026-09-25 | STATS step 4 migrates every `stats.` read found in the code (Unit, AutoAttackComponent, AbilityComponent's ability_haste, DashComponent's dash_charges, Ability.get_damage, main.gd's HUD line); the list is in STATS.md. | The old list missed DashComponent, AbilityComponent and main.gd. |
 | 2026-09-25 | The `attack_speed` stat's base is `UnitStats.base_attack_speed`. `attack_speed_cap` is a per-unit maximum for `attack_speed`, not a stat. | Keeps the existing UnitStats fields; the cap is identity data like `attack_windup`. |
-| 2026-09-25 | STATS steps 1–2 run before Movement step 8 (pits). | Ryan's call. |
+| 2026-09-25 | ~~STATS steps 1–2 run before Movement step 8 (pits).~~ Superseded 2026-09-25: step 8 is removed (General). | Ryan's call. |
 | 2026-09-25 | The registry is a `StatRegistry` holding one `StatDefinition` Resource per stat. `base_field` / `max_field` on a definition map a stat to differently named UnitStats fields (`attack_speed` ← `base_attack_speed`, max `attack_speed_cap`). | Editable in the Inspector, and the attack_speed mapping is data rather than a special case in code. |
 | 2026-09-25 | The registry lists all 21 stats now. A stat with no UnitStats field yet (step 5 adds them) uses its registry default as the base. | Code can read any stat from day one, and step 5 only adds fields. |
 | 2026-09-25 | The move_speed slow is its own `× (1 − strongest slow)` factor (capped 0.99), not part of Σ PERCENT_ADD. Soft caps call the unit's `MovementComponent.get_soft_capped_speed()`; thresholds stay on MovementComponent. | Matches MovementComponent exactly, so step 4 changes nothing (checked by the parity tests in `stats_test.tscn`). Keeping the thresholds in one place means slime overrides keep working. |
 | 2026-09-25 | StatsComponent recalculates the affected stats when modifiers change (not lazily) and emits `stat_changed` only when a value actually moves. | `stat_changed` needs the old and new value. A weaker second slow or bonus attack speed past the cap emits nothing. |
+| 2026-09-25 | On `Unit` the StatsComponent reference is `stats_component`, and the node is required, like HealthComponent. `stats` stays the base `UnitStats` export. | `stats` is taken and existing names don't change. "One StatsComponent per Unit" (STATS.md), and every Unit scene (player, slime; dummies are slimes) has one. |
 | 2026-09-25 | `set_level()` and per-level growth are built (`setup(..., growth)`) but nothing calls them; leveling stays open (STATS.md, Fill in). | Cheap to have, and at level 1 it changes nothing. |
 
 ## Combat

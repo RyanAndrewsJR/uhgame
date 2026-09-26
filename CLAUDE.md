@@ -101,12 +101,12 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 
 ## Current status
 <!-- OVERWRITE this whole section at the end of each session (Now / Last 3 done / Next). Never append. -->
-- **Now:** Waiting on Ryan's run of `scenes/tests/stats_test.tscn` (STATS steps 1–2; passed headless, 102/102). Still open: play test of Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits, hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of STATS step 3 (nothing should change in play). Still open: play test of Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. STATS steps 1–2: `StatModifier`, `StatDefinition`, `StatRegistry` (+ `data/stats/stat_registry.tres`, 21 stats), `StatsComponent` (math, strongest slow, soft caps via MovementComponent, caching, `stat_changed`, levels) and its test scene. Not on any Unit yet.
-  2. Feel pass F3: `MovementVFXComponent` on the Player and slimes (dash stretch/squash, silhouette afterimages, dust, speed-tied 1 px bob, reversal dust, knockback stretch; draw-time only, toggle off = pixel-identical).
-  3. Feel pass F4: camera aim lead rework; after play testing `aim_lead` 80 px, linear response, idle scale 0.5. Aim zoom parked.
-- **Next:** STATS step 3 (StatsComponent on player and slime, wired in `Unit._ready()`) → step 4 (migrate reads) → rest of STATS, plus Movement step 8 (pits; where it goes in that order is Ryan's call) → then the Future docs in their listed order.
+  1. STATS step 3: `StatsComponent` on player.tscn and slime.tscn, `Unit.stats_component`, set up in `Unit._ready()`. Headless check: all 13 units in the sandbox and room_01 match today's reads. Movement step 8 (pits) removed from the plan.
+  2. STATS steps 1–2: `StatModifier`, `StatDefinition`, `StatRegistry` (+ `data/stats/stat_registry.tres`, 21 stats), `StatsComponent` (math, strongest slow, soft caps via MovementComponent, caching, `stat_changed`, levels) and its test scene.
+  3. Feel pass F3: `MovementVFXComponent` on the Player and slimes (dash stretch/squash, silhouette afterimages, dust, speed-tied 1 px bob, reversal dust, knockback stretch; draw-time only, toggle off = pixel-identical).
+- **Next:** STATS step 4 (migrate reads) → steps 5–7 → then the Future docs in their listed order. Movement step 8 (pits) was removed from the plan.
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.

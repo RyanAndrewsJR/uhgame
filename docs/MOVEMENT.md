@@ -99,7 +99,7 @@ Only keys that physically collided with WASD changed. Action names never change.
 - Charges: `UnitStats.dash_charges` (default 1). One charge returns every `charge_recharge_time` = 0.35 s, one at a time, counted only while not dashing.
 - Exit: if a direction is held when the dash ends, the player runs on at full speed (`carry_into_run`, F2). Otherwise `end_lag` = 0.05 s of locked walking follows. A dash can chain in during end-lag if a charge is left.
 - Not allowed while stunned or already displaced (dashing, knockback), or while casting unless the ability is `dash_cancelable` (then the dash cancels the cast). A press that isn't allowed is buffered (see below). Starting a dash cancels a basic attack windup and a queued walk-into-range cast.
-- Crosses pits (step 8). Ending over a pit follows the fall rule in WORLD_INTERACTION.md, Pits and movement types *(proposed: 8 px or more inside falls, less snaps back; the player takes 5% of max health, min 1 left, and respawns on the last safe tile)*.
+- Pits: not scheduled (step 8 was removed 2026-09-25). If they come back, the dash crosses them and the fall rule is in WORLD_INTERACTION.md, Pits and movement types *(proposed)*.
 
 ## Input buffering and cancels
 - **Buffer** (`PlayerInput`, `buffer_time` = 0.15 s): a `dash`, `attack` or Q/W/E/R press that isn't allowed yet fires as soon as it is.
@@ -235,8 +235,8 @@ Movement works but feels robotic: displacements run at constant speed and there'
 5. **Built** (awaiting play test): player states.
 6. **Built** (awaiting play test): dash with charges, i-frames, end-lag and chaining.
 7. **Built** (awaiting play test): input buffer, dash cancels (`Ability.dash_cancelable`), and the dash-strike hook.
-- **Feel pass F1 → F2 → F4 → F3** (see Feel pass) comes here, before step 8. F4 runs before F3. F1, F2, F4 and F3 are built (awaiting play test).
-8. Pit crossing and fall/respawn (needs the pit layer; spec in WORLD_INTERACTION.md, Pits and movement types, still *proposed*). The respawn is a teleport: call `reset_physics_interpolation()` on the player and snap the camera (see F1).
+- **Feel pass F1 → F2 → F4 → F3** (see Feel pass). F4 runs before F3. F1, F2, F4 and F3 are built (awaiting play test).
+8. *(removed 2026-09-25)* Pit crossing and fall/respawn is no longer planned (DECISIONS.md, Movement). The unscheduled design stays in WORLD_INTERACTION.md, Pits and movement types.
 
 **Done means:** no errors; WASD works in play mode; the Knight's 4 abilities, enemies chasing, and the HUD still work as before. Exception (decided): the Knight's basic attacks stay dormant until COMBAT gives `attack` a reader.
 If a step needs removing or rewriting existing code, stop and explain why before doing it.
@@ -254,5 +254,4 @@ If a step needs removing or rewriting existing code, stop and explain why before
 - **Movement during basic attacks** (root, slow, or a step forward) and **during casts** (slow %). Decided in COMBAT.
 - **Reacting to being hit:** knockback distance, and how long the player loses control. Decided in COMBAT.
 - *(proposed)* Corner forgiveness: 6 px side tolerance, nudge at walk speed (see Target feel).
-- *(proposed)* Pit falls for the dash: see WORLD_INTERACTION.md, Pits and movement types.
 - **Aim zoom (parked until the first long-range champion):** while aiming an ability, zoom out just enough to show its full range, keeping the cursor lean as is. The Knight's ranges (96–180 px) already fit on screen, so it would barely show today. Costs to weigh then: a zoom between 1.0 and 0.5 draws art pixels at uneven sizes (at 0.8 they're 1.6 screen px), and zooming around the screen center moves the world under a still cursor (about 36 px at the edge at 0.9, 80 px at 0.8) unless it zooms around the cursor. Alternative with neither cost: while aiming, lean just far enough that the ability's full range is on screen.

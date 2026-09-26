@@ -15,6 +15,7 @@
 [ext_resource type="Script" path="res://scripts/player/player_input.gd" id="14_input"]
 [ext_resource type="Script" path="res://scripts/components/dash_component.gd" id="15_dash"]
 [ext_resource type="Script" path="res://scripts/vfx/movement_vfx_component.gd" id="16_movement_vfx"]
+[ext_resource type="Script" path="res://scripts/components/stats_component.gd" id="17_stats_component"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_body"]
 radius = 11.0
@@ -50,6 +51,9 @@ polygon = PackedVector2Array(2, -30, 5, -30, 5, -26, 2, -26)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1281297545]
 shape = SubResource("CircleShape2D_body")
+
+[node name="StatsComponent" type="Node" parent="."]
+script = ExtResource("17_stats_component")
 
 [node name="HealthComponent" type="Node" parent="." unique_id=944555721]
 script = ExtResource("2_health")
