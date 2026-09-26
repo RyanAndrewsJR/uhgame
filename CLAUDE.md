@@ -102,11 +102,11 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 
 ## Current status
 <!-- OVERWRITE this whole section at the end of each session (Now / Last 3 done / Next). Never append. -->
-- **Now:** Waiting on Ryan's play test of STATS step 5 (nothing should change in play). Still open: play test of Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of STATS step 5 (nothing should change in play). Cast movement rules passed play test (cancel_on_move on Judgement). Still open: play test of Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. STATS step 5: 13 new UnitStats fields with neutral defaults; `ResourceComponent` (`Unit.resource_pool`, Knight only: MANA 300, 6/s placeholder, no HUD bar); HealthComponent follows max_health and regens. Stats test 143/143; in-game check 123/123.
-  2. STATS step 4: every gameplay stat read goes through `get_stat`; `add_speed_modifier()` and `bonus_attack_speed` are wrappers over StatModifiers; MovementComponent reads `move_speed` live.
-  3. STATS step 3: `StatsComponent` on player.tscn and slime.tscn, `Unit.stats_component`, set up in `Unit._ready()`. Movement step 8 (pits) removed from the plan.
+  1. Cast movement rules: `Ability.cast_move_speed_multiplier` (PERCENT_MULT `move_speed` modifier, source `&"ability_casting"`) and `Ability.cancel_on_move` (a new move press cancels like the dash cancel; it wins over `roots_during_cast = false`). Stats test 143/143; in-game check 19/19.
+  2. STATS step 5: 13 new UnitStats fields with neutral defaults; `ResourceComponent` (`Unit.resource_pool`, Knight only: MANA 300, 6/s placeholder, no HUD bar); HealthComponent follows max_health and regens. Stats test 143/143; in-game check 123/123.
+  3. STATS step 4: every gameplay stat read goes through `get_stat`; `add_speed_modifier()` and `bonus_attack_speed` are wrappers over StatModifiers; MovementComponent reads `move_speed` live.
 - **Next:** STATS step 6 (scoped modifiers, `get_ability_param`, `id`/`tags` on Ability, cooldowns routed through it) → step 7 (F3 overlay) → then the Future docs in their listed order.
 
 ## Known issues (leave for now)
@@ -120,7 +120,7 @@ All decisions, grouped by system with date and why, are in `docs/DECISIONS.md`.
 
 ## Future docs (write each one when you START that system)
 1. `COMBAT.md`: basic attacks, the hit pipeline (`HitContext`), damage types, status effects and crowd control, reaction rules, i-frames, hit-stop. Must use the reserved names in CONVENTIONS.md.
-2. `ABILITIES.md`: Ability framework, cooldowns, costs, recasts, augments (items changing ability behavior)
+2. `ABILITIES.md`: Ability framework, cooldowns, costs, recasts, augments (items changing ability behavior). Move the cast movement properties (`roots_during_cast`, `cast_move_speed_multiplier`, `cancel_on_move`, `dash_cancelable`) here from MOVEMENT.md, "Input buffering and cancels".
 3. `CHAMPIONS.md`: ChampionData, passives, one section per champion (Knight first)
 4. `LOOT.md`: item bases, rarities, affix pools, drop tables
 5. `ENEMIES_AI.md`: behaviors, aggro, elites, spawning

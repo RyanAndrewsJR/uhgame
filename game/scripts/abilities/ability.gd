@@ -29,11 +29,22 @@ enum Targeting {
 @export var cast_range: float = 300.0
 ## Casting this lets your next auto-attack start immediately.
 @export var resets_auto_attack: bool = true
-## If false, you can keep walking during the cast time.
+## If false, you can keep walking during the cast time (at
+## cast_move_speed_multiplier).
 @export var roots_during_cast: bool = true
 ## Dashing during the cast time cancels the cast (and refunds the cooldown).
 ## Off: dash presses wait until the cast is done (MOVEMENT.md step 7).
 @export var dash_cancelable: bool = false
+## Walking speed during the cast when roots_during_cast is false (0.5 = half).
+## Applied as a move_speed StatModifier, so the soft caps still apply after it:
+## with the Knight, 0.75 is exact but 0.5 gives ~0.57x and 0 still walks.
+## Ignored while cancel_on_move is on.
+@export var cast_move_speed_multiplier: float = 1.0
+## A movement key pressed after the cast starts cancels it during its cast
+## time (cooldown refunded, like dash_cancelable). Keys already held when it
+## started don't count. On: the cast roots for its cast time even if
+## roots_during_cast is false (a channel: stand still, move to cancel).
+@export var cancel_on_move: bool = false
 
 @export_group("Damage")
 @export var base_damage: float = 0.0

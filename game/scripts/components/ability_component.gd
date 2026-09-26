@@ -8,6 +8,8 @@ extends Node
 ##   auto-attack timer so the next auto comes out immediately
 ## - targeted (UNIT) abilities walk into range first if you're too far
 ## - getting stunned during the cast time interrupts it (cooldown refunded)
+## - per ability: walk during the cast at a speed multiplier, or cancel the
+##   cast with a dash (dash_cancelable) or a new move press (cancel_on_move)
 
 signal cast_started(slot: StringName, ability: Ability, ctx: CastContext)
 signal cast_finished(slot: StringName, ability: Ability)
@@ -17,6 +19,9 @@ signal cast_failed(slot: StringName, reason: String)
 signal cast_cancelled(slot: StringName, ability: Ability)
 
 const SLOTS: Array[StringName] = [&"q", &"w", &"e", &"r"]
+## Source id of the move_speed modifier from Ability.cast_move_speed_multiplier.
+## One cast at a time, so one id.
+const CAST_MOVE_SPEED_SOURCE := &"ability_casting"
 
 @export var q: Ability
 @export var w: Ability
@@ -140,18 +145,41 @@ func can_cancel_cast() -> bool:
 func try_cancel_cast() -> bool:
 	if not can_cancel_cast():
 		return false
+	_cancel_cast()
+	return true
+
+
+## True during a cast's cast time (before its effect) if the ability is
+## cancelled by a new movement press (Ability.cancel_on_move).
+func can_cancel_cast_on_move() -> bool:
+	if not casting or _executing:
+		return false
+	var ability := get_ability(casting_slot)
+	return ability != null and ability.cancel_on_move
+
+
+## Cancels the current cast because the unit started moving, if its ability
+## allows it. Works exactly like the dash cancel. Returns true if cancelled.
+func try_cancel_cast_on_move() -> bool:
+	if not can_cancel_cast_on_move():
+		return false
+	_cancel_cast()
+	return true
+
+
+func _cancel_cast() -> void:
 	var slot := casting_slot
 	var ability := get_ability(slot)
 	_cast_serial += 1  # The _do_cast waiting on the cast time sees this and stops.
 	if _cast_rooted:
 		unit.movement.remove_move_lock(&"casting")
 	unit.attack.remove_lock(&"casting")
+	_remove_cast_move_speed()
 	_cooldown_left[slot] = 0.0
 	casting = false
 	casting_slot = &""
 	cast_cancelled.emit(slot, ability)
 	cast_finished.emit(slot, ability)
-	return true
 
 
 func _physics_process(delta: float) -> void:
@@ -187,10 +215,14 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext) -> void:
 	_cooldown_left[slot] = _cooldown_total[slot]
 
 	unit.attack.add_lock(&"casting")   # also cancels an auto-attack windup
-	var rooted := ability.roots_during_cast and ability.cast_time > 0.0
+	# cancel_on_move casts always root (a channel), whatever roots_during_cast says.
+	var rooted := (ability.roots_during_cast or ability.cancel_on_move) and ability.cast_time > 0.0
 	if rooted:
 		unit.movement.add_move_lock(&"casting")
+	if ability.cancel_on_move and ability.cast_time > 0.0:
+		unit.movement.stop()
 	_cast_rooted = rooted
+	_add_cast_move_speed(ability)
 	cast_started.emit(slot, ability, ctx)
 
 	if ability.cast_time > 0.0:
@@ -212,8 +244,25 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext) -> void:
 	if rooted:
 		unit.movement.remove_move_lock(&"casting")
 	unit.attack.remove_lock(&"casting")
+	_remove_cast_move_speed()
 	if ability.resets_auto_attack and not interrupted:
 		unit.attack.reset_attack_timer()
 	casting = false
 	casting_slot = &""
 	cast_finished.emit(slot, ability)
+
+
+## Walking during a non-rooting cast: cast_move_speed_multiplier as one
+## PERCENT_MULT move_speed modifier (stacks with slows instead of competing
+## with them). Nothing is added at 1.0.
+func _add_cast_move_speed(ability: Ability) -> void:
+	if ability.roots_during_cast or ability.cancel_on_move:
+		return
+	if is_equal_approx(ability.cast_move_speed_multiplier, 1.0):
+		return
+	unit.stats_component.add_modifier(StatModifier.create(&"move_speed",
+		StatModifier.Type.PERCENT_MULT, ability.cast_move_speed_multiplier - 1.0, CAST_MOVE_SPEED_SOURCE))
+
+
+func _remove_cast_move_speed() -> void:
+	unit.stats_component.remove_modifiers_from(CAST_MOVE_SPEED_SOURCE)

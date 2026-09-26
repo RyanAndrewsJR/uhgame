@@ -12,6 +12,8 @@ extends Node
 ## - Attack (left mouse): nothing attacks yet (COMBAT.md). A legal press emits
 ##   attack_pressed(dash_strike), where dash_strike means it came within
 ##   dash_strike_window seconds of a dash ending.
+## - A movement press that starts during a cast cancels it if the ability
+##   has cancel_on_move (keys already held don't count).
 ## player.gd's own _unhandled_input still reads Q/W/E/R and routes them here
 ## through Player.request_cast() when they can't fire yet.
 
@@ -21,6 +23,7 @@ signal attack_pressed(dash_strike: bool)
 
 const DASH := &"dash"
 const ATTACK := &"attack"
+const MOVE_ACTIONS: Array[StringName] = [&"move_up", &"move_down", &"move_left", &"move_right"]
 
 ## How long an early press waits to become legal (seconds).
 @export var buffer_time: float = 0.15
@@ -36,6 +39,7 @@ var player: Player
 
 var _buffered: StringName = &""   # DASH, ATTACK, or an ability slot (&"q"...)
 var _buffer_left: float = 0.0
+var _move_pressed_during_cast: bool = false
 
 
 func _ready() -> void:
@@ -43,6 +47,19 @@ func _ready() -> void:
 	assert(player != null, "PlayerInput must be a child of a Player")
 	# Run before MovementComponent so this frame's input moves this frame.
 	process_physics_priority = -10
+
+
+## Notes a movement press that starts while a cast is already running, for
+## Ability.cancel_on_move. Input events arrive in order, so a Q press then a
+## D press in the same frame counts; a key held since before the cast sends
+## no new press. The cancel itself happens in _physics_process.
+func _unhandled_input(event: InputEvent) -> void:
+	if not player.abilities.casting:
+		return
+	for action: StringName in MOVE_ACTIONS:
+		if event.is_action_pressed(action):
+			_move_pressed_during_cast = true
+			return
 
 
 # --- Buffer ---------------------------------------------------------------------
@@ -69,11 +86,18 @@ func _physics_process(delta: float) -> void:
 	if not player.is_alive():
 		move_dir = Vector2.ZERO
 		clear_buffer()
+		_move_pressed_during_cast = false
 		player.movement.set_input_direction(Vector2.ZERO)
 		return
 
 	move_dir = Input.get_vector(&"move_left", &"move_right", &"move_up", &"move_down")
 	aim_point = player.get_aim_point()
+
+	# A new movement press cancels a cancel_on_move cast (during its cast time).
+	# This runs before MovementComponent, so the new key moves this same frame.
+	if _move_pressed_during_cast:
+		_move_pressed_during_cast = false
+		player.abilities.try_cancel_cast_on_move()
 
 	# Walking yourself cancels a queued targeted ability that was walking you
 	# into range (like a move order in LoL).
