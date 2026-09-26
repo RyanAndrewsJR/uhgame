@@ -624,6 +624,7 @@ func _land_attack() -> void:
 	_next_attack_mods.clear()
 	attack_landed.emit(hit, dmg)
 	var ctx := hit.make_hit_context(dmg, unit, empowered)
+	ctx.add_tag(&"basic_attack")   # on-hit and hit:basic_attack scopes (C8); enemies have none yet
 	ctx.knockback_px = hit_knockback_px
 	ctx.knockback_duration = hit_knockback_duration
 	ctx.knockback_from = unit.global_position

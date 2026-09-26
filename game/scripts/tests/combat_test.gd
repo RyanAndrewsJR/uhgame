@@ -24,6 +24,9 @@ extends Node2D
 ## STATS step 6: a fake item with scoped modifiers changes the Knight's real
 ## casts (Cleave cooldown and damage, Lunge range, hit tags) and removing it
 ## restores them.
+## C8: the Knight's abilities through HitPipeline.from_ability() (numbers
+## unchanged, tags), crits, damage_increase with hit / target scopes,
+## incoming_damage, on-hit damage, life on hit, life steal, resource on hit.
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
@@ -257,6 +260,7 @@ func _test_combo() -> void:
 	await _test_damage_numbers()
 	await _test_line_of_sight()
 	await _test_item_changes_abilities()
+	await _test_crits_and_on_hit()
 	await _test_death_mid_swing()
 
 
@@ -1405,11 +1409,9 @@ func _test_item_changes_abilities() -> void:
 	_check("Cleave's cooldown: 3 -> 1.5 s", knight.abilities.get_cooldown_duration(knight.abilities.q), 1.5)
 	await _wait_until(func() -> bool: return not knight.abilities.casting, 40)
 	_check("Cleave deals 80 x 1.5 + 0.7 x 64 = 164.8", hp - dummy.health.current, 164.8)
-	# Cleave still hits through take_damage() until COMBAT C8 moves it onto
-	# HitPipeline.from_ability(); that builder is what adds the tags.
-	var built := HitPipeline.from_ability(knight, knight.abilities.q, dummy)
-	_check("from_ability() hits carry the ability's tags (area + ability) and modded damage",
-		[built.has_tag(&"area"), built.has_tag(&"ability"), built.base_damage], [true, true, 120.0])
+	# Since C8 Cleave hits through HitPipeline.from_ability(), which adds the tags.
+	_check("Cleave's real hit carries the ability's tags (area + ability) and the modded base damage",
+		hits.map(func(h: HitContext) -> Array: return [h.has_tag(&"area"), h.has_tag(&"ability"), h.base_damage]), [[true, true, 120.0]])
 	Events.unit_hit.disconnect(record)
 	dummy.queue_free()
 	await _hitstop_over()
@@ -1425,6 +1427,298 @@ func _test_item_changes_abilities() -> void:
 		[knight.abilities.get_cooldown_duration(knight.abilities.q), knight.abilities.e.get_param(knight, &"cast_range")], [3.0, 400.0])
 	_check("Cleave damage back to 124.8", knight.abilities.q.get_damage(knight), 124.8)
 	await _frames(30)
+
+
+# --- C8: crits and on-hit -----------------------------------------------------------
+
+func _test_crits_and_on_hit() -> void:
+	await _test_c8_abilities_unchanged()
+	await _test_c8_crits()
+	await _test_c8_damage_increase()
+	_test_c8_incoming_damage()
+	await _test_c8_on_hit()
+
+
+func _test_c8_abilities_unchanged() -> void:
+	_section("C8: the Knight's abilities through from_ability(): same numbers")
+	await _reset_knight()
+	await _hitstop_over()
+	var dummy := _tough_dummy_at(Vector2(40, 0))
+	await _frames(1)
+	var hits := await _record_hits(func() -> void: await _cast(&"q", knight.global_position + Vector2(100, 0)))
+	_check("Cleave: one hit, 124.8, no crit", hits.map(func(h: HitContext) -> Array: return [h.taken_damage, h.is_crit]), [[124.8, false]])
+	if hits.size() == 1:
+		_check("Cleave's hit: tags ability + area + physical, its ability and proc coefficient",
+			[hits[0].has_tag(&"ability"), hits[0].has_tag(&"area"), hits[0].has_tag(&"physical"), hits[0].ability == knight.abilities.q, hits[0].proc_coefficient],
+			[true, true, true, true, 1.0])
+	await _hitstop_over()
+
+	await _reset_knight()
+	_place(dummy, knight.global_position + Vector2(60, 0))
+	await _frames(2)
+	hits = await _record_hits(func() -> void: await _cast(&"e", knight.global_position + Vector2(120, 0)))
+	_check("Lunge: one hit, 82 (50 + 0.5 x 64), tagged movement",
+		hits.map(func(h: HitContext) -> Array: return [h.taken_damage, h.has_tag(&"movement")]), [[82.0, true]])
+	await _hitstop_over()
+
+	await _reset_knight()
+	dummy.health.heal(100000.0)
+	_place(dummy, knight.global_position + Vector2(60, 0))
+	await _frames(2)
+	hits = await _record_hits(func() -> void: await _cast(&"r", dummy.global_position, dummy))
+	_check("Judgement at full health: 214 (150 + 1.0 x 64), tagged ultimate, stuns",
+		[hits.map(func(h: HitContext) -> Array: return [h.taken_damage, h.has_tag(&"ultimate")]), dummy.is_stunned()], [[[214.0, true]], true])
+	dummy.health.take_damage(1000.0 - (dummy.health.max_health - dummy.health.current))   # 1000 missing
+	hits = await _record_hits(func() -> void: await _cast(&"r", dummy.global_position, dummy))
+	_check("Judgement with 1000 missing health: 214 + 20% x 1000 = 414 (= get_damage_against() before the hit)",
+		hits.map(func(h: HitContext) -> float: return h.taken_damage), [414.0])
+	dummy.add_invulnerability(&"test")
+	dummy.get_node("StunEffect").free()
+	await _cast(&"r", dummy.global_position, dummy)
+	_check("a blocked Judgement doesn't stun", dummy.is_stunned(), false)
+	dummy.queue_free()
+	await _hitstop_over()
+
+
+func _test_c8_crits() -> void:
+	_section("C8: crits (crit_damage 1.75)")
+	await _reset_knight()
+	await _hitstop_over()
+	var dummy := _tough_dummy_at(Vector2(50, 0))
+	await _frames(1)
+	knight.stats_component.add_modifier(StatModifier.create(&"crit_chance", FLAT, 1.0, &"test_c8"))
+	var before := _numbers()
+	var hits := await _record_hits(func() -> void: await _swing_once())
+	_check("100% crit: swing 1 deals 64 x 1.75 = 112, tagged crit",
+		hits.map(func(h: HitContext) -> Array: return [h.taken_damage, h.is_crit, h.has_tag(&"crit")]), [[112.0, true, true]])
+	var added := _numbers().filter(func(n: Label) -> bool: return not before.has(n))
+	_check("its number is the crit style: \"112!\"", added.map(func(n: Label) -> Array: return [n.text, n.kind]), [["112!", NUMBER_SCRIPT.Kind.CRIT]])
+	await _reset_knight()
+	_place(dummy, knight.global_position + Vector2(40, 0))
+	await _frames(2)
+	hits = await _record_hits(func() -> void: await _cast(&"q", knight.global_position + Vector2(100, 0)))
+	_check("Cleave crits too: 124.8 x 1.75 = 218.4", hits.map(func(h: HitContext) -> Array: return [h.taken_damage, h.is_crit]), [[218.4, true]])
+	await _hitstop_over()
+	var wrapped := await _record_hits(func() -> void: dummy.take_damage(50.0, knight))
+	_check("take_damage() never crits", wrapped.map(func(h: HitContext) -> Array: return [h.taken_damage, h.is_crit]), [[50.0, false]])
+	var proc := HitPipeline.resolve(HitPipeline.make_proc(knight, dummy, 20.0))
+	_check("a proc never crits", [proc.taken_damage, proc.is_crit], [20.0, false])
+	knight.stats_component.add_modifier(StatModifier.create(&"crit_damage", FLAT, 0.5, &"test_c8"))
+	var big := HitPipeline.resolve(HitPipeline.basic_attack(knight, dummy, knight.attack.combo.swings[0]))
+	_check("+0.5 crit_damage: 64 x 2.25 = 144", big.taken_damage, 144.0)
+	knight.stats_component.remove_modifiers_from(&"test_c8")
+
+	var nothing := Node2D.new()   # no on_hit(): only the attacker's stages run
+	add_child(nothing)
+	_check("0% crit (the default): 0 crits in 200 rolls", _count_crits(nothing, 200), 0)
+	knight.stats_component.add_modifier(StatModifier.create(&"crit_chance", FLAT, 0.25, &"test_c8"))
+	HitPipeline.crit_rng.seed = 8
+	var crits := _count_crits(nothing, 400)
+	_report(crits >= 70 and crits <= 130, "25%% crit: about 100 crits in 400 rolls (%d)" % crits, "got %d" % crits)
+	knight.stats_component.remove_modifiers_from(&"test_c8")
+	knight.stats_component.add_modifier(StatModifier.create(&"crit_chance", FLAT, 1.0, &"test_c8", &"hit:basic_attack"))
+	var swing := HitPipeline.resolve(HitPipeline.basic_attack(knight, dummy, knight.attack.combo.swings[0]))
+	var cleave := HitPipeline.resolve(HitPipeline.from_ability(knight, knight.abilities.q, dummy))
+	_check("crit_chance scoped to hit:basic_attack: swings crit, Cleave doesn't", [swing.is_crit, cleave.is_crit], [true, false])
+	knight.stats_component.remove_modifiers_from(&"test_c8")
+	nothing.queue_free()
+	dummy.queue_free()
+	await _hitstop_over()
+
+
+func _test_c8_damage_increase() -> void:
+	_section("C8: damage_increase (hit: and target: scopes)")
+	await _reset_knight()
+	await _hitstop_over()
+	var dummy := _tough_dummy_at(Vector2(50, 0))
+	var stunned := _tough_dummy_at(Vector2(50, 0))
+	_place(stunned, knight.global_position + Vector2(0, 300))
+	stunned.apply_stun(30.0)
+	await _frames(1)
+	var stats := knight.stats_component
+	var swing := knight.attack.combo.swings[0]
+	stats.add_modifier(StatModifier.create(&"damage_increase", FLAT, 0.2, &"test_c8", &"hit:basic_attack"))
+	var hits := await _record_hits(func() -> void: await _swing_once())
+	_check("+20% on basic attacks: a real swing deals 64 x 1.2 = 76.8", hits.map(func(h: HitContext) -> float: return h.taken_damage), [76.8])
+	_check("Cleave isn't a basic attack: 124.8", _resolve_cleave(dummy).taken_damage, 124.8)
+	stats.add_modifier(StatModifier.create(&"crit_chance", FLAT, 1.0, &"test_c8_crit"))
+	_check("increase before crit: 64 x 1.2 x 1.75 = 134.4", HitPipeline.resolve(HitPipeline.basic_attack(knight, dummy, swing)).taken_damage, 134.4)
+	stats.remove_modifiers_from(&"test_c8_crit")
+	stats.remove_modifiers_from(&"test_c8")
+	stats.add_modifier(StatModifier.create(&"damage_increase", FLAT, 0.5, &"test_c8", &"target:stun"))
+	_check("+50% vs stunned: Cleave on a stunned dummy 187.2, on the other 124.8",
+		[_resolve_cleave(stunned).taken_damage, _resolve_cleave(dummy).taken_damage], [187.2, 124.8])
+	stats.add_modifier(StatModifier.create(&"damage_increase", FLAT, 0.1, &"test_c8_all"))
+	_check("plus an unscoped +10%: 124.8 x 1.6 = 199.68 and 124.8 x 1.1 = 137.28",
+		[_resolve_cleave(stunned).taken_damage, _resolve_cleave(dummy).taken_damage], [199.68, 137.28])
+	stats.remove_modifiers_from(&"test_c8")
+	stats.remove_modifiers_from(&"test_c8_all")
+	_check("removed: back to 124.8", _resolve_cleave(stunned).taken_damage, 124.8)
+	var tagged := HitPipeline.resolve(HitPipeline.from_ability(knight, knight.abilities.q, stunned))
+	_check("the stunned dummy's status tags: cc + stun", stunned.get_status_tags(), [&"cc", &"stun"] as Array[StringName])
+	_check("(the hit read them: raw 124.8)", tagged.raw_damage, 124.8)
+	dummy.queue_free()
+	stunned.queue_free()
+	await _hitstop_over()
+
+
+func _test_c8_incoming_damage() -> void:
+	_section("C8: incoming_damage (after mitigation)")
+	var dummy := _spawn_dummy()
+	dummy.stats_component.add_modifier(StatModifier.create(&"incoming_damage", StatModifier.Type.PERCENT_MULT, -0.2, &"test_a"))
+	dummy.stats_component.add_modifier(StatModifier.create(&"incoming_damage", StatModifier.Type.PERCENT_MULT, -0.2, &"test_b"))
+	var physical := _hit(dummy, 80.0, HitContext.DamageType.PHYSICAL)
+	_check("two 20% reductions: 80 -> 80 x 0.64 = 51.2 taken", physical.taken_damage, 51.2)
+	_check("raw damage stays 80 (before mitigation)", physical.raw_damage, 80.0)
+	var true_hit := _hit(dummy, 80.0, HitContext.DamageType.TRUE)
+	_check("TRUE damage too: 51.2", true_hit.taken_damage, 51.2)
+	dummy.stats_component.add_modifier(StatModifier.create(&"armor", FLAT, 100.0, &"test_a"))
+	_check("100 armor, then x0.64: 80 x 0.5 x 0.64 = 25.6", _hit(dummy, 80.0, HitContext.DamageType.PHYSICAL).taken_damage, 25.6)
+	dummy.stats_component.remove_modifiers_from(&"test_a")
+	dummy.stats_component.remove_modifiers_from(&"test_b")
+	_check("removed: 80 taken", _hit(dummy, 80.0, HitContext.DamageType.PHYSICAL).taken_damage, 80.0)
+	var wrapped_hp := dummy.health.current
+	dummy.stats_component.add_modifier(StatModifier.create(&"incoming_damage", StatModifier.Type.PERCENT_MULT, -0.5, &"test_a"))
+	dummy.take_damage(40.0, knight)
+	_check("take_damage() goes through it too: 40 -> 20", wrapped_hp - dummy.health.current, 20.0)
+	dummy.queue_free()
+
+
+func _test_c8_on_hit() -> void:
+	_section("C8: on-hit (on_hit_damage, life_on_hit, life_steal, resource_on_hit)")
+	await _reset_knight()
+	await _hitstop_over()
+	var stats := knight.stats_component
+	var dummy := _tough_dummy_at(Vector2(50, 0))
+	await _frames(1)
+	stats.add_modifier(StatModifier.create(&"on_hit_damage", FLAT, 20.0, &"test_c8"))
+	var hits := await _record_hits(func() -> void: await _swing_once())
+	_check("20 on-hit damage: a swing = the 64 swing + one 20 MAGIC proc hit",
+		hits.map(func(h: HitContext) -> Array: return [h.taken_damage, h.has_tag(&"basic_attack"), h.has_tag(&"proc"), h.damage_type]),
+		[[64.0, true, false, HitContext.DamageType.PHYSICAL], [20.0, false, true, HitContext.DamageType.MAGIC]])
+	_check("the proc: same target, no crit, proc coefficient 0 (it triggers nothing)",
+		hits.map(func(h: HitContext) -> bool: return h.target == dummy) + [hits[-1].is_crit if not hits.is_empty() else true], [true, true, false])
+	knight.abilities.q.proc_coefficient = 0.5
+	hits = await _record_hits(func() -> void: _resolve_cleave(dummy))
+	_check("Cleave at proc coefficient 0.5: a 10 proc", hits.map(func(h: HitContext) -> float: return h.taken_damage), [124.8, 10.0])
+	knight.abilities.q.proc_coefficient = 1.0
+	var tick := dummy.make_hit_context(10.0, knight)
+	tick.add_tag(&"dot")
+	tick.add_tag(&"ability")
+	hits = await _record_hits(func() -> void: dummy.on_hit(tick))
+	_check("a DoT tick triggers no on-hit", hits.size(), 1)
+	hits = await _record_hits(func() -> void: dummy.take_damage(30.0, knight))
+	_check("nor does take_damage() (no basic_attack / ability tag)", hits.size(), 1)
+	dummy.add_invulnerability(&"test")
+	hits = await _record_hits(func() -> void: HitPipeline.resolve(HitPipeline.basic_attack(knight, dummy, knight.attack.combo.swings[0])))
+	_check("a blocked hit: no proc, no events", hits.size(), 0)
+	dummy.remove_invulnerability(&"test")
+	stats.remove_modifiers_from(&"test_c8")
+
+	var second := _tough_dummy_at(Vector2(50, 0))
+	_place(second, knight.global_position + Vector2(50, 20))
+	await _frames(1)
+	knight.health.take_damage(300.0)   # 350 / 650, straight to health (no i-frames)
+	stats.add_modifier(StatModifier.create(&"life_on_hit", FLAT, 10.0, &"test_c8"))
+	var hp := knight.health.current
+	var before := _numbers()
+	var swung := await _record_hits(func() -> void: await _swing_once())
+	_check("(the swing hit both dummies)", swung.size(), 2)
+	_check("10 life on hit x 2 dummies: +20 health", knight.health.current - hp, 20.0)
+	var greens := _numbers().filter(func(n: Label) -> bool: return not before.has(n) and n.kind == NUMBER_SCRIPT.Kind.HEAL)
+	_check("two green \"+10\" numbers on the Knight", greens.map(func(n: Label) -> String: return n.text), ["+10", "+10"])
+	stats.remove_modifiers_from(&"test_c8")
+	second.queue_free()
+
+	stats.add_modifier(StatModifier.create(&"life_steal", FLAT, 0.5, &"test_c8"))
+	hp = knight.health.current
+	await _swing_once()
+	_check("50% life steal on a 64 swing: +32", knight.health.current - hp, 32.0)
+	hp = knight.health.current
+	_resolve_cleave(dummy)
+	_check("life steal is basic attacks only: Cleave heals 0", knight.health.current - hp, 0.0)
+	stats.remove_modifiers_from(&"test_c8")
+
+	knight.resource_pool.try_spend(100.0)
+	var mana := knight.resource_pool.current
+	stats.add_modifier(StatModifier.create(&"resource_on_hit", FLAT, 5.0, &"test_c8"))
+	_resolve_cleave(dummy)
+	_check("5 resource on hit: +5 mana", knight.resource_pool.current - mana, 5.0)
+	stats.remove_modifiers_from(&"test_c8")
+	knight.health.heal(10000.0)
+	knight.resource_pool.restore(1000.0)
+
+	# The player hit by an enemy with on-hit damage: the proc isn't blocked by
+	# the i-frames its own hit starts, and it starts none of its own.
+	await _wait_until(func() -> bool: return not knight.is_invulnerable(), 60)
+	var slime := _dummy_at(Vector2(0, 200))
+	slime.stats_component.add_modifier(StatModifier.create(&"on_hit_damage", FLAT, 10.0, &"test_c8"))
+	var enemy_hit := knight.make_hit_context(22.0, slime)
+	enemy_hit.add_tag(&"basic_attack")
+	hp = knight.health.current
+	knight.on_hit(enemy_hit)
+	_check("a slime with 10 on-hit: the Knight loses 22 + 10, then has i-frames",
+		[hp - knight.health.current, knight.has_invulnerability(Unit.HIT_IFRAMES_ID)], [32.0, true])
+	slime.queue_free()
+	dummy.queue_free()
+	await _wait_until(func() -> bool: return not knight.is_invulnerable(), 60)
+	await _hitstop_over()
+
+
+## A passive slime with +5000 max health, so big hits don't kill it.
+func _tough_dummy_at(offset: Vector2) -> Enemy:
+	var dummy := _dummy_at(offset)
+	dummy.stats_component.add_modifier(StatModifier.create(&"max_health", FLAT, 5000.0, &"test_tough"))
+	return dummy
+
+
+## Runs a Knight ability's effect directly (no cooldown, cast time or range
+## check): for its numbers.
+func _cast(slot: StringName, aim: Vector2, target: Unit = null) -> void:
+	var ctx := CastContext.new()
+	ctx.slot = slot
+	ctx.point = aim
+	ctx.direction = (aim - knight.global_position).normalized()
+	ctx.target = target
+	await knight.abilities.get_ability(slot).execute(knight, ctx)
+
+
+func _resolve_cleave(target: Unit) -> HitContext:
+	return HitPipeline.resolve(HitPipeline.from_ability(knight, knight.abilities.q, target))
+
+
+## Swing 1 to the right, played out to the end (combo reset first).
+func _swing_once() -> void:
+	await _reset_knight_in_place()
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+	await _hitstop_over()
+
+
+## Combo reset without moving the Knight (the dummies stay in reach).
+func _reset_knight_in_place() -> void:
+	knight.attack.cancel_swing()
+	await _frames(40)
+
+
+## Every Events.unit_hit during `action` (awaited).
+func _record_hits(action: Callable) -> Array[HitContext]:
+	var hits: Array[HitContext] = []
+	var record := func(ctx: HitContext) -> void: hits.append(ctx)
+	Events.unit_hit.connect(record)
+	await action.call()
+	Events.unit_hit.disconnect(record)
+	return hits
+
+
+## Crits in `n` Knight basic attack hits on a target without on_hit().
+func _count_crits(target: Node, n: int) -> int:
+	var crits := 0
+	for i in n:
+		if HitPipeline.resolve(HitPipeline.basic_attack(knight, target, knight.attack.combo.swings[0])).is_crit:
+			crits += 1
+	return crits
 
 
 func _test_death_mid_swing() -> void:

@@ -32,7 +32,6 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 			return
 
 	var end := caster.global_position
-	var dmg := get_damage(caster)
 	var hits := AbilityUtil.along_segment(caster, start, end, Units.to_px(hit_width) * 0.5)
 	if not ignores_walls:
 		# Line of sight from the nearest point of the path (COMBAT C7).
@@ -40,7 +39,7 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 			var near := Geometry2D.get_closest_point_to_segment(u.global_position, start, end)
 			return WorldQuery.has_line_of_sight(near, u.global_position))
 	for u in hits:
-		u.take_damage(dmg, caster, true)
+		HitPipeline.resolve(HitPipeline.from_ability(caster, self, u))   # COMBAT C8
 		VFX.impact(u.get_parent(), u.global_position, Color(icon_color, 0.8), 36.0, 0.2)
 	if not hits.is_empty():
 		GameFeel.shake(2.5)

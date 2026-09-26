@@ -18,7 +18,9 @@ extends Node
 ## Scoped modifiers change ability params instead of stats (STATS.md step 6):
 ## get_ability_param(ability, &"cooldown") applies the ones whose stat is
 ## the param and whose scope is &"ability:<id>" or &"tag:<tag>" of that
-## ability, with the same formula.
+## ability, with the same formula. Hit-scoped ones (&"hit:<tag>",
+## &"target:<tag>", COMBAT C8) change a stat only for the hits they match:
+## get_scoped_stat(&"damage_increase", scopes).
 
 signal stat_changed(key: StringName, old_value: float, new_value: float)
 
@@ -117,6 +119,17 @@ func get_ability_param(ability: Ability, param: StringName) -> float:
 	return value
 
 
+## A stat for one hit (COMBAT C8): its normal value plus the modifiers
+## scoped to any of `scopes` (&"hit:<tag>", &"target:<tag>";
+## HitPipeline.get_hit_scopes()). Same formula and limits as get_stat().
+## Not cached: without a matching scoped modifier it is just get_stat().
+func get_scoped_stat(key: StringName, scopes: Array[StringName]) -> float:
+	for mod in _modifiers:
+		if mod.stat == key and mod.is_scoped() and scopes.has(mod.scope):
+			return _calculate(key, scopes)
+	return get_stat(key)
+
+
 ## A cooldown after ability haste: base x 100 / (100 + haste).
 func get_cooldown(base: float) -> float:
 	return base * 100.0 / (100.0 + get_stat(&"ability_haste"))
@@ -172,7 +185,8 @@ func set_level(n: int) -> void:
 
 # --- Internals ----------------------------------------------------------------
 
-func _calculate(key: StringName) -> float:
+## `scopes`: scoped modifiers that count too (get_scoped_stat()).
+func _calculate(key: StringName, scopes: Array[StringName] = []) -> float:
 	var def := registry.get_definition(key)
 	var is_move_speed := key == &"move_speed"
 	var flat := 0.0
@@ -180,7 +194,7 @@ func _calculate(key: StringName) -> float:
 	var percent_mult := 1.0
 	var strongest_slow := 0.0
 	for mod in _modifiers:
-		if mod.stat != key or mod.is_scoped():
+		if mod.stat != key or (mod.is_scoped() and not scopes.has(mod.scope)):
 			continue
 		match mod.type:
 			StatModifier.Type.FLAT:
@@ -219,7 +233,7 @@ func _is_valid(mod: StatModifier) -> bool:
 		return false
 	if mod.source_id == &"":
 		push_warning("StatsComponent: modifier for '%s' has no source_id, so it can't be removed" % mod.stat)
-	if not mod.is_scoped() and not registry.has_stat(mod.stat):
+	if (not mod.is_scoped() or mod.is_hit_scoped()) and not registry.has_stat(mod.stat):
 		push_error("StatsComponent: modifier for unknown stat '%s' (source '%s')" % [mod.stat, mod.source_id])
 		return false
 	return true

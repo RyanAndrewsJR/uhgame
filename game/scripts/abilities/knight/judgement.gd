@@ -8,8 +8,12 @@ extends Ability
 
 
 func get_damage_against(caster: Unit, target: Unit) -> float:
-	var missing := target.health.max_health - target.health.current
-	return get_damage(caster) + missing * missing_health_ratio
+	return get_damage(caster) + get_missing_health_bonus(target)
+
+
+## The extra damage from the target's missing health.
+func get_missing_health_bonus(target: Unit) -> float:
+	return (target.health.max_health - target.health.current) * missing_health_ratio
 
 
 func execute(caster: Unit, ctx: CastContext) -> void:
@@ -23,7 +27,12 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 	VFX.slash(parent, target.get_center(), (target.global_position - caster.global_position).angle() + PI * 0.5,
 		4.0, 26.0, deg_to_rad(70.0), Color(icon_color, 0.95), 0.12)
 	VFX.ring(parent, target.global_position, 8.0, 44.0, icon_color, 0.4, 3.0)
-	target.take_damage(get_damage_against(caster, target), caster, true)
-	target.apply_stun(stun_duration)
+	# Through the hit pipeline (COMBAT C8): the missing-health bonus is part
+	# of the base damage, so it crits and gets damage_increase too.
+	var hit := HitPipeline.from_ability(caster, self, target)
+	hit.base_damage += get_missing_health_bonus(target)
+	HitPipeline.resolve(hit)
+	if not hit.blocked:
+		target.apply_stun(stun_duration)
 	GameFeel.shake(6.0)
 	GameFeel.hitstop(0.09)

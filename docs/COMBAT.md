@@ -54,7 +54,7 @@ The rule for every combo with `attack_style` MELEE (the default; the Knight is t
 - Damage types: PHYSICAL (armor), MAGIC (magic_resist), TRUE (ignores both). Proposed mitigation: damage × 100 / (100 + armor).
 - Invulnerability (dash i-frames, post-hit i-frames) blocks the whole hit: damage, knockback, statuses and on-hit.
 - Hit tags: basic_attack, ability, proc, dot, crit, the damage type, plus the source ability's tags.
-- On-hit: basic attack and ability hits trigger on-hit effects; dot ticks and proc hits never do (loop guard). Each Ability has proc_coefficient (1.0 default, lower for multi-hit or area abilities), which scales on-hit chances and effects. Numbers (on_hit_damage, life_on_hit, resource_on_hit) are stats (STATS.md, planned); behaviors are augments or ReactionRules.
+- On-hit: basic attack and ability hits trigger on-hit effects; dot ticks and proc hits never do (loop guard). Each Ability has proc_coefficient (1.0 default, lower for multi-hit or area abilities), which scales on-hit chances and effects. Numbers (on_hit_damage, life_on_hit, resource_on_hit) are stats (STATS.md, built in C8); behaviors are augments or ReactionRules. On-hit damage is a separate MAGIC proc hit *(proposed)*.
 - Events: every hit emits Events.unit_hit(ctx), damage emits unit_damaged(ctx), death emits unit_died(unit, ctx). Reserved names only (CONVENTIONS.md).
 - Line of sight: basic attacks never hit through walls. Abilities don't either, unless the ability is marked to ignore walls (e.g. a meteor shower).
 
@@ -140,7 +140,7 @@ What exists today and what happens to each piece (see Build order for when).
 | Code | What it does today | Status |
 |---|---|---|
 | `res://scripts/components/auto_attack_component.gd` (`AutoAttackComponent`, `Unit.attack`) | LoL basic attacks: chase a target, windup (move lock `&"attack_windup"`), then `target.take_damage()` wherever the target is. Backswing doesn't lock movement. Next-attack modifiers (Iron Resolve). Locks by id (`&"stun"`, `&"casting"`). | **Kept and extended.** Enemies keep the LoL attack. Combo mode for the player (`combo` export; C2, built). The player's LoL orders (right-click, attack-move) stay dormant. C4 (built): enemy attacks push (`hit_knockback_px`), reach 10% short of `attack_range` (`enemy_hit_forgiveness`) and whiff out of reach (`attack_whiffed`). |
-| `Unit.take_damage(amount, source, highlight)` | Checks alive and invulnerable, lowers health, emits `damaged`, spawns a number, flashes. `Player.take_damage` adds a 2 px shake. Called by `AutoAttackComponent._land_attack`, `cleave.gd`, `lunge.gd`, `judgement.gd` and `Unit._on_hurtbox_hurt`. | **Wrapped** (C1, built): `make_hit_context()` builds a `HitContext` and `on_hit()` runs it from mitigation on. Armor is 0 everywhere, so nothing changes in play. `Player.take_damage`'s override is replaced by a `Player.on_hit` override with the same 2 px shake. |
+| `Unit.take_damage(amount, source, highlight)` | Checks alive and invulnerable, lowers health, emits `damaged`, spawns a number, flashes. `Player.take_damage` adds a 2 px shake. Called by `AutoAttackComponent._land_attack`, `cleave.gd`, `lunge.gd`, `judgement.gd` and `Unit._on_hurtbox_hurt`. | **Wrapped** (C1, built): `make_hit_context()` builds a `HitContext` and `on_hit()` runs it from mitigation on. Armor is 0 everywhere, so nothing changes in play. `Player.take_damage`'s override is replaced by a `Player.on_hit` override with the same 2 px shake. Since C8 Cleave, Lunge and Judgement use `HitPipeline.from_ability()` instead; the League-style enemy attack and `_on_hurtbox_hurt` still use `make_hit_context()`. |
 | `res://scripts/components/hitbox.gd`, `hurtbox.gd` | Area2D damage on overlap. `player.tscn` and `slime.tscn` have a Hurtbox (0.2 s own invincibility); **no scene has a Hitbox**. | **Kept, dormant.** `Unit._on_hurtbox_hurt` builds a `HitContext` (C1, built; the push is `Hitbox.knockback` px/s × 0.12 s, as before), so a future contact-damage enemy or projectile goes through the pipeline. |
 | `Unit.add_invulnerability(id)` | Dash i-frames (`&"dash"`) block `take_damage()` and Hurtbox hits. | **Kept.** `Unit.on_hit` checks it first. Post-hit i-frames add `&"hit_iframes"` (`Unit.HIT_IFRAMES_ID`; C4, built); `has_invulnerability(id)`. |
 | `res://scripts/autoload/game_feel.gd` (`GameFeel`) | `hitstop(duration)`: `Engine.time_scale` 0.05 (`hitstop_time_scale`). `shake(amount)`: camera shake in px (the camera keeps the largest). | **Kept, extended** (C3, built): the longest hitstop wins (a later call that ends later extends the running one); `play_hit_feel(ctx)` plays a hit's tier from `hit_feel`; `is_hitstop_active()`, `get_hitstop_left()`. |
@@ -166,7 +166,7 @@ One per hit. Built by the attacker, filled in by the pipeline.
 | `ability` | `Ability` | null for basic attacks, statuses, hazards, knockback |
 | `base_damage`, `ad_ratio`, `ap_ratio` | `float` | stage 1–2 inputs |
 | `damage_type` | `HitContext.DamageType` | enum `PHYSICAL`, `MAGIC`, `TRUE` (the reserved `DamageType`, same pattern as `Ability.Targeting`) |
-| `tags` | `Array[StringName]` | `&"basic_attack"`, `&"ability"`, `&"proc"`, `&"dot"`, `&"crit"`, `&"physical"` / `&"magic"` / `&"true"`, plus the ability's tags (`from_ability()` adds them since STATS step 6; the Knight's abilities get them once C8 moves them onto `from_ability()`) |
+| `tags` | `Array[StringName]` | `&"basic_attack"`, `&"ability"`, `&"proc"`, `&"dot"`, `&"crit"`, `&"physical"` / `&"magic"` / `&"true"`, plus the ability's tags (`from_ability()` adds them since STATS step 6; the Knight's abilities use it since C8). League-style enemy attacks are tagged `basic_attack` too (C8) |
 | `can_crit` | `bool` | false for DoT ticks and wrapped `take_damage()` calls |
 | `proc_coefficient` | `float` | 1.0 default |
 | `knockback_px`, `knockback_duration`, `knockback_curve` | `float`, `float`, `Curve` | 0 = none; null curve = the target's `knockback_curve` |
@@ -218,25 +218,27 @@ How damage numbers look (built in C6): `size_thresholds` 0 / 100 / 1000 → `fon
 - `GameplayEffect` (base): `apply(target: Unit, source: Unit, trigger_ctx: RefCounted) -> void`. First subclasses: `ApplyStatusGameplayEffect`, `DealDamageGameplayEffect` (always tagged `proc`), `KnockbackGameplayEffect`, `HealGameplayEffect`.
 - Only `HIT`, `UNIT_DIED` and `STATUS_APPLIED` are built in C11. `IMPACT` and the hazard triggers come with WORLD_INTERACTION's impacts and Hazards.
 
-### New stats (STATS.md; neutral defaults, added in C8)
-`incoming_damage` (base 1.0; reductions are negative PERCENT_MULT modifiers, so two 20% reductions give × 0.64), `damage_increase` (0; read with `hit:<tag>` and `target:<tag>` scopes), `on_hit_damage`, `life_on_hit`, `resource_on_hit` (all 0). `crit_damage` defaults to 1.75.
+### New stats (STATS.md; neutral defaults, built in C8)
+`incoming_damage` (base 1.0; reductions are negative PERCENT_MULT modifiers, so two 20% reductions give × 0.64), `damage_increase` (0; "increased" damage, 0.2 = +20%, given as FLAT modifiers; read with `hit:<tag>` and `target:<tag>` scopes), `on_hit_damage`, `life_on_hit`, `resource_on_hit` (all 0). `crit_damage` defaults to 1.75. `crit_chance` and `crit_damage` take the same scopes.
 
 ## Architecture / contracts
 ### New scripts
 - `res://scripts/autoload/events.gd`, autoload **`Events`** (C1, built). Signals (reserved names): `unit_hit(ctx: HitContext)`, `unit_damaged(ctx: HitContext)`, `unit_died(unit: Unit, ctx: HitContext)`; `status_applied(unit: Unit, status: StatusEffect)` and `status_removed(unit: Unit, status: StatusEffect)` come with C9 (the type doesn't exist yet). Existing local signals (`Unit.died`, `Unit.damaged`) stay.
 - `res://scripts/combat/hit_pipeline.gd`, **`HitPipeline`** (static functions, C1).
-  - `static func resolve(ctx: HitContext) -> HitContext`: stages 1–4 (base, stat scaling from the source's StatsComponent, `damage_increase`, crit), then `ctx.target.on_hit(ctx)`. A target without `on_hit()` = `blocked`. Built in C1: base and scaling; `damage_increase` and crit come in C8.
+  - `static func resolve(ctx: HitContext) -> HitContext`: stages 1–4 (base, stat scaling from the source's StatsComponent, `damage_increase`, crit), then `ctx.target.on_hit(ctx)`. A target without `on_hit()` = `blocked`. Built in C1: base and scaling; C8: `damage_increase` and crit.
+  - C8 (built): the damage type tag is added first; `get_hit_scopes(ctx)` = `hit:<tag>` per hit tag + `target:<tag>` per target status tag (`Unit.get_status_tags()`); `raw = scaled × (1 + damage_increase)` (the source's `StatsComponent.get_scoped_stat(&"damage_increase", scopes)`); `roll_crit(ctx, scopes)`: skipped when `can_crit` is false or there's no source; chance ≥ 1 always crits; otherwise rolls `HitPipeline.crit_rng` (seedable); a crit multiplies raw by `crit_damage`, sets `is_crit` and adds `&"crit"`.
+  - `static func apply_on_hit(ctx)` (C8, built; called by `Unit.on_hit`) and `static func make_proc(source, target, amount) -> HitContext` (a MAGIC `proc` hit that can't crit, proc coefficient 0).
   - Helpers (C1): `get_scaled_damage(ctx)`, `get_mitigation_multiplier(resistance)`, `mitigate(amount, type, target_stats)`.
   - `static func basic_attack(source: Unit, target: Unit, swing: AttackSwing) -> HitContext` and `static func from_ability(caster: Unit, ability: Ability, target: Unit) -> HitContext`: builders that fill tags, type, ratios and feel.
 - `Unit.on_hit(ctx: HitContext) -> void` (C1), the same method name interactables use (WORLD_INTERACTION.md). In order:
   1. `blocked` if not alive or invulnerable → return (nothing else happens).
-  2. Mitigation by type, then × the target's `incoming_damage`.
+  2. Mitigation by type, then × the target's `incoming_damage` (C8, built).
   3. Shields (`StatusComponent.absorb_damage()`, C10), then `health.take_damage()`.
   4. Knockback (`movement.displace()`, even if a shield took all of it), then statuses.
   5. `damaged.emit()`, `Events.unit_hit`, `Events.unit_damaged` (when `taken_damage` > 0).
-  6. On-hit (only `basic_attack` or `ability` hits, never `proc` or `dot`): `on_hit_damage` as a `proc` hit, `life_on_hit` and `resource_on_hit` × `proc_coefficient`, `life_steal` × `taken_damage` (basic attacks only, proposed).
+  6. On-hit (only `basic_attack` or `ability` hits, never `proc` or `dot`; a blocked hit has none): `on_hit_damage` × `proc_coefficient` as a MAGIC `proc` hit on the same target, `life_on_hit` × `proc_coefficient` plus `life_steal` × `taken_damage` (basic attacks only, proposed) heal the source with a green number (`Unit.heal()`), `resource_on_hit` × `proc_coefficient` restores its resource. Built in C8 (`HitPipeline.apply_on_hit()`); it runs after the events and before post-hit i-frames start, so the i-frames a hit starts never block its own proc. Procs don't start i-frames.
   7. Death: `Events.unit_died(self, ctx)`; kill credit = `ctx.source`.
-  8. Feel: `GameFeel.play_hit_feel(ctx)` (C3, built): the hit's tier (a kill uses the kill tier) sets the hitstop and shake; feel NONE plays nothing, so abilities and enemy basic attacks keep their own. Every hit that gets through flashes and shows its number (`_spawn_hit_number(ctx)`, C6, built): size by `taken_damage`, crit style if `is_crit`, the DoT style (merged into the target's latest DoT number within 0.3 s) if tagged `dot`, color by damage type (red on the player). Blocked hits show nothing. `Unit.show_heal_number(amount)` shows a green "+N" (nothing calls it yet; health regen doesn't show numbers).
+  8. Feel: `GameFeel.play_hit_feel(ctx)` (C3, built): the hit's tier (a kill uses the kill tier) sets the hitstop and shake; feel NONE plays nothing, so abilities and enemy basic attacks keep their own. Every hit that gets through flashes and shows its number (`_spawn_hit_number(ctx)`, C6, built): size by `taken_damage`, crit style if `is_crit`, the DoT style (merged into the target's latest DoT number within 0.3 s) if tagged `dot`, color by damage type (red on the player). Blocked hits show nothing. `Unit.show_heal_number(amount)` shows a green "+N"; `Unit.heal(amount)` (C8) heals and shows it for what was actually healed (life on hit, life steal). Health regen doesn't show numbers.
 - `Unit.take_damage(amount, source, highlight)` stays, as a wrapper (built in C1 through `Unit.make_hit_context()`): a `HitContext` with `base_damage = amount`, PHYSICAL, `can_crit = false`, feel `NONE` (callers keep their own shake and hitstop), then `on_hit()` directly (the amount is already scaled). `Player`'s "got hit" shake moves to a `Player.on_hit` override so pipeline hits get it too.
 - `res://scripts/components/status_component.gd`, **`StatusComponent`** (C9), a child of every Unit (`Unit.status_component`, optional so old scenes still load).
   - `apply_status(effect: StatusEffect, source: Unit, duration_override: float = -1.0) -> bool` (tenacity: × (1 − tenacity) for `cc`-tagged statuses only), `remove_status(id)`, `has_status(id)`, `has_tag(tag)`, `get_tags()`, `absorb_damage(amount) -> float`.
@@ -280,6 +282,7 @@ How damage numbers look (built in C6): `size_thresholds` 0 / 100 / 1000 → `fon
 ## How each edge case is handled
 | Edge case | Handling |
 |---|---|
+| On-hit proc on the player | The proc resolves before the hit's post-hit i-frames start, so it lands; it starts none of its own. A proc can't trigger another on-hit (`proc` tag). |
 | Stunned mid-swing | A stun adds the `&"stun"` attack lock; `AutoAttackComponent.add_lock()` calls `cancel_swing()`: no hit, root released, combo index back to 0. |
 | Hit during i-frames | `Unit.on_hit` returns at step 1 with `blocked = true`: no damage, number, knockback, status, on-hit, events or reaction rules. `take_damage()` does the same through the wrapper. |
 | Kill during hitstop | The hit resolves normally; `unit_died` fires at once. The kill hitstop (0.08 s) extends the running one. The death tween runs in scaled time, so it plays out after the freeze. |
@@ -335,6 +338,7 @@ Combat starts now, before STATS step 6. Until step 6 adds `id` / `tags` to Abili
 
 8. **C8 – Crits and on-hit.** Crit (1.75 default), `damage_increase` scopes, `incoming_damage`, the on-hit stats, `proc_coefficient`. Migrate the Knight's 4 abilities from `take_damage()` to `HitPipeline.from_ability()`, so ability hits get crits, `damage_increase`, on-hit and proper tags.
    **Done means:** the ability numbers are unchanged with no crit or bonuses, and they crit once `crit_chance` > 0.
+   **Built** (awaiting play test): 5 new stats (26 in the registry) and `crit_damage` 1.75; `damage_increase` with `hit:` / `target:` scopes (`StatsComponent.get_scoped_stat()`), crit (`HitPipeline.roll_crit()`), `incoming_damage` in `Unit.on_hit`, on-hit (`HitPipeline.apply_on_hit()`, `make_proc()`, `Unit.heal()`), `Unit.get_status_tags()` (the stun only until C9). Cleave, Lunge and Judgement hit through `HitPipeline.from_ability()` (Judgement's missing-health bonus is added to the base damage); Cleave's push and Judgement's stun skip blocked hits; Iron Resolve's bonus already rode the swing's pipeline hit. League-style enemy attacks are tagged `basic_attack`. Combat test 311/311 (42 new C8 checks: Cleave 124.8 / Lunge 82 / Judgement 214 and 414 with their tags and no crit; 100% crit: a swing 112 with a "112!" number, Cleave 218.4, `take_damage()` and procs never crit, +0.5 crit damage = 144, 0% = no crits, 25% ≈ 100 in 400 seeded rolls, crit chance scoped to basic attacks; +20% on basic attacks = 76.8 while Cleave stays 124.8, increase before crit = 134.4, +50% vs stunned = 187.2 on the stunned dummy only; two 20% `incoming_damage` reductions = × 0.64, after armor; 20 on-hit = a 20 MAGIC proc, 10 at proc coefficient 0.5, none for DoT ticks, `take_damage()` or blocked hits; life on hit, life steal (basic attacks only), resource on hit; an enemy's proc on the player isn't blocked by its own i-frames). Stats test 172/172; headless in-game check 40/40 (Cleave's real hit carries its tags, the real slime's hit is tagged `basic_attack`); room_01 runs with no errors.
 9. **C9 – Statuses.** `StatusComponent`, `StatusEffect`, `status_stun` / `status_slow` / `status_haste`, the `apply_stun()` and `add_speed_modifier()` wrappers, tenacity, DoT with kill credit.
 10. **C10 – Shields** (shield statuses; absorb order: the one expiring soonest first, proposed).
 11. **C11 – Reaction rules** (`HIT`, `UNIT_DIED`, `STATUS_APPLIED`; the four GameplayEffects).
@@ -355,6 +359,8 @@ Items and affixes (LOOT.md); ability costs, recasts and augments (ABILITIES.md);
 - Healing between rooms (DUNGEONS.md).
 - The crit font asset.
 - Confirm the armor formula; is penetration needed? Negative armor *(proposed: LoL's 2 − 100 / (100 − armor))*.
-- Life steal: basic attacks only *(proposed)*, or every hit?
+- Life steal: basic attacks only *(proposed; built that way in C8)*, or every hit?
+- On-hit damage type: MAGIC *(proposed, built in C8)*, the triggering hit's type, or set per item?
+- `target:<tag>` scopes only see the stun (`cc`, `stun`) until StatusComponent (C9) gives units their status tags.
 - "Your next <ability>" empowers (e.g. "your next Heavy Slam deals 30% bonus true damage") belong in ABILITIES.md (augments or ability buffs).
 - Which Knight abilities should ignore walls: CHAMPIONS.md / ABILITIES.md.
