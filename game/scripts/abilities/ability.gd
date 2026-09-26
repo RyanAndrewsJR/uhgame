@@ -43,7 +43,7 @@ enum Targeting {
 
 ## Damage this ability deals with the caster's current stats.
 func get_damage(caster: Unit) -> float:
-	return base_damage + ad_ratio * caster.stats.attack_damage
+	return base_damage + ad_ratio * caster.stats_component.get_stat(&"attack_damage")
 
 
 ## What the ability does. Override in each ability script.

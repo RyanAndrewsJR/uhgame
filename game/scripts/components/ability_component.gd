@@ -66,7 +66,7 @@ func get_cooldown_fraction(slot: StringName) -> float:
 
 
 func get_cooldown_duration(ability: Ability) -> float:
-	return ability.cooldown * 100.0 / (100.0 + unit.stats.ability_haste)
+	return unit.stats_component.get_cooldown(ability.cooldown)
 
 
 func is_ready(slot: StringName) -> bool:

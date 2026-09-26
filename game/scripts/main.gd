@@ -46,10 +46,10 @@ func _process(_delta: float) -> void:
 	if not is_instance_valid(player):
 		return
 	hud.set_info("AD %d   AS %.2f   MS %d   Range %d   |   Camera %s (Y)" % [
-		roundi(player.stats.attack_damage),
+		roundi(player.stats_component.get_stat(&"attack_damage")),
 		player.attack.get_attack_speed(),
 		roundi(player.movement.get_move_speed()),
-		roundi(player.stats.attack_range),
+		roundi(player.stats_component.get_stat(&"attack_range")),
 		"locked" if camera.locked else "free",
 	])
 

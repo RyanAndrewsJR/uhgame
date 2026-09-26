@@ -14,6 +14,11 @@ extends Node2D
 ##   rules: flat bonuses, then % bonuses (additive), then only the strongest
 ##   slow, then the soft caps (thresholds are exports; the defaults are
 ##   LoL's 220 / 415 / 490 scaled x560/345 for Hades pace, see MOVEMENT.md).
+##   With a StatsComponent (set_stats_component(), done by Unit) the speed is
+##   its move_speed stat, and add_speed_modifier() is a thin wrapper that
+##   adds StatModifiers under the modifier's id and keeps only the timer here
+##   (STATS.md step 4). Without one, base_move_speed and the modifiers here
+##   are used as before.
 ## - Move locks (cast times, attack windups, stuns) pause movement but keep
 ##   the move order, so you carry on to your destination afterwards.
 ## - displace() pushes the unit (knockbacks, dashes) and overrides walking.
@@ -36,7 +41,8 @@ const SOFT_CAP_LOW_FACTOR := 0.5
 const SOFT_CAP_HIGH_FACTOR := 0.8
 const SOFT_CAP_MAX_FACTOR := 0.5
 
-## Base movement speed in LoL units.
+## Base movement speed in LoL units. Only used without a StatsComponent;
+## Units take move_speed from their UnitStats through StatsComponent.
 @export var base_move_speed: float = 345.0
 ## Collision/steering radius in pixels. Unit sets this from its stats.
 @export var radius_px: float = 11.0
@@ -93,6 +99,7 @@ var _move_dir: Vector2 = Vector2.ZERO
 
 var _locks: Dictionary = {}          # id -> true
 var _modifiers: Dictionary = {}      # id -> {flat, percent, time_left}
+var _stats: StatsComponent = null    # set by Unit; null = standalone speed math
 
 var _displace_velocity: Vector2 = Vector2.ZERO
 var _displace_time: float = 0.0      # seconds left
@@ -276,17 +283,43 @@ func set_input_speed_to_max() -> void:
 
 # --- Movement speed ---------------------------------------------------------
 
+## Movement speed comes from this unit's StatsComponent from now on (the
+## move_speed stat, soft caps included).
+func set_stats_component(stats: StatsComponent) -> void:
+	_stats = stats
+	for id: StringName in _modifiers.keys():
+		_add_speed_stat_modifiers(id, _modifiers[id].flat, _modifiers[id].percent)
+
+
 ## percent: 0.2 = +20% MS, -0.3 = 30% slow. duration < 0 = until removed.
+## Re-adding an id replaces it. With a StatsComponent the modifier lives there
+## (source_id = id) and only the timer is kept here.
 func add_speed_modifier(id: StringName, flat: float = 0.0, percent: float = 0.0, duration: float = -1.0) -> void:
 	_modifiers[id] = {"flat": flat, "percent": percent, "time_left": duration}
+	if _stats != null:
+		_stats.remove_modifiers_from(id)
+		_add_speed_stat_modifiers(id, flat, percent)
 
 
 func remove_speed_modifier(id: StringName) -> void:
 	_modifiers.erase(id)
+	if _stats != null:
+		_stats.remove_modifiers_from(id)
+
+
+func _add_speed_stat_modifiers(id: StringName, flat: float, percent: float) -> void:
+	var mods: Array[StatModifier] = []
+	if flat != 0.0:
+		mods.append(StatModifier.create(&"move_speed", StatModifier.Type.FLAT, flat, id))
+	if percent != 0.0:
+		mods.append(StatModifier.create(&"move_speed", StatModifier.Type.PERCENT_ADD, percent, id))
+	_stats.add_modifiers(mods)
 
 
 ## Final movement speed in LoL units, after bonuses, slows and soft caps.
 func get_move_speed() -> float:
+	if _stats != null:
+		return _stats.get_stat(&"move_speed")
 	var flat := 0.0
 	var bonus_percent := 0.0
 	var strongest_slow := 0.0
@@ -544,7 +577,7 @@ func _tick_modifiers(delta: float) -> void:
 			continue
 		mod.time_left -= delta
 		if mod.time_left <= 0.0:
-			_modifiers.erase(id)
+			remove_speed_modifier(id)
 
 
 func _clear_order() -> void:

@@ -46,9 +46,9 @@ func _ready() -> void:
 	add_to_group("units")
 	assert(stats != null, "%s has no UnitStats assigned" % name)
 	stats_component.setup(stats, movement)
-	health.setup(stats.max_health)
+	health.setup(stats_component.get_stat(&"max_health"))
 	health.died.connect(_on_died)
-	movement.base_move_speed = stats.move_speed
+	movement.set_stats_component(stats_component)
 	movement.set_radius(get_pathing_radius_px())
 	if has_node("Hurtbox"):
 		($Hurtbox as Hurtbox).hurt.connect(_on_hurtbox_hurt)

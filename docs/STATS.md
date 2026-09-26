@@ -6,13 +6,13 @@
 
 ## Current code
 - `UnitStats` (`res://scripts/data/unit_stats.gd`): one .tres per unit in `res://data/units/`. Fields: display_name, max_health, attack_damage, attack_range, base_attack_speed, attack_windup, attack_speed_cap, ability_haste, move_speed, gameplay_radius, pathing_radius, dash_charges.
-- Code reads `unit.stats.<field>` directly. Every read is listed in Build order, step 4.
-- `AutoAttackComponent` has its own `bonus_attack_speed` var (nothing writes it yet): a second modifier store, like MovementComponent's speed modifiers.
-- `MovementComponent` has its own speed modifiers: flat, then additive %, then **only the strongest slow**, then soft caps. After MOVEMENT.md step 1 the soft cap thresholds are `@export`s on MovementComponent, scaled ×560/345 for Hades pace (357 / 674 / 795 instead of LoL's 220 / 415 / 490).
-- `HealthComponent` holds current and max health.
+- **Steps 1–4 are built:** `StatModifier`, `StatDefinition`, `StatRegistry` (+ `stat_registry.tres`, all 21 stats) and `StatsComponent`, tested by `res://scenes/tests/stats_test.tscn`. `player.tscn` and `slime.tscn` have a `StatsComponent` node; `Unit.stats_component` points to it and `Unit._ready()` calls `setup(stats, movement)`.
+- On `Unit`, `stats` stays the base `UnitStats` export and `stats_component` is the live StatsComponent. Gameplay reads go through `stats_component.get_stat(&"x")`. Only `attack_windup`, `gameplay_radius` and `pathing_radius` are still read from `unit.stats` (identity fields, not stats).
+- `MovementComponent.get_move_speed()` returns `get_stat(&"move_speed")` (soft caps included, applied once). `add_speed_modifier(id, flat, percent, duration)` is a thin wrapper: it adds FLAT / PERCENT_ADD `move_speed` modifiers with `source_id = id` (the same id replaces), and only the timer stays on MovementComponent. Without a StatsComponent (`set_stats_component()` not called) MovementComponent uses its old `base_move_speed` math; the stats test uses that path for its parity checks.
+- `AutoAttackComponent.bonus_attack_speed` is a thin wrapper too: setting it replaces one PERCENT_ADD `attack_speed` modifier (source `&"bonus_attack_speed"`). Nothing writes it yet; new code adds StatModifiers directly.
+- `HealthComponent` holds current and max health. Its max is taken from `get_stat(&"max_health")` once at `_ready()`; following later max_health changes comes with step 5.
+- `DashComponent` takes its starting charges when the Unit is ready, since the StatsComponent is set up in `Unit._ready()`, which runs after the children's `_ready()`. A lower max later leaves extra charges until they're spent; a higher max recharges up to it.
 - All values are in **LoL units** (see CLAUDE.md, `Units.to_px()`).
-- **Steps 1–3 are built:** `StatModifier`, `StatDefinition`, `StatRegistry` (+ `stat_registry.tres`, all 21 stats) and `StatsComponent`, tested by `res://scenes/tests/stats_test.tscn`. `player.tscn` and `slime.tscn` have a `StatsComponent` node; `Unit.stats_component` points to it and `Unit._ready()` calls `setup(stats, movement)`. Nothing reads it yet: gameplay still reads `unit.stats.<field>` until step 4.
-- On `Unit`, `stats` stays the base `UnitStats` export and `stats_component` is the live StatsComponent. Step 4 reads become `stats_component.get_stat(&"x")`.
 
 ## Core principle
 - **Stats are what a unit IS. Abilities are what a unit DOES. Combat is how damage resolves.** Keep all three separate.
@@ -123,7 +123,7 @@ Equipping an item gives its modifiers to `StatsComponent` and its augments to `A
 1. StatModifier and the registry. *(done)*
 2. StatsComponent with the math, move_speed rules, caching, and `stat_changed`. Include a test scene that adds/removes modifiers and prints the results. *(done: `res://scenes/tests/stats_test.tscn`, F6. It prints PASS/FAIL per check and includes move_speed parity checks against a real MovementComponent.)*
 3. Add StatsComponent to player.tscn and slime.tscn. `Unit._ready()` wires it up. *(done: `Unit.stats_component`, a required child like HealthComponent)*
-4. **Migrate reads.** Every `stats.` read in the code today:
+4. **Migrate reads.** *(done; checked headless against the old formulas for every Unit in the sandbox and room_01)* Every `stats.` read in the code before the migration:
 
    | File | Reads | After step 4 |
    |---|---|---|
@@ -138,7 +138,7 @@ Equipping an item gives its modifiers to `StatsComponent` and its augments to `A
    | `abilities/ability.gd` `get_damage()` | `attack_damage` | `get_stat` |
    | `main.gd` `_process()` (HUD info line) | `player.stats.attack_damage`, `attack_range` | `get_stat` |
 
-   Also move MovementComponent's speed modifiers into StatsComponent (`add_speed_modifier` becomes a thin wrapper, so existing callers keep working). MovementComponent itself reads no `stats.` field; `Unit._ready()` hands it `move_speed`.
+   Also move MovementComponent's speed modifiers into StatsComponent (`add_speed_modifier` becomes a thin wrapper, so existing callers keep working). MovementComponent itself reads no `stats.` field; `Unit._ready()` calls `movement.set_stats_component()`, and MovementComponent reads `get_stat(&"move_speed")` live.
 5. ResourceComponent, plus the new stat fields on UnitStats.
 6. Scoped modifiers, `get_ability_param`, and `id`/`tags` on Ability. Route cooldowns through it.
 7. F3 debug overlay (`res://scripts/ui/stat_overlay.gd`): every stat, its base, final value, and each modifier with its source.
@@ -152,6 +152,3 @@ Equipping an item gives its modifiers to `StatsComponent` and its augments to `A
 - Champion-specific items dropping for other champions? Proposed: no (LOOT.md).
 - Does the same augment from two items stack? Proposed: no (ABILITIES.md).
 - *(proposed)* `knockback_resistance` stat, 0–1, scales displacement distance; bosses 1 (WORLD_INTERACTION.md, Knockback).
-- What happens to `AutoAttackComponent.bonus_attack_speed` in step 4 (wrapper that adds a modifier, or removed after confirming)? Decide then.
-- Timed speed modifiers in step 4: `add_speed_modifier()` takes a duration, but `StatModifier` has none. Proposed: the wrapper keeps the timer and removes the modifier when it runs out (StatusComponent takes that over later).
-- Step 4 says `Unit._ready()` "hands" MovementComponent `move_speed`. A one-time hand-off would miss later modifiers. Proposed: MovementComponent reads `get_stat(&"move_speed")` live, with the soft caps already applied (not applied twice).

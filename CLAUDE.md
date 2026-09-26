@@ -56,6 +56,7 @@ New subfolders inside these are fine. Ask before adding a new top-level folder.
 - Behavior lives in child components: `HealthComponent`, `AutoAttackComponent`, `MovementComponent`, `AbilityComponent`, `DashComponent` (player), `Hitbox`, `Hurtbox`.
 - `UnitStats` Resource = base stats. `Ability` Resource subclasses = one script per ability plus a .tres for its numbers.
 - `MovementComponent` already has move locks by id, speed modifiers, `displace()`, and `dash()` (passes through units; both use `move_and_slide()`, so they slide along walls instead of stopping).
+- `StatsComponent` (`Unit.stats_component`) holds every unit's live stats: base from `UnitStats` (`Unit.stats`) plus source-tagged `StatModifier`s. Gameplay reads `stats_component.get_stat(&"x")`, never `unit.stats.x` (STATS.md).
 
 ## Conventions
 - **Data lives in Resources** (.tres); logic lives in scripts. Tuning never needs code edits. Every tunable is `@export`.
@@ -101,12 +102,12 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 
 ## Current status
 <!-- OVERWRITE this whole section at the end of each session (Now / Last 3 done / Next). Never append. -->
-- **Now:** Waiting on Ryan's play test of STATS step 3 (nothing should change in play). Still open: play test of Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of STATS steps 3–4 (nothing should change in play). Still open: play test of Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. STATS step 3: `StatsComponent` on player.tscn and slime.tscn, `Unit.stats_component`, set up in `Unit._ready()`. Headless check: all 13 units in the sandbox and room_01 match today's reads. Movement step 8 (pits) removed from the plan.
-  2. STATS steps 1–2: `StatModifier`, `StatDefinition`, `StatRegistry` (+ `data/stats/stat_registry.tres`, 21 stats), `StatsComponent` (math, strongest slow, soft caps via MovementComponent, caching, `stat_changed`, levels) and its test scene.
-  3. Feel pass F3: `MovementVFXComponent` on the Player and slimes (dash stretch/squash, silhouette afterimages, dust, speed-tied 1 px bob, reversal dust, knockback stretch; draw-time only, toggle off = pixel-identical).
-- **Next:** STATS step 4 (migrate reads) → steps 5–7 → then the Future docs in their listed order. Movement step 8 (pits) was removed from the plan.
+  1. STATS step 4: every gameplay stat read goes through `get_stat`; `add_speed_modifier()` and `bonus_attack_speed` are wrappers over StatModifiers; MovementComponent reads `move_speed` live. Headless: 95 checks against the old formulas, 0 mismatches; stats test 113/113.
+  2. STATS step 3: `StatsComponent` on player.tscn and slime.tscn, `Unit.stats_component`, set up in `Unit._ready()`. Movement step 8 (pits) removed from the plan.
+  3. STATS steps 1–2: `StatModifier`, `StatDefinition`, `StatRegistry` (+ `data/stats/stat_registry.tres`, 21 stats), `StatsComponent` (math, strongest slow, soft caps via MovementComponent, caching, `stat_changed`, levels) and its test scene.
+- **Next:** STATS step 5 (ResourceComponent, new UnitStats fields, HealthComponent following max_health) → steps 6–7 → then the Future docs in their listed order.
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.

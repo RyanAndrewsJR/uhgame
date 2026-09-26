@@ -7,6 +7,10 @@ extends Node
 ## MovementComponent (add_speed_modifier) and into StatsComponent, and the
 ## two results must match. That guards the step 4 migration.
 ##
+## The last section wires the Knight's MovementComponent to its
+## StatsComponent (as Unit does) and checks the add_speed_modifier() wrapper
+## (STATS.md step 4), including a timed slow running out.
+##
 ## Two push_errors in the output are expected (the unknown stat checks).
 ## Run headless and it quits with the number of failures as the exit code.
 
@@ -46,6 +50,7 @@ func _ready() -> void:
 	_test_levels()
 	_test_helpers()
 	_test_unknown_keys()
+	await _test_speed_modifier_wrapper()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -290,6 +295,32 @@ func _test_unknown_keys() -> void:
 	knight_stats.add_modifier(_mod(&"not_a_stat", FLAT, 5.0, &"item_typo"))
 	_check("modifier for an unknown stat is rejected", knight_stats.get_modifiers_from(&"item_typo").size(), 0)
 	_check_exact("nothing else changed", _all_values(knight_stats), before)
+
+
+func _test_speed_modifier_wrapper() -> void:
+	_section("add_speed_modifier wrapper (MovementComponent with a StatsComponent)")
+	knight_movement.add_speed_modifier(&"test_early", 0.0, 0.1)
+	knight_movement.set_stats_component(knight_stats)
+	_check("a modifier added before wiring moves over", knight_stats.get_modifiers_from(&"test_early").size(), 1)
+	_check("get_move_speed reads the stat: 560 x 1.1", knight_movement.get_move_speed(), 616.0)
+	knight_movement.remove_speed_modifier(&"test_early")
+
+	knight_movement.add_speed_modifier(&"iron_resolve", 0.0, 0.2)
+	_check("stored in StatsComponent under its id", knight_stats.get_modifiers_from(&"iron_resolve").size(), 1)
+	_check("560 x 1.2", knight_movement.get_move_speed(), 672.0)
+	knight_movement.add_speed_modifier(&"iron_resolve", 50.0, 0.1)
+	_check("same id replaces it (now flat + %)", knight_stats.get_modifiers_from(&"iron_resolve").size(), 2)
+	_check("(560 + 50) x 1.1", knight_movement.get_move_speed(), 671.0)
+	knight_movement.remove_speed_modifier(&"iron_resolve")
+	_check("remove_speed_modifier removes it", knight_stats.get_modifiers_from(&"iron_resolve").size(), 0)
+	_check("move_speed back to 560", knight_movement.get_move_speed(), 560.0)
+
+	knight_movement.add_speed_modifier(&"iron_resolve_slow", 0.0, -0.3, 0.1)
+	_check("timed 30% slow applies: 560 x 0.7", knight_movement.get_move_speed(), 392.0)
+	for i in 12:   # 0.2 s at 60 Hz
+		await get_tree().physics_frame
+	_check("timed slow removed after its duration", knight_stats.get_modifiers_from(&"iron_resolve_slow").size(), 0)
+	_check("move_speed back to 560 after it", knight_movement.get_move_speed(), 560.0)
 
 
 # --- Helpers ------------------------------------------------------------------

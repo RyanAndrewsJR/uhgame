@@ -20,6 +20,8 @@ signal windup_cancelled
 
 enum State { IDLE, CHASING, WINDUP, BACKSWING }
 
+const BONUS_ATTACK_SPEED_SOURCE := &"bonus_attack_speed"
+
 ## Extra range (LoL units) beyond attack range in which attack-move will
 ## pick up targets.
 @export var attack_move_acquire_bonus: float = 250.0
@@ -29,8 +31,19 @@ enum State { IDLE, CHASING, WINDUP, BACKSWING }
 var unit: Unit
 var state: State = State.IDLE
 var target: Unit
-## Bonus attack speed as a fraction (0.3 = +30%). Items and buffs add to this.
-var bonus_attack_speed: float = 0.0
+## Bonus attack speed as a fraction (0.3 = +30%). Kept as a thin wrapper:
+## setting it replaces one PERCENT_ADD attack_speed modifier on the unit's
+## StatsComponent (source BONUS_ATTACK_SPEED_SOURCE). New code adds its own
+## StatModifiers instead (STATS.md).
+var bonus_attack_speed: float = 0.0:
+	set(value):
+		bonus_attack_speed = value
+		var stats := get_node_or_null(^"../StatsComponent") as StatsComponent
+		if stats == null:
+			return
+		stats.remove_modifiers_from(BONUS_ATTACK_SPEED_SOURCE)
+		if value != 0.0:
+			stats.add_modifier(StatModifier.create(&"attack_speed", StatModifier.Type.PERCENT_ADD, value, BONUS_ATTACK_SPEED_SOURCE))
 
 var _attack_timer: float = 0.0     # time until the next attack may start
 var _windup_left: float = 0.0
@@ -50,9 +63,10 @@ func _ready() -> void:
 
 # --- Stats ----------------------------------------------------------------------
 
+## Attacks per second: the attack_speed stat (base_attack_speed x (1 + bonus),
+## capped by UnitStats.attack_speed_cap).
 func get_attack_speed() -> float:
-	var s := unit.stats
-	return minf(s.base_attack_speed * (1.0 + bonus_attack_speed), s.attack_speed_cap)
+	return unit.stats_component.get_stat(&"attack_speed")
 
 
 func get_attack_interval() -> float:
@@ -64,7 +78,7 @@ func get_windup_time() -> float:
 
 
 func get_range_px() -> float:
-	return Units.to_px(unit.stats.attack_range)
+	return Units.to_px(unit.stats_component.get_stat(&"attack_range"))
 
 
 func is_in_range(other: Unit) -> bool:
@@ -213,7 +227,7 @@ func _start_windup() -> void:
 func _land_attack() -> void:
 	unit.movement.remove_move_lock(&"attack_windup")
 	state = State.BACKSWING
-	var dmg := unit.stats.attack_damage
+	var dmg := unit.stats_component.get_stat(&"attack_damage")
 	var hit := target
 	var on_hits: Array[Callable] = []
 	for mod in _next_attack_mods.values():

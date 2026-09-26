@@ -5,7 +5,7 @@ extends Node2D
 ## - A fixed-length burst at constant speed, through units but not walls,
 ##   using MovementComponent.dash().
 ## - I-frames for the whole dash (Unit.add_invulnerability).
-## - Charges from UnitStats.dash_charges. One charge comes back every
+## - Charges from the dash_charges stat (StatsComponent). One charge comes back every
 ##   charge_recharge_time seconds, counted while not dashing.
 ## - The speed follows dash_curve (burst, then ease out); the distance is exact.
 ## - If a direction is held when the dash ends, the unit runs on at full
@@ -56,7 +56,9 @@ var _since_dash_end: float = INF
 func _ready() -> void:
 	unit = get_parent() as Unit
 	assert(unit != null, "DashComponent must be a child of a Unit")
-	_charges = get_max_charges()
+	# The StatsComponent is set up in Unit._ready(), which runs after ours
+	# (children are ready first), so take the starting charges then.
+	unit.ready.connect(func() -> void: _charges = get_max_charges(), CONNECT_ONE_SHOT)
 	# Children are ready before their parent, so unit.movement (an @onready
 	# on Unit) isn't set yet. Fetch the sibling directly.
 	var movement := unit.get_node("MovementComponent") as MovementComponent
@@ -66,7 +68,7 @@ func _ready() -> void:
 # --- Queries --------------------------------------------------------------------
 
 func get_max_charges() -> int:
-	return maxi(unit.stats.dash_charges, 1)
+	return maxi(int(unit.stats_component.get_stat(&"dash_charges")), 1)
 
 
 func get_charges() -> int:
