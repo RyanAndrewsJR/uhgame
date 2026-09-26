@@ -9,9 +9,8 @@ script = ExtResource("2_swing")
 [sub_resource type="Resource" id="swing_2"]
 script = ExtResource("2_swing")
 
-[sub_resource type="Resource" id="Resource_vet80"]
+[sub_resource type="Resource" id="swing_3"]
 script = ExtResource("2_swing")
-<<<<<<< Updated upstream
 duration = 0.4
 ad_ratio = 1.6
 arc_deg = 140.0
@@ -20,10 +19,7 @@ feel = 2
 lunge_px = 10.0
 lunge_max_px = 32.0
 pause_after = 0.25
-=======
-metadata/_custom_type_script = "uid://dcrgf6ul273xi"
->>>>>>> Stashed changes
 
 [resource]
 script = ExtResource("1_combo")
-swings = Array[ExtResource("2_swing")]([SubResource("swing_1"), SubResource("swing_2"), SubResource("Resource_vet80")])
+swings = Array[ExtResource("2_swing")]([SubResource("swing_1"), SubResource("swing_2"), SubResource("swing_3")])
