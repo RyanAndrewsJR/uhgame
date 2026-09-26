@@ -71,8 +71,10 @@ func get_cooldown_fraction(slot: StringName) -> float:
 	return clampf(get_cooldown_left(slot) / maxf(total, 0.001), 0.0, 1.0)
 
 
+## The ability's cooldown after scoped modifiers (items), then ability haste
+## (STATS.md: the one place this happens).
 func get_cooldown_duration(ability: Ability) -> float:
-	return unit.stats_component.get_cooldown(ability.cooldown)
+	return unit.stats_component.get_cooldown(ability.get_param(unit, &"cooldown"))
 
 
 func is_ready(slot: StringName) -> bool:
@@ -111,14 +113,14 @@ func try_cast(slot: StringName, aim: Vector2, target_unit: Unit = null) -> bool:
 		Ability.Targeting.SELF:
 			ctx.point = origin
 		Ability.Targeting.POINT:
-			ctx.point = origin + to_aim.limit_length(Units.to_px(ability.cast_range))
+			ctx.point = origin + to_aim.limit_length(Units.to_px(ability.get_param(unit, &"cast_range")))
 		Ability.Targeting.UNIT:
 			if target_unit == null or not target_unit.is_alive() or not unit.is_enemy_of(target_unit):
 				cast_failed.emit(slot, "no target")
 				return false
 			ctx.target = target_unit
 			# Out of range, or no line of sight (COMBAT C7): walk until both hold.
-			if unit.edge_distance_to(target_unit) > Units.to_px(ability.cast_range) \
+			if unit.edge_distance_to(target_unit) > Units.to_px(ability.get_param(unit, &"cast_range")) \
 					or not ability.can_reach_through_walls(unit.global_position, target_unit):
 				_pending = {"slot": slot, "target": target_unit}
 				_pending_repath = 0.0
@@ -199,7 +201,7 @@ func _physics_process(delta: float) -> void:
 	if not is_instance_valid(target) or not target.is_alive() or not unit.is_alive():
 		_pending.clear()
 		return
-	if unit.edge_distance_to(target) <= Units.to_px(ability.cast_range) \
+	if unit.edge_distance_to(target) <= Units.to_px(ability.get_param(unit, &"cast_range")) \
 			and ability.can_reach_through_walls(unit.global_position, target):
 		_pending.clear()
 		unit.movement.stop()

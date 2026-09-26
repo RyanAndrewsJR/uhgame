@@ -5,6 +5,8 @@
 
 [resource]
 script = ExtResource("1_script")
+id = &"knight_lunge"
+tags = Array[StringName]([&"movement"])
 display_name = "Lunge"
 description = "Dash up to 400 units toward the target spot, passing through units and dealing 50 (+50% AD) physical damage to every enemy you cut through."
 icon_color = Color(0.45, 0.8, 1, 1)

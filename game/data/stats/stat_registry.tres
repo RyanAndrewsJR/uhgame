@@ -70,7 +70,7 @@ format = 2
 script = ExtResource("2_definition")
 key = &"crit_damage"
 display_name = "Crit Damage"
-default_value = 1.0
+default_value = 1.75
 has_min = true
 min_value = 1.0
 format = 2
@@ -160,6 +160,38 @@ display_name = "Gold Find"
 has_min = true
 format = 2
 
+[sub_resource type="Resource" id="stat_incoming_damage"]
+script = ExtResource("2_definition")
+key = &"incoming_damage"
+display_name = "Incoming Damage"
+default_value = 1.0
+has_min = true
+format = 2
+
+[sub_resource type="Resource" id="stat_damage_increase"]
+script = ExtResource("2_definition")
+key = &"damage_increase"
+display_name = "Damage Increase"
+format = 2
+
+[sub_resource type="Resource" id="stat_on_hit_damage"]
+script = ExtResource("2_definition")
+key = &"on_hit_damage"
+display_name = "On-Hit Damage"
+has_min = true
+
+[sub_resource type="Resource" id="stat_life_on_hit"]
+script = ExtResource("2_definition")
+key = &"life_on_hit"
+display_name = "Life on Hit"
+has_min = true
+
+[sub_resource type="Resource" id="stat_resource_on_hit"]
+script = ExtResource("2_definition")
+key = &"resource_on_hit"
+display_name = "Resource on Hit"
+has_min = true
+
 [resource]
 script = ExtResource("1_registry")
-definitions = Array[ExtResource("2_definition")]([SubResource("stat_max_health"), SubResource("stat_health_regen"), SubResource("stat_max_resource"), SubResource("stat_resource_regen"), SubResource("stat_attack_damage"), SubResource("stat_ability_power"), SubResource("stat_attack_speed"), SubResource("stat_crit_chance"), SubResource("stat_crit_damage"), SubResource("stat_armor"), SubResource("stat_magic_resist"), SubResource("stat_move_speed"), SubResource("stat_ability_haste"), SubResource("stat_dash_charges"), SubResource("stat_attack_range"), SubResource("stat_life_steal"), SubResource("stat_tenacity"), SubResource("stat_knockback_resistance"), SubResource("stat_pickup_radius"), SubResource("stat_magic_find"), SubResource("stat_gold_find")])
+definitions = Array[ExtResource("2_definition")]([SubResource("stat_max_health"), SubResource("stat_health_regen"), SubResource("stat_max_resource"), SubResource("stat_resource_regen"), SubResource("stat_attack_damage"), SubResource("stat_ability_power"), SubResource("stat_attack_speed"), SubResource("stat_crit_chance"), SubResource("stat_crit_damage"), SubResource("stat_armor"), SubResource("stat_magic_resist"), SubResource("stat_move_speed"), SubResource("stat_ability_haste"), SubResource("stat_dash_charges"), SubResource("stat_attack_range"), SubResource("stat_life_steal"), SubResource("stat_tenacity"), SubResource("stat_knockback_resistance"), SubResource("stat_pickup_radius"), SubResource("stat_magic_find"), SubResource("stat_gold_find"), SubResource("stat_incoming_damage"), SubResource("stat_damage_increase"), SubResource("stat_on_hit_damage"), SubResource("stat_life_on_hit"), SubResource("stat_resource_on_hit")])

@@ -20,6 +20,9 @@ extends Resource
 @export var magic_resist: float = 0.0
 ## Reduces crowd control duration, 0-0.8.
 @export var tenacity: float = 0.0
+## Multiplier on damage after armor / magic_resist (COMBAT C8). 1 = normal;
+## reductions are negative PERCENT_MULT modifiers, so they multiply.
+@export var incoming_damage: float = 1.0
 
 @export_group("Resource")
 ## Mana, energy or fury (the type is on the ResourceComponent for now).
@@ -41,10 +44,22 @@ extends Resource
 @export var attack_speed_cap: float = 2.5
 ## Chance to crit, 0-1.
 @export var crit_chance: float = 0.0
-## Damage multiplier on a crit (1 = no extra damage).
-@export var crit_damage: float = 1.0
-## Fraction of damage dealt healed back, 0-1.
+## Damage multiplier on a crit. 1.75 for every unit (COMBAT.md); nothing
+## changes in play while crit_chance is 0.
+@export var crit_damage: float = 1.75
+## Fraction of damage dealt healed back, 0-1. Basic attacks only (COMBAT C8).
 @export var life_steal: float = 0.0
+## "Increased" damage: 0.2 = +20%. Items give it as FLAT modifiers, often
+## scoped to hit tags (&"hit:basic_attack") or target tags
+## (&"target:stun"). COMBAT C8.
+@export var damage_increase: float = 0.0
+## Extra damage (a proc hit) on every basic attack and ability hit, x the
+## hit's proc_coefficient. COMBAT C8.
+@export var on_hit_damage: float = 0.0
+## Health per basic attack or ability hit, x proc_coefficient. COMBAT C8.
+@export var life_on_hit: float = 0.0
+## Resource (mana...) per basic attack or ability hit, x proc_coefficient.
+@export var resource_on_hit: float = 0.0
 
 @export_group("Abilities")
 ## Cooldown reduction, LoL style: cooldown * 100 / (100 + haste).

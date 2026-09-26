@@ -4,6 +4,8 @@
 
 [resource]
 script = ExtResource("1_script")
+id = &"slime_elite_slam"
+tags = Array[StringName]([&"area"])
 display_name = "Slam"
 description = "Marks a 72 px circle where the target stands, fills it over 0.65 s, then slams: 100 physical damage and a 20 px push to everyone inside."
 icon_color = Color(1, 0.35, 0.15, 1)

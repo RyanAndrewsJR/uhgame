@@ -22,6 +22,9 @@ enum Type {
 @export var source_id: StringName
 ## &"" = a normal stat, &"ability:knight_lunge" = one ability's param,
 ## &"tag:projectile" = every ability with that tag (STATS.md step 6).
+## &"hit:<tag>" / &"target:<tag>" = a stat (damage_increase) that counts only
+## for hits carrying that tag, or against targets with that status tag
+## (COMBAT C8).
 @export var scope: StringName = &""
 
 
@@ -37,3 +40,9 @@ static func create(p_stat: StringName, p_type: Type, p_value: float, p_source_id
 
 func is_scoped() -> bool:
 	return scope != &""
+
+
+## A &"hit:<tag>" or &"target:<tag>" scope: a normal stat that counts only
+## for some hits (StatsComponent.get_scoped_stat()).
+func is_hit_scoped() -> bool:
+	return scope.begins_with("hit:") or scope.begins_with("target:")

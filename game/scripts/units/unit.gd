@@ -145,14 +145,16 @@ func make_hit_context(amount: float, source: Unit = null, highlight: bool = fals
 
 ## The defender's half of the hit pipeline (COMBAT.md, Architecture). Starts
 ## from ctx.raw_damage (HitPipeline.resolve() fills it in). In order:
-## i-frames, mitigation, health, knockback, events. Interactables use the
+## i-frames, mitigation, incoming_damage, health, knockback, feel, events,
+## the source's on-hit effects, post-hit i-frames. Interactables use the
 ## same method name.
 func on_hit(ctx: HitContext) -> void:
 	if not _alive or is_invulnerable():
 		ctx.blocked = true
 		return
 	ctx.target = self
-	ctx.taken_damage = HitPipeline.mitigate(ctx.raw_damage, ctx.damage_type, stats_component)
+	ctx.taken_damage = HitPipeline.mitigate(ctx.raw_damage, ctx.damage_type, stats_component) \
+		* stats_component.get_stat(&"incoming_damage")
 	var before := health.current
 	health.take_damage(ctx.taken_damage)   # may die here (_on_died runs)
 	ctx.health_lost = before - health.current
@@ -162,14 +164,17 @@ func on_hit(ctx: HitContext) -> void:
 	_flash()
 	if ctx.knockback_px > 0.0 and _alive:
 		_apply_knockback(ctx)
-	if _alive and post_hit_iframes > 0.0 and not ctx.has_tag(&"dot"):
-		_start_hit_iframes()
 	GameFeel.play_hit_feel(ctx)   # hitstop and shake by tier (COMBAT C3)
 	Events.unit_hit.emit(ctx)
 	if ctx.taken_damage > 0.0:
 		Events.unit_damaged.emit(ctx)
 	if ctx.killed:
 		Events.unit_died.emit(self, ctx)
+	# On-hit (COMBAT C8) before the i-frames start, so its proc hit lands.
+	HitPipeline.apply_on_hit(ctx)
+	# DoT ticks and procs (part of the hit that caused them) don't start them.
+	if _alive and post_hit_iframes > 0.0 and not ctx.has_tag(&"dot") and not ctx.has_tag(&"proc"):
+		_start_hit_iframes()
 
 
 ## Pushes away from ctx.knockback_from (default: the source) by
@@ -213,6 +218,31 @@ func apply_stun(duration: float) -> void:
 
 func is_stunned() -> bool:
 	return has_node("StunEffect")
+
+
+## The tags of the unit's active status effects (&"target:<tag>" scopes,
+## COMBAT C8). Until StatusComponent (C9) there is only the stun:
+## &"cc" and &"stun".
+func get_status_tags() -> Array[StringName]:
+	var result: Array[StringName] = []
+	if is_stunned():
+		result.append_array([&"cc", &"stun"])
+	return result
+
+
+# --- Healing ------------------------------------------------------------------
+
+## Heals and shows the green number for what was actually healed (not above
+## max health). Returns that amount. Nothing for a dead unit.
+func heal(amount: float) -> float:
+	if not _alive or amount <= 0.0:
+		return 0.0
+	var before := health.current
+	health.heal(amount)
+	var healed := health.current - before
+	if healed >= 0.5:   # the number rounds; don't show "+0"
+		show_heal_number(healed)
+	return healed
 
 
 ## Hitbox overlaps go through the hit pipeline too (no scene has a Hitbox

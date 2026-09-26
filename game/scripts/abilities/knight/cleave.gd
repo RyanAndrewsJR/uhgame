@@ -9,16 +9,18 @@ extends Ability
 
 func execute(caster: Unit, ctx: CastContext) -> void:
 	var half := deg_to_rad(cone_half_angle_deg)
-	var reach := Units.to_px(cast_range)
+	var reach := Units.to_px(get_param(caster, &"cast_range"))
 	var origin := caster.global_position
 	var side: float = caster.get("swing_side") if "swing_side" in caster else 1.0
 	VFX.slash(caster.get_parent(), caster.get_center(), ctx.direction.angle(), 10.0, reach + 6.0, half,
 		Color(1, 1, 1, 0.85), 0.13, side)
 
 	var hits := filter_by_walls(origin, AbilityUtil.in_cone(caster, origin, ctx.direction, reach, half))
-	var dmg := get_damage(caster)
 	for u in hits:
-		u.take_damage(dmg, caster, true)
+		# Through the hit pipeline (COMBAT C8): crits, damage_increase, on-hit, tags.
+		var hit := HitPipeline.resolve(HitPipeline.from_ability(caster, self, u))
+		if hit.blocked:
+			continue
 		var push := (u.global_position - origin).normalized()
 		u.movement.displace(push * knockback, 0.1)
 	if not hits.is_empty():
@@ -29,7 +31,7 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 func draw_indicator(canvas: Node2D, caster: Unit, aim: Vector2) -> void:
 	var local := canvas.to_local(aim)
 	var dir := local.normalized() if local.length() > 0.01 else Vector2.RIGHT
-	var reach := Units.to_px(cast_range)
+	var reach := Units.to_px(get_param(caster, &"cast_range"))
 	var half := deg_to_rad(cone_half_angle_deg)
 	var pts := PackedVector2Array([Vector2.ZERO])
 	for i in 17:

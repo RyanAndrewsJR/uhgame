@@ -11,7 +11,7 @@ extends Node
 ## StatsComponent (as Unit does) and checks the add_speed_modifier() wrapper
 ## (STATS.md step 4), including a timed slow running out.
 ##
-## Two push_errors in the output are expected (the unknown stat checks).
+## Three push_errors in the output are expected (the unknown stat checks).
 ## Run headless and it quits with the number of failures as the exit code.
 
 const KNIGHT_STATS: UnitStats = preload("res://data/units/knight.tres")
@@ -19,6 +19,9 @@ const SLIME_STATS: UnitStats = preload("res://data/units/slime.tres")
 const FLAT := StatModifier.Type.FLAT
 const PERCENT_ADD := StatModifier.Type.PERCENT_ADD
 const PERCENT_MULT := StatModifier.Type.PERCENT_MULT
+const CLEAVE: Ability = preload("res://data/abilities/knight_q_cleave.tres")
+const LUNGE: Ability = preload("res://data/abilities/knight_e_lunge.tres")
+const SLAM: Ability = preload("res://data/abilities/slime_elite_q_slam.tres")
 
 @onready var knight_movement: MovementComponent = $KnightBody/MovementComponent
 @onready var knight_stats: StatsComponent = $KnightBody/StatsComponent
@@ -50,6 +53,8 @@ func _ready() -> void:
 	_test_levels()
 	_test_helpers()
 	_test_unknown_keys()
+	_test_scoped_modifiers()
+	_test_hit_scoped_modifiers()
 	await _test_speed_modifier_wrapper()
 	await _test_health_and_resource_pools()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
@@ -60,10 +65,75 @@ func _ready() -> void:
 
 # --- Tests --------------------------------------------------------------------
 
+## STATS step 6: ability params with scoped modifiers.
+func _test_scoped_modifiers() -> void:
+	_section("Scoped modifiers (ability params)")
+	_check("ids: knight_cleave / knight_lunge / slime_elite_slam", [CLEAVE.id, LUNGE.id, SLAM.id], [&"knight_cleave", &"knight_lunge", &"slime_elite_slam"])
+	_check("tags: cleave [area], lunge [movement]", [CLEAVE.tags, LUNGE.tags], [[&"area"], [&"movement"]])
+	_check("no modifiers: the plain values", [knight_stats.get_ability_param(CLEAVE, &"cooldown"), knight_stats.get_ability_param(LUNGE, &"cast_range")], [3.0, 400.0])
+	var before := _all_values(knight_stats)
+	_signals.clear()
+	var item: Array[StatModifier] = [
+		_mod(&"cast_range", PERCENT_ADD, 0.30, &"item_test", &"ability:knight_lunge"),
+		_mod(&"cooldown", FLAT, -1.5, &"item_test", &"ability:knight_cleave"),
+		_mod(&"base_damage", PERCENT_MULT, 0.5, &"item_test", &"tag:area"),
+		_mod(&"attack_speed", PERCENT_ADD, 0.10, &"item_test"),
+	]
+	knight_stats.add_modifiers(item)
+	_check("+30% Lunge range: 400 -> 520", knight_stats.get_ability_param(LUNGE, &"cast_range"), 520.0)
+	_check("-1.5 s Cleave cooldown: 3 -> 1.5", knight_stats.get_ability_param(CLEAVE, &"cooldown"), 1.5)
+	_check("x1.5 base damage on every 'area' ability: Cleave 80 -> 120, Slam 100 -> 150",
+		[knight_stats.get_ability_param(CLEAVE, &"base_damage"), knight_stats.get_ability_param(SLAM, &"base_damage")], [120.0, 150.0])
+	_check("other abilities and params untouched",
+		[knight_stats.get_ability_param(LUNGE, &"cooldown"), knight_stats.get_ability_param(CLEAVE, &"cast_range"), knight_stats.get_ability_param(LUNGE, &"base_damage")], [8.0, 300.0, 50.0])
+	_check("the unscoped part is a normal stat (+10% attack speed)", knight_stats.get_stat(&"attack_speed"), 0.77)
+	_check("scoped modifiers change no stat", _signals.map(func(e: Array) -> StringName: return e[0]), [&"attack_speed"])
+	_check("the resources themselves are untouched", [LUNGE.cast_range, CLEAVE.cooldown], [400.0, 3.0])
+	_check("slimes don't get the Knight's item", slime_stats.get_ability_param(CLEAVE, &"cooldown"), 3.0)
+	knight_stats.add_modifier(_mod(&"cooldown", FLAT, -10.0, &"item_big", &"ability:knight_cleave"))
+	_check("never below 0", knight_stats.get_ability_param(CLEAVE, &"cooldown"), 0.0)
+	knight_stats.remove_modifiers_from(&"item_big")
+	knight_stats.remove_modifiers_from(&"item_test")
+	_check("removing the item restores the params exactly",
+		[knight_stats.get_ability_param(LUNGE, &"cast_range"), knight_stats.get_ability_param(CLEAVE, &"cooldown"), knight_stats.get_ability_param(CLEAVE, &"base_damage")], [400.0, 3.0, 80.0])
+	_check_exact("and every stat exactly", _all_values(knight_stats), before)
+	_signals.clear()
+
+func _test_hit_scoped_modifiers() -> void:
+	_section("Hit-scoped modifiers (COMBAT C8)")
+	var before := _all_values(knight_stats)
+	_signals.clear()
+	var item: Array[StatModifier] = [
+		_mod(&"damage_increase", FLAT, 0.10, &"item_test"),
+		_mod(&"damage_increase", FLAT, 0.20, &"item_test", &"hit:basic_attack"),
+		_mod(&"damage_increase", FLAT, 0.50, &"item_test", &"target:stun"),
+		_mod(&"incoming_damage", PERCENT_MULT, -0.2, &"item_test"),
+		_mod(&"incoming_damage", PERCENT_MULT, -0.2, &"item_test_2"),
+	]
+	knight_stats.add_modifiers(item)
+	var none: Array[StringName] = []
+	var basic: Array[StringName] = [&"hit:basic_attack", &"hit:physical"]
+	var basic_vs_stunned: Array[StringName] = [&"hit:basic_attack", &"hit:physical", &"target:cc", &"target:stun"]
+	_check("damage_increase with no matching scope: the unscoped +10%", knight_stats.get_scoped_stat(&"damage_increase", none), 0.1)
+	_check("get_stat() sees only the unscoped part", knight_stats.get_stat(&"damage_increase"), 0.1)
+	_check("a basic attack: +10% +20%", knight_stats.get_scoped_stat(&"damage_increase", basic), 0.3)
+	_check("a basic attack on a stunned target: +10% +20% +50%", knight_stats.get_scoped_stat(&"damage_increase", basic_vs_stunned), 0.8)
+	_check("two 20% incoming_damage reductions multiply: x0.64", knight_stats.get_stat(&"incoming_damage"), 0.64)
+	_check("hit-scoped modifiers send no stat signal (only the 2 unscoped stats do)", _signals.map(func(e: Array) -> StringName: return e[0]), [&"damage_increase", &"incoming_damage"])
+	var typo := _mod(&"damage_increse", FLAT, 0.5, &"item_typo", &"hit:basic_attack")
+	knight_stats.add_modifier(typo)
+	_check("a hit-scoped modifier for an unknown stat is rejected", knight_stats.get_modifiers_from(&"item_typo").size(), 0)
+	knight_stats.remove_modifiers_from(&"item_test")
+	knight_stats.remove_modifiers_from(&"item_test_2")
+	_check("removed: nothing left for any scope", knight_stats.get_scoped_stat(&"damage_increase", basic_vs_stunned), 0.0)
+	_check_exact("and every stat exactly", _all_values(knight_stats), before)
+	_signals.clear()
+
+
 func _test_registry() -> void:
 	_section("Registry")
 	var keys := knight_stats.registry.get_keys()
-	_check("21 stats registered", keys.size(), 21)
+	_check("26 stats registered (5 added in COMBAT C8)", keys.size(), 26)
 	for key in keys:
 		var def := knight_stats.registry.get_definition(key)
 		var field := def.get_base_field()
@@ -82,7 +152,10 @@ func _test_base_values() -> void:
 	_check("move_speed 560 (inside the soft caps)", knight_stats.get_stat(&"move_speed"), 560.0)
 	_check("dash_charges", knight_stats.get_stat(&"dash_charges"), 1.0)
 	_check("armor: neutral default 0", knight_stats.get_stat(&"armor"), 0.0)
-	_check("crit_damage: neutral default 1 (no extra damage)", knight_stats.get_stat(&"crit_damage"), 1.0)
+	_check("crit_damage: 1.75 for every unit (COMBAT C8; crit_chance stays 0)", [knight_stats.get_stat(&"crit_damage"), slime_stats.get_stat(&"crit_damage"), knight_stats.get_stat(&"crit_chance")], [1.75, 1.75, 0.0])
+	_check("C8 stats: incoming_damage 1, the rest 0",
+		[knight_stats.get_stat(&"incoming_damage"), knight_stats.get_stat(&"damage_increase"), knight_stats.get_stat(&"on_hit_damage"), knight_stats.get_stat(&"life_on_hit"), knight_stats.get_stat(&"resource_on_hit")],
+		[1.0, 0.0, 0.0, 0.0, 0.0])
 	_check("max_resource 300 (knight.tres)", knight_stats.get_stat(&"max_resource"), 300.0)
 	_check("resource_regen 6 (knight.tres)", knight_stats.get_stat(&"resource_regen"), 6.0)
 	_check("health_regen 0 (knight.tres)", knight_stats.get_stat(&"health_regen"), 0.0)
