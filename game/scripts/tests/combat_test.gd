@@ -241,6 +241,7 @@ func _test_combo() -> void:
 	await _test_ability_during_swing()
 	await _test_iron_resolve_swing()
 	await _test_attack_speed()
+	await _test_combo_pace()
 	await _test_hit_feel()
 	await _test_melee()
 	await _test_getting_hit()
@@ -317,6 +318,7 @@ func _test_combo_chain_and_reset() -> void:
 		_place(dummy, knight.global_position + Vector2(50, 0))
 	_check("damage 64 / 64 / 102.4", damage, [64.0, 64.0, 102.4])
 	_check("after the finisher the combo starts over", knight.attack.get_combo_index(), 0)
+	await _wait_until(func() -> bool: return not knight.attack.is_in_pause(), 30)   # the finisher's breather
 	knight.attack.try_swing(Vector2.RIGHT)
 	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
 	_check("next is swing 2 right after swing 1", knight.attack.get_combo_index(), 1)
@@ -458,6 +460,49 @@ func _test_attack_speed() -> void:
 	knight.stats_component.remove_modifiers_from(&"test_attack_speed")
 
 
+# --- Combo pace: speed_scale and pause_after ----------------------------------------
+
+func _test_combo_pace() -> void:
+	_section("Combo pace: the finisher's breather and the speed knob")
+	var combo := knight.attack.combo
+	_check("pause_after 0 / 0 / 0.25 s, speed_scale 1.0",
+		[combo.swings[0].pause_after, combo.swings[1].pause_after, combo.swings[2].pause_after, combo.speed_scale], [0.0, 0.0, 0.25, 1.0])
+	await _reset_knight()
+	for i in 3:
+		knight.attack.try_swing(Vector2.RIGHT)
+		await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+		if i < 2:
+			_check("no pause after swing %d" % (i + 1), knight.attack.can_swing(), true)
+	_check("after the finisher: a breather", [knight.attack.is_in_pause(), knight.attack.try_swing(Vector2.RIGHT)], [true, false])
+	_check("moving isn't blocked by it", knight.movement.can_move(), true)
+	_check("dashing isn't blocked by it", knight.dash.can_dash(), true)
+	var t0 := _game_time
+	knight.player_input.buffer_action(&"attack")   # a click during the breather
+	await _wait_until(func() -> bool: return knight.attack.is_swinging(), 40)
+	_check_near("the click fires when the 0.25 s breather ends", _game_time - t0, 0.25, 0.04)
+	_check("starting the combo over", knight.attack.get_combo_index(), 0)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+
+	await _reset_knight()
+	for i in 2:
+		knight.attack.try_swing(Vector2.RIGHT)
+		await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20)
+	knight.dash.try_dash(Vector2.DOWN)
+	_check("dash-cancelling the finisher after its hit still leaves the breather", knight.attack.is_in_pause(), true)
+	await _frames(20)
+
+	await _reset_knight()
+	combo.speed_scale = 2.0
+	_check("speed_scale 2.0 doubles the combo speed", knight.attack.get_swing_speed(), 2.0)
+	var start := _game_time
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+	_check_near("a 0.3 s swing takes 0.15 s", _game_time - start, 0.15 + 1.0 / 60.0, 0.02)
+	combo.speed_scale = 1.0
+
+
 # --- C3: hit feel -------------------------------------------------------------------
 
 var _shakes: Array[float] = []
@@ -588,6 +633,7 @@ func _spy_camera() -> Camera2D:
 	script.source_code = "extends Camera2D\nvar on_shake: Callable\nfunc shake(amount: float) -> void:\n\ton_shake.call(amount)\n"
 	script.reload()
 	var cam := Camera2D.new()
+	cam.process_callback = Camera2D.CAMERA2D_PROCESS_PHYSICS   # what interpolation needs
 	cam.set_script(script)
 	cam.set("on_shake", func(amount: float) -> void: _shakes.append(amount))
 	add_child(cam)

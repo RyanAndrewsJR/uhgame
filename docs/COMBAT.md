@@ -33,7 +33,8 @@ A fight is a short, readable brawl. You click and the Knight swings toward the c
 - A dash cancels a swing before its hit lands (windup) or during its recovery. The moment the hit lands can't be cancelled. Cancelling resets the combo.
 - Pressing attack during a swing queues the next combo hit (input buffer). Each swing needs its own press; holding the button doesn't repeat. The combo resets after combo_reset_time with no attack.
 - Q/W/E/R interrupt a swing only if that ability allows it, set per ability: never, after the hit lands (the default; all four Knight abilities), or anytime. Otherwise the press waits for the swing to end (input buffer).
-- attack_speed is a combo-speed multiplier for the player: every swing timing is divided by attack_speed ÷ base attack speed (1.0 at base; +20% bonus attack speed = swings 20% faster).
+- attack_speed is a combo-speed multiplier for the player: every swing timing is divided by attack_speed ÷ base attack speed (1.0 at base; +20% bonus attack speed = swings 20% faster), times the combo's `speed_scale`.
+- Attack pace comes from the swings themselves, not a cooldown: the next swing starts when the current one ends, plus that swing's `pause_after` (a breather, e.g. after a finisher, like Hades' sword). Only attacking waits during it; moving, dashing and abilities don't, and a click during it fires when it ends. There's no global cooldown between attacks and abilities.
 - Dash-strike (proposed): an attack within dash_strike_window after a dash (existing hook) does a stronger variant. Numbers under TARGET.
 - attack vs select on left mouse: attack owns left mouse; select is unbound (disabled, not deleted).
 - "Your next attack" effects (Iron Resolve) mean the next basic attack swing that hits, and they apply to every enemy that swing hits.
@@ -83,6 +84,8 @@ Knight basic attack:
 - windup (click to hit): 0.08 s (0.05–0.12)
 - root per swing: 0.3 s (0.2–0.35); finisher 0.4 s (0.3–0.5)
 - combo_reset_time: 0.6 s (0.4–0.9)
+- breather after the finisher (`pause_after`): 0.25 s (0–0.4); none after swings 1–2. `speed_scale` 1.0
+- Per-champion pace (FREE per champion, decided in CHAMPIONS.md): bruisers heavier (e.g. ~1.4 s for 3 hits), divers and rogues snappier (~0.75 s); the Knight's combo takes 1.0 s + the breather
 - damage: 1.0 / 1.0 / 1.6 × attack_damage
 - reach: 175 u (56 px) from the Knight's feet to the target's edge; arc 110°; finisher arc 140°
 - knockback: 6 / 6 / 20 px, using the knockback curve
@@ -181,7 +184,8 @@ One per hit. Built by the attacker, filled in by the pipeline.
   - `feel` (`LIGHT` / `HEAVY`)
   - `lunge_px` (6): melee swing step along the aim; `lunge_max_px` (24): the longest target-pull step. The dash-strike swing's step is its own `lunge_px` (16, C12).
   - `proc_coefficient` (1.0)
-- `AttackCombo` (Resource, `res://scripts/data/attack_combo.gd`): `attack_style` (`AttackCombo.AttackStyle.MELEE` default / `RANGED`), `swings: Array[AttackSwing]`, `combo_reset_time`, `dash_strike: AttackSwing` (null until C12), `hit_forgiveness` (0.10).
+  - `pause_after` (0): seconds after this swing ends before the next can start (the finisher's breather)
+- `AttackCombo` (Resource, `res://scripts/data/attack_combo.gd`): `attack_style` (`AttackCombo.AttackStyle.MELEE` default / `RANGED`), `swings: Array[AttackSwing]`, `combo_reset_time`, `dash_strike: AttackSwing` (null until C12), `hit_forgiveness` (0.10), `speed_scale` (1.0: one knob that scales every swing timing; × attack speed).
   - Melee assist: `assist_range_bonus_px` (40, added to the swing's reach), `assist_angle_deg` (35), `assist_snap_deg` (20), `stop_at_reach_fraction` (0.7).
   - Recovery: `walk_cancels_recovery` (true), `recovery_move_cancel_after` (0.1 s).
 - Knight: `res://data/combos/combo_knight.tres` with the three swings from Numbers (0.08 / 0.3 s, 0.08 / 0.3 s, 0.08 / 0.4 s; 1.0 / 1.0 / 1.6; 110° / 110° / 140°; 6 / 6 / 20 px over 0.1 s; LIGHT / LIGHT / HEAVY; steps 6 / 6 / 10 px, pull up to 24 / 24 / 32 px; MELEE with the default assist and recovery settings).
@@ -336,6 +340,7 @@ For every step: no errors; the Knight's 4 abilities, enemies chasing and the HUD
 Items and affixes (LOOT.md); ability costs, recasts and augments (ABILITIES.md); enemy AI beyond one telegraphed attack (ENEMIES_AI.md); elite affixes; pits; controller support.
 
 ## Open questions
+- Weapons: a champion's combo will come from its equipped weapon, and its class limits which weapons it can wield (e.g. a bruiser like Darus can't use daggers); bruiser weapons are heavier, diver and rogue weapons snappier. Today the combo is set on AutoAttackComponent (LOOT.md / CHAMPIONS.md).
 - A stun during a cast interrupts it only if the caster is still stunned when the cast time ends (AbilityComponent checks then), though its header says "during the cast time". A short stun mid-cast lets the cast go off. Decide in ABILITIES.md.
 - Ranged basic attacks: design later (RANGED combos only get walk-cancel for now).
 - Dash-strike behavior and numbers.

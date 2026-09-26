@@ -147,8 +147,10 @@ func _update_buffer(delta: float) -> void:
 		clear_buffer()
 		_fire(action)
 		return
-	# A press during a dash, a cast or a swing waits for it to end.
-	if player.dash.is_dashing() or player.abilities.casting or player.attack.is_swinging():
+	# A press during a dash, a cast, a swing or a swing's breather
+	# (pause_after) waits for it to end.
+	if player.dash.is_dashing() or player.abilities.casting or player.attack.is_swinging() \
+			or player.attack.is_in_pause():
 		return
 	_buffer_left -= delta
 	if _buffer_left <= 0.0:
