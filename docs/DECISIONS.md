@@ -82,6 +82,7 @@
 | 2026-09-25 | Facing stays locked to the cast's aim while walking during a cast; no code change. | Already true: `_update_facing()` puts the cast aim first, and the sword and body flip ignore walking while casting. SELF casts have no aim, so facing follows walking. |
 | 2026-09-26 | The player can dash during knockback caused by being hit: the dash replaces that displacement (i-frames as usual). Other displacements still block the dash. Built in COMBAT C4. | Ryan's call. A dash is always the way out, and being hit shouldn't delay it. |
 | 2026-09-26 | The player can also dash during a melee swing step (a dash-cancelable displacement); the dash replaces it. `displace(..., dash_cancelable)` is the one mechanism for these exceptions. | Ryan's spec for melee basic attacks: a dash during the step replaces it. |
+| 2026-09-26 | The dash goes toward the cursor as it was at the moment Space was pressed (`Player.get_aim_direction()`, so `facing` if the cursor is on the player), not the held WASD direction. A buffered dash keeps the direction from its press. The old behavior stays behind `PlayerInput.dash_toward_cursor = false`. | Ryan's call. Aim already drives attacks and abilities, so the dash follows the same hand; WASD stays free for walking. Kept as a flag per the change policy (disable before deleting). |
 
 ## Stats
 | Date | Decision | Why |

@@ -94,7 +94,8 @@ Only keys that physically collided with WASD changed. Action names never change.
 ## Dash
 - Space calls `DashComponent.try_dash()` from PlayerInput.
 - 128 px (`dash_distance` = 400 u) over `dash_duration` = 0.18 s, bursting and then easing out (`dash_curve`, F2), through `MovementComponent.dash()` (passes through units; `move_and_slide()`, so it slides along walls instead of stopping, and only a near-head-on dash stops).
-- Direction: the held input direction; with no input, `facing`.
+- Direction: toward the cursor at the moment Space is pressed (`Player.get_aim_direction()`: from the feet to the cursor, or `facing` if the cursor is on the player). A buffered dash keeps the direction from its press, even if the cursor moves before it fires. `PlayerInput.dash_toward_cursor = false` brings back the old rule: the held input direction, or `facing` with no input. (Changed 2026-09-26, DECISIONS.md.)
+- The run-on after the dash (`carry_into_run`, below) still follows the held WASD direction, so dashing one way while holding another runs off in the held direction.
 - I-frames for the whole dash via `Unit.add_invulnerability(&"dash")`: `take_damage()` and Hurtbox hits (damage and knockback) are ignored. This sits on Unit, not only the Hurtbox, because enemy basic attacks call `take_damage()` directly. The body turns half see-through.
 - Charges: the `dash_charges` stat (base `UnitStats.dash_charges`, default 1, read through StatsComponent). One charge returns every `charge_recharge_time` = 0.35 s, one at a time, counted only while not dashing.
 - Exit: if a direction is held when the dash ends, the player runs on at full speed (`carry_into_run`, F2). Otherwise `end_lag` = 0.05 s of locked walking follows. A dash can chain in during end-lag if a charge is left.

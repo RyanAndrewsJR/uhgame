@@ -9,7 +9,8 @@ extends Node
 ##   at a time: a newer press replaces an older one. The timer pauses while a
 ##   dash, a cast or a basic attack swing is playing out, so a press during
 ##   one fires when it ends.
-## - Dash (Space): the held direction, or facing if none.
+## - Dash (Space): toward the cursor at the moment of the press
+##   (dash_toward_cursor); off: the held direction, or facing if none.
 ## - Attack (left mouse): the next swing of the basic attack combo toward the
 ##   cursor (AutoAttackComponent.try_swing(), COMBAT.md). A press during a
 ##   swing queues the next one. A legal press also emits
@@ -35,6 +36,10 @@ const MOVE_ACTIONS: Array[StringName] = [&"move_up", &"move_down", &"move_left",
 @export var buffer_time: float = 0.15
 ## An attack within this many seconds after a dash ends is a dash-strike.
 @export var dash_strike_window: float = 0.1
+## On: the dash goes toward the cursor as it was when Space was pressed (a
+## buffered dash keeps that direction). Off: the held WASD direction, or
+## facing if none (the old behavior).
+@export var dash_toward_cursor: bool = true
 
 ## Held movement direction this frame (length 0..1, diagonals normalized).
 var move_dir: Vector2 = Vector2.ZERO
@@ -46,6 +51,7 @@ var player: Player
 var _buffered: StringName = &""   # DASH, ATTACK, or an ability slot (&"q"...)
 var _buffer_left: float = 0.0
 var _move_pressed_during_cast: bool = false
+var _dash_aim_dir: Vector2 = Vector2.ZERO   # cursor direction at the last dash press
 
 
 func _ready() -> void:
@@ -113,6 +119,7 @@ func _physics_process(delta: float) -> void:
 	player.movement.set_input_direction(move_dir)
 
 	if Input.is_action_just_pressed(DASH):
+		_dash_aim_dir = player.get_aim_direction()
 		buffer_action(DASH)
 	if Input.is_action_just_pressed(ATTACK):
 		buffer_action(ATTACK)
@@ -151,6 +158,8 @@ func _fire(action: StringName) -> void:
 	match action:
 		DASH:
 			var dir := move_dir if move_dir != Vector2.ZERO else player.facing
+			if dash_toward_cursor and _dash_aim_dir != Vector2.ZERO:
+				dir = _dash_aim_dir
 			if player.dash.try_dash(dir) and player.abilities.has_pending():
 				# Dashing is your own move: drop a queued walk-into-range cast.
 				player.abilities.cancel_pending()
