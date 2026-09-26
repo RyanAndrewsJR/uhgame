@@ -17,6 +17,8 @@ enum Team { PLAYER, ENEMY }
 
 const DamageNumber := preload("res://scripts/ui/damage_number.gd")
 const StunEffect := preload("res://scripts/vfx/stun_effect.gd")
+## How long a Hurtbox hit's knockback lasts (seconds).
+const HURTBOX_KNOCKBACK_TIME := 0.12
 
 @export var stats: UnitStats
 @export var team: Team = Team.ENEMY
@@ -109,13 +111,62 @@ func contains_point(p: Vector2) -> bool:
 # --- Damage -------------------------------------------------------------------
 
 ## `highlight` makes the damage number stand out (abilities, empowered hits).
+## A thin wrapper over the hit pipeline (COMBAT.md): `amount` is already
+## scaled, so it enters at mitigation as PHYSICAL damage that can't crit.
+## New code builds a HitContext and calls HitPipeline.resolve() instead.
 func take_damage(amount: float, source: Unit = null, highlight: bool = false) -> void:
+	on_hit(make_hit_context(amount, source, highlight))
+
+
+## The HitContext take_damage() uses: pre-scaled PHYSICAL damage, no crit,
+## no feel of its own (callers keep their own shake and hitstop).
+func make_hit_context(amount: float, source: Unit = null, highlight: bool = false) -> HitContext:
+	var ctx := HitContext.new()
+	ctx.source = source
+	ctx.target = self
+	ctx.base_damage = amount
+	ctx.raw_damage = amount
+	ctx.can_crit = false
+	ctx.highlight = highlight
+	ctx.add_tag(HitContext.get_damage_type_tag(ctx.damage_type))
+	return ctx
+
+
+## The defender's half of the hit pipeline (COMBAT.md, Architecture). Starts
+## from ctx.raw_damage (HitPipeline.resolve() fills it in). In order:
+## i-frames, mitigation, health, knockback, events. Interactables use the
+## same method name.
+func on_hit(ctx: HitContext) -> void:
 	if not _alive or is_invulnerable():
+		ctx.blocked = true
 		return
-	health.take_damage(amount)
-	damaged.emit(amount, source)
-	_spawn_damage_number(amount, highlight)
+	ctx.target = self
+	ctx.taken_damage = HitPipeline.mitigate(ctx.raw_damage, ctx.damage_type, stats_component)
+	var before := health.current
+	health.take_damage(ctx.taken_damage)   # may die here (_on_died runs)
+	ctx.health_lost = before - health.current
+	ctx.killed = not _alive
+	damaged.emit(ctx.taken_damage, ctx.source)
+	_spawn_damage_number(ctx.taken_damage, ctx.highlight)
 	_flash()
+	if ctx.knockback_px > 0.0 and _alive:
+		_apply_knockback(ctx)
+	Events.unit_hit.emit(ctx)
+	if ctx.taken_damage > 0.0:
+		Events.unit_damaged.emit(ctx)
+	if ctx.killed:
+		Events.unit_died.emit(self, ctx)
+
+
+## Pushes away from ctx.knockback_from (default: the source) by
+## ctx.knockback_px over ctx.knockback_duration.
+func _apply_knockback(ctx: HitContext) -> void:
+	var from := ctx.knockback_from
+	if from == Vector2.INF:
+		from = ctx.source.global_position if is_instance_valid(ctx.source) else global_position
+	var duration := maxf(ctx.knockback_duration, 0.01)
+	var dir := (global_position - from).normalized()
+	movement.displace(dir * ctx.knockback_px / duration, duration, ctx.knockback_curve)
 
 
 # --- Crowd control ------------------------------------------------------------
@@ -138,16 +189,19 @@ func is_stunned() -> bool:
 	return has_node("StunEffect")
 
 
+## Hitbox overlaps go through the hit pipeline too (no scene has a Hitbox
+## yet). Hitbox.knockback is a push speed held for HURTBOX_KNOCKBACK_TIME.
 func _on_hurtbox_hurt(hitbox: Hitbox) -> void:
 	if is_invulnerable():
 		return
 	var source := hitbox.owner as Unit
 	if source and not source.is_enemy_of(self):
 		return
-	take_damage(hitbox.damage, source)
-	if hitbox.knockback > 0.0 and _alive:
-		var dir := (global_position - hitbox.get_source_position()).normalized()
-		movement.displace(dir * hitbox.knockback, 0.12)
+	var ctx := make_hit_context(hitbox.damage, source)
+	ctx.knockback_px = hitbox.knockback * HURTBOX_KNOCKBACK_TIME
+	ctx.knockback_duration = HURTBOX_KNOCKBACK_TIME
+	ctx.knockback_from = hitbox.get_source_position()
+	on_hit(ctx)
 
 
 func _flash() -> void:

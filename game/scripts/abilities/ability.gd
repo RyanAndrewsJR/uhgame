@@ -50,6 +50,11 @@ enum Targeting {
 @export var base_damage: float = 0.0
 ## Fraction of the caster's attack damage added to base_damage.
 @export var ad_ratio: float = 0.0
+## PHYSICAL (armor), MAGIC (magic_resist) or TRUE (ignores both). COMBAT.md.
+@export var damage_type: HitContext.DamageType = HitContext.DamageType.PHYSICAL
+## Scales on-hit chances and effects (COMBAT C8). 1.0 = full; lower it for
+## multi-hit or area abilities.
+@export var proc_coefficient: float = 1.0
 
 
 ## Damage this ability deals with the caster's current stats.

@@ -1,0 +1,81 @@
+class_name HitContext
+extends RefCounted
+## One hit: one application of damage and effects to a unit (COMBAT.md).
+## The attacker fills in the inputs; the hit pipeline (HitPipeline.resolve()
+## and the target's on_hit()) fills in the results.
+
+enum DamageType {
+	PHYSICAL,  ## Reduced by armor.
+	MAGIC,     ## Reduced by magic_resist.
+	TRUE,      ## Ignores both.
+}
+
+## Hit feel tier (COMBAT.md, Numbers). A kill upgrades it (COMBAT C3).
+enum Feel { NONE, LIGHT, HEAVY }
+
+const DAMAGE_TYPE_TAGS: Array[StringName] = [&"physical", &"magic", &"true"]
+
+# --- Inputs ---------------------------------------------------------------------
+
+## Who dealt the hit. null = the environment. Kill credit goes here.
+var source: Unit
+## What was hit: a Unit, or an interactable with on_hit(ctx).
+var target: Node
+## The ability that caused the hit. null for basic attacks, statuses,
+## hazards and knockback.
+var ability: Ability
+var base_damage: float = 0.0
+## Fractions of the source's attack_damage / ability_power added to base_damage.
+var ad_ratio: float = 0.0
+var ap_ratio: float = 0.0
+var damage_type: DamageType = DamageType.PHYSICAL
+## basic_attack, ability, proc, dot, crit, the damage type tag, plus the
+## ability's tags. add_tag() avoids duplicates.
+var tags: Array[StringName] = []
+## False for DoT ticks and wrapped take_damage() calls.
+var can_crit: bool = true
+## Scales on-hit chances and effects (COMBAT C8).
+var proc_coefficient: float = 1.0
+## Push distance in px. 0 = no knockback.
+var knockback_px: float = 0.0
+var knockback_duration: float = 0.1
+## null = the target's MovementComponent.knockback_curve.
+var knockback_curve: Curve
+## The push goes away from this point. INF = the source's position.
+var knockback_from: Vector2 = Vector2.INF
+## Statuses applied after the damage (COMBAT C9).
+var statuses: Array = []
+var feel: Feel = Feel.NONE
+## Makes the damage number stand out. Kept from take_damage(highlight)
+## until abilities build their own contexts.
+var highlight: bool = false
+
+# --- Results (filled in by the pipeline) -------------------------------------
+
+## Damage before mitigation.
+var raw_damage: float = 0.0
+## Damage after mitigation (and incoming_damage, COMBAT C8): "damage taken".
+var taken_damage: float = 0.0
+## Taken by shields (COMBAT C10).
+var absorbed: float = 0.0
+## Health actually lost (capped by the health that was left).
+var health_lost: float = 0.0
+var is_crit: bool = false
+## Blocked by invulnerability (i-frames) or a dead target: nothing happened.
+var blocked: bool = false
+## This hit killed the target.
+var killed: bool = false
+
+
+func add_tag(tag: StringName) -> void:
+	if not tags.has(tag):
+		tags.append(tag)
+
+
+func has_tag(tag: StringName) -> bool:
+	return tags.has(tag)
+
+
+## &"physical", &"magic" or &"true".
+static func get_damage_type_tag(type: DamageType) -> StringName:
+	return DAMAGE_TYPE_TAGS[type]
