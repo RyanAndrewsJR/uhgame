@@ -16,9 +16,12 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 		Color(1, 1, 1, 0.85), 0.13, side)
 
 	var hits := filter_by_walls(origin, AbilityUtil.in_cone(caster, origin, ctx.direction, reach, half))
+	var crit_roll := HitContext.CritRoll.new()   # one crit roll per cast
 	for u in hits:
 		# Through the hit pipeline (COMBAT C8): crits, damage_increase, on-hit, tags.
-		var hit := HitPipeline.resolve(HitPipeline.from_ability(caster, self, u))
+		var hit := HitPipeline.from_ability(caster, self, u)
+		hit.crit_roll = crit_roll
+		HitPipeline.resolve(hit)
 		if hit.blocked:
 			continue
 		var push := (u.global_position - origin).normalized()

@@ -38,8 +38,11 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 		hits = hits.filter(func(u: Unit) -> bool:
 			var near := Geometry2D.get_closest_point_to_segment(u.global_position, start, end)
 			return WorldQuery.has_line_of_sight(near, u.global_position))
+	var crit_roll := HitContext.CritRoll.new()   # one crit roll per cast
 	for u in hits:
-		HitPipeline.resolve(HitPipeline.from_ability(caster, self, u))   # COMBAT C8
+		var hit := HitPipeline.from_ability(caster, self, u)   # COMBAT C8
+		hit.crit_roll = crit_roll
+		HitPipeline.resolve(hit)
 		VFX.impact(u.get_parent(), u.global_position, Color(icon_color, 0.8), 36.0, 0.2)
 	if not hits.is_empty():
 		GameFeel.shake(2.5)

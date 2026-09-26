@@ -15,6 +15,15 @@ enum Feel { NONE, LIGHT, HEAVY }
 
 const DAMAGE_TYPE_TAGS: Array[StringName] = [&"physical", &"magic", &"true"]
 
+
+## One crit roll shared by every hit of one swing or cast (COMBAT.md, Crits):
+## the first hit rolls, the others copy its result, so the swing crits
+## everyone or no one and the attacker's PRD counter moves once.
+class CritRoll:
+	extends RefCounted
+	var decided: bool = false
+	var is_crit: bool = false
+
 # --- Inputs ---------------------------------------------------------------------
 
 ## Who dealt the hit. null = the environment. Kill credit goes here.
@@ -34,6 +43,9 @@ var damage_type: DamageType = DamageType.PHYSICAL
 var tags: Array[StringName] = []
 ## False for DoT ticks and wrapped take_damage() calls.
 var can_crit: bool = true
+## Shared by the hits of one swing or cast (HitContext.CritRoll.new()).
+## null = this hit rolls on its own.
+var crit_roll: CritRoll
 ## Scales on-hit chances and effects (COMBAT C8).
 var proc_coefficient: float = 1.0
 ## Push distance in px. 0 = no knockback.

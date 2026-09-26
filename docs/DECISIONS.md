@@ -189,6 +189,7 @@
 | 2026-09-26 | C8: League-style enemy basic attacks are tagged `basic_attack` (still `take_damage()`-style: pre-scaled, can't crit). | One set of rules for every Unit: enemy on-hit stats and `hit:basic_attack` modifiers work when enemies get them. Enemies have none, so nothing changes. |
 | 2026-09-26 | C8: Cleave's push and Judgement's stun now skip hits the pipeline blocked (i-frames, dead). Iron Resolve needs no migration: its bonus is already part of the swing's pipeline hit, so it crits with the swing. | "Invulnerability blocks the whole hit." Enemies have no i-frames, so nothing changes in play. |
 | 2026-09-26 | C8: crit rolls use `HitPipeline.crit_rng` (a shared RandomNumberGenerator) instead of the global `randf()`. `crit_chance` ≥ 1 always crits, ≤ 0 never rolls. | Tests seed it for repeatable rolls; the edge values never depend on the roll. |
+| 2026-09-26 | Crits use PRD (pseudo-random distribution, League/Dota style) instead of plain dice rolls: the Nth roll since the unit's last crit crits with chance C × N, C chosen so the average is exactly `crit_chance`. One counter per unit (`Unit.crit_misses`). One roll per swing or ability cast, shared by every enemy it hits (`HitContext.CritRoll`). | Ryan's call: at 25% plain dice gave frequent back-to-back crits (25% after a crit, dry spells up to ~35 hits); PRD makes it ~8.5% and at most 11 misses in a row. One roll per swing reads as "that swing crit" and a pack doesn't burn through the counter. |
 
 ## World Interaction
 | Date | Decision | Why |

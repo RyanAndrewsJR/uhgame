@@ -25,7 +25,7 @@ extends Node2D
 ## casts (Cleave cooldown and damage, Lunge range, hit tags) and removing it
 ## restores them.
 ## C8: the Knight's abilities through HitPipeline.from_ability() (numbers
-## unchanged, tags), crits, damage_increase with hit / target scopes,
+## unchanged, tags), crits (PRD, one roll per swing or cast), damage_increase with hit / target scopes,
 ## incoming_damage, on-hit damage, life on hit, life steal, resource on hit.
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
@@ -1516,6 +1516,65 @@ func _test_c8_crits() -> void:
 	var crits := _count_crits(nothing, 400)
 	_report(crits >= 70 and crits <= 130, "25%% crit: about 100 crits in 400 rolls (%d)" % crits, "got %d" % crits)
 	knight.stats_component.remove_modifiers_from(&"test_c8")
+
+	_section("C8: PRD crits (one roll per swing)")
+	_check_near("the PRD constant for 25% is 0.0847 (as in Dota)", HitPipeline.get_prd_constant(0.25), 0.0847, 0.0001)
+	_check_near("and for 50% 0.3021", HitPipeline.get_prd_constant(0.5), 0.3021, 0.0001)
+	knight.stats_component.add_modifier(StatModifier.create(&"crit_chance", FLAT, 0.25, &"test_c8"))
+	knight.crit_misses = 0
+	HitPipeline.crit_rng.seed = 21
+	var rolls := _roll_stats(nothing, 4000)
+	_check_near("4000 rolls at 25%: 25% crits", rolls.rate, 0.25, 0.02)
+	_check_near("a crit right after a crit: ~8.5% (plain dice: 25%)", rolls.after_crit, 0.085, 0.03)
+	_report(rolls.longest_dry <= 11, "never more than 11 misses in a row (%d)" % rolls.longest_dry, "got %d" % rolls.longest_dry)
+	knight.crit_misses = 0
+	var first := HitPipeline.roll_prd(knight, 0.25)
+	_check("a miss moves the counter up by 1, a crit resets it", knight.crit_misses, 0 if first else 1)
+	knight.stats_component.remove_modifiers_from(&"test_c8")
+
+	knight.stats_component.add_modifier(StatModifier.create(&"crit_chance", FLAT, 0.5, &"test_c8"))
+	var second := _tough_dummy_at(Vector2(50, 0))
+	_place(dummy, knight.global_position + Vector2(50, 0))
+	_place(second, knight.global_position + Vector2(50, 20))
+	await _frames(2)
+	var shared_ok := true
+	var counter_ok := true
+	var swings_hit_both := true
+	for i in 4:
+		var misses := knight.crit_misses
+		var swing_hits := await _record_hits(func() -> void: await _swing_once())
+		swings_hit_both = swings_hit_both and swing_hits.size() == 2
+		if swing_hits.size() == 2:
+			shared_ok = shared_ok and swing_hits[0].is_crit == swing_hits[1].is_crit
+			counter_ok = counter_ok and knight.crit_misses == (0 if swing_hits[0].is_crit else misses + 1)
+		_place(dummy, knight.global_position + Vector2(50, 0))
+		_place(second, knight.global_position + Vector2(50, 20))
+	_check("(4 real swings each hit both dummies)", swings_hit_both, true)
+	_check("a swing crits both dummies or neither", shared_ok, true)
+	_check("and moves the counter once per swing, not per dummy", counter_ok, true)
+	shared_ok = true
+	counter_ok = true
+	for i in 6:
+		var misses := knight.crit_misses
+		var cast_hits := await _record_hits(func() -> void: await _cast(&"q", knight.global_position + Vector2(100, 10)))
+		if cast_hits.size() == 2:
+			shared_ok = shared_ok and cast_hits[0].is_crit == cast_hits[1].is_crit
+			counter_ok = counter_ok and knight.crit_misses == (0 if cast_hits[0].is_crit else misses + 1)
+		else:
+			shared_ok = false
+		_place(dummy, knight.global_position + Vector2(50, 0))
+		_place(second, knight.global_position + Vector2(50, 20))
+		await _hitstop_over()
+	_check("Cleave on 2 dummies (6 casts): one shared roll per cast", [shared_ok, counter_ok], [true, true])
+	knight.stats_component.remove_modifiers_from(&"test_c8")
+	knight.stats_component.add_modifier(StatModifier.create(&"crit_chance", FLAT, 0.1, &"test_c8"))
+	knight.crit_misses = 0
+	var a := HitPipeline.resolve(HitPipeline.basic_attack(knight, nothing, knight.attack.combo.swings[0])).is_crit
+	var b := HitPipeline.resolve(HitPipeline.basic_attack(knight, nothing, knight.attack.combo.swings[0])).is_crit
+	_check("hits without a shared roll each roll: the counter moves per hit", knight.crit_misses, 0 if b else (1 if a else 2))
+	knight.stats_component.remove_modifiers_from(&"test_c8")
+	second.queue_free()
+
 	knight.stats_component.add_modifier(StatModifier.create(&"crit_chance", FLAT, 1.0, &"test_c8", &"hit:basic_attack"))
 	var swing := HitPipeline.resolve(HitPipeline.basic_attack(knight, dummy, knight.attack.combo.swings[0]))
 	var cleave := HitPipeline.resolve(HitPipeline.from_ability(knight, knight.abilities.q, dummy))
@@ -1710,6 +1769,27 @@ func _record_hits(action: Callable) -> Array[HitContext]:
 	await action.call()
 	Events.unit_hit.disconnect(record)
 	return hits
+
+
+## PRD roll stats over `n` Knight basic attack hits on a target without
+## on_hit(): crit rate, crit rate right after a crit, longest run of misses.
+func _roll_stats(target: Node, n: int) -> Dictionary:
+	var crits := 0
+	var after := 0
+	var crit_after := 0
+	var dry := 0
+	var longest := 0
+	var previous := false
+	for i in n:
+		var crit := HitPipeline.resolve(HitPipeline.basic_attack(knight, target, knight.attack.combo.swings[0])).is_crit
+		crits += 1 if crit else 0
+		dry = 0 if crit else dry + 1
+		longest = maxi(longest, dry)
+		if previous:
+			after += 1
+			crit_after += 1 if crit else 0
+		previous = crit
+	return {"rate": float(crits) / n, "after_crit": float(crit_after) / maxf(after, 1.0), "longest_dry": longest}
 
 
 ## Crits in `n` Knight basic attack hits on a target without on_hit().

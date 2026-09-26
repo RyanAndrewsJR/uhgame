@@ -49,6 +49,9 @@ var hovered: bool = false:
 			hovered = value
 			queue_redraw()
 
+## Crit rolls since this unit's last crit (PRD, HitPipeline.roll_prd()).
+var crit_misses: int = 0
+
 var _alive: bool = true
 var _dot_number: Label   # the latest DoT number, to merge the next tick into
 var _invulnerable: Dictionary = {}   # id -> true (e.g. &"dash" i-frames)

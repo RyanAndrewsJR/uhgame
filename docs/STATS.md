@@ -42,7 +42,7 @@ Existing `UnitStats` fields keep their names. New ones get added to `UnitStats`.
 | `attack_damage` | 60 | 0 / - | exists |
 | `ability_power` | 0 | 0 / - | |
 | `attack_speed` | base = `UnitStats.base_attack_speed` (0.65) | 0.2 / the unit's `attack_speed_cap` (2.5) | % modifiers = LoL bonus attack speed. `attack_speed_cap` is a per-unit maximum for this stat, not a stat |
-| `crit_chance` | 0 | 0 / 1 | |
+| `crit_chance` | 0 | 0 / 1 | the average; rolled with PRD, one roll per swing or cast (COMBAT.md, Hits) |
 | `crit_damage` | 1.75 | 1 / - | multiplier. COMBAT.md's default for every unit (since COMBAT C8; still nothing changes in play: `crit_chance` is 0) |
 | `armor` | 0 | - / - | mitigation formula in COMBAT.md (proposed: damage × 100 / (100 + armor)) |
 | `magic_resist` | 0 | - / - | |
