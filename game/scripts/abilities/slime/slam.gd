@@ -24,11 +24,13 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 	var parent := caster.get_parent()
 	VFX.ring(parent, ctx.point, radius_px * 0.4, radius_px, telegraph_color, 0.25, 3.0)
 	var landed := false
+	var crit_roll := HitContext.CritRoll.new()   # one crit roll per cast
 	# Walls block it: someone on the far side of a wall inside the circle is safe.
 	for u in filter_by_walls(ctx.point, AbilityUtil.in_circle(caster, ctx.point, radius_px * (1.0 - enemy_hit_forgiveness))):
 		var hit := HitPipeline.from_ability(caster, self, u)
 		hit.knockback_px = knockback_px
 		hit.knockback_from = caster.global_position
+		hit.crit_roll = crit_roll
 		HitPipeline.resolve(hit)
 		landed = landed or not hit.blocked
 	if landed:

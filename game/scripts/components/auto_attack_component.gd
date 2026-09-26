@@ -569,8 +569,10 @@ func _land_swing() -> void:
 			if mod.on_hit.is_valid():
 				on_hits.append(mod.on_hit)
 		_next_attack_mods.clear()
+	var crit_roll := HitContext.CritRoll.new()   # one crit roll per swing
 	for t in targets:
 		var ctx := HitPipeline.basic_attack(unit, t, _swing)
+		ctx.crit_roll = crit_roll
 		ctx.base_damage += bonus
 		ctx.highlight = empowered
 		HitPipeline.resolve(ctx)

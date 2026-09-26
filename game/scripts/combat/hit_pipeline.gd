@@ -12,6 +12,8 @@ class_name HitPipeline
 
 ## Every crit roll uses it. Tests seed it for repeatable rolls.
 static var crit_rng := RandomNumberGenerator.new()
+## PRD constant per crit chance (get_prd_constant()), computed once each.
+static var _prd_constants: Dictionary = {}
 
 
 ## Runs the attacker's stages, then the target's on_hit(ctx). Returns ctx
@@ -99,20 +101,77 @@ static func get_damage_increase(ctx: HitContext, scopes: Array[StringName]) -> f
 	return ctx.source.stats_component.get_scoped_stat(&"damage_increase", scopes)
 
 
-## Stage 4: rolls the source's crit_chance (scoped like damage_increase).
-## A crit multiplies raw_damage by crit_damage (1.75 default), sets
-## is_crit and adds the &"crit" tag. Hits with can_crit false (DoT ticks,
-## procs, take_damage()) and hits without a source never crit.
+## Stage 4: the crit (COMBAT.md, Crits). The source's crit_chance (scoped
+## like damage_increase) is rolled with PRD (roll_prd()). Hits sharing a
+## ctx.crit_roll (one swing or cast) use the first hit's result. A crit
+## multiplies raw_damage by crit_damage (1.75 default), sets is_crit and
+## adds the &"crit" tag. Hits with can_crit false (DoT ticks, procs,
+## take_damage()) and hits without a source never crit or roll.
 static func roll_crit(ctx: HitContext, scopes: Array[StringName]) -> void:
 	if not ctx.can_crit or not is_instance_valid(ctx.source) or ctx.source.stats_component == null:
 		return
 	var stats := ctx.source.stats_component
-	var chance := stats.get_scoped_stat(&"crit_chance", scopes)
-	if chance <= 0.0 or (chance < 1.0 and crit_rng.randf() >= chance):
+	var shared := ctx.crit_roll
+	var crit: bool
+	if shared != null and shared.decided:
+		crit = shared.is_crit
+	else:
+		crit = roll_prd(ctx.source, stats.get_scoped_stat(&"crit_chance", scopes))
+		if shared != null:
+			shared.decided = true
+			shared.is_crit = crit
+	if not crit:
 		return
 	ctx.is_crit = true
 	ctx.add_tag(&"crit")
 	ctx.raw_damage *= stats.get_scoped_stat(&"crit_damage", scopes)
+
+
+## One PRD roll (pseudo-random distribution, as in League and Dota) for
+## `unit`: the Nth roll since its last crit crits with chance C x N (C from
+## get_prd_constant()), so crits come evenly spaced and average exactly
+## `chance`. Chance >= 1 always crits, <= 0 never rolls. Moves
+## unit.crit_misses: 0 after a crit, +1 after a miss.
+static func roll_prd(unit: Unit, chance: float) -> bool:
+	if chance <= 0.0:
+		return false
+	var crit := chance >= 1.0
+	if not crit:
+		var now := minf(get_prd_constant(chance) * (unit.crit_misses + 1), 1.0)
+		crit = now >= 1.0 or crit_rng.randf() < now
+	unit.crit_misses = 0 if crit else unit.crit_misses + 1
+	return crit
+
+
+## The PRD constant C for an average chance P (0.25 -> about 0.0847):
+## found by bisection so that 1 / (expected rolls per crit) = P.
+static func get_prd_constant(chance: float) -> float:
+	var key := snappedf(clampf(chance, 0.0001, 1.0), 0.0001)
+	if _prd_constants.has(key):
+		return _prd_constants[key]
+	var low := 0.0
+	var high := key
+	for i in 40:
+		var c := (low + high) * 0.5
+		if _prd_average(c) > key:
+			high = c
+		else:
+			low = c
+	_prd_constants[key] = (low + high) * 0.5
+	return _prd_constants[key]
+
+
+## The average crit chance PRD constant `c` gives: 1 / expected rolls per crit.
+static func _prd_average(c: float) -> float:
+	var expected := 0.0
+	var none_yet := 1.0   # chance that no crit happened before roll n
+	var n := 1
+	while none_yet > 0.0:
+		var p := minf(c * n, 1.0)
+		expected += n * none_yet * p
+		none_yet *= 1.0 - p
+		n += 1
+	return 1.0 / expected
 
 
 ## The source's on-hit effects for a hit that got through (COMBAT.md,
