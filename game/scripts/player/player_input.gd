@@ -9,8 +9,8 @@ extends Node
 ##   at a time: a newer press replaces an older one. The timer pauses while a
 ##   dash, a cast or a basic attack swing is playing out, so a press during
 ##   one fires when it ends.
-## - Dash (Space): toward the cursor at the moment of the press
-##   (dash_toward_cursor); off: the held direction, or facing if none.
+## - Dash (Space): toward the cursor at the moment of the press, or the held
+##   direction (facing if none): the player's choice (Settings, pause menu).
 ## - Attack (left mouse): the next swing of the basic attack combo toward the
 ##   cursor (AutoAttackComponent.try_swing(), COMBAT.md). A press during a
 ##   swing queues the next one. A legal press also emits
@@ -38,7 +38,9 @@ const MOVE_ACTIONS: Array[StringName] = [&"move_up", &"move_down", &"move_left",
 @export var dash_strike_window: float = 0.1
 ## On: the dash goes toward the cursor as it was when Space was pressed (a
 ## buffered dash keeps that direction). Off: the held WASD direction, or
-## facing if none (the old behavior).
+## facing if none (the old behavior). The player picks this in the pause
+## menu: it's set from Settings at start and whenever they change it, so an
+## Inspector value only lasts until then.
 @export var dash_toward_cursor: bool = true
 
 ## Held movement direction this frame (length 0..1, diagonals normalized).
@@ -59,6 +61,17 @@ func _ready() -> void:
 	assert(player != null, "PlayerInput must be a child of a Player")
 	# Run before MovementComponent so this frame's input moves this frame.
 	process_physics_priority = -10
+	_apply_dash_direction()
+	Settings.setting_changed.connect(_on_settings_setting_changed)
+
+
+func _apply_dash_direction() -> void:
+	dash_toward_cursor = Settings.get_dash_direction() == Settings.DashDirection.CURSOR
+
+
+func _on_settings_setting_changed(key: StringName, _value: Variant) -> void:
+	if key == Settings.DASH_DIRECTION:
+		_apply_dash_direction()
 
 
 ## Notes a movement press that starts while a cast is already running, for

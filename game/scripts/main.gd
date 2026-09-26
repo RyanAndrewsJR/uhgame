@@ -6,12 +6,14 @@ const ClickMarker := preload("res://scripts/ui/click_marker.gd")
 
 @export var room_scene: PackedScene = preload("res://scenes/rooms/room_01.tscn")
 @export var player_scene: PackedScene = preload("res://scenes/player/player.tscn")
+@export var pause_menu_scene: PackedScene = preload("res://scenes/ui/pause_menu.tscn")
 
 @onready var hud: CanvasLayer = $HUD
 @onready var camera: Camera2D = $Camera
 
 var room: Room
 var player: Player
+var pause_menu: PauseMenu
 var _game_over := false
 
 
@@ -41,6 +43,9 @@ func _ready() -> void:
 
 	_setup_camera()
 
+	pause_menu = pause_menu_scene.instantiate()
+	add_child(pause_menu)
+
 
 func _process(_delta: float) -> void:
 	if not is_instance_valid(player):
@@ -57,6 +62,10 @@ func _process(_delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("restart"):
 		get_tree().reload_current_scene()
+	elif event.is_action_pressed("ui_cancel") and not pause_menu.is_open():
+		# Esc pauses. An Esc that cancels an aimed ability never gets here:
+		# Player handles it first (deeper in the tree) and marks it handled.
+		pause_menu.open()
 
 
 func _setup_camera() -> void:

@@ -19,6 +19,8 @@
 | 2026-09-25 | ~~Order of work: Movement step 8 (pits) → STATS build steps → then the Future docs in their listed order (CLAUDE.md).~~ Superseded 2026-09-25, see below. | STATS.md is already written, so its build steps come before writing COMBAT.md. |
 | 2026-09-25 | ~~Order of work: STATS build steps → then the Future docs in their listed order (CLAUDE.md).~~ Superseded 2026-09-26, see below. Movement step 8 (pits) is removed from the plan. | Ryan's call. |
 | 2026-09-26 | Order of work: COMBAT C1–C7 → milestone M1 → STATS step 6 → COMBAT C8–C12; STATS step 7 (F3 overlay) after M1; then the other Future docs. Until STATS step 6, hits carry no ability tags. | Ryan's call: combat now. C8's `hit:<tag>` scopes need STATS step 6's scoped modifiers. |
+| 2026-09-26 | Player preferences live in a `Settings` autoload saved to `user://settings.cfg` (ConfigFile, values stored as words). Designer tuning never goes there; it stays in exports and .tres files. Gameplay reads a getter and listens to `setting_changed`, so a change applies at once. | The first player-facing option (dash direction) needed a home that survives restarts. One autoload keeps every future option (volume, keybinds, screen shake) in one file. |
+| 2026-09-26 | Esc opens a pause menu (`PauseMenu`, `scenes/ui/pause_menu.tscn`, added by `main.gd`) that pauses the tree and holds the options; Esc or Resume closes it. An Esc that cancels an aimed ability is marked handled by `player.gd`, so it never also pauses. The menu moves into UI.md when that's written. | Ryan's pick over a hotkey toggle: players can find it, and it grows into the real options menu. Esc already cancelled aims, and cancelling first matches how games treat Esc. |
 
 ## Conventions
 | Date | Decision | Why |
@@ -83,6 +85,7 @@
 | 2026-09-26 | The player can dash during knockback caused by being hit: the dash replaces that displacement (i-frames as usual). Other displacements still block the dash. Built in COMBAT C4. | Ryan's call. A dash is always the way out, and being hit shouldn't delay it. |
 | 2026-09-26 | The player can also dash during a melee swing step (a dash-cancelable displacement); the dash replaces it. `displace(..., dash_cancelable)` is the one mechanism for these exceptions. | Ryan's spec for melee basic attacks: a dash during the step replaces it. |
 | 2026-09-26 | The dash goes toward the cursor as it was at the moment Space was pressed (`Player.get_aim_direction()`, so `facing` if the cursor is on the player), not the held WASD direction. A buffered dash keeps the direction from its press. The old behavior stays behind `PlayerInput.dash_toward_cursor = false`. | Ryan's call. Aim already drives attacks and abilities, so the dash follows the same hand; WASD stays free for walking. Kept as a flag per the change policy (disable before deleting). |
+| 2026-09-26 | Dash direction is the player's choice: Cursor (default) or Move keys (WASD), in the Esc pause menu, saved in `Settings`. PlayerInput copies it into `dash_toward_cursor`. | Ryan's call: both styles are valid; players pick. |
 
 ## Stats
 | Date | Decision | Why |

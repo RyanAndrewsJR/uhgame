@@ -71,6 +71,7 @@ New subfolders inside these are fine. Ask before adding a new top-level folder.
 - `GameFeel` (`scripts/autoload/game_feel.gd`): `hitstop()`, `shake()`
 - `Events` (`scripts/autoload/events.gd`): global signal bus. `unit_hit`, `unit_damaged`, `unit_died` (COMBAT.md)
 - `WorldQuery` (`scripts/autoload/world_query.gd`): spatial queries; only `has_line_of_sight()` so far (docs/WORLD_INTERACTION.md)
+- `Settings` (`scripts/autoload/settings.gd`): the player's own options, saved to `user://settings.cfg`; `setting_changed(key, value)`. Only dash direction so far (MOVEMENT.md, Dash). Changed in the Esc pause menu (`PauseMenu`, `scenes/ui/pause_menu.tscn`).
 
 ## Change policy (important)
 The game in `game/` is the **reference build**. It works, and changes build on it.
@@ -106,11 +107,11 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 
 ## Current status
 <!-- OVERWRITE this whole section at the end of each session (Now / Last 3 done / Next). Never append. -->
-- **Now:** Waiting on Ryan's play test of melee basic attacks (swing step, target pull, walk-cancel). Still open: play tests of STATS step 5, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of the dash direction option (Esc pause menu, `Settings` autoload) and melee basic attacks (swing step, target pull, walk-cancel). Still open: play tests of STATS step 5, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. Melee basic attacks: every MELEE combo swing steps forward (`lunge_px`) and pulls toward an aimed enemy with an aim snap (`lunge_max_px`, assist settings on AttackCombo), walking ends the recovery's root, `attack_style` MELEE/RANGED, minimal `WorldQuery.has_line_of_sight()`. Combat test 153/153, stats test 143/143, in-game check 21/21.
-  2. COMBAT C2: the Knight's combo (`AttackSwing`, `AttackCombo`, `combo_knight.tres`, combo mode on AutoAttackComponent), rooted swings, dash / stun / ability (`Ability.cancels_swing`) cancels, the buffer waits out swings, Iron Resolve through swings, `select` unbound.
-  3. COMBAT C1: `Events` autoload, `HitContext`, `HitPipeline`, `Unit.on_hit()`; `take_damage()` and Hurtbox hits wrapped.
+  1. Dash direction option: dash toward the cursor at press time (default) or WASD, chosen in a new Esc pause menu and saved by a new `Settings` autoload. Stats 143/143, combat 153/153, in-game check 21/21.
+  2. Melee basic attacks: every MELEE combo swing steps forward (`lunge_px`) and pulls toward an aimed enemy with an aim snap (`lunge_max_px`, assist settings on AttackCombo), walking ends the recovery's root, `attack_style` MELEE/RANGED, minimal `WorldQuery.has_line_of_sight()`. Combat test 153/153, stats test 143/143, in-game check 21/21.
+  3. COMBAT C2: the Knight's combo (`AttackSwing`, `AttackCombo`, `combo_knight.tres`, combo mode on AutoAttackComponent), rooted swings, dash / stun / ability (`Ability.cancels_swing`) cancels, the buffer waits out swings, Iron Resolve through swings, `select` unbound.
 - **Next:** COMBAT C3 (hit feel) → C7 → milestone M1 (one-room fight in the sandbox) → STATS step 6 → COMBAT C8–C12. STATS step 7 (F3 overlay) after M1. Then the Future docs in their listed order.
 
 ## Known issues (leave for now)
@@ -129,4 +130,4 @@ All decisions, grouped by system with date and why, are in `docs/DECISIONS.md`.
 4. `LOOT.md`: item bases, rarities, affix pools, drop tables
 5. `ENEMIES_AI.md`: behaviors, aggro, elites, spawning
 6. `DUNGEONS.md`: room stitching, run structure
-7. `NPCS.md`, `UI.md`, `PROGRESSION.md` as needed
+7. `NPCS.md`, `UI.md`, `PROGRESSION.md` as needed. `UI.md` takes over the Esc pause menu and the player options (`Settings`), now described in MOVEMENT.md (Dash) and DECISIONS.md (General).

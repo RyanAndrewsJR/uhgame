@@ -117,7 +117,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		attack_move_armed = true
 	elif event.is_action_pressed("ui_cancel"):
 		attack_move_armed = false
-		aiming_slot = &""
+		if aiming_slot != &"":
+			aiming_slot = &""
+			queue_redraw()
+			# This Esc only cancels the aim; it doesn't open the pause menu.
+			get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("select") and attack_move_armed:
 		attack_move_armed = false
 		var enemy := _enemy_under_mouse()
