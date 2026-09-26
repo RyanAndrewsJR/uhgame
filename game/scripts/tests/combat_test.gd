@@ -10,6 +10,8 @@ extends Node2D
 ## pull and aim snap (with a wall for line of sight), dash / stun during the
 ## step, walking out of the recovery, and RANGED turning it all off. The
 ## combo sections run last: they end by killing the Knight.
+## C3: hit feel (hitstop and shake per tier, kills, longest-wins hitstops,
+## the flash; abilities and enemy hits unchanged).
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
@@ -34,6 +36,7 @@ var _hits: Array[HitContext] = []
 var _damaged: Array[HitContext] = []
 var _deaths: Array = []   # [unit, ctx]
 var _frame: int = 0
+var _game_time: float = 0.0   # physics time; stands nearly still during hitstops
 var _landed: Array = []   # [frame, index, targets.size()]
 
 
@@ -232,6 +235,7 @@ func _test_combo() -> void:
 	await _test_ability_during_swing()
 	await _test_iron_resolve_swing()
 	await _test_attack_speed()
+	await _test_hit_feel()
 	await _test_melee()
 	await _test_death_mid_swing()
 
@@ -263,6 +267,7 @@ func _test_swing_timing_and_damage() -> void:
 	var dummy := _dummy_at(Vector2(50, 0))
 	_landed.clear()
 	var start := _frame
+	var start_time := _game_time
 	_check("try_swing starts a swing", knight.attack.try_swing(Vector2.RIGHT), true)
 	_check("rooted while swinging", knight.movement.can_move(), false)
 	_check("can't start another swing mid-swing", knight.attack.try_swing(Vector2.RIGHT), false)
@@ -277,8 +282,10 @@ func _test_swing_timing_and_damage() -> void:
 	_check("swing 1 hits the dummy for 1.0 x 64 AD", dummy.health.max_health - dummy.health.current, 64.0)
 	_check("in recovery after the hit", knight.attack.is_in_recovery(), true)
 	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 30)
-	var total := _frame - start
-	_check_near("the swing lasts 0.3 s (18 frames)", total, 18.0, 1.0)
+	# Game time: the hit's light hitstop (0.03 s at time_scale 0.05) adds
+	# physics frames but almost no game time. The test's clock also counts
+	# the frame the swing started in, which the swing itself skips (+1/60).
+	_check_near("the swing lasts 0.3 s of game time (18 frames at 1/60 s)", _game_time - start_time, 0.3 + 1.0 / 60.0, 0.004)
 	_check("root released after the swing", knight.movement.can_move(), true)
 	_check("next swing is swing 2", knight.attack.get_combo_index(), 1)
 	dummy.queue_free()
@@ -441,6 +448,148 @@ func _test_attack_speed() -> void:
 	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
 	_check_near("the swing lasts 0.3 / 1.5 = 0.2 s (12 frames)", _frame - start, 12.0, 1.0)
 	knight.stats_component.remove_modifiers_from(&"test_attack_speed")
+
+
+# --- C3: hit feel -------------------------------------------------------------------
+
+var _shakes: Array[float] = []
+var _hitstop_at_hit: float = 0.0   # GameFeel.get_hitstop_left() read as a swing lands
+
+
+func _test_hit_feel() -> void:
+	var cam := _spy_camera()
+	var read_hitstop := func(_index: int, _targets: Array[Unit]) -> void:
+		_hitstop_at_hit = GameFeel.get_hitstop_left()
+	knight.attack.swing_landed.connect(read_hitstop)
+	await _test_hit_feel_data()
+	await _test_longest_hitstop()
+	await _test_swing_feel_tiers()
+	await _test_feel_unchanged_for_abilities()
+	await _test_flash()
+	knight.attack.swing_landed.disconnect(read_hitstop)
+	cam.queue_free()
+
+
+func _test_hit_feel_data() -> void:
+	_section("C3: hit feel numbers (hit_feel_default.tres)")
+	var f := GameFeel.hit_feel
+	_check("hitstop light / heavy / kill = 0.03 / 0.06 / 0.08", [f.light_hitstop, f.heavy_hitstop, f.kill_hitstop], [0.03, 0.06, 0.08])
+	_check("shake light / heavy / kill = 0 / 2 / 3 px", [f.light_shake, f.heavy_shake, f.kill_shake], [0.0, 2.0, 3.0])
+	_check("flash 0.06 s", f.flash_time, 0.06)
+	_check("combo feel: LIGHT / LIGHT / HEAVY",
+		[knight.attack.combo.swings[0].feel, knight.attack.combo.swings[1].feel, knight.attack.combo.swings[2].feel],
+		[HitContext.Feel.LIGHT, HitContext.Feel.LIGHT, HitContext.Feel.HEAVY])
+
+
+func _test_longest_hitstop() -> void:
+	_section("C3: overlapping hitstops: the longest wins")
+	await _hitstop_over()
+	GameFeel.hitstop(0.03)
+	_check("a hitstop slows time to 0.05", Engine.time_scale, 0.05)
+	GameFeel.hitstop(0.08)
+	_check_near("a longer one extends it to 0.08 s", GameFeel.get_hitstop_left(), 0.08, 0.005)
+	GameFeel.hitstop(0.02)
+	_check_near("a shorter one changes nothing", GameFeel.get_hitstop_left(), 0.08, 0.005)
+	await get_tree().create_timer(0.05, true, false, true).timeout
+	_check("still frozen at 0.05 s (the first would have ended)", GameFeel.is_hitstop_active(), true)
+	await get_tree().create_timer(0.05, true, false, true).timeout
+	_check("over by 0.10 s, time back to normal", [GameFeel.is_hitstop_active(), Engine.time_scale], [false, 1.0])
+
+
+func _test_swing_feel_tiers() -> void:
+	_section("C3: swing feel by tier")
+	await _reset_knight()
+	await _hitstop_over()
+	var dummy := _dummy_at(Vector2(50, 0))
+	var feel: Array = []   # [hitstop left at the hit, shakes]
+	for i in 3:
+		dummy.health.heal(1000.0)
+		_place(dummy, knight.global_position + Vector2(50, 0))
+		await _frames(1)
+		_shakes.clear()
+		knight.attack.try_swing(Vector2.RIGHT)
+		await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20)
+		feel.append([snappedf(_hitstop_at_hit, 0.01), _shakes.duplicate()])
+		await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+		await _hitstop_over()
+	_check("swing 1: light freeze 0.03 s, no shake", feel[0], [0.03, []])
+	_check("swing 2: light freeze 0.03 s, no shake", feel[1], [0.03, []])
+	_check("finisher: heavy freeze 0.06 s, 2 px shake", feel[2], [0.06, [2.0]])
+
+	await _reset_knight()
+	dummy.health.heal(1000.0)
+	dummy.health.take_damage(dummy.health.current - 10.0)   # 10 health left
+	_place(dummy, knight.global_position + Vector2(50, 0))
+	await _frames(1)
+	_shakes.clear()
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20)
+	_check("a kill: freeze 0.08 s, 3 px shake", [snappedf(_hitstop_at_hit, 0.01), _shakes], [0.08, [3.0]])
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+	await _hitstop_over()
+
+	await _reset_knight()
+	_shakes.clear()
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20)
+	_check("a whiff: no freeze, no shake", [GameFeel.is_hitstop_active(), _shakes], [false, []])
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+
+
+func _test_feel_unchanged_for_abilities() -> void:
+	_section("C3: abilities and enemy hits keep their own feel")
+	await _reset_knight()
+	await _hitstop_over()
+	var dummy := _dummy_at(Vector2(40, 0))
+	await _frames(1)
+	_shakes.clear()
+	var ctx := dummy.make_hit_context(10.0, knight)   # a take_damage() hit: feel NONE
+	dummy.on_hit(ctx)
+	_check("feel NONE (take_damage): no freeze, no shake", [GameFeel.is_hitstop_active(), _shakes], [false, []])
+	knight.request_cast(&"q")
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 40)
+	_check("Cleave: its own 3 px shake only", _shakes, [3.0])
+	await _hitstop_over()
+	_shakes.clear()
+	var blocked := _hit(dummy, 10.0, HitContext.DamageType.TRUE)
+	dummy.add_invulnerability(&"test")
+	var ctx2 := HitPipeline.basic_attack(knight, dummy, knight.attack.combo.swings[2])
+	HitPipeline.resolve(ctx2)
+	dummy.remove_invulnerability(&"test")
+	_check("a blocked hit: no feel", [ctx2.blocked, GameFeel.is_hitstop_active(), _shakes], [true, false, []])
+	_check("(pipeline hits default to feel NONE)", blocked.feel, HitContext.Feel.NONE)
+	dummy.queue_free()
+
+
+func _test_flash() -> void:
+	_section("C3: the hit flash")
+	await _hitstop_over()
+	var dummy := _dummy_at(Vector2(40, 0))
+	await _frames(1)
+	dummy.take_damage(5.0, knight)
+	_check("white at the hit", dummy.body.modulate, GameFeel.hit_feel.flash_modulate)
+	var t0 := _game_time
+	await _wait_until(func() -> bool: return _game_time - t0 >= 0.07, 20)
+	_check("back to normal after 0.06 s", dummy.body.modulate, Color.WHITE)
+	dummy.queue_free()
+
+
+## A camera that records GameFeel.shake() amounts.
+func _spy_camera() -> Camera2D:
+	var script := GDScript.new()
+	script.source_code = "extends Camera2D\nvar on_shake: Callable\nfunc shake(amount: float) -> void:\n\ton_shake.call(amount)\n"
+	script.reload()
+	var cam := Camera2D.new()
+	cam.set_script(script)
+	cam.set("on_shake", func(amount: float) -> void: _shakes.append(amount))
+	add_child(cam)
+	cam.make_current()
+	return cam
+
+
+func _hitstop_over() -> void:
+	while GameFeel.is_hitstop_active():
+		await get_tree().create_timer(0.02, true, false, true).timeout
 
 
 # --- Melee basic attacks ------------------------------------------------------------
@@ -701,8 +850,9 @@ func _wait_until(condition: Callable, max_frames: int) -> void:
 		await get_tree().physics_frame
 
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	_frame += 1
+	_game_time += delta
 
 
 # --- Helpers ------------------------------------------------------------------

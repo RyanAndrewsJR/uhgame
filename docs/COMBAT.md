@@ -140,8 +140,8 @@ What exists today and what happens to each piece (see Build order for when).
 | `Unit.take_damage(amount, source, highlight)` | Checks alive and invulnerable, lowers health, emits `damaged`, spawns a number, flashes. `Player.take_damage` adds a 2 px shake. Called by `AutoAttackComponent._land_attack`, `cleave.gd`, `lunge.gd`, `judgement.gd` and `Unit._on_hurtbox_hurt`. | **Wrapped** (C1, built): `make_hit_context()` builds a `HitContext` and `on_hit()` runs it from mitigation on. Armor is 0 everywhere, so nothing changes in play. `Player.take_damage`'s override is replaced by a `Player.on_hit` override with the same 2 px shake. |
 | `res://scripts/components/hitbox.gd`, `hurtbox.gd` | Area2D damage on overlap. `player.tscn` and `slime.tscn` have a Hurtbox (0.2 s own invincibility); **no scene has a Hitbox**. | **Kept, dormant.** `Unit._on_hurtbox_hurt` builds a `HitContext` (C1, built; the push is `Hitbox.knockback` px/s × 0.12 s, as before), so a future contact-damage enemy or projectile goes through the pipeline. |
 | `Unit.add_invulnerability(id)` | Dash i-frames (`&"dash"`) block `take_damage()` and Hurtbox hits. | **Kept.** `Unit.on_hit` checks it first. Post-hit i-frames add `&"hit_iframes"` (C4). |
-| `res://scripts/autoload/game_feel.gd` (`GameFeel`) | `hitstop(duration)`: `Engine.time_scale` 0.05; a second hitstop during one is ignored. `shake(amount)`: camera shake in px (the camera keeps the largest). | **Kept.** C3 changes `hitstop()` so the longest wins. |
-| `Unit._flash()` | Body modulate ×3, back to white over 0.12 s. | **Kept**, retuned to 0.06 s (C3). |
+| `res://scripts/autoload/game_feel.gd` (`GameFeel`) | `hitstop(duration)`: `Engine.time_scale` 0.05 (`hitstop_time_scale`). `shake(amount)`: camera shake in px (the camera keeps the largest). | **Kept, extended** (C3, built): the longest hitstop wins (a later call that ends later extends the running one); `play_hit_feel(ctx)` plays a hit's tier from `hit_feel`; `is_hitstop_active()`, `get_hitstop_left()`. |
+| `Unit._flash()` | Body modulate ×3, back to white over `hit_feel.flash_time` (0.12 s before C3). | **Kept**, retuned to 0.06 s for every hit (C3, built). |
 | `res://scripts/ui/damage_number.gd` | Label: 2 sizes (10 / 13 px), orange when `highlight`, red on the player, rises 18 px over 0.6 s, fades 0.2 s. | **Kept**, restyled in C6. |
 | `Unit.apply_stun()` + `res://scripts/vfx/stun_effect.gd` | A `StunEffect` child node holds `&"stun"` move and attack locks; re-stunning keeps the longer time. `is_stunned()` = has that node. | **Wrapped** (C9): creates `status_stun`; the stars become that status's VFX. |
 | `MovementComponent.add_speed_modifier()` | Wrapper over `move_speed` StatModifiers; only the timer is on MovementComponent. | **Wrapped** (C9): timed modifiers become statuses; the timer moves to StatusComponent. |
@@ -186,6 +186,9 @@ One per hit. Built by the attacker, filled in by the pipeline.
   - Recovery: `walk_cancels_recovery` (true), `recovery_move_cancel_after` (0.1 s).
 - Knight: `res://data/combos/combo_knight.tres` with the three swings from Numbers (0.08 / 0.3 s, 0.08 / 0.3 s, 0.08 / 0.4 s; 1.0 / 1.0 / 1.6; 110° / 110° / 140°; 6 / 6 / 20 px over 0.1 s; LIGHT / LIGHT / HEAVY; steps 6 / 6 / 10 px, pull up to 24 / 24 / 32 px; MELEE with the default assist and recovery settings).
 
+### HitFeel (Resource, `res://scripts/data/hit_feel.gd`; `res://data/hit_feels/hit_feel_default.tres`)
+The hit feel per tier (Numbers, "Feel per hit"), held by `GameFeel.hit_feel`: `light_hitstop` 0.03, `heavy_hitstop` 0.06, `kill_hitstop` 0.08 (s); `light_shake` 0, `heavy_shake` 2, `kill_shake` 3 (px); `flash_time` 0.06 s, `flash_modulate` (3, 3, 3). Built in C3.
+
 ### New fields on Ability
 - `damage_type: HitContext.DamageType` (PHYSICAL; the Knight's descriptions already say physical)
 - `proc_coefficient: float` (1.0)
@@ -226,7 +229,7 @@ One per hit. Built by the attacker, filled in by the pipeline.
   5. `damaged.emit()`, `Events.unit_hit`, `Events.unit_damaged` (when `taken_damage` > 0).
   6. On-hit (only `basic_attack` or `ability` hits, never `proc` or `dot`): `on_hit_damage` as a `proc` hit, `life_on_hit` and `resource_on_hit` × `proc_coefficient`, `life_steal` × `taken_damage` (basic attacks only, proposed).
   7. Death: `Events.unit_died(self, ctx)`; kill credit = `ctx.source`.
-  8. Feel (C3) and the damage number (C6).
+  8. Feel: `GameFeel.play_hit_feel(ctx)` (C3, built): the hit's tier (a kill uses the kill tier) sets the hitstop and shake; feel NONE plays nothing, so abilities and enemy basic attacks keep their own. Every hit that gets through flashes. The damage number comes in C6.
 - `Unit.take_damage(amount, source, highlight)` stays, as a wrapper (built in C1 through `Unit.make_hit_context()`): a `HitContext` with `base_damage = amount`, PHYSICAL, `can_crit = false`, feel `NONE` (callers keep their own shake and hitstop), then `on_hit()` directly (the amount is already scaled). `Player`'s "got hit" shake moves to a `Player.on_hit` override so pipeline hits get it too.
 - `res://scripts/components/status_component.gd`, **`StatusComponent`** (C9), a child of every Unit (`Unit.status_component`, optional so old scenes still load).
   - `apply_status(effect: StatusEffect, source: Unit, duration_override: float = -1.0) -> bool` (tenacity: × (1 − tenacity) for `cc`-tagged statuses only), `remove_status(id)`, `has_status(id)`, `has_tag(tag)`, `get_tags()`, `absorb_damage(amount) -> float`.
@@ -258,7 +261,7 @@ One per hit. Built by the attacker, filled in by the pipeline.
   - **DashComponent:** `can_dash()` allows a dash during a dash-cancelable displacement; the dash replaces it.
   - **Player:** a rooted swing shows `State.ATTACK` over DISPLACED (its step is a displacement), and facing follows the swing while it roots. Once walking ends the root, state and facing follow walking.
   - The movement VFX knockback stretch also plays on the step (it reads as a lunge).
-- **GameFeel** (C3): `hitstop()` keeps one end time (real time); a new call extends it if it ends later.
+- **GameFeel** (C3, built): `hitstop()` keeps one end time in real time (`Time.get_ticks_msec()`); a new call only extends it if it ends later. `play_hit_feel(ctx)` picks the tier; `hit_feel` and `hitstop_time_scale` are exports.
 - **MovementComponent** (C4): `displace()` keeps the running displacement if its remaining distance is larger than the new one's total distance.
 - **AutoAttackComponent, LoL mode** (C4): `@export var hit_knockback_px` (slime 12). `@export var enemy_hit_forgiveness` (0.10): the windup starts, and the hit lands, only within `attack_range × (1 − forgiveness)`; out of reach at the hit moment = whiff (no damage, the attack timer still runs).
 - **Unit** (C4): `@export var post_hit_iframes: float` (0 = none; the player 0.5). A hit that gets through adds `&"hit_iframes"` for that long; DoT ticks don't start it.
@@ -304,6 +307,7 @@ Combat starts now, before STATS step 6. Until step 6 adds `id` / `tags` to Abili
    **Built** (awaiting play test): combat test 153/153 (44 new checks: steps 6 / 6 / 10 px in the air, a slime 15° off and 95 px away aimed at with the aim snapped onto it, a capped 24 px pull that connects, a stretched 18.2 px step ending at 39.2 px, 6 px when already close, stopping at a touching slime's edge, no pull at 60°, a 20° max snap at 30°, the aim-line pick of two, no pull through a wall, dash and stun during the step, the root ending 6 frames after the hit with the combo continuing, RANGED); stats test 143/143; headless in-game check 21/21 (a real click 12° off a slime 97 px away pulls 24 px and connects; the sandbox's own pillar blocks the pull; enemies, abilities, i-frames and the HUD unchanged); room_01 runs with no errors.
 3. **C3 – Hit feel.** Feel tiers from `HitContext.feel` (light / heavy / kill), longest-wins hitstop, 0.06 s flash, shake per tier.
    **Done means:** swings 1–2 freeze briefly with no shake; the finisher and kills freeze longer and shake; abilities feel as before.
+   **Built** (awaiting play test): combat test 173/173 (20 new C3 checks: the tier numbers; overlapping hitstops 0.03 → 0.08 → 0.02 end at 0.08 s; swings 1–2 freeze 0.03 s with no shake, the finisher 0.06 s with a 2 px shake, a kill 0.08 s with 3 px, a whiff nothing; `take_damage()` hits and a blocked hit play no feel; Cleave shakes only its own 3 px; the flash is white at the hit and gone after 0.06 s). The C2 swing-length check now measures game time, since a hit's hitstop adds physics frames but almost no game time. Stats test 143/143; headless in-game check 21/21; room_01 runs with no errors.
 4. **C4 – Getting hit.** Post-hit i-frames, 12 px knockback on the player (marked as hit knockback, which a dash replaces), enemy whiffs out of reach, stronger-knockback-wins, slime windup retuned into 0–0.3 s.
    **Done means:** walking out of a slime's lunge avoids it; three slimes hitting at once cost one hit; after a hit the player is safe for 0.5 s (visible); a hit pushes the player 12 px, and pressing dash during the push dashes at once.
 5. **C5 – Elite.** `slime_elite.tscn` (inherits `slime.tscn`) + `data/units/slime_elite.tres` (starting values: 900 health, 100 damage = 15% of the Knight's 650), a telegraphed slam ability (0.75 s telegraph, about 40 px circle), `Telegraph`, the Enemy cast hook, one elite in the sandbox.

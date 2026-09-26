@@ -34,6 +34,7 @@ data/abilities/         Ability .tres (e.g. knight_q_cleave.tres)
 data/units/             UnitStats .tres per champion/monster (knight.tres, slime.tres)
 data/curves/            Curve .tres for displacement speed profiles (curve_dash.tres, curve_knockback.tres)
 data/combos/            AttackCombo .tres (combo_knight.tres: the Knight's basic attack)
+data/hit_feels/         HitFeel .tres (hit_feel_default.tres: hitstop/shake/flash per hit tier)
 scenes/player|enemies|rooms|ui/
 scenes/sandbox_main.tscn  test run: main + rooms/sandbox.tscn (open it, press F6)
 scenes/tests/           script-level test scenes (stats_test.tscn, combat_test.tscn; F6; scripts in scripts/tests/)
@@ -68,7 +69,7 @@ New subfolders inside these are fine. Ask before adding a new top-level folder.
 - Debug visuals sit behind an `@export var debug_draw: bool` (existing code uses `debug_draw_path` in MovementComponent; that's fine).
 
 ## Autoloads
-- `GameFeel` (`scripts/autoload/game_feel.gd`): `hitstop()`, `shake()`
+- `GameFeel` (`scripts/autoload/game_feel.gd`): `hitstop()` (longest wins), `shake()`, `play_hit_feel(ctx)` (tiers from `hit_feel_default.tres`)
 - `Events` (`scripts/autoload/events.gd`): global signal bus. `unit_hit`, `unit_damaged`, `unit_died` (COMBAT.md)
 - `WorldQuery` (`scripts/autoload/world_query.gd`): spatial queries; only `has_line_of_sight()` so far (docs/WORLD_INTERACTION.md)
 
@@ -106,12 +107,12 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 
 ## Current status
 <!-- OVERWRITE this whole section at the end of each session (Now / Last 3 done / Next). Never append. -->
-- **Now:** Waiting on Ryan's play test of melee basic attacks (swing step, target pull, walk-cancel). Still open: play tests of STATS step 5, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of COMBAT C3 (hit feel). Still open: play tests of STATS step 5, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. Melee basic attacks: every MELEE combo swing steps forward (`lunge_px`) and pulls toward an aimed enemy with an aim snap (`lunge_max_px`, assist settings on AttackCombo), walking ends the recovery's root, `attack_style` MELEE/RANGED, minimal `WorldQuery.has_line_of_sight()`. Combat test 153/153, stats test 143/143, in-game check 21/21.
-  2. COMBAT C2: the Knight's combo (`AttackSwing`, `AttackCombo`, `combo_knight.tres`, combo mode on AutoAttackComponent), rooted swings, dash / stun / ability (`Ability.cancels_swing`) cancels, the buffer waits out swings, Iron Resolve through swings, `select` unbound.
-  3. COMBAT C1: `Events` autoload, `HitContext`, `HitPipeline`, `Unit.on_hit()`; `take_damage()` and Hurtbox hits wrapped.
-- **Next:** COMBAT C3 (hit feel) → C7 → milestone M1 (one-room fight in the sandbox) → STATS step 6 → COMBAT C8–C12. STATS step 7 (F3 overlay) after M1. Then the Future docs in their listed order.
+  1. COMBAT C3: hit feel per tier (`HitFeel`, `hit_feel_default.tres`, `GameFeel.play_hit_feel()`): light swings freeze 0.03 s, the finisher 0.06 s + 2 px shake, kills 0.08 s + 3 px; the longest hitstop wins; 0.06 s flash on every hit; abilities and enemy hits unchanged. Combat test 173/173, stats test 143/143, in-game check 21/21.
+  2. Melee basic attacks: swing step, target pull with aim snap, walk-cancel of the recovery, `attack_style` MELEE/RANGED, minimal `WorldQuery.has_line_of_sight()`.
+  3. COMBAT C2: the Knight's combo on left mouse (`AttackSwing`, `AttackCombo`, `combo_knight.tres`), dash / stun / ability cancels, Iron Resolve through swings, `select` unbound.
+- **Next:** COMBAT C4 (getting hit) → C7 → milestone M1 (one-room fight in the sandbox) → STATS step 6 → COMBAT C8–C12. STATS step 7 (F3 overlay) after M1. Then the Future docs in their listed order.
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.
