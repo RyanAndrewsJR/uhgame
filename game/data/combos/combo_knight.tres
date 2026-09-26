@@ -1,43 +1,20 @@
-[gd_resource type="Resource" script_class="AttackCombo" format=3]
+[gd_resource type="Resource" script_class="AttackCombo" format=3 uid="uid://8yscfc0ykjmg"]
 
-[ext_resource type="Script" path="res://scripts/data/attack_combo.gd" id="1_combo"]
-[ext_resource type="Script" path="res://scripts/data/attack_swing.gd" id="2_swing"]
+[ext_resource type="Script" uid="uid://b2lklesjh0cq5" path="res://scripts/data/attack_combo.gd" id="1_combo"]
+[ext_resource type="Script" uid="uid://dcrgf6ul273xi" path="res://scripts/data/attack_swing.gd" id="2_swing"]
 
 [sub_resource type="Resource" id="swing_1"]
 script = ExtResource("2_swing")
-windup = 0.08
-duration = 0.3
-ad_ratio = 1.0
-reach_multiplier = 1.0
-arc_deg = 110.0
-knockback_px = 6.0
-knockback_duration = 0.1
-feel = 1
-lunge_px = 6.0
-lunge_max_px = 24.0
 
 [sub_resource type="Resource" id="swing_2"]
 script = ExtResource("2_swing")
-windup = 0.08
-duration = 0.3
-ad_ratio = 1.0
-reach_multiplier = 1.0
-arc_deg = 110.0
-knockback_px = 6.0
-knockback_duration = 0.1
-feel = 1
-lunge_px = 6.0
-lunge_max_px = 24.0
 
 [sub_resource type="Resource" id="swing_3"]
 script = ExtResource("2_swing")
-windup = 0.08
 duration = 0.4
 ad_ratio = 1.6
-reach_multiplier = 1.0
 arc_deg = 140.0
 knockback_px = 20.0
-knockback_duration = 0.1
 feel = 2
 lunge_px = 10.0
 lunge_max_px = 32.0
@@ -45,12 +22,3 @@ lunge_max_px = 32.0
 [resource]
 script = ExtResource("1_combo")
 swings = Array[ExtResource("2_swing")]([SubResource("swing_1"), SubResource("swing_2"), SubResource("swing_3")])
-combo_reset_time = 0.6
-hit_forgiveness = 0.1
-attack_style = 0
-assist_range_bonus_px = 40.0
-assist_angle_deg = 35.0
-assist_snap_deg = 20.0
-stop_at_reach_fraction = 0.7
-walk_cancels_recovery = true
-recovery_move_cancel_after = 0.1

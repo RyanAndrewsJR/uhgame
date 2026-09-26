@@ -1,18 +1,13 @@
-[gd_resource type="Resource" script_class="UnitStats" format=3]
+[gd_resource type="Resource" script_class="UnitStats" format=3 uid="uid://brsmqdalkxsgt"]
 
-[ext_resource type="Script" path="res://scripts/data/unit_stats.gd" id="1_stats"]
+[ext_resource type="Script" uid="uid://cyup22pmn7e10" path="res://scripts/data/unit_stats.gd" id="1_stats"]
 
 [resource]
 script = ExtResource("1_stats")
 display_name = "Knight"
 max_health = 650.0
-health_regen = 0.0
 max_resource = 300.0
 resource_regen = 6.0
 attack_damage = 64.0
-attack_range = 175.0
 base_attack_speed = 0.7
-attack_windup = 0.25
 move_speed = 560.0
-gameplay_radius = 65.0
-pathing_radius = 35.0
