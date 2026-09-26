@@ -408,11 +408,11 @@ func _swing_sword(duration: float) -> void:
 
 # --- Damage / death -------------------------------------------------------------
 
-func take_damage(amount: float, source: Unit = null, highlight: bool = false) -> void:
-	if is_invulnerable():
-		return  # Dash i-frames: no damage, no shake.
-	super.take_damage(amount, source, highlight)
-	GameFeel.shake(2.0)
+## Getting hit shakes the screen. take_damage() comes through here too.
+func on_hit(ctx: HitContext) -> void:
+	super.on_hit(ctx)
+	if not ctx.blocked:
+		GameFeel.shake(2.0)  # Blocked (dash i-frames, dead): no shake.
 
 
 func _on_died() -> void:

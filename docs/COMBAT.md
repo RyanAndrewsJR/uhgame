@@ -115,8 +115,8 @@ What exists today and what happens to each piece (see Build order for when).
 | Code | What it does today | Status |
 |---|---|---|
 | `res://scripts/components/auto_attack_component.gd` (`AutoAttackComponent`, `Unit.attack`) | LoL basic attacks: chase a target, windup (move lock `&"attack_windup"`), then `target.take_damage()` wherever the target is. Backswing doesn't lock movement. Next-attack modifiers (Iron Resolve). Locks by id (`&"stun"`, `&"casting"`). | **Kept and extended.** Enemies keep the LoL attack. C2 adds a combo mode for the player (`combo` export). The player's LoL orders (right-click, attack-move) stay dormant. C4 makes enemy hits whiff out of reach. |
-| `Unit.take_damage(amount, source, highlight)` | Checks alive and invulnerable, lowers health, emits `damaged`, spawns a number, flashes. `Player.take_damage` adds a 2 px shake. Called by `AutoAttackComponent._land_attack`, `cleave.gd`, `lunge.gd`, `judgement.gd` and `Unit._on_hurtbox_hurt`. | **Wrapped** (C1): builds a `HitContext` and enters the pipeline at mitigation. Armor is 0 everywhere, so nothing changes in play. |
-| `res://scripts/components/hitbox.gd`, `hurtbox.gd` | Area2D damage on overlap. `player.tscn` and `slime.tscn` have a Hurtbox (0.2 s own invincibility); **no scene has a Hitbox**. | **Kept, dormant.** `Unit._on_hurtbox_hurt` builds a `HitContext` (C1), so a future contact-damage enemy or projectile goes through the pipeline. |
+| `Unit.take_damage(amount, source, highlight)` | Checks alive and invulnerable, lowers health, emits `damaged`, spawns a number, flashes. `Player.take_damage` adds a 2 px shake. Called by `AutoAttackComponent._land_attack`, `cleave.gd`, `lunge.gd`, `judgement.gd` and `Unit._on_hurtbox_hurt`. | **Wrapped** (C1, built): `make_hit_context()` builds a `HitContext` and `on_hit()` runs it from mitigation on. Armor is 0 everywhere, so nothing changes in play. `Player.take_damage`'s override is replaced by a `Player.on_hit` override with the same 2 px shake. |
+| `res://scripts/components/hitbox.gd`, `hurtbox.gd` | Area2D damage on overlap. `player.tscn` and `slime.tscn` have a Hurtbox (0.2 s own invincibility); **no scene has a Hitbox**. | **Kept, dormant.** `Unit._on_hurtbox_hurt` builds a `HitContext` (C1, built; the push is `Hitbox.knockback` px/s × 0.12 s, as before), so a future contact-damage enemy or projectile goes through the pipeline. |
 | `Unit.add_invulnerability(id)` | Dash i-frames (`&"dash"`) block `take_damage()` and Hurtbox hits. | **Kept.** `Unit.on_hit` checks it first. Post-hit i-frames add `&"hit_iframes"` (C4). |
 | `res://scripts/autoload/game_feel.gd` (`GameFeel`) | `hitstop(duration)`: `Engine.time_scale` 0.05; a second hitstop during one is ignored. `shake(amount)`: camera shake in px (the camera keeps the largest). | **Kept.** C3 changes `hitstop()` so the longest wins. |
 | `Unit._flash()` | Body modulate ×3, back to white over 0.12 s. | **Kept**, retuned to 0.06 s (C3). |
@@ -188,9 +188,10 @@ One per hit. Built by the attacker, filled in by the pipeline.
 
 ## Architecture / contracts
 ### New scripts
-- `res://scripts/autoload/events.gd`, autoload **`Events`** (C1). Signals (reserved names): `unit_hit(ctx: HitContext)`, `unit_damaged(ctx: HitContext)`, `unit_died(unit: Unit, ctx: HitContext)`, `status_applied(unit: Unit, status: StatusEffect)`, `status_removed(unit: Unit, status: StatusEffect)`. Existing local signals (`Unit.died`, `Unit.damaged`) stay.
+- `res://scripts/autoload/events.gd`, autoload **`Events`** (C1, built). Signals (reserved names): `unit_hit(ctx: HitContext)`, `unit_damaged(ctx: HitContext)`, `unit_died(unit: Unit, ctx: HitContext)`; `status_applied(unit: Unit, status: StatusEffect)` and `status_removed(unit: Unit, status: StatusEffect)` come with C9 (the type doesn't exist yet). Existing local signals (`Unit.died`, `Unit.damaged`) stay.
 - `res://scripts/combat/hit_pipeline.gd`, **`HitPipeline`** (static functions, C1).
-  - `static func resolve(ctx: HitContext) -> HitContext`: stages 1–4 (base, stat scaling from the source's StatsComponent, `damage_increase`, crit), then `ctx.target.on_hit(ctx)`.
+  - `static func resolve(ctx: HitContext) -> HitContext`: stages 1–4 (base, stat scaling from the source's StatsComponent, `damage_increase`, crit), then `ctx.target.on_hit(ctx)`. A target without `on_hit()` = `blocked`. Built in C1: base and scaling; `damage_increase` and crit come in C8.
+  - Helpers (C1): `get_scaled_damage(ctx)`, `get_mitigation_multiplier(resistance)`, `mitigate(amount, type, target_stats)`.
   - `static func basic_attack(source: Unit, target: Unit, swing: AttackSwing) -> HitContext` and `static func from_ability(caster: Unit, ability: Ability, target: Unit) -> HitContext`: builders that fill tags, type, ratios and feel.
 - `Unit.on_hit(ctx: HitContext) -> void` (C1), the same method name interactables use (WORLD_INTERACTION.md). In order:
   1. `blocked` if not alive or invulnerable → return (nothing else happens).
@@ -201,7 +202,7 @@ One per hit. Built by the attacker, filled in by the pipeline.
   6. On-hit (only `basic_attack` or `ability` hits, never `proc` or `dot`): `on_hit_damage` as a `proc` hit, `life_on_hit` and `resource_on_hit` × `proc_coefficient`, `life_steal` × `taken_damage` (basic attacks only, proposed).
   7. Death: `Events.unit_died(self, ctx)`; kill credit = `ctx.source`.
   8. Feel (C3) and the damage number (C6).
-- `Unit.take_damage(amount, source, highlight)` stays, as a wrapper: a `HitContext` with `base_damage = amount`, PHYSICAL, `can_crit = false`, feel `NONE` (callers keep their own shake and hitstop), then `on_hit()` directly (the amount is already scaled). `Player`'s "got hit" shake moves to a `Player.on_hit` override so pipeline hits get it too.
+- `Unit.take_damage(amount, source, highlight)` stays, as a wrapper (built in C1 through `Unit.make_hit_context()`): a `HitContext` with `base_damage = amount`, PHYSICAL, `can_crit = false`, feel `NONE` (callers keep their own shake and hitstop), then `on_hit()` directly (the amount is already scaled). `Player`'s "got hit" shake moves to a `Player.on_hit` override so pipeline hits get it too.
 - `res://scripts/components/status_component.gd`, **`StatusComponent`** (C9), a child of every Unit (`Unit.status_component`, optional so old scenes still load).
   - `apply_status(effect: StatusEffect, source: Unit, duration_override: float = -1.0) -> bool` (tenacity: × (1 − tenacity) for `cc`-tagged statuses only), `remove_status(id)`, `has_status(id)`, `has_tag(tag)`, `get_tags()`, `absorb_damage(amount) -> float`.
   - Signals `status_applied(effect)`, `status_removed(effect)`, re-emitted on Events.
@@ -251,7 +252,8 @@ One per hit. Built by the attacker, filled in by the pipeline.
 Combat starts now, before STATS step 6. Until step 6 adds `id` / `tags` to Ability, hits carry no ability tags. STATS step 6 runs before C8 (C8's `hit:<tag>` scopes need scoped modifiers); STATS step 7 (the F3 overlay) comes after M1.
 
 1. **C1 – Hit pipeline.** `Events`, `HitContext`, `HitPipeline`, `Unit.on_hit`; `take_damage()` and `_on_hurtbox_hurt` wrapped; `damage_type` and `proc_coefficient` on Ability. A test scene `res://scenes/tests/combat_test.tscn` (script in `scripts/tests/`).
-   **Done means:** the test passes: mitigation for all three types at 0 / 100 armor, `incoming_damage`, i-frames block everything, the events fire. In play nothing changes: abilities deal the same numbers and slimes chase and hit as before.
+   **Done means:** the test passes: mitigation for all three types at 0 / 100 armor, i-frames block everything, the events fire (`incoming_damage` is checked in C8, where the stat is added). In play nothing changes: abilities deal the same numbers and slimes chase and hit as before.
+   **Built** (awaiting play test): `combat_test.tscn` 50/50; stats test 143/143; a headless in-game check in the sandbox 11/11 (Cleave 124.8, Lunge 82, Judgement's damage and stun, Iron Resolve's haste, a slime chasing and hitting for 22 through `Events.unit_hit`, i-frames, the HUD); room_01 runs with no errors.
 2. **C2 – Knight combo.** `AttackSwing`, `AttackCombo`, `combo_knight.tres`, the combo mode, PlayerInput/Dash/Player changes, `cancels_swing`, `select` unbound, Iron Resolve through swings.
    **Done means:**
    - A click swings toward the cursor within 0.08 s; three clicks give the three swings (the third wider and stronger); 0.6 s without attacking resets the combo.

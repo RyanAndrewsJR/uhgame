@@ -35,12 +35,13 @@ data/units/             UnitStats .tres per champion/monster (knight.tres, slime
 data/curves/            Curve .tres for displacement speed profiles (curve_dash.tres, curve_knockback.tres)
 scenes/player|enemies|rooms|ui/
 scenes/sandbox_main.tscn  test run: main + rooms/sandbox.tscn (open it, press F6)
-scenes/tests/           script-level test scenes (stats_test.tscn, F6; scripts in scripts/tests/)
+scenes/tests/           script-level test scenes (stats_test.tscn, combat_test.tscn; F6; scripts in scripts/tests/)
 data/stats/             stat_registry.tres (every stat's limits and format)
 scripts/abilities/      ability.gd (base), cast_context.gd, ability_util.gd
 scripts/abilities/<champion>/   one script per ability (knight/cleave.gd ...)
 scripts/autoload/       singletons
 scripts/camera/         game_camera.gd
+scripts/combat/         hit_context.gd, hit_pipeline.gd (COMBAT.md)
 scripts/components/     Health, AutoAttack, Movement, Ability, Dash, Hitbox, Hurtbox
 scripts/core/           units.gd (LoL units ↔ px)
 scripts/data/           Resource class scripts (unit_stats.gd ...)
@@ -60,14 +61,15 @@ New subfolders inside these are fine. Ask before adding a new top-level folder.
 
 ## Conventions
 - **Data lives in Resources** (.tres); logic lives in scripts. Tuning never needs code edits. Every tunable is `@export`.
-- **Signals go up, calls go down.** Cross-system events go through an `Events` autoload (not created yet; create it the first time one is needed).
+- **Signals go up, calls go down.** Cross-system events go through the `Events` autoload (reserved names only, CONVENTIONS.md).
 - Gameplay motion happens in `_physics_process`. Physics interpolation is on, so a teleport (respawn, blink) must call `reset_physics_interpolation()` on the moved node.
 - `snake_case` files and functions, `PascalCase` classes and nodes, `StringName` ids (`&"move_speed"`).
 - Debug visuals sit behind an `@export var debug_draw: bool` (existing code uses `debug_draw_path` in MovementComponent; that's fine).
 
 ## Autoloads
 - `GameFeel` (`scripts/autoload/game_feel.gd`): `hitstop()`, `shake()`
-- Planned: `Events` (signal bus), `WorldQuery` (docs/WORLD_INTERACTION.md)
+- `Events` (`scripts/autoload/events.gd`): global signal bus. `unit_hit`, `unit_damaged`, `unit_died` (COMBAT.md)
+- Planned: `WorldQuery` (docs/WORLD_INTERACTION.md; line of sight first, COMBAT C7)
 
 ## Change policy (important)
 The game in `game/` is the **reference build**. It works, and changes build on it.
@@ -103,12 +105,12 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 
 ## Current status
 <!-- OVERWRITE this whole section at the end of each session (Now / Last 3 done / Next). Never append. -->
-- **Now:** COMBAT.md written (docs only). Next build step is COMBAT C1. Still open: play tests of STATS step 5, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of COMBAT C1 (nothing should change in play). Still open: play tests of STATS step 5, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. COMBAT.md: Part 1 (vision) plus Part 2 from the code (current code, data, architecture, edge cases, build order C1–C12). Decisions from the interview are in DECISIONS.md (Combat); MOVEMENT, STATS, WORLD_INTERACTION and CONVENTIONS updated to match.
-  2. Cast movement rules: `Ability.cast_move_speed_multiplier` (PERCENT_MULT `move_speed` modifier, source `&"ability_casting"`) and `Ability.cancel_on_move` (a new move press cancels like the dash cancel; it wins over `roots_during_cast = false`). Stats test 143/143; in-game check 19/19.
-  3. STATS step 5: 13 new UnitStats fields with neutral defaults; `ResourceComponent` (`Unit.resource_pool`, Knight only: MANA 300, 6/s placeholder, no HUD bar); HealthComponent follows max_health and regens. Stats test 143/143; in-game check 123/123.
-- **Next:** COMBAT C1 → C7 → milestone M1 (one-room fight in the sandbox) → STATS step 6 → COMBAT C8–C12. STATS step 7 (F3 overlay) after M1. Then the Future docs in their listed order.
+  1. COMBAT C1: `Events` autoload, `HitContext`, `HitPipeline`, `Unit.on_hit()`; `take_damage()` and Hurtbox hits wrapped; `damage_type` and `proc_coefficient` on Ability. Combat test 50/50, stats test 143/143, in-game check 11/11.
+  2. COMBAT.md follow-ups: `incoming_damage` stat name, dash out of hit knockback, `cancels_swing` default AFTER_HIT, C8 ability migration, i-frame swarm question.
+  3. COMBAT.md: Part 1 (vision) plus Part 2 from the code (current code, data, architecture, edge cases, build order C1–C12).
+- **Next:** COMBAT C2 (Knight combo) → C7 → milestone M1 (one-room fight in the sandbox) → STATS step 6 → COMBAT C8–C12. STATS step 7 (F3 overlay) after M1. Then the Future docs in their listed order.
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.
