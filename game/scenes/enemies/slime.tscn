@@ -59,6 +59,7 @@ script = ExtResource("2_health")
 
 [node name="AutoAttackComponent" type="Node" parent="."]
 script = ExtResource("5_attack")
+hit_knockback_px = 12.0
 
 [node name="MovementComponent" type="Node2D" parent="."]
 script = ExtResource("4_movement")

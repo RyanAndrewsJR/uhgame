@@ -162,6 +162,11 @@
 | 2026-09-26 | C3: hits with feel NONE (every `take_damage()` hit: abilities, enemy basic attacks) get no hitstop or shake from the pipeline, even on a kill. Their callers keep their own (Cleave, Judgement, Iron Resolve, the player's 2 px shake when hit). | "Abilities feel as before"; abilities set their own feel (COMBAT.md, Numbers). |
 | 2026-09-26 | C3: the flash is 0.06 s on every hit that gets through (was 0.12 s), abilities and enemy hits included. | COMBAT.md, Numbers: hit flash white, 0.06 s. |
 | 2026-09-26 | C3: the longest hitstop is tracked in real time (`Time.get_ticks_msec()`); a shorter call during one changes nothing. | Hitstop runs with `Engine.time_scale` at 0.05, so it must be timed outside game time. |
+| 2026-09-26 | C4: every knockback from `Unit.on_hit` is dash-cancelable (not only the player's). | Only units with a DashComponent can use it, and "knockback from being hit" is exactly what goes through `on_hit`. |
+| 2026-09-26 | C4: "stronger" = distance: a new `displace()` is dropped when the running displacement's remaining distance is larger than the new one's whole distance; `displace()` returns whether it started. `dash()` always replaces. | Distance is what the player sees. The return value lets the melee step know it lost, so cancelling a swing never stops someone else's knockback. |
+| 2026-09-26 | C4: `enemy_hit_forgiveness` shortens League-style reach to `attack_range × 0.9` both for starting the windup and for landing, so a target that stands still is always hit. A whiff still plays the slime's lunge; a blocked hit skips next-attack on-hit effects. | Shrinking only the landing check would make slimes miss targets that never moved. |
+| 2026-09-26 | C4: slime windup 0.25 s (`slime.tres` `attack_windup` 0.35 → 0.175 at 0.7 attack speed), inside the 0–0.3 s swarm band. | COMBAT.md, Numbers (retune agreed in the COMBAT interview). |
+| 2026-09-26 | C4: post-hit i-frames run in game time (a SceneTreeTimer that follows hitstop and the pause menu). The player blinks while they last (0.1 s period, visual only). | A pause or hitstop shouldn't eat the i-frames; the blink makes "safe" readable (clarity). |
 
 ## World Interaction
 | Date | Decision | Why |
