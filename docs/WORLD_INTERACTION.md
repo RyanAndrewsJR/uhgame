@@ -90,7 +90,7 @@ Entering applies its status; re-entering refreshes it instead of stacking. It em
 - New stat `knockback_resistance`, 0–1, scales displacement distance by (1 − value). Bosses have 1. (Row in STATS.md.)
 - A displaced unit that hits another unit emits `unit_impacted` with that unit as the collider, so rules can make chain hits.
 - `ImpactContext` carries the impact speed, so rules can set thresholds.
-- Two knockbacks at once: the stronger wins (COMBAT.md, decided; built in COMBAT C4).
+- Two knockbacks at once: the stronger wins (COMBAT.md; built in COMBAT C4): `displace()` is dropped (returns false) when the running displacement has more distance left than the new one's whole distance.
 
 ## Reaction triggers *(specified in COMBAT.md, ReactionRule)*
 `IMPACT`, `HIT`, `HAZARD_ENTERED`, `HAZARD_EXITED`, `STATUS_APPLIED`, `UNIT_DIED`, `HAZARD_OVERLAP` (hazard meets hazard, e.g. fire + oil). Also listed as planned in CONVENTIONS.md, Extension pattern 1.

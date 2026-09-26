@@ -33,6 +33,7 @@ func _ready() -> void:
 	damaged.connect(_on_damaged)
 	attack.windup_started.connect(_on_windup_started)
 	attack.attack_landed.connect(_on_attack_landed)
+	attack.attack_whiffed.connect(_on_attack_whiffed)
 	_enter_idle()
 
 
@@ -116,6 +117,12 @@ func _on_windup_started(target: Unit, windup_time: float) -> void:
 	# Crouch before lunging.
 	var tween := create_tween()
 	tween.tween_property(body, "scale", Vector2(1.25, 0.75), windup_time)
+
+
+## A missed attack (the target got out of reach) still lunges.
+func _on_attack_whiffed(target: Unit) -> void:
+	if is_instance_valid(target):
+		_on_attack_landed(target, 0.0)
 
 
 func _on_attack_landed(target: Unit, _damage: float) -> void:

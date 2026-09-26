@@ -44,6 +44,9 @@ const ABILITY_ACTIONS := {&"q": "ability_q", &"w": "ability_w", &"e": "ability_e
 @export var target_forgiveness: float = 14.0
 ## Shows the current State name above the player.
 @export var debug_draw: bool = false
+## Post-hit i-frames read as a blink: the body shows for 60% of each period
+## (seconds). Visual only.
+@export var hit_iframes_blink_period: float = 0.1
 
 @onready var sword_pivot: Node2D = $SwordPivot
 @onready var sword: Polygon2D = $SwordPivot/Sword
@@ -70,6 +73,7 @@ var _hovered_enemy: Unit
 var _walk_time: float = 0.0
 ## Where the current cast was aimed, locked at cast start (INF = none).
 var _cast_face_point: Vector2 = Vector2.INF
+var _blink_time: float = 0.0
 ## The sword pull-back tween of the current swing's windup.
 var _swing_tween: Tween
 
@@ -244,6 +248,13 @@ func _physics_process(delta: float) -> void:
 func _process(delta: float) -> void:
 	if not is_alive():
 		return
+	# Post-hit i-frames blink (visual only).
+	if has_invulnerability(HIT_IFRAMES_ID):
+		_blink_time += delta
+		body.visible = fmod(_blink_time, hit_iframes_blink_period) < hit_iframes_blink_period * 0.6
+	elif _blink_time > 0.0:
+		_blink_time = 0.0
+		body.visible = true
 	# Hover highlight + cursor.
 	var enemy := _enemy_under_mouse()
 	if enemy != _hovered_enemy:
@@ -479,6 +490,7 @@ func on_hit(ctx: HitContext) -> void:
 
 
 func _on_died() -> void:
+	body.visible = true  # In case it died mid-blink.
 	attack_move_armed = false
 	aiming_slot = &""
 	Input.set_default_cursor_shape(Input.CURSOR_ARROW)

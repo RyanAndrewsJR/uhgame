@@ -19,12 +19,18 @@ const DamageNumber := preload("res://scripts/ui/damage_number.gd")
 const StunEffect := preload("res://scripts/vfx/stun_effect.gd")
 ## How long a Hurtbox hit's knockback lasts (seconds).
 const HURTBOX_KNOCKBACK_TIME := 0.12
+## Invulnerability id of the post-hit i-frames.
+const HIT_IFRAMES_ID := &"hit_iframes"
 
 @export var stats: UnitStats
 @export var team: Team = Team.ENEMY
 ## Where the middle of the unit's body is, relative to its feet. Used for
 ## clicking on the unit and for health bar placement.
 @export var body_center: Vector2 = Vector2(0, -14)
+## Seconds of invulnerability after a hit gets through (COMBAT.md, "post-hit
+## i-frames"; the player 0.5). 0 = none. Other hits in the same frame are
+## blocked by it too. DoT ticks don't start it.
+@export var post_hit_iframes: float = 0.0
 
 @onready var stats_component: StatsComponent = $StatsComponent
 @onready var health: HealthComponent = $HealthComponent
@@ -79,6 +85,10 @@ func remove_invulnerability(id: StringName) -> void:
 
 func is_invulnerable() -> bool:
 	return not _invulnerable.is_empty()
+
+
+func has_invulnerability(id: StringName) -> bool:
+	return _invulnerable.has(id)
 
 
 func is_enemy_of(other: Unit) -> bool:
@@ -151,6 +161,8 @@ func on_hit(ctx: HitContext) -> void:
 	_flash()
 	if ctx.knockback_px > 0.0 and _alive:
 		_apply_knockback(ctx)
+	if _alive and post_hit_iframes > 0.0 and not ctx.has_tag(&"dot"):
+		_start_hit_iframes()
 	GameFeel.play_hit_feel(ctx)   # hitstop and shake by tier (COMBAT C3)
 	Events.unit_hit.emit(ctx)
 	if ctx.taken_damage > 0.0:
@@ -160,14 +172,26 @@ func on_hit(ctx: HitContext) -> void:
 
 
 ## Pushes away from ctx.knockback_from (default: the source) by
-## ctx.knockback_px over ctx.knockback_duration.
+## ctx.knockback_px over ctx.knockback_duration. A hit's knockback is
+## dash-cancelable: a unit that can dash may dash out of it (COMBAT.md). The
+## stronger displacement wins (MovementComponent.displace()).
 func _apply_knockback(ctx: HitContext) -> void:
 	var from := ctx.knockback_from
 	if from == Vector2.INF:
 		from = ctx.source.global_position if is_instance_valid(ctx.source) else global_position
 	var duration := maxf(ctx.knockback_duration, 0.01)
 	var dir := (global_position - from).normalized()
-	movement.displace(dir * ctx.knockback_px / duration, duration, ctx.knockback_curve)
+	movement.displace(dir * ctx.knockback_px / duration, duration, ctx.knockback_curve, true)
+
+
+## Post-hit i-frames: invulnerable for post_hit_iframes seconds of game time
+## (the timer follows hitstop). No new hit can get through meanwhile, so it
+## can't be restarted early.
+func _start_hit_iframes() -> void:
+	add_invulnerability(HIT_IFRAMES_ID)
+	await get_tree().create_timer(post_hit_iframes, false, true).timeout
+	if is_instance_valid(self):
+		remove_invulnerability(HIT_IFRAMES_ID)
 
 
 # --- Crowd control ------------------------------------------------------------

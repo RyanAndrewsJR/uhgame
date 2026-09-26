@@ -37,6 +37,9 @@ extends Node
 signal windup_started(target: Unit, windup_time: float)
 signal attack_landed(target: Unit, damage: float)
 signal windup_cancelled
+## League-style attack: the windup ended but the target was out of reach
+## (it walked or dashed away), so the attack missed (COMBAT.md, Enemies).
+signal attack_whiffed(target: Unit)
 ## Combo mode: a swing started (index 0 = first swing of the combo).
 signal swing_started(index: int, direction: Vector2, swing: AttackSwing)
 ## Combo mode: the swing's hit moment. `targets` is empty for a whiff.
@@ -61,6 +64,15 @@ const SWING_TIME_EPSILON := 0.0001
 @export var attack_move_acquire_bonus: float = 250.0
 ## How often to re-path while chasing a moving target (seconds).
 @export var chase_repath_interval: float = 0.1
+## League-style attack: the hit pushes the target this far, px (slime 12).
+## A hit's knockback can be dashed out of (COMBAT.md).
+@export var hit_knockback_px: float = 0.0
+@export var hit_knockback_duration: float = 0.1
+## League-style attack: the attack reaches only attack_range x (1 - this),
+## both to start the windup and when it lands, so it's a bit shorter than it
+## looks (COMBAT.md: enemy attack hitboxes -10%). Out of reach when it lands
+## = a whiff.
+@export_range(0.0, 0.2) var enemy_hit_forgiveness: float = 0.10
 ## Hades-style combo (COMBAT.md). Set = combo mode (the player); null = the
 ## League-style attack (enemies).
 @export var combo: AttackCombo
@@ -140,8 +152,10 @@ func get_range_px() -> float:
 	return Units.to_px(unit.stats_component.get_stat(&"attack_range"))
 
 
+## League-style attack reach (edge to edge): attack_range less
+## enemy_hit_forgiveness. The windup starts, and the hit lands, only within it.
 func is_in_range(other: Unit) -> bool:
-	return unit.edge_distance_to(other) <= get_range_px()
+	return unit.edge_distance_to(other) <= get_range_px() * (1.0 - enemy_hit_forgiveness)
 
 
 func is_attacking() -> bool:
@@ -449,8 +463,10 @@ func _start_melee_step(swing: AttackSwing, duration: float) -> void:
 	_assist_target = target
 	if step_len > 0.01:
 		var time := maxf(duration, 0.01)
-		unit.movement.displace(step_dir * step_len / time, time, step_curve, true)
-		_step_serial = unit.movement.get_displacement_serial()
+		# A stronger displacement already running (a knockback) keeps going and
+		# the step is dropped; then there's no step of ours to stop later.
+		if unit.movement.displace(step_dir * step_len / time, time, step_curve, true):
+			_step_serial = unit.movement.get_displacement_serial()
 	if debug_draw:
 		_debug_plan = {"from": unit.global_position, "raw_aim": raw_aim, "aim": _swing_direction,
 			"range": reach + combo.assist_range_bonus_px, "target": target,
@@ -579,8 +595,11 @@ func _start_windup() -> void:
 func _land_attack() -> void:
 	unit.movement.remove_move_lock(&"attack_windup")
 	state = State.BACKSWING
-	var dmg := unit.stats_component.get_stat(&"attack_damage")
 	var hit := target
+	if not is_in_range(hit):
+		attack_whiffed.emit(hit)   # Walked or dashed out of reach: a miss.
+		return
+	var dmg := unit.stats_component.get_stat(&"attack_damage")
 	var on_hits: Array[Callable] = []
 	for mod in _next_attack_mods.values():
 		dmg += mod.bonus_damage
@@ -589,7 +608,13 @@ func _land_attack() -> void:
 	var empowered := not _next_attack_mods.is_empty()
 	_next_attack_mods.clear()
 	attack_landed.emit(hit, dmg)
-	hit.take_damage(dmg, unit, empowered)
+	var ctx := hit.make_hit_context(dmg, unit, empowered)
+	ctx.knockback_px = hit_knockback_px
+	ctx.knockback_duration = hit_knockback_duration
+	ctx.knockback_from = unit.global_position
+	hit.on_hit(ctx)
+	if ctx.blocked:
+		return  # I-frames block on-hit effects too.
 	for f in on_hits:
 		if is_instance_valid(hit):
 			f.call(hit)

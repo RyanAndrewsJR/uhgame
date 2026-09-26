@@ -228,12 +228,27 @@ func can_move() -> bool:
 
 ## Push the unit: it covers velocity x duration in total. `curve` shapes
 ## the speed; with no curve, knockback_curve is used. dash_cancelable: the
-## unit may dash during it, and the dash replaces it (a melee swing step,
-## COMBAT.md). Otherwise a displacement blocks the dash.
-func displace(velocity: Vector2, duration: float, curve: Curve = null, dash_cancelable: bool = false) -> void:
+## unit may dash during it, and the dash replaces it (a melee swing step, a
+## hit's knockback; COMBAT.md). Otherwise a displacement blocks the dash.
+## The stronger displacement wins (COMBAT.md): if the running one still has
+## more distance to cover than this one's whole distance, this one is
+## dropped. Returns true if this displacement started.
+func displace(velocity: Vector2, duration: float, curve: Curve = null, dash_cancelable: bool = false) -> bool:
+	if is_displaced() and get_displacement_remaining_px() > velocity.length() * duration:
+		return false
 	_end_ghost()
 	_start_displacement(velocity, duration, curve if curve != null else knockback_curve)
 	_displace_dash_cancelable = dash_cancelable
+	return true
+
+
+## Distance the running displacement still has to cover, in px (0 if none).
+## Walls it may still hit aren't counted.
+func get_displacement_remaining_px() -> float:
+	if not is_displaced():
+		return 0.0
+	var done := _displacement_progress(_displace_elapsed / _displace_duration)
+	return _displace_offset.length() * (1.0 - done)
 
 
 ## Dash at `velocity` (average) for `duration` seconds. Ghosted by default:

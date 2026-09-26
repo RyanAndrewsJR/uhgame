@@ -12,6 +12,9 @@ extends Node2D
 ## combo sections run last: they end by killing the Knight.
 ## C3: hit feel (hitstop and shake per tier, kills, longest-wins hitstops,
 ## the flash; abilities and enemy hits unchanged).
+## C4: getting hit (post-hit i-frames and their blink, a slime's 12 px push
+## that a dash can cut short, whiffs out of reach, the 0.25 s slime windup,
+## the stronger knockback winning).
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
@@ -237,6 +240,7 @@ func _test_combo() -> void:
 	await _test_attack_speed()
 	await _test_hit_feel()
 	await _test_melee()
+	await _test_getting_hit()
 	await _test_death_mid_swing()
 
 
@@ -806,6 +810,145 @@ func _wall_at(pos: Vector2, size: Vector2) -> StaticBody2D:
 	add_child(wall)
 	wall.global_position = pos
 	return wall
+
+
+# --- C4: getting hit ---------------------------------------------------------------
+
+func _test_getting_hit() -> void:
+	await _test_getting_hit_data()
+	await _test_post_hit_iframes()
+	await _test_slime_hit_and_push()
+	await _test_whiff()
+	await _test_stronger_knockback()
+
+
+func _test_getting_hit_data() -> void:
+	_section("C4: numbers")
+	var slime := _spawn_dummy()
+	_check("the Knight: 0.5 s post-hit i-frames", knight.post_hit_iframes, 0.5)
+	_check("slimes: 12 px push, attacks reach 10% short", [slime.attack.hit_knockback_px, slime.attack.enemy_hit_forgiveness], [12.0, 0.1])
+	_check_near("slime windup 0.25 s (swarm band 0-0.3 s)", slime.attack.get_windup_time(), 0.25, 0.001)
+	_check("slimes take no i-frames", slime.post_hit_iframes, 0.0)
+	slime.queue_free()
+
+
+func _test_post_hit_iframes() -> void:
+	_section("C4: post-hit i-frames")
+	await _reset_knight()
+	await _hitstop_over()
+	knight.health.heal(10000.0)
+	var first := _hit(knight, 50.0, HitContext.DamageType.TRUE)
+	var second := _hit(knight, 50.0, HitContext.DamageType.TRUE)
+	_check("the first hit lands", [first.blocked, first.taken_damage], [false, 50.0])
+	_check("a second hit in the same frame is blocked", second.blocked, true)
+	_check("i-frames on", knight.has_invulnerability(Unit.HIT_IFRAMES_ID), true)
+	var hidden_seen := false
+	var t0 := _game_time
+	while knight.has_invulnerability(Unit.HIT_IFRAMES_ID) and _game_time - t0 < 1.0:
+		await get_tree().process_frame
+		if not knight.body.visible:
+			hidden_seen = true
+	_check_near("they last 0.5 s", _game_time - t0, 0.5, 0.05)
+	_check("the Knight blinks meanwhile", hidden_seen, true)
+	await get_tree().process_frame
+	_check("and shows again after", knight.body.visible, true)
+	var third := _hit(knight, 50.0, HitContext.DamageType.TRUE)
+	_check("then hits land again", third.blocked, false)
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	var dot := HitContext.new()
+	dot.source = null
+	dot.target = knight
+	dot.base_damage = 5.0
+	dot.add_tag(&"dot")
+	HitPipeline.resolve(dot)
+	_check("a DoT tick lands but starts no i-frames", [dot.blocked, knight.has_invulnerability(Unit.HIT_IFRAMES_ID)], [false, false])
+	var slime := _spawn_dummy()
+	_hit(slime, 10.0, HitContext.DamageType.TRUE)
+	_check("slimes: every hit lands", _hit(slime, 10.0, HitContext.DamageType.TRUE).blocked, false)
+	slime.queue_free()
+	knight.health.heal(10000.0)
+
+
+func _test_slime_hit_and_push() -> void:
+	_section("C4: a slime hits the Knight")
+	await _reset_knight()
+	await _hitstop_over()
+	knight.health.heal(10000.0)
+	var slime := _dummy_at(Vector2(45, 0))   # edge 6.6 px: in reach
+	await _frames(1)
+	var start := knight.global_position
+	var hp := knight.health.current
+	var t0 := _game_time
+	slime.attack.attack(knight)
+	await _wait_until(func() -> bool: return knight.health.current < hp, 60)
+	_check_near("windup to hit: 0.25 s", _game_time - t0, 0.25 + 1.0 / 60.0, 0.02)
+	_check("22 damage", hp - knight.health.current, 22.0)
+	_check("the push is dash-cancelable", knight.movement.is_displacement_dash_cancelable(), true)
+	_check("a dash during the push is allowed", knight.dash.can_dash(), true)
+	await _frames(10)
+	_check_near("pushed 12 px, away from the slime", start.x - knight.global_position.x, 12.0, 0.5)
+	slime.attack.cancel()
+
+	await _reset_knight()
+	knight.health.heal(10000.0)
+	_place(slime, knight.global_position + Vector2(45, 0))
+	await _frames(1)
+	hp = knight.health.current
+	slime.attack.attack(knight)
+	await _wait_until(func() -> bool: return knight.health.current < hp, 60)
+	_check("hit again (after the i-frames ran out)", knight.health.current < hp, true)
+	_check("the dash replaces the push at once", knight.dash.try_dash(Vector2.DOWN), true)
+	await _frames(20)
+	_check("dashed down instead of being pushed", knight.global_position.y - ARENA.y > 100.0, true)
+	slime.attack.cancel()
+	slime.queue_free()
+
+
+func _test_whiff() -> void:
+	_section("C4: walking out of reach makes a slime miss")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	knight.health.heal(10000.0)
+	var slime := _dummy_at(Vector2(45, 0))
+	await _frames(1)
+	var whiffs: Array = []
+	slime.attack.attack_whiffed.connect(func(t: Unit) -> void: whiffs.append(t))
+	var hp := knight.health.current
+	slime.attack.attack(knight)
+	await _wait_until(func() -> bool: return slime.attack.is_winding_up(), 10)
+	_check("the slime winds up", slime.attack.is_winding_up(), true)
+	_place(knight, knight.global_position + Vector2(-40, 0))   # edge 46.6 px > 31.7 px reach
+	await _wait_until(func() -> bool: return not slime.attack.is_winding_up(), 30)
+	await _frames(2)
+	_check("a whiff: no damage", knight.health.current, hp)
+	_check("attack_whiffed is emitted", whiffs.size(), 1)
+	slime.attack.cancel()
+	slime.queue_free()
+
+
+func _test_stronger_knockback() -> void:
+	_section("C4: two knockbacks: the stronger one wins")
+	var a := _spawn_dummy()
+	var from := a.global_position
+	_check("a 20 px push starts", a.movement.displace(Vector2(200, 0), 0.1), true)
+	_check("a 6 px push during it is dropped", a.movement.displace(Vector2(0, 60), 0.1), false)
+	await _frames(12)
+	_check_near("ends 20 px along the first push", (a.global_position - from).x, 20.0, 0.5)
+	_check_near("no sideways part", (a.global_position - from).y, 0.0, 0.5)
+	from = a.global_position
+	a.movement.displace(Vector2(60, 0), 0.1)
+	_check("a bigger push replaces a smaller one", a.movement.displace(Vector2(0, 300), 0.1), true)
+	await _frames(12)
+	_check_near("ends 30 px along the bigger push", (a.global_position - from).y, 30.0, 1.0)
+	a.queue_free()
+
+	await _reset_knight()
+	knight.movement.displace(Vector2(-400, 0), 0.1)   # a 40 px knockback
+	knight.attack.try_swing(Vector2.RIGHT)
+	_check("a swing during a stronger knockback: its step is dropped", knight.movement.get_displacement_remaining_px() > 30.0, true)
+	knight.attack.cancel_swing()
+	_check("cancelling the swing leaves the knockback alone", knight.movement.is_displaced(), true)
+	await _frames(12)
 
 
 func _test_death_mid_swing() -> void:

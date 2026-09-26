@@ -33,6 +33,7 @@ script = ExtResource("1_player")
 stats = ExtResource("7_stats")
 team = 0
 body_center = Vector2(0, -15)
+post_hit_iframes = 0.5
 
 [node name="Shadow" type="Polygon2D" parent="." unique_id=27522859]
 color = Color(0, 0, 0, 0.35)
