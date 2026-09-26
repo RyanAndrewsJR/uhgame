@@ -21,7 +21,11 @@ extends Resource
 @export var knockback_duration: float = 0.1
 ## Hit feel tier (COMBAT C3): LIGHT for normal swings, HEAVY for finishers.
 @export var feel: HitContext.Feel = HitContext.Feel.LIGHT
-## Forward step at the hit, in px (dash-strike, COMBAT C12). 0 = none.
-@export var lunge_px: float = 0.0
+## Melee combos: the swing's base step forward along its aim, in px, during
+## its windup (COMBAT.md, Melee basic attacks). 0 = none. Ranged combos
+## ignore it.
+@export var lunge_px: float = 6.0
+## Melee combos: the longest step toward an aimed enemy (target pull), px.
+@export var lunge_max_px: float = 24.0
 ## Scales on-hit chances and effects (COMBAT C8).
 @export var proc_coefficient: float = 1.0

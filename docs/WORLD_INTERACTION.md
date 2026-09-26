@@ -39,6 +39,7 @@ Walking masks world, pit, low_obstacle, and the other team's bodies. `dash()` cu
 
 ## WorldQuery (autoload, `res://scripts/autoload/world_query.gd`)
 This is the only place raycasts are written. It's built on `PhysicsDirectSpaceState2D` (`intersect_ray`, `intersect_shape`, `cast_motion`).
+**Built so far:** only `has_line_of_sight(from, to, mask = 1)` (walls only; units don't block it), for the melee target pull (COMBAT.md). The rest below is planned.
 - `raycast_terrain(from, dir, max_dist_px) -> Dictionary {position, normal, collider, tags}` (empty if nothing hit)
 - `find_grapple_point(from, dir, max_dist_px)`: the first world hit must be `grappleable`, otherwise empty
 - `resolve_valid_position(target, from)`: if an endpoint is in a wall or pit, returns the nearest valid floor point on the caster's side
@@ -47,7 +48,7 @@ This is the only place raycasts are written. It's built on `PhysicsDirectSpaceSt
 - `get_units_in_radius(center, r, team_filter)`
 
 ## Ability movement (MovementComponent methods)
-Existing: `displace(velocity, duration)`, `dash(velocity, duration, ghosted)`.
+Existing: `displace(velocity, duration, curve, dash_cancelable)`, `dash(velocity, duration, ghosted, curve)`, `stop_displacement()` (a caller ending its own displacement, e.g. a stunned melee swing step).
 To add when the first ability needs them:
 - `blink(target)`: instant, uses `resolve_valid_position`
 - `pull_to(point, speed)`: hook pulls the unit to a point

@@ -6,8 +6,10 @@ extends Node2D
 ## Hurtbox wrappers, i-frames, knockback, kills and the Events signals (C1).
 ## C2: the Knight's combo swings (timing, damage, reach and arc, root,
 ## combo and reset, the input buffer, dash / stun / ability cancels, Iron
-## Resolve, attack speed). The C2 section runs last: it ends by killing the
-## Knight.
+## Resolve, attack speed). Melee basic attacks: the swing step, the target
+## pull and aim snap (with a wall for line of sight), dash / stun during the
+## step, walking out of the recovery, and RANGED turning it all off. The
+## combo sections run last: they end by killing the Knight.
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
@@ -20,6 +22,8 @@ const PERCENT_ADD := StatModifier.Type.PERCENT_ADD
 const ARENA := Vector2(-2000, 0)
 ## Slime gameplay radius: 55 u = 17.6 px.
 const SLIME_RADIUS_PX := 17.6
+const MELEE := AttackCombo.AttackStyle.MELEE
+const RANGED := AttackCombo.AttackStyle.RANGED
 
 var knight: Player
 
@@ -228,6 +232,7 @@ func _test_combo() -> void:
 	await _test_ability_during_swing()
 	await _test_iron_resolve_swing()
 	await _test_attack_speed()
+	await _test_melee()
 	await _test_death_mid_swing()
 
 
@@ -307,7 +312,8 @@ func _test_combo_chain_and_reset() -> void:
 
 
 func _test_reach_and_arc() -> void:
-	_section("C2: reach (feet to the target's edge, +10%) and arc")
+	_section("C2: reach (feet to the target's edge, +10%) and arc (RANGED: no step or pull)")
+	knight.attack.combo.attack_style = RANGED
 	await _reset_knight()
 	# 56 px reach x 1.1 = 61.6 px to the dummy's edge: center at 79.2 px.
 	var cases := [
@@ -326,6 +332,7 @@ func _test_reach_and_arc() -> void:
 		_check("%s: %s" % [c[0], "hit" if c[2] else "miss"], dummy.health.current < dummy.health.max_health, c[2])
 		dummy.queue_free()
 		await _reset_knight()
+	knight.attack.combo.attack_style = MELEE
 
 
 func _test_buffered_press() -> void:
@@ -434,6 +441,222 @@ func _test_attack_speed() -> void:
 	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
 	_check_near("the swing lasts 0.3 / 1.5 = 0.2 s (12 frames)", _frame - start, 12.0, 1.0)
 	knight.stats_component.remove_modifiers_from(&"test_attack_speed")
+
+
+# --- Melee basic attacks ------------------------------------------------------------
+
+func _test_melee() -> void:
+	await _test_melee_data()
+	await _test_step_in_the_air()
+	await _test_pull()
+	await _test_assist_picks()
+	await _test_step_cancels()
+	await _test_walk_out_of_recovery()
+	await _test_ranged_style()
+
+
+func _test_melee_data() -> void:
+	_section("Melee: defaults")
+	var combo := knight.attack.combo
+	var s := combo.swings
+	_check("the Knight's combo is MELEE", combo.attack_style, MELEE)
+	_check("lunge_px 6 / 6 / 10", [s[0].lunge_px, s[1].lunge_px, s[2].lunge_px], [6.0, 6.0, 10.0])
+	_check("lunge_max_px 24 / 24 / 32", [s[0].lunge_max_px, s[1].lunge_max_px, s[2].lunge_max_px], [24.0, 24.0, 32.0])
+	_check("assist: +40 px, 35 deg, snap 20 deg, stop at 0.7 reach",
+		[combo.assist_range_bonus_px, combo.assist_angle_deg, combo.assist_snap_deg, combo.stop_at_reach_fraction], [40.0, 35.0, 20.0, 0.7])
+	_check("walk cancels recovery after 0.1 s", [combo.walk_cancels_recovery, combo.recovery_move_cancel_after], [true, 0.1])
+	_check("unchanged: windup 0.08, 0.3 / 0.3 / 0.4 s", [s[0].windup, s[0].duration, s[1].duration, s[2].duration], [0.08, 0.3, 0.3, 0.4])
+
+
+func _test_step_in_the_air() -> void:
+	_section("Melee: every swing steps forward (empty air)")
+	await _reset_knight()
+	var steps: Array = []
+	for i in 3:
+		var from := knight.global_position
+		knight.attack.try_swing(Vector2.RIGHT)
+		_check("swing %d: the step is dash-cancelable" % (i + 1), knight.movement.is_displacement_dash_cancelable(), true)
+		await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+		steps.append(snappedf(knight.global_position.x - from.x, 0.01))
+	_check("steps 6 / 6 / 10 px along the aim", steps, [6.0, 6.0, 10.0])
+	_check("no sideways drift", knight.global_position.y, ARENA.y)
+
+
+func _test_pull() -> void:
+	_section("Melee: pull toward an aimed enemy")
+	# Slime edge = center - 17.6. Stop point: edge at 0.7 x 56 = 39.2 px.
+	await _reset_knight()
+	var far := _dummy_at(Vector2.from_angle(deg_to_rad(15.0)) * 95.0)   # edge 77.4, out of reach
+	await _frames(1)
+	var from := knight.global_position
+	knight.attack.try_swing(Vector2.RIGHT)
+	_check("15 deg off the aim: it's the aimed enemy", knight.attack.get_assist_target() == far, true)
+	_check_near("the aim snaps onto it (15 deg < 20 deg snap)", rad_to_deg(knight.attack.get_swing_direction().angle()), 15.0, 0.1)
+	var hp := far.health.current
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+	var moved := knight.global_position - from
+	_check_near("pulled the capped 24 px (wanted 38.2)", moved.length(), 24.0, 0.3)
+	_check_near("toward the slime", rad_to_deg(moved.angle()), 15.0, 0.5)
+	_check("the swing connects from outside reach", far.health.current < hp, true)
+	far.queue_free()
+
+	await _reset_knight()
+	var mid := _dummy_at(Vector2(75, 0))   # edge 57.4: wants 18.2 px
+	await _frames(1)
+	from = knight.global_position
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+	# Measured from where the slime stood: the hit's 6 px knockback moves it after.
+	var edge := (from + Vector2(75, 0)).distance_to(knight.global_position) - SLIME_RADIUS_PX
+	_check_near("the step stretches 18.2 px, until its edge is 0.7 x reach away (39.2 px)", edge, 39.2, 0.3)
+	mid.queue_free()
+
+	await _reset_knight()
+	var close := _dummy_at(Vector2(35, 0))   # edge 17.4: already closer
+	await _frames(1)
+	from = knight.global_position
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+	_check_near("already closer: just lunge_px (6 px)", knight.global_position.x - from.x, 6.0, 0.3)
+	close.queue_free()
+
+	await _reset_knight()
+	var touching := _dummy_at(Vector2(27, 0))   # bodies 11.2 + 14.4 px: 1.4 px of room
+	await _frames(1)
+	from = knight.global_position
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+	_check("nearly touching: stops at its edge (<= 1.4 px)", knight.global_position.x - from.x <= 1.41, true)
+	_check("the slime isn't pushed by the step", touching.global_position.x - (from.x + 27.0) <= 6.01, true)
+	touching.queue_free()
+
+
+func _test_assist_picks() -> void:
+	_section("Melee: which enemy is aimed at")
+	await _reset_knight()
+	var side := _dummy_at(Vector2.from_angle(deg_to_rad(60.0)) * 60.0)
+	await _frames(1)
+	var from := knight.global_position
+	knight.attack.try_swing(Vector2.RIGHT)
+	_check("60 deg away: not aimed at", knight.attack.get_assist_target() == null, true)
+	_check("aim not snapped", knight.attack.get_swing_direction(), Vector2.RIGHT)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+	_check_near("plain 6 px step along the aim", knight.global_position.x - from.x, 6.0, 0.3)
+	side.queue_free()
+
+	await _reset_knight()
+	var wide := _dummy_at(Vector2.from_angle(deg_to_rad(30.0)) * 60.0)
+	await _frames(1)
+	knight.attack.try_swing(Vector2.RIGHT)
+	_check("30 deg off: aimed at", knight.attack.get_assist_target() == wide, true)
+	_check_near("the aim snaps at most 20 deg", rad_to_deg(knight.attack.get_swing_direction().angle()), 20.0, 0.1)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+	wide.queue_free()
+
+	await _reset_knight()
+	var near_wide := _dummy_at(Vector2.from_angle(deg_to_rad(25.0)) * 45.0)
+	var far_line := _dummy_at(Vector2.from_angle(deg_to_rad(-5.0)) * 90.0)
+	await _frames(1)
+	knight.attack.try_swing(Vector2.RIGHT)
+	_check("two in the cone: the one closest to the aim line wins", knight.attack.get_assist_target() == far_line, true)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+	near_wide.queue_free()
+	far_line.queue_free()
+
+	await _reset_knight()
+	var wall := _wall_at(knight.global_position + Vector2(40, 0), Vector2(8, 80))
+	var hidden := _dummy_at(Vector2(90, 0))
+	await _frames(2)
+	_check("line of sight: blocked by the wall", WorldQuery.has_line_of_sight(knight.global_position, hidden.global_position), false)
+	from = knight.global_position
+	knight.attack.try_swing(Vector2.RIGHT)
+	_check("a slime behind the pillar is never aimed at", knight.attack.get_assist_target() == null, true)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+	_check("the step doesn't go through the wall", knight.global_position.x - from.x <= 6.01, true)
+	hidden.queue_free()
+	wall.queue_free()
+
+
+func _test_step_cancels() -> void:
+	_section("Melee: dash and stun during the step")
+	await _reset_knight()
+	var slime := _dummy_at(Vector2(95, 0))
+	await _frames(1)
+	knight.attack.try_swing(Vector2.RIGHT)
+	_check("a dash is allowed during the step", knight.dash.can_dash(), true)
+	_check("the dash replaces it and cancels the swing", [knight.dash.try_dash(Vector2.DOWN), knight.attack.is_swinging()], [true, false])
+	await _frames(20)
+	_check("the dash went down, not on toward the slime", knight.global_position.y - ARENA.y > 100.0, true)
+
+	await _reset_knight()
+	_place(slime, knight.global_position + Vector2(95, 0))
+	await _frames(1)
+	var from := knight.global_position
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _frames(2)
+	knight.apply_stun(0.1)
+	_check("a stun ends the step", knight.movement.is_displaced(), false)
+	await _frames(10)
+	_check("the Knight stopped short of the planned 24 px", knight.global_position.x - from.x < 23.0, true)
+	slime.queue_free()
+
+
+func _test_walk_out_of_recovery() -> void:
+	_section("Melee: walking ends the recovery's root")
+	await _reset_knight()
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20)
+	var hit_frame := _frame
+	Input.action_press(&"move_down")
+	await _wait_until(func() -> bool: return not knight.attack.is_swing_rooted(), 30)
+	_check_near("the root ends ~0.1 s after the hit (6 frames)", _frame - hit_frame, 6.0, 1.0)
+	var y := knight.global_position.y
+	await _frames(3)
+	_check("the Knight walks at once", knight.global_position.y > y + 3.0, true)
+	_check("the swing still runs out its duration", knight.attack.is_swinging(), true)
+	_check("state MOVE while walking out", knight.state, Player.State.MOVE)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 30)
+	_check("the combo continues (next is swing 2)", knight.attack.get_combo_index(), 1)
+	knight.attack.try_swing(Vector2.RIGHT)
+	_check("holding a direction: the next swing still roots its windup", knight.movement.can_move(), false)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 30)
+	_check("walk -> swing -> walk -> swing reaches swing 3", knight.attack.get_combo_index(), 2)
+	Input.action_release(&"move_down")
+	await _frames(1)
+
+
+func _test_ranged_style() -> void:
+	_section("RANGED combo: no step, pull or snap (walk-cancel still works)")
+	knight.attack.combo.attack_style = RANGED
+	await _reset_knight()
+	var slime := _dummy_at(Vector2.from_angle(deg_to_rad(15.0)) * 95.0)
+	await _frames(1)
+	var from := knight.global_position
+	knight.attack.try_swing(Vector2.RIGHT)
+	_check("no aimed enemy, no snap", [knight.attack.get_assist_target() == null, knight.attack.get_swing_direction()], [true, Vector2.RIGHT])
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20)
+	_check("no step", knight.global_position, from)
+	Input.action_press(&"move_down")
+	await _frames(8)
+	_check("walking still ends the root", knight.attack.is_swing_rooted(), false)
+	Input.action_release(&"move_down")
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 30)
+	knight.attack.combo.attack_style = MELEE
+	slime.queue_free()
+
+
+func _wall_at(pos: Vector2, size: Vector2) -> StaticBody2D:
+	var wall := StaticBody2D.new()
+	wall.collision_layer = 1
+	wall.collision_mask = 0
+	var shape := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = size
+	shape.shape = rect
+	wall.add_child(shape)
+	add_child(wall)
+	wall.global_position = pos
+	return wall
 
 
 func _test_death_mid_swing() -> void:

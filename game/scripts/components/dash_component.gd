@@ -93,7 +93,9 @@ func get_dash_direction() -> Vector2:
 func can_dash() -> bool:
 	if not unit.is_alive() or unit.is_stunned() or _dashing or _charges <= 0:
 		return false
-	if unit.movement.is_displaced():
+	# A displacement blocks the dash, unless it's dash-cancelable (a melee
+	# swing step): then the dash replaces it.
+	if unit.movement.is_displaced() and not unit.movement.is_displacement_dash_cancelable():
 		return false
 	if unit.abilities and unit.abilities.casting and not unit.abilities.can_cancel_cast():
 		return false

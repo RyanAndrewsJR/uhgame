@@ -81,6 +81,7 @@
 | 2026-09-25 | `cancel_on_move` wins over `roots_during_cast = false`: the cast roots for its cast time (the player stops, any `move_to` order is dropped) and `cast_move_speed_multiplier` is ignored. | Taken literally, held keys would keep walking while any new key (even adding D to a held W) cancels, so small steering changes would kill the cast at random. As a rule it's a clean channel: stand still, move to cancel. |
 | 2026-09-25 | Facing stays locked to the cast's aim while walking during a cast; no code change. | Already true: `_update_facing()` puts the cast aim first, and the sword and body flip ignore walking while casting. SELF casts have no aim, so facing follows walking. |
 | 2026-09-26 | The player can dash during knockback caused by being hit: the dash replaces that displacement (i-frames as usual). Other displacements still block the dash. Built in COMBAT C4. | Ryan's call. A dash is always the way out, and being hit shouldn't delay it. |
+| 2026-09-26 | The player can also dash during a melee swing step (a dash-cancelable displacement); the dash replaces it. `displace(..., dash_cancelable)` is the one mechanism for these exceptions. | Ryan's spec for melee basic attacks: a dash during the step replaces it. |
 
 ## Stats
 | Date | Decision | Why |
@@ -148,6 +149,11 @@
 | 2026-09-26 | C2: an attack press drops a queued walk-into-range cast (R walking into range), like a dash or WASD does. | Attacking is the player's own move; otherwise the Knight would walk off toward the R target right after the swing. |
 | 2026-09-26 | C2: swing timers skip the physics frame the swing started in (PlayerInput runs before AutoAttackComponent in that frame) and treat ≤ 0.0001 s as done. | Without the skip a swing ends a frame early; without the epsilon float residue (0.3 − 18/60) adds a frame. A 0.3 s swing is exactly 18 frames, the hit lands 5 frames after the click. |
 | 2026-09-26 | C2: a click on the HUD ability bar also swings (PlayerInput reads the `attack` action from the Input state). Left as is; noted in MOVEMENT.md, Open questions. | The bar has no clickable parts yet. |
+| 2026-09-26 | Melee basic attacks keep their root, but every swing steps forward and pulls toward an aimed enemy (aim snap included); walking can cancel the recovery shortly after the hit. Applies to every MELEE combo (`AttackCombo.attack_style`, default MELEE); ranged is designed later (RANGED gets only the walk-cancel). Enemies (League-style) are unchanged. | Ryan's call: in play testing the plain root felt sticky, planting the Knight even when an enemy was just out of reach. |
+| 2026-09-26 | Walking out of a swing's recovery ends only the root: the swing still runs out its duration, so the next swing waits for it and the combo index is kept. | Otherwise holding a direction would cut every swing to 0.18 s (about 40% faster attacks while walking than standing), making kiting beat standing your ground and undercutting attack speed as a build stat (VISION: skill over stat checks, build variety). |
+| 2026-09-26 | The assist range is stored as `assist_range_bonus_px` (40), added to the swing's reach, not as a fixed px range. The aimed enemy is the one with the smallest angle off the aim (ties: the nearer), measured to its edge like reach. The pull's "stop at its edge" uses both units' pathing radii. | A fixed range wouldn't follow reach when `attack_range` changes. Angle is the cone's own measure; perpendicular distance would favor enemies right beside the attacker. |
+| 2026-09-26 | The swing step is a dash-cancelable `displace()`: a dash replaces it. Cancelling the swing (stun, death, a cast) ends the step with `stop_displacement()`, but only if it's still the running displacement (a knockback that replaced it stays). The step keeps the existing wall rule (slides along walls, stops head-on). | The step is the attacker's own move, unlike knockback (which a stun doesn't end). One `dash_cancelable` flag also serves C4's hit knockback. |
+| 2026-09-26 | A rooted swing shows `Player.State.ATTACK` over DISPLACED; the movement VFX knockback stretch also plays on the step. | Otherwise every melee swing would read as DISPLACED and drop the camera's full aim lean. The stretch reads as a lunge. |
 
 ## World Interaction
 | Date | Decision | Why |
@@ -157,6 +163,7 @@
 | 2026-09-25 | Interactables get `on_hit(ctx: HitContext)` instead of `on_ability_hit(caster, ability, ctx: CastContext)`. `HitContext` gets a nullable `ability` field. | Basic attacks, hazards and knockback can break or trigger things too, not only abilities. |
 | 2026-09-26 | A stun doesn't end a displacement already running (knockback still moves a stunned unit). WORLD_INTERACTION.md said "a stun ends any of them"; corrected. | Matches the code and the 2026-09-24 Movement row (displacement > move lock > walking). |
 | 2026-09-26 | Units use the same `on_hit(ctx: HitContext)` as interactables; the pipeline calls it on whatever was hit. | One entry point for every hittable thing. |
+| 2026-09-26 | A minimal `WorldQuery` autoload (only `has_line_of_sight()`, walls only) is built now for the melee target pull, ahead of COMBAT C7. C7 still adds the line-of-sight filter to hits and abilities. | The pull must never pick an enemy behind a wall, and raycasts only live in WorldQuery. |
 
 ## Enemies
 | Date | Decision | Why |

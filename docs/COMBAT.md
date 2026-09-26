@@ -29,7 +29,7 @@ A fight is a short, readable brawl. You click and the Knight swings toward the c
 ## Rules (MUST)
 ### Basic attack
 - Left mouse = an aimed basic attack toward the cursor (Hades-style): a 3-hit combo; hit 3 is the finisher.
-- Every swing roots the attacker for its duration (see Numbers).
+- Every swing roots the attacker for its duration (see Numbers). Melee swings still step during the root, and walking can end the recovery early (Melee basic attacks, below).
 - A dash cancels a swing before its hit lands (windup) or during its recovery. The moment the hit lands can't be cancelled. Cancelling resets the combo.
 - Pressing attack during a swing queues the next combo hit (input buffer). Each swing needs its own press; holding the button doesn't repeat. The combo resets after combo_reset_time with no attack.
 - Q/W/E/R interrupt a swing only if that ability allows it, set per ability: never, after the hit lands (the default; all four Knight abilities), or anytime. Otherwise the press waits for the swing to end (input buffer).
@@ -37,6 +37,15 @@ A fight is a short, readable brawl. You click and the Knight swings toward the c
 - Dash-strike (proposed): an attack within dash_strike_window after a dash (existing hook) does a stronger variant. Numbers under TARGET.
 - attack vs select on left mouse: attack owns left mouse; select is unbound (disabled, not deleted).
 - "Your next attack" effects (Iron Resolve) mean the next basic attack swing that hits, and they apply to every enemy that swing hits.
+
+#### Melee basic attacks
+The rule for every combo with `attack_style` MELEE (the default; the Knight is the first). Any future melee champion gets it by having a combo, with no new code. RANGED combos get none of 1–2 (ranged basic attacks are designed later); 3 applies to both. Enemies (League-style attacks) are unchanged.
+1. **Swing step:** every swing moves the attacker forward along its aim during its windup, by the swing's `lunge_px`. It's a `displace()` with the dash curve (ease-out), so it follows the displacement rules: it moves the attacker through the swing's root, slides along walls (a head-on wall stops it), is stopped by unit bodies and never pushes enemies or passes through them. A dash during the step replaces it; a stun (or anything else that cancels the swing) ends it.
+2. **Target pull** (only when aiming at an enemy): at swing start, the aimed enemy is the one whose edge is within reach + `assist_range_bonus_px` of the attacker's feet and within `assist_angle_deg` of the aim, in line of sight (WorldQuery). The smallest angle off the aim wins; ties go to the nearer one. If there is one:
+   - **Aim snap:** the swing's aim turns toward it by up to `assist_snap_deg`. Facing and the hit cone use the snapped aim.
+   - The step goes toward it instead of along the aim, and stretches so the swing ends with its edge at `stop_at_reach_fraction` × reach, capped at the swing's `lunge_max_px`. If it's already closer than that, the step is just `lunge_px`, and never goes into its body (it stops at its edge).
+   - Nothing aimed at: the plain `lunge_px` step along the aim.
+3. **Walking cuts recovery** (`walk_cancels_recovery`): after the hit, a movement press or a held direction ends the rest of the root once `recovery_move_cancel_after` has passed since the hit. The swing still runs out its duration, so the next swing waits for it (walking never attacks faster than standing) and the combo index is kept: walk → swing → walk → swing still reaches the finisher within `combo_reset_time`. A dash still cancels the recovery at any time (and resets the combo).
 
 ### Hits
 - Every application of damage or effects is one Hit, described by a HitContext. In new code all damage goes through the hit pipeline; existing direct take_damage() calls get wrapped, not rewritten.
@@ -79,6 +88,15 @@ Knight basic attack:
 - knockback: 6 / 6 / 20 px, using the knockback curve
 - dash-strike (proposed): 1.5 × attack_damage, a 16 px lunge
 
+Melee basic attacks (the class defaults; the Knight's combo uses them):
+- swing step `lunge_px`: 6 / 6 / 10 px for swings 1 / 2 / 3 (0–12)
+- `lunge_max_px`: 24 / 24 / 32 px (0–40)
+- assist range: reach + 40 px (`assist_range_bonus_px` 40; reach + 0–64)
+- `assist_angle_deg`: 35° (0–45)
+- `assist_snap_deg`: 20° (0–30)
+- `stop_at_reach_fraction`: 0.7 (0.5–0.9); for the Knight the pull ends with the enemy's edge 39 px from his feet
+- `recovery_move_cancel_after`: 0.1 s (0–0.2)
+
 Crit multiplier: 1.75 (the `crit_damage` default for every unit).
 
 Feel per hit (basic attacks, and the default for other hits; abilities set their own):
@@ -108,6 +126,10 @@ Damage numbers: rise 12 px and fade over 0.6 s; 3 size steps.
 - Attacks don't go through walls (line of sight via WorldQuery). Abilities: per ability, blocked by default.
 - A shield absorbing a hit doesn't stop its knockback.
 - DoT ticks can't crit (proposed).
+- Melee: the target moves or dies during the step (the step keeps going to its planned point; nothing re-targets).
+- Melee: several enemies in the assist cone (the one closest to the aim line wins).
+- Melee: a wall or pillar in the way (the step stops or slides; line of sight rules out targets behind walls).
+- Melee: a step that would end inside an enemy (it stops at its edge).
 
 ## Current code
 What exists today and what happens to each piece (see Build order for when).
@@ -156,10 +178,13 @@ One per hit. Built by the attacker, filled in by the pipeline.
   - `windup` (s), `duration` (s, the whole swing = root time), `ad_ratio`
   - `reach_multiplier` (× the `attack_range` stat, 1.0), `arc_deg`
   - `knockback_px`, `knockback_duration`
-  - `feel` (`LIGHT` / `HEAVY`), `lunge_px` (0; dash-strike 16)
+  - `feel` (`LIGHT` / `HEAVY`)
+  - `lunge_px` (6): melee swing step along the aim; `lunge_max_px` (24): the longest target-pull step. The dash-strike swing's step is its own `lunge_px` (16, C12).
   - `proc_coefficient` (1.0)
-- `AttackCombo` (Resource, `res://scripts/data/attack_combo.gd`): `swings: Array[AttackSwing]`, `combo_reset_time`, `dash_strike: AttackSwing` (null until C12), `hit_forgiveness` (0.10).
-- Knight: `res://data/combos/combo_knight.tres` with the three swings from Numbers (0.08 / 0.3 s, 0.08 / 0.3 s, 0.08 / 0.4 s; 1.0 / 1.0 / 1.6; 110° / 110° / 140°; 6 / 6 / 20 px over 0.1 s; LIGHT / LIGHT / HEAVY).
+- `AttackCombo` (Resource, `res://scripts/data/attack_combo.gd`): `attack_style` (`AttackCombo.AttackStyle.MELEE` default / `RANGED`), `swings: Array[AttackSwing]`, `combo_reset_time`, `dash_strike: AttackSwing` (null until C12), `hit_forgiveness` (0.10).
+  - Melee assist: `assist_range_bonus_px` (40, added to the swing's reach), `assist_angle_deg` (35), `assist_snap_deg` (20), `stop_at_reach_fraction` (0.7).
+  - Recovery: `walk_cancels_recovery` (true), `recovery_move_cancel_after` (0.1 s).
+- Knight: `res://data/combos/combo_knight.tres` with the three swings from Numbers (0.08 / 0.3 s, 0.08 / 0.3 s, 0.08 / 0.4 s; 1.0 / 1.0 / 1.6; 110° / 110° / 140°; 6 / 6 / 20 px over 0.1 s; LIGHT / LIGHT / HEAVY; steps 6 / 6 / 10 px, pull up to 24 / 24 / 32 px; MELEE with the default assist and recovery settings).
 
 ### New fields on Ability
 - `damage_type: HitContext.DamageType` (PHYSICAL; the Knight's descriptions already say physical)
@@ -207,7 +232,7 @@ One per hit. Built by the attacker, filled in by the pipeline.
   - `apply_status(effect: StatusEffect, source: Unit, duration_override: float = -1.0) -> bool` (tenacity: × (1 − tenacity) for `cc`-tagged statuses only), `remove_status(id)`, `has_status(id)`, `has_tag(tag)`, `get_tags()`, `absorb_damage(amount) -> float`.
   - Signals `status_applied(effect)`, `status_removed(effect)`, re-emitted on Events.
   - Locks through the existing `add_move_lock` / `AutoAttackComponent.add_lock` ids. DoT ticks are `dot` hits through `HitPipeline`.
-- `res://scripts/autoload/world_query.gd`, autoload **`WorldQuery`** (C7), with only `has_line_of_sight(from: Vector2, to: Vector2) -> bool` (world layer 1) for now. The rest of its API stays in WORLD_INTERACTION.md.
+- `res://scripts/autoload/world_query.gd`, autoload **`WorldQuery`** (built early, with the melee target pull), with only `has_line_of_sight(from: Vector2, to: Vector2, mask = 1) -> bool` (world layer 1; units don't block it) for now. The rest of its API stays in WORLD_INTERACTION.md.
 - `res://scripts/vfx/telegraph.gd`, **`Telegraph`** (Node2D, C5): a floor shape (circle or cone) whose fill grows until the hit time, in the enemy-threat color. VFX only: the ability's own query decides the hit.
 
 ### Changes to existing scripts (additive)
@@ -227,11 +252,17 @@ One per hit. Built by the attacker, filled in by the pipeline.
 - **DashComponent** (C2): `try_dash()` cancels a swing in windup or recovery (not on the hit frame; the hit resolves inside one physics frame, so there's nothing to cancel).
 - **Player** (C2): facing = the swing's aim, locked at swing start (the slot "attack windup" had); `State.ATTACK` = the whole swing. `can_interrupt_swing(slot)` applies `cancels_swing` for both `request_cast()` and the buffer. Swing visuals: the sword pulls back during the windup and a slash the size of the swing's reach and arc plays at the hit (brighter and longer on the finisher).
 - **Input map** (C2): `select` loses its left mouse binding (the action and the attack-move code stay).
+- **Melee basic attacks** (built after C2):
+  - **AutoAttackComponent:** at swing start a MELEE combo picks the aimed enemy (`get_assist_target()`), snaps the aim and starts the step: `movement.displace(..., step_curve, dash_cancelable = true)` over the windup (÷ combo speed). `step_curve` export = `curve_dash.tres`. `cancel_swing()` ends the step only if it's still the running displacement (`get_displacement_serial()`); a knockback or dash that replaced it stays. `is_swing_rooted()`: swinging and walking hasn't ended the root. `debug_draw`: the assist cone (grey), the snapped aim (white), the aimed enemy (red) and the planned step (yellow), on a child Node2D of the unit.
+  - **MovementComponent:** `displace(velocity, duration, curve = null, dash_cancelable = false)`, `is_displacement_dash_cancelable()`, `get_displacement_serial()`, `stop_displacement()` (for a caller's own displacement; no `displacement_finished`).
+  - **DashComponent:** `can_dash()` allows a dash during a dash-cancelable displacement; the dash replaces it.
+  - **Player:** a rooted swing shows `State.ATTACK` over DISPLACED (its step is a displacement), and facing follows the swing while it roots. Once walking ends the root, state and facing follow walking.
+  - The movement VFX knockback stretch also plays on the step (it reads as a lunge).
 - **GameFeel** (C3): `hitstop()` keeps one end time (real time); a new call extends it if it ends later.
 - **MovementComponent** (C4): `displace()` keeps the running displacement if its remaining distance is larger than the new one's total distance.
 - **AutoAttackComponent, LoL mode** (C4): `@export var hit_knockback_px` (slime 12). `@export var enemy_hit_forgiveness` (0.10): the windup starts, and the hit lands, only within `attack_range × (1 − forgiveness)`; out of reach at the hit moment = whiff (no damage, the attack timer still runs).
 - **Unit** (C4): `@export var post_hit_iframes: float` (0 = none; the player 0.5). A hit that gets through adds `&"hit_iframes"` for that long; DoT ticks don't start it.
-- **MovementComponent / DashComponent** (C4): knockback from `Unit.on_hit` is marked as hit knockback (`is_hit_knockback()`). `DashComponent.can_dash()` allows a dash during it, and the dash replaces the displacement. Any other displacement still blocks the dash.
+- **Unit / MovementComponent** (C4): knockback from `Unit.on_hit` on the player uses `displace(..., dash_cancelable = true)` (built with the melee step), so a dash replaces it. Any other displacement still blocks the dash.
 - **Enemy** (C5): optional AbilityComponent use. When an ability is ready and the target is in its range, cast it (its `cast_time` is the telegraph).
 
 ## How each edge case is handled
@@ -248,6 +279,10 @@ One per hit. Built by the attacker, filled in by the pipeline.
 | Walls | Swing targets need `WorldQuery.has_line_of_sight(feet → target feet)`. Abilities filter the same way unless `ignores_walls`; UNIT abilities also need line of sight to start the cast. |
 | Shield absorbs a hit | Knockback and statuses still apply; `taken_damage` still counts for life steal; the number shows the absorbed part in a shield style. |
 | DoT ticks can't crit | DoT contexts have `can_crit = false`. |
+| Melee: target moves or dies during the step | The step's end point is planned at swing start (velocity × windup); it keeps going there. Nothing re-targets; the hit cone at the hit moment takes whoever is there. |
+| Melee: several enemies in the assist cone | Smallest angle off the aim wins, then the nearer one. |
+| Melee: wall or pillar in the way | `WorldQuery.has_line_of_sight()` rules out enemies behind walls (no pull, no snap). The step itself is a `displace()`: it slides along a wall at an angle and stops on a head-on one. |
+| Melee: step would end inside an enemy | The planned step is clamped to the gap between the two units' pathing radii; the unit bodies also collide, so the step stops at its edge and never pushes it. |
 | Knockback on the player | The 12 px push (~0.1 s) is a hit knockback: walking waits for it, but a dash replaces it at once (i-frames as usual). Other displacements (Lunge, pulls, knockback from anything but being hit) still block the dash; a press then is buffered and fires as they end. |
 
 ## Build order (one step per request)
@@ -264,6 +299,9 @@ Combat starts now, before STATS step 6. Until step 6 adds `id` / `tags` to Abili
    - Iron Resolve's next swing slows every slime it hits; a stun mid-swing cancels it.
    - The Knight's abilities, enemies chasing and the HUD still work.
    **Built** (awaiting play test): combat test 109/109 (59 new C2 checks: hit 5 frames after the click, swing 18 frames, 64 / 64 / 102.4 damage, the finisher's 20 px push, reach 70 / 78 px hit and 82 px miss, arc, reset after 0.6 s, a click 1 frame into a swing starts swing 2 right as it ends, dash / stun / Q / death cancels, Iron Resolve on two slimes, +50% attack speed = 12-frame swings); stats test 143/143; headless in-game check 15/15 (a real left click swings and hits for 64; the Knight's abilities, slimes chasing and hitting, i-frames and the HUD unchanged); room_01 runs with no errors.
+- **Melee basic attacks** (between C2 and C3): swing step, target pull with aim snap, walk-cancel of the recovery, `attack_style`, minimal `WorldQuery`.
+   **Done means:** swinging at empty air moves the Knight forward a few px per swing; aiming roughly at a slime from a bit outside reach pulls the Knight in and the swing connects; aiming 60° away doesn't pull; a slime behind the pillar is never pulled toward; after a swing lands, a direction starts walking almost at once and the next click continues the combo; setting the Knight's combo to RANGED turns off the step, pull and snap (walk-cancel still works); enemies attack exactly as before; the dash, the Knight's 4 abilities and the HUD still work.
+   **Built** (awaiting play test): combat test 153/153 (44 new checks: steps 6 / 6 / 10 px in the air, a slime 15° off and 95 px away aimed at with the aim snapped onto it, a capped 24 px pull that connects, a stretched 18.2 px step ending at 39.2 px, 6 px when already close, stopping at a touching slime's edge, no pull at 60°, a 20° max snap at 30°, the aim-line pick of two, no pull through a wall, dash and stun during the step, the root ending 6 frames after the hit with the combo continuing, RANGED); stats test 143/143; headless in-game check 21/21 (a real click 12° off a slime 97 px away pulls 24 px and connects; the sandbox's own pillar blocks the pull; enemies, abilities, i-frames and the HUD unchanged); room_01 runs with no errors.
 3. **C3 – Hit feel.** Feel tiers from `HitContext.feel` (light / heavy / kill), longest-wins hitstop, 0.06 s flash, shake per tier.
    **Done means:** swings 1–2 freeze briefly with no shake; the finisher and kills freeze longer and shake; abilities feel as before.
 4. **C4 – Getting hit.** Post-hit i-frames, 12 px knockback on the player (marked as hit knockback, which a dash replaces), enemy whiffs out of reach, stronger-knockback-wins, slime windup retuned into 0–0.3 s.
@@ -272,7 +310,7 @@ Combat starts now, before STATS step 6. Until step 6 adds `id` / `tags` to Abili
    **Done means:** the elite shows a filling floor circle before each slam; dashing or walking out avoids it; standing in it costs about 15% health.
 6. **C6 – Damage numbers.** 3 log-scale size steps, crit style (placeholder until the font), colors by type, the player's damage red, healing green, DoT merge, rise 12 px / fade 0.6 s.
    **Done means:** finisher numbers are visibly bigger than swings 1–2; the player's damage shows red; nothing overlaps unreadably with 5 slimes.
-7. **C7 – Line of sight.** Minimal `WorldQuery`, the filter in swings and `AbilityUtil`, `ignores_walls` on Ability.
+7. **C7 – Line of sight.** The filter in swing hits and `AbilityUtil`, `ignores_walls` on Ability (`WorldQuery.has_line_of_sight()` already exists, built with the melee pull).
    **Done means:** swings and Cleave don't hit a dummy behind the sandbox pillar; an ability with `ignores_walls` does.
 
 **Milestone M1 – a one-room fight in the sandbox:** the Knight fights with the combo, slimes chip, one elite telegraphs a slam, and the player can die ("You died", Backspace restarts) and win ("Room cleared!").
@@ -290,6 +328,7 @@ For every step: no errors; the Knight's 4 abilities, enemies chasing and the HUD
 Items and affixes (LOOT.md); ability costs, recasts and augments (ABILITIES.md); enemy AI beyond one telegraphed attack (ENEMIES_AI.md); elite affixes; pits; controller support.
 
 ## Open questions
+- Ranged basic attacks: design later (RANGED combos only get walk-cancel for now).
 - Dash-strike behavior and numbers.
 - What attack_speed means for enemies (AutoAttackComponent).
 - Sustain caps (life steal cap? regen during combat?).

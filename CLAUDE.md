@@ -70,7 +70,7 @@ New subfolders inside these are fine. Ask before adding a new top-level folder.
 ## Autoloads
 - `GameFeel` (`scripts/autoload/game_feel.gd`): `hitstop()`, `shake()`
 - `Events` (`scripts/autoload/events.gd`): global signal bus. `unit_hit`, `unit_damaged`, `unit_died` (COMBAT.md)
-- Planned: `WorldQuery` (docs/WORLD_INTERACTION.md; line of sight first, COMBAT C7)
+- `WorldQuery` (`scripts/autoload/world_query.gd`): spatial queries; only `has_line_of_sight()` so far (docs/WORLD_INTERACTION.md)
 
 ## Change policy (important)
 The game in `game/` is the **reference build**. It works, and changes build on it.
@@ -106,11 +106,11 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 
 ## Current status
 <!-- OVERWRITE this whole section at the end of each session (Now / Last 3 done / Next). Never append. -->
-- **Now:** Waiting on Ryan's play test of COMBAT C2 (left mouse = the Knight's 3-hit combo). Still open: play tests of STATS step 5, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of melee basic attacks (swing step, target pull, walk-cancel). Still open: play tests of STATS step 5, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. COMBAT C2: the Knight's combo (`AttackSwing`, `AttackCombo`, `combo_knight.tres`, combo mode on AutoAttackComponent), rooted swings, dash / stun / ability (`Ability.cancels_swing`) cancels, the buffer waits out swings, Iron Resolve through swings, `select` unbound. Combat test 109/109, stats test 143/143, in-game check 15/15.
-  2. COMBAT C1: `Events` autoload, `HitContext`, `HitPipeline`, `Unit.on_hit()`; `take_damage()` and Hurtbox hits wrapped; `damage_type` and `proc_coefficient` on Ability.
-  3. COMBAT.md follow-ups: `incoming_damage` stat name, dash out of hit knockback, `cancels_swing` default AFTER_HIT, C8 ability migration, i-frame swarm question.
+  1. Melee basic attacks: every MELEE combo swing steps forward (`lunge_px`) and pulls toward an aimed enemy with an aim snap (`lunge_max_px`, assist settings on AttackCombo), walking ends the recovery's root, `attack_style` MELEE/RANGED, minimal `WorldQuery.has_line_of_sight()`. Combat test 153/153, stats test 143/143, in-game check 21/21.
+  2. COMBAT C2: the Knight's combo (`AttackSwing`, `AttackCombo`, `combo_knight.tres`, combo mode on AutoAttackComponent), rooted swings, dash / stun / ability (`Ability.cancels_swing`) cancels, the buffer waits out swings, Iron Resolve through swings, `select` unbound.
+  3. COMBAT C1: `Events` autoload, `HitContext`, `HitPipeline`, `Unit.on_hit()`; `take_damage()` and Hurtbox hits wrapped.
 - **Next:** COMBAT C3 (hit feel) → C7 → milestone M1 (one-room fight in the sandbox) → STATS step 6 → COMBAT C8–C12. STATS step 7 (F3 overlay) after M1. Then the Future docs in their listed order.
 
 ## Known issues (leave for now)

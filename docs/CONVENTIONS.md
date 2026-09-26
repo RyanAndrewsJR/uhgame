@@ -42,7 +42,7 @@
 - **Surface**: a wall or solid body with `SurfaceTags`. **Hazard**: an area on the floor with tags that affects units in it (oil, fire, spikes, ice).
 - **Interactable** (F key or ability-reactive object), **Pickup** (loot on the ground).
 - **Item**, **item base**, **affix**, **rarity** (LOOT.md). **Room**, **run**, **dungeon** (DUNGEONS.md).
-- **Swing**: one hit of the basic attack combo (windup, hit, recovery). **Combo**: the chain of swings; **finisher**: its last swing. A swing that hits nothing **whiffs**.
+- **Swing**: one hit of the basic attack combo (windup, hit, recovery). **Combo**: the chain of swings; **finisher**: its last swing. A swing that hits nothing **whiffs**. Melee swings have a **swing step** (`lunge_px`), a **target pull** toward the **aimed enemy**, and an **aim snap** (COMBAT.md, Melee basic attacks).
 - **Telegraph**: the floor shape that warns of an enemy attack and fills up until the hit.
 - **Proc**: a hit caused by another hit (on-hit damage, reaction damage). It's tagged `proc` and never triggers on-hit.
 - **VFX** means visuals only. It never changes gameplay state.
