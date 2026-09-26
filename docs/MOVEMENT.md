@@ -131,7 +131,7 @@ Only keys that physically collided with WASD changed. Action names never change.
    | `IDLE` | none of the above |
 
    While dead, the state stops updating.
-4. **Camera:** `aim_lead` = 64 px (0 = off). While locked, the camera leans toward the mouse by `aim_lead` × the mouse's distance from the screen center (as a fraction of half the screen, capped at 1). Screen space, so camera movement doesn't feed back into it; position smoothing eases it in. Holding C centers with no lead. Room bounds still clamp, so there's no sideways lead near a room's left or right edge. The camera runs in physics process mode because physics interpolation is on (F1).
+4. **Camera:** `aim_lead` = 64 px (0 = off). While locked, the camera leans toward the mouse by `aim_lead` × the mouse's distance from the screen center (as a fraction of half the screen, capped at 1). Screen space, so camera movement doesn't feed back into it; position smoothing eases it in. Holding C centers with no lead. Room bounds still clamp, so there's no sideways lead near a room's left or right edge. The camera runs in physics process mode because physics interpolation is on (F1). **F4 (planned)** reworks the lead: a dead zone, a response curve, a smaller vertical lead, its own slower easing, and full lead only while aiming or casting (see Feel pass, F4).
 5. **Signals:** `Player.state_changed(from, to)`; `DashComponent.dash_started(direction)`, `dash_ended`, `charges_changed(charges, max)` (`debug_draw` on DashComponent shows charge pips); `PlayerInput.attack_pressed(dash_strike)`; `AbilityComponent.cast_cancelled(slot, ability)`. Planned: `fell_in_pit` (step 8).
 
 ## Feel pass
@@ -170,6 +170,37 @@ Movement works but feels robotic: displacements run at constant speed and there'
   - **Speed graph:** `debug_draw` on MovementComponent draws the actual distance moved per physics frame (so walls show), over `debug_graph_time` = 1 s, scaled to `debug_graph_max_speed_px` = 1500 px/s.
   - Measured: the dash covers 128.0 px in 11 frames at 1356 → 1225 → 1093 → … → 171 → 42 px/s, then runs on at 179 px/s the very next frame. Cleave knocks a dummy 17 px at 407 → 269 → 160 → 79 → 27 → 3 px/s. Lunge still covers 128 px and hits. A dash into the pillar stops exactly as before.
 
+### F4: Camera aim lead rework (runs before F3)
+- **Problem (play testing):** the locked camera moves too much when the cursor moves. The lead should help aim at enemies slightly off screen, not follow every mouse movement. Causes in the current code:
+  - No dead zone: any cursor movement shifts the camera.
+  - The lead is 64 px on both axes, but the screen is 640×360, so vertically it's over a third of the half-screen.
+  - The lead uses the same position smoothing (10) as the player follow, so it can't be slower without making the follow laggy.
+  - The lead is measured in screen space, so when the camera leans, the world point under a still cursor slides.
+- **Changes** (all `@export` on GameCamera, additive; `aim_lead` keeps its name and meaning as the horizontal maximum):
+  1. **Dead zone:** no lead while the cursor is inside `aim_lead_dead_zone` = 0.35 of the half-screen, measured as an oval (x and y each divided by their own half-size).
+  2. **Response:** from the dead zone edge to `aim_lead_full_at` = 0.9, the lead follows a Curve (`data/curves/curve_camera_lead.tres`, ease-in quad). Full lead beyond that.
+  3. `aim_lead_y_scale` = 0.6 for the vertical lead.
+  4. The lead eases toward its target at its own rate, `aim_lead_smoothing` = 4.0 per second (frame-rate independent). The follow smoothing stays at 10.
+  5. **Context:** full lead while the player is aiming or casting an ability (and in ATTACK once COMBAT exists); `aim_lead_idle_scale` = 0.3 otherwise. Read through the Player's public state (`Player.state` / `is_in_state()`, `aiming_slot`). No new coupling beyond the camera's existing target.
+  6. `move_lead_px` = 0 (off): an optional lean in the walking direction, blended the same way. Try 12–16.
+  - Holding C still centers with no lead. Shake, bounds and `snap_to_target()` behave as now.
+  - `debug_draw` on GameCamera: the dead zone oval, the target lead, and the current lead.
+- **Done means:**
+  - Moving the cursor inside the dead zone doesn't move the camera.
+  - Flicking the cursor corner to corner moves the camera over about half a second, with no whip.
+  - Walking without aiming barely leans; holding an aimed ability toward an off-screen dummy leans fully.
+  - F1 smoothness is unchanged (no new stutter).
+  - The Knight's abilities, enemies chasing and the HUD still work.
+- **Planned, awaiting Ryan's OK** (a prototype in a test copy was measured; nothing written to the game yet). Measured at 144 fps (camera movement = how far the world under a still cursor slides, game px):
+
+  | Test | Today | F4 idle | F4 aiming |
+  |---|---|---|---|
+  | Cursor center → right edge, held still | 64 px, 90% in 0.23 s, peak 648 px/s | 19 px, 0.69 s, 72 px/s | 64 px, 0.68 s, 144 px/s |
+  | Cursor center → bottom edge | 64 px, 0.22 s | 11.5 px, 0.67 s | 38 px, 0.68 s |
+  | Small moves inside the dead zone | 12–16 px each | 0 | 0 |
+  | Flick corner to corner | 128 px diagonal, 0.22 s, peak 1274 px/s | 31 px, 0.68 s | 105 px, 0.69 s, peak 260 px/s |
+  | Walking shake (F1 metric) | 0.03 px | 0.03 px | – |
+
 ### F3: Movement feedback (VFX only, never changes gameplay state)
 - **Dash:** stretch the Body along the dash direction (1.25 × 0.8) for 0.06 s, then ease back; squash it slightly (0.9 × 1.1) for 0.05 s when the dash ends; spawn 3–4 afterimages about 0.03 s apart, each fading over 0.15 s; a small dust puff at the start.
 - **Walking:** a 1 px bob at a rate tied to speed, and a dust puff on a sharp direction reversal (more than 135°).
@@ -185,7 +216,7 @@ Movement works but feels robotic: displacements run at constant speed and there'
 5. **Built** (awaiting play test): player states.
 6. **Built** (awaiting play test): dash with charges, i-frames, end-lag and chaining.
 7. **Built** (awaiting play test): input buffer, dash cancels (`Ability.dash_cancelable`), and the dash-strike hook.
-- **Feel pass F1 → F2 → F3** (see Feel pass) comes here, before step 8. F1 and F2 are built (awaiting play test).
+- **Feel pass F1 → F2 → F4 → F3** (see Feel pass) comes here, before step 8. F4 runs before F3. F1 and F2 are built (awaiting play test); F4 is planned.
 8. Pit crossing and fall/respawn (needs the pit layer; spec in WORLD_INTERACTION.md, Pits and movement types, still *proposed*). The respawn is a teleport: call `reset_physics_interpolation()` on the player and snap the camera (see F1).
 
 **Done means:** no errors; WASD works in play mode; the Knight's 4 abilities, enemies chasing, and the HUD still work as before. Exception (decided): the Knight's basic attacks stay dormant until COMBAT gives `attack` a reader.
