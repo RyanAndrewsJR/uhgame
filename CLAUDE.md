@@ -32,6 +32,7 @@ When a request is ambiguous, prioritize responsiveness and feel over realism.
 art/                    textures, sprites
 data/abilities/         Ability .tres (e.g. knight_q_cleave.tres)
 data/units/             UnitStats .tres per champion/monster (knight.tres, slime.tres)
+data/curves/            Curve .tres for displacement speed profiles (curve_dash.tres, curve_knockback.tres)
 scenes/player|enemies|rooms|ui/
 scenes/sandbox_main.tscn  test run: main + rooms/sandbox.tscn (open it, press F6)
 scripts/abilities/      ability.gd (base), cast_context.gd, ability_util.gd
@@ -98,18 +99,17 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 
 ## Current status
 <!-- OVERWRITE this whole section at the end of each session (Now / Last 3 done / Next). Never append. -->
-- **Now:** Waiting on Ryan's play test of Feel pass F1 at 144 Hz (walk along the sandbox's long wall, dash back and forth), plus movement steps 1 and 3–7, and on the *(proposed)* items from the docs cleanup (pits, hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of Feel pass F1 and F2 at 144 Hz (sandbox: walk the long wall, dash back and forth, dash while holding a direction, Q on a dummy), plus movement steps 1 and 3–7, and on the *(proposed)* items from the docs cleanup (pits, hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. Feel pass F1: physics interpolation on, transform snapping off, camera in physics process mode, start-up camera slide fixed. Measured shake at 144 fps: 5.4 → 0.04 px.
-  2. Feel pass planned: F1–F3 added to MOVEMENT.md, before step 8.
-  3. Docs cleanup (no code): naming fixes, `on_hit(HitContext)`, `unit_impacted`, STATS step 4 read list, proposed WORLD_INTERACTION sections.
-- **Next:** Feel pass F2 → F3 → Movement step 8 (pits) → STATS build steps (STATS.md is already written) → then the Future docs in their listed order.
+  1. Feel pass F2: displacement curves (`curve_dash` ease-out quad, `curve_knockback` ease-out cubic), `carry_into_run` (skips end-lag when a direction is held), speed graph (`MovementComponent.debug_draw`).
+  2. Feel pass F1: physics interpolation on, transform snapping off, camera in physics process mode, start-up camera slide fixed.
+  3. Feel pass planned: F1–F3 added to MOVEMENT.md, before step 8.
+- **Next:** Feel pass F3 → Movement step 8 (pits) → STATS build steps (STATS.md is already written) → then the Future docs in their listed order.
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.
 - HUD ability bar labels the W slot "W" though it's on right mouse (the label comes from the slot name).
 - Header comments in `game_camera.gd` ("Hold Space") and `player.gd` (right-click / A / S controls) describe the old keys.
-- The `MovementComponent.dash()` doc comment says it "stops at walls"; it slides along them (`move_and_slide()`).
 
 ## Decisions
 All decisions, grouped by system with date and why, are in `docs/DECISIONS.md`.

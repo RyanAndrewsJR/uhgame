@@ -7,8 +7,10 @@ extends Node2D
 ## - I-frames for the whole dash (Unit.add_invulnerability).
 ## - Charges from UnitStats.dash_charges. One charge comes back every
 ##   charge_recharge_time seconds, counted while not dashing.
-## - After a dash, walking is locked for end_lag seconds. Another dash can
-##   chain in right away if a charge is left.
+## - The speed follows dash_curve (burst, then ease out); the distance is exact.
+## - If a direction is held when the dash ends, the unit runs on at full
+##   speed (carry_into_run). Otherwise walking is locked for end_lag seconds.
+##   Another dash can chain in right away if a charge is left.
 ## - Can't start while stunned, already displaced (dashing, knockback), or
 ##   casting, unless the ability being cast is dash_cancelable (then the dash
 ##   cancels it). Starting a dash cancels a basic attack windup.
@@ -24,9 +26,15 @@ const INVULNERABILITY_ID := &"dash"
 @export var dash_distance: float = 400.0
 ## How long the dash takes, in seconds (constant speed).
 @export var dash_duration: float = 0.18
+## Speed profile of the dash (MOVEMENT.md F2). null = constant speed.
+@export var dash_curve: Curve = preload("res://data/curves/curve_dash.tres")
+## If a direction is held when the dash ends, walking starts at full speed
+## right away and end_lag is skipped, so the dash flows into running.
+@export var carry_into_run: bool = true
 ## Seconds to get one charge back. Charges come back one at a time.
 @export var charge_recharge_time: float = 0.35
-## Seconds after a dash during which the unit can't walk.
+## Seconds after a dash during which the unit can't walk. Only applies when
+## no direction is held at the end (see carry_into_run).
 @export var end_lag: float = 0.05
 ## Invulnerable for the whole dash.
 @export var iframes: bool = true
@@ -110,7 +118,7 @@ func try_dash(direction: Vector2) -> bool:
 	if iframes:
 		unit.add_invulnerability(INVULNERABILITY_ID)
 	var speed_px := Units.to_px(dash_distance) / maxf(dash_duration, 0.01)
-	unit.movement.dash(_direction * speed_px, dash_duration)
+	unit.movement.dash(_direction * speed_px, dash_duration, true, dash_curve)
 	charges_changed.emit(_charges, get_max_charges())
 	dash_started.emit(_direction)
 	queue_redraw()
@@ -144,7 +152,9 @@ func _on_displacement_finished() -> void:
 	_dashing = false
 	_since_dash_end = 0.0
 	unit.remove_invulnerability(INVULNERABILITY_ID)
-	if end_lag > 0.0 and unit.is_alive():
+	if carry_into_run and unit.movement.get_input_direction() != Vector2.ZERO:
+		unit.movement.set_input_speed_to_max()
+	elif end_lag > 0.0 and unit.is_alive():
 		_end_lag_left = end_lag
 		unit.movement.add_move_lock(END_LAG_LOCK)
 	dash_ended.emit()

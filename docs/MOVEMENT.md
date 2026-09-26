@@ -92,11 +92,11 @@ Only keys that physically collided with WASD changed. Action names never change.
 
 ## Dash
 - Space calls `DashComponent.try_dash()` from PlayerInput.
-- 128 px (`dash_distance` = 400 u) over `dash_duration` = 0.18 s at constant speed, through `MovementComponent.dash()` (passes through units; `move_and_slide()`, so it slides along walls instead of stopping, and only a near-head-on dash stops).
+- 128 px (`dash_distance` = 400 u) over `dash_duration` = 0.18 s, bursting and then easing out (`dash_curve`, F2), through `MovementComponent.dash()` (passes through units; `move_and_slide()`, so it slides along walls instead of stopping, and only a near-head-on dash stops).
 - Direction: the held input direction; with no input, `facing`.
 - I-frames for the whole dash via `Unit.add_invulnerability(&"dash")`: `take_damage()` and Hurtbox hits (damage and knockback) are ignored. This sits on Unit, not only the Hurtbox, because enemy basic attacks call `take_damage()` directly. The body turns half see-through.
 - Charges: `UnitStats.dash_charges` (default 1). One charge returns every `charge_recharge_time` = 0.35 s, one at a time, counted only while not dashing.
-- End-lag: `end_lag` = 0.05 s of locked walking after a dash. A dash can chain in during end-lag if a charge is left.
+- Exit: if a direction is held when the dash ends, the player runs on at full speed (`carry_into_run`, F2). Otherwise `end_lag` = 0.05 s of locked walking follows. A dash can chain in during end-lag if a charge is left.
 - Not allowed while stunned or already displaced (dashing, knockback), or while casting unless the ability is `dash_cancelable` (then the dash cancels the cast). A press that isn't allowed is buffered (see below). Starting a dash cancels a basic attack windup and a queued walk-into-range cast.
 - Crosses pits (step 8). Ending over a pit follows the fall rule in WORLD_INTERACTION.md, Pits and movement types *(proposed: 8 px or more inside falls, less snaps back; the player takes 5% of max health, min 1 left, and respawns on the last safe tile)*.
 
@@ -116,6 +116,7 @@ Only keys that physically collided with WASD changed. Action names never change.
    - `use_steering` (the player sets it false). Not `avoidance_enabled`: that flag also makes other units ignore this one, so slimes would stop steering around the player. `use_steering = false` only skips this unit's own steering.
    - Soft cap exports (see Speed and soft caps).
    - Walls: diagonal input slides along a wall at close to full speed (Godot's floating-mode slide). Input within 15° of straight into a wall doesn't slide (Godot's default `wall_min_slide_angle`, kept: at 0° near-head-on pushes shot sideways). With 8-way keys this only shows on rounded corners.
+   - Displacements follow a progress curve (F2): `displace(velocity, duration, curve = null)` (null = `knockback_curve`), `dash(velocity, duration, ghosted = true, curve = null)` (null = constant speed), `set_input_speed_to_max()`.
    - **Priority: displacement > move lock > walking.** A displacement runs even while a move lock is held (knockback moves a stunned unit; Lunge moves during its own cast lock). New movement methods (`blink`, `pull_to`, `orbit`...) follow the same order.
 3. **Player states** (`Player.State`): worked out every physics frame from the components, highest priority first. They describe what's happening; the components still drive behavior. `Player.state`, `is_in_state()`, `state_changed(from, to)`; `debug_draw` on the Player shows the state name.
 
@@ -159,6 +160,15 @@ Movement works but feels robotic: displacements run at constant speed and there'
 - **Debug:** `debug_draw` on MovementComponent draws a graph of the last 1 s of speed (px/s) above the unit.
 - Stuns, walls and `displacement_finished` behave exactly as they do now.
 - **Done means:** the dash still covers exactly 128 px (the cracked tiles); the speed graph shows a burst and then an ease-out; there's no visible pause between the dash and running; knockback on slimes bursts and then settles.
+- **Built** (awaiting play test):
+  - `null` means different things on the two methods: `dash(..., curve = null)` = constant speed; `displace(..., curve = null)` = `knockback_curve`. So knockback eases by default and existing dash callers can opt in.
+  - Progress is normalized (`(p(t) − p(0)) / (p(1) − p(0))`), so a hand-edited curve that doesn't run exactly 0 → 1 still covers the full distance.
+  - Defaults are set in the scripts, so every unit gets them: `MovementComponent.knockback_curve` = `curve_knockback.tres` (ease-out cubic), `DashComponent.dash_curve` = `curve_dash.tres` (ease-out quad). Lunge's `dash_curve` is set in `knight_e_lunge.tres`.
+  - Callers whose speed profile changes: Cleave's knockback (`cleave.gd`, 17 px over 0.1 s) and Hurtbox knockback (`Unit._on_hurtbox_hurt`, no Hitbox uses it yet) now use `knockback_curve`. The dash and Lunge use `curve_dash`. Distances are unchanged.
+  - Lunge's hits don't depend on its speed: they're found along the segment from the start point to the end point after the dash. Only its afterimages (spawned every 2 physics frames) now bunch toward the slow end.
+  - **Dash exit:** if a direction is held when the dash ends, walking starts at full speed and `end_lag` is skipped. If no direction is held, `end_lag` (0.05 s) still locks walking, which plants the stop.
+  - **Speed graph:** `debug_draw` on MovementComponent draws the actual distance moved per physics frame (so walls show), over `debug_graph_time` = 1 s, scaled to `debug_graph_max_speed_px` = 1500 px/s.
+  - Measured: the dash covers 128.0 px in 11 frames at 1356 → 1225 → 1093 → … → 171 → 42 px/s, then runs on at 179 px/s the very next frame. Cleave knocks a dummy 17 px at 407 → 269 → 160 → 79 → 27 → 3 px/s. Lunge still covers 128 px and hits. A dash into the pillar stops exactly as before.
 
 ### F3: Movement feedback (VFX only, never changes gameplay state)
 - **Dash:** stretch the Body along the dash direction (1.25 × 0.8) for 0.06 s, then ease back; squash it slightly (0.9 × 1.1) for 0.05 s when the dash ends; spawn 3–4 afterimages about 0.03 s apart, each fading over 0.15 s; a small dust puff at the start.
@@ -175,7 +185,7 @@ Movement works but feels robotic: displacements run at constant speed and there'
 5. **Built** (awaiting play test): player states.
 6. **Built** (awaiting play test): dash with charges, i-frames, end-lag and chaining.
 7. **Built** (awaiting play test): input buffer, dash cancels (`Ability.dash_cancelable`), and the dash-strike hook.
-- **Feel pass F1 → F2 → F3** (see Feel pass) comes here, before step 8. F1 is built (awaiting play test).
+- **Feel pass F1 → F2 → F3** (see Feel pass) comes here, before step 8. F1 and F2 are built (awaiting play test).
 8. Pit crossing and fall/respawn (needs the pit layer; spec in WORLD_INTERACTION.md, Pits and movement types, still *proposed*). The respawn is a teleport: call `reset_physics_interpolation()` on the player and snap the camera (see F1).
 
 **Done means:** no errors; WASD works in play mode; the Knight's 4 abilities, enemies chasing, and the HUD still work as before. Exception (decided): the Knight's basic attacks stay dormant until COMBAT gives `attack` a reader.

@@ -17,6 +17,9 @@ extends Node2D
 ## - Move locks (cast times, attack windups, stuns) pause movement but keep
 ##   the move order, so you carry on to your destination afterwards.
 ## - displace() pushes the unit (knockbacks, dashes) and overrides walking.
+##   A displacement follows a progress Curve (x = time 0-1, y = share of the
+##   distance 0-1): burst then ease out. The total distance is always
+##   velocity x duration; only the speed profile changes (MOVEMENT.md F2).
 ## - set_input_direction(dir) is Hades-style direct control (the player's
 ##   WASD): a short ramp up and down, instant turning, sliding along walls.
 ##   While a direction is held it replaces any move_to() order.
@@ -64,9 +67,21 @@ const SOFT_CAP_MAX_FACTOR := 0.5
 ## Extra space (px) kept between units when steering around them.
 @export var avoidance_margin: float = 2.0
 
+@export_group("Displacement")
+## Speed profile used by displace() when no curve is passed (knockback).
+## null = constant speed.
+@export var knockback_curve: Curve = preload("res://data/curves/curve_knockback.tres")
+
 @export_group("Debug")
 ## Draws the current path. Handy while tuning.
 @export var debug_draw_path: bool = false
+## Draws a graph of the last debug_graph_time seconds of speed (px/s) above
+## the unit. Handy while tuning displacement curves.
+@export var debug_draw: bool = false
+## Speed (px/s) at the top of the graph.
+@export var debug_graph_max_speed_px: float = 1500.0
+## Seconds of history shown in the graph.
+@export var debug_graph_time: float = 1.0
 
 var body: CharacterBody2D
 
@@ -80,7 +95,13 @@ var _locks: Dictionary = {}          # id -> true
 var _modifiers: Dictionary = {}      # id -> {flat, percent, time_left}
 
 var _displace_velocity: Vector2 = Vector2.ZERO
-var _displace_time: float = 0.0
+var _displace_time: float = 0.0      # seconds left
+var _displace_duration: float = 0.0
+var _displace_elapsed: float = 0.0
+var _displace_offset: Vector2 = Vector2.ZERO   # total distance = velocity x duration
+var _displace_curve: Curve = null
+var _curve_start: float = 0.0
+var _curve_end: float = 1.0
 var _ghost_saved_mask: int = -1
 
 var _stuck_time: float = 0.0
@@ -92,6 +113,9 @@ var _input_last_dir: Vector2 = Vector2.ZERO  # keeps sliding this way while stop
 var _input_speed_px: float = 0.0             # current input walking speed
 
 var _debug_line: Line2D
+var _speed_samples: Array[Vector2] = []   # (time, speed px/s) for debug_draw
+var _last_pos: Vector2 = Vector2.INF
+var _clock: float = 0.0
 
 
 func _ready() -> void:
@@ -105,6 +129,8 @@ func _ready() -> void:
 		_debug_line.top_level = true
 		_debug_line.z_index = 50
 		add_child(_debug_line)
+	if debug_draw:
+		z_index = 60
 
 
 func set_radius(px: float) -> void:
@@ -191,17 +217,20 @@ func can_move() -> bool:
 
 # --- Displacement (knockbacks, dashes) ----------------------------------------
 
-func displace(velocity: Vector2, duration: float) -> void:
+## Push the unit: it covers velocity x duration in total. `curve` shapes
+## the speed; with no curve, knockback_curve is used.
+func displace(velocity: Vector2, duration: float, curve: Curve = null) -> void:
 	_end_ghost()
-	_displace_velocity = velocity
-	_displace_time = duration
+	_start_displacement(velocity, duration, curve if curve != null else knockback_curve)
 
 
-## Dash at `velocity` for `duration` seconds. Ghosted by default: passes
-## through other units but still stops at walls. Await
-## `displacement_finished` to know when it's over.
-func dash(velocity: Vector2, duration: float, ghosted: bool = true) -> void:
-	displace(velocity, duration)
+## Dash at `velocity` (average) for `duration` seconds. Ghosted by default:
+## passes through other units; walls still block it, and it slides along
+## them (move_and_slide). `curve` shapes the speed; null = constant speed.
+## Await `displacement_finished` to know when it's over.
+func dash(velocity: Vector2, duration: float, ghosted: bool = true, curve: Curve = null) -> void:
+	_end_ghost()
+	_start_displacement(velocity, duration, curve)
 	if ghosted:
 		_ghost_saved_mask = body.collision_mask
 		body.collision_mask = body.collision_mask & 1  # walls only
@@ -215,6 +244,34 @@ func _end_ghost() -> void:
 
 func is_displaced() -> bool:
 	return _displace_time > 0.0
+
+
+func _start_displacement(velocity: Vector2, duration: float, curve: Curve) -> void:
+	_displace_velocity = velocity
+	_displace_time = duration
+	_displace_duration = maxf(duration, 0.0001)
+	_displace_elapsed = 0.0
+	_displace_offset = velocity * duration
+	_displace_curve = curve
+	if curve != null:
+		_curve_start = curve.sample(0.0)
+		_curve_end = curve.sample(1.0)
+
+
+## Share of the distance covered at time share t (0-1). Normalized so a
+## curve that doesn't run exactly 0 -> 1 still covers the full distance.
+func _displacement_progress(t: float) -> float:
+	if _displace_curve == null or absf(_curve_end - _curve_start) < 0.0001:
+		return t
+	return (_displace_curve.sample(t) - _curve_start) / (_curve_end - _curve_start)
+
+
+## Start input walking at full speed right away, e.g. running out of a dash.
+func set_input_speed_to_max() -> void:
+	if _input_dir == Vector2.ZERO:
+		return
+	_input_last_dir = _input_dir.normalized()
+	_input_speed_px = Units.to_px(get_move_speed()) * _input_dir.length()
 
 
 # --- Movement speed ---------------------------------------------------------
@@ -271,13 +328,19 @@ static func apply_soft_caps(raw: float) -> float:
 
 func _physics_process(delta: float) -> void:
 	_tick_modifiers(delta)
+	if debug_draw:
+		_record_speed(delta)
 
 	if _displace_time > 0.0:
-		# Only move for the time that's left, so dashes land exactly.
-		var portion := minf(_displace_time, delta) / delta
-		_displace_time -= delta
+		# Move by this frame's share of the curve. The shares add up to exactly
+		# the total offset, so dashes land exactly (walls aside).
+		var t0 := _displace_elapsed / _displace_duration
+		_displace_elapsed = minf(_displace_elapsed + delta, _displace_duration)
+		_displace_time = _displace_duration - _displace_elapsed
+		var t1 := _displace_elapsed / _displace_duration
+		var step := _displace_offset * (_displacement_progress(t1) - _displacement_progress(t0))
 		_move_dir = Vector2.ZERO
-		body.velocity = _displace_velocity * portion
+		body.velocity = step / delta
 		body.move_and_slide()
 		if _displace_time <= 0.0:
 			body.velocity = Vector2.ZERO
@@ -503,3 +566,34 @@ func _update_debug_line() -> void:
 	for i in range(_path_index, _path.size()):
 		pts.append(_path[i])
 	_debug_line.points = pts
+
+
+# --- Debug speed graph --------------------------------------------------------
+
+func _record_speed(delta: float) -> void:
+	_clock += delta
+	var pos := body.global_position
+	if _last_pos != Vector2.INF:
+		_speed_samples.append(Vector2(_clock, pos.distance_to(_last_pos) / delta))
+	_last_pos = pos
+	while not _speed_samples.is_empty() and _speed_samples[0].x < _clock - debug_graph_time:
+		_speed_samples.pop_front()
+	queue_redraw()
+
+
+func _draw() -> void:
+	if not debug_draw or _speed_samples.size() < 2:
+		return
+	var w := 60.0
+	var h := 30.0
+	var origin := Vector2(-w * 0.5, -60.0)   # bottom-left of the graph
+	draw_rect(Rect2(origin - Vector2(0, h), Vector2(w, h)), Color(0, 0, 0, 0.45))
+	var pts := PackedVector2Array()
+	for s in _speed_samples:
+		var x := origin.x + (1.0 - (_clock - s.x) / debug_graph_time) * w
+		var y := origin.y - clampf(s.y / debug_graph_max_speed_px, 0.0, 1.0) * h
+		pts.append(Vector2(x, y))
+	draw_polyline(pts, Color(0.4, 1.0, 0.6), 1.0)
+	var last := _speed_samples[_speed_samples.size() - 1].y
+	draw_string(ThemeDB.fallback_font, origin + Vector2(0, -h - 2), "%d px/s" % roundi(last),
+		HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(1, 1, 1, 0.8))

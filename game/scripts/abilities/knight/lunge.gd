@@ -6,6 +6,9 @@ extends Ability
 @export var dash_speed: float = 1400.0
 ## Width of the damaging path in LoL units.
 @export var hit_width: float = 80.0
+## Speed profile of the lunge (MOVEMENT.md F2). null = constant speed.
+## The distance and the hit path don't depend on it.
+@export var dash_curve: Curve
 
 
 func execute(caster: Unit, ctx: CastContext) -> void:
@@ -16,7 +19,7 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 		return
 	var speed := Units.to_px(dash_speed)
 	var duration := dist / speed
-	caster.movement.dash(offset / dist * speed, duration)
+	caster.movement.dash(offset / dist * speed, duration, true, dash_curve)
 
 	# Afterimage trail while dashing.
 	var frame := 0
