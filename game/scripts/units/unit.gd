@@ -50,6 +50,7 @@ var hovered: bool = false:
 			queue_redraw()
 
 var _alive: bool = true
+var _dot_number: Label   # the latest DoT number, to merge the next tick into
 var _invulnerable: Dictionary = {}   # id -> true (e.g. &"dash" i-frames)
 
 
@@ -157,7 +158,7 @@ func on_hit(ctx: HitContext) -> void:
 	ctx.health_lost = before - health.current
 	ctx.killed = not _alive
 	damaged.emit(ctx.taken_damage, ctx.source)
-	_spawn_damage_number(ctx.taken_damage, ctx.highlight)
+	_spawn_hit_number(ctx)
 	_flash()
 	if ctx.knockback_px > 0.0 and _alive:
 		_apply_knockback(ctx)
@@ -237,6 +238,54 @@ func _flash() -> void:
 	create_tween().tween_property(body, "modulate", Color.WHITE, feel.flash_time)
 
 
+## The number for a hit that got through (COMBAT.md, Damage numbers): size by
+## amount (log steps), crits bigger with their own look, color by damage type
+## (red on the player), DoT ticks smaller and merged per target.
+func _spawn_hit_number(ctx: HitContext) -> void:
+	var style: DamageNumberStyle = DamageNumber.DEFAULT_STYLE
+	var is_dot := ctx.has_tag(&"dot")
+	if is_dot and is_instance_valid(_dot_number) and not _dot_number.is_queued_for_deletion() \
+			and _dot_number.get_age() < style.dot_merge_window:
+		_dot_number.add_amount(ctx.taken_damage)
+		return
+	var n := _make_number(ctx.taken_damage, style)
+	if is_dot:
+		n.kind = DamageNumber.Kind.DOT
+		_dot_number = n
+	elif ctx.is_crit:
+		n.kind = DamageNumber.Kind.CRIT
+	if team == Team.PLAYER:
+		n.color = style.player_damage_color
+	else:
+		n.color = style.get_damage_type_color(ctx.damage_type)
+	_add_number(n)
+
+
+## A green healing number above the unit (life steal, heals; C8 and later).
+func show_heal_number(amount: float) -> void:
+	var style: DamageNumberStyle = DamageNumber.DEFAULT_STYLE
+	var n := _make_number(amount, style)
+	n.kind = DamageNumber.Kind.HEAL
+	n.color = style.heal_color
+	_add_number(n)
+
+
+func _make_number(amount: float, style: DamageNumberStyle) -> Label:
+	var n := Label.new()
+	n.set_script(DamageNumber)
+	n.style = style
+	n.amount = amount
+	return n
+
+
+func _add_number(n: Label) -> void:
+	var parent := get_parent() as Node2D
+	var spread: float = (n.style as DamageNumberStyle).spread_px
+	n.position = parent.to_local(get_center() + Vector2(randf_range(-spread, spread), -get_gameplay_radius_px() * 0.8))
+	parent.add_child(n)
+
+
+## The pre-C6 number (kept, unused since C6; delete after Ryan confirms C6).
 func _spawn_damage_number(amount: float, highlight: bool = false) -> void:
 	var n := Label.new()
 	n.set_script(DamageNumber)

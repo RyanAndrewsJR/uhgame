@@ -12,6 +12,9 @@ enum AttackStyle { MELEE, RANGED }
 @export var attack_style: AttackStyle = AttackStyle.MELEE
 
 @export var swings: Array[AttackSwing] = []
+## Scales every swing timing of this combo (windups, durations, pauses):
+## 2.0 = twice as fast, 0.5 = twice as slow. Multiplies with attack speed.
+@export_range(0.25, 3.0) var speed_scale: float = 1.0
 ## Seconds without attacking, counted from the end of a swing, before the
 ## next attack starts again from the first swing.
 @export var combo_reset_time: float = 0.6

@@ -29,3 +29,8 @@ extends Resource
 @export var lunge_max_px: float = 24.0
 ## Scales on-hit chances and effects (COMBAT C8).
 @export var proc_coefficient: float = 1.0
+## Seconds after this swing ends before the next swing can start: a breather,
+## e.g. after a finisher (Hades' sword). 0 = none. Only attacking waits:
+## moving, dashing and abilities don't. A click during it fires when it ends.
+## Divided by the combo speed like every swing timing.
+@export var pause_after: float = 0.0

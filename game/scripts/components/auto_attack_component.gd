@@ -120,6 +120,7 @@ var _swing_fresh: bool = false         # started this physics frame
 var _next_swing_index: int = 0
 var _combo_reset_left: float = 0.0
 var _root_released: bool = false       # walking ended the root early
+var _pause_left: float = 0.0           # breather after a swing (pause_after)
 var _since_hit: float = 0.0
 var _step_serial: int = -1             # MovementComponent serial of our step
 var _assist_target: Unit               # the last swing's aimed enemy, or null
@@ -182,7 +183,13 @@ func is_in_recovery() -> bool:
 ## (stun, casting).
 func can_swing() -> bool:
 	return combo != null and not combo.swings.is_empty() and unit.is_alive() \
-		and _swing == null and _locks.is_empty()
+		and _swing == null and _locks.is_empty() and _pause_left <= 0.0
+
+
+## The breather after a swing (AttackSwing.pause_after) is running: the next
+## swing waits, but nothing else does.
+func is_in_pause() -> bool:
+	return _pause_left > 0.0
 
 
 ## While swinging: the current swing's index. Otherwise: the index the next
@@ -214,12 +221,14 @@ func get_swing_direction() -> Vector2:
 
 
 ## Combo speed multiplier: attack_speed / base attack speed (1.0 at base;
-## +20% bonus attack speed = 1.2). Every swing timing is divided by it.
+## +20% bonus attack speed = 1.2), times the combo's speed_scale. Every
+## swing timing is divided by it.
 func get_swing_speed() -> float:
+	var scale := combo.speed_scale if combo != null else 1.0
 	var base := unit.stats_component.get_base_value(&"attack_speed")
 	if base <= 0.0:
-		return 1.0
-	return maxf(get_attack_speed() / base, 0.01)
+		return scale
+	return maxf(get_attack_speed() / base * scale, 0.01)
 
 
 ## Reach of a swing in px (before hit forgiveness): the attack_range stat
@@ -263,6 +272,8 @@ func try_swing(direction: Vector2, dash_strike: bool = false) -> bool:
 func cancel_swing() -> void:
 	if _swing == null:
 		return
+	if _swing_landed:
+		_pause_left = _swing.pause_after / get_swing_speed()   # its hit happened
 	_stop_step()
 	_end_swing()
 	_next_swing_index = 0
@@ -402,6 +413,8 @@ func _physics_process(delta: float) -> void:
 # --- Combo swings ---------------------------------------------------------------
 
 func _update_combo(delta: float) -> void:
+	if _pause_left > 0.0:
+		_pause_left = maxf(_pause_left - delta, 0.0)
 	if _swing == null:
 		if _combo_reset_left > 0.0:
 			_combo_reset_left -= delta
@@ -568,6 +581,7 @@ func _land_swing() -> void:
 
 
 func _finish_swing() -> void:
+	_pause_left = _swing.pause_after / get_swing_speed()
 	var count := combo.swings.size()
 	_next_swing_index = (_swing_index + 1) % count
 	_combo_reset_left = combo.combo_reset_time

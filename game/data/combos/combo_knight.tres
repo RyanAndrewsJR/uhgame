@@ -18,6 +18,7 @@ knockback_px = 20.0
 feel = 2
 lunge_px = 10.0
 lunge_max_px = 32.0
+pause_after = 0.25
 
 [resource]
 script = ExtResource("1_combo")
