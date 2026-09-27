@@ -172,6 +172,30 @@ func try_cancel_cast_on_move() -> bool:
 	return true
 
 
+## Ends the current cast during its cast time as an interrupt (the caster
+## died): its telegraph goes at once, the locks are released and
+## cast_finished is emitted, like a stun at the end of the cast time. A
+## living caster gets the cooldown back. The effect (execute()) can't be
+## stopped once it starts. Returns true if a cast was ended.
+func interrupt_cast() -> bool:
+	if not casting or _executing:
+		return false
+	var slot := casting_slot
+	var ability := get_ability(slot)
+	_remove_telegraph(_cast_ctx)
+	_cast_serial += 1  # The _do_cast waiting on the cast time sees this and stops.
+	if _cast_rooted:
+		unit.movement.remove_move_lock(&"casting")
+	unit.attack.remove_lock(&"casting")
+	_remove_cast_move_speed()
+	if unit.is_alive():
+		_cooldown_left[slot] = 0.0  # Refund interrupted casts.
+	casting = false
+	casting_slot = &""
+	cast_finished.emit(slot, ability)
+	return true
+
+
 func _cancel_cast() -> void:
 	var slot := casting_slot
 	var ability := get_ability(slot)
@@ -272,6 +296,14 @@ func _add_cast_move_speed(ability: Ability) -> void:
 		return
 	unit.stats_component.add_modifier(StatModifier.create(&"move_speed",
 		StatModifier.Type.PERCENT_MULT, ability.cast_move_speed_multiplier - 1.0, CAST_MOVE_SPEED_SOURCE))
+
+
+## A caster freed mid-cast without dying first takes its telegraph with it:
+## once this node is gone, the _do_cast() waiting on the cast time never
+## resumes, so nothing else would remove it.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE and casting and not _executing:
+		_remove_telegraph(_cast_ctx)
 
 
 ## A cast that doesn't go off (cancelled, stunned, dead) takes its telegraph
