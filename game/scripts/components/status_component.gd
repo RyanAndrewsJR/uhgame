@@ -12,6 +12,9 @@ extends Node
 ## Re-applying follows the status's stack_rule. Tenacity shortens &"cc"
 ## statuses. DoT ticks are &"dot" hits through HitPipeline with the applier
 ## as the source (kill credit); their damage is snapshotted when applied.
+## Shields (shield_amount > 0, COMBAT C10) absorb damage in Unit.on_hit
+## through absorb_damage(), the one expiring soonest first, and end when
+## used up.
 
 signal status_applied(effect: StatusEffect)
 signal status_removed(effect: StatusEffect)
@@ -28,6 +31,8 @@ class ActiveStatus:
 	var source: Unit
 	## Remaining seconds per stack; -1 = until removed.
 	var stack_times: Array[float] = []
+	## Shield left per stack (same order as stack_times); 0 = none. C10.
+	var stack_shields: Array[float] = []
 	var tick_left: float = 0.0
 	## DoT damage per stack per tick, snapshotted when applied.
 	var tick_amount: float = 0.0
@@ -72,6 +77,7 @@ func apply_status(effect: StatusEffect, source: Unit = null, duration_override: 
 	if active == null:
 		active = ActiveStatus.new()
 		active.stack_times.append(duration)
+		active.stack_shields.append(effect.shield_amount)
 		_start(active, effect, source)
 		_active[effect.id] = active
 	else:
@@ -82,15 +88,20 @@ func apply_status(effect: StatusEffect, source: Unit = null, duration_override: 
 				var left := active.get_time_left()
 				if duration < 0.0 or (left >= 0.0 and duration > left):
 					active.stack_times[0] = duration
+				active.stack_shields[0] = maxf(active.stack_shields[0], effect.shield_amount)   # the bigger shield
 			StatusEffect.StackRule.REFRESH:
 				_stop(active)
 				active.stack_times = [duration]
+				active.stack_shields = [effect.shield_amount]
 				_start(active, effect, source)
 			StatusEffect.StackRule.STACK:
 				if active.stack_times.size() < maxi(active.effect.max_stacks, 1):
 					active.stack_times.append(duration)
+					active.stack_shields.append(effect.shield_amount)
 				else:
-					active.stack_times[_shortest_stack(active)] = duration
+					var index := _shortest_stack(active)
+					active.stack_times[index] = duration
+					active.stack_shields[index] = effect.shield_amount
 				if is_instance_valid(source):
 					active.source = source
 				active.tick_amount = _snapshot_tick(effect, source)
@@ -174,6 +185,70 @@ func get_source(id: StringName) -> Unit:
 	return active.source
 
 
+## Shield left on one status (all its stacks), 0 if none.
+func get_shield(id: StringName) -> float:
+	var active: ActiveStatus = _active.get(id)
+	if active == null:
+		return 0.0
+	var total := 0.0
+	for s in active.stack_shields:
+		total += s
+	return total
+
+
+## Every shield on the unit added up (for health bars).
+func get_total_shield() -> float:
+	var total := 0.0
+	for id: StringName in _active.keys():
+		total += get_shield(id)
+	return total
+
+
+## Takes `amount` of damage out of the unit's shields, the one expiring
+## soonest first ("until removed" ones last; ties by status id). A shield
+## stack used up is removed, and its status with its last stack. Returns
+## how much was absorbed (COMBAT C10).
+func absorb_damage(amount: float) -> float:
+	var pools: Array = []   # [time_left, id, stack index]
+	for id: StringName in _active.keys():
+		var active: ActiveStatus = _active[id]
+		for i in active.stack_shields.size():
+			if active.stack_shields[i] > 0.0:
+				var t := active.stack_times[i]
+				pools.append([INF if t < 0.0 else t, String(id), i])
+	if pools.is_empty() or amount <= 0.0:
+		return 0.0
+	pools.sort_custom(func(a: Array, b: Array) -> bool:
+		return a[0] < b[0] or (a[0] == b[0] and (a[1] < b[1] or (a[1] == b[1] and a[2] < b[2]))))
+	var left := amount
+	var used_up: Dictionary = {}   # id -> [stack indexes]
+	for pool: Array in pools:
+		if left <= 0.0:
+			break
+		var id := StringName(pool[1])
+		var active: ActiveStatus = _active[id]
+		var index: int = pool[2]
+		var take := minf(left, active.stack_shields[index])
+		active.stack_shields[index] -= take
+		left -= take
+		if active.stack_shields[index] <= EPSILON:
+			if not used_up.has(id):
+				used_up[id] = []
+			used_up[id].append(index)
+	for id: StringName in used_up.keys():
+		var active: ActiveStatus = _active[id]
+		var indexes: Array = used_up[id]
+		indexes.sort()
+		for k in range(indexes.size() - 1, -1, -1):
+			active.stack_times.remove_at(indexes[k])
+			active.stack_shields.remove_at(indexes[k])
+		if active.stack_times.is_empty():
+			remove_status(id)
+		else:
+			_sync_modifiers(active)
+	return amount - left
+
+
 func blocks_cast() -> bool:
 	for active: ActiveStatus in _active.values():
 		if active.effect.blocks_cast:
@@ -209,6 +284,7 @@ func _physics_process(delta: float) -> void:
 			active.stack_times[i] -= delta
 			if active.stack_times[i] <= EPSILON:
 				active.stack_times.remove_at(i)
+				active.stack_shields.remove_at(i)
 				expired = true
 		if active.stack_times.is_empty():
 			remove_status(id)

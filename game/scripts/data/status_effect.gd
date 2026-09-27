@@ -48,6 +48,12 @@ enum StackRule {
 @export var tick_ad_ratio: float = 0.0
 @export var tick_damage_type: HitContext.DamageType = HitContext.DamageType.MAGIC
 
+@export_group("Shield")
+## Damage it absorbs before health (after armor and incoming_damage), per
+## application (each stack has its own). 0 = not a shield. A shield ends when
+## it's used up. COMBAT C10.
+@export var shield_amount: float = 0.0
+
 @export_group("Visuals")
 ## Instanced as a child of the unit while the status is active. Visuals only.
 @export var vfx: PackedScene
@@ -61,6 +67,10 @@ func get_source_id() -> StringName:
 ## Crowd control: tenacity shortens it.
 func is_cc() -> bool:
 	return tags.has(&"cc")
+
+
+func is_shield() -> bool:
+	return shield_amount > 0.0
 
 
 func is_dot() -> bool:

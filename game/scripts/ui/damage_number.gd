@@ -5,7 +5,7 @@ extends Label
 
 const DEFAULT_STYLE: DamageNumberStyle = preload("res://data/damage_number_styles/damage_number_style_default.tres")
 
-enum Kind { DAMAGE, CRIT, DOT, HEAL }
+enum Kind { DAMAGE, CRIT, DOT, HEAL, SHIELD }
 
 var style: DamageNumberStyle = DEFAULT_STYLE
 var kind: Kind = Kind.DAMAGE

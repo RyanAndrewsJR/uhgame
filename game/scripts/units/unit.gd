@@ -154,8 +154,8 @@ func make_hit_context(amount: float, source: Unit = null, highlight: bool = fals
 
 ## The defender's half of the hit pipeline (COMBAT.md, Architecture). Starts
 ## from ctx.raw_damage (HitPipeline.resolve() fills it in). In order:
-## i-frames, mitigation, incoming_damage, health, knockback, feel, events,
-## the source's on-hit effects, post-hit i-frames. Interactables use the
+## i-frames, mitigation, incoming_damage, shields, health, knockback,
+## statuses, feel, events, the source's on-hit effects, post-hit i-frames. Interactables use the
 ## same method name.
 func on_hit(ctx: HitContext) -> void:
 	if not _alive or is_invulnerable():
@@ -164,8 +164,12 @@ func on_hit(ctx: HitContext) -> void:
 	ctx.target = self
 	ctx.taken_damage = HitPipeline.mitigate(ctx.raw_damage, ctx.damage_type, stats_component) \
 		* stats_component.get_stat(&"incoming_damage")
+	var to_health := ctx.taken_damage
+	if status_component and to_health > 0.0:   # shields first (COMBAT C10)
+		ctx.absorbed = status_component.absorb_damage(to_health)
+		to_health -= ctx.absorbed
 	var before := health.current
-	health.take_damage(ctx.taken_damage)   # may die here (_on_died runs)
+	health.take_damage(to_health)   # may die here (_on_died runs)
 	ctx.health_lost = before - health.current
 	ctx.killed = not _alive
 	damaged.emit(ctx.taken_damage, ctx.source)
@@ -301,15 +305,27 @@ func _flash() -> void:
 
 ## The number for a hit that got through (COMBAT.md, Damage numbers): size by
 ## amount (log steps), crits bigger with their own look, color by damage type
-## (red on the player), DoT ticks smaller and merged per target.
+## (red on the player), DoT ticks smaller and merged per target. The part a
+## shield absorbed is its own number in the shield color (COMBAT C10); a hit
+## fully absorbed shows only that one.
 func _spawn_hit_number(ctx: HitContext) -> void:
 	var style: DamageNumberStyle = DamageNumber.DEFAULT_STYLE
 	var is_dot := ctx.has_tag(&"dot")
+	var to_health := ctx.taken_damage - ctx.absorbed
+	if ctx.absorbed > 0.0:
+		var s := _make_number(ctx.absorbed, style)
+		s.kind = DamageNumber.Kind.SHIELD
+		s.color = style.shield_color
+		if is_dot:
+			s.font_size = style.dot_font_size
+		_add_number(s)
+		if to_health < 0.5:
+			return   # all of it (or all but a rounding sliver) went into the shield
 	if is_dot and is_instance_valid(_dot_number) and not _dot_number.is_queued_for_deletion() \
 			and _dot_number.get_age() < style.dot_merge_window:
-		_dot_number.add_amount(ctx.taken_damage)
+		_dot_number.add_amount(to_health)
 		return
-	var n := _make_number(ctx.taken_damage, style)
+	var n := _make_number(to_health, style)
 	if is_dot:
 		n.kind = DamageNumber.Kind.DOT
 		_dot_number = n
