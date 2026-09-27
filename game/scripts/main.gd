@@ -61,6 +61,7 @@ func _process(_delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("restart"):
+		Audio.stop_all()   # autoloads survive the reload: no sound from the old room carries over
 		get_tree().reload_current_scene()
 	elif event.is_action_pressed("ui_cancel") and not pause_menu.is_open():
 		# Esc pauses. An Esc that cancels an aimed ability never gets here:
