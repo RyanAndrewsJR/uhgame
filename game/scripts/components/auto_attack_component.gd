@@ -53,6 +53,8 @@ signal swing_finished
 
 enum State { IDLE, CHASING, WINDUP, BACKSWING }
 
+## The attack lock AbilityComponent adds while casting (see add_lock()).
+const CASTING_LOCK := &"casting"
 const BONUS_ATTACK_SPEED_SOURCE := &"bonus_attack_speed"
 ## Move lock held for the whole of a combo swing.
 const SWING_LOCK := &"attack_swing"
@@ -282,17 +284,27 @@ func try_swing(direction: Vector2, dash_strike: bool = false) -> bool:
 	return true
 
 
-## Stops the current swing (no hit if it hasn't landed yet), releases the
-## root and resets the combo.
-func cancel_swing() -> void:
+## Stops the current swing (no hit if it hasn't landed yet) and releases
+## the root. A swing counts once its hit has landed (COMBAT.md): with
+## keep_combo_if_landed (a cancel the player chose: a dash, a cast) and the
+## hit already landed, the combo moves on as if the swing had finished, and
+## combo_reset_time counts from now. Otherwise (the windup, or a forced
+## interruption: stun, death) the combo resets.
+func cancel_swing(keep_combo_if_landed: bool = false) -> void:
 	if _swing == null:
 		return
-	if _swing_landed:
+	var landed := _swing_landed
+	if landed:
 		_pause_left = _swing.pause_after / get_swing_speed()   # its hit happened
+	var next := _get_index_after_swing()
 	_stop_step()
 	_end_swing()
-	_next_swing_index = 0
-	_combo_reset_left = 0.0
+	if landed and keep_combo_if_landed:
+		_next_swing_index = next
+		_combo_reset_left = combo.combo_reset_time
+	else:
+		_next_swing_index = 0
+		_combo_reset_left = 0.0
 	swing_cancelled.emit()
 
 
@@ -360,11 +372,13 @@ func is_empowered() -> bool:
 
 
 ## A lock (stun, casting) stops attacking: it interrupts a windup and
-## cancels a combo swing.
+## cancels a combo swing. The casting lock is the player's own choice, so a
+## cast that cuts a landed swing's recovery keeps the combo; any other lock
+## (a stun or another status) resets it.
 func add_lock(id: StringName) -> void:
 	_locks[id] = true
 	interrupt()
-	cancel_swing()
+	cancel_swing(id == CASTING_LOCK)
 
 
 func remove_lock(id: StringName) -> void:
@@ -602,13 +616,19 @@ func _land_swing() -> void:
 
 func _finish_swing() -> void:
 	_pause_left = _swing.pause_after / get_swing_speed()
-	var count := combo.swings.size()
-	_next_swing_index = (_swing_index + 1) % count
-	if _is_dash_strike:
-		_next_swing_index = _dash_strike_resume   # not a combo hit (COMBAT C12)
+	_next_swing_index = _get_index_after_swing()
 	_combo_reset_left = combo.combo_reset_time
 	_end_swing()
 	swing_finished.emit()
+
+
+## The combo index after the current swing: the next swing (after the last
+## one, the first), or for the dash-strike the swing it interrupted (it's not
+## a combo hit, COMBAT C12).
+func _get_index_after_swing() -> int:
+	if _is_dash_strike:
+		return _dash_strike_resume
+	return (_swing_index + 1) % combo.swings.size()
 
 
 func _end_swing() -> void:

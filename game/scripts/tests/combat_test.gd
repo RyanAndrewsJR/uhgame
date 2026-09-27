@@ -37,6 +37,8 @@ extends Node2D
 ## GameplayEffects, the Shatter rule).
 ## C12: the dash-strike (its data, the 0.15 s window through PlayerInput,
 ## damage and tags, heavy feel, its step, the combo kept across it).
+## A swing counts once its hit has landed: a dash or a cast out of its
+## recovery keeps the combo; the windup, a stun or death resets it.
 ## Fix: a caster that dies or is freed mid-cast takes its telegraph with it
 ## at once (COMBAT.md, Known bugs).
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
@@ -277,6 +279,7 @@ func _test_combo() -> void:
 	await _test_shields()
 	await _test_reactions()
 	await _test_dash_strike()
+	await _test_cancels_after_hit()
 	await _test_death_mid_swing()
 
 
@@ -420,7 +423,7 @@ func _test_swing_cancels() -> void:
 	knight.dash.try_dash(Vector2.DOWN)
 	_check("dash during the recovery cancels it", knight.attack.is_swinging(), false)
 	_check("the hit already landed (64)", dummy.health.max_health - after_hit, 64.0)
-	_check("and the combo reset", knight.attack.get_combo_index(), 0)
+	_check("and the combo moves on: swing 2 is next (a swing counts once its hit has landed)", knight.attack.get_combo_index(), 1)
 
 	await _reset_knight()
 	_place(dummy, knight.global_position + Vector2(50, 0))
@@ -450,7 +453,7 @@ func _test_ability_during_swing() -> void:
 	_check("AFTER_HIT: Q may cut the recovery", knight.can_interrupt_swing(&"q"), true)
 	knight.request_cast(&"q")
 	_check("casting Q cancels the swing", [knight.abilities.casting, knight.attack.is_swinging()], [true, false])
-	_check("and resets the combo", knight.attack.get_combo_index(), 0)
+	_check("after the hit, the combo moves on: swing 2 is next", knight.attack.get_combo_index(), 1)
 	await _wait_until(func() -> bool: return not knight.abilities.casting, 30)
 
 
@@ -2574,6 +2577,139 @@ func _test_c12_combo_kept() -> void:
 	await _frames(2)
 	knight.attack.cancel_swing()
 	_check("a cancelled dash-strike resets the combo, like any cancelled swing", knight.attack.get_combo_index(), 0)
+	dummy.queue_free()
+	await _hitstop_over()
+
+
+# --- A swing counts once its hit has landed ------------------------------------------
+
+func _test_cancels_after_hit() -> void:
+	_section("A swing counts once its hit has landed (player cancels keep the combo)")
+	var dummy := _tough_dummy_at(Vector2(50, 0))
+	var landed_index := func() -> int: return _landed[-1][1] if not _landed.is_empty() else -99
+
+	# Hit, dash in the recovery, click: swing 2.
+	await _reset_knight()
+	await _hitstop_over()
+	_place(dummy, knight.global_position + Vector2(50, 0))
+	await _frames(1)
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20)
+	knight.dash.try_dash(Vector2.DOWN)
+	await _wait_until(func() -> bool: return not knight.dash.is_dashing(), 60)
+	_place(dummy, knight.global_position + Vector2(50, 0))
+	await _hitstop_over()
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20)
+	_check("hit, dash in the recovery, click: swing 2 comes out", landed_index.call(), 1)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+
+	# Dash in the windup, click: swing 1.
+	await _reset_knight()
+	await _hitstop_over()
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+	await _wait_until(func() -> bool: return knight.dash.can_dash(), 120)
+	knight.attack.try_swing(Vector2.RIGHT)   # swing 2, cut in its windup
+	await _frames(2)
+	knight.dash.try_dash(Vector2.DOWN)
+	await _wait_until(func() -> bool: return not knight.dash.is_dashing(), 60)
+	_place(dummy, knight.global_position + Vector2(50, 0))
+	await _hitstop_over()
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20)
+	_check("dash in the windup, click: swing 1 (no hit, the combo resets)", landed_index.call(), 0)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+
+	# The reset timer counts from the dash.
+	await _reset_knight()
+	await _hitstop_over()
+	_place(dummy, knight.global_position + Vector2(50, 0))
+	await _frames(1)
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20)
+	knight.dash.try_dash(Vector2.DOWN)
+	_check("right after the dash: swing 2 is next, the reset timer is full (0.6 s)", knight.attack.get_combo_index(), 1)
+	await _frames(45)   # 0.75 s > combo_reset_time
+	_check("0.75 s after the dash: back to swing 1", knight.attack.get_combo_index(), 0)
+
+	# The finisher dashed out of after its hit: breather, then swing 1.
+	await _reset_knight()
+	await _hitstop_over()
+	for i in 2:
+		_place(dummy, knight.global_position + Vector2(50, 0))
+		knight.attack.try_swing(Vector2.RIGHT)
+		await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+		await _hitstop_over()
+	await _wait_until(func() -> bool: return knight.dash.can_dash(), 120)
+	_place(dummy, knight.global_position + Vector2(50, 0))
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20)
+	_check("(the finisher landed)", landed_index.call(), 2)
+	knight.dash.try_dash(Vector2.DOWN)
+	_check("the finisher dashed out of after its hit: its breather still runs, swing 1 is next",
+		[knight.attack.is_in_pause(), knight.attack.get_combo_index()], [true, 0])
+	await _hitstop_over()
+
+	# Out of a landed dash-strike: the swing it interrupted.
+	await _reset_knight()
+	await _hitstop_over()
+	_place(dummy, knight.global_position + Vector2(50, 0))
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+	await _wait_until(func() -> bool: return knight.dash.can_dash(), 120)
+	_place(dummy, knight.global_position + Vector2(60, 0))
+	knight.attack.try_swing(Vector2.RIGHT, true)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20)
+	knight.dash.try_dash(Vector2.DOWN)
+	_check("dashing out of a landed dash-strike: the swing it interrupted (swing 2) is next", knight.attack.get_combo_index(), 1)
+	await _hitstop_over()
+
+	# Q cuts the recovery (AFTER_HIT): swing 2 after the cast.
+	await _reset_knight()
+	await _hitstop_over()
+	await _wait_until(func() -> bool: return knight.abilities.is_ready(&"q"), 300)
+	_place(dummy, knight.global_position + Vector2(50, 0))
+	await _frames(1)
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20)
+	knight.request_cast(&"q")
+	_check("(Q cut the recovery)", [knight.abilities.casting, knight.attack.is_swinging()], [true, false])
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 30)
+	await _hitstop_over()
+	_place(dummy, knight.global_position + Vector2(50, 0))
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20)
+	_check("swing 1 hits, Q cuts its recovery, a click: swing 2", landed_index.call(), 1)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+
+	# An ANYTIME cast in the windup: the combo resets.
+	await _reset_knight()
+	await _hitstop_over()
+	await _wait_until(func() -> bool: return knight.abilities.is_ready(&"q"), 300)
+	knight.abilities.q.cancels_swing = Ability.SwingCancel.ANYTIME
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+	knight.attack.try_swing(Vector2.RIGHT)   # swing 2
+	await _frames(2)
+	knight.request_cast(&"q")
+	_check("an ANYTIME cast in swing 2's windup: the combo resets to swing 1",
+		[knight.attack.is_swinging(), knight.attack.get_combo_index()], [false, 0])
+	knight.abilities.q.cancels_swing = Ability.SwingCancel.AFTER_HIT
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 30)
+	await _hitstop_over()
+
+	# Forced interruptions still reset.
+	await _reset_knight()
+	await _hitstop_over()
+	_place(dummy, knight.global_position + Vector2(50, 0))
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20)
+	knight.apply_stun(0.1)
+	_check("a stun after the hit still resets the combo", [knight.attack.is_swinging(), knight.attack.get_combo_index()], [false, 0])
+	await _frames(10)
 	dummy.queue_free()
 	await _hitstop_over()
 

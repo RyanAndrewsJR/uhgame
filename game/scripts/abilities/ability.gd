@@ -61,7 +61,8 @@ enum SwingCancel {
 ## roots_during_cast is false (a channel: stand still, move to cancel).
 @export var cancel_on_move: bool = false
 ## Can this cast cut short a basic attack swing? AFTER_HIT (default): only
-## once the swing's hit has landed. Cutting a swing resets the combo.
+## once the swing's hit has landed. Cutting a swing after its hit keeps the
+## combo (the swing counts); cutting its windup resets it.
 @export var cancels_swing: SwingCancel = SwingCancel.AFTER_HIT
 
 @export_group("Damage")

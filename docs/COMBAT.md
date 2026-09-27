@@ -30,7 +30,8 @@ A fight is a short, readable brawl. You click and the Knight swings toward the c
 ### Basic attack
 - Left mouse = an aimed basic attack toward the cursor (Hades-style): a combo of swings; the last one is the finisher. The Knight's is 3 hits; the number of swings is per champion (2, 3, 5...), all data (`AttackCombo.swings`). The Knight's current pace reads as a rogue or diver (M1).
 - Every swing roots the attacker for its duration (see Numbers). Melee swings still step during the root, and walking can end the recovery early (Melee basic attacks, below).
-- A dash cancels a swing before its hit lands (windup) or during its recovery. The moment the hit lands can't be cancelled. Cancelling resets the combo.
+- A dash cancels a swing before its hit lands (windup) or during its recovery. The moment the hit lands can't be cancelled.
+- A swing counts once its hit has landed (Ryan, 2026-09-27). A cancel the player chooses after the hit (walking out of the recovery, a dash, an ability that cuts the recovery: `cancels_swing` AFTER_HIT or ANYTIME) keeps the combo: the index advances as if the swing had finished, and `combo_reset_time` counts from the cancel (walking doesn't cancel the swing, so there it counts from the swing's end). A finisher cancelled after its hit still gets its breather (`pause_after`); the next swing is swing 1. A cancel during the windup (before the hit) and forced interruptions (stun, death) reset the combo.
 - Pressing attack during a swing queues the next combo hit (input buffer). Each swing needs its own press; holding the button doesn't repeat. The combo resets after combo_reset_time with no attack.
 - Q/W/E/R interrupt a swing only if that ability allows it, set per ability: never, after the hit lands (the default; all four Knight abilities), or anytime. Otherwise the press waits for the swing to end (input buffer).
 - attack_speed is a combo-speed multiplier for the player: every swing timing is divided by attack_speed ÷ base attack speed (1.0 at base; +20% bonus attack speed = swings 20% faster), times the combo's `speed_scale`.
@@ -284,7 +285,8 @@ How damage numbers look (built in C6): `size_thresholds` 0 / 100 / 1000 → `fon
   - Attack is legal when not stunned, casting, dashing or swinging.
   - An ability press during a swing is legal only if its `cancels_swing` allows it at that moment (then the swing is cancelled first).
   - The buffer timer also pauses while a swing plays out, so a press early in a 0.3 s swing isn't lost after 0.15 s.
-- **DashComponent** (C2): `try_dash()` cancels a swing in windup or recovery (not on the hit frame; the hit resolves inside one physics frame, so there's nothing to cancel).
+- **DashComponent** (C2): `try_dash()` cancels a swing in windup or recovery (not on the hit frame; the hit resolves inside one physics frame, so there's nothing to cancel) with `cancel_swing(true)`: after the hit the combo moves on (2026-09-27).
+- **AutoAttackComponent** (2026-09-27): `cancel_swing(keep_combo_if_landed = false)`: with the flag and a landed hit, the next swing is the one after it (the dash-strike: the swing it interrupted) and `combo_reset_time` restarts; otherwise the combo resets. `add_lock(id)` passes the flag only for the casting lock (`CASTING_LOCK`, a cast the player chose); stuns and other status locks and `cancel()` (death) reset.
 - **Player** (C2): facing = the swing's aim, locked at swing start (the slot "attack windup" had); `State.ATTACK` = the whole swing. `can_interrupt_swing(slot)` applies `cancels_swing` for both `request_cast()` and the buffer. Swing visuals: the sword pulls back during the windup and a slash the size of the swing's reach and arc plays at the hit (brighter and longer on the finisher).
 - **Input map** (C2): `select` loses its left mouse binding (the action and the attack-move code stay).
 - **Melee basic attacks** (built after C2):
@@ -309,6 +311,7 @@ How damage numbers look (built in C6): `size_thresholds` 0 / 100 / 1000 → `fon
 |---|---|
 | On-hit proc on the player | The proc resolves before the hit's post-hit i-frames start, so it lands; it starts none of its own. A proc can't trigger another on-hit (`proc` tag). |
 | Stunned mid-swing | A stun adds the `&"stun"` attack lock; `AutoAttackComponent.add_lock()` calls `cancel_swing()`: no hit, root released, combo index back to 0. |
+| Dash or cast after the hit | The swing counts: `cancel_swing(true)` sets the next swing as if it had finished (after a finisher: swing 1, with its breather; after a dash-strike: the swing it interrupted) and restarts `combo_reset_time`. In the windup it resets the combo. A stun after the hit still resets it. |
 | Hit during i-frames | `Unit.on_hit` returns at step 1 with `blocked = true`: no damage, number, knockback, status, on-hit, events or reaction rules. `take_damage()` does the same through the wrapper. |
 | Kill during hitstop | The hit resolves normally; `unit_died` fires at once. The kill hitstop (0.08 s) extends the running one. The death tween runs in scaled time, so it plays out after the freeze. |
 | Several hits in the same frame | On enemies all of them resolve in order, each with its own number; hitstop = the longest; shake = the largest (the camera already keeps the max). On the player the first hit lands and starts post-hit i-frames, and the rest are blocked. |
@@ -339,7 +342,7 @@ Combat starts now, before STATS step 6. Until step 6 adds `id` / `tags` to Abili
 2. **C2 – Knight combo.** `AttackSwing`, `AttackCombo`, `combo_knight.tres`, the combo mode, PlayerInput/Dash/Player changes, `cancels_swing`, `select` unbound, Iron Resolve through swings.
    **Done means:**
    - A click swings toward the cursor within 0.08 s; three clicks give the three swings (the third wider and stronger); 0.6 s without attacking resets the combo.
-   - Each swing roots; a dash during windup or recovery cancels it and resets the combo.
+   - Each swing roots; a dash during windup or recovery cancels it and resets the combo (since 2026-09-27 a dash after the hit keeps the combo; Rules, Basic attack).
    - A click during a swing queues the next one; Q during a swing's windup waits for the hit, then cuts the recovery (AFTER_HIT).
    - Iron Resolve's next swing slows every slime it hits; a stun mid-swing cancels it.
    - The Knight's abilities, enemies chasing and the HUD still work.
@@ -391,7 +394,6 @@ For every step: no errors; the Knight's 4 abilities, enemies chasing and the HUD
 Items and affixes (LOOT.md); ability costs, recasts and augments (ABILITIES.md); enemy AI beyond one telegraphed attack (ENEMIES_AI.md); elite affixes; pits; controller support.
 
 ## Open questions
-- Dash out of a swing: a dash that cuts a landed swing's recovery resets the combo (C2). Should it keep the combo instead, so dash-weaving never costs the finisher (the dash-strike already keeps it)?
 - Weapons: a champion's combo will come from its equipped weapon, and its class limits which weapons it can wield (e.g. a bruiser like Darus can't use daggers); bruiser weapons are heavier, diver and rogue weapons snappier. Today the combo is set on AutoAttackComponent (LOOT.md / CHAMPIONS.md).
 - A stun during a cast interrupts it only if the caster is still stunned when the cast time ends (AbilityComponent checks then), though its header says "during the cast time". A short stun mid-cast lets the cast go off. Decide in ABILITIES.md.
 - Ranged basic attacks: design later (RANGED combos only get walk-cancel for now).
