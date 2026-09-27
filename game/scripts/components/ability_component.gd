@@ -30,6 +30,12 @@ signal cast_cancelled(slot: StringName, ability: Ability)
 signal cooldown_finished(slot: StringName, ability: Ability)
 ## A slot's stored charges changed (cast, recharge, refund, max changed).
 signal charges_changed(slot: StringName, charges: int, max_charges: int)
+## A recast window opened (after a part finished): `part` is the next part,
+## `time` the seconds to press for it (ABILITIES AB5).
+signal recast_window_started(slot: StringName, part: int, time: float)
+## A recast sequence ended: its last part was used or the window ran out.
+## The slot's recharge starts now.
+signal recast_window_finished(slot: StringName)
 
 const SLOTS: Array[StringName] = [&"q", &"w", &"e", &"r"]
 ## Source id of the move_speed modifier from Ability.cast_move_speed_multiplier.
@@ -55,6 +61,11 @@ var _cooldown_left: Dictionary = {}   # slot -> seconds until the next charge (t
 var _cooldown_total: Dictionary = {}  # slot -> seconds (for the HUD sweep)
 var _charges: Dictionary = {}         # slot -> stored charges (set on first use: full)
 var _cast_took_charge: bool = false   # the cast in progress took a charge (a refund gives it back)
+var _cast_part: int = 0               # the recast part of the cast in progress
+## Recast sequences: slot -> {next: the next part, left: window seconds,
+## ability}. Created when a part 0 with recasts starts; its window only runs
+## between parts; erased when the sequence ends.
+var _recast: Dictionary = {}
 var _pending: Dictionary = {}         # queued targeted cast: {slot, target}
 var _pending_repath: float = 0.0
 var _cast_serial: int = 0        # bumped by each cast and by a cancel
@@ -117,9 +128,28 @@ func get_cooldown_duration(ability: Ability) -> float:
 	return unit.stats_component.get_cooldown(ability.get_param(unit, &"cooldown"))
 
 
-## True if the slot has a charge (with max_charges 1: its cooldown is done).
+## True if the slot has a charge (with max_charges 1: its cooldown is done)
+## or a recast sequence is going (its next part needs no charge).
 func is_ready(slot: StringName) -> bool:
-	return get_ability(slot) != null and get_charges(slot) > 0
+	return get_ability(slot) != null and (get_charges(slot) > 0 or _recast.has(slot))
+
+
+## The next recast part the slot would cast (1, 2...), or 0 when no recast
+## sequence is going (a press casts part 0).
+func get_recast_part(slot: StringName) -> int:
+	return _recast[slot].next if _recast.has(slot) else 0
+
+
+## Seconds left to press for the next part (0 when no sequence is going).
+## It doesn't run while a part is being cast.
+func get_recast_time_left(slot: StringName) -> float:
+	return _recast[slot].left if _recast.has(slot) else 0.0
+
+
+## The whole window for the slot's current sequence (for the HUD bar).
+func get_recast_window(slot: StringName) -> float:
+	var ability: Ability = _recast[slot].ability if _recast.has(slot) else get_ability(slot)
+	return ability.get_param(unit, &"recast_window") if ability != null else 0.0
 
 
 ## Stored charges. A slot starts full the first time it's asked.
@@ -149,13 +179,23 @@ func get_cost(ability: Ability) -> float:
 	return ability.get_param(unit, &"resource_cost")
 
 
-## True if the unit can pay the slot's cost now. A unit without a resource
-## pool (resource type NONE, enemies) always can: it pays nothing.
-func can_afford(slot: StringName) -> bool:
+## What a press on the slot would cost now: resource_cost for a first cast,
+## recast_resource_cost for a later part (after scoped modifiers).
+func get_slot_cost(slot: StringName) -> float:
 	var ability := get_ability(slot)
 	if ability == null:
+		return 0.0
+	if get_recast_part(slot) > 0:
+		return ability.get_param(unit, &"recast_resource_cost")
+	return get_cost(ability)
+
+
+## True if the unit can pay the slot's next cost now. A unit without a
+## resource pool (resource type NONE, enemies) always can: it pays nothing.
+func can_afford(slot: StringName) -> bool:
+	if get_ability(slot) == null:
 		return false
-	return unit.resource_pool == null or unit.resource_pool.can_afford(get_cost(ability))
+	return unit.resource_pool == null or unit.resource_pool.can_afford(get_slot_cost(slot))
 
 
 ## Why the slot can't be cast right now (a FAIL_* string), or "" if it can.
@@ -195,6 +235,7 @@ func try_cast(slot: StringName, aim: Vector2, target_unit: Unit = null) -> bool:
 
 	var ctx := CastContext.new()
 	ctx.slot = slot
+	ctx.part = get_recast_part(slot)   # 0, or the next part of a recast sequence
 	var origin := unit.global_position
 	var to_aim := aim - origin
 	ctx.direction = to_aim.normalized() if to_aim.length() > 0.01 else Vector2.RIGHT
@@ -313,6 +354,7 @@ func _cancel_cast() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	_update_recast_windows(delta)
 	for s in SLOTS:
 		_update_recharge(s, delta)
 
@@ -341,20 +383,26 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext) -> void:
 	var serial := _cast_serial
 	casting = true
 	casting_slot = slot
-	# Take a charge; its recharge starts now unless one is already running
-	# (charges come back one at a time). A cancel or interrupt gives it back.
-	_charges[slot] = get_charges(slot) - 1
-	_cast_took_charge = true
-	if _cooldown_left[slot] <= 0.0 and _charges[slot] < get_max_charges(slot):
-		_start_recharge(slot, ability)
-	charges_changed.emit(slot, _charges[slot], get_max_charges(slot))
+	_cast_part = ctx.part
+	var cost := get_slot_cost(slot)   # read before a new sequence starts (part 0 pays resource_cost)
+	if ctx.part == 0:
+		# Take a charge; its recharge starts now unless one is already running
+		# (charges come back one at a time). A cancel or interrupt gives it back.
+		# With recasts the recharge waits for the sequence to end.
+		_charges[slot] = get_charges(slot) - 1
+		_cast_took_charge = true
+		if ability.recast_count > 0:
+			_recast[slot] = {"next": 1, "left": ability.get_param(unit, &"recast_window"), "ability": ability}
+		elif _cooldown_left[slot] <= 0.0 and _charges[slot] < get_max_charges(slot):
+			_start_recharge(slot, ability)
+		charges_changed.emit(slot, _charges[slot], get_max_charges(slot))
+	else:
+		_cast_took_charge = false   # a later part needs no charge
 	# Pay at cast start (try_cast() checked it's affordable); refunded if the
 	# cast is cancelled or interrupted before its effect.
 	_cast_cost = 0.0
-	if unit.resource_pool != null:
-		var cost := get_cost(ability)
-		if unit.resource_pool.try_spend(cost):
-			_cast_cost = maxf(cost, 0.0)
+	if unit.resource_pool != null and unit.resource_pool.try_spend(cost):
+		_cast_cost = maxf(cost, 0.0)
 
 	unit.attack.add_lock(&"casting")   # also cancels an auto-attack windup
 	# Channels always root, whatever roots_during_cast says.
@@ -400,6 +448,8 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext) -> void:
 		unit.attack.reset_attack_timer()
 	casting = false
 	casting_slot = &""
+	if not interrupted:
+		_advance_recast(slot, ctx.part)
 	cast_finished.emit(slot, ability)
 
 
@@ -441,6 +491,8 @@ func _update_recharge(slot: StringName, delta: float) -> void:
 	if ability == null or get_charges(slot) >= maximum:
 		_cooldown_left[slot] = 0.0
 		return
+	if _recast.has(slot):
+		return   # a recast sequence is going: the recharge waits (and pauses) until it ends
 	if _cooldown_left[slot] <= 0.0:
 		_start_recharge(slot, ability)   # below max with no timer: a raised max
 		return
@@ -463,13 +515,50 @@ func _start_recharge(slot: StringName, ability: Ability) -> void:
 	_cooldown_left[slot] = _cooldown_total[slot]
 
 
+## Recast windows count down between parts (game time), never while one of
+## the slot's parts is being cast. Running out ends the sequence.
+func _update_recast_windows(delta: float) -> void:
+	for slot: StringName in _recast.keys():
+		if casting and casting_slot == slot:
+			continue
+		_recast[slot].left = maxf(_recast[slot].left - delta, 0.0)
+		if _recast[slot].left <= 0.0:
+			_end_recast(slot)
+
+
+## A part finished (its effect ran): open the window for the next part, or
+## end the sequence after the last one.
+func _advance_recast(slot: StringName, part: int) -> void:
+	if not _recast.has(slot):
+		return
+	var seq: Dictionary = _recast[slot]
+	var ability: Ability = seq.ability
+	if part >= ability.recast_count:
+		_end_recast(slot)
+		return
+	seq.next = part + 1
+	seq.left = ability.get_param(unit, &"recast_window")
+	recast_window_started.emit(slot, seq.next, seq.left)
+
+
+## The sequence is over: the slot's recharge can start (the next physics
+## frame, _update_recharge()).
+func _end_recast(slot: StringName) -> void:
+	if _recast.erase(slot):
+		recast_window_finished.emit(slot)
+
+
 ## A cancel or interrupt gives back the charge the cast took. Back at max,
 ## the recharge stops (with max_charges 1: the cooldown is refunded); below
 ## max, a recharge already running keeps its progress. A refund never pings.
+## A first part refunded this way never started its sequence. A later part
+## gives back only its cost (_refund_cost()); its window keeps the time it
+## had (it doesn't run during a part).
 func _restore_slot(slot: StringName) -> void:
 	if not _cast_took_charge:
 		return
 	_cast_took_charge = false
+	_recast.erase(slot)
 	_charges[slot] = get_charges(slot) + 1
 	if _charges[slot] >= get_max_charges(slot):
 		_cooldown_left[slot] = 0.0

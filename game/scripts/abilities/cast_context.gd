@@ -3,6 +3,8 @@ extends RefCounted
 ## Everything an ability needs to know about how it was cast.
 
 var slot: StringName
+## Recast part: 0 = the first cast, 1 = the first recast... (ABILITIES AB5).
+var part: int = 0
 ## Aim point in world space (already clamped to range for POINT abilities).
 var point: Vector2
 ## Normalized direction from the caster toward the aim point.

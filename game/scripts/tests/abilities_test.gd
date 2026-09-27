@@ -17,6 +17,10 @@ extends Node2D
 ## AB4: charges (max_charges 1 = the old cooldown, a scoped +1 gives two casts
 ## back to back, one recharge at a time, the ready ping only at 0 -> 1, a
 ## lowered max keeping extra charges, refunds giving the charge back).
+## AB5: recasts (test_triple_step: parts 0-1-2, the window restarting after
+## each part and not running during one, the cooldown starting after the
+## last part or when the window runs out, part costs, refunds, a recast
+## pressed during a cast time firing from the buffer).
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
@@ -30,6 +34,7 @@ const JUDGEMENT: Ability = preload("res://data/abilities/knight_r_judgement.tres
 const SLAM: Ability = preload("res://data/abilities/slime_elite_q_slam.tres")
 const HUD_SCENE: PackedScene = preload("res://scenes/ui/hud.tscn")
 const COST_SOURCE := &"item_test_costs"
+const TRIPLE_STEP: Ability = preload("res://data/abilities/test_q_triple_step.tres")
 const ARENA := Vector2(-2000, 0)
 
 var knight: Player
@@ -67,6 +72,9 @@ func _ready() -> void:
 	await _test_hud_cues()
 	print("\n=== Abilities test (ABILITIES AB4) ===")
 	await _test_charges()
+	print("\n=== Abilities test (ABILITIES AB5) ===")
+	await _test_recasts()
+	await _test_recast_edges()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).
@@ -633,6 +641,132 @@ func _test_charges() -> void:
 	await _wait_until(func() -> bool: return not knight.is_stunned(), 30)
 	await _wait_until(func() -> bool: return ab.get_charges(&"q") >= 1, 60)
 	ab.q = original_q
+
+
+# --- AB5 ------------------------------------------------------------------------
+
+func _test_recasts() -> void:
+	_section("AB5: recasts (test_triple_step)")
+	await _reset_knight()
+	var ab := knight.abilities
+	_check("no ability has recasts by default",
+		[CLEAVE.recast_count, IRON_RESOLVE.recast_count, LUNGE.recast_count, JUDGEMENT.recast_count, SLAM.recast_count], [0, 0, 0, 0, 0])
+	_check("Triple Step: 2 recasts, 3 s window, 4 s cooldown, a mobility role",
+		[TRIPLE_STEP.recast_count, TRIPLE_STEP.recast_window, TRIPLE_STEP.cooldown, TRIPLE_STEP.get_role()], [2, 3.0, 4.0, &"mobility"])
+	_check("its tooltip", TRIPLE_STEP.get_tooltip_plain(knight),
+		"Step 150 units toward the cursor. Recast up to 2 times within 3s each; the last step goes farther.")
+	var original_q := ab.q
+	ab.q = TRIPLE_STEP
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	var parts: Array[int] = []
+	var windows: Array = []
+	var finished := [0]
+	var on_started := func(slot: StringName, _a: Ability, ctx: CastContext) -> void:
+		if slot == &"q":
+			parts.append(ctx.part)
+	var on_window := func(slot: StringName, part: int, time: float) -> void:
+		if slot == &"q":
+			windows.append([part, time])
+	var on_finished := func(slot: StringName) -> void:
+		if slot == &"q":
+			finished[0] += 1
+	ab.cast_started.connect(on_started)
+	ab.recast_window_started.connect(on_window)
+	ab.recast_window_finished.connect(on_finished)
+
+	var start := knight.global_position
+	var aim := start + Vector2(300, 0)
+	ab.try_cast(&"q", aim)
+	_check("part 0 takes the charge; the cooldown doesn't start yet",
+		[ab.get_charges(&"q"), ab.get_cooldown_left(&"q"), ab.get_recast_part(&"q")], [0, 0.0, 1])
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check_near("stepped 48 px", knight.global_position.x - start.x, 48.0, 1.0)
+	_check("the window opens for part 1 (3 s)", [windows, ab.is_ready(&"q")], [[[1, 3.0]], true])
+	await _frames(30)
+	_check_near("0.5 s later it has 2.5 s left", ab.get_recast_time_left(&"q"), 2.5, 0.02)
+	_check("still no cooldown running", ab.get_cooldown_left(&"q"), 0.0)
+	var x1 := knight.global_position.x
+	ab.try_cast(&"q", knight.global_position + Vector2(300, 0))
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check_near("part 1 steps 48 px", knight.global_position.x - x1, 48.0, 1.0)
+	_check("the window restarts for part 2", windows.back(), [2, 3.0])
+	var x2 := knight.global_position.x
+	ab.try_cast(&"q", knight.global_position + Vector2(300, 0))
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check_near("part 2 (the last) steps 72 px", knight.global_position.x - x2, 72.0, 1.0)
+	_check("parts 0, 1, 2", parts, [0, 1, 2] as Array[int])
+	await _frames(1)
+	_check("the sequence ends once: no window, the 4 s cooldown starts",
+		[finished[0], ab.get_recast_part(&"q"), ab.is_ready(&"q"), ab.get_cooldown_left(&"q") > 3.9], [1, 0, false, true])
+
+	# The window running out also ends it.
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	ab.try_cast(&"q", knight.global_position + Vector2(-300, 0))
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	await _frames(185)
+	_check("3 s without a press: the sequence ends, the cooldown runs",
+		[finished[0], ab.get_recast_part(&"q"), ab.is_ready(&"q"), ab.get_cooldown_left(&"q") > 0.0], [2, 0, false, true])
+
+	ab.cast_started.disconnect(on_started)
+	ab.recast_window_started.disconnect(on_window)
+	ab.recast_window_finished.disconnect(on_finished)
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	ab.q = original_q
+
+
+func _test_recast_edges() -> void:
+	_section("AB5: recast costs, refunds, the paused window, a buffered recast")
+	await _reset_knight()
+	var ab := knight.abilities
+	var pool := knight.resource_pool
+	var slow: Ability = TRIPLE_STEP.duplicate()
+	slow.cast_time = 0.3
+	slow.recast_window = 1.0
+	slow.resource_cost = 30.0
+	slow.recast_resource_cost = 10.0
+	var original_q := ab.q
+	ab.q = slow
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	pool.restore(1000.0)
+	var aim := knight.global_position + Vector2(300, 0)
+
+	# Part 0 interrupted: charge and cost back, no sequence.
+	ab.try_cast(&"q", aim)
+	_check("part 0 costs resource_cost (30)", pool.current, 270.0)
+	await _frames(3)
+	knight.apply_stun(0.1)
+	_check("stunned in part 0's cast time: charge and 30 back, no window",
+		[ab.get_charges(&"q"), ab.get_recast_part(&"q"), pool.current], [1, 0, 300.0])
+	await _wait_until(func() -> bool: return not knight.is_stunned(), 30)
+
+	# Part 0 done; the window doesn't run during part 1's cast time.
+	ab.try_cast(&"q", aim)
+	await _wait_until(func() -> bool: return not ab.casting, 60)
+	await _frames(12)   # 0.2 s of the 1 s window
+	var before := pool.current
+	ab.try_cast(&"q", aim)
+	_check_near("part 1 costs recast_resource_cost (10)", pool.current, before - 10.0, 0.05)
+	var after_pay := pool.current
+	var left := ab.get_recast_time_left(&"q")
+	await _frames(12)
+	_check("during part 1's 0.3 s cast time the window doesn't run", ab.get_recast_time_left(&"q"), left)
+	knight.apply_stun(0.1)
+	_check_near("stunned in part 1: its 10 back (+ 0.2 s of regen)", pool.current - after_pay, 11.2, 0.05)
+	_check("the sequence stays at part 1 with the time it had",
+		[ab.get_recast_part(&"q"), ab.get_recast_time_left(&"q"), ab.get_charges(&"q")], [1, left, 0])
+	await _wait_until(func() -> bool: return not knight.is_stunned(), 30)
+
+	# A recast pressed during the cast time fires from the buffer.
+	ab.try_cast(&"q", aim)   # part 1 again
+	await _frames(3)
+	knight.request_cast(&"q")
+	_check("pressed during part 1's cast time: buffered", knight.player_input.get_buffered_action(), &"q")
+	await _wait_until(func() -> bool: return ab.get_recast_part(&"q") == 0, 90)
+	_check("it fired as part 2 when part 1 finished; the sequence is over", [ab.get_recast_part(&"q"), ab.is_ready(&"q")], [0, false])
+
+	await _wait_until(func() -> bool: return not ab.casting and ab.can_cast(&"q"), 300)
+	ab.q = original_q
+	pool.restore(1000.0)
 
 
 func _with_description(ability: Ability, text: String) -> Ability:

@@ -1,7 +1,7 @@
 [gd_resource type="Resource" format=3 uid="uid://dlwftnjvwcsk0"]
 
 [ext_resource type="Script" uid="uid://bak88ay0ax4ie" path="res://scripts/abilities/knight/judgement.gd" id="1_script"]
-[ext_resource type="Script" path="res://scripts/data/damage_scaling.gd" id="2_scaling"]
+[ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="2_scaling"]
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_judgement_cast.tres" id="s1_cast_sound"]
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_judgement_hit.tres" id="s2_hit_sound"]
 [ext_resource type="Resource" path="res://data/sounds/sound_ui_ultimate_ready.tres" id="s3_ready_sound"]
@@ -14,9 +14,6 @@ of = 3
 
 [resource]
 script = ExtResource("1_script")
-cast_sound = ExtResource("s1_cast_sound")
-hit_sound = ExtResource("s2_hit_sound")
-ready_sound = ExtResource("s3_ready_sound")
 id = &"knight_judgement"
 tags = Array[StringName]([&"ultimate", &"channel"])
 display_name = "Judgement"
@@ -25,8 +22,11 @@ icon_color = Color(1, 0.35, 0.3, 1)
 cast_style = 2
 targeting = 3
 cast_time = 1.5
-cancel_on_move = true
 cast_range = 450.0
+cancel_on_move = true
 base_damage = 150.0
 ad_ratio = 1.0
 scalings = Array[ExtResource("2_scaling")]([SubResource("missing_health")])
+cast_sound = ExtResource("s1_cast_sound")
+hit_sound = ExtResource("s2_hit_sound")
+ready_sound = ExtResource("s3_ready_sound")

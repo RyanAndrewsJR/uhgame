@@ -73,7 +73,17 @@ func _draw() -> void:
 		var frac := abilities.get_cooldown_fraction(slot)
 		var charges := abilities.get_charges(slot)
 		var max_charges := abilities.get_max_charges(slot)
-		if charges > 0:
+		var recast_part := abilities.get_recast_part(slot)
+		if recast_part > 0:
+			# A recast window is open: the initials, and a gold bar along the
+			# bottom that shrinks as the window runs out (ABILITIES AB5).
+			var initials := _initials(ability.display_name)
+			draw_string(_font, rect.position + Vector2(0, SLOT * 0.62), initials,
+				HORIZONTAL_ALIGNMENT_CENTER, SLOT, 11, Color(1, 1, 1, 0.95))
+			var window := maxf(abilities.get_recast_window(slot), 0.001)
+			var left_frac := clampf(abilities.get_recast_time_left(slot) / window, 0.0, 1.0)
+			draw_rect(Rect2(rect.position + Vector2(0, SLOT - 3), Vector2(SLOT * left_frac, 3)), Color(1, 0.85, 0.3))
+		elif charges > 0:
 			var initials := _initials(ability.display_name)
 			draw_string(_font, rect.position + Vector2(0, SLOT * 0.62), initials,
 				HORIZONTAL_ALIGNMENT_CENTER, SLOT, 11, Color(1, 1, 1, 0.95))
@@ -109,6 +119,8 @@ func _draw() -> void:
 			border = Color(1, 0.85, 0.3)
 		elif abilities.casting_slot == slot:
 			border = Color(1, 1, 1, 0.9)
+		elif recast_part > 0:
+			border = Color(1, 0.85, 0.3, 0.9)   # press again for the next part
 		draw_rect(rect, border, false, 1.0)
 
 		# Key label.

@@ -4,6 +4,7 @@ extends Node
 ## - AB3: mana costs, so the resource bar, spending and the "not enough
 ##   resource" cue can be played.
 ## - AB4: extra charges (Lunge +1: two Lunges back to back).
+## - AB5+: test_q puts a test ability on Q (set it in the Inspector).
 ## The Knight's real numbers are CHAMPIONS.md's; room_01 has none of this.
 
 const SOURCE_ID := &"sandbox_demo"
@@ -24,6 +25,9 @@ const SOURCE_ID := &"sandbox_demo"
 @export var extra_charges: Dictionary[StringName, int] = {
 	&"knight_lunge": 1,
 }
+## A test ability to put on Q instead of Cleave (e.g.
+## res://data/abilities/test_q_triple_step.tres). null = the Knight's own Q.
+@export var test_q: Ability
 
 
 func _ready() -> void:
@@ -42,6 +46,8 @@ func _give_costs(node: Node) -> void:
 	if not player.is_node_ready():
 		await player.ready   # its StatsComponent is set up in Unit._ready()
 	player.stats_component.remove_modifiers_from(SOURCE_ID)   # never twice
+	if test_q != null:
+		player.abilities.q = test_q
 	if demo_costs:
 		for id: StringName in costs:
 			player.stats_component.add_modifier(StatModifier.create(&"resource_cost",

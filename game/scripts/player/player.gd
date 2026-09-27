@@ -170,8 +170,10 @@ func _on_ability_pressed(slot: StringName) -> void:
 		return
 	# The cast mode only applies to INSTANT abilities: channels always cast on
 	# press (ABILITIES.md, Cast mode). CHARGE_UP casts like INSTANT until AB6.
+	# A press inside a recast window casts the next part at once, whatever the
+	# style (ABILITIES AB5).
 	var instant := cast_mode == CastMode.QUICK or ability.targeting == Ability.Targeting.SELF \
-		or ability.is_channel()
+		or ability.is_channel() or abilities.get_recast_part(slot) > 0
 	if instant:
 		request_cast(slot)
 	else:

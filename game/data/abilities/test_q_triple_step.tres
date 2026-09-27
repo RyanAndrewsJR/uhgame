@@ -1,0 +1,18 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/abilities/test/triple_step.gd" id="1_script"]
+[ext_resource type="Curve" path="res://data/curves/curve_dash.tres" id="2_curve"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"test_triple_step"
+tags = Array[StringName]([&"mobility", &"dash"])
+display_name = "Triple Step"
+description = "Step {range} units toward the cursor. Recast up to {recast_count} times within {recast_window}s each; the last step goes farther."
+icon_color = Color(0.6, 1, 0.6, 1)
+cooldown = 4.0
+cast_time = 0.0
+cast_range = 150.0
+recast_count = 2
+recast_window = 3.0
+step_curve = ExtResource("2_curve")

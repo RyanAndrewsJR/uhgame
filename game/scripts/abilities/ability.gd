@@ -70,6 +70,16 @@ const DAMAGE_NUMBER_STYLE_PATH := "res://data/damage_number_styles/damage_number
 ## charge recharges over the cooldown, one at a time. Not the same as a
 ## charge-up (holding the key). ABILITIES.md, Charges and recasts.
 @export var max_charges: int = 1
+## Extra parts after the first (0 = none): pressing the slot again inside
+## recast_window casts the next part (CastContext.part). The cooldown starts
+## when the last part is used or the window runs out (League style).
+@export var recast_count: int = 0
+## Seconds to press for the next part (a scoped param). Restarts after each
+## part and doesn't run while a part is being cast.
+@export var recast_window: float = 3.0
+## Cost of every part after the first (a scoped param); the first part costs
+## resource_cost.
+@export var recast_resource_cost: float = 0.0
 ## Seconds rooted before the effect happens (LoL "cast time").
 @export var cast_time: float = 0.25
 ## LoL units. DIRECTION/POINT: from the caster's center. UNIT: edge to edge.
