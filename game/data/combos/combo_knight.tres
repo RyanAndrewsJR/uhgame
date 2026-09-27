@@ -5,6 +5,19 @@
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_swing.tres" id="3_swing_sound"]
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_swing_finisher.tres" id="4_finisher_sound"]
 
+[sub_resource type="Resource" id="dash_strike"]
+script = ExtResource("2_swing")
+duration = 0.35
+ad_ratio = 1.5
+reach_multiplier = 1.15
+arc_deg = 80.0
+knockback_px = 16.0
+feel = 2
+lunge_px = 16.0
+lunge_max_px = 32.0
+swing_sound = ExtResource("4_finisher_sound")
+sound_pitch = 1.1
+
 [sub_resource type="Resource" id="swing_1"]
 script = ExtResource("2_swing")
 swing_sound = ExtResource("3_swing_sound")
@@ -16,7 +29,6 @@ sound_pitch = 1.04
 
 [sub_resource type="Resource" id="swing_3"]
 script = ExtResource("2_swing")
-swing_sound = ExtResource("4_finisher_sound")
 duration = 0.4
 ad_ratio = 1.6
 arc_deg = 140.0
@@ -25,21 +37,10 @@ feel = 2
 lunge_px = 10.0
 lunge_max_px = 32.0
 pause_after = 0.25
-
-[sub_resource type="Resource" id="dash_strike"]
-script = ExtResource("2_swing")
 swing_sound = ExtResource("4_finisher_sound")
-sound_pitch = 1.1
-duration = 0.35
-ad_ratio = 1.5
-reach_multiplier = 1.15
-arc_deg = 80.0
-knockback_px = 16.0
-feel = 2
-lunge_px = 16.0
-lunge_max_px = 32.0
 
 [resource]
 script = ExtResource("1_combo")
 swings = Array[ExtResource("2_swing")]([SubResource("swing_1"), SubResource("swing_2"), SubResource("swing_3")])
+speed_scale = 1.266
 dash_strike = SubResource("dash_strike")
