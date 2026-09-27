@@ -35,7 +35,7 @@ A fight is a short, readable brawl. You click and the Knight swings toward the c
 - Q/W/E/R interrupt a swing only if that ability allows it, set per ability: never, after the hit lands (the default; all four Knight abilities), or anytime. Otherwise the press waits for the swing to end (input buffer).
 - attack_speed is a combo-speed multiplier for the player: every swing timing is divided by attack_speed ÷ base attack speed (1.0 at base; +20% bonus attack speed = swings 20% faster), times the combo's `speed_scale`.
 - Attack pace comes from the swings themselves, not a cooldown: the next swing starts when the current one ends, plus that swing's `pause_after` (a breather, e.g. after a finisher, like Hades' sword). Only attacking waits during it; moving, dashing and abilities don't, and a click during it fires when it ends. There's no global cooldown between attacks and abilities.
-- Dash-strike (proposed): an attack within dash_strike_window after a dash (existing hook) does a stronger variant. Numbers under TARGET.
+- Dash-strike: an attack pressed during a dash, or within `dash_strike_window` (0.15 s) after it ends, is the combo's `dash_strike` swing: its own strong swing, the same every time (Hades' sword), defined per champion. It doesn't count as a combo hit: the combo index and the reset timer are kept, so the next click continues the combo where it was. How strong it is depends on the champion's class (CHAMPIONS.md). (Ryan, 2026-09-27.)
 - attack vs select on left mouse: attack owns left mouse; select is unbound (disabled, not deleted).
 - "Your next attack" effects (Iron Resolve) mean the next basic attack swing that hits, and they apply to every enemy that swing hits.
 
@@ -90,7 +90,7 @@ Knight basic attack:
 - damage: 1.0 / 1.0 / 1.6 × attack_damage
 - reach: 175 u (56 px) from the Knight's feet to the target's edge; arc 110°; finisher arc 140°
 - knockback: 6 / 6 / 20 px, using the knockback curve
-- dash-strike (proposed): 1.5 × attack_damage, a 16 px lunge
+- dash-strike: 1.5 × attack_damage, a 16 px lunge, heavy feel (per champion class: CHAMPIONS.md; these are the Knight's)
 
 Melee basic attacks (the class defaults; the Knight's combo uses them):
 - swing step `lunge_px`: 6 / 6 / 10 px for swings 1 / 2 / 3 (0–12)
@@ -380,7 +380,7 @@ Combat starts now, before STATS step 6. Until step 6 adds `id` / `tags` to Abili
 11. **C11 – Reaction rules** (`HIT`, `UNIT_DIED`, `STATUS_APPLIED`; the four GameplayEffects). It adds no "play sound" GameplayEffect: a rule makes a sound only through the status it applies or the proc hit it causes (AUDIO.md).
    **Done means:** in room_01 nothing changes; in the sandbox, hitting a stunned enemy (Judgement, then a swing or Cleave) adds a blue 30; the test covers world and unit rules, the three triggers, chains and the four effects.
    C11 built 2026-09-27, see CHANGELOG.md.
-12. **C12 – Dash-strike** (after its open question is answered).
+12. **C12 – Dash-strike** (answered 2026-09-27, see Rules and Numbers): the Knight's `dash_strike` swing in `combo_knight.tres`, `dash_strike_window` 0.15 s, the combo kept across it.
 
 For every step: no errors; the Knight's 4 abilities, enemies chasing and the HUD still work. If a step needs removing or rewriting existing code, stop and explain why first.
 
@@ -391,7 +391,6 @@ Items and affixes (LOOT.md); ability costs, recasts and augments (ABILITIES.md);
 - Weapons: a champion's combo will come from its equipped weapon, and its class limits which weapons it can wield (e.g. a bruiser like Darus can't use daggers); bruiser weapons are heavier, diver and rogue weapons snappier. Today the combo is set on AutoAttackComponent (LOOT.md / CHAMPIONS.md).
 - A stun during a cast interrupts it only if the caster is still stunned when the cast time ends (AbilityComponent checks then), though its header says "during the cast time". A short stun mid-cast lets the cast go off. Decide in ABILITIES.md.
 - Ranged basic attacks: design later (RANGED combos only get walk-cancel for now).
-- Dash-strike behavior and numbers.
 - What attack_speed means for enemies (AutoAttackComponent).
 - Sustain caps (life steal cap? regen during combat?).
 - Healing between rooms (DUNGEONS.md).
