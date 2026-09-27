@@ -106,16 +106,17 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 | `docs/WORLD_INTERACTION.md` | abilities touching the world, collision layers, tile tags, interactables |
 | `docs/COMBAT.md` | basic attacks, hits and damage, damage types, crit and mitigation, status effects and CC, i-frames, hitstop/shake/flash, damage numbers, reaction rules, enemy attack damage and telegraphs |
 | `docs/STATS.md` | any stat, health/mana, champion base stats, modifiers from gear/buffs/levels, items changing ability numbers |
+| `docs/AUDIO.md` | any sound, music, the mix, volume settings |
 | `docs/CHANGELOG.md` | only when asked what was built or measured |
 | `docs/_TEMPLATE.md` | writing a new doc |
 
 ## Current status
 - **Now:** Waiting on Ryan's play test of COMBAT C10 (nothing should change in play: nothing gives a shield yet). Still open: play tests of STATS steps 5–6, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. Docs split: build logs moved out of COMBAT, MOVEMENT and STATS into `docs/CHANGELOG.md`; the system docs keep specs only (DECISIONS.md, General). Stale contract numbers aligned with Numbers (elite slam 0.65 s / 72 px, `player.tscn` post-hit i-frames 0.3 s).
-  2. COMBAT C10: shields (`StatusEffect.shield_amount`, `StatusComponent.absorb_damage()`: after armor and `incoming_damage`, the soonest-expiring first, used up = ended), a separate silver shield number, `status_shield.tres`. Combat test 387/387, stats test 172/172.
-  3. COMBAT C9: `StatusEffect` + `StatusComponent`, `status_stun` / `status_slow` / `status_haste`, `apply_stun()` and `add_speed_modifier()` as wrappers, tenacity, DoT (snapshot, kill credit), `Events.status_applied` / `status_removed`.
-- **Next:** COMBAT C11 (reaction rules: `ReactionRule`, `GameplayEffect`; triggers HIT, UNIT_DIED, STATUS_APPLIED) → C12 (dash-strike, after its open question). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order.
+  1. `docs/AUDIO.md` written (docs only, no code): SoundEvent, the Audio autoload, CombatSounds on Events, AudioMix, the bus layout, hooks per system, build steps A1–A3. Found a combat bug while reading the code: a caster that dies mid-cast can leave its telegraph on the floor forever (COMBAT.md, Known bugs).
+  2. Docs split: build logs moved out of COMBAT, MOVEMENT and STATS into `docs/CHANGELOG.md`; the system docs keep specs only (DECISIONS.md, General). Stale contract numbers aligned with Numbers (elite slam 0.65 s / 72 px, `player.tscn` post-hit i-frames 0.3 s).
+  3. COMBAT C10: shields (`StatusEffect.shield_amount`, `StatusComponent.absorb_damage()`: after armor and `incoming_damage`, the soonest-expiring first, used up = ended), a separate silver shield number, `status_shield.tres`. Combat test 387/387, stats test 172/172.
+- **Next:** the telegraph-on-death fix (COMBAT.md, Known bugs) → COMBAT C11 (reaction rules: `ReactionRule`, `GameplayEffect`; triggers HIT, UNIT_DIED, STATUS_APPLIED) → C12 (dash-strike, after its open question) → AUDIO A1–A3 (plumbing, combat sounds, abilities and statuses). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order.
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.
@@ -129,8 +130,8 @@ All decisions, grouped by system with date and why, are in `docs/DECISIONS.md`.
 ## Future docs (write each one when you START that system)
 1. ~~`COMBAT.md`~~: written 2026-09-26 (see Docs index).
 2. `ABILITIES.md`: Ability framework, cooldowns, costs, recasts, augments (items changing ability behavior). Move the cast movement properties (`roots_during_cast`, `cast_move_speed_multiplier`, `cancel_on_move`, `dash_cancelable`) here from MOVEMENT.md, "Input buffering and cancels".
-3. `CHAMPIONS.md`: ChampionData, passives, one section per champion (Knight first)
-4. `LOOT.md`: item bases, rarities, affix pools, drop tables
+3. `CHAMPIONS.md`: ChampionData, passives, one section per champion (Knight first). Audio hooks: see AUDIO.md.
+4. `LOOT.md`: item bases, rarities, affix pools, drop tables. Audio hooks: see AUDIO.md.
 5. `ENEMIES_AI.md`: behaviors, aggro, elites, spawning
-6. `DUNGEONS.md`: room stitching, run structure
-7. `NPCS.md`, `UI.md`, `PROGRESSION.md` as needed. `UI.md` takes over the Esc pause menu and the player options (`Settings`), now described in MOVEMENT.md (Dash) and DECISIONS.md (General).
+6. `DUNGEONS.md`: room stitching, run structure. Audio hooks: see AUDIO.md.
+7. `NPCS.md`, `UI.md`, `PROGRESSION.md` as needed. `UI.md` takes over the Esc pause menu and the player options (`Settings`), now described in MOVEMENT.md (Dash) and DECISIONS.md (General). UI audio hooks: see AUDIO.md.

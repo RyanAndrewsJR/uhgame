@@ -46,6 +46,7 @@
 - **Telegraph**: the floor shape that warns of an enemy attack and fills up until the hit.
 - **Proc**: a hit caused by another hit (on-hit damage, reaction damage). It's tagged `proc` and never triggers on-hit.
 - **VFX** means visuals only. It never changes gameplay state.
+- **Sound event**: one `SoundEvent` resource (`data/sounds/sound_<category>_<name>.tres`): a named sound with its variations, jitter, bus and limits. Not "sfx", "cue" or "sample". Sounds only ever play through the `Audio` autoload, and like VFX they never change gameplay state (AUDIO.md).
 
 If you need a new term, add it here first.
 
@@ -101,6 +102,7 @@ Example: since `StatusComponent` (COMBAT C9), `Unit.apply_stun()` and `add_speed
 | `ReactionRule`, `GameplayEffect` (+ subclasses like `ApplyStatusGameplayEffect`) | cross-system interactions | COMBAT.md |
 | `Hazard` | floor areas with tags | WORLD_INTERACTION.md |
 | `AbilityAugment` | item-driven ability behavior | ABILITIES.md |
+| `Audio`, `SoundEvent`, `AudioMix`, `CombatSounds` | the audio autoload, one sound's data, the mix-wide numbers, the Events listener that plays hit, death and status sounds | AUDIO.md |
 
 ## Worked example: "knocking an enemy into a wall or oil stuns or debuffs it"
 With these patterns in place, this request is:

@@ -157,6 +157,8 @@ What exists today and what happens to each piece (see Build order for when).
 ## Data (Resources)
 Names checked against CONVENTIONS.md. `HitContext`, `StatusEffect`, `StatusComponent`, `ReactionRule` and `GameplayEffect` are reserved names; `HitPipeline`, `AttackSwing`, `AttackCombo` and `Telegraph` are new (CONVENTIONS.md, Reserved names).
 
+Audio hooks: see AUDIO.md.
+
 ### HitContext (RefCounted, `res://scripts/combat/hit_context.gd`)
 One per hit. Built by the attacker, filled in by the pipeline.
 
@@ -283,7 +285,7 @@ How damage numbers look (built in C6): `size_thresholds` 0 / 100 / 1000 → `fon
 - **Unit** (C4, built): `@export var post_hit_iframes: float` (0 = none; `player.tscn` 0.3). A hit that gets through adds `&"hit_iframes"` for that long in game time (it follows hitstop and pausing); DoT ticks don't start it. **Player** blinks while it lasts (`hit_iframes_blink_period` 0.1 s; visual only).
 - **Unit / MovementComponent** (C4, built): every knockback from `Unit.on_hit` uses `displace(..., dash_cancelable = true)`, so a unit that can dash (the player) dashes out of it at once. Any other displacement still blocks the dash.
 - **Enemy** (C5, built): `_try_cast_ability()` in AGGRO: for each ready slot (q, w, e, r), cast at the player's position if the player is within `cast_range` of the enemy's center and in sight, and the enemy isn't mid-windup. The cast time is the telegraph; the cast roots it (and a stun at the end of the cast time interrupts it, as for every ability).
-- **Ability / CastContext / AbilityComponent** (C5, built): `Ability.on_cast_started(caster, ctx)` (virtual, called right after `cast_started`) lets an ability show a telegraph during its cast time; it sets `CastContext.telegraph`, and AbilityComponent frees it if the cast is cancelled (dash, move) or interrupted (stun, death).
+- **Ability / CastContext / AbilityComponent** (C5, built): `Ability.on_cast_started(caster, ctx)` (virtual, called right after `cast_started`) lets an ability show a telegraph during its cast time; it sets `CastContext.telegraph`, and AbilityComponent frees it if the cast is cancelled (dash, move) or interrupted (stun, death; death is buggy today, see Known bugs).
 - **Knight abilities** (C8): Cleave, Lunge and Judgement hit through `HitPipeline.from_ability()`; Judgement's missing-health bonus is added to the base damage. Cleave's push and Judgement's stun skip blocked hits. Iron Resolve's bonus rides the swing's own pipeline hit.
 - **Elite slam** (`res://scripts/abilities/slime/slam.gd`, `res://data/abilities/slime_elite_q_slam.tres`, C5): POINT at the player's position at cast start (cast_range 250 u = 80 px), 0.65 s cast (the telegraph), 72 px circle (hit radius × 0.9, enemy forgiveness), 100 PHYSICAL through `HitPipeline.from_ability()`, 20 px push away from the elite, its own hitstop 0.06 s and 3 px shake when it lands, 4 s cooldown.
 - **Elite slime** (C5): `res://scenes/enemies/slime_elite.tscn` inherits `slime.tscn` (purple, ×1.4 body, 19 px collider, an AbilityComponent with the slam); `res://data/units/slime_elite.tres`: 900 health, 30 basic attack damage with a 0.25 s windup, 260 move speed. One (`Elite1`) sits in the sandbox's open top-right corner (784, 112).
@@ -308,6 +310,10 @@ How damage numbers look (built in C6): `size_thresholds` 0 / 100 / 1000 → `fon
 | Melee: wall or pillar in the way | `WorldQuery.has_line_of_sight()` rules out enemies behind walls (no pull, no snap). The step itself is a `displace()`: it slides along a wall at an angle and stops on a head-on one. |
 | Melee: step would end inside an enemy | The planned step is clamped to the gap between the two units' pathing radii; the unit bodies also collide, so the step stops at its edge and never pushes it. |
 | Knockback on the player | The 12 px push (~0.1 s) is a hit knockback: walking waits for it, but a dash replaces it at once (i-frames as usual). Other displacements (Lunge, pulls, knockback from anything but being hit) still block the dash; a press then is buffered and fires as they end. |
+
+## Known bugs
+- **Telegraph left on the floor when its caster dies mid-cast** (found reading the code 2026-09-27 while writing AUDIO.md; not reproduced in play yet). `Unit._on_died()` doesn't end the current cast; `AbilityComponent._do_cast()` removes the telegraph only when the cast time ends. The death tween frees the unit after about 0.33 s, and the slam's cast time is 0.65 s, so an elite killed early in its slam is freed before the cast time ends. GDScript can't resume an `await` whose object is gone, so `_remove_telegraph()` never runs (probably with a "resumed after await, but instance is gone" error), and the telegraph stays on the floor, full, forever. That misleads the player (clarity), and AUDIO A3's wind-up sound, owned by the telegraph, would never stop.
+  - **Plan:** its own small fix step right after AUDIO.md, before C11 (the step between C10 and C11 below). Nothing changes in code until then.
 
 ## Build order (one step per request)
 Combat starts now, before STATS step 6. Until step 6 adds `id` / `tags` to Ability, hits carry no ability tags. STATS step 6 runs before C8 (C8's `hit:<tag>` scopes need scoped modifiers); STATS step 7 (the F3 overlay) comes after M1.
@@ -354,7 +360,9 @@ Combat starts now, before STATS step 6. Until step 6 adds `id` / `tags` to Abili
 10. **C10 – Shields** (shield statuses; absorb order: the one expiring soonest first, proposed).
    **Done means:** in play nothing changes (nothing gives a shield yet); the test covers absorbing, the order, stacks, numbers, and that an absorbed hit still lands.
    C10 built 2026-09-27, see CHANGELOG.md.
-11. **C11 – Reaction rules** (`HIT`, `UNIT_DIED`, `STATUS_APPLIED`; the four GameplayEffects).
+- **Fix – Telegraph on caster death** (before C11; Known bugs). A caster that dies (or is freed) mid-cast frees its telegraph at once and its cast ends cleanly (proposed: `Unit._on_died()` ends the current cast through AbilityComponent, which frees `ctx.telegraph`; the exact shape is decided in the step).
+   **Done means:** killing the elite at any point of its slam removes the circle at once, with no errors in the output; a stun or dash cancel still removes it as before; the elite's slam, the Knight's abilities, enemies chasing and the HUD still work.
+11. **C11 – Reaction rules** (`HIT`, `UNIT_DIED`, `STATUS_APPLIED`; the four GameplayEffects). It adds no "play sound" GameplayEffect: a rule makes a sound only through the status it applies or the proc hit it causes (AUDIO.md).
 12. **C12 – Dash-strike** (after its open question is answered).
 
 For every step: no errors; the Knight's 4 abilities, enemies chasing and the HUD still work. If a step needs removing or rewriting existing code, stop and explain why first.
