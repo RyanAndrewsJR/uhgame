@@ -6,6 +6,9 @@ extends Node2D
 ## silence during a cast time interrupting it at once (refunded), an effect
 ## that has started not being interrupted, and the cast mode setting
 ## (saved, applied to the Player, INSTANT only).
+## AB2: damage scalings (DamageScaling terms, ap_ratio, Judgement's missing
+## health in data with the same numbers, scoped modifiers raising a ratio),
+## tooltips from the description template, and the standard tags.
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
@@ -44,6 +47,10 @@ func _ready() -> void:
 	await _test_effect_not_interrupted()
 	await _test_channel_cancel_on_move()
 	await _test_cast_mode()
+	print("\n=== Abilities test (ABILITIES AB2) ===")
+	await _test_scalings()
+	_test_tooltips()
+	_test_tags()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).
@@ -240,6 +247,146 @@ func _test_cast_mode() -> void:
 
 	Settings.setting_changed.disconnect(on_changed)
 	Settings.set_cast_mode(original)
+
+
+# --- AB2 ------------------------------------------------------------------------
+
+func _test_scalings() -> void:
+	_section("AB2: damage scalings")
+	await _reset_knight()
+	var ad := knight.stats_component.get_stat(&"attack_damage")
+	_check("the Knight's AD is 64 (the numbers below use it)", ad, 64.0)
+	var dummy := _dummy_at(Vector2(80, 0))
+	var max_hp := dummy.health.max_health
+
+	# Judgement: the missing-health bonus is now a scaling term, same numbers.
+	var term := JUDGEMENT.get_scaling(&"target_missing_health_ratio")
+	_check("Judgement has the term: 20% of the target's missing health",
+		[term != null, term.ratio if term else 0.0, term.of if term else -1], [true, 0.2, DamageScaling.Of.TARGET_MISSING_HEALTH])
+	_check("the old export is kept, unused", JUDGEMENT.get("missing_health_ratio"), 0.2)
+	var full := HitPipeline.get_scaled_damage(HitPipeline.from_ability(knight, JUDGEMENT, dummy))
+	_check("full health: 150 + 64 = 214", full, 214.0)
+	dummy.health.take_damage(max_hp * 0.5)
+	var missing := dummy.health.max_health - dummy.health.current
+	var old_formula := 150.0 + ad + 0.2 * missing
+	var half := HitPipeline.from_ability(knight, JUDGEMENT, dummy)
+	_check("half health: 214 + 20% of the missing health (the old formula)", HitPipeline.get_scaled_damage(half), old_formula)
+	_check("the same as get_damage_against() and the old wrappers",
+		[JUDGEMENT.get_damage_against(knight, dummy), JUDGEMENT.get_damage(knight) + JUDGEMENT.get_missing_health_bonus(dummy)],
+		[old_formula, old_formula])
+	_check("the bonus rides base_damage (so it crits); ad_ratio stays a ratio",
+		[half.base_damage, half.ad_ratio], [150.0 + 0.2 * missing, 1.0])
+
+	# A scoped modifier raises the ratio like any param.
+	var item := &"item_test_executioner"
+	knight.stats_component.add_modifier(StatModifier.create(&"target_missing_health_ratio",
+		StatModifier.Type.FLAT, 0.1, item, &"ability:knight_judgement"))
+	_check("+0.1 scoped: the ratio param is 0.3", JUDGEMENT.get_param(knight, &"target_missing_health_ratio"), 0.3)
+	_check("and the hit gets 30% of the missing health",
+		HitPipeline.get_scaled_damage(HitPipeline.from_ability(knight, JUDGEMENT, dummy)), 150.0 + ad + 0.3 * missing)
+	knight.stats_component.remove_modifiers_from(item)
+	_check("removed: back to 20%", JUDGEMENT.get_damage_against(knight, dummy), old_formula)
+	_check("without a caster the param is the plain ratio", JUDGEMENT.get_param(null, &"target_missing_health_ratio"), 0.2)
+
+	# The other term kinds, and ap_ratio.
+	var bonus := &"item_test_bonus_ad"
+	knight.stats_component.add_modifier(StatModifier.create(&"attack_damage", StatModifier.Type.FLAT, 20.0, bonus))
+	var kinds: Array[float] = []
+	for of: DamageScaling.Of in [DamageScaling.Of.CASTER_STAT, DamageScaling.Of.CASTER_BONUS_STAT,
+			DamageScaling.Of.TARGET_MAX_HEALTH, DamageScaling.Of.TARGET_MISSING_HEALTH, DamageScaling.Of.TARGET_CURRENT_HEALTH]:
+		var t := DamageScaling.new()
+		t.of = of
+		t.stat = &"attack_damage"
+		kinds.append(t.get_amount(knight, dummy))
+	_check("amounts: AD 84, bonus AD 20, target max / missing / current",
+		kinds, [84.0, 20.0, max_hp, missing, dummy.health.current])
+	var labels: Array[String] = []
+	for of: DamageScaling.Of in [DamageScaling.Of.CASTER_STAT, DamageScaling.Of.CASTER_BONUS_STAT, DamageScaling.Of.TARGET_MISSING_HEALTH]:
+		var t := DamageScaling.new()
+		t.of = of
+		t.stat = &"attack_damage"
+		labels.append(t.get_label())
+	_check("labels", labels, ["AD", "bonus AD", "of the target's missing health"])
+	var test_ability: Ability = CLEAVE.duplicate()
+	test_ability.id = &"test_scaled"
+	test_ability.ap_ratio = 0.5
+	var bonus_term := DamageScaling.new()
+	bonus_term.param = &"bonus_ad_ratio"
+	bonus_term.ratio = 0.6
+	bonus_term.of = DamageScaling.Of.CASTER_BONUS_STAT
+	bonus_term.stat = &"attack_damage"
+	test_ability.scalings = [bonus_term] as Array[DamageScaling]
+	knight.stats_component.add_modifier(StatModifier.create(&"ability_power", StatModifier.Type.FLAT, 100.0, bonus))
+	_check("80 + 70% of 84 AD + 50% of 100 AP + 60% of 20 bonus AD = 200.8",
+		[test_ability.get_damage(knight), HitPipeline.get_scaled_damage(HitPipeline.from_ability(knight, test_ability, dummy))],
+		[200.8, 200.8])
+	knight.stats_component.remove_modifiers_from(bonus)
+	_check("Cleave is unchanged: 80 + 0.7 x 64 = 124.8", CLEAVE.get_damage(knight), 124.8)
+	dummy.queue_free()
+
+
+func _test_tooltips() -> void:
+	_section("AB2: tooltips from the description template")
+	_check("Cleave (and its 80 base, not the old 70)", CLEAVE.get_tooltip_plain(knight),
+		"Sweep your sword in a wide arc in front of you, dealing 125 physical damage (80 +70% AD) and knocking enemies back.")
+	_check("Iron Resolve (percents with {x%})", IRON_RESOLVE.get_tooltip_plain(knight),
+		"Gain 35% movement speed for 2s. Your next attack within 4s deals 82 (50 +50% AD) bonus damage and slows the target by 40% for 1.5s.")
+	_check("Lunge ({range})", LUNGE.get_tooltip_plain(knight),
+		"Dash up to 400 units toward the target spot, passing through units and dealing 82 physical damage (50 +50% AD) to every enemy you cut through.")
+	_check("Judgement (the target term as text)", JUDGEMENT.get_tooltip_plain(knight),
+		"Strike an enemy for 214 physical damage (150 +100% AD +20% of the target's missing health), and stun it for 0.75s. Channel: moving cancels it. Walks into range if needed.")
+	_check("the slam, without a caster", SLAM.get_tooltip_plain(null),
+		"Marks a 72 px circle where the target stands, fills it over 0.65 s, then slams: 100 physical damage and a 20 px push to everyone inside.")
+	var bb := CLEAVE.get_tooltip(knight)
+	var style: DamageNumberStyle = load(Ability.DAMAGE_NUMBER_STYLE_PATH)
+	var color := style.get_damage_type_color(HitContext.DamageType.PHYSICAL).to_html(false)
+	_check("BBCode: the damage colored by type (physical)", bb.contains("[color=#%s]125[/color]" % color), true)
+
+	var src := &"item_test_tooltip"
+	knight.stats_component.add_modifier(StatModifier.create(&"attack_damage", StatModifier.Type.FLAT, 36.0, src))
+	knight.stats_component.add_modifier(StatModifier.create(&"ability_haste", StatModifier.Type.FLAT, 100.0, src))
+	knight.stats_component.add_modifier(StatModifier.create(&"ad_ratio", StatModifier.Type.FLAT, 0.1, src, &"ability:knight_cleave"))
+	var probe: Ability = CLEAVE.duplicate()
+	probe.description = "cd {cooldown} range {range} cast {cast_time}"
+	_check("with +36 AD and +10% AD scoped: 80 + 80% of 100 = 160, the ratio shows 80%",
+		CLEAVE.get_tooltip_plain(knight).contains("dealing 160 physical damage (80 +80% AD)"), true)
+	_check("{cooldown} after haste (3 s at 100 haste = 1.5), {range}, {cast_time}",
+		probe.get_tooltip_plain(knight), "cd 1.5 range 300 cast 0.2")
+	knight.stats_component.remove_modifiers_from(src)
+	_check("removed: back to 125", CLEAVE.get_tooltip_plain(knight).contains("dealing 125 physical"), true)
+	probe.description = "left {not_a_param} alone"
+	print("  (one expected warning: unknown tooltip placeholder)")
+	_check("an unknown placeholder stays as written", probe.get_tooltip_plain(knight), "left {not_a_param} alone")
+	probe.description = "no placeholders"
+	_check("plain text stays as it is", probe.get_tooltip_plain(knight), "no placeholders")
+
+
+func _test_tags() -> void:
+	_section("AB2: standard tags")
+	var abilities: Array[Ability] = [CLEAVE, IRON_RESOLVE, LUNGE, JUDGEMENT, SLAM]
+	var roles: Array[StringName] = []
+	for a in abilities:
+		roles.append(a.get_role())
+	_check("one role each: core, defensive, mobility, ultimate, core", roles,
+		[&"core", &"defensive", &"mobility", &"ultimate", &"core"] as Array[StringName])
+	var styles_match := true
+	for a in abilities:
+		styles_match = styles_match \
+			and ((&"channel" in a.tags) == (a.cast_style == Ability.CastStyle.CHANNEL)) \
+			and ((&"charge_up" in a.tags) == (a.cast_style == Ability.CastStyle.CHARGE_UP))
+	_check("style tags match cast_style (Judgement: channel)", styles_match, true)
+	_check("the old tags stay (area, buff, movement)",
+		[&"area" in CLEAVE.tags, &"buff" in IRON_RESOLVE.tags, &"movement" in LUNGE.tags, &"area" in SLAM.tags], [true, true, true, true])
+	var dummy := _dummy_at(Vector2(300, 0))
+	var hit := HitPipeline.from_ability(knight, CLEAVE, dummy)
+	_check("Cleave's hits carry core, cone and area", [hit.has_tag(&"core"), hit.has_tag(&"cone"), hit.has_tag(&"area")], [true, true, true])
+	var src := &"item_test_core"
+	knight.stats_component.add_modifier(StatModifier.create(&"base_damage", StatModifier.Type.FLAT, 10.0, src, &"tag:core"))
+	_check("+10 base damage to core abilities: Cleave and the slam yes, Lunge no",
+		[CLEAVE.get_param(knight, &"base_damage"), SLAM.get_param(knight, &"base_damage"), LUNGE.get_param(knight, &"base_damage")],
+		[90.0, 110.0, 50.0])
+	knight.stats_component.remove_modifiers_from(src)
+	dummy.queue_free()
 
 
 # --- Helpers ------------------------------------------------------------------

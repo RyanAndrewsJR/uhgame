@@ -85,7 +85,8 @@ func _draw_tooltip(i: int) -> void:
 	if ability == null:
 		return
 	var w := 220.0
-	var lines := _wrap(ability.description, w - 12, 8)
+	# The description is a template filled with the real numbers (ABILITIES AB2).
+	var lines := _wrap(ability.get_tooltip_plain(abilities.unit), w - 12, 8)
 	var h := 30.0 + lines.size() * 10.0
 	var x := clampf(i * (SLOT + GAP) + SLOT * 0.5 - w * 0.5, -position.x + 4, get_viewport_rect().size.x - position.x - w - 4)
 	var rect := Rect2(x, -h - 6, w, h)

@@ -96,10 +96,9 @@ func get_ability_param(ability: Ability, param: StringName) -> float:
 	var key := "%d/%s" % [ability.get_instance_id(), param]
 	if _param_cache.has(key):
 		return _param_cache[key]
-	var base_value: Variant = ability.get(param)
-	if not (base_value is float or base_value is int):
-		push_error("StatsComponent: '%s' is not a number on ability '%s'" % [param, ability.id])
-		return 0.0
+	# An @export param or a scaling term's ratio (ABILITIES AB2); anything
+	# else is reported by the ability and counts 0.
+	var base_value := ability.get_base_param(param)
 	var scopes := ability.get_modifier_scopes()
 	var flat := 0.0
 	var percent_add := 0.0

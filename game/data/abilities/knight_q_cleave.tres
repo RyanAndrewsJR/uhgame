@@ -7,9 +7,9 @@
 script = ExtResource("1_script")
 cast_sound = ExtResource("s1_cast_sound")
 id = &"knight_cleave"
-tags = Array[StringName]([&"area"])
+tags = Array[StringName]([&"area", &"core", &"cone"])
 display_name = "Cleave"
-description = "Sweep your sword in a wide arc in front of you, dealing 70 (+70% AD) physical damage and knocking enemies back."
+description = "Sweep your sword in a wide arc in front of you, dealing {damage} physical damage ({base_damage} {ratios}) and knocking enemies back."
 icon_color = Color(0.85, 0.9, 1, 1)
 cooldown = 3.0
 cast_time = 0.2

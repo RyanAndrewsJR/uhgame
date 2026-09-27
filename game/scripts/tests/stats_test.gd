@@ -69,7 +69,8 @@ func _ready() -> void:
 func _test_scoped_modifiers() -> void:
 	_section("Scoped modifiers (ability params)")
 	_check("ids: knight_cleave / knight_lunge / slime_elite_slam", [CLEAVE.id, LUNGE.id, SLAM.id], [&"knight_cleave", &"knight_lunge", &"slime_elite_slam"])
-	_check("tags: cleave [area], lunge [movement]", [CLEAVE.tags, LUNGE.tags], [[&"area"], [&"movement"]])
+	# ABILITIES AB2 added the standard tags; the step-6 tags stay.
+	_check("tags: cleave has area, lunge has movement", [&"area" in CLEAVE.tags, &"movement" in LUNGE.tags], [true, true])
 	_check("no modifiers: the plain values", [knight_stats.get_ability_param(CLEAVE, &"cooldown"), knight_stats.get_ability_param(LUNGE, &"cast_range")], [3.0, 400.0])
 	var before := _all_values(knight_stats)
 	_signals.clear()

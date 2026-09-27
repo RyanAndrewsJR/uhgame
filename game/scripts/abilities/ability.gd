@@ -30,14 +30,27 @@ enum CastStyle {
 	CHANNEL,    ## Cast on press; stand still through the cast time, a new move press cancels it.
 }
 
+## The role tags (Diablo 4's categories, "basic" renamed): every ability has
+## exactly one (ABILITIES.md, Standard tags).
+const ROLE_TAGS: Array[StringName] = [&"generator", &"core", &"defensive", &"mobility", &"ultimate"]
+## Tooltip damage colors come from the damage numbers' style (COMBAT C6).
+## Loaded when needed (not preloaded) so Ability doesn't pull the style's
+## script into its own compile.
+const DAMAGE_NUMBER_STYLE_PATH := "res://data/damage_number_styles/damage_number_style_default.tres"
+
 ## <champion>_<ability>, no slot (CONVENTIONS.md), e.g. &"knight_lunge".
 ## Scoped modifiers target it as &"ability:knight_lunge" (STATS.md).
 @export var id: StringName = &""
-## Snake_case tags (&"area", &"movement"...). Scoped modifiers target
-## every ability with a tag as &"tag:area" (STATS.md); hits carry them
-## (COMBAT.md).
+## Snake_case tags (&"core", &"area", &"movement"...): one role tag plus
+## shape, style and element tags (CONVENTIONS.md, Standard ability tags).
+## Scoped modifiers target every ability with a tag as &"tag:area"
+## (STATS.md); hits carry them (COMBAT.md).
 @export var tags: Array[StringName] = []
 @export var display_name: String = "Ability"
+## The tooltip template (get_tooltip()): plain text with placeholders such
+## as {damage}, {base_damage}, {ratios}, {cooldown}, {range}, {cast_time},
+## or any param by name ({stun_duration}); {param%} shows it as a percent
+## (0.35 -> 35%). Text without placeholders is shown as it is.
 @export_multiline var description: String = ""
 @export var icon_color: Color = Color(0.8, 0.8, 0.8)
 
@@ -81,6 +94,11 @@ enum CastStyle {
 @export var base_damage: float = 0.0
 ## Fraction of the caster's attack damage added to base_damage.
 @export var ad_ratio: float = 0.0
+## Fraction of the caster's ability power added to base_damage.
+@export var ap_ratio: float = 0.0
+## Every other ratio (bonus AD, % of the target's missing health...), one
+## DamageScaling each; each ratio is a param items can raise (ABILITIES.md).
+@export var scalings: Array[DamageScaling] = []
 ## PHYSICAL (armor), MAGIC (magic_resist) or TRUE (ignores both). COMBAT.md.
 @export var damage_type: HitContext.DamageType = HitContext.DamageType.PHYSICAL
 ## Scales on-hit chances and effects (COMBAT C8). 1.0 = full; lower it for
@@ -104,6 +122,10 @@ enum CastStyle {
 ## ultimate-ready ping. A refunded cooldown doesn't ping.
 @export var ready_sound: SoundEvent
 
+static var _placeholder_regex: RegEx
+var _role_warned: bool = false
+var _warned_placeholders: Dictionary = {}   # placeholder key -> true (warned once)
+
 
 ## True for a channel: cast_style CHANNEL, or the older cancel_on_move flag
 ## (both mean: root for the cast time, a new move press cancels it).
@@ -123,12 +145,74 @@ func can_reach_through_walls(from: Vector2, target: Unit) -> bool:
 
 
 ## A number of this ability (an @export param like &"cooldown",
-## &"cast_range", &"base_damage") after the caster's scoped modifiers
-## (items, buffs; STATS.md). Without a caster: the plain value.
+## &"cast_range", &"base_damage", or a scaling term's param) after the
+## caster's scoped modifiers (items, buffs; STATS.md). Without a caster: the
+## plain value.
 func get_param(caster: Unit, param: StringName) -> float:
 	if is_instance_valid(caster) and caster.stats_component != null:
 		return caster.stats_component.get_ability_param(self, param)
-	return float(get(param))
+	return get_base_param(param)
+
+
+## A param before modifiers: the @export of that name, else the ratio of the
+## scaling term with that param. Anything else is an error (0).
+func get_base_param(param: StringName) -> float:
+	var value: Variant = get(param)
+	if value is float or value is int:
+		return float(value)
+	var term := get_scaling(param)
+	if term != null:
+		return term.ratio
+	push_error("Ability '%s': no number param '%s'" % [id, param])
+	return 0.0
+
+
+## The scaling term whose ratio is `param`, or null.
+func get_scaling(param: StringName) -> DamageScaling:
+	for term in scalings:
+		if term != null and term.param == param:
+			return term
+	return null
+
+
+## The scaling terms' damage against `target` (null = no target: the target
+## terms count 0), each ratio after scoped modifiers.
+func get_scaling_damage(caster: Unit, target: Node) -> float:
+	var total := 0.0
+	for term in scalings:
+		if term == null:
+			continue
+		if term.param in self:
+			push_error("Ability '%s': scaling param '%s' clashes with an @export" % [id, term.param])
+			continue
+		total += get_param(caster, term.param) * term.get_amount(caster, target)
+	return total
+
+
+## What a hit on `target` deals before damage_increase, crit and mitigation:
+## base_damage, ad_ratio x AD, ap_ratio x AP and every scaling term, all after
+## scoped modifiers. target null = the target terms count 0 (tooltips).
+func get_damage_against(caster: Unit, target: Unit) -> float:
+	var total := get_param(caster, &"base_damage") + get_scaling_damage(caster, target)
+	if is_instance_valid(caster) and caster.stats_component != null:
+		total += get_param(caster, &"ad_ratio") * caster.stats_component.get_stat(&"attack_damage")
+		total += get_param(caster, &"ap_ratio") * caster.stats_component.get_stat(&"ability_power")
+	return total
+
+
+## The ability's one role tag (ROLE_TAGS), or &"" with a warning (once) if it
+## has none or several.
+func get_role() -> StringName:
+	var roles: Array[StringName] = []
+	for t in tags:
+		if t in ROLE_TAGS:
+			roles.append(t)
+	if roles.size() == 1:
+		return roles[0]
+	if not _role_warned:
+		_role_warned = true
+		push_warning("Ability '%s': needs exactly one role tag %s, has %s" % [id, ROLE_TAGS, roles])
+	return &""
 
 
 ## The scopes a modifier can use to reach this ability: &"ability:<id>" and
@@ -140,11 +224,88 @@ func get_modifier_scopes() -> Array[StringName]:
 	return scopes
 
 
-## Damage this ability deals with the caster's current stats (base_damage
-## and ad_ratio after scoped modifiers, then attack_damage).
+## Damage this ability deals with the caster's current stats, without a
+## target (base_damage and the ratios after scoped modifiers; target terms 0).
 func get_damage(caster: Unit) -> float:
-	return get_param(caster, &"base_damage") \
-		+ get_param(caster, &"ad_ratio") * caster.stats_component.get_stat(&"attack_damage")
+	return get_damage_against(caster, null)
+
+
+# --- Tooltips -----------------------------------------------------------------
+
+## The tooltip: `description` with its placeholders filled from the real
+## numbers (scoped modifiers and ability haste applied), the damage colored by
+## damage type (BBCode). Where it's shown is UI.md's.
+func get_tooltip(caster: Unit) -> String:
+	return _fill_template(caster, true)
+
+
+## get_tooltip() without BBCode (for plain draw_string text).
+func get_tooltip_plain(caster: Unit) -> String:
+	return _fill_template(caster, false)
+
+
+func _fill_template(caster: Unit, bbcode: bool) -> String:
+	if _placeholder_regex == null:
+		_placeholder_regex = RegEx.create_from_string("\\{([a-z_]+)(%?)\\}")
+	var out := ""
+	var last := 0
+	for m in _placeholder_regex.search_all(description):
+		out += description.substr(last, m.get_start() - last)
+		out += _placeholder_text(caster, m.get_string(1), m.get_string(2) == "%", m.get_string(), bbcode)
+		last = m.get_end()
+	return out + description.substr(last)
+
+
+func _placeholder_text(caster: Unit, key: String, percent: bool, raw: String, bbcode: bool) -> String:
+	match key:
+		"damage":
+			var text := str(roundi(get_damage(caster)))
+			if not bbcode:
+				return text
+			var style: DamageNumberStyle = load(DAMAGE_NUMBER_STYLE_PATH)
+			var color := style.get_damage_type_color(damage_type)
+			return "[color=#%s]%s[/color]" % [color.to_html(false), text]
+		"ratios":
+			return _ratios_text(caster)
+		"cooldown":
+			var cd := get_param(caster, &"cooldown")
+			if is_instance_valid(caster) and caster.stats_component != null:
+				cd = caster.stats_component.get_cooldown(cd)
+			return _number_text(cd, percent)
+		"range":
+			return _number_text(get_param(caster, &"cast_range"), percent)
+	var value: Variant = get(key)
+	if value is float or value is int or get_scaling(StringName(key)) != null:
+		return _number_text(get_param(caster, StringName(key)), percent)
+	if not _warned_placeholders.has(key):
+		_warned_placeholders[key] = true
+		push_warning("Ability '%s': unknown tooltip placeholder %s" % [id, raw])
+	return raw
+
+
+## "+70% AD +20% of the target's missing health": ad_ratio, ap_ratio, then
+## each scaling term, with the ratios after scoped modifiers. Zero ratios are
+## left out.
+func _ratios_text(caster: Unit) -> String:
+	var parts: PackedStringArray = []
+	var ad := get_param(caster, &"ad_ratio")
+	if ad != 0.0:
+		parts.append("+%s AD" % _number_text(ad, true))
+	var ap := get_param(caster, &"ap_ratio")
+	if ap != 0.0:
+		parts.append("+%s AP" % _number_text(ap, true))
+	for term in scalings:
+		if term != null:
+			parts.append("+%s %s" % [_number_text(get_param(caster, term.param), true), term.get_label()])
+	return " ".join(parts)
+
+
+## Up to 2 decimals, no trailing zeros (3, 2.5, 0.75); as a percent (1
+## decimal at most) if asked.
+static func _number_text(value: float, percent: bool) -> String:
+	var v := snappedf(value * 100.0, 0.1) if percent else snappedf(value, 0.01)
+	var text := str(int(roundf(v))) if is_equal_approx(v, roundf(v)) else str(v)
+	return text + "%" if percent else text
 
 
 ## What the ability does. Override in each ability script.

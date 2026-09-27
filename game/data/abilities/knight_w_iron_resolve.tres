@@ -7,9 +7,9 @@
 script = ExtResource("1_script")
 cast_sound = ExtResource("s1_cast_sound")
 id = &"knight_iron_resolve"
-tags = Array[StringName]([&"buff"])
+tags = Array[StringName]([&"buff", &"defensive"])
 display_name = "Iron Resolve"
-description = "Gain 35% movement speed for 2s. Your next attack within 4s deals 50 (+50% AD) bonus damage and slows the target by 40% for 1.5s."
+description = "Gain {move_speed_bonus%} movement speed for {move_speed_duration}s. Your next attack within {empower_window}s deals {damage} ({base_damage} {ratios}) bonus damage and slows the target by {slow_amount%} for {slow_duration}s."
 icon_color = Color(1, 0.78, 0.3, 1)
 targeting = 0
 cooldown = 8.0
