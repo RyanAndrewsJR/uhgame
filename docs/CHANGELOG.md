@@ -11,7 +11,7 @@
 
 ## Abilities (ABILITIES.md)
 
-### AB7 – Projectiles: 2026-09-27, Built (awaiting play test)
+### AB7 – Projectiles: 2026-09-27, Passed
 **AB7 – Projectiles.** The shared `Projectile` piece, the projectile params, `WorldQuery.shape_sweep()`, `test_bolt`.
 
 Ability: an export group "Projectile" (`projectile_speed` 1200 u/s, `projectile_width` 60 u, `projectile_count` 1, `projectile_spread_deg` 15, `projectile_pierce` 0; all scoped). New `scripts/abilities/projectile.gd` (`Projectile`, Node2D): `Projectile.fire(caster, ability, cast, origin, direction)` fans out `projectile_count` projectiles sharing one `CritRoll`, added next to the caster; each physics frame it moves, sweeps its 2 px core against walls (`WorldQuery.shape_sweep()`, unless `ignores_walls`), hits enemies of its team along the swept capsule (each once, nearest first, `pierce + 1` at most) through `from_ability(…, cast)`, and ends at a wall, its last hit or its range; with its caster freed it hits for the damage snapshotted at fire plus target terms, with no source and no crit. `debug_draw` shows each frame's capsule. `WorldQuery.shape_sweep(from, to, radius, mask = 1)` (a circle `cast_motion`; {position, fraction} or {}). `AbilityUtil.enemies_of_team()` / `along_segment_of_team()`. New `scripts/abilities/test/bolt.gd` + `data/abilities/test_q_bolt.tres`. WORLD_INTERACTION.md and CLAUDE.md now list `shape_sweep()` as built.

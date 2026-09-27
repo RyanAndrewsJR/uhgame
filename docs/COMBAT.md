@@ -229,6 +229,7 @@ How damage numbers look (built in C6): `size_thresholds` 0 / 100 / 1000 → `fon
   - `effect_target`: `AFFECTED` (default) or `OTHER`. Every event has an affected unit and an other unit: HIT = the unit hit / the attacker; UNIT_DIED = the unit that died / the killer; STATUS_APPLIED = the unit that got it / who applied it.
   - `owner_role` (unit rules only): `SOURCE` (default; the owner is the other unit: "when I hit / kill / apply…") or `AFFECTED` ("when I'm hit / die / get…").
   - `chain_limit` (1–5, default 1): how many reactions in a row the rule may take part in; set by the ability, passive or item that grants it. `ReactionRule.MAX_CHAIN` = 5 caps every chain (Ryan, 2026-09-27).
+  - `conditions: Array[Condition]` (ABILITIES AB12, not built yet): the shared condition resource (unit state: statuses, health, distance, enemies in range...), all must pass after the tag filters and before `chance`. Specified in ABILITIES.md, Conditions.
 - Two kinds of rules, the same Resource (Ryan, 2026-09-27):
   - **World rules** apply to everyone: every `.tres` in `res://data/reactions/world/` (loaded at start), plus `Reactions.add_world_rule(rule, source_id)` / `remove_world_rules_from(source_id)` (rooms, hazards, run modifiers later). Their effects' source is the event's other unit.
   - **Unit rules** belong to one unit, from its items, passives or buffs: `Unit.add_reaction_rule(rule, source_id)`, `remove_reaction_rules_from(source_id)`, `get_reaction_rules()`. Their effects' source is the owner.

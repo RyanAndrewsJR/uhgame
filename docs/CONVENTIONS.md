@@ -38,6 +38,9 @@
 - **Unstoppable**: immune to crowd control and knockback from hits (status tag `unstoppable`). **Untargetable**: can't be hit or targeted (status tag `untargetable`).
 - **Generator**: an ability role (Diablo 4's "basic" skills that build a resource). It is not the **basic attack**.
 - **Free cast**: a cast granted by a `CastAbilityGameplayEffect`: no cost, cooldown, slot or cast time.
+- **Condition**: one check on unit state (a `Condition` resource: has a status, health %, distance, enemies in range...), with a "not" toggle; a list of them means all must pass. Shared by abilities, reaction rules, augments, passives, items and the enemy AI (ABILITIES.md, Conditions).
+- **Conditional bonus**: param changes and statuses an ability gets only while its conditions pass, checked at the moment of the effect (a `ConditionalBonus`).
+- **Named input**: a 0–1 value a cast carries (`CastContext.get_input()`), such as `charge` or `self_missing_health`, that scales params ("stronger the more / less…").
 - **Basic attack**: the design term. The code keeps `AutoAttackComponent`.
 - **Hit**: one application of damage/effects to a unit, described by a `HitContext`.
 - **Damage type**: `PHYSICAL`, `MAGIC`, `TRUE`.
@@ -102,6 +105,10 @@ Other code uses a component's public methods, never its internal variables. Anyt
 ### 5. Existing code gets wrapped, not replaced
 Example: since `StatusComponent` (COMBAT C9), `Unit.apply_stun()` and `add_speed_modifier()` keep working as thin wrappers that create `status_stun` / slow / haste statuses.
 
+### 6. Data or script, and reading ability params (ABILITIES.md)
+- If 2+ abilities, passives or items would use something, it's data (a toolkit piece); a one-off goes in the ability's own script. Unique state is a status, so conditions can read it.
+- New ability scripts read anything a conditional bonus or a named input could change with `Ability.get_effect_param(caster, param, ctx, target)`; `get_param()` stays for old code.
+
 ## Reserved names (planned; specified in the doc named)
 | Name | What | Doc |
 |---|---|---|
@@ -122,6 +129,9 @@ Example: since `StatusComponent` (COMBAT C9), `Unit.apply_stun()` and `add_speed
 | `DamageScaling`, `ChargeScaling` | one damage ratio term on an ability; one param that grows with a charge-up | ABILITIES.md |
 | `Projectile` | the shared projectile piece (Node2D, `scripts/abilities/projectile.gd`) | ABILITIES.md |
 | `ModifyCooldownGameplayEffect`, `RestoreResourceGameplayEffect`, `CastAbilityGameplayEffect`, `RemoveStatusesByTagGameplayEffect` | GameplayEffects for augments, passives and items (cooldowns, resource, free casts, cleanse) | ABILITIES.md |
+| `Condition` (enums `Condition.Kind`: `SELF_HAS_STATUS`, `TARGET_HAS_STATUS`, `SELF_HEALTH_PERCENT`, `TARGET_HEALTH_PERCENT`, `TARGET_DISTANCE`, `ENEMIES_IN_RANGE`, `RESOURCE_AT_LEAST`, `LAST_PART_HIT`; `Condition.Comparison`: `AT_LEAST`, `LESS_THAN`), `ConditionalBonus` | the one shared condition resource and an ability's conditional bonus; files `data/conditions/condition_<name>.tres` when shared | ABILITIES.md |
+| Named inputs `charge`, `self_missing_health`, `target_missing_health`, `target_distance` | the built-in 0–1 scaling inputs on `CastContext.inputs` (scripts may add others) | ABILITIES.md |
+| `FAIL_CONDITION` (`"condition"`) | the cast-failed reason for a failed cast or recast condition | ABILITIES.md |
 | `SandboxAbilities`, `SandboxAugments` | sandbox-only demo nodes (costs and test abilities; the augment playground) | ABILITIES.md |
 | `Audio`, `SoundEvent`, `AudioMix`, `CombatSounds` | the audio autoload, one sound's data, the mix-wide numbers, the Events listener that plays hit, death and status sounds | AUDIO.md |
 

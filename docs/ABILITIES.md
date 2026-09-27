@@ -1,6 +1,6 @@
 # ABILITIES.md: The Ability Framework, Cast Styles, Costs, Recasts, Projectiles and Augments
 
-**Read when:** the task involves abilities, casting, cast styles, charge-up, damage scalings, tooltips, ability tags, costs, cooldowns, charges, recasts, projectiles, augments, forms or empowers.
+**Read when:** the task involves abilities, casting, cast styles, charge-up, damage scalings, tooltips, ability tags, costs, cooldowns, charges, recasts, projectiles, augments, forms, empowers or conditions.
 **Depends on:** CLAUDE.md, CONVENTIONS.md (names, tags, reserved names), STATS.md (scoped params, `get_param()`, ResourceComponent, ability haste), COMBAT.md (HitPipeline, HitContext, statuses, ReactionRule and GameplayEffect, telegraphs), MOVEMENT.md (the input buffer, the dash, facing), WORLD_INTERACTION.md (WorldQuery, movement methods, Hazards), AUDIO.md (ability hooks).
 **Used by:** CHAMPIONS (kits; passives are built on this toolkit), LOOT (items: scoped modifiers and augments), ENEMIES_AI (enemies cast through the same AbilityComponent), UI (tooltips, the ability bar), DUNGEONS (run modifiers that grant rules or augments).
 
@@ -109,6 +109,32 @@ Per ability; the defaults keep every Knight ability as it was.
 ### Ability ranks
 - Deferred until the run-structure decision. When they come, they're StatModifiers with source `rank` on the ability's params, so nothing needs restructuring.
 
+### Data or script (the rule every ability, passive and item follows)
+- ABILITIES should express most League of Legends / Diablo 4 abilities with data plus a short script. If 2+ abilities, passives or items would use something, it's data (a toolkit piece); a one-off goes in the ability's own script, which still uses the full architecture (cooldown, cost, recasts, HUD, tooltips, augments, sounds).
+- Unique state is modeled as statuses, so data conditions can read it (League style: Lee Sin's Q2 works because Q1 marks the target with a status).
+
+### Conditions (AB12)
+- One condition system for the whole game: the `Condition` resource. Reaction rules (C11) had no condition type (only inline tag filters on the event), so `Condition` is new, and `ReactionRule` gets a `conditions` list added next to its existing tag filters (additive). Abilities, conditional bonuses, augments, passives, items and later the enemy AI all use the same resource. Never two parallel condition systems.
+- Starting condition kinds (small on purpose; CHAMPIONS.md and LOOT.md may add more later, additively):
+  - SELF_HAS_STATUS (tag, min stacks)
+  - TARGET_HAS_STATUS (tag, min stacks): covers "marked" (Lee Sin Q2), stack counts (Kalista E), "crowd controlled" (the `cc` tag)
+  - SELF_HEALTH_PERCENT (above / below)
+  - TARGET_HEALTH_PERCENT (above / below): executes, Diablo's "injured" / "healthy"
+  - TARGET_DISTANCE (closer / farther than X): Diablo's "close" / "distant"
+  - ENEMIES_IN_RANGE (at least N within X; optionally only enemies with a status tag: "a marked enemy within range", Lee Sin's Q2 recast)
+  - RESOURCE_AT_LEAST (N)
+  - LAST_PART_HIT (the previous recast part hit something)
+- Each condition has a "not" toggle (`negate`). A list of conditions means all must pass (AND). No OR and no nesting; that's what scripts are for.
+- "Target" means the unit hit, for hit-time checks. For cast checks: a UNIT ability's chosen target; otherwise the enemy nearest the cursor within cast range. No target = every TARGET_ condition fails, even when negated. In a reaction rule, "self" is the unit the effects come from (the rule's source) and "target" the effect target.
+- Where conditions plug into an ability:
+  1. `cast_conditions`: all must pass to start a cast.
+  2. `recast_conditions`: all must pass to use the next recast part.
+  3. Conditional bonuses: a list of {conditions, param changes (StatModifiers: add or multiply, so tooltips can show them), statuses to apply to each unit the effect hits, statuses to apply to the caster}. Checked at the moment the effect happens (cast or hit), not earlier.
+- Custom check: an Ability script can override a virtual custom check; it's ANDed with the data conditions. This is the escape hatch for one-off logic.
+- Feedback: when a cast or recast condition fails, the slot shows as unavailable (greyed, League style) and pressing it plays the fail cue with reason "condition"; nothing is spent and the press isn't buffered. A condition can carry a short fail text for later UI (e.g. "No marked target").
+- Named 0–1 scaling inputs: CastContext carries named values from 0 to 1. Charge is the first one; `CastContext.charge` keeps working exactly as it is (a thin wrapper, change policy). Any charge-style scaling can read any named input through its optional curve. Built in: `charge`, `self_missing_health`, `target_missing_health`, `target_distance` (distance ÷ cast range); an ability script can set any other (e.g. stack count ÷ max stacks).
+- Conditions work outside ability slots (passives, items, enemy AI), like the rest of the toolkit: a condition is a pure check on units, and whatever holds it (a rule, an augment, a status, an item) is added and removed by its source id.
+
 ## The toolkit (every ability is built from these)
 Targeting and indicators; cast styles; shapes (cone, line, circle, line of sight); the hit (`HitPipeline.from_ability` with scalings, knockback, statuses, feel, crit roll per cast); statuses (incl. unstoppable, untargetable, empowers); movement methods (dash, displace; blink and pull_to when first needed); projectiles; ground areas (player-made Hazards, WORLD_INTERACTION.md); telegraphs; reaction rules and GameplayEffects granted by abilities; tooltips; sounds and VFX hooks.
 - The toolkit must also work for passives (CHAMPIONS.md) and items (LOOT.md): empowers, the ABILITY_CAST trigger, projectiles, augments and the new GameplayEffects take a source id and never assume they come from an ability slot.
@@ -131,6 +157,8 @@ Targeting and indicators; cast styles; shapes (cone, line, circle, line of sight
 | Augments | `AbilityAugment`, `AbilityComponent.add_augment(augment, source_id)` / `remove_augments_from(source_id)`; `StatusEffect.augments` | behavior changes and forms | `source_id` on add; a status's augments use `&"status_<id>"` |
 | Tooltips | `Ability.get_tooltip(caster)`, `get_tooltip_plain(caster)` | what the player reads | shows augment lines with their source's text |
 | Sounds and VFX | `Ability.cast_sound` / `hit_sound` / `telegraph_sound` / `ready_sound` / `charge_sound` (AUDIO.md); `VFX` static helpers | feedback only; never gameplay state | fields on the Ability or status the source grants |
+| Conditions (AB12) | `Condition` (`res://scripts/data/condition.gd`), `Condition.is_met()`; `Ability.cast_conditions` / `recast_conditions` / `conditional_bonuses` (`ConditionalBonus`); `ReactionRule.conditions`; `Ability.can_cast_custom()` | "only when…", "bonus if…" | a condition is a pure check (`is_met(self_unit, target, cast)`), so it needs no source id itself: a passive or item puts it in the rule, augment or status it grants, which is added and removed by the source id as usual; the enemy AI calls `is_met()` directly |
+| Named scaling inputs (AB12) | `CastContext.get_input()` / `set_input()`; `ChargeScaling.input`; `Ability.get_effect_param()` | "stronger the more / less…" | carried by the cast (`CastContext`), whoever granted it |
 
 ## Ability spec sheet
 Every new ability is written from this sheet first (it replaces WORLD_INTERACTION.md's template, which now points here). Fields match `Ability`; leave a line out when it's the default.
@@ -144,6 +172,10 @@ Recasts: recast_count, recast_window, what each part does
 Cast time: __ s      Range: cast_range __ u (__ px)
 Movement during the cast: roots_during_cast, cast_move_speed_multiplier, cancel_on_move, dash_cancelable, cancels_swing, resets_auto_attack
 Damage: base_damage, ad_ratio, ap_ratio, scalings, damage_type, proc_coefficient, ignores_walls
+Cast conditions: (Condition kinds, AND; "not"; fail text) + custom check, if any
+Recast conditions: (per the next part) + custom check, if any
+Conditional bonuses: {conditions → param changes, statuses on targets, statuses on self}, checked at cast / hit
+Named scaling inputs: which params scale by which input (charge, self_missing_health, target_missing_health, target_distance, script-set), min fraction, curve
 What it does, step by step:
 Supported augment flags:
 Sounds (AUDIO.md): cast_sound, hit_sound, telegraph_sound, ready_sound, charge_sound
@@ -250,6 +282,11 @@ Audio hooks: see AUDIO.md (`charge_sound` is added there for CHARGE_UP).
 | `supported_flags` | `Array[StringName]` | `[]` | AB8 | FLAG augments this script checks (e.g. `&"lunge_stuns"`). |
 | `variant_of` | `StringName` | `&""` | AB8 | for a REPLACE variant: the id of the ability it replaces. `get_modifier_scopes()` adds `ability:<variant_of>`, so item numbers on Cleave carry to its variant. |
 | `ready_mode` | `Ability.ReadyMode` | `COOLDOWN` | reserved (CHAMPIONS) | `COOLDOWN`, `METER`: the slot is ready when the unit's meter is full. Not built until the meter is. |
+| `cast_conditions` | `Array[Condition]` | `[]` | AB12 | all must pass to start a cast (part 0). |
+| `recast_conditions` | `Array[Condition]` | `[]` | AB12 | all must pass to use the next recast part. |
+| `conditional_bonuses` | `Array[ConditionalBonus]` | `[]` | AB12 | checked at the effect (cast or hit); see ConditionalBonus. |
+
+New methods (AB12): `can_cast_custom(caster: Unit, ctx: CastContext) -> bool` (virtual, true by default; the script's one-off check, ANDed with `cast_conditions` or `recast_conditions` by `ctx.part`), `get_custom_fail_text() -> String` (virtual, "" by default), `get_effect_param(caster: Unit, param: StringName, cast: CastContext, target: Node = null) -> float` (the param after scoped modifiers, its named-input scaling from `cast`, and every conditional bonus whose conditions pass now for that target; see Architecture, Conditions).
 
 Tags (`tags`, existing) get the standard tags in AB2 (placeholder roles; the real ones are CHAMPIONS.md's): Cleave `core`, `area`, `cone`; Iron Resolve `defensive`, `buff`; Lunge `mobility`, `dash`, `movement`; Judgement `ultimate`, `channel`; the slam `core`, `area`. Existing tags stay (don't rename). A style tag is written in the data and must match `cast_style` (the test checks it).
 
@@ -272,6 +309,39 @@ Judgement (AB2): `param` `&"target_missing_health_ratio"`, `ratio` 0.2, `of` TAR
 ### ChargeScaling (Resource, `res://scripts/data/charge_scaling.gd`; inline)
 - `param: StringName` (e.g. `&"cast_range"`, `&"base_damage"`, a scaling term's param), `min_fraction: float` (0.4 = 40% of the full value at charge 0), `curve: Curve` (x = charge 0–1, y = 0–1 progress from min to full; null = linear).
 - `get_charged_param(caster, param, charge)` = full × lerp(`min_fraction`, 1, curve(charge)), where full = `get_param(caster, param)`. A param not listed = full at every charge.
+- AB12: `input: StringName = &"charge"`: the named input it reads (0–1); `charge` keeps every existing ChargeScaling exactly as it is. The class keeps its name; with another input it's a named-input scaling ("stronger the more / less…"). `get_effect_param()` reads it from the cast's inputs; `get_charged_param()` stays for charge-only callers.
+
+### Condition (Resource, `res://scripts/data/condition.gd`; inline in the .tres that uses it, or `res://data/conditions/condition_<name>.tres` when shared; AB12)
+| Field | Type | Default | Used by | Notes |
+|---|---|---|---|---|
+| `kind` | `Condition.Kind` | `SELF_HAS_STATUS` | all | see below |
+| `negate` | `bool` | false | all | the "not" toggle. Doesn't flip a TARGET_ kind with no target (that fails either way). |
+| `status_tag` | `StringName` | `&""` | SELF_HAS_STATUS, TARGET_HAS_STATUS, ENEMIES_IN_RANGE | a status tag; stacks are summed over every status with it (`StatusComponent.get_tag_stacks()`). ENEMIES_IN_RANGE: empty = any enemy. |
+| `min_stacks` | `int` | 1 | SELF_HAS_STATUS, TARGET_HAS_STATUS | |
+| `comparison` | `Condition.Comparison` | `AT_LEAST` | the *_HEALTH_PERCENT kinds, TARGET_DISTANCE | `AT_LEAST` (≥: above, farther), `LESS_THAN` (<: below, closer) |
+| `value` | `float` | 0 | the *_HEALTH_PERCENT kinds (0–1 of max health), TARGET_DISTANCE (LoL units, edge to edge), RESOURCE_AT_LEAST (the amount) | |
+| `count` | `int` | 1 | ENEMIES_IN_RANGE | at least this many |
+| `radius` | `float` | 300 | ENEMIES_IN_RANGE | LoL units from the self unit's feet, each enemy's gameplay radius counted |
+| `fail_text` | `String` | `""` | all | short text for later UI ("No marked target") |
+
+Kinds (`Condition.Kind`):
+- `SELF_HAS_STATUS`, `TARGET_HAS_STATUS`: the unit has at least `min_stacks` stacks of statuses tagged `status_tag`.
+- `SELF_HEALTH_PERCENT`, `TARGET_HEALTH_PERCENT`: current ÷ max health compared with `value`.
+- `TARGET_DISTANCE`: edge distance from self to target compared with `value`.
+- `ENEMIES_IN_RANGE`: at least `count` living enemies of self within `radius` (and tagged `status_tag` if set).
+- `RESOURCE_AT_LEAST`: self's `resource_pool.current` ≥ `value`; a unit without a pool fails.
+- `LAST_PART_HIT`: in a recast sequence, the previous part hit something (below); false anywhere else.
+
+Method: `is_met(self_unit: Unit, target: Unit, cast: CastContext = null) -> bool` (the kind's check, then `negate`; a TARGET_ kind with no valid target is false either way; LAST_PART_HIT reads `cast`). Static helper: `Condition.all_met(conditions: Array[Condition], self_unit, target, cast) -> bool` (AND; an empty list passes), and `Condition.first_failed(conditions, self_unit, target, cast) -> Condition` (for the fail text).
+
+### ConditionalBonus (Resource, `res://scripts/data/conditional_bonus.gd`; inline; AB12)
+| Field | Type | Notes |
+|---|---|---|
+| `conditions` | `Array[Condition]` | all must pass, checked at the effect (cast-time params: the cast's target; hit-time: the unit hit) |
+| `modifiers` | `Array[StatModifier]` | param changes: `stat` = the ability param (`base_damage`, `radius`, `ad_ratio`, a scaling term's param...), `type` FLAT / PERCENT_ADD / PERCENT_MULT, the same math as scoped modifiers; `scope` and `source_id` are ignored |
+| `target_statuses` | `Array[StatusEffect]` | applied to each unit the effect hits (through `HitContext.statuses`) |
+| `self_statuses` | `Array[StatusEffect]` | applied to the caster when the effect starts |
+| `description` | `String` | the tooltip line ("+50% radius against stunned enemies") |
 
 ### CastContext (new fields)
 | Field | Type | Default | Notes |
@@ -284,6 +354,9 @@ Judgement (AB2): `param` `&"target_missing_health_ratio"`, `ratio` 0.2, `of` TAR
 | `is_free` | `bool` | false | a free cast (`CastAbilityGameplayEffect`) |
 | `source_id` | `StringName` | `&""` | who granted a free cast (`item_…`, `passive_…`, `status_…`); empty for a slot cast |
 | `chain_depth` | `int` | 0 | the reaction chain depth a free cast was triggered at |
+| `inputs` | `Dictionary` (StringName → float 0–1) | `{charge: 1.0}` | AB12: the named scaling inputs; `get_input(name, default := 0.0) -> float`, `set_input(name, value)` (clamped 0–1). `charge` becomes a property over `inputs[&"charge"]`, so every existing use is unchanged. |
+| `last_part_hit` | `bool` | false | AB12: in a recast sequence, whether the previous part hit something (LAST_PART_HIT) |
+| `target` | (existing) | | AB12: for a non-UNIT cast, AbilityComponent fills it with the condition target (the enemy nearest the aim within cast range) when conditions or bonuses need one |
 
 ### AbilityAugment (Resource, `res://scripts/data/ability_augment.gd`; files `res://data/augments/augment_<name>.tres`)
 | Field | Type | Notes |
@@ -298,6 +371,10 @@ Judgement (AB2): `param` `&"target_missing_health_ratio"`, `ratio` 0.2, `of` TAR
 ### ReactionRule (additions, `res://scripts/data/reaction_rule.gd`)
 - Trigger `ABILITY_CAST` (AB8): from `Events.ability_cast(unit, ability, ctx)`. The affected unit is the cast's target (`ctx.target`; null for non-UNIT casts), the other unit is the caster, so a unit rule with `owner_role` SOURCE (default) means "when I cast", and `effect_target` OTHER hits the caster. `trigger_ctx` = the CastContext. Effects that need an affected unit do nothing when it's null.
 - `required_ability_scope: StringName` (`&""` = any): `ability:<id>` / `tag:<tag>`, matched against the event's ability scopes (`get_modifier_scopes()`): ABILITY_CAST's ability, HIT's and UNIT_DIED's `HitContext.ability` (null never matches a non-empty scope).
+- `conditions: Array[Condition]` (AB12; in the "Conditions" export group, after the existing tag filters, which stay as they are): all must pass after the tag filters and before `chance` is rolled. Self = the unit the effects come from (the rule's owner, or for a world rule the event's other unit); target = the effect target (`effect_target`). `cast` = the trigger's CastContext when there is one (ABILITY_CAST), else null.
+
+### StatusComponent (addition, AB12)
+- `get_tag_stacks(tag: StringName) -> int`: the stacks of every active status carrying `tag`, summed (a status without stacks counts 1). What SELF_ / TARGET_HAS_STATUS read.
 
 ### New GameplayEffects (`res://scripts/data/`, subclasses of `GameplayEffect`; AB8)
 All take the usual `apply(target, source, trigger_ctx)`; the source id is the rule's (the rule was added with one).
@@ -324,6 +401,7 @@ All take the usual `apply(target, source, trigger_ctx)`; the source id is the ru
 - `res://scenes/tests/abilities_test.tscn` + `scripts/tests/abilities_test.gd` (AB1): PASS/FAIL per check, headless exit code = failures, like the stats and combat tests.
 - Test abilities (champion `test`): `scripts/abilities/test/`, `data/abilities/test_<slot>_<name>.tres`: `test_triple_step` (a 3-part recast, AB5, built: `test/triple_step.gd`, `test_q_triple_step.tres`: DIRECTION, a 150 u (48 px) step at 1200 u/s with the dash curve, the last part 1.5× as far, `recast_count` 2, `recast_window` 3 s, cooldown 4 s, tags `mobility` `dash`), `test_charged_line` (a Xerath-style line, AB6, built: `test/charged_line.gd`, `test_q_charged_line.tres`: CHARGE_UP, DIRECTION, `cast_range` 1100 u (440 at a tap), 80 base + 60% AD MAGIC (half at a tap, `base_damage` and `ad_ratio` at `min_fraction` 0.5), 80 u wide, blocked by walls, one crit roll, `charge_time` 1.5 s, `overhold_time` 2 s, FIRE, a 0.3 s release windup (`cast_time`), walking at 0.6, `dash_cancelable`, cooldown 3 s, tags `core` `line` `charge_up`), `test_bolt` (a projectile, AB7, built: `test/bolt.gd`, `test_q_bolt.tres`: DIRECTION, 0.1 s cast, `cast_range` 900 u (288 px), 50 + 50% AD PHYSICAL, 1200 u/s, 60 u wide, 1 projectile, pierce 0, cooldown 1 s, tags `core` `projectile`).
 - `SandboxAbilities` node in `sandbox.tscn` (`res://scripts/rooms/sandbox_abilities.gd`, source `&"sandbox_demo"`, AB3): `demo_costs` (on) and `costs` (ability id → cost: Cleave 30, Iron Resolve 40, Lunge 50, Judgement 80), given as scoped FLAT `resource_cost` modifiers so the bar and the fail cue can be played; room_01 has none. AB4: `demo_charges` (on) and `extra_charges` (ability id → extra charges: Lunge +1), scoped FLAT `max_charges`. AB5 (built): `test_q: Ability` (null = the Knight's Q; set to a test ability in the Inspector to put it on Q in the sandbox).
+- AB12: test statuses `status_test_focus.tres` (tag `test_focus`, on the caster) and `status_test_mark.tres` (tag `test_mark`, on a target); `test_q_nova.tres` (`test/nova.gd`, id `test_nova`: a circle around the caster, `cast_conditions` SELF_HAS_STATUS `test_focus` with fail text, a conditional bonus of +50% `radius` while ENEMIES_IN_RANGE ≥ 2, damage scaling by `self_missing_health`); `test_q_mark_strike.tres` (`test/mark_strike.gd`, id `test_mark_strike`: part 0 hits and applies `status_test_mark`; `recast_conditions` ENEMIES_IN_RANGE with tag `test_mark` and LAST_PART_HIT; part 1 strikes the marked enemy); a fake item `reaction_test_execute.tres` (HIT, the attacker's rule, `conditions` TARGET_HEALTH_PERCENT < 0.3 → a 30 proc hit), source `item_test_execute`. All usable on Q through `SandboxAbilities.test_q`.
 - AB-M: `knight/cleave_wave.gd` + `knight_q_cleave_wave.tres` (id `knight_cleave_wave`, `variant_of` `knight_cleave`); augments `augment_lunge_stuns.tres`, `augment_cleave_wave.tres`, `augment_judgement_reset.tres`, `augment_cleave_casts_lunge.tres`; a `SandboxAugments` node (`res://scripts/rooms/sandbox_augments.gd`) holding four fake items (source ids `item_test_<name>`), toggled with the number keys 1–4 read as raw keys in that sandbox-only script (no input action).
 
 ## Architecture / contracts
@@ -435,6 +513,22 @@ Signals (new): `charges_changed(slot, charges, max_charges)`, `charge_started(sl
 - Caster gone: at fire it snapshots the caster-side damage (base + caster terms + AD/AP). While the caster is valid, hits use the live path above; once it's freed, hits use the snapshot plus the target terms, with no source, `can_crit` false, and the ability's tags.
 - Visual: a drawn shape in `icon_color` (VFX only); `debug_draw` shows the swept capsule. Hits carry the ability's tags (`projectile`).
 
+### Conditions (AB12)
+- **The condition target.** UNIT abilities: `ctx.target` (the chosen target). Others: the living enemy nearest the aim point within the ability's `cast_range` of the caster (`AbilityUtil.nearest_enemy_in_range(caster, aim, range_px)`, new), or none. Hit-time checks (bonuses) use the unit hit. `_make_context()` fills `ctx.target` with it for non-UNIT casts when the ability has any TARGET_ condition or conditional bonus, so scripts and bonuses see the same unit.
+- **The aim hint.** `AbilityComponent.set_aim_hint(point: Vector2)`: the Player sets it to the cursor every physics frame; the enemy AI to its target's position before it asks `can_cast()`. Conditions checked outside a press (the HUD's grey preview) use it.
+- **Where they're evaluated:**
+  - `get_fail_reason(slot)`: after blocked / not ready / busy / cost, a new last check: `cast_conditions` (part 0) or `recast_conditions` (a later part) with `Condition.all_met(…, unit, target, ctx)` plus `ability.can_cast_custom(unit, ctx)` → `FAIL_CONDITION = "condition"`. `try_cast()`, `try_start_charge()` and the HUD all go through it, so a failed press spends nothing.
+  - `get_condition_fail_text(slot) -> String`: the first failed condition's `fail_text`, else the script's `get_custom_fail_text()`, else "".
+  - `Player.request_cast()` / `request_charge()`: a press that's ready and not blocked but fails its conditions fails at once with `"condition"` and isn't buffered (like "not enough resource").
+  - Recast parts: `recast_conditions` are checked when the next part is pressed; failing them doesn't end the window (it runs out normally, then the cooldown starts).
+  - Conditional bonuses: `get_effect_param(caster, param, cast, target)` = `get_param()` × its named-input scaling (`ChargeScaling` with `input`, value `cast.get_input(input)`) × every `ConditionalBonus` whose `conditions` pass right now for `target` (null = the cast's `ctx.target`), their `modifiers` applied with the StatModifier formula. `HitPipeline.from_ability()` uses it per unit hit for `base_damage`, `ad_ratio`, `ap_ratio` and scaling-term ratios, and appends each passing bonus's `target_statuses` to `HitContext.statuses`. A script reads cast-time params (a radius, a range) with it in `execute()`. At effect start (flow step 10) AbilityComponent applies each passing bonus's `self_statuses` to the caster.
+  - Reaction rules: `Reactions._fire()` checks `rule.conditions` after the tag filters, before `chance`.
+- **Named inputs.** `CastContext.inputs`. AbilityComponent fills the built-ins when the cast starts (at release for CHARGE_UP): `charge` (as now), `self_missing_health` ((max − current) ÷ max of the caster), `target_distance` (edge distance to the condition target ÷ cast range, 0 with no target). `target_missing_health` is per target, so `get_effect_param()` computes it at the hit (with no target: 0). A script may `set_input()` anything else before it reads params.
+- **LAST_PART_HIT.** The recast sequence (`_recast[slot]`) gets `last_part_hit: bool`, reset when a part starts; AbilityComponent listens to `Events.unit_hit` and sets it when a hit's `source` is this unit and its `ability` is the sequence's ability (so a projectile from the previous part that lands later still counts, until the next part starts). `_make_context()` copies it into `CastContext.last_part_hit`, which `Condition` reads through `cast` (false outside a recast, and false for part 0).
+- **HUD.** The ability bar greys a slot (the same grey tint as a stun) while `get_fail_reason(slot) == "condition"`, so it un-greys the frame the condition passes and the slot is ready. The fail flash plays on a `"condition"` press like `"not ready"`. The fail text isn't shown yet (UI.md).
+- **Tooltips.** Each conditional bonus adds its `description` as a line (always; whether to show them only while active is an open question). `{…}` placeholders keep showing the plain values (no bonus).
+- **Scripts.** New ability scripts read with `get_effect_param()` anything a conditional bonus could change; `get_param()` stays for old code (CONVENTIONS.md).
+
 ### HUD (ability bar and hud)
 - AB2: tooltip from `get_tooltip_plain()`.
 - AB3 (built): the resource bar (`res://scripts/ui/resource_bar.gd`, added by `hud.gd`'s `setup_abilities()` only when the player has a `resource_pool`): a 132 × 4 px bar just under the ability bar (the health readout is text at the top, so the bar sits with the slots), colored by `resource_type` (mana blue, energy yellow, fury red), the current amount beside it; it blinks for 0.2 s on `"not enough resource"`. On the slots: a red flash (0.2 s) on `"not ready"` or `"silenced"`; a grey tint while the player can't cast (stunned, silenced); a blue tint while the slot's cost can't be paid. The tooltip header shows "Cost N" when the cost is above 0. A cue shows when a press is dropped: `"not enough resource"` at once (never buffered), any other reason when its buffer runs out (`PlayerInput` → `AbilityComponent.fail_cast(slot, get_fail_reason(slot))`).
@@ -468,6 +562,14 @@ Signals (new): `charges_changed(slot, charges, max_charges)`, `charge_started(sl
 | A stun or dash during the release windup | Like any cast time: interrupted or cancelled (`dash_cancelable`), the cost, the charge and the cooldown refunded, no effect, the indicator gone. |
 | Cursor moved during the release windup | Nothing: the aim and the charge locked at release; the indicator stays where it was released. |
 | The slot swapped (REPLACE) mid-charge | The charge-up keeps the ability it started with; releasing fires that one, and the slot shows the new one afterwards. |
+| Pressing a slot whose condition fails (AB12) | `get_fail_reason()` returns `"condition"`: the fail cue plays, nothing is spent (no cost, charge or cooldown) and the press isn't buffered. |
+| A condition that becomes true mid-cooldown | The slot shows its cooldown as usual; when it's ready, the grey preview re-checks every frame, so it un-greys the frame both hold. |
+| A conditional bonus whose condition changes between cast and hit | Checked at the moment of the effect: cast-time params when the script reads them in `execute()`, hit params per unit when that hit is built (a projectile's at its hit). The state at the cast doesn't matter. |
+| A condition reading a status that expires mid-cast | Cast conditions are checked once, when the cast (or part) starts; the cast goes on if the status expires in the cast time. A bonus reading it is checked at the effect, so the expired status gives no bonus. |
+| A recast condition failing for the whole recast window | Presses fail with `"condition"`; the window runs out normally and the cooldown starts. |
+| TARGET_ conditions with no valid target | False, even when negated (no enemy near the aim within range, a dead target, or a UNIT cast without one). A cast needing one fails with `"condition"`. |
+| Enemy abilities using conditions | Allowed: the same `get_fail_reason()`; the enemy AI sets the aim hint to its target first (ENEMIES_AI.md chooses when to try). |
+| A reaction rule's condition with no target (a world rule whose effect target is gone) | The rule doesn't fire (Reactions already skips a missing target; TARGET_ conditions are false). |
 | Cast mode switched mid-aim | The aim in progress finishes as it started (release casts); the new mode applies to the next press. |
 | A projectile whose caster dies | It keeps flying. Kill credit is the caster's while it exists; once it's freed, snapshot damage and no source (Rules, Projectiles). |
 | Two sources of the same augment | Counted once; it stays until the last source is removed. Its EVENT rules are added once. |
@@ -515,8 +617,17 @@ Every step: with no cast style changes, scalings beyond today's, costs, charges,
     **Done means:** Iron Resolve plays exactly as before (the same bonus, crit with the swing, slow and feel on every enemy the swing hits); the same empower applied from a fake passive source (`passive_test`) works the same; an ability empower is consumed by the next matching cast only; unstoppable removes a stun and blocks slows and knockback; an untargetable dummy can't be Judgement's target.
 11. **AB11 – The Knight's 4 abilities rebuilt from toolkit pieces only.** This replaces working code: plan it and ask Ryan before doing it.
     **Done means:** (decided when planned) each ability plays and numbers exactly as before.
+12. **AB12 – Conditions.** `Condition` (the eight kinds, `negate`, AND lists, `fail_text`), `ConditionalBonus`, `Ability.cast_conditions` / `recast_conditions` / `conditional_bonuses`, `can_cast_custom()` / `get_custom_fail_text()`, `get_effect_param()`, `FAIL_CONDITION` and the grey slot, `set_aim_hint()`, `get_condition_fail_text()`, `CastContext.inputs` (charge wrapped) / `last_part_hit`, the four built-in named inputs, `ChargeScaling.input`, `ReactionRule.conditions`, `StatusComponent.get_tag_stacks()`, `AbilityUtil.nearest_enemy_in_range()`; the AB12 test data (Data, Test and sandbox data).
+    **Done means:** the abilities test covers: a test ability that only casts while the caster has a test status (a failed press: the "condition" cue, nothing spent, not buffered; the slot greys and un-greys); a recast that only works while a test status is on the target (ENEMIES_IN_RANGE with the tag); a conditional bonus (a bigger radius when a condition passes, checked at the effect); a named input other than charge scaling a param; LAST_PART_HIT; a fake item using the same `Condition` inside a reaction rule. With no conditions set, the game plays exactly as before, and the Knight's abilities, enemies chasing and the HUD still work.
 
-**Milestone AB-M – augment playground:** in the sandbox, `SandboxAugments` with 4 fake items that visibly change the Knight: Lunge stuns (FLAG), Cleave becomes a projectile wave (REPLACE), a Judgement kill resets its cooldown (EVENT + ModifyCooldown), casting Cleave also casts a free Lunge-style dash (CastAbility, at Cleave's effect start). Keys 1–4 equip and unequip them; the tooltips show each change; unequipping restores the Knight exactly.
+**Milestone AB-M – augment playground** (after AB12): in the sandbox, `SandboxAugments` with 4 fake items that visibly change the Knight: Lunge stuns (FLAG), Cleave becomes a projectile wave (REPLACE), a Judgement kill resets its cooldown (EVENT + ModifyCooldown), casting Cleave also casts a free Lunge-style dash (CastAbility, at Cleave's effect start). Keys 1–4 equip and unequip them; the tooltips show each change; unequipping restores the Knight exactly.
+
+## Later toolkit pieces (build when a champion needs one)
+Not build steps. Each is data once 2+ kits use it (Data or script, above).
+- Ground areas with a "unit entered" event that says whether the unit was displaced into it (Hazards, WORLD_INTERACTION.md).
+- A held status: cc that pins a unit to an anchor (blocked by unstoppable), plus a holding status with stacks on the caster.
+- Displace with a max distance, an optional speed Curve (.tres) and a "landed" signal (early on walls).
+- Example use: capture-and-throw abilities (Tahm Kench, Singed E style).
 
 ## Out of scope
 Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modifiers, unit reaction rules, statuses, empowers and an optional script, all under a source id like `passive_knight`, built on this toolkit); items and affix rolls (LOOT.md); enemy AI choosing abilities (ENEMIES_AI.md); ability ranks and leveling (waits for the run-structure decision, VISION.md); summons; ability slot swapping (VISION.md, open question 5); TOGGLE, SUSTAINED and VECTOR cast styles; the ultimate meter (CHAMPIONS.md).
@@ -532,3 +643,5 @@ Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modi
 - Forms: shared per-slot cooldowns (today's proposal) or separate cooldowns per form (Jayce)?
 - The "on end" augment event (`ability_finished`): when something needs it.
 - Does `KnockbackGameplayEffect` count as knockback that unstoppable blocks? *(proposed: yes)*
+- Conditions: will we ever need OR, or do scripts cover it?
+- Do conditional bonuses show in tooltips always, or only while active? *(AB12 starts with always)*
