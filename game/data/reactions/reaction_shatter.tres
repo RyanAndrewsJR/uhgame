@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ReactionRule" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/reaction_rule.gd" id="1_rule"]
+[ext_resource type="Script" path="res://scripts/data/deal_damage_gameplay_effect.gd" id="2_damage"]
+[ext_resource type="Script" path="res://scripts/data/gameplay_effect.gd" id="3_effect"]
+
+[sub_resource type="Resource" id="shatter_damage"]
+script = ExtResource("2_damage")
+base_damage = 30.0
+damage_type = 1
+tags = Array[StringName]([&"shatter"])
+
+[resource]
+script = ExtResource("1_rule")
+id = &"shatter"
+trigger = 1
+required_unit_tags = Array[StringName]([&"stun"])
+effects = Array[ExtResource("3_effect")]([SubResource("shatter_damage")])
+effect_target = 0
+owner_role = 0
+chain_limit = 1

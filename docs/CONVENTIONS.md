@@ -100,6 +100,7 @@ Example: since `StatusComponent` (COMBAT C9), `Unit.apply_stun()` and `add_speed
 | `Telegraph` | enemy attack floor warning (VFX) | COMBAT.md |
 | `StatusEffect` (Resource), `StatusComponent` | buffs, debuffs, CC | COMBAT.md |
 | `ReactionRule`, `GameplayEffect` (+ subclasses like `ApplyStatusGameplayEffect`) | cross-system interactions | COMBAT.md |
+| `Reactions` | autoload that fires reaction rules (world rules from `data/reactions/world/`, unit rules from `Unit.add_reaction_rule()`) (exists) | COMBAT.md |
 | `Hazard` | floor areas with tags | WORLD_INTERACTION.md |
 | `AbilityAugment` | item-driven ability behavior | ABILITIES.md |
 | `Audio`, `SoundEvent`, `AudioMix`, `CombatSounds` | the audio autoload, one sound's data, the mix-wide numbers, the Events listener that plays hit, death and status sounds | AUDIO.md |

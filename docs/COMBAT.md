@@ -220,9 +220,22 @@ How damage numbers look (built in C6): `size_thresholds` 0 / 100 / 1000 → `fon
 - Files (C9): `status_stun.tres` (tags cc / stun / debuff, blocks all four, REFRESH_LONGER, 1.0 s default (`apply_stun()` passes its own), VFX `res://scenes/vfx/stun_stars.tscn`), `status_slow.tres` (cc / slow / debuff, −30% `move_speed`, REFRESH, 1.5 s), `status_haste.tres` (haste / buff, +20% `move_speed`, REFRESH, 2 s).
 
 ### ReactionRule and GameplayEffect (`res://scripts/data/`; rules in `res://data/reactions/reaction_<name>.tres`)
-- `ReactionRule`: `trigger` (`IMPACT`, `HIT`, `HAZARD_ENTERED`, `HAZARD_EXITED`, `STATUS_APPLIED`, `UNIT_DIED`, `HAZARD_OVERLAP`), `required_hit_tags`, `required_unit_tags` (the affected unit's status tags), `required_surface_tags`, `min_impact_speed_px`, `chance` (for `HIT`: × the hit's `proc_coefficient`), `effects: Array[GameplayEffect]`.
-- `GameplayEffect` (base): `apply(target: Unit, source: Unit, trigger_ctx: RefCounted) -> void`. First subclasses: `ApplyStatusGameplayEffect`, `DealDamageGameplayEffect` (always tagged `proc`), `KnockbackGameplayEffect`, `HealGameplayEffect`.
-- Only `HIT`, `UNIT_DIED` and `STATUS_APPLIED` are built in C11. `IMPACT` and the hazard triggers come with WORLD_INTERACTION's impacts and Hazards.
+- `ReactionRule`: `id`, `trigger` (`IMPACT`, `HIT`, `HAZARD_ENTERED`, `HAZARD_EXITED`, `STATUS_APPLIED`, `UNIT_DIED`, `HAZARD_OVERLAP`), `required_hit_tags`, `required_unit_tags` (the affected unit's status tags), `required_status_tags` (STATUS_APPLIED: the applied status's tags; added in C11), `required_surface_tags`, `min_impact_speed_px`, `chance` (for `HIT`: × the hit's `proc_coefficient`), `effects: Array[GameplayEffect]`, plus (C11):
+  - `effect_target`: `AFFECTED` (default) or `OTHER`. Every event has an affected unit and an other unit: HIT = the unit hit / the attacker; UNIT_DIED = the unit that died / the killer; STATUS_APPLIED = the unit that got it / who applied it.
+  - `owner_role` (unit rules only): `SOURCE` (default; the owner is the other unit: "when I hit / kill / apply…") or `AFFECTED` ("when I'm hit / die / get…").
+  - `chain_limit` (1–5, default 1): how many reactions in a row the rule may take part in; set by the ability, passive or item that grants it. `ReactionRule.MAX_CHAIN` = 5 caps every chain (Ryan, 2026-09-27).
+- Two kinds of rules, the same Resource (Ryan, 2026-09-27):
+  - **World rules** apply to everyone: every `.tres` in `res://data/reactions/world/` (loaded at start), plus `Reactions.add_world_rule(rule, source_id)` / `remove_world_rules_from(source_id)` (rooms, hazards, run modifiers later). Their effects' source is the event's other unit.
+  - **Unit rules** belong to one unit, from its items, passives or buffs: `Unit.add_reaction_rule(rule, source_id)`, `remove_reaction_rules_from(source_id)`, `get_reaction_rules()`. Their effects' source is the owner.
+- Autoload **`Reactions`** (`res://scripts/autoload/reactions.gd`, C11) listens to `Events.unit_hit`, `unit_died` and `status_applied` and fires every matching rule: trigger, chain depth, all required tags, then `chance` (rolled on `Reactions.rng`, seedable). Unit tags for HIT and UNIT_DIED come from `HitContext.target_tags` (the target's status tags just before the hit, filled in by `Unit.on_hit`; a kill clears the statuses). Because HIT's chance is × `proc_coefficient`, DoT ticks and procs (coefficient 0) never trigger HIT rules.
+- Chains: effects run synchronously, so an event they cause is one link deeper (`Reactions.get_chain_depth()`); a rule fires on an event at depth d only if d < min(`chain_limit`, 5). Later consequences (the ticks of a DoT a rule applied) start again at depth 0.
+- `GameplayEffect` (base): `apply(target: Unit, source: Unit, trigger_ctx: RefCounted) -> void` (`trigger_ctx`: the HitContext for HIT and UNIT_DIED, the StatusEffect for STATUS_APPLIED). Subclasses (C11):
+  - `ApplyStatusGameplayEffect`: `status`, `duration` (−1 = its own).
+  - `DealDamageGameplayEffect`: `base_damage`, `ad_ratio` (the source's), `damage_type` (MAGIC default), extra `tags`; a `proc` hit (`HitPipeline.make_proc()`): can't crit, triggers no on-hit and no HIT rules.
+  - `KnockbackGameplayEffect`: `distance_px`, `duration`; away from the source, dash-cancelable; nothing without a source.
+  - `HealGameplayEffect`: `amount` + `max_health_ratio` × max health (`Unit.heal()`, green number).
+- Only `HIT`, `UNIT_DIED` and `STATUS_APPLIED` are built in C11. `IMPACT` and the hazard triggers come with WORLD_INTERACTION's impacts and Hazards. Effects hit one unit; area effects ("explode on death") come later.
+- Demo (sandbox only): `res://data/reactions/reaction_shatter.tres` (HIT on a `stun`-tagged target → a 30 MAGIC proc tagged `shatter`, the attacker's rule, chain_limit 1), given to the player by the `SandboxReactions` node in `sandbox.tscn` (`res://scripts/rooms/sandbox_reactions.gd`, source `&"sandbox_demo"`). room_01 has none.
 
 ### New stats (STATS.md; neutral defaults, built in C8)
 `incoming_damage` (base 1.0; reductions are negative PERCENT_MULT modifiers, so two 20% reductions give × 0.64), `damage_increase` (0; "increased" damage, 0.2 = +20%, given as FLAT modifiers; read with `hit:<tag>` and `target:<tag>` scopes), `on_hit_damage`, `life_on_hit`, `resource_on_hit` (all 0). `crit_damage` defaults to 1.75. `crit_chance` and `crit_damage` take the same scopes.
@@ -365,6 +378,8 @@ Combat starts now, before STATS step 6. Until step 6 adds `id` / `tags` to Abili
    **Done means:** killing the elite at any point of its slam removes the circle at once, with no errors in the output; a stun or dash cancel still removes it as before; the elite's slam, the Knight's abilities, enemies chasing and the HUD still work.
    Telegraph fix built 2026-09-27, see CHANGELOG.md.
 11. **C11 – Reaction rules** (`HIT`, `UNIT_DIED`, `STATUS_APPLIED`; the four GameplayEffects). It adds no "play sound" GameplayEffect: a rule makes a sound only through the status it applies or the proc hit it causes (AUDIO.md).
+   **Done means:** in room_01 nothing changes; in the sandbox, hitting a stunned enemy (Judgement, then a swing or Cleave) adds a blue 30; the test covers world and unit rules, the three triggers, chains and the four effects.
+   C11 built 2026-09-27, see CHANGELOG.md.
 12. **C12 – Dash-strike** (after its open question is answered).
 
 For every step: no errors; the Knight's 4 abilities, enemies chasing and the HUD still work. If a step needs removing or rewriting existing code, stop and explain why first.

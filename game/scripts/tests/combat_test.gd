@@ -32,6 +32,9 @@ extends Node2D
 ## and kill credit, statuses on hits, events, death).
 ## C10: shields (absorb after armor, the soonest-expiring first, used up =
 ## removed, stacks, numbers, knockback / life steal / i-frames still apply).
+## C11: reaction rules (world and unit rules, the three triggers, owner roles
+## and effect targets, tags, chance, chain limits capped at 5, the four
+## GameplayEffects, the Shatter rule).
 ## Fix: a caster that dies or is freed mid-cast takes its telegraph with it
 ## at once (COMBAT.md, Known bugs).
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
@@ -270,6 +273,7 @@ func _test_combo() -> void:
 	await _test_crits_and_on_hit()
 	await _test_statuses()
 	await _test_shields()
+	await _test_reactions()
 	await _test_death_mid_swing()
 
 
@@ -2235,6 +2239,264 @@ func _test_c10_hit_still_lands() -> void:
 	slime.queue_free()
 	await _wait_until(func() -> bool: return not knight.is_invulnerable(), 60)
 	await _hitstop_over()
+
+
+# --- C11: reaction rules -----------------------------------------------------------
+
+const SHATTER: ReactionRule = preload("res://data/reactions/reaction_shatter.tres")
+const HIT := ReactionRule.Trigger.HIT
+
+
+func _test_reactions() -> void:
+	_test_c11_data()
+	await _test_c11_shatter()
+	_test_c11_roles_and_targets()
+	_test_c11_died_and_status()
+	_test_c11_tags_and_chance()
+	_test_c11_chains()
+	await _test_c11_effects()
+
+
+func _test_c11_data() -> void:
+	_section("C11: reaction data")
+	var effect := SHATTER.effects[0] as DealDamageGameplayEffect
+	_check("reaction_shatter: HIT, needs a stunned target, a 30 MAGIC proc tagged shatter, the attacker's rule, no chaining",
+		[SHATTER.id, SHATTER.trigger, SHATTER.required_unit_tags, effect.base_damage, effect.damage_type, effect.tags, SHATTER.owner_role, SHATTER.effect_target, SHATTER.chain_limit],
+		[&"shatter", HIT, [&"stun"], 30.0, HitContext.DamageType.MAGIC, [&"shatter"], ReactionRule.OwnerRole.SOURCE, ReactionRule.EffectTarget.AFFECTED, 1])
+	_check("no world rules yet (data/reactions/world/ is empty); the Knight has no rules outside the sandbox",
+		[Reactions.get_world_rules().size(), knight.get_reaction_rules().size()], [0, 0])
+
+
+func _test_c11_shatter() -> void:
+	_section("C11: Shatter as a unit rule on the Knight")
+	await _reset_knight()
+	await _hitstop_over()
+	var dummy := _tough_dummy_at(Vector2(50, 0))
+	await _frames(1)
+	knight.add_reaction_rule(SHATTER, &"test_c11")
+	var hits := await _record_hits(func() -> void: await _swing_once())
+	_check("a swing on a dummy that isn't stunned: just the 64", hits.map(func(h: HitContext) -> float: return h.taken_damage), [64.0])
+	dummy.apply_stun(5.0)
+	hits = await _record_hits(func() -> void: await _swing_once())
+	_check("on a stunned dummy: the 64 swing, then a 30 MAGIC proc tagged shatter (and nothing more)",
+		hits.map(func(h: HitContext) -> Array: return [h.taken_damage, h.damage_type, h.has_tag(&"shatter"), h.has_tag(&"proc")]),
+		[[64.0, HitContext.DamageType.PHYSICAL, false, false], [30.0, HitContext.DamageType.MAGIC, true, true]])
+	_check("the proc's source is the Knight", hits[-1].source == knight if hits.size() == 2 else false, true)
+	dummy.status_component.remove_status(&"stun")
+	hits = await _record_hits(func() -> void: await _cast(&"r", dummy.global_position, dummy))
+	_check("Judgement's own hit doesn't shatter (the stun comes after the hit)", hits.size(), 1)
+	hits = await _record_hits(func() -> void: _resolve_cleave(dummy))
+	_check("the next hit does: Cleave 124.8 + 30", hits.map(func(h: HitContext) -> float: return h.taken_damage), [124.8, 30.0])
+	knight.remove_reaction_rules_from(&"test_c11")
+	hits = await _record_hits(func() -> void: _resolve_cleave(dummy))
+	_check("rule removed: no shatter", hits.size(), 1)
+	dummy.queue_free()
+	await _hitstop_over()
+
+
+func _test_c11_roles_and_targets() -> void:
+	_section("C11: owner roles and effect targets")
+	var dummy := _spawn_dummy()
+	dummy.health.take_damage(100.0)
+	var when_hit := _make_rule(HIT, [_heal_effect(10.0)])
+	when_hit.owner_role = ReactionRule.OwnerRole.AFFECTED
+	dummy.add_reaction_rule(when_hit, &"test_c11")
+	var hp := dummy.health.current
+	_hit(dummy, 20.0, HitContext.DamageType.TRUE)
+	_check("a dummy's 'when I'm hit, heal 10' rule: -20 +10", dummy.health.current - hp, -10.0)
+	dummy.remove_reaction_rules_from(&"test_c11")
+	var as_source := _make_rule(HIT, [_heal_effect(10.0)])
+	dummy.add_reaction_rule(as_source, &"test_c11")
+	hp = dummy.health.current
+	_hit(dummy, 20.0, HitContext.DamageType.TRUE)
+	_check("an owner_role SOURCE rule doesn't fire when its owner is the one hit", dummy.health.current - hp, -20.0)
+	dummy.remove_reaction_rules_from(&"test_c11")
+	var heal_me := _make_rule(HIT, [_heal_effect(15.0)])
+	heal_me.effect_target = ReactionRule.EffectTarget.OTHER
+	knight.add_reaction_rule(heal_me, &"test_c11")
+	knight.health.take_damage(100.0)
+	var knight_hp := knight.health.current
+	hp = dummy.health.current
+	_hit(dummy, 20.0, HitContext.DamageType.TRUE)
+	_check("the Knight's 'when I hit, heal me 15' (effect_target OTHER): the Knight +15, the dummy -20",
+		[knight.health.current - knight_hp, dummy.health.current - hp], [15.0, -20.0])
+	knight.remove_reaction_rules_from(&"test_c11")
+	knight.health.heal(10000.0)
+	dummy.queue_free()
+
+
+func _test_c11_died_and_status() -> void:
+	_section("C11: UNIT_DIED and STATUS_APPLIED")
+	var on_kill := _make_rule(ReactionRule.Trigger.UNIT_DIED, [_heal_effect(20.0)])
+	on_kill.effect_target = ReactionRule.EffectTarget.OTHER
+	knight.add_reaction_rule(on_kill, &"test_c11")
+	knight.health.take_damage(100.0)
+	var hp := knight.health.current
+	var victim := _spawn_dummy()
+	_hit(victim, 10000.0, HitContext.DamageType.TRUE)
+	_check("'on kill, heal me 20': the killer +20", knight.health.current - hp, 20.0)
+	knight.remove_reaction_rules_from(&"test_c11")
+	var slowed_death := _make_rule(ReactionRule.Trigger.UNIT_DIED, [_heal_effect(20.0)])
+	slowed_death.effect_target = ReactionRule.EffectTarget.OTHER
+	slowed_death.required_unit_tags = [&"slow"] as Array[StringName]
+	knight.add_reaction_rule(slowed_death, &"test_c11")
+	hp = knight.health.current
+	var plain := _spawn_dummy()
+	_hit(plain, 10000.0, HitContext.DamageType.TRUE)
+	var slowed := _spawn_dummy()
+	slowed.status_component.apply_status(STATUS_SLOW, knight)
+	_hit(slowed, 10000.0, HitContext.DamageType.TRUE)
+	_check("'kill a slowed enemy': only the slowed kill counts (its tags from just before the hit, though death clears them)",
+		knight.health.current - hp, 20.0)
+	knight.remove_reaction_rules_from(&"test_c11")
+	knight.health.heal(10000.0)
+
+	var spread := _make_rule(ReactionRule.Trigger.STATUS_APPLIED, [_status_effect(STATUS_SLOW, 0.8)])
+	spread.required_status_tags = [&"burning"] as Array[StringName]
+	Reactions.add_world_rule(spread, &"test_c11")
+	var dummy := _spawn_dummy()
+	var burn := _make_status(&"test_burn", [&"dot", &"burning"], 2.0)
+	dummy.status_component.apply_status(STATUS_HASTE, knight)
+	_check("a world rule 'burning also slows': a haste doesn't set it off", dummy.status_component.has_status(&"slow"), false)
+	dummy.status_component.apply_status(burn, knight)
+	_check("a burn does: slow for 0.8 s, from the burn's applier",
+		[dummy.status_component.has_status(&"slow"), dummy.status_component.get_time_left(&"slow"), dummy.status_component.get_source(&"slow") == knight], [true, 0.8, true])
+	Reactions.remove_world_rules_from(&"test_c11")
+	_check("world rule removed", Reactions.get_world_rules().size(), 0)
+	dummy.queue_free()
+
+
+func _test_c11_tags_and_chance() -> void:
+	_section("C11: hit tags and chance")
+	var dummy := _tough_dummy_at(Vector2(0, 300))
+	var on_crit := _make_rule(HIT, [_damage_effect(5.0)])
+	on_crit.required_hit_tags = [&"crit"] as Array[StringName]
+	knight.add_reaction_rule(on_crit, &"test_c11")
+	var swing := knight.attack.combo.swings[0]
+	var plain := _count_hits(dummy, func() -> void: HitPipeline.resolve(HitPipeline.basic_attack(knight, dummy, swing)))
+	knight.stats_component.add_modifier(StatModifier.create(&"crit_chance", FLAT, 1.0, &"test_c11"))
+	var crit := _count_hits(dummy, func() -> void: HitPipeline.resolve(HitPipeline.basic_attack(knight, dummy, swing)))
+	knight.stats_component.remove_modifiers_from(&"test_c11")
+	_check("'on crit': a plain hit 1 event, a crit 2 (the hit + the proc)", [plain, crit], [1, 2])
+	knight.remove_reaction_rules_from(&"test_c11")
+
+	var half := _make_rule(HIT, [_damage_effect(5.0)])
+	half.chance = 0.5
+	knight.add_reaction_rule(half, &"test_c11")
+	Reactions.rng.seed = 11
+	var fired := 0
+	for i in 400:
+		fired += _count_hits(dummy, func() -> void: HitPipeline.resolve(HitPipeline.basic_attack(knight, dummy, swing))) - 1
+	_report(fired >= 170 and fired <= 230, "chance 0.5: about 200 of 400 hits (%d)" % fired, "got %d" % fired)
+	half.chance = 1.0
+	knight.abilities.q.proc_coefficient = 0.25
+	fired = 0
+	for i in 400:
+		fired += _count_hits(dummy, func() -> void: _resolve_cleave(dummy)) - 1
+	knight.abilities.q.proc_coefficient = 1.0
+	_report(fired >= 70 and fired <= 130, "HIT chance x proc coefficient: 1.0 x 0.25 = about 100 of 400 Cleaves (%d)" % fired, "got %d" % fired)
+	var tick := dummy.make_hit_context(10.0, knight)
+	tick.add_tag(&"dot")
+	tick.proc_coefficient = 0.0
+	_check("a DoT tick (proc coefficient 0) never triggers HIT rules", _count_hits(dummy, func() -> void: dummy.on_hit(tick)), 1)
+	knight.remove_reaction_rules_from(&"test_c11")
+	dummy.queue_free()
+
+
+func _test_c11_chains() -> void:
+	_section("C11: chain reactions (per-rule chain_limit, capped at 5)")
+	var link := _make_status(&"test_link", [&"link"], 5.0)
+	link.stack_rule = StatusEffect.StackRule.STACK
+	link.max_stacks = 99
+	var rule := _make_rule(ReactionRule.Trigger.STATUS_APPLIED, [_status_effect(link, -1.0)])
+	rule.required_status_tags = [&"link"] as Array[StringName]
+	Reactions.add_world_rule(rule, &"test_c11")
+	var results: Array = []
+	for limit in [1, 3, 5, 9]:
+		rule.chain_limit = limit
+		var dummy := _spawn_dummy()
+		dummy.status_component.apply_status(link)
+		results.append(dummy.status_component.get_stacks(&"test_link"))
+		dummy.queue_free()
+	_check("a rule that re-applies its own trigger: chain_limit 1 / 3 / 5 / 9 -> 1 + 1 / 3 / 5 / 5 reactions",
+		results, [2, 4, 6, 6])
+	_check("the chain depth is back to 0 afterwards", Reactions.get_chain_depth(), 0)
+	Reactions.remove_world_rules_from(&"test_c11")
+
+
+func _test_c11_effects() -> void:
+	_section("C11: the four GameplayEffects")
+	var dummy := _tough_dummy_at(Vector2(0, 360))
+	await _frames(1)
+	knight.stats_component.add_modifier(StatModifier.create(&"crit_chance", FLAT, 1.0, &"test_c11"))
+	var damage := _damage_effect(10.0)
+	damage.ad_ratio = 0.5
+	damage.tags = [&"shatter"] as Array[StringName]
+	var hits := await _record_hits(func() -> void: damage.apply(dummy, knight, null))
+	_check("DealDamage 10 + 0.5 AD: 42 MAGIC, tagged proc + shatter, no crit even at 100%",
+		hits.map(func(h: HitContext) -> Array: return [h.taken_damage, h.damage_type, h.has_tag(&"proc"), h.has_tag(&"shatter"), h.is_crit]),
+		[[42.0, HitContext.DamageType.MAGIC, true, true, false]])
+	knight.stats_component.remove_modifiers_from(&"test_c11")
+	_status_effect(STATUS_SLOW, 0.5).apply(dummy, knight, null)
+	_check("ApplyStatus: slow for 0.5 s from the source",
+		[dummy.status_component.get_time_left(&"slow"), dummy.status_component.get_source(&"slow") == knight], [0.5, true])
+	dummy.health.take_damage(500.0)
+	var hp := dummy.health.current
+	var heal := _heal_effect(10.0)
+	heal.max_health_ratio = 0.01
+	heal.apply(dummy, null, null)
+	_check("Heal 10 + 1% max health (5280): +62.8", dummy.health.current - hp, 62.8)
+	_place(dummy, knight.global_position + Vector2(60, 0))
+	await _frames(1)
+	var start := dummy.global_position
+	var push := KnockbackGameplayEffect.new()
+	push.distance_px = 20.0
+	push.duration = 0.1
+	push.apply(dummy, knight, null)
+	await _frames(12)
+	_check_near("Knockback: 20 px straight away from the source", dummy.global_position.x - start.x, 20.0, 1.0)
+	dummy.queue_free()
+
+
+func _make_rule(trigger: ReactionRule.Trigger, effects: Array) -> ReactionRule:
+	var rule := ReactionRule.new()
+	rule.trigger = trigger
+	var typed: Array[GameplayEffect] = []
+	for e in effects:
+		typed.append(e)
+	rule.effects = typed
+	return rule
+
+
+func _heal_effect(amount: float) -> HealGameplayEffect:
+	var e := HealGameplayEffect.new()
+	e.amount = amount
+	return e
+
+
+func _damage_effect(amount: float) -> DealDamageGameplayEffect:
+	var e := DealDamageGameplayEffect.new()
+	e.base_damage = amount
+	return e
+
+
+func _status_effect(status: StatusEffect, duration: float) -> ApplyStatusGameplayEffect:
+	var e := ApplyStatusGameplayEffect.new()
+	e.status = status
+	e.duration = duration
+	return e
+
+
+## How many Events.unit_hit on `target` during `action` (not awaited).
+func _count_hits(target: Node, action: Callable) -> int:
+	var count := [0]
+	var record := func(ctx: HitContext) -> void:
+		if ctx.target == target:
+			count[0] += 1
+	Events.unit_hit.connect(record)
+	action.call()
+	Events.unit_hit.disconnect(record)
+	return count[0]
 
 
 func _make_status(id: StringName, tags: Array[StringName], duration: float) -> StatusEffect:

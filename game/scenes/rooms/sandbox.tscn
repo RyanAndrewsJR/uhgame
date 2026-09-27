@@ -4,6 +4,9 @@
 [ext_resource type="TileSet" path="res://tilesets/dungeon_tileset.tres" id="2_tiles"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/slime.tscn" id="3_slime"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/slime_elite.tscn" id="4_elite"]
+[ext_resource type="Script" path="res://scripts/rooms/sandbox_reactions.gd" id="90_reactions"]
+[ext_resource type="Resource" path="res://data/reactions/reaction_shatter.tres" id="91_shatter"]
+[ext_resource type="Script" path="res://scripts/data/reaction_rule.gd" id="92_rule"]
 
 [node name="Sandbox" type="Node2D"]
 script = ExtResource("1_room")
@@ -41,3 +44,7 @@ position = Vector2(784, 112)
 
 [node name="PlayerSpawn" type="Marker2D" parent="."]
 position = Vector2(144, 304)
+
+[node name="SandboxReactions" type="Node" parent="."]
+script = ExtResource("90_reactions")
+player_rules = Array[ExtResource("92_rule")]([ExtResource("91_shatter")])

@@ -73,6 +73,7 @@ New subfolders inside these are fine. Ask before adding a new top-level folder.
 - `GameFeel` (`scripts/autoload/game_feel.gd`): `hitstop()` (longest wins), `shake()`, `play_hit_feel(ctx)` (tiers from `hit_feel_default.tres`)
 - `Events` (`scripts/autoload/events.gd`): global signal bus. `unit_hit`, `unit_damaged`, `unit_died` (COMBAT.md)
 - `WorldQuery` (`scripts/autoload/world_query.gd`): spatial queries; only `has_line_of_sight()` so far, used by every hit (docs/WORLD_INTERACTION.md, COMBAT C7)
+- `Reactions` (`scripts/autoload/reactions.gd`): fires reaction rules on `unit_hit`, `unit_died`, `status_applied`; world rules from `data/reactions/world/`, unit rules via `Unit.add_reaction_rule()` (COMBAT C11)
 - `Settings` (`scripts/autoload/settings.gd`): the player's own options, saved to `user://settings.cfg`; `setting_changed(key, value)`. Only dash direction so far (MOVEMENT.md, Dash). Changed in the Esc pause menu (`PauseMenu`, `scenes/ui/pause_menu.tscn`).
 
 ## Change policy (important)
