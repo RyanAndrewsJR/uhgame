@@ -2278,15 +2278,20 @@ func _test_c11_shatter() -> void:
 	_check("a swing on a dummy that isn't stunned: just the 64", hits.map(func(h: HitContext) -> float: return h.taken_damage), [64.0])
 	dummy.apply_stun(5.0)
 	hits = await _record_hits(func() -> void: await _swing_once())
-	_check("on a stunned dummy: the 64 swing, then a 30 MAGIC proc tagged shatter (and nothing more)",
-		hits.map(func(h: HitContext) -> Array: return [h.taken_damage, h.damage_type, h.has_tag(&"shatter"), h.has_tag(&"proc")]),
-		[[64.0, HitContext.DamageType.PHYSICAL, false, false], [30.0, HitContext.DamageType.MAGIC, true, true]])
-	_check("the proc's source is the Knight", hits[-1].source == knight if hits.size() == 2 else false, true)
+	# The proc resolves inside the swing's unit_hit (Reactions listens first), so
+	# this recorder hears it first; compare in a fixed order.
+	var events := hits.map(func(h: HitContext) -> Array: return [h.taken_damage, h.damage_type, h.has_tag(&"shatter"), h.has_tag(&"proc")])
+	events.sort_custom(func(a: Array, b: Array) -> bool: return a[0] > b[0])
+	_check("on a stunned dummy: the 64 swing and a 30 MAGIC proc tagged shatter (and nothing more)",
+		events, [[64.0, HitContext.DamageType.PHYSICAL, false, false], [30.0, HitContext.DamageType.MAGIC, true, true]])
+	_check("the proc's source is the Knight", hits.filter(func(h: HitContext) -> bool: return h.has_tag(&"shatter") and h.source == knight).size(), 1)
 	dummy.status_component.remove_status(&"stun")
 	hits = await _record_hits(func() -> void: await _cast(&"r", dummy.global_position, dummy))
 	_check("Judgement's own hit doesn't shatter (the stun comes after the hit)", hits.size(), 1)
 	hits = await _record_hits(func() -> void: _resolve_cleave(dummy))
-	_check("the next hit does: Cleave 124.8 + 30", hits.map(func(h: HitContext) -> float: return h.taken_damage), [124.8, 30.0])
+	var amounts := hits.map(func(h: HitContext) -> float: return h.taken_damage)
+	amounts.sort()
+	_check("the next hit does: Cleave 124.8 + 30", amounts, [30.0, 124.8])
 	knight.remove_reaction_rules_from(&"test_c11")
 	hits = await _record_hits(func() -> void: _resolve_cleave(dummy))
 	_check("rule removed: no shatter", hits.size(), 1)
@@ -2386,15 +2391,18 @@ func _test_c11_tags_and_chance() -> void:
 	Reactions.rng.seed = 11
 	var fired := 0
 	for i in 400:
+		dummy.health.heal(100000.0)   # 400 hits would kill it
 		fired += _count_hits(dummy, func() -> void: HitPipeline.resolve(HitPipeline.basic_attack(knight, dummy, swing))) - 1
 	_report(fired >= 170 and fired <= 230, "chance 0.5: about 200 of 400 hits (%d)" % fired, "got %d" % fired)
 	half.chance = 1.0
 	knight.abilities.q.proc_coefficient = 0.25
 	fired = 0
 	for i in 400:
+		dummy.health.heal(100000.0)
 		fired += _count_hits(dummy, func() -> void: _resolve_cleave(dummy)) - 1
 	knight.abilities.q.proc_coefficient = 1.0
 	_report(fired >= 70 and fired <= 130, "HIT chance x proc coefficient: 1.0 x 0.25 = about 100 of 400 Cleaves (%d)" % fired, "got %d" % fired)
+	dummy.health.heal(100000.0)
 	var tick := dummy.make_hit_context(10.0, knight)
 	tick.add_tag(&"dot")
 	tick.proc_coefficient = 0.0
