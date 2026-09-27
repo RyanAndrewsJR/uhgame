@@ -1,9 +1,13 @@
 [gd_resource type="Resource" format=3]
 
 [ext_resource type="Script" path="res://scripts/abilities/slime/slam.gd" id="1_script"]
+[ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_telegraph.tres" id="s1_telegraph_sound"]
+[ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_hit.tres" id="s2_hit_sound"]
 
 [resource]
 script = ExtResource("1_script")
+telegraph_sound = ExtResource("s1_telegraph_sound")
+hit_sound = ExtResource("s2_hit_sound")
 id = &"slime_elite_slam"
 tags = Array[StringName]([&"area"])
 display_name = "Slam"

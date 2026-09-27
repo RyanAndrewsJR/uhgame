@@ -1,5 +1,5 @@
 extends Node2D
-## AUDIO.md steps A1-A2 test: open res://scenes/tests/audio_test.tscn and press F6.
+## AUDIO.md steps A1-A3 test: open res://scenes/tests/audio_test.tscn and press F6.
 ## Checks the Audio autoload without hearing it (through its log): SoundEvent
 ## data, the bus layout, null and empty sounds, the instance limit in real
 ## time (also at Engine.time_scale 0.05), centered vs positional, the
@@ -13,6 +13,12 @@ extends Node2D
 ## silent DoT ticks, hits on the player (hurt only, shield absorb), deaths and
 ## the pack burst (same frame, spread out, two apart), the elite's death, the
 ## dash, and silence with every sound field empty.
+## A3: ability sounds (casts, one hit sound per cast, the ready ping, not on a
+## refund), the elite's telegraph wind-up (positional, 640 px, stops when the
+## slam lands, when a stun interrupts it and when the elite dies mid-cast),
+## status sounds (apply on every application, one loop per unit however many
+## stacks, expire only while alive, the shield's apply and break) and the
+## Knight's low-health heartbeat.
 ## Prints PASS/FAIL per check, then a total.
 ## Run headless and it quits with the number of failures as the exit code.
 ## The volume checks save to user://settings.cfg and restore it at the end.
@@ -376,6 +382,10 @@ func _test_combat_sounds() -> void:
 	await _test_player_hit_sounds()
 	await _test_death_sounds()
 	await _test_empty_fields()
+	await _test_ability_sounds()
+	await _test_telegraph_sounds()
+	await _test_status_sounds()
+	await _test_heartbeat()
 
 
 func _test_swing_sounds() -> void:
@@ -552,6 +562,198 @@ func _test_empty_fields() -> void:
 	GameFeel.hit_feel = saved_feel
 	Audio.mix.pack_burst_sound = saved_burst
 	await _hitstop_over()
+
+
+# --- A3: abilities, telegraphs, statuses, heartbeat ------------------------------
+
+func _test_ability_sounds() -> void:
+	_section("A3: ability sounds")
+	await _ready_knight()
+	var dummies := _dummies_in_front(3)
+	await get_tree().physics_frame
+	Audio.clear_log()
+	knight.abilities.try_cast(&"q", knight.global_position + Vector2.LEFT * 60.0)
+	var casts := _played("sound_knight_cleave_cast")
+	_check("Cleave plays its cast sound at cast start, centered", [casts.size(), casts[0].positional if casts.size() > 0 else null], [1, false])
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 60)
+	_check("Cleave hits 3 with one hit sound (no own hit sound: HitFeel's light)", _played("sound_hit_").size(), 1)
+
+	await _ready_knight()
+	Audio.clear_log()
+	var target := dummies[1]
+	target.health.heal(100000.0)   # Cleave hurt it; at full health (280) it survives Judgement (214) and gets stunned
+	knight.abilities.try_cast(&"r", target.global_position, target)
+	_check("Judgement's cast sound", _played("sound_knight_judgement_cast").size(), 1)
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 200)
+	var hit := _played("sound_knight_judgement_hit")
+	_check("its own hit sound, once, instead of the tier's", [hit.size(), _played("sound_hit_light").size()], [1, 0])
+	var stun := _played("sound_status_stun_apply")
+	_check("the stun it applies plays the stun sound, positional (on the dummy)", [stun.size(), stun[0].positional if stun.size() > 0 else null], [1, true])
+	_check("Judgement pings when ready (data)", (load("res://data/abilities/knight_r_judgement.tres") as Ability).ready_sound != null, true)
+
+	await _ready_knight()
+	var saved_w := knight.abilities.w
+	var quick := Ability.new()
+	quick.targeting = Ability.Targeting.SELF
+	quick.cooldown = 0.2
+	quick.cast_time = 0.0
+	quick.ready_sound = _event("ready", [_tone_short], false, SoundEvent.Bus.UI)
+	knight.abilities.w = quick
+	var finished: Array = []
+	var on_ready := func(slot: StringName, _a: Ability) -> void: finished.append(slot)
+	knight.abilities.cooldown_finished.connect(on_ready)
+	Audio.clear_log()
+	knight.abilities.try_cast(&"w", knight.global_position)
+	await _game_wait(0.35)
+	_check("a cooldown counting down to 0: cooldown_finished and the ready sound", [finished, _played("ready").size()], [[&"w"], 1])
+	var slow := Ability.new()
+	slow.targeting = Ability.Targeting.SELF
+	slow.cooldown = 0.2
+	slow.cast_time = 0.5
+	slow.dash_cancelable = true
+	slow.ready_sound = quick.ready_sound
+	knight.abilities.w = slow
+	finished.clear()
+	Audio.clear_log()
+	knight.abilities.try_cast(&"w", knight.global_position)
+	await get_tree().physics_frame
+	knight.abilities.try_cancel_cast()
+	await _game_wait(0.35)
+	_check("a refunded cooldown (cancelled cast) doesn't ping", [finished, _played("ready").size()], [[], 0])
+	knight.abilities.cooldown_finished.disconnect(on_ready)
+	knight.abilities.w = saved_w
+	for d in dummies:
+		if is_instance_valid(d):
+			d.queue_free()
+	await get_tree().physics_frame
+
+
+func _test_telegraph_sounds() -> void:
+	_section("A3: the elite's telegraph wind-up")
+	await _ready_knight()
+	var elite := _spawn_elite(knight.global_position + Vector2(60, 0))
+	await get_tree().physics_frame
+	Audio.clear_log()
+	elite.abilities.try_cast(&"q", knight.global_position, knight)
+	var wind := _played("sound_slime_elite_slam_telegraph")
+	var handle: int = wind[0].handle if wind.size() > 0 else 0
+	var p2 := Audio.get_player(handle) as AudioStreamPlayer2D
+	_check("the slam's wind-up plays at the telegraph, positional, 640 px",
+		[wind.size(), p2 != null and p2.global_position.distance_to(knight.global_position) < 1.0, p2.max_distance if p2 else 0.0], [1, true, 640.0])
+	await _wait_until(func() -> bool: return not elite.abilities.casting, 60)
+	await get_tree().physics_frame
+	_check("the slam lands on the Knight: its hit sound and his hurt, and the wind-up stops",
+		[_played("sound_slime_elite_slam_hit").size(), _played("sound_knight_hurt").size(), Audio.is_playing(handle)], [1, 1, false])
+
+	elite.queue_free()
+	await _ready_knight()
+	elite = _spawn_elite(knight.global_position + Vector2(60, 0))
+	await get_tree().physics_frame
+	Audio.clear_log()
+	elite.abilities.try_cast(&"q", knight.global_position, knight)
+	handle = _played("sound_slime_elite_slam_telegraph")[0].handle
+	await get_tree().physics_frame
+	elite.apply_stun(1.0)
+	await _wait_until(func() -> bool: return not elite.abilities.casting, 60)
+	await get_tree().physics_frame
+	_check("a stun interrupts the slam: the telegraph goes and its wind-up stops, no slam sound",
+		[Audio.is_playing(handle), _played("sound_slime_elite_slam_hit").size()], [false, 0])
+	elite.queue_free()
+
+	await _ready_knight()
+	elite = _spawn_elite(knight.global_position + Vector2(60, 0))
+	await get_tree().physics_frame
+	Audio.clear_log()
+	elite.abilities.try_cast(&"q", knight.global_position, knight)
+	handle = _played("sound_slime_elite_slam_telegraph")[0].handle
+	await _frames(6)
+	elite.take_damage(100000.0, knight)
+	await get_tree().physics_frame
+	_check("the elite dies mid-cast: the wind-up stops at once", Audio.is_playing(handle), false)
+	await _frames(10)
+
+
+func _test_status_sounds() -> void:
+	_section("A3: status sounds")
+	await _ready_knight()
+	var dummy := _dummies_in_front(1)[0]
+	await get_tree().physics_frame
+	var burn := StatusEffect.new()
+	burn.id = &"test_burning"
+	burn.duration = 5.0
+	burn.stack_rule = StatusEffect.StackRule.STACK
+	burn.max_stacks = 3
+	burn.apply_sound = _event("burn_apply", [_tone_short])
+	burn.expire_sound = _event("burn_expire", [_tone_short])
+	burn.loop_sound = _event("burn_loop", [_tone_loop], true)
+	Audio.clear_log()
+	for i in 3:
+		dummy.status_component.apply_status(burn, knight)
+	_check("3 stacks: the apply sound each time, one loop", [_played("burn_apply").size(), _played("burn_loop").size()], [3, 1])
+	var loop_handle: int = _played("burn_loop")[0].handle
+	dummy.status_component.remove_status(&"test_burning")
+	_check("removed: the loop stops and the expire sound plays", [Audio.is_playing(loop_handle), _played("burn_expire").size()], [false, 1])
+	dummy.status_component.apply_status(burn, knight)
+	loop_handle = _played("burn_loop")[-1].handle
+	Audio.clear_log()
+	dummy.take_damage(100000.0, knight)
+	await get_tree().physics_frame
+	_check("the unit dies: the loop stops, no expire sound", [Audio.is_playing(loop_handle), _played("burn_expire").size()], [false, 0])
+
+	await _ready_knight()
+	await _real_wait(0.1)
+	Audio.clear_log()
+	knight.status_component.apply_status(load("res://data/statuses/status_shield.tres"), knight)
+	var apply := _played("sound_status_shield_apply")
+	_check("a shield on the Knight: its apply sound, centered, HIGH",
+		[apply.size(), apply[0].positional if apply.size() > 0 else null, apply[0].priority if apply.size() > 0 else -1], [1, false, SoundEvent.Priority.HIGH])
+	Audio.clear_log()
+	knight.on_hit(slime.make_hit_context(150.0, slime))
+	_check("150 into the 100 shield: absorb, the shield's break (expire) and the hurt",
+		[_played("sound_shield_absorb").size(), _played("sound_status_shield_break").size(), _played("sound_knight_hurt").size()], [1, 1, 1])
+	await _ready_knight()
+
+
+func _test_heartbeat() -> void:
+	_section("A3: the low-health heartbeat")
+	await _ready_knight()
+	Audio.clear_log()
+	var max_health := knight.health.max_health
+	knight.health.take_damage(max_health * 0.7)
+	_check("at 30% health: no heartbeat", _played("sound_knight_low_health").size(), 0)
+	knight.health.take_damage(max_health * 0.1)
+	var beat := _played("sound_knight_low_health")
+	_check("below 25%: the heartbeat loops, centered", [beat.size(), beat[0].positional if beat.size() > 0 else null], [1, false])
+	var handle: int = beat[0].handle if beat.size() > 0 else 0
+	knight.health.take_damage(10.0)
+	_check("more damage doesn't start a second one", _played("sound_knight_low_health").size(), 1)
+	knight.health.heal(max_health)
+	_check("healed above 25%: it stops", Audio.is_playing(handle), false)
+
+	var other: Player = PLAYER_SCENE.instantiate()
+	add_child(other)
+	_place(other, knight.global_position + Vector2(0, 120))
+	await get_tree().physics_frame
+	other.health.take_damage(other.health.max_health * 0.9)
+	var beats := _played("sound_knight_low_health")
+	handle = beats[-1].handle if beats.size() > 1 else 0
+	_check("another Knight at 10%: his heartbeat", Audio.is_playing(handle), true)
+	other.take_damage(100000.0)
+	_check("he dies: it stops", Audio.is_playing(handle), false)
+	await _frames(40)
+
+
+func _spawn_elite(pos: Vector2) -> Enemy:
+	var elite: Enemy = load("res://scenes/enemies/slime_elite.tscn").instantiate()
+	elite.passive = true
+	add_child(elite)
+	_place(elite, pos)
+	return elite
+
+
+func _frames(n: int) -> void:
+	for i in n:
+		await get_tree().physics_frame
 
 
 ## Passive slimes in a fan in front of the Knight (to his left), inside his

@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/data/status_effect.gd" id="1_status"]
 [ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="2_modifier"]
+[ext_resource type="Resource" path="res://data/sounds/sound_status_haste_apply.tres" id="s1_apply_sound"]
 
 [sub_resource type="Resource" id="haste_move_speed"]
 script = ExtResource("2_modifier")
@@ -11,6 +12,7 @@ value = 0.2
 
 [resource]
 script = ExtResource("1_status")
+apply_sound = ExtResource("s1_apply_sound")
 id = &"haste"
 display_name = "Hasted"
 tags = Array[StringName]([&"haste", &"buff"])

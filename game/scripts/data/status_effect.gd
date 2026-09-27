@@ -58,6 +58,15 @@ enum StackRule {
 ## Instanced as a child of the unit while the status is active. Visuals only.
 @export var vfx: PackedScene
 
+@export_group("Sounds")
+## On every application, refresh and new stack included (AUDIO.md).
+@export var apply_sound: SoundEvent
+## When it ends while the unit is alive (ran out, removed, a shield used up).
+## Silent when the unit dies.
+@export var expire_sound: SoundEvent
+## Plays while the status is active: one loop per unit, however many stacks.
+@export var loop_sound: SoundEvent
+
 
 ## The source id its StatModifiers use: &"status_<id>" (CONVENTIONS.md).
 func get_source_id() -> StringName:

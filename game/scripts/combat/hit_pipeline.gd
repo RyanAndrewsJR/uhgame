@@ -43,6 +43,7 @@ static func from_ability(caster: Unit, ability: Ability, target: Node) -> HitCon
 	ctx.ad_ratio = ability.get_param(caster, &"ad_ratio")
 	ctx.damage_type = ability.damage_type
 	ctx.proc_coefficient = ability.proc_coefficient
+	ctx.hit_sound = ability.hit_sound   # AUDIO.md: CombatSounds plays it once per cast
 	ctx.add_tag(&"ability")
 	for t in ability.tags:   # the ability's own tags (STATS step 6)
 		ctx.add_tag(t)

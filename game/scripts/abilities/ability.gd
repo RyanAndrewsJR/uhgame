@@ -79,6 +79,19 @@ enum SwingCancel {
 ## has it). On: it hits through walls (e.g. a meteor shower). COMBAT C7.
 @export var ignores_walls: bool = false
 
+@export_group("Sounds")
+## At cast start (AUDIO.md). null = silent.
+@export var cast_sound: SoundEvent
+## When the cast lands on someone, once per cast however many it hits
+## (through HitContext.hit_sound). null = HitFeel's sound for the hit's tier.
+@export var hit_sound: SoundEvent
+## The wind-up, owned by the cast's telegraph (plays at the telegraph, stops
+## when it finishes or is freed). Use max_distance_px 640 so it carries.
+@export var telegraph_sound: SoundEvent
+## When the cooldown ends (AbilityComponent.cooldown_finished), e.g. the
+## ultimate-ready ping. A refunded cooldown doesn't ping.
+@export var ready_sound: SoundEvent
+
 
 ## The units among `units` this ability can hit from `from`: all of them if
 ## it ignores walls, otherwise only those in line of sight (COMBAT C7).

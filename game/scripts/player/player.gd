@@ -48,6 +48,13 @@ const ABILITY_ACTIONS := {&"q": "ability_q", &"w": "ability_w", &"e": "ability_e
 ## (seconds). Visual only.
 @export var hit_iframes_blink_period: float = 0.1
 
+@export_group("Low health")
+## Loops while health is below low_health_fraction of max (AUDIO.md). The
+## health bar shows it too (never audio-only). null = silent.
+@export var low_health_sound: SoundEvent
+@export_range(0.15, 0.35) var low_health_fraction: float = 0.25
+@export_group("")
+
 @onready var sword_pivot: Node2D = $SwordPivot
 @onready var sword: Polygon2D = $SwordPivot/Sword
 @onready var dash: DashComponent = $DashComponent
@@ -74,6 +81,7 @@ var _walk_time: float = 0.0
 ## Where the current cast was aimed, locked at cast start (INF = none).
 var _cast_face_point: Vector2 = Vector2.INF
 var _blink_time: float = 0.0
+var _low_health_handle: int = 0
 ## The sword pull-back tween of the current swing's windup.
 var _swing_tween: Tween
 
@@ -92,6 +100,7 @@ func _ready() -> void:
 	abilities.cast_finished.connect(_on_cast_finished)
 	dash.dash_started.connect(_on_dash_started)
 	dash.dash_ended.connect(_on_dash_ended)
+	health.health_changed.connect(_on_health_health_changed)
 
 
 # --- Input ----------------------------------------------------------------------
@@ -494,7 +503,20 @@ func _on_died() -> void:
 	attack_move_armed = false
 	aiming_slot = &""
 	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
+	Audio.stop(_low_health_handle)
+	_low_health_handle = 0
 	super._on_died()
+
+
+## The low-health heartbeat: starts below low_health_fraction of max, stops
+## at or above it and at death.
+func _on_health_health_changed(current: float, maximum: float) -> void:
+	var low := is_alive() and current > 0.0 and current < maximum * low_health_fraction
+	if low and not Audio.is_playing(_low_health_handle):
+		_low_health_handle = Audio.play_on(low_health_sound, self, 1.0, SoundEvent.Priority.HIGH)
+	elif not low and _low_health_handle != 0:
+		Audio.stop(_low_health_handle)
+		_low_health_handle = 0
 
 
 func _play_death() -> void:

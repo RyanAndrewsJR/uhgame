@@ -2,9 +2,11 @@
 
 [ext_resource type="Script" path="res://scripts/data/status_effect.gd" id="1_status"]
 [ext_resource type="PackedScene" path="res://scenes/vfx/stun_stars.tscn" id="2_vfx"]
+[ext_resource type="Resource" path="res://data/sounds/sound_status_stun_apply.tres" id="s1_apply_sound"]
 
 [resource]
 script = ExtResource("1_status")
+apply_sound = ExtResource("s1_apply_sound")
 id = &"stun"
 display_name = "Stunned"
 tags = Array[StringName]([&"cc", &"stun", &"debuff"])

@@ -1,9 +1,13 @@
 [gd_resource type="Resource" script_class="StatusEffect" format=3]
 
 [ext_resource type="Script" path="res://scripts/data/status_effect.gd" id="1_status"]
+[ext_resource type="Resource" path="res://data/sounds/sound_status_shield_apply.tres" id="s1_apply_sound"]
+[ext_resource type="Resource" path="res://data/sounds/sound_status_shield_break.tres" id="s2_expire_sound"]
 
 [resource]
 script = ExtResource("1_status")
+apply_sound = ExtResource("s1_apply_sound")
+expire_sound = ExtResource("s2_expire_sound")
 id = &"shield"
 display_name = "Shielded"
 tags = Array[StringName]([&"shield", &"buff"])

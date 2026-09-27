@@ -15,6 +15,7 @@ var duration: float = 0.75
 var color: Color = THREAT_COLOR
 
 var _elapsed: float = 0.0
+var _sound_handle: int = 0
 var _finishing: bool = false
 var _flash: float = 0.0
 
@@ -45,8 +46,17 @@ static func _add_to_floor(anchor: Node2D, t: Telegraph) -> void:
 		entities.add_child(t)
 
 
+## Plays the cast's wind-up here (AUDIO.md). It stops when the telegraph
+## finishes or is freed (a cancelled or interrupted cast). null = silent.
+func play_sound(event: SoundEvent) -> void:
+	Audio.stop(_sound_handle)
+	_sound_handle = Audio.play_on(event, self)
+
+
 ## The hit happened: a short bright flash, then gone.
 func finish() -> void:
+	Audio.stop(_sound_handle)   # the hit sound takes over
+	_sound_handle = 0
 	_finishing = true
 	_flash = 0.12
 	queue_redraw()

@@ -3,9 +3,13 @@
 [ext_resource type="Script" uid="uid://dfsmxt0mo6g62" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="2_hud"]
 [ext_resource type="Script" uid="uid://cn8tuoa45mshl" path="res://scripts/camera/game_camera.gd" id="3_camera"]
+[ext_resource type="Resource" path="res://data/sounds/sound_stinger_room_cleared.tres" id="s1_room_cleared_sound"]
+[ext_resource type="Resource" path="res://data/sounds/sound_stinger_player_died.tres" id="s2_player_died_sound"]
 
 [node name="Main" type="Node2D" unique_id=526309964]
 script = ExtResource("1_main")
+room_cleared_sound = ExtResource("s1_room_cleared_sound")
+player_died_sound = ExtResource("s2_player_died_sound")
 
 [node name="Camera" type="Camera2D" parent="." unique_id=652935470]
 process_callback = 0

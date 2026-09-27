@@ -13,6 +13,9 @@ extends Node
 ##   AudioMix.pack_burst_count enemies die within pack_burst_window (real
 ##   time), the death that makes the count plays the pack burst instead of its
 ##   own sound, and later deaths in the window are silent.
+## - Events.status_applied / status_removed: the status's apply sound (every
+##   application), one loop per unit and status (not per stack), and the
+##   expire sound when it ends while the unit is alive (A3).
 ## Priority: HIGH when the Player is the source or the target, else LOW.
 
 var _frame_key: String = ""
@@ -20,12 +23,15 @@ var _played: Dictionary = {}           # "<source>|<sound>" -> true, this frame
 var _pending_deaths: Array = []        # [Unit, position, death_sound], this frame
 var _recent_death_ms: Array[int] = []  # enemy deaths within the burst window
 var _burst_ms: int = -1000000          # when the last pack burst played
+var _status_loops: Dictionary = {}     # "<unit id>|<status id>" -> handle
 
 
 func _ready() -> void:
 	Events.unit_hit.connect(_on_events_unit_hit)
 	Events.unit_damaged.connect(_on_events_unit_damaged)
 	Events.unit_died.connect(_on_events_unit_died)
+	Events.status_applied.connect(_on_events_status_applied)
+	Events.status_removed.connect(_on_events_status_removed)
 
 
 ## Forgets the pack burst window and this frame's pending deaths (a scene
@@ -35,6 +41,7 @@ func reset() -> void:
 	_recent_death_ms.clear()
 	_burst_ms = -1000000
 	_played.clear()
+	_status_loops.clear()
 
 
 # --- Hits ---------------------------------------------------------------------
@@ -131,3 +138,28 @@ func _flush_deaths() -> void:
 	for d in deaths:
 		var unit: Unit = d[0] if is_instance_valid(d[0]) else null
 		Audio.play_at(d[2] as SoundEvent, d[1] as Vector2, unit)
+
+
+# --- Statuses -------------------------------------------------------------------
+
+func _on_events_status_applied(unit: Unit, status: StatusEffect) -> void:
+	var priority: int = SoundEvent.Priority.HIGH if unit is Player else -1
+	Audio.play_at(status.apply_sound, unit.global_position, unit, 1.0, priority)
+	if status.loop_sound == null:
+		return
+	var key := _status_key(unit, status)
+	if not Audio.is_playing(_status_loops.get(key, 0)):   # a refresh or new stack keeps the running loop
+		_status_loops[key] = Audio.play_on(status.loop_sound, unit, 1.0, priority)
+
+
+func _on_events_status_removed(unit: Unit, status: StatusEffect) -> void:
+	var key := _status_key(unit, status)
+	Audio.stop(_status_loops.get(key, 0))
+	_status_loops.erase(key)
+	if is_instance_valid(unit) and unit.is_alive():   # the death clear() is silent
+		var priority: int = SoundEvent.Priority.HIGH if unit is Player else -1
+		Audio.play_at(status.expire_sound, unit.global_position, unit, 1.0, priority)
+
+
+func _status_key(unit: Unit, status: StatusEffect) -> String:
+	return "%d|%s" % [unit.get_instance_id(), status.id]
