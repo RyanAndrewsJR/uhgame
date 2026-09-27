@@ -31,6 +31,7 @@
 - 
 
 ## Build order
+<!-- One line per built step ("C8 built 2026-09-26, see CHANGELOG.md"). Test counts and measurements go in docs/CHANGELOG.md, rules in the sections above. -->
 1. 
 
 **Done means:** [how you'll know a step works in play mode]

@@ -93,6 +93,7 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 - Follow the Change policy. If a step needs to remove or replace existing code, stop and ask first.
 - Before naming anything new, check docs/CONVENTIONS.md (naming, vocabulary, reserved names). Don't invent synonyms.
 - When a decision gets made, add it to docs/DECISIONS.md (date, decision, why) in the right system section. If it changes how a system works, update that system's doc too.
+- After a build step, write its results (test counts, what was measured, what changed during the step) to docs/CHANGELOG.md, newest first, not to the system doc. The system doc gets one line ("C8 built 2026-09-26, see CHANGELOG.md"); any rule found while building goes into its spec.
 - Before a build step, ask me to run `git status` and confirm the working tree is clean. If it isn't, tell me to commit first. After a step passes my play test, suggest a one-line commit message.
 
 ## Docs index (read only what the task needs)
@@ -105,14 +106,15 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 | `docs/WORLD_INTERACTION.md` | abilities touching the world, collision layers, tile tags, interactables |
 | `docs/COMBAT.md` | basic attacks, hits and damage, damage types, crit and mitigation, status effects and CC, i-frames, hitstop/shake/flash, damage numbers, reaction rules, enemy attack damage and telegraphs |
 | `docs/STATS.md` | any stat, health/mana, champion base stats, modifiers from gear/buffs/levels, items changing ability numbers |
+| `docs/CHANGELOG.md` | only when asked what was built or measured |
 | `docs/_TEMPLATE.md` | writing a new doc |
 
 ## Current status
 - **Now:** Waiting on Ryan's play test of COMBAT C10 (nothing should change in play: nothing gives a shield yet). Still open: play tests of STATS steps 5–6, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. COMBAT C10: shields (`StatusEffect.shield_amount`, `StatusComponent.absorb_damage()`: after armor and `incoming_damage`, the soonest-expiring first, used up = ended), a separate silver shield number, `status_shield.tres`. Combat test 387/387, stats test 172/172.
-  2. COMBAT C9: `StatusEffect` + `StatusComponent`, `status_stun` / `status_slow` / `status_haste`, `apply_stun()` and `add_speed_modifier()` as wrappers, tenacity, DoT (snapshot, kill credit), `Events.status_applied` / `status_removed`.
-  3. COMBAT C8: crits (PRD, one roll per swing or cast), `damage_increase` with `hit:` / `target:` scopes, `incoming_damage`, on-hit stats; the Knight's abilities through `HitPipeline.from_ability()`.
+  1. Docs split: build logs moved out of COMBAT, MOVEMENT and STATS into `docs/CHANGELOG.md`; the system docs keep specs only (DECISIONS.md, General). Stale contract numbers aligned with Numbers (elite slam 0.65 s / 72 px, `player.tscn` post-hit i-frames 0.3 s).
+  2. COMBAT C10: shields (`StatusEffect.shield_amount`, `StatusComponent.absorb_damage()`: after armor and `incoming_damage`, the soonest-expiring first, used up = ended), a separate silver shield number, `status_shield.tres`. Combat test 387/387, stats test 172/172.
+  3. COMBAT C9: `StatusEffect` + `StatusComponent`, `status_stun` / `status_slow` / `status_haste`, `apply_stun()` and `add_speed_modifier()` as wrappers, tenacity, DoT (snapshot, kill credit), `Events.status_applied` / `status_removed`.
 - **Next:** COMBAT C11 (reaction rules: `ReactionRule`, `GameplayEffect`; triggers HIT, UNIT_DIED, STATUS_APPLIED) → C12 (dash-strike, after its open question). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order.
 
 ## Known issues (leave for now)

@@ -6,7 +6,7 @@
 
 ## Current code
 - `UnitStats` (`res://scripts/data/unit_stats.gd`): one .tres per unit in `res://data/units/`. It has a field for every stat in the Stat list except `knockback_resistance` (proposed, added with the knockback work), plus the identity fields.
-- **Steps 1–6 are built:** `StatModifier`, `StatDefinition`, `StatRegistry` (+ `stat_registry.tres`, 26 stats: 21, plus 5 added in COMBAT C8) and `StatsComponent`, tested by `res://scenes/tests/stats_test.tscn`. `player.tscn` and `slime.tscn` have a `StatsComponent` node; `Unit.stats_component` points to it and `Unit._ready()` calls `setup(stats, movement)`.
+- **Steps 1–6 are built:** `StatModifier`, `StatDefinition`, `StatRegistry` (+ `stat_registry.tres`, 26 stats: 21, plus 5 added in COMBAT C8) and `StatsComponent`, tested by `res://scenes/tests/stats_test.tscn`. `player.tscn` and `slime.tscn` have a `StatsComponent` node; `Unit.stats_component` points to it (a required child, like HealthComponent) and `Unit._ready()` calls `setup(stats, movement)`.
 - **Step 6 (scoped modifiers):** every Ability has `id` (`knight_cleave`, `knight_iron_resolve`, `knight_lunge`, `knight_judgement`, `slime_elite_slam`) and `tags` (Cleave and the slam `area`, Iron Resolve `buff`, Lunge `movement`, Judgement `ultimate`). `StatsComponent.get_ability_param(ability, param)` and `Ability.get_param(caster, param)` return a param after scoped modifiers. Routed through it so far: `cooldown` (then ability haste, in `AbilityComponent.get_cooldown_duration()`), `cast_range` (AbilityComponent range checks and POINT clamp, the enemy cast check, Cleave's reach, the indicator), `base_damage` and `ad_ratio` (`Ability.get_damage()`, `HitPipeline.from_ability()`). Other params (Cleave's cone angle, knockbacks, the slam radius...) are still read directly; each gets routed when an item first needs it.
 - **COMBAT C8:** `incoming_damage`, `damage_increase`, `on_hit_damage`, `life_on_hit`, `resource_on_hit` are on UnitStats and the registry (neutral), `crit_damage` defaults to 1.75, and hit-scoped modifiers (`hit:<tag>`, `target:<tag>`) are read per hit with `StatsComponent.get_scoped_stat(key, scopes)` (COMBAT.md, Architecture).
 - On `Unit`, `stats` stays the base `UnitStats` export and `stats_component` is the live StatsComponent. Gameplay reads go through `stats_component.get_stat(&"x")`. Only `attack_windup`, `gameplay_radius` and `pathing_radius` are still read from `unit.stats` (identity fields, not stats).
@@ -131,27 +131,12 @@ Equipping an item gives its modifiers to `StatsComponent` and its augments to `A
 - `res://scripts/data/champion_data.gd` + `res://data/champions/<name>.tres`: `stats: UnitStats`, `growth: Dictionary[StringName, float]`, `resource_type` (MANA / ENERGY / FURY / NONE), passive, ability slots. (Details in CHAMPIONS.md.)
 
 ## Build order
-1. StatModifier and the registry. *(done)*
-2. StatsComponent with the math, move_speed rules, caching, and `stat_changed`. Include a test scene that adds/removes modifiers and prints the results. *(done: `res://scenes/tests/stats_test.tscn`, F6. It prints PASS/FAIL per check and includes move_speed parity checks against a real MovementComponent.)*
-3. Add StatsComponent to player.tscn and slime.tscn. `Unit._ready()` wires it up. *(done: `Unit.stats_component`, a required child like HealthComponent)*
-4. **Migrate reads.** *(done; checked headless against the old formulas for every Unit in the sandbox and room_01)* Every `stats.` read in the code before the migration:
-
-   | File | Reads | After step 4 |
-   |---|---|---|
-   | `units/unit.gd` `_ready()` | `max_health`, `move_speed` | `get_stat` |
-   | `units/unit.gd` `get_gameplay_radius_px()`, `get_pathing_radius_px()` | `gameplay_radius`, `pathing_radius` | stay on UnitStats (not stats) |
-   | `components/auto_attack_component.gd` `get_attack_speed()` | `base_attack_speed`, `attack_speed_cap` (+ its own `bonus_attack_speed`) | `get_stat(&"attack_speed")`; the cap is the stat's per-unit max |
-   | `components/auto_attack_component.gd` `get_windup_time()` | `attack_windup` | stays on UnitStats (not a stat) |
-   | `components/auto_attack_component.gd` `get_range_px()` | `attack_range` | `get_stat` |
-   | `components/auto_attack_component.gd` `_land_attack()` | `attack_damage` | `get_stat` |
-   | `components/ability_component.gd` `get_cooldown_duration()` | `ability_haste` | `get_stat` |
-   | `components/dash_component.gd` (max charges) | `dash_charges` | `get_stat` |
-   | `abilities/ability.gd` `get_damage()` | `attack_damage` | `get_stat` |
-   | `main.gd` `_process()` (HUD info line) | `player.stats.attack_damage`, `attack_range` | `get_stat` |
-
-   Also move MovementComponent's speed modifiers into StatsComponent (`add_speed_modifier` becomes a thin wrapper, so existing callers keep working). MovementComponent itself reads no `stats.` field; `Unit._ready()` calls `movement.set_stats_component()`, and MovementComponent reads `get_stat(&"move_speed")` live.
-5. ResourceComponent, plus the new stat fields on UnitStats. *(done: neutral defaults; HealthComponent follows max_health and regens; ResourceComponent on the Knight only; tested in `stats_test.tscn`)*
-6. Scoped modifiers, `get_ability_param`, and `id`/`tags` on Ability. Route cooldowns through it. *(done: also `cast_range`, `base_damage`, `ad_ratio`; stats test 157/157 with a fake item (+30% Lunge range, −1.5 s Cleave cooldown, ×1.5 base damage on `area` abilities) that restores every param and stat exactly when removed; combat test 269/269 checks it on real casts)*
+1. StatModifier and the registry. Built 2026-09-25, see CHANGELOG.md.
+2. StatsComponent with the math, move_speed rules, caching, and `stat_changed`, plus a test scene that adds/removes modifiers and prints the results (`res://scenes/tests/stats_test.tscn`, F6: PASS/FAIL per check, including move_speed parity checks against a real MovementComponent). Built 2026-09-25, see CHANGELOG.md.
+3. Add StatsComponent to player.tscn and slime.tscn. `Unit._ready()` wires it up. Built 2026-09-25, see CHANGELOG.md.
+4. **Migrate reads:** every gameplay `stats.` read goes through `get_stat` (only `attack_windup`, `gameplay_radius` and `pathing_radius` stay on UnitStats; see Current code). Also move MovementComponent's speed modifiers into StatsComponent (`add_speed_modifier` becomes a thin wrapper, so existing callers keep working). MovementComponent itself reads no `stats.` field; `Unit._ready()` calls `movement.set_stats_component()`, and MovementComponent reads `get_stat(&"move_speed")` live. Built 2026-09-25, see CHANGELOG.md.
+5. ResourceComponent, plus the new stat fields on UnitStats. Built 2026-09-25, see CHANGELOG.md.
+6. Scoped modifiers, `get_ability_param`, and `id`/`tags` on Ability. Route cooldowns through it. Built 2026-09-26, see CHANGELOG.md.
 7. F3 debug overlay (`res://scripts/ui/stat_overlay.gd`): every stat, its base, final value, and each modifier with its source.
 
 **Done means:** a fake item (a modifier array) changes stats and ability params, and removing it restores them exactly; the Knight and slimes behave the same as before step 4; the overlay explains every number.
