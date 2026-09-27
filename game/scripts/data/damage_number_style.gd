@@ -32,6 +32,8 @@ extends Resource
 ## Damage the player takes, whatever its type.
 @export var player_damage_color: Color = Color(1.0, 0.3, 0.28)
 @export var heal_color: Color = Color(0.4, 1.0, 0.45)
+## Damage a shield absorbed (COMBAT C10), shown as its own number.
+@export var shield_color: Color = Color(0.78, 0.84, 0.92)
 @export var outline_color: Color = Color.BLACK
 @export var outline_size: int = 3
 

@@ -30,6 +30,8 @@ extends Node2D
 ## C9: status effects (the stun, slow and haste .tres, the apply_stun() and
 ## add_speed_modifier() wrappers, stack rules, tenacity, DoT with snapshot
 ## and kill credit, statuses on hits, events, death).
+## C10: shields (absorb after armor, the soonest-expiring first, used up =
+## removed, stacks, numbers, knockback / life steal / i-frames still apply).
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
@@ -265,6 +267,7 @@ func _test_combo() -> void:
 	await _test_item_changes_abilities()
 	await _test_crits_and_on_hit()
 	await _test_statuses()
+	await _test_shields()
 	await _test_death_mid_swing()
 
 
@@ -2000,6 +2003,168 @@ func _test_c9_hit_statuses_and_events() -> void:
 	Events.status_removed.disconnect(on_removed)
 	guarded.queue_free()
 	await _frames(2)
+
+
+# --- C10: shields ---------------------------------------------------------------------
+
+const STATUS_SHIELD: StatusEffect = preload("res://data/statuses/status_shield.tres")
+
+
+func _test_shields() -> void:
+	_test_c10_data()
+	_test_c10_absorb()
+	_test_c10_order_and_stacks()
+	await _test_c10_hit_still_lands()
+
+
+func _test_c10_data() -> void:
+	_section("C10: shield data")
+	_check("status_shield: 100 shield, 3 s, tags shield + buff, refreshes",
+		[STATUS_SHIELD.id, STATUS_SHIELD.shield_amount, STATUS_SHIELD.duration, STATUS_SHIELD.tags, STATUS_SHIELD.stack_rule, STATUS_SHIELD.is_shield()],
+		[&"shield", 100.0, 3.0, [&"shield", &"buff"], StatusEffect.StackRule.REFRESH, true])
+
+
+func _test_c10_absorb() -> void:
+	_section("C10: a shield absorbs damage before health")
+	var style: DamageNumberStyle = NUMBER_SCRIPT.DEFAULT_STYLE
+	var dummy := _spawn_dummy()
+	var sc := dummy.status_component
+	sc.apply_status(STATUS_SHIELD, knight)
+	var damaged_before := _damaged.size()
+	var before := _numbers()
+	var first := _hit(dummy, 80.0, HitContext.DamageType.PHYSICAL)
+	var added := _numbers().filter(func(n: Label) -> bool: return not before.has(n))
+	_check("80 into a 100 shield: absorbed 80, taken 80, no health lost, 20 shield left",
+		[first.absorbed, first.taken_damage, first.health_lost, dummy.health.current == dummy.health.max_health, sc.get_shield(&"shield")], [80.0, 80.0, 0.0, true, 20.0])
+	_check("unit_damaged still fires (taken 80)", _damaged.size() - damaged_before, 1)
+	_check("one number: \"80\" in the shield color", added.map(func(n: Label) -> Array: return [n.text, n.color, n.kind]), [["80", style.shield_color, NUMBER_SCRIPT.Kind.SHIELD]])
+	var removed: Array = []
+	var on_removed := func(unit: Unit, status: StatusEffect) -> void: removed.append([unit, status.id])
+	Events.status_removed.connect(on_removed)
+	before = _numbers()
+	var second := _hit(dummy, 80.0, HitContext.DamageType.PHYSICAL)
+	added = _numbers().filter(func(n: Label) -> bool: return not before.has(n))
+	Events.status_removed.disconnect(on_removed)
+	_check("the next 80: 20 absorbed, 60 to health", [second.absorbed, second.health_lost], [20.0, 60.0])
+	_check("used up: the shield status ends (status_removed)", [sc.has_status(&"shield"), removed], [false, [[dummy, &"shield"]]])
+	_check("two numbers: \"20\" shield, \"60\" physical", added.map(func(n: Label) -> Array: return [n.text, n.color]), [["20", style.shield_color], ["60", style.physical_color]])
+
+	dummy.health.heal(1000.0)
+	sc.apply_status(STATUS_SHIELD, knight)
+	dummy.stats_component.add_modifier(StatModifier.create(&"armor", FLAT, 100.0, &"test_c10"))
+	var armored := _hit(dummy, 160.0, HitContext.DamageType.PHYSICAL)
+	_check("after armor: 160 at 100 armor = 80 taken, all absorbed", [armored.taken_damage, armored.absorbed, armored.health_lost], [80.0, 80.0, 0.0])
+	dummy.stats_component.remove_modifiers_from(&"test_c10")
+	var true_hit := _hit(dummy, 30.0, HitContext.DamageType.TRUE)
+	_check("TRUE damage is absorbed too (20 left, then 10 to health)", [true_hit.absorbed, true_hit.health_lost], [20.0, 10.0])
+	sc.apply_status(STATUS_SHIELD, knight)
+	dummy.health.take_damage(dummy.health.current - 5.0)
+	var huge := _hit(dummy, 100.0, HitContext.DamageType.PHYSICAL)
+	_check("a hit the shield fully takes can't kill (100 into 100 at 5 health)", [huge.killed, dummy.is_alive(), dummy.health.current], [false, true, 5.0])
+	dummy.queue_free()
+
+
+func _test_c10_order_and_stacks() -> void:
+	_section("C10: absorb order (soonest to expire first) and stacks")
+	var dummy := _spawn_dummy()
+	var sc := dummy.status_component
+	var soon := _make_status(&"test_shield_soon", [&"shield"], 1.0)
+	soon.shield_amount = 50.0
+	var later := _make_status(&"test_shield_later", [&"shield"], 3.0)
+	later.shield_amount = 50.0
+	var forever := _make_status(&"test_shield_forever", [&"shield"], -1.0)
+	forever.shield_amount = 50.0
+	sc.apply_status(forever)
+	sc.apply_status(later)
+	sc.apply_status(soon)
+	_check("three 50 shields: 150 total", sc.get_total_shield(), 150.0)
+	_hit(dummy, 70.0, HitContext.DamageType.TRUE)
+	_check("70: the 1 s one used up first, then 20 from the 3 s one; the until-removed one untouched",
+		[sc.has_status(&"test_shield_soon"), sc.get_shield(&"test_shield_later"), sc.get_shield(&"test_shield_forever")], [false, 30.0, 50.0])
+	_hit(dummy, 60.0, HitContext.DamageType.TRUE)
+	_check("60: the 3 s one ends, 30 from the until-removed one", [sc.has_status(&"test_shield_later"), sc.get_shield(&"test_shield_forever")], [false, 20.0])
+	sc.remove_status(&"test_shield_forever")
+
+	var stacking := _make_status(&"test_shield_stack", [&"shield"], 2.0)
+	stacking.shield_amount = 40.0
+	stacking.stack_rule = StatusEffect.StackRule.STACK
+	stacking.max_stacks = 3
+	sc.apply_status(stacking, null, 1.0)
+	sc.apply_status(stacking)
+	_hit(dummy, 50.0, HitContext.DamageType.TRUE)
+	_check("2 stacked 40 shields, 50 damage: the 1 s stack is used up, the other has 30",
+		[sc.get_stacks(&"test_shield_stack"), sc.get_shield(&"test_shield_stack"), sc.get_time_left(&"test_shield_stack")], [1, 30.0, 2.0])
+	sc.remove_status(&"test_shield_stack")
+
+	var longer := STATUS_SHIELD.duplicate() as StatusEffect
+	longer.stack_rule = StatusEffect.StackRule.REFRESH_LONGER
+	sc.apply_status(longer)
+	_hit(dummy, 70.0, HitContext.DamageType.TRUE)
+	var small := longer.duplicate() as StatusEffect
+	small.shield_amount = 20.0
+	sc.apply_status(small)
+	_check("REFRESH_LONGER keeps the bigger shield (30 left beats a new 20)", sc.get_shield(&"shield"), 30.0)
+	small.shield_amount = 90.0
+	sc.apply_status(small)
+	_check("and takes a bigger new one (90)", sc.get_shield(&"shield"), 90.0)
+	sc.remove_status(&"shield")
+	var timed := STATUS_SHIELD.duplicate() as StatusEffect
+	sc.apply_status(timed, null, 0.0001 * 0.5)
+	_check("(a zero-length shield isn't applied)", sc.has_status(&"shield"), false)
+	dummy.queue_free()
+
+
+func _test_c10_hit_still_lands() -> void:
+	_section("C10: an absorbed hit still lands (knockback, statuses, life steal, i-frames)")
+	await _reset_knight()
+	await _hitstop_over()
+	var dummy := _dummy_at(Vector2(50, 0))
+	dummy.status_component.apply_status(STATUS_SHIELD, null, 10.0)
+	knight.stats_component.add_modifier(StatModifier.create(&"life_steal", FLAT, 0.5, &"test_c10"))
+	knight.health.take_damage(200.0)
+	var hp := knight.health.current
+	var start := dummy.global_position
+	var hits := await _record_hits(func() -> void:
+		await _reset_knight_in_place()
+		knight.attack.try_swing(Vector2.RIGHT)
+		await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20)
+		await _frames(8))
+	_check("swing 1 into the shield: 64 absorbed, no health lost", hits.map(func(h: HitContext) -> Array: return [h.absorbed, h.health_lost]), [[64.0, 0.0]])
+	_check("life steal still counts the absorbed damage: +32", knight.health.current - hp, 32.0)
+	_check("its knockback still pushes the dummy", dummy.global_position.distance_to(start) > 3.0, true)
+	knight.stats_component.remove_modifiers_from(&"test_c10")
+	var ctx := HitContext.new()
+	ctx.source = knight
+	ctx.target = dummy
+	ctx.base_damage = 5.0
+	ctx.statuses = [STATUS_SLOW] as Array[StatusEffect]
+	HitPipeline.resolve(ctx)
+	_check("a fully absorbed hit still applies its statuses", [ctx.absorbed, dummy.status_component.has_status(&"slow")], [5.0, true])
+	var burn := _make_status(&"test_burn", [&"dot", &"burning"], 0.6)
+	burn.tick_interval = 0.5
+	burn.tick_damage = 10.0
+	var before := _numbers()
+	dummy.status_component.apply_status(burn, knight)
+	var shield_before := dummy.status_component.get_shield(&"shield")
+	await _frames(32)
+	var small := _numbers().filter(func(n: Label) -> bool: return not before.has(n) and n.kind == NUMBER_SCRIPT.Kind.SHIELD)
+	_check("a DoT tick is absorbed too, with a small shield number",
+		[shield_before - dummy.status_component.get_shield(&"shield"), small.map(func(n: Label) -> int: return n.font_size)], [10.0, [8]])
+	dummy.queue_free()
+
+	await _wait_until(func() -> bool: return not knight.is_invulnerable(), 60)
+	knight.health.heal(10000.0)
+	knight.status_component.apply_status(STATUS_SHIELD)
+	var slime := _dummy_at(Vector2(0, 200))
+	var enemy_hit := knight.make_hit_context(22.0, slime)
+	enemy_hit.add_tag(&"basic_attack")
+	knight.on_hit(enemy_hit)
+	_check("a slime hit on a shielded Knight: no health lost, 78 shield left, post-hit i-frames still start",
+		[knight.health.current == knight.health.max_health, knight.status_component.get_shield(&"shield"), knight.has_invulnerability(Unit.HIT_IFRAMES_ID)], [true, 78.0, true])
+	knight.status_component.remove_status(&"shield")
+	slime.queue_free()
+	await _wait_until(func() -> bool: return not knight.is_invulnerable(), 60)
+	await _hitstop_over()
 
 
 func _make_status(id: StringName, tags: Array[StringName], duration: float) -> StatusEffect:
