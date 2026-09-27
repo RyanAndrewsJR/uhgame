@@ -112,21 +112,8 @@ Entering applies its status; re-entering refreshes it instead of stacking. It em
 - Units behind tall walls get a silhouette (later).
 - `low_obstacle` never blocks projectiles.
 
-## Ability spec template (matches the fields on `Ability`)
-```
-Name / Champion / Slot:
-Targeting: SELF / DIRECTION / POINT / UNIT
-cooldown: __s   cast_time: __s   cast_range: __ u   roots_during_cast: y/n   resets_auto_attack: y/n
-base_damage: __   ad_ratio: __   (ap_ratio once STATS adds ability_power)
-Casts: (what each press does, incl. recasts)
-World query:
-Movement method:
-Ends when:
-Hits wall:
-Hits enemy:
-Stunned mid-ability:
-Extra tunables:
-```
+## Ability spec template
+Moved to ABILITIES.md, Ability spec sheet (its "World" line covers the world query, movement method, what ends it, and hitting a wall or an enemy, as in the worked example below).
 
 ## Worked example: Grapple Swing (Akshan-style)
 ```

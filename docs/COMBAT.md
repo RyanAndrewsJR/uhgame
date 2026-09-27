@@ -70,6 +70,10 @@ The rule for every combo with `attack_style` MELEE (the default; the Knight is t
 - Refresh or stack is decided per StatusEffect (data).
 - tenacity shortens crowd control duration; it doesn't affect damage over time.
 - DoT kill credit goes to whoever applied the status.
+- A status that blocks casting (stun, silence) applied during a cast time or a charge-up interrupts the cast at once, refunding its cost and cooldown (ABILITIES.md, Casting; built in AB1, until then checked at the end of the cast time).
+- **Unstoppable** (status tag `unstoppable`): immune to new cc, and applying it removes every cc status; it also blocks knockback from hits (not the unit's own dashes and swing steps). ABILITIES.md; built in AB10.
+- **Untargetable** (status tag `untargetable`): the status adds an invulnerability under its id, so every hit is blocked, and `Unit.is_targetable()` is false, so targeting and aggro skip the unit. ABILITIES.md; built in AB10.
+- **Empowers** ("your next attack / next ability") are statuses tagged `empower` whose bonus HitPipeline adds into the hit (ABILITIES.md, Empowers); Iron Resolve becomes one in AB10.
 
 ### Sustain
 - Every champion starts with zero sustain (health_regen 0). Healing comes only from build choices: abilities, passives and items (life on hit, life steal, regen).
@@ -395,7 +399,6 @@ Items and affixes (LOOT.md); ability costs, recasts and augments (ABILITIES.md);
 
 ## Open questions
 - Weapons: a champion's combo will come from its equipped weapon, and its class limits which weapons it can wield (e.g. a bruiser like Darus can't use daggers); bruiser weapons are heavier, diver and rogue weapons snappier. Today the combo is set on AutoAttackComponent (LOOT.md / CHAMPIONS.md).
-- A stun during a cast interrupts it only if the caster is still stunned when the cast time ends (AbilityComponent checks then), though its header says "during the cast time". A short stun mid-cast lets the cast go off. Decide in ABILITIES.md.
 - Ranged basic attacks: design later (RANGED combos only get walk-cancel for now).
 - What attack_speed means for enemies (AutoAttackComponent).
 - Sustain caps (life steal cap? regen during combat?).
@@ -404,5 +407,4 @@ Items and affixes (LOOT.md); ability costs, recasts and augments (ABILITIES.md);
 - Confirm the armor formula; is penetration needed? Negative armor *(proposed: LoL's 2 − 100 / (100 − armor))*.
 - Life steal: basic attacks only *(proposed; built that way in C8)*, or every hit?
 - On-hit damage type: MAGIC *(proposed, built in C8)*, the triggering hit's type, or set per item?
-- "Your next <ability>" empowers (e.g. "your next Heavy Slam deals 30% bonus true damage") belong in ABILITIES.md (augments or ability buffs).
 - Which Knight abilities should ignore walls: CHAMPIONS.md / ABILITIES.md.

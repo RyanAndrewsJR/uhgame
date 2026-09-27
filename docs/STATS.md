@@ -105,13 +105,8 @@ modifiers:
 augments:  lunge_stuns   (ABILITIES.md)
 ```
 
-### Augments (behavior, summary)
-Defined fully in ABILITIES.md. An `AbilityAugment` targets an ability id or a tag and is one of:
-- **FLAG**: the ability checks `has_augment(&"lunge_stuns")`
-- **EVENT**: adds behavior on `cast` / `hit` / `end` / `kill`
-- **REPLACE**: swaps in a variant Ability
-
-Equipping an item gives its modifiers to `StatsComponent` and its augments to `AbilityComponent`, both under the item's `source_id`. Unequipping removes both.
+### Augments (behavior)
+Specified in ABILITIES.md, Augments (FLAG / EVENT / REPLACE, added and removed by source id). Equipping an item gives its modifiers to `StatsComponent` and its augments to `AbilityComponent`, both under the item's `source_id`. Unequipping removes both.
 
 ## Architecture (new files)
 - `res://scripts/data/stat_modifier.gd`: `StatModifier` Resource
@@ -146,5 +141,5 @@ Equipping an item gives its modifiers to `StatsComponent` and its augments to `A
 - Armor/MR formula: proposed `100 / (100 + armor)` in COMBAT.md; still to confirm there (COMBAT.md, Open questions).
 - Enemy scaling by dungeon depth via modifiers (source `&"dungeon_scaling"`)? Proposed: yes.
 - Champion-specific items dropping for other champions? Proposed: no (LOOT.md).
-- Does the same augment from two items stack? Proposed: no (ABILITIES.md).
+- ~~Does the same augment from two items stack? Proposed: no (ABILITIES.md).~~ Decided: no (ABILITIES.md, Augments).
 - *(proposed)* `knockback_resistance` stat, 0–1, scales displacement distance; bosses 1 (WORLD_INTERACTION.md, Knockback).

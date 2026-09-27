@@ -112,6 +112,7 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 | `docs/WORLD_INTERACTION.md` | abilities touching the world, collision layers, tile tags, interactables |
 | `docs/COMBAT.md` | basic attacks, hits and damage, damage types, crit and mitigation, status effects and CC, i-frames, hitstop/shake/flash, damage numbers, reaction rules, enemy attack damage and telegraphs |
 | `docs/STATS.md` | any stat, health/mana, champion base stats, modifiers from gear/buffs/levels, items changing ability numbers |
+| `docs/ABILITIES.md` | anything about abilities, casting, cast styles, charge-up, damage scalings, tooltips, ability tags, costs, cooldowns, charges, recasts, projectiles, augments, forms, empowers |
 | `docs/AUDIO.md` | any sound, music, the mix, volume settings |
 | `docs/CHANGELOG.md` | only when asked what was built or measured |
 | `docs/_TEMPLATE.md` | writing a new doc |
@@ -119,10 +120,10 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 ## Current status
 - **Now:** Waiting on Ryan's play test of AUDIO A3 (ability casts, Judgement's hit and ready ping, the elite's wind-up and slam, status sounds, the shield's break, the low-health heartbeat, the room cleared and "You died" stingers; all synthesized placeholders) and of "a swing counts once its hit has landed" and COMBAT C12. Still open: play tests of STATS steps 5–6, COMBAT C8–C11, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. AUDIO A3: ability, telegraph and status sounds (`Ability` cast / hit / telegraph / ready sounds, `AbilityComponent.cooldown_finished`, `Telegraph.play_sound()`, status apply / expire / loop in CombatSounds, the heartbeat on Player, stingers in main.gd; 16 more synthesized placeholders). Audio test 109/109, combat test 450/450, stats test 172/172.
-  2. AUDIO A2 (passed Ryan's play test): combat sounds (CombatSounds: one hit sound per swing or cast, crit layer, shield absorb, hurt, deaths, the end-of-frame pack burst).
-  3. AUDIO A1 (passed; 10 ms output latency on WASAPI): plumbing (bus layout, SoundEvent, AudioMix, the Audio autoload, Settings volumes and pause-menu sliders).
-- **Next:** AUDIO is built through A3; its later steps come with their systems (LOOT, CHAMPIONS, ENEMIES_AI, DUNGEONS, UI). Real CC0 files can replace the placeholders any time (same names). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order (ABILITIES.md next).
+  1. `docs/ABILITIES.md` written (docs only): cast styles (INSTANT / CHARGE_UP / CHANNEL), quick cast mode as a setting, the at-once stun interrupt, League damage scalings, tooltips from data, role tags (`generator`, `core`, `defensive`, `mobility`, `ultimate`), costs, charges, recasts, projectiles, augments (FLAG / EVENT / REPLACE), free casts, forms, empowers, unstoppable / untargetable, the toolkit, the spec sheet, build order AB1–AB11 + AB-M. The cast movement rules moved there from MOVEMENT.md.
+  2. AUDIO A3: ability, telegraph and status sounds (`Ability` cast / hit / telegraph / ready sounds, `AbilityComponent.cooldown_finished`, `Telegraph.play_sound()`, status apply / expire / loop in CombatSounds, the heartbeat on Player, stingers in main.gd; 16 more synthesized placeholders). Audio test 109/109, combat test 450/450, stats test 172/172.
+  3. AUDIO A2 (passed Ryan's play test): combat sounds (CombatSounds: one hit sound per swing or cast, crit layer, shield absorb, hurt, deaths, the end-of-frame pack burst).
+- **Next:** ABILITIES build order, one step per request: AB1 (cast style, the stun interrupt, cast mode setting) → AB2 (scalings, tooltips, tags) → AB3 (costs, resource bar, fail cues) → AB4 (charges) → AB5 (recasts) → AB6 (charge-up) → AB7 (projectiles) → AB8 (augments, new GameplayEffects) → AB9 (forms, proposed) → AB10 (empowers, unstoppable, untargetable) → AB11 (the Knight rebuilt from toolkit pieces; ask first) → milestone AB-M (augment playground). AUDIO's later steps come with their systems; real CC0 files can replace the placeholders any time (same names). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order (CHAMPIONS.md next).
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.
@@ -135,8 +136,8 @@ All decisions, grouped by system with date and why, are in `docs/DECISIONS.md`.
 
 ## Future docs (write each one when you START that system)
 1. ~~`COMBAT.md`~~: written 2026-09-26 (see Docs index).
-2. `ABILITIES.md`: Ability framework, cooldowns, costs, recasts, augments (items changing ability behavior). Move the cast movement properties (`roots_during_cast`, `cast_move_speed_multiplier`, `cancel_on_move`, `dash_cancelable`) here from MOVEMENT.md, "Input buffering and cancels".
-3. `CHAMPIONS.md`: ChampionData, passives, one section per champion (Knight first). Audio hooks: see AUDIO.md.
+2. ~~`ABILITIES.md`~~: written 2026-09-26 (see Docs index).
+3. `CHAMPIONS.md`: ChampionData, passives, one section per champion (Knight first). Passives: stat modifiers, unit reaction rules, statuses, empowers and an optional script under a source id, built on the ABILITIES.md toolkit. Also decides the Knight's resource type, role tags, and Judgement's cast time and cooldown (ABILITIES.md, Numbers). Audio hooks: see AUDIO.md.
 4. `LOOT.md`: item bases, rarities, affix pools, drop tables. Audio hooks: see AUDIO.md.
 5. `ENEMIES_AI.md`: behaviors, aggro, elites, spawning
 6. `DUNGEONS.md`: room stitching, run structure. Audio hooks: see AUDIO.md.

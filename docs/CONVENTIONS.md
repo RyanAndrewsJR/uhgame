@@ -30,7 +30,14 @@
 ## Vocabulary (use these words, not synonyms)
 - **Unit**: anything using `Unit` (champions, enemies, summons). Not "entity", "actor", or "character".
 - **Champion**: a playable kit. **Enemy**: a hostile Unit (**elite**, **boss** are enemy tiers).
-- **Ability**: a castable action in a slot. **Passive**: always-on champion behavior. **Augment**: an item-granted change to an ability's behavior.
+- **Ability**: a castable action in a slot. **Passive**: always-on champion behavior. **Augment**: a change to an ability's behavior granted by a source (an item, a passive, a status), added and removed by source id (ABILITIES.md).
+- **Cast style**: how an ability's key works, per ability: INSTANT, CHARGE_UP, CHANNEL. **Cast mode**: the player's setting for INSTANT abilities: QUICK (cast on press) or QUICK_WITH_INDICATOR (hold to aim, release to cast).
+- **Charge-up**: holding an ability's key to power a cast (range, damage) before releasing it. **Charge**: a stored cast of an ability (`max_charges`), recharging over its cooldown. Never mix the two: "charges" are stored casts, "charge-up" / `charge` on a CastContext is the hold.
+- **Channel**: a cast the caster must stand still through; moving cancels it. **Recast**: pressing an ability's slot again inside its recast window to cast its next part.
+- **Empower**: a status that makes the next basic attack or next ability stronger ("your next attack"), consumed once per swing or cast. **Form**: a status that swaps several ability slots at once (Nidalee, Jayce, Druid shapeshifts).
+- **Unstoppable**: immune to crowd control and knockback from hits (status tag `unstoppable`). **Untargetable**: can't be hit or targeted (status tag `untargetable`).
+- **Generator**: an ability role (Diablo 4's "basic" skills that build a resource). It is not the **basic attack**.
+- **Free cast**: a cast granted by a `CastAbilityGameplayEffect`: no cost, cooldown, slot or cast time.
 - **Basic attack**: the design term. The code keeps `AutoAttackComponent`.
 - **Hit**: one application of damage/effects to a unit, described by a `HitContext`.
 - **Damage type**: `PHYSICAL`, `MAGIC`, `TRUE`.
@@ -60,7 +67,16 @@ Anything that can take part in an interaction carries tags:
 - units (their active status effects add tags like `oiled`, `burning`, `displaced`)
 
 Cross-system interactions are **`ReactionRule`** Resources: *trigger* + *required tags* → list of **`GameplayEffect`**s.
-Planned triggers *(spec in COMBAT.md, ReactionRule; list also in WORLD_INTERACTION.md)*: `IMPACT`, `HIT`, `HAZARD_ENTERED`, `HAZARD_EXITED`, `STATUS_APPLIED`, `UNIT_DIED`, `HAZARD_OVERLAP` (hazard meets hazard, e.g. fire + oil).
+Planned triggers *(spec in COMBAT.md, ReactionRule; list also in WORLD_INTERACTION.md)*: `IMPACT`, `HIT`, `HAZARD_ENTERED`, `HAZARD_EXITED`, `STATUS_APPLIED`, `UNIT_DIED`, `HAZARD_OVERLAP` (hazard meets hazard, e.g. fire + oil), and `ABILITY_CAST` (from `Events.ability_cast`; ABILITIES.md).
+
+#### Standard ability tags (ABILITIES.md)
+- **Role** (exactly one per ability, Diablo 4's categories): `generator`, `core`, `defensive`, `mobility`, `ultimate`.
+- **Shape:** `area`, `projectile`, `line`, `cone`, `dash`.
+- **Style:** `charge_up`, `channel` (must match the ability's `cast_style`).
+- **Element** (the list is an open question): `fire`, `cold`, `lightning`, `poison`, `shadow`, `holy`.
+- Existing tags stay as they are (Lunge's `movement`, Iron Resolve's `buff`).
+- Status tags used by ability rules: `empower`, `unstoppable`, `untargetable`, `form`. Hit tag: `empowered` (a hit that got an empower's bonus).
+- Scopes use them: `tag:core`, `hit:empowered`.
 Adding an interaction should mean adding a `.tres`. Code changes are only needed for a new trigger type or a new GameplayEffect type.
 
 ### 2. Context objects at every seam
@@ -91,7 +107,7 @@ Example: since `StatusComponent` (COMBAT C9), `Unit.apply_stun()` and `add_speed
 |---|---|---|
 | `Events` | global signal bus autoload | here |
 | `WorldQuery`, `SurfaceTags` | spatial queries, surface tags | WORLD_INTERACTION.md |
-| `Settings`, `PauseMenu` | the player's own options autoload (saved to `user://settings.cfg`) and the Esc pause menu that edits them (both exist) | MOVEMENT.md (Dash) until UI.md |
+| `Settings`, `PauseMenu` | the player's own options autoload (saved to `user://settings.cfg`) and the Esc pause menu that edits them (both exist) | MOVEMENT.md (Dash), ABILITIES.md (cast mode) until UI.md |
 | `StatsComponent`, `StatModifier`, `StatDefinition`, `StatRegistry`, `ResourceComponent`, `ChampionData` | stats (the first four exist) | STATS.md |
 | `HitContext`, `DamageType` (enum `HitContext.DamageType`), `ImpactContext`, `HitPipeline` | the hit pipeline | COMBAT.md |
 | `AttackSwing`, `AttackCombo` | basic attack combo data | COMBAT.md |
@@ -102,7 +118,11 @@ Example: since `StatusComponent` (COMBAT C9), `Unit.apply_stun()` and `add_speed
 | `ReactionRule`, `GameplayEffect` (+ subclasses like `ApplyStatusGameplayEffect`) | cross-system interactions | COMBAT.md |
 | `Reactions` | autoload that fires reaction rules (world rules from `data/reactions/world/`, unit rules from `Unit.add_reaction_rule()`) (exists) | COMBAT.md |
 | `Hazard` | floor areas with tags | WORLD_INTERACTION.md |
-| `AbilityAugment` | item-driven ability behavior | ABILITIES.md |
+| `AbilityAugment` | source-granted ability behavior (FLAG, EVENT, REPLACE); files `data/augments/augment_<name>.tres` | ABILITIES.md |
+| `DamageScaling`, `ChargeScaling` | one damage ratio term on an ability; one param that grows with a charge-up | ABILITIES.md |
+| `Projectile` | the shared projectile piece (Node2D, `scripts/abilities/projectile.gd`) | ABILITIES.md |
+| `ModifyCooldownGameplayEffect`, `RestoreResourceGameplayEffect`, `CastAbilityGameplayEffect`, `RemoveStatusesByTagGameplayEffect` | GameplayEffects for augments, passives and items (cooldowns, resource, free casts, cleanse) | ABILITIES.md |
+| `SandboxAbilities`, `SandboxAugments` | sandbox-only demo nodes (costs and test abilities; the augment playground) | ABILITIES.md |
 | `Audio`, `SoundEvent`, `AudioMix`, `CombatSounds` | the audio autoload, one sound's data, the mix-wide numbers, the Events listener that plays hit, death and status sounds | AUDIO.md |
 
 ## Worked example: "knocking an enemy into a wall or oil stuns or debuffs it"

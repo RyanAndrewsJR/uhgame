@@ -43,7 +43,7 @@ Every hit has a crunch you feel as much as see; the finisher and kills land heav
 ## Hooks (optional SoundEvent fields; null = silent)
 - AttackSwing: `swing_sound` (at swing start, plays even on a whiff), `hit_sound` (on landing, through `HitContext.hit_sound`). The Knight's swings pitch up slightly across the combo (`sound_pitch`); the finisher has its own heavier hit.
 - HitFeel: light, heavy and kill hit sounds (the default for hits without their own; feel NONE uses the light one), plus a crit layer on top of any crit, and the shield absorb sound.
-- Ability: `cast_sound` (cast start), `hit_sound` (per cast that lands, not per target), `telegraph_sound` (a wind-up owned by the Telegraph), `ready_sound` (when its cooldown ends; the Knight's R).
+- Ability: `cast_sound` (cast start), `hit_sound` (per cast that lands, not per target), `telegraph_sound` (a wind-up owned by the Telegraph), `ready_sound` (when its cooldown ends; the Knight's R), `charge_sound` (a loop on the caster while a CHARGE_UP ability charges; stops on release, cancel or interrupt; ABILITIES.md AB6).
 - StatusEffect: `apply_sound`, `expire_sound`, `loop_sound`.
 - Shield absorb (`HitFeel.shield_absorb_sound`, the moment C10's shield number shows).
 - Dash start (`DashComponent.dash_sound`). Player hurt (`Unit.hurt_sound`). Enemy death, per enemy type (`Unit.death_sound`, set in each enemy scene). Low-health heartbeat (`Player.low_health_sound`).
@@ -121,6 +121,7 @@ The mix-wide numbers, like HitFeel for GameFeel:
 | `DashComponent` | `dash_sound` | A2 |
 | `Unit` (export group "Sounds") | `hurt_sound` (player; later elites and bosses), `death_sound` (per enemy scene) | A2 |
 | `Ability` | `cast_sound`, `hit_sound`, `telegraph_sound`, `ready_sound` | A3 |
+| `Ability` | `charge_sound` (a loop; the SoundEvent's `loop` on) | ABILITIES AB6 |
 | `StatusEffect` | `apply_sound`, `expire_sound`, `loop_sound` | A3 |
 | `Player` | `low_health_sound`, `low_health_fraction` (0.25) | A3 |
 | `main.gd` | `room_cleared_sound`, `player_died_sound` | A3 |
@@ -208,6 +209,7 @@ Listens to Events; the only place hit, death and status sounds are played. `rese
 | `Ability.hit_sound` | `HitPipeline.from_ability()` → `Events.unit_hit` | CombatSounds | SFX, target | A3 |
 | `Ability.telegraph_sound` | after `Ability.on_cast_started()` sets `ctx.telegraph` | Telegraph | SFX, telegraph, 640 px | A3 |
 | `Ability.ready_sound` | `AbilityComponent.cooldown_finished` | AbilityComponent | the event's bus, centered | A3 |
+| `Ability.charge_sound` | `AbilityComponent` from `charge_started` until release, cancel or interrupt (`play_on` the caster, stopped by handle) | AbilityComponent | SFX, caster (centered for the player), loop | ABILITIES AB6 |
 | `StatusEffect.apply_sound` / `loop_sound` | `Events.status_applied` | CombatSounds | SFX, the unit (loop follows it) | A3 |
 | `StatusEffect.expire_sound` | `Events.status_removed` (unit alive) | CombatSounds | SFX, the unit | A3 |
 | `Player.low_health_sound` | `HealthComponent.health_changed` | Player | SFX, centered, loop | A3 |
