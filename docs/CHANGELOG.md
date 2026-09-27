@@ -11,6 +11,11 @@
 
 ## Combat (COMBAT.md)
 
+### A swing counts once its hit has landed: 2026-09-27, Built (awaiting play test)
+**Rule change** (Ryan, 2026-09-27; COMBAT.md, Basic attack): every cancel the player chooses after a swing's hit has landed (walking, a dash, an ability cutting the recovery) keeps the combo; the index advances as if the swing had finished and `combo_reset_time` counts from the cancel. Windup cancels and forced interruptions (stun, death) still reset it. Planned first, then built as its own small step.
+
+`AutoAttackComponent.cancel_swing(keep_combo_if_landed = false)` and `_get_index_after_swing()` (shared with `_finish_swing()`); `DashComponent.try_dash()` passes true; `add_lock()` passes it only for the casting lock (`CASTING_LOCK`). Walking needed no change (it only ends the root; the swing still finishes). Combat test 450/450: 2 C2 checks updated (a dash or a Q in the recovery now leaves swing 2 next instead of swing 1) and 11 new checks (hit, dash in the recovery, click: swing 2; dash in the windup, click: swing 1; right after the dash swing 2 is next and 0.75 s later swing 1; a finisher dashed out of after its hit keeps its breather and swing 1 is next; dashing out of a landed dash-strike leaves the interrupted swing next; swing 1 hits, Q (AFTER_HIT) cuts its recovery, a click gives swing 2; an ANYTIME Q in swing 2's windup resets to swing 1; a stun after the hit still resets). Stats test 172/172; headless in-game check 43/43; `main.tscn` and `sandbox_main.tscn` run 600 frames with no errors.
+
 ### C12 – Dash-strike: 2026-09-27, Built (awaiting play test)
 **C12 – Dash-strike.** Decided in an interview first (DECISIONS.md, Combat): its own strong swing per champion, doesn't count as a combo hit, the Knight's 1.5 × AD with a 16 px step (other classes in CHAMPIONS.md), window 0.15 s.
 

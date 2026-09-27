@@ -112,11 +112,11 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 | `docs/_TEMPLATE.md` | writing a new doc |
 
 ## Current status
-- **Now:** Waiting on Ryan's play test of COMBAT C12 (dash, then click within 0.15 s: a heavier thrust for 96; the combo continues after it). Open question from C12: should a dash out of a landed swing's recovery keep the combo (COMBAT.md)? Still open: play tests of STATS steps 5–6, COMBAT C8–C11, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of "a swing counts once its hit has landed" (dash or Q out of a swing's recovery keeps the combo) and COMBAT C12 (dash-strike). Still open: play tests of STATS steps 5–6, COMBAT C8–C11, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. COMBAT C12: dash-strike. The Knight's `dash_strike` swing (1.5 AD, 16 px step, heavy thrust), index −1 and a `dash_strike` hit tag, the combo resumes after it, window 0.15 s. Combat test 439/439, stats test 172/172, in-game check 43/43.
-  2. COMBAT C11: reaction rules (`ReactionRule`, four GameplayEffects, the `Reactions` autoload, world and unit rules, per-rule `chain_limit` capped at 5, a sandbox-only Shatter demo).
-  3. Telegraph fix (passed Ryan's play test): a caster that dies or is freed mid-cast takes its telegraph with it.
+  1. A swing counts once its hit has landed: player cancels after the hit (walk, dash, an ability cutting the recovery) keep the combo; windup cancels, stuns and death reset it (`cancel_swing(keep_combo_if_landed)`). Combat test 450/450, stats test 172/172, in-game check 43/43.
+  2. COMBAT C12: dash-strike (the Knight's heavy thrust, 1.5 AD, 16 px step; index −1, `dash_strike` hit tag; the combo resumes after it; window 0.15 s).
+  3. COMBAT C11: reaction rules (`ReactionRule`, four GameplayEffects, the `Reactions` autoload, world and unit rules, `chain_limit` capped at 5, a sandbox-only Shatter demo).
 - **Next:** COMBAT is built through C12. AUDIO A1–A3 (plumbing, combat sounds, abilities and statuses). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order (ABILITIES.md next).
 
 ## Known issues (leave for now)
