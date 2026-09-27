@@ -71,10 +71,16 @@ func _draw() -> void:
 		draw_rect(rect, Color(ability.icon_color.darkened(0.55)))
 		draw_rect(rect.grow(-3), Color(ability.icon_color.darkened(0.25)))
 		var frac := abilities.get_cooldown_fraction(slot)
-		if frac <= 0.0:
+		var charges := abilities.get_charges(slot)
+		var max_charges := abilities.get_max_charges(slot)
+		if charges > 0:
 			var initials := _initials(ability.display_name)
 			draw_string(_font, rect.position + Vector2(0, SLOT * 0.62), initials,
 				HORIZONTAL_ALIGNMENT_CENTER, SLOT, 11, Color(1, 1, 1, 0.95))
+			if frac > 0.0:
+				# A charge is recharging while others are stored: a thin bar
+				# along the bottom fills up as it comes back.
+				draw_rect(Rect2(rect.position + Vector2(0, SLOT - 2), Vector2(SLOT * (1.0 - frac), 2)), Color(1, 1, 1, 0.7))
 		else:
 			# Cooldown sweep (dark overlay shrinking from the top) + seconds.
 			draw_rect(Rect2(rect.position, Vector2(SLOT, SLOT * frac)), Color(0, 0, 0, 0.7))
@@ -82,6 +88,10 @@ func _draw() -> void:
 			var txt := "%.1f" % left if left < 1.0 else str(ceili(left))
 			draw_string(_font, rect.position + Vector2(0, SLOT * 0.62), txt,
 				HORIZONTAL_ALIGNMENT_CENTER, SLOT, 12, Color(1, 1, 1))
+		if max_charges > 1 or charges > 1:
+			# Stored charges, bottom right (only for abilities with charges).
+			draw_string(_font, rect.position + Vector2(0, SLOT - 3), str(charges),
+				HORIZONTAL_ALIGNMENT_RIGHT, SLOT - 2, 9, Color(1, 1, 1))
 
 		# Can't cast right now: grey while stunned or silenced, blue while
 		# the cost can't be paid.
@@ -127,7 +137,9 @@ func _draw_tooltip(i: int) -> void:
 	var cd := abilities.get_cooldown_duration(ability)
 	var cost := abilities.get_cost(ability)
 	var cost_text := "   Cost %s" % _num(cost) if cost > 0.0 else ""
-	draw_string(_font, rect.position + Vector2(6, 22), "Cooldown %ss%s%s" % [_num(cd), cost_text, "   Auto reset" if ability.resets_auto_attack else ""],
+	var max_charges := abilities.get_max_charges(slot)
+	var charges_text := "   %d charges" % max_charges if max_charges > 1 else ""
+	draw_string(_font, rect.position + Vector2(6, 22), "Cooldown %ss%s%s%s" % [_num(cd), cost_text, charges_text, "   Auto reset" if ability.resets_auto_attack else ""],
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(0.75, 0.75, 0.8))
 	for li in lines.size():
 		draw_string(_font, rect.position + Vector2(6, 34 + li * 10), lines[li], HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(1, 1, 1, 0.9))

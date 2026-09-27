@@ -14,6 +14,9 @@ extends Node2D
 ## resource" failing at once and never buffered, the fail reasons, a
 ## buffered press that runs out reporting why, and the HUD cues (the
 ## resource bar and the slot flashes).
+## AB4: charges (max_charges 1 = the old cooldown, a scoped +1 gives two casts
+## back to back, one recharge at a time, the ready ping only at 0 -> 1, a
+## lowered max keeping extra charges, refunds giving the charge back).
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
@@ -62,11 +65,13 @@ func _ready() -> void:
 	await _test_costs()
 	await _test_fail_cues()
 	await _test_hud_cues()
+	print("\n=== Abilities test (ABILITIES AB4) ===")
+	await _test_charges()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).
 	Audio.stop_all()
-	await _frames(1)
+	await _frames(10)
 	if DisplayServer.get_name() == "headless":
 		get_tree().quit(_failed)
 
@@ -524,6 +529,116 @@ func _test_hud_cues() -> void:
 	hud.queue_free()
 	knight.stats_component.remove_modifiers_from(COST_SOURCE)
 	knight.resource_pool.restore(1000.0)
+
+
+# --- AB4 ------------------------------------------------------------------------
+
+func _test_charges() -> void:
+	_section("AB4: charges")
+	await _reset_knight()
+	var ab := knight.abilities
+	_check("every ability has 1 charge by default",
+		[CLEAVE.max_charges, IRON_RESOLVE.max_charges, LUNGE.max_charges, JUDGEMENT.max_charges, SLAM.max_charges], [1, 1, 1, 1, 1])
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 240)
+	_check("the Knight's Q: 1 of 1", [ab.get_charges(&"q"), ab.get_max_charges(&"q")], [1, 1])
+
+	# A quick test ability on Q: 0.5 s cooldown, no cast time.
+	var quick: Ability = CLEAVE.duplicate()
+	quick.id = &"test_charges"
+	quick.cooldown = 0.5
+	quick.cast_time = 0.0
+	var original_q := ab.q
+	ab.q = quick
+	var ready_count := [0]
+	var changes: Array = []
+	var on_ready := func(slot: StringName, _a: Ability) -> void:
+		if slot == &"q":
+			ready_count[0] += 1
+	var on_changed := func(slot: StringName, charges: int, maximum: int) -> void:
+		if slot == &"q":
+			changes.append([charges, maximum])
+	ab.cooldown_finished.connect(on_ready)
+	ab.charges_changed.connect(on_changed)
+	var aim := knight.global_position + Vector2(40, 0)
+
+	# max_charges 1 works exactly like the old cooldown.
+	ab.try_cast(&"q", aim)
+	_check("1 charge: cast -> 0, not ready, a 0.5 s timer",
+		[ab.get_charges(&"q"), ab.is_ready(&"q"), snappedf(ab.get_cooldown_left(&"q"), 0.001)], [0, false, 0.5])
+	var frames := 0
+	while not ab.is_ready(&"q") and frames < 60:
+		await get_tree().physics_frame
+		frames += 1
+	_check("ready again after 0.5 s (30-31 frames), one cooldown_finished", [frames >= 30 and frames <= 31, ready_count[0]], [true, 1])
+	_check("charges_changed: 0, then 1", changes, [[0, 1], [1, 1]])
+
+	# +1 charge from a scoped modifier (like an item).
+	var item := &"item_test_charges"
+	knight.stats_component.add_modifier(StatModifier.create(&"max_charges", StatModifier.Type.FLAT, 1.0, item, &"ability:test_charges"))
+	_check("+1 max_charges: 1 of 2, and the second charge starts recharging",
+		[ab.get_charges(&"q"), ab.get_max_charges(&"q")], [1, 2])
+	await _frames(32)
+	_check("0.5 s later: 2 of 2, no ready ping (it wasn't at 0)", [ab.get_charges(&"q"), ready_count[0]], [2, 1])
+	_check("{charges} in a tooltip", _with_description(quick, "{charges} charges").get_tooltip_plain(knight), "2 charges")
+
+	# Two casts back to back; charges come back one at a time.
+	ab.try_cast(&"q", aim)
+	_check("first cast: 1 left, still ready", [ab.get_charges(&"q"), ab.is_ready(&"q")], [1, true])
+	ab.try_cast(&"q", aim)
+	_check("second cast right after: 0 left, the running timer isn't restarted",
+		[ab.get_charges(&"q"), ab.is_ready(&"q"), snappedf(ab.get_cooldown_left(&"q"), 0.001)], [0, false, 0.5])
+	await _frames(31)
+	_check("0.5 s: one charge back (0 -> 1 pings once), the next one recharging",
+		[ab.get_charges(&"q"), ready_count[0], ab.get_cooldown_left(&"q") > 0.4], [1, 2, true])
+	await _frames(31)
+	_check("1 s: both back, no second ping", [ab.get_charges(&"q"), ready_count[0], ab.get_cooldown_left(&"q")], [2, 2, 0.0])
+
+	# Removing the item leaves the extra charge until it's spent.
+	knight.stats_component.remove_modifiers_from(item)
+	await _frames(1)
+	_check("item removed at 2 charges: max 1, the 2 stay, nothing recharges",
+		[ab.get_max_charges(&"q"), ab.get_charges(&"q"), ab.get_cooldown_left(&"q")], [1, 2, 0.0])
+	ab.try_cast(&"q", aim)
+	_check("spend one: 1 left (at max: no timer)", [ab.get_charges(&"q"), ab.get_cooldown_left(&"q")], [1, 0.0])
+	ab.try_cast(&"q", aim)
+	_check("spend the other: 0, the recharge starts", [ab.get_charges(&"q"), snappedf(ab.get_cooldown_left(&"q"), 0.001)], [0, 0.5])
+	await _wait_until(func() -> bool: return ab.is_ready(&"q"), 60)
+
+	# Refunds give the charge back.
+	var slow: Ability = quick.duplicate()
+	slow.cast_time = 0.3
+	ab.q = slow
+	knight.stats_component.add_modifier(StatModifier.create(&"max_charges", StatModifier.Type.FLAT, 1.0, item, &"ability:test_charges"))
+	await _wait_until(func() -> bool: return ab.get_charges(&"q") == 2, 60)
+	var pings: int = ready_count[0]
+	ab.try_cast(&"q", aim)
+	await _frames(3)
+	knight.apply_stun(0.1)
+	_check("full, cast, stunned in the cast time: back to 2, no timer, no ping",
+		[ab.get_charges(&"q"), ab.get_cooldown_left(&"q"), ready_count[0]], [2, 0.0, pings])
+	await _wait_until(func() -> bool: return not knight.is_stunned(), 30)
+	ab.try_cast(&"q", aim)
+	await _wait_until(func() -> bool: return not ab.casting, 30)   # 1 left, recharging
+	await _frames(6)
+	var left := ab.get_cooldown_left(&"q")
+	ab.try_cast(&"q", aim)
+	await _frames(3)
+	knight.apply_stun(0.1)
+	_check("1 left and recharging, cast, stunned: 1 again, the recharge kept its progress",
+		[ab.get_charges(&"q"), ab.get_cooldown_left(&"q") < left, ab.get_cooldown_left(&"q") > 0.0], [1, true, true])
+
+	knight.stats_component.remove_modifiers_from(item)
+	ab.cooldown_finished.disconnect(on_ready)
+	ab.charges_changed.disconnect(on_changed)
+	await _wait_until(func() -> bool: return not knight.is_stunned(), 30)
+	await _wait_until(func() -> bool: return ab.get_charges(&"q") >= 1, 60)
+	ab.q = original_q
+
+
+func _with_description(ability: Ability, text: String) -> Ability:
+	var copy: Ability = ability.duplicate()
+	copy.description = text
+	return copy
 
 
 func _add_costs(costs: Dictionary) -> void:

@@ -320,7 +320,7 @@ All take the usual `apply(target, source, trigger_ctx)`; the source id is the ru
 ### Test and sandbox data
 - `res://scenes/tests/abilities_test.tscn` + `scripts/tests/abilities_test.gd` (AB1): PASS/FAIL per check, headless exit code = failures, like the stats and combat tests.
 - Test abilities (champion `test`): `scripts/abilities/test/`, `data/abilities/test_<slot>_<name>.tres`: `test_triple_step` (a 3-part recast, AB5), `test_charged_line` (a Xerath-style line, AB6), `test_bolt` (a projectile, AB7).
-- `SandboxAbilities` node in `sandbox.tscn` (`res://scripts/rooms/sandbox_abilities.gd`, source `&"sandbox_demo"`, AB3): `demo_costs` (on) and `costs` (ability id → cost: Cleave 30, Iron Resolve 40, Lunge 50, Judgement 80), given as scoped FLAT `resource_cost` modifiers so the bar and the fail cue can be played; room_01 has none. AB5 adds `test_q: Ability` (null = the Knight's Q; set to a test ability in the Inspector to try it on Q).
+- `SandboxAbilities` node in `sandbox.tscn` (`res://scripts/rooms/sandbox_abilities.gd`, source `&"sandbox_demo"`, AB3): `demo_costs` (on) and `costs` (ability id → cost: Cleave 30, Iron Resolve 40, Lunge 50, Judgement 80), given as scoped FLAT `resource_cost` modifiers so the bar and the fail cue can be played; room_01 has none. AB4: `demo_charges` (on) and `extra_charges` (ability id → extra charges: Lunge +1), scoped FLAT `max_charges`. AB5 adds `test_q: Ability` (null = the Knight's Q; set to a test ability in the Inspector to try it on Q).
 - AB-M: `knight/cleave_wave.gd` + `knight_q_cleave_wave.tres` (id `knight_cleave_wave`, `variant_of` `knight_cleave`); augments `augment_lunge_stuns.tres`, `augment_cleave_wave.tres`, `augment_judgement_reset.tres`, `augment_cleave_casts_lunge.tres`; a `SandboxAugments` node (`res://scripts/rooms/sandbox_augments.gd`) holding four fake items (source ids `item_test_<name>`), toggled with the number keys 1–4 read as raw keys in that sandbox-only script (no input action).
 
 ## Architecture / contracts
@@ -350,14 +350,14 @@ Signals (new): `charges_changed(slot, charges, max_charges)`, `charge_started(sl
 
 ### The cast flow (INSTANT and CHANNEL), in order
 1. `try_cast()`: the active ability; an open recast window makes this the next part. Ready (a charge, or a recast part), `can_cast`, `can_afford` (`resource_cost` for part 0, `recast_resource_cost` after; a unit without `resource_pool` always affords). Targeting as today; a UNIT cast walking into range pays nothing until it starts.
-2. Save the slot's state (charges, recharge timer, recast window) for a refund.
+2. Note what a refund must give back: the charge taken (step 5) and the cost (step 4).
 3. Snapshot the augments: `ctx.ability`, `ctx.flags` (active FLAG augments this ability supports).
 4. Pay the cost (`resource_pool.try_spend()`).
 5. Part 0 without recasts: take a charge; if the recharge timer isn't running, start it (`get_cooldown_duration()`: scoped `cooldown`, then haste). With recasts: take the charge, but its recharge starts when the sequence ends (Charges and recasts, below).
 6. Locks and walking as today (`&"casting"`; CHANNEL = `cancel_on_move` rules).
 7. `cast_sound`, `cast_started`, `on_cast_started()` (telegraph) and its `telegraph_sound`.
 8. `Events.ability_cast(unit, ability, ctx)` (AB8): ABILITY_CAST rules fire now; free casts they trigger are queued on this cast.
-9. The cast time. A stun (any `blocks_cast` status) applied now interrupts at once (StatusComponent's `status_applied`, AB1): `interrupt_cast()` restores the saved state and refunds the cost; queued free casts are dropped. A dash or move cancel works the same way (`_cancel_cast()`).
+9. The cast time. A stun (any `blocks_cast` status) applied now interrupts at once (StatusComponent's `status_applied`, AB1): `interrupt_cast()` gives the charge back and refunds the cost; queued free casts are dropped. A dash or move cancel works the same way (`_cancel_cast()`).
 10. Effect start: consume ability empowers (`ctx.empowers`, AB10), run the queued free casts, then `execute()`. Nothing is refunded from here.
 11. Cleanup as today; `cast_finished`. A recast ability opens (or closes) its window here.
 
@@ -369,7 +369,7 @@ Signals (new): `charges_changed(slot, charges, max_charges)`, `charge_started(sl
 5. UNIT targeting isn't supported for CHARGE_UP (`push_error` on load).
 
 ### Charges and recasts
-- Recharge: while `charges < max_charges`, the timer counts down one cooldown (`get_cooldown_duration()` at the moment it starts); at 0, +1 charge and, if still below max, it starts again. A lower max (an item removed) leaves extra charges until they're spent; a higher max starts recharging (like DashComponent).
+- Recharge (AB4, built): while `charges < max_charges`, the timer counts down one cooldown (`get_cooldown_duration()` at the moment it starts); at 0, +1 charge and, if still below max, it starts again. A cast takes a charge and starts the timer only if none is running and the slot is now below max. A lower max (an item removed) leaves extra charges until they're spent, with no timer; a higher max starts recharging (like DashComponent). A slot starts full the first time it's asked. `get_cooldown_left()` is the time to the next charge. `cooldown_finished` (and the ready ping) fire only when a slot goes from 0 charges to 1. A refund gives back the one charge the cast took: back at max the timer stops (with 1 charge: the old cooldown refund), below max a running recharge keeps its progress.
 - Recasts: part 0 takes a charge; its recharge doesn't start. When part 0's cast finishes, the window opens (`recast_window`, game time). A press on the slot inside the window casts part 1 (no charge needed, `recast_resource_cost`), and so on up to `recast_count`. The window pauses while a part is being cast and restarts after each part. The sequence ends when the last part finishes or the window runs out; then the recharge starts. A recast ability should have `max_charges` 1; with more, the recharge timer pauses during a sequence.
 
 ### Input (Player, PlayerInput)
@@ -429,7 +429,7 @@ Signals (new): `charges_changed(slot, charges, max_charges)`, `charge_started(sl
 ### HUD (ability bar and hud)
 - AB2: tooltip from `get_tooltip_plain()`.
 - AB3 (built): the resource bar (`res://scripts/ui/resource_bar.gd`, added by `hud.gd`'s `setup_abilities()` only when the player has a `resource_pool`): a 132 × 4 px bar just under the ability bar (the health readout is text at the top, so the bar sits with the slots), colored by `resource_type` (mana blue, energy yellow, fury red), the current amount beside it; it blinks for 0.2 s on `"not enough resource"`. On the slots: a red flash (0.2 s) on `"not ready"` or `"silenced"`; a grey tint while the player can't cast (stunned, silenced); a blue tint while the slot's cost can't be paid. The tooltip header shows "Cost N" when the cost is above 0. A cue shows when a press is dropped: `"not enough resource"` at once (never buffered), any other reason when its buffer runs out (`PlayerInput` → `AbilityComponent.fail_cast(slot, get_fail_reason(slot))`).
-- AB4: the charge count (small number) on a slot with `max_charges` > 1; the dark sweep only at 0 charges, a thin recharge bar otherwise.
+- AB4 (built): the charge count (small number, bottom right) on a slot with `max_charges` > 1 (or extra charges left over); the dark sweep and seconds only at 0 charges, otherwise the initials and a 2 px bar along the bottom that fills as the next charge comes back; "N charges" in the tooltip header.
 - AB5: a gold border and a shrinking bar while a recast window is open.
 - AB6: a charge-up bar on the slot (fills to full, then shows the overhold running out); the indicator grows with the charge.
 
@@ -446,7 +446,7 @@ Signals (new): `charges_changed(slot, charges, max_charges)`, `charge_started(sl
 | Edge case | Handling |
 |---|---|
 | A recast pressed during the cast time | The slot is casting, so the press is buffered (the buffer pauses during casts) and fires as the next part the moment the cast finishes and the window opens. |
-| A charge refunded on cancel | Cancel and interrupt restore the slot state saved at cast start: the charge count and the recharge timer as they were, and the cost. A refund never pings `ready_sound`. |
+| A charge refunded on cancel | Cancel and interrupt give back the charge the cast took (and the cost). Back at max, the recharge timer stops; below max, a recharge that was already running keeps its progress (time that passed during the cast time isn't lost). A refund never pings `ready_sound`. |
 | An augment removed mid-cast | The cast keeps what it snapshotted at its start (`ctx.ability`, `ctx.flags`); the change applies from the next cast. The removed augment's EVENT rules are gone at once, so they can't fire later in that cast. |
 | A REPLACE equipped while the slot is on cooldown | The slot's charges and recharge timer carry over; the variant is ready when the slot would have been. |
 | A REPLACE equipped mid-charge-up or mid-cast | The running cast or charge finishes as the old ability (snapshotted). The slot shows the variant afterwards. An open recast window stays with the old ability until it closes. |
@@ -484,6 +484,7 @@ Every step: with no cast style changes, scalings beyond today's, costs, charges,
    AB3 built 2026-09-27, see CHANGELOG.md.
 4. **AB4 – Charges.** `max_charges`, the recharge, `charges_changed`, `cooldown_finished` on 0 → 1, the charge count on the slot.
    **Done means:** with `max_charges` 1 everything is as before (the test compares cooldown timing); a scoped +1 `max_charges` on Lunge gives two Lunges back to back, recharging one at a time, with the count on the slot; removing it keeps the extra charge until spent.
+   AB4 built 2026-09-27, see CHANGELOG.md.
 5. **AB5 – Recasts.** `recast_count`, `recast_window`, `recast_resource_cost`, `ctx.part`, the window and its HUD timer; `test_triple_step` (three short steps).
    **Done means:** the test covers parts, the window pause during a part, the cooldown starting when the last part is used or the window ends, and a buffered recast during a cast time. In the sandbox (`test_q`), Q three times steps three times, the slot shows the window, and the cooldown starts after the third step or 3 s.
 6. **AB6 – Charge-up.** `CHARGE_UP`, `charge_time`, `overhold_time`, `overhold`, `ChargeScaling`, `get_charged_param()`, the growing indicator, the charge-up bar, `charge_sound`; `test_charged_line` (a Xerath-style line: range 40% → 100%, damage 50% → 100%, walking at 0.6 while charging).

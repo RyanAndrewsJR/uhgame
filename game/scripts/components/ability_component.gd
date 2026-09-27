@@ -24,9 +24,12 @@ signal cast_failed(slot: StringName, reason: String)
 ## A cast was cancelled during its cast time (e.g. by a dash). cast_finished
 ## is emitted right after, so existing listeners still clean up.
 signal cast_cancelled(slot: StringName, ability: Ability)
-## A slot's cooldown counted down to 0 (not a refund). Plays the ability's
-## ready_sound (AUDIO.md).
+## A slot went from 0 charges to 1 by recharging (not a refund): it's
+## castable again. With max_charges 1 that's "its cooldown counted down to
+## 0". Plays the ability's ready_sound (AUDIO.md).
 signal cooldown_finished(slot: StringName, ability: Ability)
+## A slot's stored charges changed (cast, recharge, refund, max changed).
+signal charges_changed(slot: StringName, charges: int, max_charges: int)
 
 const SLOTS: Array[StringName] = [&"q", &"w", &"e", &"r"]
 ## Source id of the move_speed modifier from Ability.cast_move_speed_multiplier.
@@ -48,8 +51,10 @@ var unit: Unit
 var casting: bool = false
 var casting_slot: StringName = &""
 
-var _cooldown_left: Dictionary = {}   # slot -> seconds
+var _cooldown_left: Dictionary = {}   # slot -> seconds until the next charge (the recharge timer)
 var _cooldown_total: Dictionary = {}  # slot -> seconds (for the HUD sweep)
+var _charges: Dictionary = {}         # slot -> stored charges (set on first use: full)
+var _cast_took_charge: bool = false   # the cast in progress took a charge (a refund gives it back)
 var _pending: Dictionary = {}         # queued targeted cast: {slot, target}
 var _pending_repath: float = 0.0
 var _cast_serial: int = 0        # bumped by each cast and by a cancel
@@ -112,8 +117,24 @@ func get_cooldown_duration(ability: Ability) -> float:
 	return unit.stats_component.get_cooldown(ability.get_param(unit, &"cooldown"))
 
 
+## True if the slot has a charge (with max_charges 1: its cooldown is done).
 func is_ready(slot: StringName) -> bool:
-	return get_ability(slot) != null and get_cooldown_left(slot) <= 0.0
+	return get_ability(slot) != null and get_charges(slot) > 0
+
+
+## Stored charges. A slot starts full the first time it's asked.
+func get_charges(slot: StringName) -> int:
+	if not _charges.has(slot):
+		_charges[slot] = get_max_charges(slot)
+	return _charges[slot]
+
+
+## max_charges after scoped modifiers (items), at least 1.
+func get_max_charges(slot: StringName) -> int:
+	var ability := get_ability(slot)
+	if ability == null:
+		return 1
+	return maxi(floori(ability.get_param(unit, &"max_charges")), 1)
 
 
 ## Ready, not casting, alive and not blocked. Doesn't look at the cost:
@@ -266,7 +287,7 @@ func interrupt_cast() -> bool:
 	unit.attack.remove_lock(&"casting")
 	_remove_cast_move_speed()
 	if unit.is_alive():
-		_cooldown_left[slot] = 0.0  # Refund interrupted casts.
+		_restore_slot(slot)  # Refund interrupted casts (charge and cooldown).
 		_refund_cost()
 	casting = false
 	casting_slot = &""
@@ -283,7 +304,7 @@ func _cancel_cast() -> void:
 		unit.movement.remove_move_lock(&"casting")
 	unit.attack.remove_lock(&"casting")
 	_remove_cast_move_speed()
-	_cooldown_left[slot] = 0.0
+	_restore_slot(slot)
 	_refund_cost()
 	casting = false
 	casting_slot = &""
@@ -293,13 +314,7 @@ func _cancel_cast() -> void:
 
 func _physics_process(delta: float) -> void:
 	for s in SLOTS:
-		if _cooldown_left[s] > 0.0:
-			_cooldown_left[s] = maxf(_cooldown_left[s] - delta, 0.0)
-			if _cooldown_left[s] <= 0.0:
-				var ready_ability := get_ability(s)
-				if ready_ability != null:
-					Audio.play(ready_ability.ready_sound, 1.0, SoundEvent.Priority.HIGH)
-				cooldown_finished.emit(s, ready_ability)
+		_update_recharge(s, delta)
 
 	if _pending.is_empty() or casting:
 		return
@@ -326,8 +341,13 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext) -> void:
 	var serial := _cast_serial
 	casting = true
 	casting_slot = slot
-	_cooldown_total[slot] = get_cooldown_duration(ability)
-	_cooldown_left[slot] = _cooldown_total[slot]
+	# Take a charge; its recharge starts now unless one is already running
+	# (charges come back one at a time). A cancel or interrupt gives it back.
+	_charges[slot] = get_charges(slot) - 1
+	_cast_took_charge = true
+	if _cooldown_left[slot] <= 0.0 and _charges[slot] < get_max_charges(slot):
+		_start_recharge(slot, ability)
+	charges_changed.emit(slot, _charges[slot], get_max_charges(slot))
 	# Pay at cast start (try_cast() checked it's affordable); refunded if the
 	# cast is cancelled or interrupted before its effect.
 	_cast_cost = 0.0
@@ -361,10 +381,11 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext) -> void:
 	if interrupted:
 		_remove_telegraph(ctx)
 		if is_instance_valid(unit) and unit.is_alive():
-			_cooldown_left[slot] = 0.0  # Refund interrupted casts.
+			_restore_slot(slot)  # Refund interrupted casts.
 			_refund_cost()
 	else:
 		_cast_cost = 0.0   # the effect starts: nothing is refunded from here
+		_cast_took_charge = false
 		_executing = true
 		await ability.execute(unit, ctx)
 		_executing = false
@@ -407,6 +428,52 @@ func _notification(what: int) -> void:
 func _remove_telegraph(ctx: CastContext) -> void:
 	if ctx != null and is_instance_valid(ctx.telegraph):
 		ctx.telegraph.queue_free()
+
+
+## One slot's recharge, each physics frame: while below max_charges, the
+## timer counts one cooldown (duration taken when it starts), then +1 charge
+## and, if still below max, the next one. At or above max nothing runs (a
+## lowered max leaves extra charges until they're spent). Going from 0
+## charges to 1 is "ready": cooldown_finished and the ready_sound.
+func _update_recharge(slot: StringName, delta: float) -> void:
+	var ability := get_ability(slot)
+	var maximum := get_max_charges(slot)
+	if ability == null or get_charges(slot) >= maximum:
+		_cooldown_left[slot] = 0.0
+		return
+	if _cooldown_left[slot] <= 0.0:
+		_start_recharge(slot, ability)   # below max with no timer: a raised max
+		return
+	_cooldown_left[slot] = maxf(_cooldown_left[slot] - delta, 0.0)
+	if _cooldown_left[slot] > 0.0:
+		return
+	_charges[slot] += 1
+	charges_changed.emit(slot, _charges[slot], maximum)
+	if _charges[slot] == 1:
+		Audio.play(ability.ready_sound, 1.0, SoundEvent.Priority.HIGH)
+		cooldown_finished.emit(slot, ability)
+	if _charges[slot] < maximum:
+		_start_recharge(slot, ability)
+
+
+## Starts the timer for the slot's next charge: one cooldown (scoped
+## modifiers, then haste; get_cooldown_duration()).
+func _start_recharge(slot: StringName, ability: Ability) -> void:
+	_cooldown_total[slot] = get_cooldown_duration(ability)
+	_cooldown_left[slot] = _cooldown_total[slot]
+
+
+## A cancel or interrupt gives back the charge the cast took. Back at max,
+## the recharge stops (with max_charges 1: the cooldown is refunded); below
+## max, a recharge already running keeps its progress. A refund never pings.
+func _restore_slot(slot: StringName) -> void:
+	if not _cast_took_charge:
+		return
+	_cast_took_charge = false
+	_charges[slot] = get_charges(slot) + 1
+	if _charges[slot] >= get_max_charges(slot):
+		_cooldown_left[slot] = 0.0
+	charges_changed.emit(slot, _charges[slot], get_max_charges(slot))
 
 
 ## Gives back what the cast in progress paid (a cancel or interrupt before

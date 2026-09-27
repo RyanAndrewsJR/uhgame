@@ -48,7 +48,7 @@ const DAMAGE_NUMBER_STYLE_PATH := "res://data/damage_number_styles/damage_number
 @export var tags: Array[StringName] = []
 @export var display_name: String = "Ability"
 ## The tooltip template (get_tooltip()): plain text with placeholders such
-## as {damage}, {base_damage}, {ratios}, {cooldown}, {cost}, {range}, {cast_time},
+## as {damage}, {base_damage}, {ratios}, {cooldown}, {cost}, {charges}, {range}, {cast_time},
 ## or any param by name ({stun_duration}); {param%} shows it as a percent
 ## (0.35 -> 35%). Text without placeholders is shown as it is.
 @export_multiline var description: String = ""
@@ -66,6 +66,10 @@ const DAMAGE_NUMBER_STYLE_PATH := "res://data/damage_number_styles/damage_number
 ## change it). Refunded if the cast is cancelled or interrupted before its
 ## effect. A unit without a resource pool pays nothing (ABILITIES.md, Costs).
 @export var resource_cost: float = 0.0
+## Stored casts (a scoped param, so items can add charges; min 1). Each
+## charge recharges over the cooldown, one at a time. Not the same as a
+## charge-up (holding the key). ABILITIES.md, Charges and recasts.
+@export var max_charges: int = 1
 ## Seconds rooted before the effect happens (LoL "cast time").
 @export var cast_time: float = 0.25
 ## LoL units. DIRECTION/POINT: from the caster's center. UNIT: edge to edge.
@@ -280,6 +284,8 @@ func _placeholder_text(caster: Unit, key: String, percent: bool, raw: String, bb
 			return _number_text(get_param(caster, &"cast_range"), percent)
 		"cost":
 			return _number_text(get_param(caster, &"resource_cost"), percent)
+		"charges":
+			return str(maxi(floori(get_param(caster, &"max_charges")), 1))
 	var value: Variant = get(key)
 	if value is float or value is int or get_scaling(StringName(key)) != null:
 		return _number_text(get_param(caster, StringName(key)), percent)
