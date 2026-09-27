@@ -40,6 +40,9 @@ const STEER_SPEEDS := [1.0, 0.5]
 const SOFT_CAP_LOW_FACTOR := 0.5
 const SOFT_CAP_HIGH_FACTOR := 0.8
 const SOFT_CAP_MAX_FACTOR := 0.5
+## Templates for add_speed_modifier() once statuses exist (COMBAT C9).
+const STATUS_SLOW: StatusEffect = preload("res://data/statuses/status_slow.tres")
+const STATUS_HASTE: StatusEffect = preload("res://data/statuses/status_haste.tres")
 
 ## Base movement speed in LoL units. Only used without a StatsComponent;
 ## Units take move_speed from their UnitStats through StatsComponent.
@@ -99,6 +102,7 @@ var _move_dir: Vector2 = Vector2.ZERO
 
 var _locks: Dictionary = {}          # id -> true
 var _modifiers: Dictionary = {}      # id -> {flat, percent, time_left}
+var _status: StatusComponent         # set: speed modifiers are statuses (COMBAT C9)
 var _stats: StatsComponent = null    # set by Unit; null = standalone speed math
 
 var _displace_velocity: Vector2 = Vector2.ZERO
@@ -336,10 +340,27 @@ func set_stats_component(stats: StatsComponent) -> void:
 		_add_speed_stat_modifiers(id, _modifiers[id].flat, _modifiers[id].percent)
 
 
+## Speed modifiers become statuses from now on (COMBAT C9): each one is a
+## status_slow / status_haste copy with this id. Ones added before this move
+## over with their time left.
+func set_status_component(status: StatusComponent) -> void:
+	_status = status
+	for id: StringName in _modifiers.keys():
+		var mod: Dictionary = _modifiers[id]
+		remove_speed_modifier(id)
+		add_speed_modifier(id, mod.flat, mod.percent, mod.time_left)
+
+
 ## percent: 0.2 = +20% MS, -0.3 = 30% slow. duration < 0 = until removed.
-## Re-adding an id replaces it. With a StatsComponent the modifier lives there
-## (source_id = id) and only the timer is kept here.
+## Re-adding an id replaces it. With a StatusComponent (C9) it is a status:
+## a copy of status_slow (any negative part; tagged cc, so tenacity shortens
+## it) or status_haste, with this id, these move_speed modifiers and this
+## duration (source &"status_<id>"). Otherwise, with a StatsComponent the
+## modifier lives there (source_id = id) and only the timer is kept here.
 func add_speed_modifier(id: StringName, flat: float = 0.0, percent: float = 0.0, duration: float = -1.0) -> void:
+	if _status != null:
+		_status.apply_status(_make_speed_status(id, flat, percent, duration))
+		return
 	_modifiers[id] = {"flat": flat, "percent": percent, "time_left": duration}
 	if _stats != null:
 		_stats.remove_modifiers_from(id)
@@ -347,9 +368,28 @@ func add_speed_modifier(id: StringName, flat: float = 0.0, percent: float = 0.0,
 
 
 func remove_speed_modifier(id: StringName) -> void:
+	if _status != null:
+		_status.remove_status(id)
 	_modifiers.erase(id)
 	if _stats != null:
 		_stats.remove_modifiers_from(id)
+
+
+## The status add_speed_modifier() applies (see there).
+func _make_speed_status(id: StringName, flat: float, percent: float, duration: float) -> StatusEffect:
+	var template: StatusEffect = STATUS_SLOW if (percent < 0.0 or flat < 0.0) else STATUS_HASTE
+	var effect: StatusEffect = template.duplicate()
+	effect.id = id
+	effect.display_name = String(id)
+	effect.duration = duration if duration >= 0.0 else -1.0
+	effect.stack_rule = StatusEffect.StackRule.REFRESH   # the same id replaces, as before C9
+	var mods: Array[StatModifier] = []
+	if flat != 0.0:
+		mods.append(StatModifier.create(&"move_speed", StatModifier.Type.FLAT, flat, &""))
+	if percent != 0.0:
+		mods.append(StatModifier.create(&"move_speed", StatModifier.Type.PERCENT_ADD, percent, &""))
+	effect.modifiers = mods
+	return effect
 
 
 func _add_speed_stat_modifiers(id: StringName, flat: float, percent: float) -> void:

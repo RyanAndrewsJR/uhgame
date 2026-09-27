@@ -27,6 +27,9 @@ extends Node2D
 ## C8: the Knight's abilities through HitPipeline.from_ability() (numbers
 ## unchanged, tags), crits (PRD, one roll per swing or cast), damage_increase with hit / target scopes,
 ## incoming_damage, on-hit damage, life on hit, life steal, resource on hit.
+## C9: status effects (the stun, slow and haste .tres, the apply_stun() and
+## add_speed_modifier() wrappers, stack rules, tenacity, DoT with snapshot
+## and kill credit, statuses on hits, events, death).
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
@@ -261,6 +264,7 @@ func _test_combo() -> void:
 	await _test_line_of_sight()
 	await _test_item_changes_abilities()
 	await _test_crits_and_on_hit()
+	await _test_statuses()
 	await _test_death_mid_swing()
 
 
@@ -1473,7 +1477,7 @@ func _test_c8_abilities_unchanged() -> void:
 	_check("Judgement with 1000 missing health: 214 + 20% x 1000 = 414 (= get_damage_against() before the hit)",
 		hits.map(func(h: HitContext) -> float: return h.taken_damage), [414.0])
 	dummy.add_invulnerability(&"test")
-	dummy.get_node("StunEffect").free()
+	dummy.status_component.remove_status(&"stun")
 	await _cast(&"r", dummy.global_position, dummy)
 	_check("a blocked Judgement doesn't stun", dummy.is_stunned(), false)
 	dummy.queue_free()
@@ -1614,7 +1618,7 @@ func _test_c8_damage_increase() -> void:
 	stats.remove_modifiers_from(&"test_c8_all")
 	_check("removed: back to 124.8", _resolve_cleave(stunned).taken_damage, 124.8)
 	var tagged := HitPipeline.resolve(HitPipeline.from_ability(knight, knight.abilities.q, stunned))
-	_check("the stunned dummy's status tags: cc + stun", stunned.get_status_tags(), [&"cc", &"stun"] as Array[StringName])
+	_check("the stunned dummy's status tags: cc + stun (+ debuff since C9)", stunned.get_status_tags(), [&"cc", &"stun", &"debuff"] as Array[StringName])
 	_check("(the hit read them: raw 124.8)", tagged.raw_damage, 124.8)
 	dummy.queue_free()
 	stunned.queue_free()
@@ -1722,6 +1726,288 @@ func _test_c8_on_hit() -> void:
 	dummy.queue_free()
 	await _wait_until(func() -> bool: return not knight.is_invulnerable(), 60)
 	await _hitstop_over()
+
+
+# --- C9: status effects -------------------------------------------------------------
+
+const STATUS_STUN: StatusEffect = preload("res://data/statuses/status_stun.tres")
+const STATUS_SLOW: StatusEffect = preload("res://data/statuses/status_slow.tres")
+const STATUS_HASTE: StatusEffect = preload("res://data/statuses/status_haste.tres")
+const STARS_SCRIPT := preload("res://scripts/vfx/stun_stars.gd")
+
+
+func _test_statuses() -> void:
+	_test_c9_data()
+	await _test_c9_stun()
+	_test_c9_tenacity()
+	await _test_c9_speed_wrapper()
+	await _test_c9_stack_rules()
+	await _test_c9_dot()
+	await _test_c9_hit_statuses_and_events()
+
+
+func _test_c9_data() -> void:
+	_section("C9: status data")
+	_check("status_stun: tags cc + stun + debuff, keeps the longer time, blocks move / attack / cast / dash, has VFX",
+		[STATUS_STUN.id, STATUS_STUN.tags, STATUS_STUN.stack_rule, STATUS_STUN.blocks_move, STATUS_STUN.blocks_attack, STATUS_STUN.blocks_cast, STATUS_STUN.blocks_dash, STATUS_STUN.vfx != null],
+		[&"stun", [&"cc", &"stun", &"debuff"], StatusEffect.StackRule.REFRESH_LONGER, true, true, true, true, true])
+	_check("status_slow: cc + slow + debuff, 30% move_speed slow, refreshes",
+		[STATUS_SLOW.tags, STATUS_SLOW.modifiers[0].stat, STATUS_SLOW.modifiers[0].value, STATUS_SLOW.stack_rule],
+		[[&"cc", &"slow", &"debuff"], &"move_speed", -0.3, StatusEffect.StackRule.REFRESH])
+	_check("status_haste: haste + buff, +20% move_speed", [STATUS_HASTE.tags, STATUS_HASTE.modifiers[0].value], [[&"haste", &"buff"], 0.2])
+	_check("the Knight and slimes have a StatusComponent", [knight.status_component != null, _spawn_dummy().status_component != null], [true, true])
+
+
+func _test_c9_stun() -> void:
+	_section("C9: the stun is a status (apply_stun() wrapper)")
+	await _reset_knight()
+	await _hitstop_over()
+	var sc := knight.status_component
+	var removed_at := [-1.0]
+	var on_removed := func(unit: Unit, status: StatusEffect) -> void:
+		if unit == knight and status.id == &"stun":
+			removed_at[0] = _game_time
+	Events.status_removed.connect(on_removed)
+	var start := _game_time
+	knight.apply_stun(0.5)
+	await _frames(1)
+	_check("stunned: status 'stun', can't move, swing, cast or dash",
+		[sc.has_status(&"stun"), knight.is_stunned(), knight.movement.can_move(), knight.attack.try_swing(Vector2.RIGHT), knight.abilities.can_cast(&"q"), knight.dash.can_dash()],
+		[true, true, false, false, false, false])
+	_check("the stars VFX is on the Knight", knight.get_children().any(func(n: Node) -> bool: return n.get_script() == STARS_SCRIPT), true)
+	knight.apply_stun(0.2)
+	_check_near("a shorter re-stun keeps the longer time (~0.48 s left)", sc.get_time_left(&"stun"), 0.483, 0.01)
+	knight.apply_stun(1.0)
+	_check_near("a longer one extends it to 1.0 s", sc.get_time_left(&"stun"), 1.0, 0.001)
+	await _wait_until(func() -> bool: return not knight.is_stunned(), 120)
+	_check_near("it ends 1.0 s of game time after the re-stun (1.017 s after the first)", removed_at[0] - start, 1.0 + 1.0 / 60.0, 0.02)
+	await _frames(1)
+	_check("after: can move and dash, stars gone",
+		[knight.movement.can_move(), knight.dash.can_dash(), knight.get_children().any(func(n: Node) -> bool: return n.get_script() == STARS_SCRIPT and not n.is_queued_for_deletion())],
+		[true, true, false])
+	Events.status_removed.disconnect(on_removed)
+	var dummy := _tough_dummy_at(Vector2(60, 0))
+	await _frames(1)
+	await _cast(&"r", dummy.global_position, dummy)
+	_check("Judgement's stun: 0.75 s, the Knight as its source",
+		[dummy.status_component.get_source(&"stun") == knight, snappedf(dummy.status_component.get_time_left(&"stun"), 0.01)], [true, 0.75])
+	dummy.queue_free()
+	await _hitstop_over()
+
+
+func _test_c9_tenacity() -> void:
+	_section("C9: tenacity shortens crowd control only")
+	var dummy := _spawn_dummy()
+	dummy.stats_component.add_modifier(StatModifier.create(&"tenacity", FLAT, 0.5, &"test_c9"))
+	dummy.apply_stun(1.0)
+	dummy.movement.add_speed_modifier(&"test_slow", 0.0, -0.4, 2.0)
+	dummy.movement.add_speed_modifier(&"test_haste", 0.0, 0.2, 2.0)
+	var burn := _make_status(&"test_burn", [&"dot", &"burning"], 2.0)
+	burn.tick_interval = 0.5
+	burn.tick_damage = 1.0
+	dummy.status_component.apply_status(burn, knight)
+	var sc := dummy.status_component
+	_check("50% tenacity: stun 1.0 -> 0.5 s, slow 2.0 -> 1.0 s, haste and burn stay 2.0 s",
+		[sc.get_time_left(&"stun"), sc.get_time_left(&"test_slow"), sc.get_time_left(&"test_haste"), sc.get_time_left(&"test_burn")], [0.5, 1.0, 2.0, 2.0])
+	dummy.queue_free()
+
+
+func _test_c9_speed_wrapper() -> void:
+	_section("C9: add_speed_modifier() makes statuses (Iron Resolve)")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return knight.abilities.is_ready(&"w"), 900)
+	var sc := knight.status_component
+	var base_speed := knight.movement.get_move_speed()
+	knight.request_cast(&"w")
+	await _frames(2)
+	_check("Iron Resolve: a haste status 'iron_resolve' (haste + buff), 2 s",
+		[sc.has_status(&"iron_resolve"), sc.get_status(&"iron_resolve").tags, snappedf(sc.get_time_left(&"iron_resolve"), 0.1)], [true, [&"haste", &"buff"], 2.0])
+	_check("same speed as before C9: 560 -> 739.6", [base_speed, knight.movement.get_move_speed()], [560.0, 739.6])
+	_check("its modifier's source is status_iron_resolve", knight.stats_component.get_modifiers_from(&"status_iron_resolve").size(), 1)
+	await _wait_until(func() -> bool: return not sc.has_status(&"iron_resolve"), 150)
+	_check("gone after 2 s, speed back to 560", [sc.has_status(&"iron_resolve"), knight.movement.get_move_speed()], [false, 560.0])
+	knight.attack.cancel_swing()
+	knight.attack.add_next_attack_modifier(&"iron_resolve", 0.0)   # clear its empowered swing
+	knight.attack.cancel()
+
+	var dummy := _spawn_dummy()
+	var normal := dummy.movement.get_move_speed()
+	dummy.movement.add_speed_modifier(&"test_slow", 0.0, -0.4, 1.0)
+	var dsc := dummy.status_component
+	var slowed := dummy.movement.get_move_speed()
+	_check("a slow: status 'test_slow' tagged cc + slow, slower", [dsc.has_status(&"test_slow"), dsc.has_tag(&"slow"), dsc.has_tag(&"cc"), slowed < normal], [true, true, true, true])
+	dummy.movement.add_speed_modifier(&"test_slow", 0.0, -0.2, 1.0)
+	_check("the same id replaces it (-40% -> -20%)",
+		[dsc.get_stacks(&"test_slow"), dummy.stats_component.get_modifiers_from(&"status_test_slow")[0].value, dummy.movement.get_move_speed() > slowed], [1, -0.2, true])
+	dummy.movement.remove_speed_modifier(&"test_slow")
+	_check("remove_speed_modifier() removes the status", [dsc.has_status(&"test_slow"), dummy.movement.get_move_speed()], [false, normal])
+	dummy.movement.add_speed_modifier(&"test_forever", 20.0)
+	await _frames(30)
+	_check("no duration = until removed", [dsc.get_time_left(&"test_forever"), dsc.has_tag(&"haste")], [-1.0, true])
+	dummy.movement.remove_speed_modifier(&"test_forever")
+	_check("removed", dsc.has_status(&"test_forever"), false)
+	dummy.queue_free()
+
+
+func _test_c9_stack_rules() -> void:
+	_section("C9: stack rules")
+	var dummy := _spawn_dummy()
+	var sc := dummy.status_component
+	var stacking := _make_status(&"test_stack", [&"buff"], 1.0)
+	stacking.stack_rule = StatusEffect.StackRule.STACK
+	stacking.max_stacks = 3
+	stacking.modifiers = [StatModifier.create(&"armor", FLAT, 10.0, &"")] as Array[StatModifier]
+	sc.apply_status(stacking)
+	sc.apply_status(stacking)
+	sc.apply_status(stacking, null, 0.3)
+	_check("STACK: 3 stacks (1.0, 1.0 and 0.3 s), +10 armor each", [sc.get_stacks(&"test_stack"), dummy.stats_component.get_stat(&"armor")], [3, 30.0])
+	await _frames(25)
+	_check("stacks run out one by one: after 0.42 s 2 left, +20 armor", [sc.get_stacks(&"test_stack"), dummy.stats_component.get_stat(&"armor")], [2, 20.0])
+	sc.apply_status(stacking)
+	sc.apply_status(stacking, null, 2.0)
+	_check("at max 3, a 4th application restarts the stack closest to running out (0.58 s -> 2.0 s)",
+		[sc.get_stacks(&"test_stack"), sc.get_time_left(&"test_stack"), dummy.stats_component.get_stat(&"armor")], [3, 2.0, 30.0])
+	sc.remove_status(&"test_stack")
+	_check("removed: armor back to 0", dummy.stats_component.get_stat(&"armor"), 0.0)
+
+	var ignore := _make_status(&"test_ignore", [&"buff"], 1.0)
+	ignore.stack_rule = StatusEffect.StackRule.IGNORE
+	_check("IGNORE: the second application does nothing", [sc.apply_status(ignore), sc.apply_status(ignore, null, 5.0), sc.get_time_left(&"test_ignore")], [true, false, 1.0])
+	var refresh := _make_status(&"test_refresh", [&"debuff"], 1.0)
+	refresh.stack_rule = StatusEffect.StackRule.REFRESH
+	sc.apply_status(refresh, knight)
+	var other := _spawn_dummy()
+	sc.apply_status(refresh, other, 0.3)
+	_check("REFRESH: the new source and duration replace it (even a shorter one)",
+		[sc.get_source(&"test_refresh") == other, sc.get_time_left(&"test_refresh")], [true, 0.3])
+	_check("a status without an id isn't applied (one expected push_error)", [sc.apply_status(null)], [false])
+	other.queue_free()
+	dummy.queue_free()
+
+
+func _test_c9_dot() -> void:
+	_section("C9: damage over time")
+	await _hitstop_over()
+	var dummy := _tough_dummy_at(Vector2(0, 250))
+	await _frames(1)
+	var burn := _make_status(&"test_burn", [&"dot", &"burning", &"debuff"], 2.0)
+	burn.tick_interval = 0.5
+	burn.tick_damage = 10.0
+	burn.tick_ad_ratio = 0.5
+	knight.stats_component.add_modifier(StatModifier.create(&"crit_chance", FLAT, 1.0, &"test_c9"))
+	var start := _game_time
+	var hits: Array[HitContext] = []
+	var times: Array[float] = []
+	var record := func(ctx: HitContext) -> void:
+		if ctx.target == dummy:
+			hits.append(ctx)
+			times.append(_game_time - start)
+	Events.unit_hit.connect(record)
+	dummy.status_component.apply_status(burn, knight)
+	knight.stats_component.add_modifier(StatModifier.create(&"attack_damage", FLAT, 100.0, &"test_c9"))
+	await _wait_until(func() -> bool: return not dummy.status_component.has_status(&"test_burn"), 160)
+	Events.unit_hit.disconnect(record)
+	_check("2 s at 0.5 s: 4 ticks of 10 + 0.5 x 64 = 42 (AD snapshotted when applied, not the +100 after)",
+		hits.map(func(h: HitContext) -> float: return h.taken_damage), [42.0, 42.0, 42.0, 42.0])
+	if times.size() == 4:
+		_check_near("the first tick 0.5 s after it's applied", times[0], 0.5 + 1.0 / 60.0, 0.02)
+	_check("ticks: dot + burning tags, MAGIC, the Knight as source, no crit even at 100%",
+		hits.all(func(h: HitContext) -> bool: return h.has_tag(&"dot") and h.has_tag(&"burning") and h.damage_type == HitContext.DamageType.MAGIC and h.source == knight and not h.is_crit),
+		true)
+	knight.stats_component.remove_modifiers_from(&"test_c9")
+
+	knight.stats_component.add_modifier(StatModifier.create(&"damage_increase", FLAT, 0.5, &"test_c9", &"target:burning"))
+	dummy.status_component.apply_status(burn, knight)
+	_check("+50% vs burning (target:burning) now works: Cleave 187.2 on a burning dummy", _resolve_cleave(dummy).taken_damage, 187.2)
+	dummy.status_component.remove_status(&"test_burn")
+	_check("and 124.8 once it's gone", _resolve_cleave(dummy).taken_damage, 124.8)
+	knight.stats_component.remove_modifiers_from(&"test_c9")
+
+	var stacking := burn.duplicate() as StatusEffect
+	stacking.id = &"test_burn_stacks"
+	stacking.stack_rule = StatusEffect.StackRule.STACK
+	stacking.max_stacks = 3
+	hits.clear()
+	start = _game_time
+	Events.unit_hit.connect(record)
+	for i in 3:
+		dummy.status_component.apply_status(stacking, knight)
+	await _frames(32)
+	Events.unit_hit.disconnect(record)
+	_check("3 stacks tick for 3 x 42 = 126", hits.map(func(h: HitContext) -> float: return h.taken_damage), [126.0])
+	dummy.status_component.remove_status(&"test_burn_stacks")
+
+	# Kill credit and a freed source.
+	var victim := _spawn_dummy()
+	var slime := _spawn_dummy()
+	victim.health.take_damage(victim.health.current - 30.0)
+	var deaths_before := _deaths.size()
+	victim.status_component.apply_status(burn, knight)
+	await _frames(35)
+	var credited: bool = _deaths.size() > deaths_before and _deaths[-1][0] == victim and _deaths[-1][1].source == knight and _deaths[-1][1].has_tag(&"dot")
+	_check("a DoT kill: unit_died with the applier as the source (kill credit)", credited, true)
+	var dummy2 := _spawn_dummy()
+	dummy2.status_component.apply_status(burn, slime)
+	var hp := dummy2.health.current
+	slime.free()
+	await _frames(35)
+	_check("the applier freed: it keeps ticking (10 + its snapshotted 11), from the environment",
+		[hp - dummy2.health.current, dummy2.status_component.get_source(&"test_burn")], [21.0, null])
+	dummy2.queue_free()
+
+	await _wait_until(func() -> bool: return not knight.is_invulnerable(), 60)
+	knight.status_component.apply_status(burn, _spawn_dummy())
+	hp = knight.health.current
+	await _frames(32)
+	_check("a DoT tick on the Knight: damage (red number) but no post-hit i-frames",
+		[knight.health.current < hp, knight.has_invulnerability(Unit.HIT_IFRAMES_ID)], [true, false])
+	knight.status_component.remove_status(&"test_burn")
+	knight.health.heal(10000.0)
+	dummy.queue_free()
+
+
+func _test_c9_hit_statuses_and_events() -> void:
+	_section("C9: statuses on hits, events, death")
+	var dummy := _spawn_dummy()
+	var applied: Array = []
+	var removed: Array = []
+	var on_applied := func(unit: Unit, status: StatusEffect) -> void: applied.append([unit, status.id])
+	var on_removed := func(unit: Unit, status: StatusEffect) -> void: removed.append([unit, status.id])
+	Events.status_applied.connect(on_applied)
+	Events.status_removed.connect(on_removed)
+	var ctx := HitContext.new()
+	ctx.source = knight
+	ctx.target = dummy
+	ctx.base_damage = 10.0
+	ctx.statuses = [STATUS_SLOW] as Array[StatusEffect]
+	HitPipeline.resolve(ctx)
+	_check("a hit carrying status_slow slows the target, from the hit's source",
+		[dummy.status_component.has_status(&"slow"), dummy.status_component.get_source(&"slow") == knight], [true, true])
+	_check("Events.status_applied(unit, status)", applied, [[dummy, &"slow"]])
+	var guarded := _spawn_dummy()
+	guarded.add_invulnerability(&"test")
+	var blocked := HitContext.new()
+	blocked.source = knight
+	blocked.target = guarded
+	blocked.statuses = [STATUS_SLOW] as Array[StatusEffect]
+	HitPipeline.resolve(blocked)
+	_check("a blocked hit applies no status", guarded.status_component.has_status(&"slow"), false)
+	dummy.apply_stun(5.0)
+	dummy.take_damage(100000.0)
+	_check("death removes every status (2 status_removed events)", [dummy.status_component.get_status_ids(), removed.map(func(e: Array) -> StringName: return e[1])], [[], [&"slow", &"stun"]])
+	_check("nothing applies to a dead unit", dummy.status_component.apply_status(STATUS_SLOW), false)
+	Events.status_applied.disconnect(on_applied)
+	Events.status_removed.disconnect(on_removed)
+	guarded.queue_free()
+	await _frames(2)
+
+
+func _make_status(id: StringName, tags: Array[StringName], duration: float) -> StatusEffect:
+	var effect := StatusEffect.new()
+	effect.id = id
+	effect.tags = tags
+	effect.duration = duration
+	return effect
 
 
 ## A passive slime with +5000 max health, so big hits don't kill it.

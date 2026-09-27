@@ -33,6 +33,6 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 	hit.base_damage += get_missing_health_bonus(target)
 	HitPipeline.resolve(hit)
 	if not hit.blocked:
-		target.apply_stun(stun_duration)
+		target.apply_stun(stun_duration, caster)
 	GameFeel.shake(6.0)
 	GameFeel.hitstop(0.09)

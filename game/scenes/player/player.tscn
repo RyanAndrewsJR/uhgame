@@ -18,6 +18,7 @@
 [ext_resource type="Script" path="res://scripts/components/stats_component.gd" id="17_stats_component"]
 [ext_resource type="Script" path="res://scripts/components/resource_component.gd" id="18_resource_component"]
 [ext_resource type="Resource" path="res://data/combos/combo_knight.tres" id="19_combo"]
+[ext_resource type="Script" path="res://scripts/components/status_component.gd" id="20_status_component"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_body"]
 radius = 11.0
@@ -57,6 +58,9 @@ shape = SubResource("CircleShape2D_body")
 
 [node name="StatsComponent" type="Node" parent="."]
 script = ExtResource("17_stats_component")
+
+[node name="StatusComponent" type="Node" parent="."]
+script = ExtResource("20_status_component")
 
 [node name="HealthComponent" type="Node" parent="." unique_id=944555721]
 script = ExtResource("2_health")

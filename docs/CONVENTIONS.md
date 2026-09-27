@@ -83,7 +83,7 @@ Existing local signals (`died`, `damaged`, `cast_started`...) stay. New code re-
 Other code uses a component's public methods, never its internal variables. Anything added through an `add_` method has an id so it can be removed exactly.
 
 ### 5. Existing code gets wrapped, not replaced
-Example: when `StatusComponent` arrives, `Unit.apply_stun()` and `add_speed_modifier()` keep working as thin wrappers that create `status_stun` / slow statuses.
+Example: since `StatusComponent` (COMBAT C9), `Unit.apply_stun()` and `add_speed_modifier()` keep working as thin wrappers that create `status_stun` / slow / haste statuses.
 
 ## Reserved names (planned; specified in the doc named)
 | Name | What | Doc |

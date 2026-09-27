@@ -82,7 +82,7 @@ func is_ready(slot: StringName) -> bool:
 
 
 func can_cast(slot: StringName) -> bool:
-	return is_ready(slot) and not casting and unit.is_alive() and not unit.is_stunned()
+	return is_ready(slot) and not casting and unit.is_alive() and not unit.is_cast_blocked()
 
 
 func has_pending() -> bool:
@@ -239,7 +239,7 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext) -> void:
 	if serial != _cast_serial:
 		return  # Cancelled during the cast time; try_cancel_cast() cleaned up.
 
-	var interrupted := not is_instance_valid(unit) or not unit.is_alive() or unit.is_stunned()
+	var interrupted := not is_instance_valid(unit) or not unit.is_alive() or unit.is_cast_blocked()
 	if interrupted:
 		_remove_telegraph(ctx)
 		if is_instance_valid(unit) and unit.is_alive():

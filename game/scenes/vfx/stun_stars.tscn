@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/vfx/stun_stars.gd" id="1_stars"]
+
+[node name="StunStars" type="Node2D"]
+script = ExtResource("1_stars")

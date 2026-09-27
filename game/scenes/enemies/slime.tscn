@@ -9,6 +9,7 @@
 [ext_resource type="Script" path="res://scripts/ui/health_bar.gd" id="7_bar"]
 [ext_resource type="Script" path="res://scripts/vfx/movement_vfx_component.gd" id="8_movement_vfx"]
 [ext_resource type="Script" path="res://scripts/components/stats_component.gd" id="9_stats_component"]
+[ext_resource type="Script" path="res://scripts/components/status_component.gd" id="10_status_component"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_body"]
 radius = 14.0
@@ -53,6 +54,9 @@ shape = SubResource("CircleShape2D_body")
 
 [node name="StatsComponent" type="Node" parent="."]
 script = ExtResource("9_stats_component")
+
+[node name="StatusComponent" type="Node" parent="."]
+script = ExtResource("10_status_component")
 
 [node name="HealthComponent" type="Node" parent="."]
 script = ExtResource("2_health")
