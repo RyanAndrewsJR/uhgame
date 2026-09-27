@@ -108,12 +108,12 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 | `docs/_TEMPLATE.md` | writing a new doc |
 
 ## Current status
-- **Now:** Waiting on Ryan's play test of COMBAT C9 (nothing should change in play). Still open: play tests of STATS steps 5–6, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of COMBAT C10 (nothing should change in play: nothing gives a shield yet). Still open: play tests of STATS steps 5–6, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. COMBAT C9: `StatusEffect` + `StatusComponent` (stack rules, locks, modifiers, VFX, game-time timers), `status_stun` / `status_slow` / `status_haste`, `apply_stun()` and `add_speed_modifier()` as wrappers, tenacity, DoT (snapshot, kill credit), `HitContext.statuses`, `Events.status_applied` / `status_removed`. Combat test 364/364, stats test 172/172, in-game check 40/40.
-  2. COMBAT C8: crits (`crit_damage` 1.75; PRD, one roll per swing or cast), `damage_increase` with `hit:` / `target:` scopes, `incoming_damage`, on-hit stats; Cleave, Lunge and Judgement through `HitPipeline.from_ability()`.
-  3. STATS step 6: `id` and `tags` on every Ability; scoped modifiers (`ability:<id>`, `tag:<tag>`) for ability numbers.
-- **Next:** COMBAT C10 (shields: shield statuses, `StatusComponent.absorb_damage()`) → C11 (reaction rules) → C12 (dash-strike). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order.
+  1. COMBAT C10: shields (`StatusEffect.shield_amount`, `StatusComponent.absorb_damage()`: after armor and `incoming_damage`, the soonest-expiring first, used up = ended), a separate silver shield number, `status_shield.tres`. Combat test 387/387, stats test 172/172.
+  2. COMBAT C9: `StatusEffect` + `StatusComponent`, `status_stun` / `status_slow` / `status_haste`, `apply_stun()` and `add_speed_modifier()` as wrappers, tenacity, DoT (snapshot, kill credit), `Events.status_applied` / `status_removed`.
+  3. COMBAT C8: crits (PRD, one roll per swing or cast), `damage_increase` with `hit:` / `target:` scopes, `incoming_damage`, on-hit stats; the Knight's abilities through `HitPipeline.from_ability()`.
+- **Next:** COMBAT C11 (reaction rules: `ReactionRule`, `GameplayEffect`; triggers HIT, UNIT_DIED, STATUS_APPLIED) → C12 (dash-strike, after its open question). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order.
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.
