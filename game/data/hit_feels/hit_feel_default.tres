@@ -1,6 +1,11 @@
 [gd_resource type="Resource" script_class="HitFeel" format=3]
 
 [ext_resource type="Script" path="res://scripts/data/hit_feel.gd" id="1_feel"]
+[ext_resource type="Resource" path="res://data/sounds/sound_hit_light.tres" id="2_light"]
+[ext_resource type="Resource" path="res://data/sounds/sound_hit_heavy.tres" id="3_heavy"]
+[ext_resource type="Resource" path="res://data/sounds/sound_hit_kill.tres" id="4_kill"]
+[ext_resource type="Resource" path="res://data/sounds/sound_hit_crit.tres" id="5_crit"]
+[ext_resource type="Resource" path="res://data/sounds/sound_shield_absorb.tres" id="6_shield"]
 
 [resource]
 script = ExtResource("1_feel")
@@ -12,3 +17,8 @@ heavy_shake = 2.0
 kill_shake = 3.0
 flash_time = 0.06
 flash_modulate = Color(3, 3, 3, 1)
+light_sound = ExtResource("2_light")
+heavy_sound = ExtResource("3_heavy")
+kill_sound = ExtResource("4_kill")
+crit_sound = ExtResource("5_crit")
+shield_absorb_sound = ExtResource("6_shield")

@@ -62,6 +62,11 @@ var feel: Feel = Feel.NONE
 ## Makes the damage number stand out. Kept from take_damage(highlight)
 ## until abilities build their own contexts.
 var highlight: bool = false
+## The swing's or ability's own hit sound (AUDIO.md); CombatSounds plays it
+## once per swing or cast. null = HitFeel's sound for the hit's tier.
+var hit_sound: SoundEvent
+## Pitch for whichever hit sound plays (the swing's sound_pitch).
+var hit_sound_pitch: float = 1.0
 
 # --- Results (filled in by the pipeline) -------------------------------------
 

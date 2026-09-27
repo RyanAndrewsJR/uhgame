@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/sound_event.gd" id="1_sound"]
+[ext_resource type="AudioStream" path="res://audio/sfx/slime_death_01.wav" id="2_slime_death_01"]
+[ext_resource type="AudioStream" path="res://audio/sfx/slime_death_02.wav" id="3_slime_death_02"]
+[ext_resource type="AudioStream" path="res://audio/sfx/slime_death_03.wav" id="4_slime_death_03"]
+
+[resource]
+script = ExtResource("1_sound")
+variations = Array[AudioStream]([ExtResource("2_slime_death_01"), ExtResource("3_slime_death_02"), ExtResource("4_slime_death_03")])
+pitch_scale = 0.8
+volume_db = 2.0

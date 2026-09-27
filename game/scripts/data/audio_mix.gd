@@ -19,6 +19,15 @@ extends Resource
 ## Seconds (real time) for the duck to fade in or out.
 @export var duck_fade_time: float = 0.15
 
+@export_group("Pack burst")
+## When pack_burst_count enemies die within pack_burst_window seconds (real
+## time), the death that makes the count plays this instead of its own
+## sound, and later deaths in the window are silent. null = each death plays
+## its own sound.
+@export var pack_burst_sound: SoundEvent
+@export_range(2, 6) var pack_burst_count: int = 3
+@export_range(0.05, 0.3) var pack_burst_window: float = 0.1
+
 @export_group("Log and debug")
 ## How many entries Audio.get_log() keeps.
 @export var log_size: int = 256

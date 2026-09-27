@@ -62,6 +62,8 @@ static func basic_attack(source: Unit, target: Node, swing: AttackSwing) -> HitC
 	ctx.knockback_duration = swing.knockback_duration
 	ctx.knockback_from = source.global_position
 	ctx.feel = swing.feel
+	ctx.hit_sound = swing.hit_sound   # AUDIO.md: CombatSounds plays it
+	ctx.hit_sound_pitch = swing.sound_pitch
 	ctx.add_tag(&"basic_attack")
 	return ctx
 
