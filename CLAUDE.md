@@ -79,7 +79,7 @@ New subfolders inside these are fine. Ask before adding a new top-level folder.
 - `WorldQuery` (`scripts/autoload/world_query.gd`): spatial queries; only `has_line_of_sight()` so far, used by every hit (docs/WORLD_INTERACTION.md, COMBAT C7)
 - `Reactions` (`scripts/autoload/reactions.gd`): fires reaction rules on `unit_hit`, `unit_died`, `status_applied`; world rules from `data/reactions/world/`, unit rules via `Unit.add_reaction_rule()` (COMBAT C11)
 - `Settings` (`scripts/autoload/settings.gd`): the player's own options, saved to `user://settings.cfg`; `setting_changed(key, value)`. Dash direction (MOVEMENT.md, Dash) and one volume per audio bus (AUDIO.md). Changed in the Esc pause menu (`PauseMenu`, `scenes/ui/pause_menu.tscn`).
-- `Audio` (`scripts/autoload/audio.gd`, registered last): the one way to play sounds. `play()`, `play_at()`, `play_on()` return int handles; `stop()`, `stop_all_on()`, `stop_all()`; instance limits, the SFX voice cap, pause behavior, bus volumes from Settings, a log for tests, `debug_draw`. Its child `CombatSounds` plays hit, death and (A3) status sounds from Events (AUDIO.md)
+- `Audio` (`scripts/autoload/audio.gd`, registered last): the one way to play sounds. `play()`, `play_at()`, `play_on()` return int handles; `stop()`, `stop_all_on()`, `stop_all()`; instance limits, the SFX voice cap, pause behavior, bus volumes from Settings, a log for tests, `debug_draw`. Its child `CombatSounds` plays hit, death and status sounds from Events (AUDIO.md)
 
 ## Change policy (important)
 The game in `game/` is the **reference build**. It works, and changes build on it.
@@ -117,12 +117,12 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 | `docs/_TEMPLATE.md` | writing a new doc |
 
 ## Current status
-- **Now:** Waiting on Ryan's play test of AUDIO A2 (combat sounds with synthesized placeholders: swings, hits, crits, dash, hurt, shield, deaths, pack burst) and of "a swing counts once its hit has landed" and COMBAT C12. Still open: play tests of STATS steps 5–6, COMBAT C8–C11, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of AUDIO A3 (ability casts, Judgement's hit and ready ping, the elite's wind-up and slam, status sounds, the shield's break, the low-health heartbeat, the room cleared and "You died" stingers; all synthesized placeholders) and of "a swing counts once its hit has landed" and COMBAT C12. Still open: play tests of STATS steps 5–6, COMBAT C8–C11, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. AUDIO A2: combat sounds (`CombatSounds` on Events: one hit sound per swing or cast, crit layer, shield absorb, hurt, deaths and the end-of-frame pack burst; swing, dash and death sound fields; 12 SoundEvents with 24 synthesized placeholder WAVs). Audio test 86/86, combat test 450/450, stats test 172/172.
-  2. AUDIO A1 (passed Ryan's play test; 10 ms output latency on WASAPI): plumbing (bus layout, `SoundEvent`, `AudioMix`, the `Audio` autoload; Settings volumes and six pause-menu sliders).
-  3. A swing counts once its hit has landed: player cancels after the hit keep the combo; windup cancels, stuns and death reset it. Combat test 450/450.
-- **Next:** AUDIO A3 (abilities and statuses: cast / hit / telegraph / ready sounds, status apply / expire / loop, low-health heartbeat, stingers). Real CC0 files can replace the placeholders any time (same names). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order (ABILITIES.md next).
+  1. AUDIO A3: ability, telegraph and status sounds (`Ability` cast / hit / telegraph / ready sounds, `AbilityComponent.cooldown_finished`, `Telegraph.play_sound()`, status apply / expire / loop in CombatSounds, the heartbeat on Player, stingers in main.gd; 16 more synthesized placeholders). Audio test 109/109, combat test 450/450, stats test 172/172.
+  2. AUDIO A2 (passed Ryan's play test): combat sounds (CombatSounds: one hit sound per swing or cast, crit layer, shield absorb, hurt, deaths, the end-of-frame pack burst).
+  3. AUDIO A1 (passed; 10 ms output latency on WASAPI): plumbing (bus layout, SoundEvent, AudioMix, the Audio autoload, Settings volumes and pause-menu sliders).
+- **Next:** AUDIO is built through A3; its later steps come with their systems (LOOT, CHAMPIONS, ENEMIES_AI, DUNGEONS, UI). Real CC0 files can replace the placeholders any time (same names). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order (ABILITIES.md next).
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.

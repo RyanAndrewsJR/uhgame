@@ -7,6 +7,9 @@ const ClickMarker := preload("res://scripts/ui/click_marker.gd")
 @export var room_scene: PackedScene = preload("res://scenes/rooms/room_01.tscn")
 @export var player_scene: PackedScene = preload("res://scenes/player/player.tscn")
 @export var pause_menu_scene: PackedScene = preload("res://scenes/ui/pause_menu.tscn")
+## Stingers (AUDIO.md): with "Room cleared!" and "You died". null = silent.
+@export var room_cleared_sound: SoundEvent
+@export var player_died_sound: SoundEvent
 
 @onready var hud: CanvasLayer = $HUD
 @onready var camera: Camera2D = $Camera
@@ -106,8 +109,10 @@ func _on_enemy_died(enemy: Enemy) -> void:
 	hud.set_enemies_left(left)
 	if left == 0 and not _game_over:
 		hud.show_message("Room cleared!  (Backspace to restart)")
+		Audio.play(room_cleared_sound, 1.0, SoundEvent.Priority.HIGH)
 
 
 func _on_player_died(_unit: Unit = null) -> void:
 	_game_over = true
 	hud.show_message("You died  -  press Backspace to restart")
+	Audio.play(player_died_sound, 1.0, SoundEvent.Priority.HIGH)

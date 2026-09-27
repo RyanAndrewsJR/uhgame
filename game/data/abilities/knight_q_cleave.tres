@@ -1,9 +1,11 @@
 [gd_resource type="Resource" format=3 uid="uid://b1uvvfn1s1dgo"]
 
 [ext_resource type="Script" uid="uid://8q2dq57tp2r8" path="res://scripts/abilities/knight/cleave.gd" id="1_script"]
+[ext_resource type="Resource" path="res://data/sounds/sound_knight_cleave_cast.tres" id="s1_cast_sound"]
 
 [resource]
 script = ExtResource("1_script")
+cast_sound = ExtResource("s1_cast_sound")
 id = &"knight_cleave"
 tags = Array[StringName]([&"area"])
 display_name = "Cleave"

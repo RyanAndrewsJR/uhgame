@@ -17,6 +17,9 @@ signal cast_failed(slot: StringName, reason: String)
 ## A cast was cancelled during its cast time (e.g. by a dash). cast_finished
 ## is emitted right after, so existing listeners still clean up.
 signal cast_cancelled(slot: StringName, ability: Ability)
+## A slot's cooldown counted down to 0 (not a refund). Plays the ability's
+## ready_sound (AUDIO.md).
+signal cooldown_finished(slot: StringName, ability: Ability)
 
 const SLOTS: Array[StringName] = [&"q", &"w", &"e", &"r"]
 ## Source id of the move_speed modifier from Ability.cast_move_speed_multiplier.
@@ -216,6 +219,11 @@ func _physics_process(delta: float) -> void:
 	for s in SLOTS:
 		if _cooldown_left[s] > 0.0:
 			_cooldown_left[s] = maxf(_cooldown_left[s] - delta, 0.0)
+			if _cooldown_left[s] <= 0.0:
+				var ready_ability := get_ability(s)
+				if ready_ability != null:
+					Audio.play(ready_ability.ready_sound, 1.0, SoundEvent.Priority.HIGH)
+				cooldown_finished.emit(s, ready_ability)
 
 	if _pending.is_empty() or casting:
 		return
@@ -255,8 +263,11 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext) -> void:
 	_cast_rooted = rooted
 	_add_cast_move_speed(ability)
 	_cast_ctx = ctx
+	Audio.play_on(ability.cast_sound, unit)
 	cast_started.emit(slot, ability, ctx)
 	ability.on_cast_started(unit, ctx)
+	if is_instance_valid(ctx.telegraph):
+		ctx.telegraph.play_sound(ability.telegraph_sound)   # stops with the telegraph (AUDIO.md)
 
 	if ability.cast_time > 0.0:
 		await unit.get_tree().create_timer(ability.cast_time, false, true).timeout
