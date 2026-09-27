@@ -35,7 +35,7 @@ const MOVE_ACTIONS: Array[StringName] = [&"move_up", &"move_down", &"move_left",
 ## How long an early press waits to become legal (seconds).
 @export var buffer_time: float = 0.15
 ## An attack within this many seconds after a dash ends is a dash-strike.
-@export var dash_strike_window: float = 0.1
+@export var dash_strike_window: float = 0.15
 ## On: the dash goes toward the cursor as it was when Space was pressed (a
 ## buffered dash keeps that direction). Off: the held WASD direction, or
 ## facing if none (the old behavior). The player picks this in the pause

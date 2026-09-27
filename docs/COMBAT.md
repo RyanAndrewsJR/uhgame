@@ -90,7 +90,7 @@ Knight basic attack:
 - damage: 1.0 / 1.0 / 1.6 × attack_damage
 - reach: 175 u (56 px) from the Knight's feet to the target's edge; arc 110°; finisher arc 140°
 - knockback: 6 / 6 / 20 px, using the knockback curve
-- dash-strike: 1.5 × attack_damage, a 16 px lunge, heavy feel (per champion class: CHAMPIONS.md; these are the Knight's)
+- dash-strike (the Knight's; other champions by class, CHAMPIONS.md): 1.5 × attack_damage (1.2–2.0), a 16 px step (0–24; pull up to 32), heavy feel, a thrust: 80° arc (60–110), reach × 1.15 (1.0–1.3), 0.35 s (0.3–0.45), 16 px push (6–24), no breather
 
 Melee basic attacks (the class defaults; the Knight's combo uses them):
 - swing step `lunge_px`: 6 / 6 / 10 px for swings 1 / 2 / 3 (0–12)
@@ -189,7 +189,7 @@ One per hit. Built by the attacker, filled in by the pipeline.
   - `lunge_px` (6): melee swing step along the aim; `lunge_max_px` (24): the longest target-pull step. The dash-strike swing's step is its own `lunge_px` (16, C12).
   - `proc_coefficient` (1.0)
   - `pause_after` (0): seconds after this swing ends before the next can start (the finisher's breather)
-- `AttackCombo` (Resource, `res://scripts/data/attack_combo.gd`): `attack_style` (`AttackCombo.AttackStyle.MELEE` default / `RANGED`), `swings: Array[AttackSwing]`, `combo_reset_time`, `dash_strike: AttackSwing` (null until C12), `hit_forgiveness` (0.10), `speed_scale` (1.0: one knob that scales every swing timing; × attack speed).
+- `AttackCombo` (Resource, `res://scripts/data/attack_combo.gd`): `attack_style` (`AttackCombo.AttackStyle.MELEE` default / `RANGED`), `swings: Array[AttackSwing]`, `combo_reset_time`, `dash_strike: AttackSwing` (the dash-strike swing, C12; null = dash-strikes use the normal next swing), `hit_forgiveness` (0.10), `speed_scale` (1.0: one knob that scales every swing timing; × attack speed).
   - Melee assist: `assist_range_bonus_px` (40, added to the swing's reach), `assist_angle_deg` (35), `assist_snap_deg` (20), `stop_at_reach_fraction` (0.7).
   - Recovery: `walk_cancels_recovery` (true), `recovery_move_cancel_after` (0.1 s).
 - Knight: `res://data/combos/combo_knight.tres` with the three swings from Numbers (0.08 / 0.3 s, 0.08 / 0.3 s, 0.08 / 0.4 s; 1.0 / 1.0 / 1.6; 110° / 110° / 140°; 6 / 6 / 20 px over 0.1 s; LIGHT / LIGHT / HEAVY; steps 6 / 6 / 10 px, pull up to 24 / 24 / 32 px; MELEE with the default assist and recovery settings).
@@ -279,6 +279,7 @@ How damage numbers look (built in C6): `size_thresholds` 0 / 100 / 1000 → `fon
   - `reset_attack_timer()` (`Ability.resets_auto_attack`) does nothing in combo mode.
   - Also built: `get_current_swing()`, `get_swing_speed()`, `get_swing_reach_px(swing)`. `add_lock()` (stun, casting) and `cancel()` (death) cancel a swing. Swing timers don't count the physics frame the swing started in, and treat ≤ 0.0001 s as done, so a 0.3 s swing is exactly 18 frames.
   - An attack press also drops a queued walk-into-range cast (R), like the dash does.
+  - Dash-strike (C12, built): `try_swing(direction, true)` with a combo `dash_strike` swing runs that swing with index −1 (`swing_started` / `swing_landed` report −1; `get_combo_index()` is −1 during it; `is_dash_strike()`), its hits are tagged `dash_strike` as well as `basic_attack`, and when it finishes the next swing is the one it interrupted (a fresh `combo_reset_time` window starts). Cancelling it resets the combo like any swing. Player: its slash uses the finisher's brighter look.
 - **PlayerInput** (C2): `attack_pressed` → `player.attack.try_swing(player.get_aim_direction(), dash_strike)`.
   - Attack is legal when not stunned, casting, dashing or swinging.
   - An ability press during a swing is legal only if its `cancels_swing` allows it at that moment (then the swing is cancelled first).
@@ -381,6 +382,8 @@ Combat starts now, before STATS step 6. Until step 6 adds `id` / `tags` to Abili
    **Done means:** in room_01 nothing changes; in the sandbox, hitting a stunned enemy (Judgement, then a swing or Cleave) adds a blue 30; the test covers world and unit rules, the three triggers, chains and the four effects.
    C11 built 2026-09-27, see CHANGELOG.md.
 12. **C12 – Dash-strike** (answered 2026-09-27, see Rules and Numbers): the Knight's `dash_strike` swing in `combo_knight.tres`, `dash_strike_window` 0.15 s, the combo kept across it.
+   **Done means:** dash, then click within 0.15 s (or click during the dash): a heavier thrust with a longer step hits for 96; the next click continues the combo where it was; a later click is a normal swing.
+   C12 built 2026-09-27, see CHANGELOG.md.
 
 For every step: no errors; the Knight's 4 abilities, enemies chasing and the HUD still work. If a step needs removing or rewriting existing code, stop and explain why first.
 
@@ -388,6 +391,7 @@ For every step: no errors; the Knight's 4 abilities, enemies chasing and the HUD
 Items and affixes (LOOT.md); ability costs, recasts and augments (ABILITIES.md); enemy AI beyond one telegraphed attack (ENEMIES_AI.md); elite affixes; pits; controller support.
 
 ## Open questions
+- Dash out of a swing: a dash that cuts a landed swing's recovery resets the combo (C2). Should it keep the combo instead, so dash-weaving never costs the finisher (the dash-strike already keeps it)?
 - Weapons: a champion's combo will come from its equipped weapon, and its class limits which weapons it can wield (e.g. a bruiser like Darus can't use daggers); bruiser weapons are heavier, diver and rogue weapons snappier. Today the combo is set on AutoAttackComponent (LOOT.md / CHAMPIONS.md).
 - A stun during a cast interrupts it only if the caster is still stunned when the cast time ends (AbilityComponent checks then), though its header says "during the cast time". A short stun mid-cast lets the cast go off. Decide in ABILITIES.md.
 - Ranged basic attacks: design later (RANGED combos only get walk-cancel for now).
