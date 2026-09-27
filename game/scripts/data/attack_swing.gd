@@ -34,3 +34,12 @@ extends Resource
 ## moving, dashing and abilities don't. A click during it fires when it ends.
 ## Divided by the combo speed like every swing timing.
 @export var pause_after: float = 0.0
+
+@export_group("Sounds")
+## At swing start, whiffs included (AUDIO.md). null = silent.
+@export var swing_sound: SoundEvent
+## On landing, once per swing however many it hits (through
+## HitContext.hit_sound). null = HitFeel's sound for the hit's tier.
+@export var hit_sound: SoundEvent
+## Multiplies the pitch of both sounds (the combo pitches up: 1.00, 1.04).
+@export_range(0.5, 2.0) var sound_pitch: float = 1.0

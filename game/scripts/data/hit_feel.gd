@@ -23,3 +23,15 @@ extends Resource
 ## Body modulate at the start of the flash (above 1 = brighter than the art,
 ## reads as white on the placeholder polygons).
 @export var flash_modulate: Color = Color(3, 3, 3, 1)
+
+@export_group("Sounds")
+## The hit sound for hits without their own (AUDIO.md; CombatSounds plays
+## them, once per swing or cast). LIGHT and NONE hits use the light sound.
+@export var light_sound: SoundEvent
+@export var heavy_sound: SoundEvent
+## A kill, when the hit has no sound of its own.
+@export var kill_sound: SoundEvent
+## A layer on top of any crit.
+@export var crit_sound: SoundEvent
+## The moment a shield absorbs damage (the silver shield number).
+@export var shield_absorb_sound: SoundEvent

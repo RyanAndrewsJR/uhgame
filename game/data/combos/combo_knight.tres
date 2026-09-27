@@ -2,15 +2,21 @@
 
 [ext_resource type="Script" uid="uid://b2lklesjh0cq5" path="res://scripts/data/attack_combo.gd" id="1_combo"]
 [ext_resource type="Script" uid="uid://dcrgf6ul273xi" path="res://scripts/data/attack_swing.gd" id="2_swing"]
+[ext_resource type="Resource" path="res://data/sounds/sound_knight_swing.tres" id="3_swing_sound"]
+[ext_resource type="Resource" path="res://data/sounds/sound_knight_swing_finisher.tres" id="4_finisher_sound"]
 
 [sub_resource type="Resource" id="swing_1"]
 script = ExtResource("2_swing")
+swing_sound = ExtResource("3_swing_sound")
 
 [sub_resource type="Resource" id="swing_2"]
 script = ExtResource("2_swing")
+swing_sound = ExtResource("3_swing_sound")
+sound_pitch = 1.04
 
 [sub_resource type="Resource" id="swing_3"]
 script = ExtResource("2_swing")
+swing_sound = ExtResource("4_finisher_sound")
 duration = 0.4
 ad_ratio = 1.6
 arc_deg = 140.0
@@ -22,6 +28,8 @@ pause_after = 0.25
 
 [sub_resource type="Resource" id="dash_strike"]
 script = ExtResource("2_swing")
+swing_sound = ExtResource("4_finisher_sound")
+sound_pitch = 1.1
 duration = 0.35
 ad_ratio = 1.5
 reach_multiplier = 1.15

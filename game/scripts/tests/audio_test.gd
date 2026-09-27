@@ -1,5 +1,5 @@
 extends Node2D
-## AUDIO.md step A1 test: open res://scenes/tests/audio_test.tscn and press F6.
+## AUDIO.md steps A1-A2 test: open res://scenes/tests/audio_test.tscn and press F6.
 ## Checks the Audio autoload without hearing it (through its log): SoundEvent
 ## data, the bus layout, null and empty sounds, the instance limit in real
 ## time (also at Engine.time_scale 0.05), centered vs positional, the
@@ -7,7 +7,13 @@ extends Node2D
 ## stopping when its node is freed, the voice cap and priorities, the pause
 ## (SFX, Ambience and Voice pause; Music ducks and low-passes; UI plays on),
 ## the volume settings, the log size and debug_draw. Tones are generated in
-## code (no files), quiet (-18 dB). Prints PASS/FAIL per check, then a total.
+## code (no files), quiet (-18 dB).
+## A2: combat sounds with the real data (the placeholder files): the Knight's
+## swing sounds and combo pitch, one hit sound per swing, the crit layer,
+## silent DoT ticks, hits on the player (hurt only, shield absorb), deaths and
+## the pack burst (same frame, spread out, two apart), the elite's death, the
+## dash, and silence with every sound field empty.
+## Prints PASS/FAIL per check, then a total.
 ## Run headless and it quits with the number of failures as the exit code.
 ## The volume checks save to user://settings.cfg and restore it at the end.
 
@@ -57,6 +63,7 @@ func _ready() -> void:
 	await _test_pause()
 	_test_volumes()
 	await _test_log_and_debug()
+	await _test_combat_sounds()
 	await _measure()
 
 	Audio.stop_all()
@@ -218,10 +225,12 @@ func _test_handles() -> void:
 	var owner := Node2D.new()
 	add_child(owner)
 	h = Audio.play_on(loop, owner)
+	var h2 := Audio.play_on(_event("loop3", [_tone_loop], true), owner)   # two sounds on one node
 	owner.queue_free()
 	await get_tree().physics_frame
 	last = Audio.get_log()[-1]
-	_check("a play_on() loop stops when its node is freed", [Audio.is_playing(h), last.result, last.reason], [false, Audio.RESULT_STOPPED, &"owner_left_tree"])
+	_check("both play_on() loops on a node stop when it's freed",
+		[Audio.is_playing(h), Audio.is_playing(h2), last.result, last.reason], [false, false, Audio.RESULT_STOPPED, &"owner_left_tree"])
 	var loose := Node2D.new()
 	_check("play_on() a node outside the tree plays nothing", [Audio.play_on(loop, loose), Audio.get_log()[-1].reason], [0, &"no_owner"])
 	loose.free()
@@ -356,6 +365,247 @@ func _test_log_and_debug() -> void:
 	await get_tree().process_frame
 	_check("and hides again", labels.is_empty() or not (labels[0].get_parent() as CanvasLayer).visible, true)
 	Audio.stop_all()
+
+
+# --- A2: combat sounds ------------------------------------------------------------
+
+func _test_combat_sounds() -> void:
+	Audio.stop_all()
+	await _test_swing_sounds()
+	await _test_hit_sounds()
+	await _test_player_hit_sounds()
+	await _test_death_sounds()
+	await _test_empty_fields()
+
+
+func _test_swing_sounds() -> void:
+	_section("A2: swing and dash sounds")
+	await _ready_knight()
+	Audio.clear_log()
+	var aim := Vector2.LEFT   # the slime is to the right: these swings whiff
+	knight.attack.try_swing(aim)
+	var swings := _played("sound_knight_swing")
+	_check("a swing plays its sound at swing start, even a whiff", swings.size(), 1)
+	if swings.size() > 0:
+		_check("centered (the Player's own)", swings[0].positional, false)
+		_check_near("swing 1 at pitch 1.00", _pitch(swings[0]), 1.0, 0.0001)
+	await _wait_until(func() -> bool: return knight.attack.can_swing(), 120)
+	knight.attack.try_swing(aim)
+	swings = _played("sound_knight_swing")
+	_check_near("swing 2 at pitch 1.04", _pitch(swings[-1]) if swings.size() > 1 else 0.0, 1.04, 0.0001)
+	await _wait_until(func() -> bool: return knight.attack.can_swing(), 120)
+	knight.attack.try_swing(aim)
+	_check("the finisher plays its own heavier swing", _played("sound_knight_swing_finisher").size(), 1)
+	_check("whiffs play no hit sound", _played("sound_hit_").size(), 0)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 120)
+	Audio.clear_log()
+	knight.dash.try_dash(Vector2.UP)
+	var dashes := _played("sound_knight_dash")
+	_check("a dash plays its sound, centered", [dashes.size(), dashes[0].positional if dashes.size() > 0 else null], [1, false])
+	await _wait_until(func() -> bool: return not knight.dash.is_dashing(), 60)
+	_place(knight, Audio.get_listener_position())
+
+
+func _test_hit_sounds() -> void:
+	_section("A2: hit sounds")
+	await _ready_knight()
+	var dummies := _dummies_in_front(5)
+	await get_tree().physics_frame
+	var hits := [0]
+	var count_hit := func(ctx: HitContext) -> void:
+		if ctx.source == knight and not ctx.has_tag(&"dot"):
+			hits[0] += 1
+	Events.unit_hit.connect(count_hit)
+	Audio.clear_log()
+	knight.attack.try_swing(Vector2.LEFT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 60)
+	_check("the swing hit all 5 dummies", hits[0], 5)
+	var light := _played("sound_hit_light")
+	_check("one hit sound for the swing, not one per target", light.size(), 1)
+	if light.size() > 0:
+		_check("the Player's hit: centered, HIGH", [light[0].positional, light[0].priority], [false, SoundEvent.Priority.HIGH])
+	_check("no crit layer without a crit", _played("sound_hit_crit").size(), 0)
+
+	await _ready_knight()
+	knight.stats_component.add_modifier(StatModifier.create(&"crit_chance", StatModifier.Type.FLAT, 1.0, &"test_crit"))
+	hits[0] = 0
+	Audio.clear_log()
+	knight.attack.try_swing(Vector2.LEFT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 60)
+	knight.stats_component.remove_modifiers_from(&"test_crit")
+	_check("a crit swing on 5: one hit sound and one crit layer",
+		[hits[0], _played("sound_hit_light").size() + _played("sound_hit_heavy").size(), _played("sound_hit_crit").size()], [5, 1, 1])
+
+	var burn := StatusEffect.new()
+	burn.id = &"test_burn"
+	burn.duration = 1.0
+	burn.tick_interval = 0.2
+	burn.tick_damage = 5.0
+	burn.stack_rule = StatusEffect.StackRule.REFRESH
+	var ticks := [0]
+	var count_tick := func(ctx: HitContext) -> void:
+		if ctx.has_tag(&"dot"):
+			ticks[0] += 1
+	Events.unit_hit.connect(count_tick)
+	await _hitstop_over()
+	Audio.clear_log()
+	dummies[0].status_component.apply_status(burn, knight)
+	await _game_wait(0.7)
+	Events.unit_hit.disconnect(count_tick)
+	Events.unit_hit.disconnect(count_hit)
+	_check("DoT ticks are silent (3 ticks, no sound)", [ticks[0] >= 3, Audio.get_log().size()], [true, 0])
+	for d in dummies:
+		d.queue_free()
+	await get_tree().physics_frame
+
+
+func _test_player_hit_sounds() -> void:
+	_section("A2: hits on the player")
+	await _ready_knight()
+	var slime_hit := slime.make_hit_context(22.0, slime)
+	Audio.clear_log()
+	knight.on_hit(slime_hit)
+	var hurt := _played("sound_knight_hurt")
+	_check("a slime hit plays only the Knight's hurt sound", [hurt.size(), _played("sound_hit_").size()], [1, 0])
+	if hurt.size() > 0:
+		_check("centered, HIGH", [hurt[0].positional, hurt[0].priority], [false, SoundEvent.Priority.HIGH])
+
+	await _ready_knight()
+	knight.status_component.apply_status(load("res://data/statuses/status_shield.tres"), knight)
+	Audio.clear_log()
+	knight.on_hit(slime.make_hit_context(22.0, slime))
+	_check("into a shield: the shield sound and no hurt (no health lost)",
+		[_played("sound_shield_absorb").size(), _played("sound_knight_hurt").size()], [1, 0])
+	knight.status_component.remove_status(&"shield")
+	await _ready_knight()
+
+
+func _test_death_sounds() -> void:
+	_section("A2: deaths and the pack burst")
+	await _real_wait(0.2)
+	var pack := _dummies_in_front(3)
+	await get_tree().physics_frame
+	Audio.clear_log()
+	var kill_frame := Engine.get_physics_frames()
+	for d in pack:
+		d.take_damage(100000.0, knight)
+	await get_tree().physics_frame
+	var bursts := _played("sound_death_pack_burst")
+	_check("3 kills in one frame: one pack burst and no death sounds", [bursts.size(), _played("sound_slime_death").size()], [1, 0])
+	_check("the burst plays in the frame of the kills (end-of-frame batching)", bursts[0].frame if bursts.size() > 0 else -1, kill_frame)
+	_check("the kills play one kill hit sound (one per source per frame)", _played("sound_hit_kill").size(), 1)
+
+	await _real_wait(0.2)
+	var two := _dummies_in_front(2)
+	await get_tree().physics_frame
+	Audio.clear_log()
+	two[0].take_damage(100000.0, knight)
+	await _real_wait(0.2)
+	two[1].take_damage(100000.0, knight)
+	await get_tree().physics_frame
+	_check("two deaths 0.2 s apart: two death sounds, no burst", [_played("sound_slime_death").size(), _played("sound_death_pack_burst").size()], [2, 0])
+
+	await _real_wait(0.2)
+	var trio := _dummies_in_front(4)
+	await get_tree().physics_frame
+	Audio.clear_log()
+	var start := Time.get_ticks_msec()
+	for i in 4:
+		trio[i].take_damage(100000.0, knight)
+		await get_tree().physics_frame
+	var spread_ms := Time.get_ticks_msec() - start
+	_check("3 deaths a frame apart (%d ms for all 4): two death sounds, then the burst" % spread_ms,
+		[_played("sound_slime_death").size(), _played("sound_death_pack_burst").size()], [2, 1])
+	_check("and a 4th death inside the window is silent", Audio.get_log().filter(func(e: Dictionary) -> bool:
+		return String(e.event).contains("death") and e.result == Audio.RESULT_PLAYED).size(), 3)
+
+	await _real_wait(0.2)
+	var elite: Enemy = load("res://scenes/enemies/slime_elite.tscn").instantiate()
+	elite.passive = true
+	add_child(elite)
+	_place(elite, knight.global_position + Vector2(-60, 60))
+	await get_tree().physics_frame
+	Audio.clear_log()
+	elite.take_damage(100000.0, knight)
+	await get_tree().physics_frame
+	var elite_death := _played("sound_slime_elite_death")
+	_check("the elite has its own death sound (the slime's, pitched 0.8), positional",
+		[elite_death.size(), elite_death[0].positional if elite_death.size() > 0 else null], [1, true])
+	await get_tree().physics_frame
+
+
+func _test_empty_fields() -> void:
+	_section("A2: every sound field empty = silent")
+	await _real_wait(0.2)
+	var saved_feel := GameFeel.hit_feel
+	GameFeel.hit_feel = HitFeel.new()   # no sounds
+	var saved_burst := Audio.mix.pack_burst_sound
+	Audio.mix.pack_burst_sound = null
+	var dummy := _dummies_in_front(1)[0]
+	dummy.death_sound = null
+	await get_tree().physics_frame
+	Audio.clear_log()
+	HitPipeline.resolve(HitPipeline.basic_attack(knight, dummy, AttackSwing.new()))
+	dummy.take_damage(100000.0, knight)
+	await get_tree().physics_frame
+	_check("a hit and a death with no sounds set log nothing", Audio.get_log().size(), 0)
+	GameFeel.hit_feel = saved_feel
+	Audio.mix.pack_burst_sound = saved_burst
+	await _hitstop_over()
+
+
+## Passive slimes in a fan in front of the Knight (to his left), inside his
+## swing's reach and arc.
+func _dummies_in_front(count: int) -> Array[Enemy]:
+	var out: Array[Enemy] = []
+	for i in count:
+		var d: Enemy = SLIME_SCENE.instantiate()
+		d.passive = true
+		add_child(d)
+		var angle := deg_to_rad(180.0 + (i - (count - 1) * 0.5) * 18.0)
+		_place(d, knight.global_position + Vector2.from_angle(angle) * 36.0)
+		out.append(d)
+	return out
+
+
+## The Knight idle, healed, not invulnerable, combo back at its first swing.
+func _ready_knight() -> void:
+	await _hitstop_over()
+	await _wait_until(func() -> bool: return knight.attack.can_swing() and not knight.attack.is_swinging() \
+		and knight.attack.get_combo_index() == 0 and not knight.is_invulnerable() and not knight.dash.is_dashing(), 240)
+	knight.health.heal(100000.0)
+	_place(knight, Audio.get_listener_position())
+
+
+func _hitstop_over() -> void:
+	while GameFeel.is_hitstop_active():
+		await get_tree().process_frame
+
+
+## Waits `seconds` of game time (physics frames).
+func _game_wait(seconds: float) -> void:
+	var left := seconds
+	while left > 0.0:
+		await get_tree().physics_frame
+		left -= get_physics_process_delta_time() * Engine.time_scale
+
+
+func _wait_until(condition: Callable, max_frames: int) -> void:
+	for i in max_frames:
+		if condition.call():
+			return
+		await get_tree().physics_frame
+
+
+## Played entries whose event name contains `part`.
+func _played(part: String) -> Array[Dictionary]:
+	return Audio.get_log().filter(func(e: Dictionary) -> bool:
+		return String(e.event).contains(part) and e.result == Audio.RESULT_PLAYED)
+
+
+func _pitch(entry: Dictionary) -> float:
+	var player := Audio.get_player(int(entry.handle))
+	return float(player.get(&"pitch_scale")) if player != null else 0.0
 
 
 ## Numbers for the build log, not checks.

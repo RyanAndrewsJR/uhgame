@@ -45,11 +45,13 @@ class Voice:
 	var priority: int
 	var started_ms: int
 	var follow: Node2D   # play_on(): followed, and the sound stops when it leaves the tree
-	var follow_exit: Callable
 
 
 var _voices: Dictionary = {}          # handle -> Voice
 var _voice_by_player: Dictionary = {} # player -> Voice
+## play_on() nodes -> their handles. One tree_exiting connection per node:
+## Godot ignores bind() arguments when it checks for a duplicate connection.
+var _follow_handles: Dictionary = {}
 var _next_handle: int = 1
 var _starts: Dictionary = {}          # SoundEvent -> Array of start times (ms)
 var _warned: Dictionary = {}          # SoundEvent -> true (no usable audio, warned once)
@@ -62,6 +64,7 @@ var _music_low_pass: int = -1         # effect index on the Music bus
 var _last_ticks_usec: int = 0
 var _debug_layer: CanvasLayer
 var _debug_text: RichTextLabel
+var _combat_sounds: CombatSounds
 
 
 func _ready() -> void:
@@ -76,6 +79,9 @@ func _ready() -> void:
 	Settings.setting_changed.connect(_on_settings_setting_changed)
 	_last_ticks_usec = Time.get_ticks_usec()
 	_apply_bus_volumes()
+	_combat_sounds = CombatSounds.new()   # hit, death and status sounds from Events (A2)
+	_combat_sounds.name = "CombatSounds"
+	add_child(_combat_sounds)
 
 
 # --- Playing --------------------------------------------------------------------
@@ -117,12 +123,15 @@ func stop_all_on(node: Node) -> void:
 
 
 ## Stops every sound on SFX, Ambience and Voice (a scene restart) and clears
-## the instance-limit history. Music and UI keep playing.
+## the instance-limit history and the pack burst window. Music and UI keep
+## playing.
 func stop_all() -> void:
 	for voice: Voice in _voices.values():
 		if voice.bus in PAUSABLE_BUSES:
 			_stop_voice(voice, RESULT_STOPPED, &"stop_all")
 	_starts.clear()
+	if _combat_sounds != null:
+		_combat_sounds.reset()
 
 
 # --- Queries --------------------------------------------------------------------
@@ -221,8 +230,10 @@ func _play(event: SoundEvent, position: Vector2, wants_position: bool, follow: N
 	voice.player = _start_player(event, stream, bus, positional, position, pitch)
 	if follow != null:
 		voice.follow = follow
-		voice.follow_exit = _on_follow_tree_exiting.bind(voice.handle)
-		follow.tree_exiting.connect(voice.follow_exit)
+		if not _follow_handles.has(follow):
+			_follow_handles[follow] = []
+			follow.tree_exiting.connect(_on_follow_tree_exiting.bind(follow))
+		(_follow_handles[follow] as Array).append(voice.handle)
 	_voices[voice.handle] = voice
 	_voice_by_player[voice.player] = voice
 	entry.handle = voice.handle
@@ -285,8 +296,13 @@ func _stop_voice(voice: Voice, result: StringName, reason: StringName) -> void:
 func _release(voice: Voice) -> void:
 	_voices.erase(voice.handle)
 	_voice_by_player.erase(voice.player)
-	if voice.follow != null and is_instance_valid(voice.follow) and voice.follow.tree_exiting.is_connected(voice.follow_exit):
-		voice.follow.tree_exiting.disconnect(voice.follow_exit)
+	if voice.follow != null and _follow_handles.has(voice.follow):
+		var handles: Array = _follow_handles[voice.follow]
+		handles.erase(voice.handle)
+		if handles.is_empty():
+			_follow_handles.erase(voice.follow)
+			if is_instance_valid(voice.follow) and voice.follow.tree_exiting.is_connected(_on_follow_tree_exiting):
+				voice.follow.tree_exiting.disconnect(_on_follow_tree_exiting)
 	voice.follow = null
 	voice.player.call(&"stop")
 	voice.player.set(&"stream", null)
@@ -306,10 +322,11 @@ func _on_player_finished(player: Node) -> void:
 		_release(voice)
 
 
-func _on_follow_tree_exiting(handle: int) -> void:
-	var voice: Voice = _voices.get(handle)
-	if voice != null:
-		_stop_voice(voice, RESULT_STOPPED, &"owner_left_tree")
+func _on_follow_tree_exiting(node: Node2D) -> void:
+	for handle: int in (_follow_handles.get(node, []) as Array).duplicate():
+		var voice: Voice = _voices.get(handle)
+		if voice != null:
+			_stop_voice(voice, RESULT_STOPPED, &"owner_left_tree")
 
 
 func _count_voices(bus: StringName) -> int:

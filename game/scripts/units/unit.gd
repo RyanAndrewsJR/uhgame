@@ -33,6 +33,13 @@ const HIT_IFRAMES_ID := &"hit_iframes"
 ## blocked by it too. DoT ticks don't start it.
 @export var post_hit_iframes: float = 0.0
 
+@export_group("Sounds")
+## When a hit takes health (AUDIO.md; CombatSounds plays it). The player,
+## later elites and bosses; null on normal enemies (their hit sound is enough).
+@export var hurt_sound: SoundEvent
+## When this unit dies (per enemy scene). Enemy deaths can merge into a pack burst.
+@export var death_sound: SoundEvent
+
 @onready var stats_component: StatsComponent = $StatsComponent
 @onready var health: HealthComponent = $HealthComponent
 @onready var attack: AutoAttackComponent = $AutoAttackComponent

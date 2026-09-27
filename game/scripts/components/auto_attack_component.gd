@@ -280,6 +280,7 @@ func try_swing(direction: Vector2, dash_strike: bool = false) -> bool:
 	unit.movement.add_move_lock(SWING_LOCK)
 	if combo.attack_style == AttackCombo.AttackStyle.MELEE:
 		_start_melee_step(swing, _swing_windup_left)
+	Audio.play_on(swing.swing_sound, unit, swing.sound_pitch)   # whiffs included (AUDIO.md)
 	swing_started.emit(index, _swing_direction, swing)
 	return true
 
