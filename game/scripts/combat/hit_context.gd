@@ -74,6 +74,9 @@ var absorbed: float = 0.0
 ## Health actually lost (capped by the health that was left).
 var health_lost: float = 0.0
 var is_crit: bool = false
+## The target's status tags just before the hit (Unit.on_hit fills it in;
+## reaction rules read it, since a kill clears the statuses). COMBAT C11.
+var target_tags: Array[StringName] = []
 ## Blocked by invulnerability (i-frames) or a dead target: nothing happened.
 var blocked: bool = false
 ## This hit killed the target.

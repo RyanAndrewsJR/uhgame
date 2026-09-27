@@ -57,6 +57,7 @@ var hovered: bool = false:
 var crit_misses: int = 0
 
 var _alive: bool = true
+var _reaction_rules: Array = []   # [ReactionRule, source_id] (COMBAT C11)
 var _dot_number: Label   # the latest DoT number, to merge the next tick into
 var _invulnerable: Dictionary = {}   # id -> true (e.g. &"dash" i-frames)
 
@@ -162,6 +163,7 @@ func on_hit(ctx: HitContext) -> void:
 		ctx.blocked = true
 		return
 	ctx.target = self
+	ctx.target_tags = get_status_tags()   # before the hit (reaction rules, C11)
 	ctx.taken_damage = HitPipeline.mitigate(ctx.raw_damage, ctx.damage_type, stats_component) \
 		* stats_component.get_stat(&"incoming_damage")
 	var to_health := ctx.taken_damage
@@ -262,6 +264,28 @@ func get_status_tags() -> Array[StringName]:
 	var result: Array[StringName] = []
 	if is_stunned():
 		result.append_array([&"cc", &"stun"])
+	return result
+
+
+# --- Reaction rules -----------------------------------------------------------
+
+## Gives this unit a reaction rule (COMBAT C11) under `source_id` (an item,
+## a passive, a buff). The Reactions autoload fires it for what this unit
+## does (owner_role SOURCE) or suffers (AFFECTED).
+func add_reaction_rule(rule: ReactionRule, source_id: StringName) -> void:
+	if rule != null:
+		_reaction_rules.append([rule, source_id])
+
+
+## Takes back every rule added under `source_id`.
+func remove_reaction_rules_from(source_id: StringName) -> void:
+	_reaction_rules = _reaction_rules.filter(func(e: Array) -> bool: return e[1] != source_id)
+
+
+func get_reaction_rules() -> Array[ReactionRule]:
+	var result: Array[ReactionRule] = []
+	for e: Array in _reaction_rules:
+		result.append(e[0])
 	return result
 
 
