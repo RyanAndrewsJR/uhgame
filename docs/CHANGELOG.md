@@ -86,45 +86,61 @@ Milestone: the Knight fights with the combo, slimes chip, one elite telegraphs a
 
 **Passed** (Ryan's play test, 2026-09-26): combo, dashes and abilities fine (reads as a rogue/diver pace); swarm pressure felt too fair, so post-hit i-frames 0.5 → 0.3 s; the elite slam was readable but too easy to escape, so 40 → 72 px and 0.75 → 0.65 s; death and restart, and the room clear, work. Combat test 263/263 after the changes (plus a 2-hit and a 5-hit combo check).
 
-### C7 – Line of sight: 2026-09-26, Built (awaiting play test)
+### C7 – Line of sight: 2026-09-26, Passed
 **C7 – Line of sight.** The filter in swing hits and `AbilityUtil`, `ignores_walls` on Ability (`WorldQuery.has_line_of_sight()` already exists, built with the melee pull).
 
 `Ability.ignores_walls` (default off), `Ability.filter_by_walls()` / `can_reach_through_walls()`, `AbilityUtil.in_sight()`. Walls now block: combo swings (feet to feet), League-style enemy attacks (a wall in between = a whiff), Cleave, Lunge (sight from the nearest point of its path), the elite slam (from the circle's center), and Judgement (a UNIT ability: out of sight counts like out of range, so it walks until it can see the target; a target that goes behind a wall during the cast is missed). Combat test 261/261 (11 new C7 checks, each with the target in reach so only the wall stops it); stats test 143/143; headless in-game check 38/38 (a swing and a Cleave at a dummy behind the sandbox pillar do nothing; the same swing hits in the open); room_01 runs with no errors.
 
-### C6 – Damage numbers: 2026-09-26, Built (awaiting play test)
+**Passed** (Ryan, 2026-09-27: covered by the M1 play test of 2026-09-26).
+
+### C6 – Damage numbers: 2026-09-26, Passed
 **C6 – Damage numbers.** 3 log-scale size steps, crit style (placeholder until the font), colors by type, the player's damage red, healing green, DoT merge, rise 12 px / fade 0.6 s.
 
 combat test 250/250 (14 new C6 checks: the size steps; one number per swing; swing 1 "64" size 10 in the physical color, the finisher "102" a size bigger; magic blue and true white; a crit "64!" 3 sizes bigger; three DoT ticks within 0.3 s merge into one "30" at size 8 and a later tick starts a new number; a green "+15"; the player's damage red; no number for a blocked hit; it rises 12 px, fades and is gone after 0.6 s). Stats test 143/143; headless in-game check 35/35 (a swing on a sandbox dummy shows one orange number; the player's damage is red); room_01 runs with no errors. "Nothing overlaps unreadably with 5 slimes" needs Ryan's eyes.
 
-### C5 – Elite: 2026-09-26, Built (awaiting play test)
+**Passed** (Ryan, 2026-09-27: covered by the M1 play test of 2026-09-26).
+
+### C5 – Elite: 2026-09-26, Passed
 **C5 – Elite.** `slime_elite.tscn` (inherits `slime.tscn`) + `data/units/slime_elite.tres` (starting values: 900 health, 100 damage = 15% of the Knight's 650), a telegraphed slam ability (0.75 s telegraph, about 40 px circle), `Telegraph`, the Enemy cast hook, one elite in the sandbox.
 
 `scenes/enemies/slime_elite.tscn` (inherits `slime.tscn`: purple, ×1.4 body, 19 px collider, AbilityComponent with the slam) + `data/units/slime_elite.tres` (900 health, 30 basic attack damage = 4.6% (swarm band) with a 0.25 s windup, 260 move speed); `Elite1` in the sandbox's open top-right corner (784, 112). Combat test 225/225 (20 new C5 checks: the numbers; a telegraph where the Knight stands, half full at 0.37 s; 100 damage and a 20 px push at 0.75 s; the telegraph gone after; walking and dashing out; a stunned elite's slam doesn't go off, its telegraph is removed and its cooldown refunded; the elite AI casting the slam by itself). Stats test 143/143; headless in-game check 33/33 (the sandbox elite casts at the real player, its telegraph is on the room floor under the units, standing in it costs 100, walking out with a real key press avoids it); room_01 and the sandbox run with no errors.
 
-### C4 – Getting hit: 2026-09-26, Built (awaiting play test)
+**Passed** (Ryan, 2026-09-27: covered by the M1 play test of 2026-09-26).
+
+### C4 – Getting hit: 2026-09-26, Passed
 **C4 – Getting hit.** Post-hit i-frames, 12 px knockback on the player (marked as hit knockback, which a dash replaces), enemy whiffs out of reach, stronger-knockback-wins, slime windup retuned into 0–0.3 s.
 
 combat test 205/205 (32 new C4 checks: the numbers; the first of two same-frame hits lands and the second is blocked; i-frames last 0.5 s and the Knight blinks; a DoT tick starts none; a slime winds up 0.25 s, hits for 22 and pushes 12 px away; the push is dash-cancelable and a dash replaces it; teleporting out of reach mid-windup is a whiff; a 6 px push during a 20 px one is dropped, a 30 px one replaces a 6 px one; a swing during a stronger knockback leaves it alone); stats test 143/143; headless in-game check 27/27 (the real slime AI hits, pushes 12 px and starts 0.5 s of i-frames; walking away with a real key press during its windup makes it miss); room_01 runs with no errors.
 
-### C3 – Hit feel: 2026-09-26, Built (awaiting play test)
+**Passed** (Ryan, 2026-09-27: covered by the M1 play test of 2026-09-26).
+
+### C3 – Hit feel: 2026-09-26, Passed
 **C3 – Hit feel.** Feel tiers from `HitContext.feel` (light / heavy / kill), longest-wins hitstop, 0.06 s flash, shake per tier.
 
 combat test 173/173 (20 new C3 checks: the tier numbers; overlapping hitstops 0.03 → 0.08 → 0.02 end at 0.08 s; swings 1–2 freeze 0.03 s with no shake, the finisher 0.06 s with a 2 px shake, a kill 0.08 s with 3 px, a whiff nothing; `take_damage()` hits and a blocked hit play no feel; Cleave shakes only its own 3 px; the flash is white at the hit and gone after 0.06 s). The C2 swing-length check now measures game time, since a hit's hitstop adds physics frames but almost no game time. Stats test 143/143; headless in-game check 21/21; room_01 runs with no errors.
 
-### Melee basic attacks (between C2 and C3): 2026-09-26, Built (awaiting play test)
+**Passed** (Ryan, 2026-09-27: covered by the M1 play test of 2026-09-26).
+
+### Melee basic attacks (between C2 and C3): 2026-09-26, Passed
 **Melee basic attacks** (between C2 and C3): swing step, target pull with aim snap, walk-cancel of the recovery, `attack_style`, minimal `WorldQuery`.
 
 combat test 153/153 (44 new checks: steps 6 / 6 / 10 px in the air, a slime 15° off and 95 px away aimed at with the aim snapped onto it, a capped 24 px pull that connects, a stretched 18.2 px step ending at 39.2 px, 6 px when already close, stopping at a touching slime's edge, no pull at 60°, a 20° max snap at 30°, the aim-line pick of two, no pull through a wall, dash and stun during the step, the root ending 6 frames after the hit with the combo continuing, RANGED); stats test 143/143; headless in-game check 21/21 (a real click 12° off a slime 97 px away pulls 24 px and connects; the sandbox's own pillar blocks the pull; enemies, abilities, i-frames and the HUD unchanged); room_01 runs with no errors.
 
-### C2 – Knight combo: 2026-09-26, Built (awaiting play test)
+**Passed** (Ryan, 2026-09-27: covered by the M1 play test of 2026-09-26).
+
+### C2 – Knight combo: 2026-09-26, Passed
 **C2 – Knight combo.** `AttackSwing`, `AttackCombo`, `combo_knight.tres`, the combo mode, PlayerInput/Dash/Player changes, `cancels_swing`, `select` unbound, Iron Resolve through swings.
 
 combat test 109/109 (59 new C2 checks: hit 5 frames after the click, swing 18 frames, 64 / 64 / 102.4 damage, the finisher's 20 px push, reach 70 / 78 px hit and 82 px miss, arc, reset after 0.6 s, a click 1 frame into a swing starts swing 2 right as it ends, dash / stun / Q / death cancels, Iron Resolve on two slimes, +50% attack speed = 12-frame swings); stats test 143/143; headless in-game check 15/15 (a real left click swings and hits for 64; the Knight's abilities, slimes chasing and hitting, i-frames and the HUD unchanged); room_01 runs with no errors.
 
-### C1 – Hit pipeline: 2026-09-26, Built (awaiting play test)
+**Passed** (Ryan, 2026-09-27: covered by the M1 play test of 2026-09-26).
+
+### C1 – Hit pipeline: 2026-09-26, Passed
 **C1 – Hit pipeline.** `Events`, `HitContext`, `HitPipeline`, `Unit.on_hit`; `take_damage()` and `_on_hurtbox_hurt` wrapped; `damage_type` and `proc_coefficient` on Ability. A test scene `res://scenes/tests/combat_test.tscn` (script in `scripts/tests/`).
 
 `combat_test.tscn` 50/50; stats test 143/143; a headless in-game check in the sandbox 11/11 (Cleave 124.8, Lunge 82, Judgement's damage and stun, Iron Resolve's haste, a slime chasing and hitting for 22 through `Events.unit_hit`, i-frames, the HUD); room_01 runs with no errors.
+
+**Passed** (Ryan, 2026-09-27: covered by the M1 play test of 2026-09-26).
 
 ## Movement (MOVEMENT.md)
 
@@ -238,7 +254,7 @@ Scoped modifiers, `get_ability_param`, and `id`/`tags` on Ability. Route cooldow
 ### Step 5 – ResourceComponent: 2026-09-25, Built (awaiting play test)
 ResourceComponent, plus the new stat fields on UnitStats. *(done: neutral defaults; HealthComponent follows max_health and regens; ResourceComponent on the Knight only; tested in `stats_test.tscn`)*
 
-### Step 4 – Migrate reads: 2026-09-25, Built (awaiting play test)
+### Step 4 – Migrate reads: 2026-09-25, Passed
 **Migrate reads.** *(done; checked headless against the old formulas for every Unit in the sandbox and room_01)* Every `stats.` read in the code before the migration:
 
 | File | Reads | After step 4 |
@@ -256,12 +272,18 @@ ResourceComponent, plus the new stat fields on UnitStats. *(done: neutral defaul
 
 Also move MovementComponent's speed modifiers into StatsComponent (`add_speed_modifier` becomes a thin wrapper, so existing callers keep working). MovementComponent itself reads no `stats.` field; `Unit._ready()` calls `movement.set_stats_component()`, and MovementComponent reads `get_stat(&"move_speed")` live.
 
-### Step 3 – StatsComponent on the scenes: 2026-09-25, Built (awaiting play test)
+**Passed** (Ryan, 2026-09-27).
+
+### Step 3 – StatsComponent on the scenes: 2026-09-25, Passed
 Add StatsComponent to player.tscn and slime.tscn. `Unit._ready()` wires it up. *(done: `Unit.stats_component`, a required child like HealthComponent)*
 
-### Steps 1–2 – StatModifier, registry, StatsComponent: 2026-09-25, Built (awaiting play test)
+**Passed** (Ryan, 2026-09-27).
+
+### Steps 1–2 – StatModifier, registry, StatsComponent: 2026-09-25, Passed
 1. StatModifier and the registry. *(done)*
 2. StatsComponent with the math, move_speed rules, caching, and `stat_changed`. Include a test scene that adds/removes modifiers and prints the results. *(done: `res://scenes/tests/stats_test.tscn`, F6. It prints PASS/FAIL per check and includes move_speed parity checks against a real MovementComponent.)*
+
+**Passed** (Ryan, 2026-09-27).
 
 ## World interaction (WORLD_INTERACTION.md)
 
