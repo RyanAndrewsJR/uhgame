@@ -103,13 +103,13 @@ Names checked against CONVENTIONS.md: `Audio`, `SoundEvent`, `AudioMix` and `Com
 | `min_interval` | `float` | 0.05 | Seconds, real time (0.03–0.1). The sliding window for `max_instances`. |
 | `loop` | `bool` | false | Plays until stopped (a kept handle or `play_on`). The file must also be imported with looping on (WAV: Loop Mode Forward; OGG: Loop); this flag doesn't make a file loop. |
 
-Methods: `get_stream() -> AudioStream` (the cached randomizer; null without usable audio), `has_audio() -> bool`.
+Methods: `get_stream() -> AudioStream` (the cached randomizer; null without usable audio; rebuilt only when the variations or the jitter change), `has_audio() -> bool`, `get_bus_name() -> StringName`, `get_display_name() -> String` (the file name, or `resource_name` for an unsaved event; logs and the debug list).
 
 ### AudioMix (Resource, `res://scripts/data/audio_mix.gd`; `res://data/audio_mixes/audio_mix_default.tres`, held by `Audio.mix`)
 The mix-wide numbers, like HitFeel for GameFeel:
 - `voice_cap` 32 (16–64)
 - `pause_music_duck_db` −6 (0 to −12); `pause_low_pass` (true, FREE) and `pause_low_pass_hz` (FREE); `duck_fade_time` 0.15 s, real time (FREE)
-- `pack_burst_sound` (null), `pack_burst_count` 3, `pack_burst_window` 0.1 s
+- `pack_burst_sound` (null), `pack_burst_count` 3, `pack_burst_window` 0.1 s (added in A2, with CombatSounds)
 - `log_size` 256, `debug_lines` 10, `debug_line_time` 3 s (FREE)
 
 ### Hook fields on existing classes (additive; all null by default)
@@ -150,10 +150,12 @@ Registered after Settings (it reads it in `_ready()`). Process mode Always, so i
   - `play_on(event: SoundEvent, node: Node2D, pitch := 1.0, priority := -1) -> int`: follows the node every physics frame and stops when the node leaves the tree (`tree_exiting`). Centered when the node is the Player or the event isn't positional. Every loop on a unit or telegraph uses it.
   - `stop(handle)`: stopping 0 or an ended handle does nothing. `stop_all_on(node)`. `stop_all()`: every SFX, Ambience and Voice sound; clears the instance-limit history and the pack burst window; Music and UI keep playing. `is_playing(handle) -> bool`.
   - `get_log() -> Array[Dictionary]`, `clear_log()`.
+  - `get_player(handle) -> Node` (for tests and debugging), `get_bus_base_db(bus) -> float` (the layout level), `get_listener_position() -> Vector2` (the screen center in world space).
   - `priority` −1 = the event's own.
+  - `play_on()` a node that isn't in the tree plays nothing (logged dropped `no_owner`).
 - **A play call, in order:**
   1. Null event: return 0, nothing logged.
-  2. No usable audio: `push_warning()` once per SoundEvent, logged dropped `no_audio`.
+  2. No usable audio: `push_warning()` once per SoundEvent, logged dropped `no_audio` every time.
   3. Instance limit: `max_instances` starts of this event already within the last `min_interval` (real time): dropped `instance_limit`.
   4. A positional one-shot farther than its `max_distance_px` from the listener (the screen center): dropped `out_of_range`. Loops always start (they may come into range).
   5. Voice cap (SFX bus only): with `mix.voice_cap` SFX sounds playing, a new sound that outranks the lowest-priority one stops it (the oldest among equals; logged `stolen`); otherwise the new one is dropped `voice_cap`. A stolen loop stays stopped (FREE whether it resumes later).
@@ -161,7 +163,7 @@ Registered after Settings (it reads it in `_ready()`). Process mode Always, so i
 - **Real time:** limits and the pack burst window use `Time.get_ticks_msec()`; fades use real delta (`delta / Engine.time_scale`, like GameCamera). Nothing touches `AudioServer.playback_speed_scale`.
 - **Pause:** players on SFX, Ambience and Voice are `PROCESS_MODE_PAUSABLE` (they pause with the tree and resume after); Music and UI players are `PROCESS_MODE_ALWAYS`. Audio watches `get_tree().paused` every frame: while paused, Music fades to `pause_music_duck_db` and its low-pass turns on; unpausing fades back. Any tree pause does this, not only the menu.
 - **Volumes:** on `_ready()` and on `Settings.setting_changed`, each bus's dB = its layout level + `linear_to_db(Settings.get_volume(bus))`; a slider at 0 mutes the bus.
-- **Log:** one entry per play, drop, stop and steal: `time_ms`, `frame`, `event` (resource path), `handle`, `result` (`played`, `dropped`, `stopped`, `stolen`), `reason`, `bus`, `priority`, `positional`, `position`. Keeps the last `mix.log_size`.
+- **Log:** one entry per play, drop, stop and steal (a sound that ends on its own isn't an entry): `time_ms`, `frame`, `event` (resource path, or the name of an unsaved event), `sound` (the SoundEvent), `handle`, `result` (`played`, `dropped`, `stopped`, `stolen`), `reason`, `bus`, `priority`, `positional`, `position`. Keeps the last `mix.log_size`.
 - **debug_draw:** a CanvasLayer list, top-left, of the last `mix.debug_lines` entries (`sound_hit_light  SFX  HIGH  played`); dropped and stolen ones in red with their reason; each line fades after `debug_line_time`.
 
 ### CombatSounds (Node, `res://scripts/audio/combat_sounds.gd`; a child of Audio, created in `Audio._ready()`)
@@ -230,17 +232,17 @@ Listens to Events; the only place hit, death and status sounds are played.
 | The voice cap is full | The lowest-priority, oldest SFX sound is stopped for a higher-priority one; otherwise the new one is dropped. Logged either way. |
 
 ## Godot behavior this relies on
-Checked from knowledge of Godot 4.0–4.5, not in 4.7 itself (the docs site and a Godot binary weren't reachable when this was written). A1's test and editor steps confirm each one; a difference goes into this section and DECISIONS.md.
-- **AudioStreamRandomizer** (4.0+): weighted streams; `playback_mode` `PLAYBACK_RANDOM_NO_REPEATS` (the default), `PLAYBACK_RANDOM`, `PLAYBACK_SEQUENTIAL`; `random_pitch` picks a pitch between 1/r and r; `random_volume_offset_db` ±dB. Unsure whether 4.5–4.7 added fields (e.g. semitones) or changed defaults.
-- **`max_polyphony`** (4.0+, default 1, on AudioStreamPlayer, 2D and 3D): over the limit it cuts the oldest copy. Not used for our limits (no time window, cuts old instead of dropping new, per player instead of per event); pooled players keep 1.
-- **AudioListener2D** (4.0+, `make_current()` / `clear_current()`): with none current, 2D sounds are heard from the screen center, which is the camera's actual view (smoothing, lean and shake included). We add no listener node: that default is "the listener on the camera". A listener as a child of the Camera would sit at the camera node's position, which with position smoothing is its target, not what's on screen.
-- **2D panning:** effective pan = `audio/general/2d_panning_strength` (default 0.5) × the player's `panning_strength` (default 1.0).
-- **A paused tree:** a player whose process mode stops when the tree pauses pauses its sound and resumes on unpause. Autoloads inherit Pausable from the root, so Audio sets each player's process mode by bus. Quirk (unsure in 4.7): unpausing clears a `stream_paused` set by hand; Audio never sets it.
+Written from knowledge of Godot 4.0–4.5; A1 checked what it could in Godot 4.7.2 headless (marked "checked"). A difference goes into this section and DECISIONS.md.
+- **AudioStreamRandomizer**: weighted streams; `playback_mode` `PLAYBACK_RANDOM_NO_REPEATS` (the default), `PLAYBACK_RANDOM`, `PLAYBACK_SEQUENTIAL`; `random_pitch` picks a pitch between 1/r and r; `random_volume_offset_db` ±dB. Checked in 4.7.2 (A1). 4.7.2 also has `random_pitch_semitones` (default 0); SoundEvent doesn't use it.
+- **`max_polyphony`** (checked: default 1, on AudioStreamPlayer, 2D and 3D): over the limit it cuts the oldest copy. Not used for our limits (no time window, cuts old instead of dropping new, per player instead of per event); pooled players keep 1.
+- **AudioListener2D** (checked: `make_current()`, `clear_current()`, `is_current()`): with none current, 2D sounds are heard from the screen center, which is the camera's actual view (smoothing, lean and shake included). We add no listener node: that default is "the listener on the camera". A listener as a child of the Camera would sit at the camera node's position, which with position smoothing is its target, not what's on screen.
+- **2D panning:** effective pan = `audio/general/2d_panning_strength` (checked: default 0.5; written into `project.godot` in A1) × the player's `panning_strength` (checked: default 1.0). AudioStreamPlayer2D's `max_distance` defaults to 2000 px; Audio sets it per event.
+- **A paused tree:** a player whose process mode stops when the tree pauses pauses its sound and resumes on unpause. Autoloads inherit Pausable from the root, so Audio sets each player's process mode by bus. Checked in 4.7.2: while the tree is paused a pausable player reads `stream_paused` true and `can_process()` false, and unpausing sets `stream_paused` back to false (so it would also clear one set by hand; Audio never sets it). Players with process mode Always keep playing.
 - **`Engine.time_scale`** doesn't change audio speed or pitch (the separate knob is `AudioServer.playback_speed_scale`). Anything timed in game time (timers, tweens, `delta`) does slow down, hence real-time limits and fades.
-- **Start timing:** AudioStreamPlayer starts at the next audio mix; AudioStreamPlayer2D starts on its next physics tick (up to 16.7 ms later). Physics ticks keep coming at 60 Hz real time during hitstop (only their `delta` is scaled), so a hit sound during hitstop isn't delayed further. To verify in A1.
+- **Start timing:** AudioStreamPlayer starts at the next audio mix; AudioStreamPlayer2D starts on its next physics tick (up to 16.7 ms later). Physics ticks keep coming at 60 Hz real time during hitstop (only their `delta` is scaled), so a hit sound during hitstop isn't delayed further. Not measurable headless (the dummy driver): a 2D player's `playing` reads true right after `play()`, but when it becomes audible needs the real driver. Still unverified.
 - **End-of-frame batching:** a `call_deferred` made during a physics step runs when that step's message queue is flushed, still in the same frame (the pack burst relies on it). To verify in A2.
-- **Headless:** the dummy audio driver may not play anything; tests check the log, never what was heard.
-- **Output latency:** `audio/driver/output_latency` 15 ms by default; the driver may round it; `AudioServer.get_output_latency()` reports the real value.
+- **Headless:** checked: the Dummy driver runs streams to their end (a 0.05 s one-shot ended and its voice was released), but reports 0 ms latency; tests check the log, never what was heard.
+- **Output latency:** `audio/driver/output_latency` 15 ms by default; the driver may round it; `AudioServer.get_output_latency()` reports the real value (the audio test prints it; Ryan's machine: see CHANGELOG.md once measured).
 
 ## File layout
 ```
@@ -267,6 +269,7 @@ Every step: with every sound field empty the game plays exactly as before, and t
 
 1. **A1 – Plumbing.** `default_bus_layout.tres` (six buses, starting levels, Music low-pass off), `project.godot` (Audio autoload after Settings; `2d_panning_strength` 0.5 written explicitly), `SoundEvent`, `AudioMix` + `audio_mix_default.tres`, the Audio autoload (pool, limits, priority, voice cap, real time, pause behavior, `stop_all()`, the log, `debug_draw`), `Settings` volumes, six sliders in the pause menu, `Audio.stop_all()` before the restart in `main.gd`, the `audio/` folders with `LICENSES.md`, `audio_test.tscn`. CLAUDE.md gets Audio under Autoloads and the new folders under Project layout.
    **Done means:** the audio test passes with tones generated in code (no files): a null event is silent and unlogged; an empty one warns once; 4 plays in one frame = 3 played + 1 `instance_limit`, and it plays again after 0.05 s real time, also with `Engine.time_scale` 0.05; a full voice cap drops a LOW sound and a HIGH one steals the lowest; a sound from the Player is centered and an enemy's positional; beyond `max_distance_px` = `out_of_range`; `stop()`, `stop_all_on()`, `stop_all()`; a `play_on` loop stops when its node is freed; SFX players are pausable and UI and Music players aren't, and pausing ducks Music −6 dB and restores it; volumes reach the buses and 0 mutes; the six buses exist with their levels. It prints the output latency. In play nothing sounds and nothing changes; the sliders change volume at once and survive a restart; Esc still pauses.
+   A1 built 2026-09-27, see CHANGELOG.md.
 2. **A2 – Combat sounds with placeholders.** `AttackSwing.swing_sound` / `hit_sound` / `sound_pitch`, `HitContext.hit_sound` (from `basic_attack()`), HitFeel's five sounds, `DashComponent.dash_sound`, `Unit.hurt_sound` / `death_sound`, `AudioMix.pack_burst_sound`, CombatSounds (hits, crit layer, shield absorb, hurt, deaths, pack burst). Data: `combo_knight.tres`, `hit_feel_default.tres`, `player.tscn`, `slime.tscn` / `slime_elite.tscn`, `audio_mix_default.tres`. Placeholder files Ryan drops in (CC0), about 20 WAVs:
 
    | Sound event | Files | Should sound like |

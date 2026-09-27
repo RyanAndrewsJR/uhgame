@@ -36,9 +36,13 @@ data/curves/            Curve .tres for displacement speed profiles (curve_dash.
 data/combos/            AttackCombo .tres (combo_knight.tres: the Knight's basic attack)
 data/hit_feels/         HitFeel .tres (hit_feel_default.tres: hitstop/shake/flash per hit tier)
 data/damage_number_styles/  DamageNumberStyle .tres (damage_number_style_default.tres: number sizes, colors, motion)
+data/sounds/            SoundEvent .tres (sound_<category>_<name>.tres; AUDIO.md)
+data/audio_mixes/       AudioMix .tres (audio_mix_default.tres: voice cap, pause duck, log and debug sizes)
+audio/                  audio files: sfx/ (WAV), music/ and ambience/ (OGG), LICENSES.md (CC0 placeholders only)
+default_bus_layout.tres the audio buses: Master, Music, SFX, UI, Ambience, Voice
 scenes/player|enemies|rooms|ui/
 scenes/sandbox_main.tscn  test run: main + rooms/sandbox.tscn (open it, press F6)
-scenes/tests/           script-level test scenes (stats_test.tscn, combat_test.tscn; F6; scripts in scripts/tests/)
+scenes/tests/           script-level test scenes (stats_test.tscn, combat_test.tscn, audio_test.tscn; F6; scripts in scripts/tests/)
 data/stats/             stat_registry.tres (every stat's limits and format)
 scripts/abilities/      ability.gd (base), cast_context.gd, ability_util.gd
 scripts/abilities/<champion>/   one script per ability (knight/cleave.gd ...)
@@ -74,7 +78,8 @@ New subfolders inside these are fine. Ask before adding a new top-level folder.
 - `Events` (`scripts/autoload/events.gd`): global signal bus. `unit_hit`, `unit_damaged`, `unit_died` (COMBAT.md)
 - `WorldQuery` (`scripts/autoload/world_query.gd`): spatial queries; only `has_line_of_sight()` so far, used by every hit (docs/WORLD_INTERACTION.md, COMBAT C7)
 - `Reactions` (`scripts/autoload/reactions.gd`): fires reaction rules on `unit_hit`, `unit_died`, `status_applied`; world rules from `data/reactions/world/`, unit rules via `Unit.add_reaction_rule()` (COMBAT C11)
-- `Settings` (`scripts/autoload/settings.gd`): the player's own options, saved to `user://settings.cfg`; `setting_changed(key, value)`. Only dash direction so far (MOVEMENT.md, Dash). Changed in the Esc pause menu (`PauseMenu`, `scenes/ui/pause_menu.tscn`).
+- `Settings` (`scripts/autoload/settings.gd`): the player's own options, saved to `user://settings.cfg`; `setting_changed(key, value)`. Dash direction (MOVEMENT.md, Dash) and one volume per audio bus (AUDIO.md). Changed in the Esc pause menu (`PauseMenu`, `scenes/ui/pause_menu.tscn`).
+- `Audio` (`scripts/autoload/audio.gd`, registered last): the one way to play sounds. `play()`, `play_at()`, `play_on()` return int handles; `stop()`, `stop_all_on()`, `stop_all()`; instance limits, the SFX voice cap, pause behavior, bus volumes from Settings, a log for tests, `debug_draw` (AUDIO.md)
 
 ## Change policy (important)
 The game in `game/` is the **reference build**. It works, and changes build on it.
@@ -112,12 +117,12 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 | `docs/_TEMPLATE.md` | writing a new doc |
 
 ## Current status
-- **Now:** Waiting on Ryan's play test of "a swing counts once its hit has landed" (dash or Q out of a swing's recovery keeps the combo) and COMBAT C12 (dash-strike). Still open: play tests of STATS steps 5–6, COMBAT C8–C11, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of AUDIO A1 (nothing sounds yet: the six volume sliders in the Esc menu, saved across restarts; Esc and Backspace still work) and of "a swing counts once its hit has landed" and COMBAT C12. Still open: play tests of STATS steps 5–6, COMBAT C8–C11, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. A swing counts once its hit has landed: player cancels after the hit (walk, dash, an ability cutting the recovery) keep the combo; windup cancels, stuns and death reset it (`cancel_swing(keep_combo_if_landed)`). Combat test 450/450, stats test 172/172, in-game check 43/43.
-  2. COMBAT C12: dash-strike (the Knight's heavy thrust, 1.5 AD, 16 px step; index −1, `dash_strike` hit tag; the combo resumes after it; window 0.15 s).
-  3. COMBAT C11: reaction rules (`ReactionRule`, four GameplayEffects, the `Reactions` autoload, world and unit rules, `chain_limit` capped at 5, a sandbox-only Shatter demo).
-- **Next:** COMBAT is built through C12. AUDIO A1–A3 (plumbing, combat sounds, abilities and statuses). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order (ABILITIES.md next).
+  1. AUDIO A1: plumbing (bus layout, `SoundEvent`, `AudioMix`, the `Audio` autoload with limits, voice cap, real time, pause, log and `debug_draw`; Settings volumes and six pause-menu sliders). Audio test 62/62, combat test 450/450, stats test 172/172.
+  2. A swing counts once its hit has landed: player cancels after the hit (walk, dash, an ability cutting the recovery) keep the combo; windup cancels, stuns and death reset it (`cancel_swing(keep_combo_if_landed)`). Combat test 450/450, stats test 172/172, in-game check 43/43.
+  3. COMBAT C12: dash-strike (the Knight's heavy thrust, 1.5 AD, 16 px step; index −1, `dash_strike` hit tag; the combo resumes after it; window 0.15 s).
+- **Next:** AUDIO A2 (combat sounds with placeholders; Ryan drops in the CC0 files listed in AUDIO.md) → A3 (abilities and statuses). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order (ABILITIES.md next).
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.

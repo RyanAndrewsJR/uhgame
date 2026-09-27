@@ -243,6 +243,10 @@
 | 2026-09-27 | Ultimate-ready ping: `AbilityComponent.cooldown_finished(slot, ability)` (new, when a cooldown counts down to 0) plays `Ability.ready_sound`. A refunded cooldown doesn't ping. | Nothing announced a cooldown ending (the HUD polls). A field per ability keeps it data, not an R special case. |
 | 2026-09-27 | Bus layout at `res://default_bus_layout.tres` (Godot's default path): Master, Music, SFX, UI, Ambience, Voice. Designer levels live there; the player's sliders live in `Settings` (saved as whole percents in an `[audio]` section) and apply on top. | The editor's Audio panel saves there with no project setting. Designer tuning never goes into Settings (General, 2026-09-26). |
 | 2026-09-27 | Formats: WAV (16-bit, 44.1 kHz, mono when positional) for short SFX, OGG for music and ambience loops. Every third-party file gets a row in `audio/LICENSES.md`; placeholders are CC0 only. | Short WAVs start without decoding; OGG keeps long loops small. |
+| 2026-09-27 | A1: the pack burst fields (`pack_burst_sound`, `pack_burst_count`, `pack_burst_window`) join AudioMix in A2 with CombatSounds, not in A1. | Nothing reads them before CombatSounds exists. |
+| 2026-09-27 | A1: a `loop` SoundEvent whose file wasn't imported as a loop is started again by Audio when it finishes. | A mis-imported placeholder still loops (with a small gap) instead of silently ending a status loop or a wind-up. Importing with looping on stays the rule. |
+| 2026-09-27 | A1: the pause menu's volume rows are built in code, one per `Settings.VOLUME_BUSES` entry, under one `%Volumes` container in `pause_menu.tscn`. | Six identical rows; a new bus is one line in Settings. |
+| 2026-09-27 | A1: Audio exposes `get_player(handle)`, `get_bus_base_db(bus)` and `get_listener_position()` as queries, and the log carries the SoundEvent itself (`sound`) next to its path. | Tests and debugging read Audio through public methods (CONVENTIONS: components own their state); unsaved test events have no path. |
 
 ## Enemies
 | Date | Decision | Why |
