@@ -55,8 +55,9 @@ var knockback_duration: float = 0.1
 var knockback_curve: Curve
 ## The push goes away from this point. INF = the source's position.
 var knockback_from: Vector2 = Vector2.INF
-## Statuses applied after the damage (COMBAT C9).
-var statuses: Array = []
+## Statuses applied to the target after the damage, from the source
+## (COMBAT C9). Blocked hits apply none.
+var statuses: Array[StatusEffect] = []
 var feel: Feel = Feel.NONE
 ## Makes the damage number stand out. Kept from take_damage(highlight)
 ## until abilities build their own contexts.

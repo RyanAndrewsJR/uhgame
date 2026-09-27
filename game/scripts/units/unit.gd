@@ -5,7 +5,7 @@ extends CharacterBody2D
 ##
 ## Expected children: StatsComponent, HealthComponent, AutoAttackComponent,
 ## MovementComponent, Body (Node2D with the visuals), optional Hurtbox,
-## HealthBar, AbilityComponent and ResourceComponent.
+## HealthBar, AbilityComponent, ResourceComponent and StatusComponent.
 ##
 ## `stats` is the base UnitStats; `stats_component` holds the live values
 ## (base + modifiers, STATS.md).
@@ -16,7 +16,8 @@ signal damaged(amount: float, source: Unit)
 enum Team { PLAYER, ENEMY }
 
 const DamageNumber := preload("res://scripts/ui/damage_number.gd")
-const StunEffect := preload("res://scripts/vfx/stun_effect.gd")
+const StunEffect := preload("res://scripts/vfx/stun_effect.gd")   # pre-C9 stun, used only without a StatusComponent
+const STATUS_STUN: StatusEffect = preload("res://data/statuses/status_stun.tres")
 ## How long a Hurtbox hit's knockback lasts (seconds).
 const HURTBOX_KNOCKBACK_TIME := 0.12
 ## Invulnerability id of the post-hit i-frames.
@@ -42,6 +43,9 @@ const HIT_IFRAMES_ID := &"hit_iframes"
 ## Optional: mana/energy/fury (ResourceComponent). Named resource_pool so it
 ## isn't mixed up with Godot's Resource.
 @onready var resource_pool: ResourceComponent = get_node_or_null("ResourceComponent")
+## Status effects (COMBAT C9). Optional so old scenes still load; without it
+## apply_stun() and add_speed_modifier() use their pre-C9 code.
+@onready var status_component: StatusComponent = get_node_or_null("StatusComponent")
 
 var hovered: bool = false:
 	set(value):
@@ -66,6 +70,8 @@ func _ready() -> void:
 	if resource_pool:
 		resource_pool.set_stats_component(stats_component)
 	movement.set_stats_component(stats_component)
+	if status_component:
+		movement.set_status_component(status_component)
 	movement.set_radius(get_pathing_radius_px())
 	if has_node("Hurtbox"):
 		($Hurtbox as Hurtbox).hurt.connect(_on_hurtbox_hurt)
@@ -167,6 +173,9 @@ func on_hit(ctx: HitContext) -> void:
 	_flash()
 	if ctx.knockback_px > 0.0 and _alive:
 		_apply_knockback(ctx)
+	if _alive and status_component:   # statuses after the damage (COMBAT C9)
+		for effect in ctx.statuses:
+			status_component.apply_status(effect, ctx.source)
 	GameFeel.play_hit_feel(ctx)   # hitstop and shake by tier (COMBAT C3)
 	Events.unit_hit.emit(ctx)
 	if ctx.taken_damage > 0.0:
@@ -205,9 +214,14 @@ func _start_hit_iframes() -> void:
 
 # --- Crowd control ------------------------------------------------------------
 
-## Stun: can't move, attack or cast. Re-stunning extends to the longer one.
-func apply_stun(duration: float) -> void:
+## Stun: can't move, attack, cast or dash. Re-stunning extends to the
+## longer one. A thin wrapper (COMBAT C9): it applies status_stun for
+## `duration` from `source` (tenacity shortens it).
+func apply_stun(duration: float, source: Unit = null) -> void:
 	if not _alive:
+		return
+	if status_component:
+		status_component.apply_status(STATUS_STUN, source, duration)
 		return
 	var fx := get_node_or_null("StunEffect")
 	if fx == null:
@@ -219,14 +233,28 @@ func apply_stun(duration: float) -> void:
 	fx.extend(duration)
 
 
+## Any status tagged &"stun" (or the pre-C9 StunEffect).
 func is_stunned() -> bool:
+	if status_component and status_component.has_tag(&"stun"):
+		return true
 	return has_node("StunEffect")
 
 
+## A status blocks casting (stun, silence).
+func is_cast_blocked() -> bool:
+	return is_stunned() or (status_component != null and status_component.blocks_cast())
+
+
+## A status blocks dashing (stun, root).
+func is_dash_blocked() -> bool:
+	return is_stunned() or (status_component != null and status_component.blocks_dash())
+
+
 ## The tags of the unit's active status effects (&"target:<tag>" scopes,
-## COMBAT C8). Until StatusComponent (C9) there is only the stun:
-## &"cc" and &"stun".
+## COMBAT C8). From the StatusComponent (C9); without one, only the stun.
 func get_status_tags() -> Array[StringName]:
+	if status_component:
+		return status_component.get_tags()
 	var result: Array[StringName] = []
 	if is_stunned():
 		result.append_array([&"cc", &"stun"])
@@ -345,6 +373,8 @@ func _on_died() -> void:
 		abilities.cancel_pending()
 	if has_node("StunEffect"):
 		$StunEffect.queue_free()
+	if status_component:
+		status_component.clear()
 	movement.stop()
 	movement.add_move_lock(&"dead")
 	movement.disable_avoidance()

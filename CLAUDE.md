@@ -108,12 +108,12 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 | `docs/_TEMPLATE.md` | writing a new doc |
 
 ## Current status
-- **Now:** Waiting on Ryan's play test of COMBAT C8 (nothing should change in play). Still open: play tests of STATS steps 5–6, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of COMBAT C9 (nothing should change in play). Still open: play tests of STATS steps 5–6, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. COMBAT C8: crits (`crit_damage` 1.75; PRD, one roll per swing or cast), `damage_increase` with `hit:` / `target:` scopes (`StatsComponent.get_scoped_stat()`), `incoming_damage`, on-hit (`on_hit_damage` as a MAGIC proc hit, `life_on_hit`, `life_steal` on basic attacks, `resource_on_hit`, × `proc_coefficient`); Cleave, Lunge and Judgement hit through `HitPipeline.from_ability()`. Combat test 322/322, stats test 172/172, in-game check 40/40.
-  2. STATS step 6: `id` and `tags` on every Ability; scoped modifiers (`ability:<id>`, `tag:<tag>`) through `StatsComponent.get_ability_param()` / `Ability.get_param()`; cooldown, cast range, base damage and AD ratio routed through them.
-  3. M1 tuning: post-hit i-frames 0.3 s; test elite slam 72 px circle, 0.65 s telegraph; a 2-hit and a 5-hit combo check.
-- **Next:** COMBAT C9 (statuses: `StatusComponent`, `StatusEffect`, stun / slow / haste, tenacity, DoT) → C10–C12. STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order.
+  1. COMBAT C9: `StatusEffect` + `StatusComponent` (stack rules, locks, modifiers, VFX, game-time timers), `status_stun` / `status_slow` / `status_haste`, `apply_stun()` and `add_speed_modifier()` as wrappers, tenacity, DoT (snapshot, kill credit), `HitContext.statuses`, `Events.status_applied` / `status_removed`. Combat test 364/364, stats test 172/172, in-game check 40/40.
+  2. COMBAT C8: crits (`crit_damage` 1.75; PRD, one roll per swing or cast), `damage_increase` with `hit:` / `target:` scopes, `incoming_damage`, on-hit stats; Cleave, Lunge and Judgement through `HitPipeline.from_ability()`.
+  3. STATS step 6: `id` and `tags` on every Ability; scoped modifiers (`ability:<id>`, `tag:<tag>`) for ability numbers.
+- **Next:** COMBAT C10 (shields: shield statuses, `StatusComponent.absorb_damage()`) → C11 (reaction rules) → C12 (dash-strike). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order.
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.
