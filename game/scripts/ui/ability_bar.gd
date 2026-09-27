@@ -16,6 +16,8 @@ var player: Player
 var _hover: int = -1
 var _font: Font
 var _fail_flash: Dictionary = {}   # slot -> seconds left
+## The slot whose charge-up bar the last _draw() drew (&"" = none); tests read it.
+var _drawn_charge_bar_slot: StringName = &""
 
 
 func _ready() -> void:
@@ -59,6 +61,7 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	if abilities == null or not is_instance_valid(abilities):
 		return
+	_drawn_charge_bar_slot = &""
 	for i in 4:
 		var slot: StringName = AbilityComponent.SLOTS[i]
 		var ability := abilities.get_ability(slot)
@@ -102,6 +105,20 @@ func _draw() -> void:
 			# Stored charges, bottom right (only for abilities with charges).
 			draw_string(_font, rect.position + Vector2(0, SLOT - 3), str(charges),
 				HORIZONTAL_ALIGNMENT_RIGHT, SLOT - 2, 9, Color(1, 1, 1))
+
+		if abilities.is_charging() and abilities.casting_slot == slot:
+			# Charge-up bar above the slot (ABILITIES AB6): fills while held,
+			# then, once full, an orange bar shows the overhold running out.
+			# Gone once released (the charge is locked) or ended.
+			_drawn_charge_bar_slot = slot
+			var bar := Rect2(rect.position + Vector2(0, -5), Vector2(SLOT, 3))
+			draw_rect(bar.grow(1), Color(0, 0, 0, 0.8))
+			var charge := abilities.get_charge()
+			if charge < 1.0:
+				draw_rect(Rect2(bar.position, Vector2(SLOT * charge, 3)), Color(1, 1, 1, 0.9))
+			else:
+				var over := maxf(abilities.get_charge_ability().get_param(abilities.unit, &"overhold_time"), 0.001)
+				draw_rect(Rect2(bar.position, Vector2(SLOT * abilities.get_overhold_left() / over, 3)), Color(1, 0.55, 0.15))
 
 		# Can't cast right now: grey while stunned or silenced, blue while
 		# the cost can't be paid.

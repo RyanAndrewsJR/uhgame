@@ -36,6 +36,15 @@ signal recast_window_started(slot: StringName, part: int, time: float)
 ## A recast sequence ended: its last part was used or the window ran out.
 ## The slot's recharge starts now.
 signal recast_window_finished(slot: StringName)
+## A CHARGE_UP ability started charging (its cost is paid now; ABILITIES AB6).
+signal charge_started(slot: StringName, ability: Ability)
+## A charge-up was released (or fired by its overhold) at `charge` 0-1; its
+## cast starts right after (cast_started).
+signal charge_released(slot: StringName, ability: Ability, charge: float)
+## A charge-up is over, however it ended (its effect started after release,
+## overhold, Esc, stun, dash, move, death...): the indicator, the charge bar
+## and the charging sound go (AB6).
+signal charge_ended(slot: StringName, ability: Ability)
 
 const SLOTS: Array[StringName] = [&"q", &"w", &"e", &"r"]
 ## Source id of the move_speed modifier from Ability.cast_move_speed_multiplier.
@@ -62,6 +71,17 @@ var _cooldown_total: Dictionary = {}  # slot -> seconds (for the HUD sweep)
 var _charges: Dictionary = {}         # slot -> stored charges (set on first use: full)
 var _cast_took_charge: bool = false   # the cast in progress took a charge (a refund gives it back)
 var _cast_part: int = 0               # the recast part of the cast in progress
+## The ability of the cast (or charge-up) in progress, kept from its start so
+## a slot swap mid-cast doesn't change it.
+var _cast_ability: Ability
+## Charge-up (AB6): `casting` is true from the press to the end of the cast
+## (no swings, the dash rules of a cast), casting_slot is its slot.
+var _charge_phase: ChargePhase = ChargePhase.NONE
+var _charge_ability: Ability
+var _charge_hold: float = 0.0          # seconds held (game time)
+var _charge_aim: Vector2 = Vector2.ZERO  # the cursor while holding (set_charge_aim()); locked at release
+var _released_charge: float = 0.0      # the charge locked at release
+var _charge_sound_handle: int = 0
 ## Recast sequences: slot -> {next: the next part, left: window seconds,
 ## ability}. Created when a part 0 with recasts starts; its window only runs
 ## between parts; erased when the sequence ends.
@@ -233,19 +253,10 @@ func try_cast(slot: StringName, aim: Vector2, target_unit: Unit = null) -> bool:
 		cast_failed.emit(slot, reason)
 		return false
 
-	var ctx := CastContext.new()
-	ctx.slot = slot
-	ctx.part = get_recast_part(slot)   # 0, or the next part of a recast sequence
+	var ctx := _make_context(slot, ability, aim, 1.0)
 	var origin := unit.global_position
-	var to_aim := aim - origin
-	ctx.direction = to_aim.normalized() if to_aim.length() > 0.01 else Vector2.RIGHT
-	ctx.point = aim
 
 	match ability.targeting:
-		Ability.Targeting.SELF:
-			ctx.point = origin
-		Ability.Targeting.POINT:
-			ctx.point = origin + to_aim.limit_length(Units.to_px(ability.get_param(unit, &"cast_range")))
 		Ability.Targeting.UNIT:
 			if target_unit == null or not target_unit.is_alive() or not unit.is_enemy_of(target_unit):
 				cast_failed.emit(slot, FAIL_NO_TARGET)
@@ -264,8 +275,207 @@ func try_cast(slot: StringName, aim: Vector2, target_unit: Unit = null) -> bool:
 	return true
 
 
+## A cast's context for an aim: the slot, its recast part, the charge, and
+## the aim by targeting (SELF: the caster; POINT: clamped to the range at
+## that charge; DIRECTION / UNIT: toward the aim). UNIT's target is set by
+## try_cast().
+func _make_context(slot: StringName, ability: Ability, aim: Vector2, charge: float) -> CastContext:
+	var ctx := CastContext.new()
+	ctx.slot = slot
+	ctx.part = get_recast_part(slot)   # 0, or the next part of a recast sequence
+	ctx.charge = charge
+	var origin := unit.global_position
+	var to_aim := aim - origin
+	ctx.direction = to_aim.normalized() if to_aim.length() > 0.01 else Vector2.RIGHT
+	ctx.point = aim
+	match ability.targeting:
+		Ability.Targeting.SELF:
+			ctx.point = origin
+		Ability.Targeting.POINT:
+			ctx.point = origin + to_aim.limit_length(Units.to_px(ability.get_charged_param(unit, &"cast_range", charge)))
+	return ctx
+
+
 func cancel_pending() -> void:
 	_pending.clear()
+
+
+# --- Charge-up (ABILITIES AB6) -------------------------------------------------------
+
+## HOLDING: the key is held and the charge grows. RELEASED: let go, the aim
+## and charge are locked and the cast is in its release windup (cast_time)
+## until its effect starts. NONE otherwise.
+enum ChargePhase { NONE, HOLDING, RELEASED }
+
+
+## True while the key is held (the charge grows).
+func is_charging() -> bool:
+	return _charge_phase == ChargePhase.HOLDING
+
+
+## True from the press until the effect starts or the charge-up ends any
+## other way: while this is true the Player shows the ability's indicator
+## (following the cursor while holding, locked during the release windup).
+func has_charge_indicator() -> bool:
+	return _charge_phase != ChargePhase.NONE
+
+
+## The charge-up's ability (kept from the press, so a slot swap mid-charge
+## doesn't change it), or null.
+func get_charge_ability() -> Ability:
+	return _charge_ability if _charge_phase != ChargePhase.NONE else null
+
+
+## The charge so far while holding, 0 (just pressed) to 1 (full); the locked
+## charge during the release windup; 0 otherwise.
+func get_charge() -> float:
+	match _charge_phase:
+		ChargePhase.HOLDING:
+			var time := _charge_ability.get_param(unit, &"charge_time")
+			return 1.0 if time <= 0.0 else clampf(_charge_hold / time, 0.0, 1.0)
+		ChargePhase.RELEASED:
+			return _released_charge
+	return 0.0
+
+
+## The aim locked at release (the release windup), or Vector2.INF while
+## holding (the indicator follows the cursor) or with no charge-up.
+func get_locked_charge_aim() -> Vector2:
+	return _charge_aim if _charge_phase == ChargePhase.RELEASED else Vector2.INF
+
+
+## Seconds the charging key has been held (0 when not holding).
+func get_charge_hold_time() -> float:
+	return _charge_hold if is_charging() else 0.0
+
+
+## Seconds left before the overhold behavior: the whole overhold_time until
+## full charge, then counting down. 0 when not holding.
+func get_overhold_left() -> float:
+	if not is_charging():
+		return 0.0
+	var full_at := _charge_ability.get_param(unit, &"charge_time")
+	var overhold := _charge_ability.get_param(unit, &"overhold_time")
+	return clampf(overhold - maxf(_charge_hold - full_at, 0.0), 0.0, overhold)
+
+
+## Where a charge-up fires if its overhold fires it (the Player keeps it on
+## the cursor every frame; otherwise the aim it started with). Ignored once
+## released (the aim is locked).
+func set_charge_aim(aim: Vector2) -> void:
+	if is_charging():
+		_charge_aim = aim
+
+
+## Press: start charging a CHARGE_UP ability. Checks like try_cast() (ready,
+## not busy or blocked, affordable) and pays the cost now; the charge and
+## cooldown are taken at release. The cast movement rules apply while
+## charging and during the release windup (roots_during_cast,
+## cast_move_speed_multiplier, a channel's move cancel, dash_cancelable).
+## Anything else (another cast style, a recast part) is an ordinary
+## try_cast(). False if refused.
+func try_start_charge(slot: StringName, aim: Vector2) -> bool:
+	var ability := get_ability(slot)
+	if ability == null:
+		return false
+	if ability.cast_style != Ability.CastStyle.CHARGE_UP or get_recast_part(slot) > 0:
+		return try_cast(slot, aim)
+	if ability.targeting == Ability.Targeting.UNIT:
+		push_error("Ability '%s': CHARGE_UP doesn't support UNIT targeting" % ability.id)
+		return false
+	var reason := get_fail_reason(slot)
+	if reason != "":
+		cast_failed.emit(slot, reason)
+		return false
+	_pending.clear()
+	casting = true
+	casting_slot = slot
+	_cast_ability = ability
+	_charge_phase = ChargePhase.HOLDING
+	_charge_ability = ability
+	_charge_hold = 0.0
+	_charge_aim = aim
+	_released_charge = 0.0
+	_cast_ctx = null
+	_cast_part = 0
+	_cast_took_charge = false
+	_cast_cost = 0.0
+	var cost := get_slot_cost(slot)
+	if unit.resource_pool != null and unit.resource_pool.try_spend(cost):
+		_cast_cost = maxf(cost, 0.0)
+	_begin_cast_locks(ability, true)
+	_charge_sound_handle = Audio.play_on(ability.charge_sound, unit)
+	charge_started.emit(slot, ability)
+	return true
+
+
+## Release: fire the charge-up at `aim` with the charge reached (a tap = 0).
+## The aim and charge lock, the charging sound stops, and its cast starts
+## now: the charge and cooldown are taken, cast_sound, cast_started, the
+## release windup (cast_time), then execute(). The indicator stays (locked)
+## until the effect starts. False if nothing is holding.
+func release_charge(aim: Vector2) -> bool:
+	if not is_charging():
+		return false
+	var slot := casting_slot
+	var ability := _charge_ability
+	var charge := get_charge()
+	_charge_phase = ChargePhase.RELEASED
+	_charge_aim = aim
+	_released_charge = charge
+	_stop_charge_sound()
+	var ctx := _make_context(slot, ability, aim, charge)
+	charge_released.emit(slot, ability, charge)
+	_do_cast(slot, ability, ctx, true)
+	return true
+
+
+## Esc while charging (or in the release windup): cancel with a full refund.
+## False if no charge-up is going.
+func try_cancel_charge() -> bool:
+	if not has_charge_indicator() or _executing:
+		return false
+	_cancel_cast()
+	return true
+
+
+## The one way a charge-up ends, whatever ended it (its effect starting after
+## release, the overhold, Esc, a stun, a dash, a move, death, a lost key
+## release): the phase goes back to NONE, the charging sound stops, and
+## charge_ended tells the HUD and the Player to clear the indicator and the
+## charge bar. Does nothing if no charge-up is going.
+func _end_charge() -> void:
+	if _charge_phase == ChargePhase.NONE:
+		return
+	var slot := casting_slot
+	var ability := _charge_ability
+	_charge_phase = ChargePhase.NONE
+	_charge_hold = 0.0
+	_stop_charge_sound()
+	charge_ended.emit(slot, ability)
+
+
+func _stop_charge_sound() -> void:
+	if _charge_sound_handle != 0:
+		Audio.stop(_charge_sound_handle)
+		_charge_sound_handle = 0
+
+
+## Holding: count the hold (game time); after full charge + overhold_time,
+## the overhold behavior: FIRE at the aim, or CANCEL_REFUND.
+func _update_charge(delta: float) -> void:
+	if not is_charging():
+		return
+	if not unit.is_alive() or unit.is_cast_blocked():
+		interrupt_cast()   # safety net for a unit without a StatusComponent
+		return
+	_charge_hold += delta
+	var limit := _charge_ability.get_param(unit, &"charge_time") + _charge_ability.get_param(unit, &"overhold_time")
+	if _charge_hold >= limit:
+		if _charge_ability.overhold == Ability.Overhold.FIRE:
+			release_charge(_charge_aim)
+		else:
+			_cancel_cast()
 
 
 ## Reports a press that won't cast (emits cast_failed), for callers that
@@ -280,8 +490,7 @@ func fail_cast(slot: StringName, reason: String) -> void:
 func can_cancel_cast() -> bool:
 	if not casting or _executing:
 		return false
-	var ability := get_ability(casting_slot)
-	return ability != null and ability.dash_cancelable
+	return _cast_ability != null and _cast_ability.dash_cancelable
 
 
 ## Cancels the current cast during its cast time if allowed. Releases the
@@ -298,8 +507,7 @@ func try_cancel_cast() -> bool:
 func can_cancel_cast_on_move() -> bool:
 	if not casting or _executing:
 		return false
-	var ability := get_ability(casting_slot)
-	return ability != null and ability.is_channel()
+	return _cast_ability != null and _cast_ability.is_channel()
 
 
 ## Cancels the current cast because the unit started moving, if its ability
@@ -320,7 +528,8 @@ func interrupt_cast() -> bool:
 	if not casting or _executing:
 		return false
 	var slot := casting_slot
-	var ability := get_ability(slot)
+	var ability := _cast_ability
+	_end_charge()   # a charge-up interrupted (stun, death) ends here, refunded like a cast
 	_remove_telegraph(_cast_ctx)
 	_cast_serial += 1  # The _do_cast waiting on the cast time sees this and stops.
 	if _cast_rooted:
@@ -338,7 +547,8 @@ func interrupt_cast() -> bool:
 
 func _cancel_cast() -> void:
 	var slot := casting_slot
-	var ability := get_ability(slot)
+	var ability := _cast_ability
+	_end_charge()   # a charge-up cancelled (Esc, overhold, dash, move) ends here
 	_remove_telegraph(_cast_ctx)
 	_cast_serial += 1  # The _do_cast waiting on the cast time sees this and stops.
 	if _cast_rooted:
@@ -354,6 +564,7 @@ func _cancel_cast() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	_update_charge(delta)
 	_update_recast_windows(delta)
 	for s in SLOTS:
 		_update_recharge(s, delta)
@@ -378,11 +589,15 @@ func _physics_process(delta: float) -> void:
 			unit.movement.move_to(target.global_position)
 
 
-func _do_cast(slot: StringName, ability: Ability, ctx: CastContext) -> void:
+## The cast flow (ABILITIES.md, The cast flow). `precharged`: a released
+## charge-up, which already paid its cost and set up its locks when charging
+## started.
+func _do_cast(slot: StringName, ability: Ability, ctx: CastContext, precharged: bool = false) -> void:
 	_cast_serial += 1
 	var serial := _cast_serial
 	casting = true
 	casting_slot = slot
+	_cast_ability = ability
 	_cast_part = ctx.part
 	var cost := get_slot_cost(slot)   # read before a new sequence starts (part 0 pays resource_cost)
 	if ctx.part == 0:
@@ -398,21 +613,15 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext) -> void:
 		charges_changed.emit(slot, _charges[slot], get_max_charges(slot))
 	else:
 		_cast_took_charge = false   # a later part needs no charge
-	# Pay at cast start (try_cast() checked it's affordable); refunded if the
-	# cast is cancelled or interrupted before its effect.
-	_cast_cost = 0.0
-	if unit.resource_pool != null and unit.resource_pool.try_spend(cost):
-		_cast_cost = maxf(cost, 0.0)
-
-	unit.attack.add_lock(&"casting")   # also cancels an auto-attack windup
-	# Channels always root, whatever roots_during_cast says.
-	var rooted := (ability.roots_during_cast or ability.is_channel()) and ability.cast_time > 0.0
-	if rooted:
-		unit.movement.add_move_lock(&"casting")
-	if ability.is_channel() and ability.cast_time > 0.0:
-		unit.movement.stop()
-	_cast_rooted = rooted
-	_add_cast_move_speed(ability)
+	if not precharged:
+		# Pay at cast start (try_cast() checked it's affordable); refunded if the
+		# cast is cancelled or interrupted before its effect. A charge-up paid
+		# when charging started.
+		_cast_cost = 0.0
+		if unit.resource_pool != null and unit.resource_pool.try_spend(cost):
+			_cast_cost = maxf(cost, 0.0)
+		_begin_cast_locks(ability, false)
+	var rooted := _cast_rooted
 	_cast_ctx = ctx
 	Audio.play_on(ability.cast_sound, unit)
 	cast_started.emit(slot, ability, ctx)
@@ -428,12 +637,14 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext) -> void:
 	var interrupted := not is_instance_valid(unit) or not unit.is_alive() or unit.is_cast_blocked()
 	if interrupted:
 		_remove_telegraph(ctx)
+		_end_charge()
 		if is_instance_valid(unit) and unit.is_alive():
 			_restore_slot(slot)  # Refund interrupted casts.
 			_refund_cost()
 	else:
 		_cast_cost = 0.0   # the effect starts: nothing is refunded from here
 		_cast_took_charge = false
+		_end_charge()   # a released charge-up: the effect starts, its indicator goes
 		_executing = true
 		await ability.execute(unit, ctx)
 		_executing = false
@@ -451,6 +662,24 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext) -> void:
 	if not interrupted:
 		_advance_recast(slot, ctx.part)
 	cast_finished.emit(slot, ability)
+
+
+## The cast's locks and walking rules: the &"casting" attack lock (it also
+## cancels a swing or windup); a root (&"casting" move lock) if the ability
+## roots or is a channel (a channel also stops the unit); otherwise the walk
+## multiplier. A cast with no cast time doesn't root; a charge-up
+## (`charging`) roots for the whole hold if it roots at all.
+func _begin_cast_locks(ability: Ability, charging: bool) -> void:
+	unit.attack.add_lock(&"casting")   # also cancels an auto-attack windup
+	var has_time := charging or ability.cast_time > 0.0
+	# Channels always root, whatever roots_during_cast says.
+	var rooted := (ability.roots_during_cast or ability.is_channel()) and has_time
+	if rooted:
+		unit.movement.add_move_lock(&"casting")
+	if ability.is_channel() and has_time:
+		unit.movement.stop()
+	_cast_rooted = rooted
+	_add_cast_move_speed(ability)
 
 
 ## Walking during a non-rooting cast: cast_move_speed_multiplier as one

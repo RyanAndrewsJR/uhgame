@@ -15,6 +15,13 @@ enum Targeting {
 	UNIT,       ## Must click an enemy; walks into range first if needed.
 }
 
+## What a CHARGE_UP ability does once it has been held at full charge for
+## overhold_time.
+enum Overhold {
+	FIRE,           ## Fires at the cursor, as if released.
+	CANCEL_REFUND,  ## Cancels with a full refund (cost; the cooldown never started).
+}
+
 ## Whether pressing this ability can cut short a basic attack swing
 ## (COMBAT.md). Otherwise the press waits for the swing to end.
 enum SwingCancel {
@@ -80,6 +87,19 @@ const DAMAGE_NUMBER_STYLE_PATH := "res://data/damage_number_styles/damage_number
 ## Cost of every part after the first (a scoped param); the first part costs
 ## resource_cost.
 @export var recast_resource_cost: float = 0.0
+
+@export_group("Charge-up")
+## CHARGE_UP only: seconds of holding to reach full charge (a scoped param).
+@export var charge_time: float = 1.5
+## CHARGE_UP only: seconds the key may stay held after full charge before
+## the overhold behavior (a scoped param).
+@export var overhold_time: float = 2.0
+@export var overhold: Overhold = Overhold.FIRE
+## The params that grow with the charge; the others are always full.
+@export var charge_scalings: Array[ChargeScaling] = []
+## A loop on the caster while charging (AUDIO.md). null = silent.
+@export var charge_sound: SoundEvent
+@export_group("Casting")
 ## Seconds rooted before the effect happens (LoL "cast time").
 @export var cast_time: float = 0.25
 ## LoL units. DIRECTION/POINT: from the caster's center. UNIT: edge to edge.
@@ -193,9 +213,34 @@ func get_scaling(param: StringName) -> DamageScaling:
 	return null
 
 
+## A param at a charge-up's `charge` (0 = a tap, 1 = full): the full value
+## (get_param()) times its ChargeScaling multiplier; a param without one is
+## always full. charge -1 = the caster's current charge while it's charging
+## this ability (or the charge locked at release, during the release
+## windup), otherwise full (so indicators grow while held).
+func get_charged_param(caster: Unit, param: StringName, charge: float = -1.0) -> float:
+	var full := get_param(caster, param)
+	var scaling := get_charge_scaling(param)
+	if scaling == null:
+		return full
+	if charge < 0.0:
+		charge = 1.0
+		if is_instance_valid(caster) and caster.abilities != null and caster.abilities.get_charge_ability() == self:
+			charge = caster.abilities.get_charge()
+	return full * scaling.get_multiplier(charge)
+
+
+## The ChargeScaling for `param`, or null.
+func get_charge_scaling(param: StringName) -> ChargeScaling:
+	for s in charge_scalings:
+		if s != null and s.param == param:
+			return s
+	return null
+
+
 ## The scaling terms' damage against `target` (null = no target: the target
-## terms count 0), each ratio after scoped modifiers.
-func get_scaling_damage(caster: Unit, target: Node) -> float:
+## terms count 0), each ratio after scoped modifiers and at `charge`.
+func get_scaling_damage(caster: Unit, target: Node, charge: float = 1.0) -> float:
 	var total := 0.0
 	for term in scalings:
 		if term == null:
@@ -203,18 +248,19 @@ func get_scaling_damage(caster: Unit, target: Node) -> float:
 		if term.param in self:
 			push_error("Ability '%s': scaling param '%s' clashes with an @export" % [id, term.param])
 			continue
-		total += get_param(caster, term.param) * term.get_amount(caster, target)
+		total += get_charged_param(caster, term.param, charge) * term.get_amount(caster, target)
 	return total
 
 
 ## What a hit on `target` deals before damage_increase, crit and mitigation:
 ## base_damage, ad_ratio x AD, ap_ratio x AP and every scaling term, all after
-## scoped modifiers. target null = the target terms count 0 (tooltips).
-func get_damage_against(caster: Unit, target: Unit) -> float:
-	var total := get_param(caster, &"base_damage") + get_scaling_damage(caster, target)
+## scoped modifiers and at `charge` (CHARGE_UP; 1 = full). target null = the
+## target terms count 0 (tooltips).
+func get_damage_against(caster: Unit, target: Unit, charge: float = 1.0) -> float:
+	var total := get_charged_param(caster, &"base_damage", charge) + get_scaling_damage(caster, target, charge)
 	if is_instance_valid(caster) and caster.stats_component != null:
-		total += get_param(caster, &"ad_ratio") * caster.stats_component.get_stat(&"attack_damage")
-		total += get_param(caster, &"ap_ratio") * caster.stats_component.get_stat(&"ability_power")
+		total += get_charged_param(caster, &"ad_ratio", charge) * caster.stats_component.get_stat(&"attack_damage")
+		total += get_charged_param(caster, &"ap_ratio", charge) * caster.stats_component.get_stat(&"ability_power")
 	return total
 
 
@@ -275,9 +321,14 @@ func _fill_template(caster: Unit, bbcode: bool) -> String:
 
 
 func _placeholder_text(caster: Unit, key: String, percent: bool, raw: String, bbcode: bool) -> String:
+	# {x_min}: a charge-scaled value at charge 0 (a tap), e.g. {range_min}-{range}.
+	var charge := 1.0
+	if key.ends_with("_min"):
+		charge = 0.0
+		key = key.trim_suffix("_min")
 	match key:
 		"damage":
-			var text := str(roundi(get_damage(caster)))
+			var text := str(roundi(get_damage_against(caster, null, charge)))
 			if not bbcode:
 				return text
 			var style: DamageNumberStyle = load(DAMAGE_NUMBER_STYLE_PATH)
@@ -291,14 +342,14 @@ func _placeholder_text(caster: Unit, key: String, percent: bool, raw: String, bb
 				cd = caster.stats_component.get_cooldown(cd)
 			return _number_text(cd, percent)
 		"range":
-			return _number_text(get_param(caster, &"cast_range"), percent)
+			return _number_text(get_charged_param(caster, &"cast_range", charge), percent)
 		"cost":
 			return _number_text(get_param(caster, &"resource_cost"), percent)
 		"charges":
 			return str(maxi(floori(get_param(caster, &"max_charges")), 1))
 	var value: Variant = get(key)
 	if value is float or value is int or get_scaling(StringName(key)) != null:
-		return _number_text(get_param(caster, StringName(key)), percent)
+		return _number_text(get_charged_param(caster, StringName(key), charge), percent)
 	if not _warned_placeholders.has(key):
 		_warned_placeholders[key] = true
 		push_warning("Ability '%s': unknown tooltip placeholder %s" % [id, raw])
@@ -344,7 +395,8 @@ func on_cast_started(_caster: Unit, _ctx: CastContext) -> void:
 ## Draws the aiming indicator. `canvas` is the caster (local coordinates),
 ## `aim` is the cursor in world space. Override for custom shapes.
 func draw_indicator(canvas: Node2D, caster: Unit, aim: Vector2) -> void:
-	var range_px := Units.to_px(get_param(caster, &"cast_range"))
+	# The current charge's range while charging up (it grows), else the full one.
+	var range_px := Units.to_px(get_charged_param(caster, &"cast_range"))
 	var faint := Color(1, 1, 1, 0.25)
 	var fill := Color(icon_color, 0.22)
 	var edge := Color(icon_color, 0.8)

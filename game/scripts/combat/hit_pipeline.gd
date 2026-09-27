@@ -35,16 +35,19 @@ static func resolve(ctx: HitContext) -> HitContext:
 ## type, proc coefficient, the ability tag and the ability's own tags. Pass
 ## it to resolve(). The scaling terms (ABILITIES AB2: bonus AD, % of the
 ## target's health...) are evaluated now and join base_damage, so they crit
-## like it; ad_ratio and ap_ratio stay stage-2 ratios.
-static func from_ability(caster: Unit, ability: Ability, target: Node) -> HitContext:
+## like it; ad_ratio and ap_ratio stay stage-2 ratios. `cast` (optional):
+## the cast's CastContext, so a CHARGE_UP hit uses its charge (AB6); without
+## it the params are full.
+static func from_ability(caster: Unit, ability: Ability, target: Node, cast: CastContext = null) -> HitContext:
+	var charge := cast.charge if cast != null else 1.0
 	var ctx := HitContext.new()
 	ctx.source = caster
 	ctx.target = target
 	ctx.ability = ability
-	ctx.base_damage = ability.get_param(caster, &"base_damage") \
-		+ ability.get_scaling_damage(caster, target)   # after scoped modifiers
-	ctx.ad_ratio = ability.get_param(caster, &"ad_ratio")
-	ctx.ap_ratio = ability.get_param(caster, &"ap_ratio")
+	ctx.base_damage = ability.get_charged_param(caster, &"base_damage", charge) \
+		+ ability.get_scaling_damage(caster, target, charge)   # after scoped modifiers
+	ctx.ad_ratio = ability.get_charged_param(caster, &"ad_ratio", charge)
+	ctx.ap_ratio = ability.get_charged_param(caster, &"ap_ratio", charge)
 	ctx.damage_type = ability.damage_type
 	ctx.proc_coefficient = ability.proc_coefficient
 	ctx.hit_sound = ability.hit_sound   # AUDIO.md: CombatSounds plays it once per cast

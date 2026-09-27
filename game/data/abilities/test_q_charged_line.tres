@@ -1,0 +1,37 @@
+[gd_resource type="Resource" format=3 uid="uid://cke00jf86pjt2"]
+
+[ext_resource type="Script" uid="uid://cench3nnvgs7r" path="res://scripts/abilities/test/charged_line.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="2_charge"]
+[ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="2_o02vo"]
+
+[sub_resource type="Resource" id="range"]
+script = ExtResource("2_charge")
+param = &"cast_range"
+min_fraction = 0.4
+
+[sub_resource type="Resource" id="damage"]
+script = ExtResource("2_charge")
+param = &"base_damage"
+
+[sub_resource type="Resource" id="ratio"]
+script = ExtResource("2_charge")
+param = &"ad_ratio"
+
+[resource]
+script = ExtResource("1_script")
+id = &"test_charged_line"
+tags = Array[StringName]([&"core", &"line", &"charge_up"])
+display_name = "Charged Line"
+description = "Hold to charge a line: {range_min}-{range} units, {damage_min}-{damage} magic damage ({base_damage} {ratios} at full charge) to every enemy on it. Full charge takes {charge_time}s; held {overhold_time}s longer, it fires on its own."
+icon_color = Color(0.55, 0.7, 1, 1)
+cast_style = 1
+cooldown = 3.0
+charge_scalings = Array[ExtResource("2_charge")]([SubResource("range"), SubResource("damage"), SubResource("ratio")])
+cast_time = 0.3
+cast_range = 1100.0
+roots_during_cast = false
+dash_cancelable = true
+cast_move_speed_multiplier = 0.6
+base_damage = 80.0
+ad_ratio = 0.6
+damage_type = 1

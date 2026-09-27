@@ -71,6 +71,11 @@ var attack_move_armed: bool = false:
 
 ## Which ability is being aimed (QUICK_WITH_INDICATOR), or &"".
 var aiming_slot: StringName = &""
+## A charge-up started by the player's own key press (so letting the key go,
+## even unseen, releases it; ABILITIES AB6).
+var _charge_from_input: bool = false
+## The indicator slot the last _draw() drew (&"" = none); tests read it.
+var _drawn_indicator_slot: StringName = &""
 ## Alternates each swing so consecutive slashes go opposite ways.
 var swing_side: float = 1.0
 ## Current State (read-only for other code; see _update_state()).
@@ -107,6 +112,7 @@ func _ready() -> void:
 	health.health_changed.connect(_on_health_health_changed)
 	cast_mode = Settings.get_cast_mode()
 	Settings.setting_changed.connect(_on_settings_setting_changed)
+	abilities.charge_ended.connect(_on_abilities_charge_ended)
 
 
 func _on_settings_setting_changed(key: StringName, _value: Variant) -> void:
@@ -148,6 +154,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			queue_redraw()
 			# This Esc only cancels the aim; it doesn't open the pause menu.
 			get_viewport().set_input_as_handled()
+		elif abilities.try_cancel_charge():
+			# Esc cancels a charge-up (full refund) and doesn't pause either.
+			_charge_from_input = false
+			queue_redraw()
+			get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("select") and attack_move_armed:
 		attack_move_armed = false
 		var enemy := _enemy_under_mouse()
@@ -169,11 +180,17 @@ func _on_ability_pressed(slot: StringName) -> void:
 	if ability == null:
 		return
 	# The cast mode only applies to INSTANT abilities: channels always cast on
-	# press (ABILITIES.md, Cast mode). CHARGE_UP casts like INSTANT until AB6.
+	# press, CHARGE_UP always holds and releases (ABILITIES.md, Cast mode).
 	# A press inside a recast window casts the next part at once, whatever the
 	# style (ABILITIES AB5).
+	if abilities.get_recast_part(slot) > 0:
+		request_cast(slot)
+		return
+	if ability.cast_style == Ability.CastStyle.CHARGE_UP:
+		request_charge(slot)
+		return
 	var instant := cast_mode == CastMode.QUICK or ability.targeting == Ability.Targeting.SELF \
-		or ability.is_channel() or abilities.get_recast_part(slot) > 0
+		or ability.is_channel()
 	if instant:
 		request_cast(slot)
 	else:
@@ -182,10 +199,78 @@ func _on_ability_pressed(slot: StringName) -> void:
 
 
 func _on_ability_released(slot: StringName) -> void:
+	if abilities.is_charging() and abilities.casting_slot == slot:
+		_release_charge()
+		return
 	if aiming_slot == slot:
 		aiming_slot = &""
 		queue_redraw()
 		request_cast(slot)
+
+
+## Input path for a CHARGE_UP press: start charging now if allowed (the same
+## rules as request_cast(): a swing is cut per cancels_swing, no charging
+## while dashing, "not enough resource" fails at once), otherwise buffer the
+## press (PlayerInput fires it through start_buffered_ability()).
+func request_charge(slot: StringName) -> void:
+	if abilities.is_ready(slot) and not is_cast_blocked() and not abilities.can_afford(slot):
+		abilities.fail_cast(slot, AbilityComponent.FAIL_NO_RESOURCE)
+	elif abilities.can_cast(slot) and not dash.is_dashing() and can_interrupt_swing(slot):
+		_start_charge(slot)
+	else:
+		player_input.buffer_action(slot)
+
+
+## A buffered Q/W/E/R press that became legal (PlayerInput). A CHARGE_UP
+## press starts charging; if its key was already let go, it fires at once as
+## a tap (charge 0; ABILITIES.md, Open questions, proposed).
+func start_buffered_ability(slot: StringName) -> void:
+	var ability := abilities.get_ability(slot)
+	if ability != null and ability.cast_style == Ability.CastStyle.CHARGE_UP \
+			and abilities.get_recast_part(slot) == 0:
+		if _start_charge(slot) and not Input.is_action_pressed(ABILITY_ACTIONS[slot]):
+			_release_charge()
+		return
+	cast_ability(slot)
+
+
+func _start_charge(slot: StringName) -> bool:
+	if not abilities.try_start_charge(slot, get_global_mouse_position()):
+		return false
+	_charge_from_input = true
+	queue_redraw()
+	return true
+
+
+func _release_charge() -> void:
+	_charge_from_input = false
+	abilities.release_charge(get_global_mouse_position())
+	queue_redraw()
+
+
+## The ability whose indicator shows: the one being aimed (hold to aim), or
+## the charge-up, from its press until its effect starts (ABILITIES AB6).
+## &"" if none.
+func get_indicator_slot() -> StringName:
+	if aiming_slot != &"":
+		return aiming_slot
+	if abilities.has_charge_indicator():
+		return abilities.casting_slot
+	return &""
+
+
+## Where the indicator points: the aim a charge-up locked at release (its
+## release windup), otherwise the cursor.
+func get_indicator_aim() -> Vector2:
+	var locked := abilities.get_locked_charge_aim()
+	return locked if locked != Vector2.INF else get_global_mouse_position()
+
+
+## Any way a charge-up ends (AbilityComponent's one end-charge path): the
+## indicator must be redrawn away, even when nothing else asks for a redraw.
+func _on_abilities_charge_ended(_slot: StringName, _ability: Ability) -> void:
+	_charge_from_input = false
+	queue_redraw()
 
 
 ## Input path for Q/W/E/R: casts now if allowed, otherwise buffers the press
@@ -267,6 +352,7 @@ func _enemy_under_point(point: Vector2) -> Unit:
 func _physics_process(delta: float) -> void:
 	if not is_alive():
 		return
+	_update_charge_input()
 	_update_facing()
 	_update_state()
 	# Holding right-click keeps re-issuing the order, like LoL.
@@ -275,6 +361,19 @@ func _physics_process(delta: float) -> void:
 		if _hold_timer <= 0.0:
 			_hold_timer = hold_repath_interval
 			_issue_right_click(false)
+
+
+## While charging: keep the charge's aim on the cursor (its overhold fires
+## there), and release it if the key isn't held any more (a release lost to a
+## focus change). A charge that ended some other way (cancel, stun) clears
+## the flag.
+func _update_charge_input() -> void:
+	if not abilities.is_charging():
+		_charge_from_input = false
+		return
+	abilities.set_charge_aim(get_global_mouse_position())
+	if _charge_from_input and not Input.is_action_pressed(ABILITY_ACTIONS[abilities.casting_slot]):
+		_release_charge()
 
 
 func _process(delta: float) -> void:
@@ -295,12 +394,15 @@ func _process(delta: float) -> void:
 		_hovered_enemy = enemy
 		if enemy:
 			enemy.hovered = true
-	var targeting := enemy != null or attack_move_armed or aiming_slot != &""
+	var indicator_slot := get_indicator_slot()   # aiming, or charging up
+	var targeting := enemy != null or attack_move_armed or indicator_slot != &""
 	var want_cursor := Input.CURSOR_CROSS if targeting else Input.CURSOR_ARROW
 	if Input.get_current_cursor_shape() != want_cursor:
 		Input.set_default_cursor_shape(want_cursor)
 
-	if aiming_slot != &"":
+	# Redraw while an indicator shows, and once more the frame it goes away,
+	# so it never stays on screen (a safety net next to charge_ended).
+	if indicator_slot != &"" or _drawn_indicator_slot != &"":
 		queue_redraw()
 
 	# Facing and a little walk bob.
@@ -310,9 +412,10 @@ func _process(delta: float) -> void:
 		sword_pivot.rotation = dir.angle()
 		if absf(dir.x) > 0.05:
 			body.scale.x = signf(dir.x)
-	# While aiming an ability, the sword points at the cursor (matches facing).
-	if aiming_slot != &"":
-		face(get_aim_point())
+	# While aiming (or charging up) an ability, the sword points at the cursor
+	# (matches facing); during a charge-up's release windup, at the locked aim.
+	if indicator_slot != &"":
+		face(get_indicator_aim())
 	if dir != Vector2.ZERO:
 		_walk_time += delta * 14.0
 		body.position.y = -absf(sin(_walk_time)) * 2.0
@@ -331,10 +434,17 @@ func _draw() -> void:
 		# Attack range indicator, like holding A in LoL.
 		var r := attack.get_range_px() + get_gameplay_radius_px()
 		draw_arc(Vector2.ZERO, r, 0.0, TAU, 64, Color(1, 1, 1, 0.35), 1.0)
-	if aiming_slot != &"":
-		var ability := abilities.get_ability(aiming_slot)
+	# The indicator: while aiming, and always during a charge-up (it grows with
+	# the charge: draw_indicator() reads the charged range; locked at the
+	# release aim during the release windup).
+	var indicator_slot := get_indicator_slot()
+	_drawn_indicator_slot = indicator_slot
+	if indicator_slot != &"":
+		var ability := abilities.get_ability(indicator_slot)
+		if aiming_slot == &"" and abilities.has_charge_indicator():
+			ability = abilities.get_charge_ability()   # the charge-up's own, even if the slot was swapped
 		if ability:
-			ability.draw_indicator(self, self, get_global_mouse_position())
+			ability.draw_indicator(self, self, get_indicator_aim())
 	if debug_draw:
 		draw_string(ThemeDB.fallback_font, Vector2(-30, -52), State.keys()[state],
 			HORIZONTAL_ALIGNMENT_CENTER, 60, 8, Color(1, 1, 0.6))
@@ -409,7 +519,7 @@ func _update_facing() -> void:
 		look = attack.target.global_position - global_position
 	elif dash.is_dashing():
 		look = dash.get_dash_direction()
-	elif aiming_slot != &"":
+	elif get_indicator_slot() != &"":   # aiming, or charging up
 		look = get_aim_point() - global_position
 	else:
 		look = movement.get_move_direction()

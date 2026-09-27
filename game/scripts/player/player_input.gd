@@ -195,4 +195,4 @@ func _fire(action: StringName) -> void:
 				player.abilities.cancel_pending()
 				player.movement.stop()
 		_:
-			player.cast_ability(action)
+			player.start_buffered_ability(action)   # a charge-up starts charging (AB6)

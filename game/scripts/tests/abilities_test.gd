@@ -21,6 +21,11 @@ extends Node2D
 ## each part and not running during one, the cooldown starting after the
 ## last part or when the window runs out, part costs, refunds, a recast
 ## pressed during a cast time firing from the buffer).
+## AB6: charge-up (test_charged_line: the cost at charge start, the charge and
+## cooldown at release, walking at 0.6, range and damage growing with the
+## charge, a tap, overhold FIRE and CANCEL_REFUND, Esc, a stun and a dash
+## cancelling with refunds, the Player's hold and release, a lost release, a
+## buffered press whose key was let go firing as a tap).
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
@@ -35,6 +40,9 @@ const SLAM: Ability = preload("res://data/abilities/slime_elite_q_slam.tres")
 const HUD_SCENE: PackedScene = preload("res://scenes/ui/hud.tscn")
 const COST_SOURCE := &"item_test_costs"
 const TRIPLE_STEP: Ability = preload("res://data/abilities/test_q_triple_step.tres")
+const CHARGED_LINE: Ability = preload("res://data/abilities/test_q_charged_line.tres")
+## A looping SoundEvent to stand in for a charging sound (AB6 exits).
+const LOOP_SOUND: SoundEvent = preload("res://data/sounds/sound_knight_low_health.tres")
 const ARENA := Vector2(-2000, 0)
 
 var knight: Player
@@ -75,6 +83,12 @@ func _ready() -> void:
 	print("\n=== Abilities test (ABILITIES AB5) ===")
 	await _test_recasts()
 	await _test_recast_edges()
+	print("\n=== Abilities test (ABILITIES AB6) ===")
+	await _test_charge_up()
+	await _test_charge_up_ends()
+	await _test_charge_up_input()
+	await _test_charge_up_exits()
+	await _test_release_windup()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).
@@ -767,6 +781,401 @@ func _test_recast_edges() -> void:
 	await _wait_until(func() -> bool: return not ab.casting and ab.can_cast(&"q"), 300)
 	ab.q = original_q
 	pool.restore(1000.0)
+
+
+# --- AB6 ------------------------------------------------------------------------
+
+## The charged line on Q with a scoped 40 cost; returns the original Q.
+func _setup_charged_line(ability: Ability) -> Ability:
+	await _reset_knight()
+	var original_q := knight.abilities.q
+	knight.abilities.q = ability
+	knight.stats_component.remove_modifiers_from(COST_SOURCE)
+	_add_costs({&"test_charged_line": 40.0})
+	await _wait_until(func() -> bool: return knight.abilities.can_cast(&"q"), 300)
+	knight.resource_pool.restore(1000.0)
+	return original_q
+
+
+func _test_charge_up() -> void:
+	_section("AB6: charge-up (test_charged_line)")
+	var ab := knight.abilities
+	var pool := knight.resource_pool
+	_check("no Knight ability or the slam is a charge-up",
+		[CLEAVE.cast_style, IRON_RESOLVE.cast_style, LUNGE.cast_style, JUDGEMENT.cast_style, SLAM.cast_style].has(Ability.CastStyle.CHARGE_UP), false)
+	var s := ChargeScaling.new()
+	s.min_fraction = 0.4
+	_check("ChargeScaling 40%: x0.4 at a tap, x0.7 half way, x1 full", [s.get_multiplier(0.0), s.get_multiplier(0.5), s.get_multiplier(1.0)], [0.4, 0.7, 1.0])
+	_check("the line: range 440 at a tap, 1100 full; damage 59.2 to 118.4 (AD 64)",
+		[CHARGED_LINE.get_charged_param(knight, &"cast_range", 0.0), CHARGED_LINE.get_charged_param(knight, &"cast_range", 1.0),
+			CHARGED_LINE.get_damage_against(knight, null, 0.0), CHARGED_LINE.get_damage_against(knight, null, 1.0)],
+		[440.0, 1100.0, 59.2, 118.4])
+	_check("its tooltip (min-max)", CHARGED_LINE.get_tooltip_plain(knight),
+		"Hold to charge a line: 440-1100 units, 59-118 magic damage (80 +60% AD at full charge) to every enemy on it. Full charge takes 1.5s; held 2s longer, it fires on its own.")
+	_check("the role and style tags", [CHARGED_LINE.get_role(), &"charge_up" in CHARGED_LINE.tags], [&"core", true])
+
+	var original_q: Ability = await _setup_charged_line(CHARGED_LINE)
+	var released: Array = []
+	var on_released := func(slot: StringName, _a: Ability, charge: float) -> void:
+		if slot == &"q":
+			released.append(charge)
+	ab.charge_released.connect(on_released)
+	var hits: Array[HitContext] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.ability != null and ctx.ability.id == &"test_charged_line":
+			hits.append(ctx)
+	Events.unit_hit.connect(on_hit)
+	var far := _dummy_at(Vector2(200, 0))
+	var aim := knight.global_position + Vector2(300, 0)
+
+	_check("press: charging starts", ab.try_start_charge(&"q", aim), true)
+	_check("casting and charging at 0; the 40 is paid now; no charge or cooldown taken yet",
+		[ab.casting, ab.is_charging(), ab.get_charge(), pool.current, ab.get_charges(&"q"), ab.get_cooldown_left(&"q")],
+		[true, true, 0.0, 260.0, 1, 0.0])
+	_check("walking while charging: not rooted, at x0.6 (one move_speed modifier)",
+		[knight.movement.can_move(), knight.stats_component.get_modifiers_from(AbilityComponent.CAST_MOVE_SPEED_SOURCE).size()], [true, 1])
+	await _frames(45)
+	_check_near("0.75 s held: half charged", ab.get_charge(), 0.5, 0.02)
+	_check_near("the indicator's range grows with it (x0.7 = 770)", CHARGED_LINE.get_charged_param(knight, &"cast_range"), 770.0, 15.0)
+	ab.release_charge(aim)
+	var c: float = released[0] if not released.is_empty() else -1.0
+	_check("release: the charge and the 3 s cooldown are taken; the 0.3 s release windup starts",
+		[ab.casting, ab.is_charging(), ab.get_charges(&"q"), snappedf(ab.get_cooldown_left(&"q"), 0.01), hits.size()], [true, false, 0, 3.0, 0])
+	await _wait_until(func() -> bool: return not ab.casting, 40)
+	_check("after the windup the effect ran; the walking modifier is gone",
+		[ab.casting, knight.stats_component.get_modifiers_from(AbilityComponent.CAST_MOVE_SPEED_SOURCE).size()], [false, 0])
+	_check("the dummy 200 px away is hit (the line reaches ~246 px)", hits.size(), 1)
+	if not hits.is_empty():
+		_check_near("damage at that charge: 118.4 x (0.5 + 0.5 x charge)", hits[0].raw_damage, 118.4 * (0.5 + 0.5 * c), 0.01)
+		_check("magic, tagged line and charge_up", [hits[0].damage_type, hits[0].has_tag(&"line"), hits[0].has_tag(&"charge_up")],
+			[HitContext.DamageType.MAGIC, true, true])
+
+	# A tap: charge 0, the short weak line.
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	hits.clear()
+	var near := _dummy_at(Vector2(100, 40))
+	ab.try_start_charge(&"q", aim)
+	ab.release_charge(near.global_position)
+	_check("a tap fires at charge 0", released.back(), 0.0)
+	await _wait_until(func() -> bool: return not ab.casting, 40)
+	_check("only the near dummy is hit (440 u = 141 px), for 59.2", [hits.size(), hits[0].raw_damage if hits.size() == 1 else -1.0, hits[0].target == near if hits.size() == 1 else false],
+		[1, 59.2, true])
+
+	ab.charge_released.disconnect(on_released)
+	Events.unit_hit.disconnect(on_hit)
+	far.queue_free()
+	near.queue_free()
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	ab.q = original_q
+
+
+func _test_charge_up_ends() -> void:
+	_section("AB6: overhold, Esc, stun and dash")
+	var ab := knight.abilities
+	var pool := knight.resource_pool
+	var original_q: Ability = await _setup_charged_line(CHARGED_LINE)
+	var released: Array = []
+	var on_released := func(_slot: StringName, _a: Ability, charge: float) -> void: released.append(charge)
+	ab.charge_released.connect(on_released)
+	var cancelled := [0]
+	var on_cancelled := func(_slot: StringName, _a: Ability) -> void: cancelled[0] += 1
+	ab.cast_cancelled.connect(on_cancelled)
+
+	# Overhold FIRE: held 1.5 s + 2 s, it fires by itself at full charge.
+	ab.try_start_charge(&"q", knight.global_position + Vector2(100, 0))
+	await _frames(150)
+	_check("after 2.5 s: full, still held, 1 s of overhold left",
+		[ab.is_charging(), ab.get_charge(), snappedf(ab.get_overhold_left(), 0.05)], [true, 1.0, 1.0])
+	await _frames(65)
+	_check("after 3.5 s: fired by itself at full charge (FIRE)", [ab.is_charging(), released, ab.get_charges(&"q")], [false, [1.0], 0])
+
+	# Overhold CANCEL_REFUND.
+	var cancel_line: Ability = CHARGED_LINE.duplicate()
+	cancel_line.overhold = Ability.Overhold.CANCEL_REFUND
+	ab.q = cancel_line
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	pool.restore(1000.0)
+	ab.try_start_charge(&"q", knight.global_position + Vector2(100, 0))
+	await _frames(215)
+	_check("CANCEL_REFUND: cancelled after 3.5 s, the 40 back, still ready, nothing fired",
+		[ab.is_charging(), cancelled[0], pool.current, ab.is_ready(&"q"), released.size()], [false, 1, 300.0, true, 1])
+
+	# Esc.
+	ab.try_start_charge(&"q", knight.global_position + Vector2(100, 0))
+	await _frames(10)
+	_check("Esc (try_cancel_charge): cancelled, refunded, ready",
+		[ab.try_cancel_charge(), ab.is_charging(), ab.casting, cancelled[0], ab.is_ready(&"q")], [true, false, false, 2, true])
+	_check_near("mana back (+ a little regen)", pool.current, 300.0, 0.001)
+
+	# A stun interrupts at once, refunded.
+	ab.try_start_charge(&"q", knight.global_position + Vector2(100, 0))
+	await _frames(10)
+	knight.apply_stun(0.1)
+	_check("stunned while charging: interrupted, refunded, ready",
+		[ab.is_charging(), ab.casting, pool.current, ab.is_ready(&"q")], [false, false, 300.0, true])
+	await _wait_until(func() -> bool: return not knight.is_stunned(), 30)
+
+	# A dash cancels it (dash_cancelable), refunded.
+	await _wait_until(func() -> bool: return knight.dash.can_dash(), 60)
+	ab.try_start_charge(&"q", knight.global_position + Vector2(100, 0))
+	await _frames(10)
+	var dashed := knight.dash.try_dash(Vector2.DOWN)
+	_check("a dash cancels it (dash_cancelable) and dashes; refunded",
+		[dashed, ab.is_charging(), cancelled[0], pool.current, ab.is_ready(&"q")], [true, false, 3, 300.0, true])
+
+	ab.charge_released.disconnect(on_released)
+	ab.cast_cancelled.disconnect(on_cancelled)
+	await _frames(20)
+	ab.q = original_q
+
+
+func _test_charge_up_input() -> void:
+	_section("AB6: the Player's hold and release")
+	var ab := knight.abilities
+	var original_q: Ability = await _setup_charged_line(CHARGED_LINE)
+	var released: Array = []
+	var on_released := func(_slot: StringName, _a: Ability, charge: float) -> void: released.append(charge)
+	ab.charge_released.connect(on_released)
+
+	# Hold Q, let go: the cast mode doesn't matter for a charge-up.
+	var mode := Settings.get_cast_mode()
+	Settings.set_cast_mode(Player.CastMode.QUICK)
+	Input.action_press(&"ability_q")
+	knight._unhandled_input(_action(&"ability_q", true))
+	_check("press Q: charging (quick cast mode or not)", [ab.is_charging(), knight.get_indicator_slot()], [true, &"q"])
+	await _frames(30)
+	_check("held 0.5 s: still charging", ab.is_charging(), true)
+	Input.action_release(&"ability_q")
+	knight._unhandled_input(_action(&"ability_q", false))
+	_check("release Q: fired at ~1/3 charge", [ab.is_charging(), released.size(), absf(released[0] - 0.333) < 0.03 if released.size() == 1 else false],
+		[false, 1, true])
+	Settings.set_cast_mode(mode)
+
+	# A release the game never saw (focus lost): the next frame releases it.
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	Input.action_press(&"ability_q")
+	knight._unhandled_input(_action(&"ability_q", true))
+	await _frames(5)
+	Input.action_release(&"ability_q")   # no release event
+	await _frames(2)
+	_check("key no longer held: released by the next frame", [ab.is_charging(), released.size()], [false, 2])
+
+	# "Not enough resource" fails at once, not buffered.
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	knight.resource_pool.try_spend(knight.resource_pool.current - 10.0)
+	knight.request_charge(&"q")
+	_check("10 mana, cost 40: no charge, not buffered", [ab.is_charging(), knight.player_input.get_buffered_action()], [false, &""])
+	knight.resource_pool.restore(1000.0)
+
+	# A press buffered during another cast whose key is let go before it fires: a tap.
+	await _wait_until(func() -> bool: return ab.can_cast(&"e"), 600)
+	ab.try_cast(&"e", knight.global_position + Vector2(0, 80))   # Lunge: a cast time and a dash
+	knight.request_charge(&"q")
+	_check("pressed during Lunge: buffered", knight.player_input.get_buffered_action(), &"q")
+	await _wait_until(func() -> bool: return released.size() == 3, 60)
+	_check("fired when Lunge ended, as a tap (charge 0; the key wasn't held)", [released.size(), released.back(), ab.is_charging()], [3, 0.0, false])
+
+	ab.charge_released.disconnect(on_released)
+	knight.stats_component.remove_modifiers_from(COST_SOURCE)
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	ab.q = original_q
+
+
+## Every way a charge-up ends clears the indicator, the charge bar and the
+## charging sound, through the one end-charge path (charge_ended once).
+func _test_charge_up_exits() -> void:
+	_section("AB6: every way a charge-up ends clears the indicator, the bar and the sound")
+	var ab := knight.abilities
+	var line: Ability = CHARGED_LINE.duplicate()   # same id: the scoped 40 cost applies
+	line.charge_sound = LOOP_SOUND
+	line.charge_time = 0.2
+	line.overhold_time = 0.2
+	var original_q: Ability = await _setup_charged_line(line)
+	var hud: CanvasLayer = HUD_SCENE.instantiate()
+	add_child(hud)
+	hud.setup_abilities(knight)
+	var bar: Control = hud.get_node("AbilityBar")
+	var ended := [0]
+	var on_ended := func(_slot: StringName, _a: Ability) -> void: ended[0] += 1
+	ab.charge_ended.connect(on_ended)
+	var aim := knight.global_position + Vector2(100, 0)
+
+	# The exits. Each starts a charge, ends it one way (a method below), then checks.
+	_exit_line = line
+	_exit_aim = aim
+	var exits := [
+		["release (after its windup)", _exit_release],
+		["overhold FIRE (after its windup)", _exit_overhold_fire],
+		["overhold CANCEL_REFUND", _exit_overhold_cancel],
+		["Esc", _exit_esc],
+		["a stun", _exit_stun],
+		["a dash", _exit_dash],
+		["a move press (a channel charge-up)", _exit_move],
+		["the slot swapped mid-charge (a REPLACE), then release", _exit_swap],
+		["a lost key release (the Player's own charge)", _exit_lost_release],
+	]
+	for exit: Array in exits:
+		var label: String = exit[0]
+		await _wait_until(func() -> bool: return ab.can_cast(&"q") and not knight.is_stunned() and knight.dash.can_dash(), 400)
+		knight.resource_pool.restore(1000.0)
+		line.cancel_on_move = label.begins_with("a move press")
+		if label.begins_with("a lost key"):
+			Input.action_press(&"ability_q")
+			knight._unhandled_input(_action(&"ability_q", true))
+		else:
+			ab.try_start_charge(&"q", aim)
+		var handle: int = ab.get("_charge_sound_handle")
+		await _frames(3)
+		var showing := [ab.has_charge_indicator(), knight.get_indicator_slot(), knight._drawn_indicator_slot, bar._drawn_charge_bar_slot, Audio.is_playing(handle)]
+		var before: int = ended[0]
+		await (exit[1] as Callable).call()
+		await _frames(2)
+		_check("%s: shown while charging, then indicator, bar and sound gone, charge_ended once" % label,
+			[showing, [ab.has_charge_indicator(), knight.get_indicator_slot(), knight._drawn_indicator_slot, bar._drawn_charge_bar_slot, Audio.is_playing(handle)], ended[0] - before],
+			[[true, &"q", &"q", &"q", true], [false, &"", &"", &"", false], 1])
+	line.cancel_on_move = false
+
+	# Death (a second Knight, so this one lives on).
+	var other: Player = PLAYER_SCENE.instantiate()
+	add_child(other)
+	_place(other, knight.global_position + Vector2(0, 300))
+	await _frames(1)
+	other.abilities.q = line
+	var other_ended := [0]
+	other.abilities.charge_ended.connect(func(_s: StringName, _a: Ability) -> void: other_ended[0] += 1)
+	other.abilities.try_start_charge(&"q", other.global_position + Vector2(100, 0))
+	var other_handle: int = other.abilities.get("_charge_sound_handle")
+	await _frames(3)
+	other.take_damage(100000.0)
+	_check("death while charging: the charge ends at once, sound stopped, charge_ended once",
+		[other.abilities.has_charge_indicator(), other.abilities.casting, Audio.is_playing(other_handle), other_ended[0]], [false, false, false, 1])
+
+	ab.charge_ended.disconnect(on_ended)
+	hud.queue_free()
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	ab.q = original_q
+
+
+var _exit_line: Ability
+var _exit_aim: Vector2
+
+
+func _exit_release() -> void:
+	knight.abilities.release_charge(_exit_aim)
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 40)
+
+
+func _exit_overhold_fire() -> void:
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 60)
+
+
+func _exit_overhold_cancel() -> void:
+	_exit_line.overhold = Ability.Overhold.CANCEL_REFUND
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 60)
+	_exit_line.overhold = Ability.Overhold.FIRE
+
+
+func _exit_esc() -> void:
+	knight._unhandled_input(_action(&"ui_cancel", true))
+
+
+func _exit_stun() -> void:
+	knight.apply_stun(0.1)
+	await _wait_until(func() -> bool: return not knight.is_stunned(), 30)
+
+
+func _exit_dash() -> void:
+	knight.dash.try_dash(Vector2.UP)
+	await _frames(20)
+
+
+func _exit_move() -> void:
+	knight.player_input._unhandled_input(_action(&"move_right", true))
+	await _frames(1)
+	knight.player_input._unhandled_input(_action(&"move_right", false))
+
+
+func _exit_swap() -> void:
+	knight.abilities.q = CLEAVE
+	knight.abilities.release_charge(_exit_aim)
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 40)
+	knight.abilities.q = _exit_line
+
+
+func _exit_lost_release() -> void:
+	Input.action_release(&"ability_q")   # no release event
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 40)
+
+## CHARGE_UP's cast_time is the release windup: the aim and charge lock, the
+## indicator stays (locked), the effect runs after it; a stun or dash in it
+## refunds the cost and the cooldown.
+func _test_release_windup() -> void:
+	_section("AB6: the release windup (cast_time 0.3 s)")
+	var ab := knight.abilities
+	var pool := knight.resource_pool
+	var original_q: Ability = await _setup_charged_line(CHARGED_LINE)
+	_check("the test line's release windup is 0.3 s; every other ability's cast_time is unchanged",
+		[CHARGED_LINE.cast_time, CLEAVE.cast_time], [0.3, 0.2])
+	var hits: Array[HitContext] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.ability != null and ctx.ability.id == &"test_charged_line":
+			hits.append(ctx)
+	Events.unit_hit.connect(on_hit)
+	var started := [0]
+	var on_started := func(slot: StringName, _a: Ability, _ctx: CastContext) -> void:
+		if slot == &"q":
+			started[0] += 1
+	ab.cast_started.connect(on_started)
+	var dummy := _dummy_at(Vector2(150, 0))
+	var aim := knight.global_position + Vector2(300, 0)
+
+	ab.try_start_charge(&"q", aim)
+	await _frames(45)
+	ab.set_charge_aim(aim)
+	ab.release_charge(aim)
+	var locked_charge := ab.get_charge()
+	_check("release: cast_started now, the indicator stays, locked at the release aim",
+		[started[0], ab.has_charge_indicator(), knight.get_indicator_slot(), ab.get_locked_charge_aim() == aim, knight.get_indicator_aim() == aim],
+		[1, true, &"q", true, true])
+	ab.set_charge_aim(aim + Vector2(0, 200))
+	_check("the locked aim doesn't follow the cursor any more", ab.get_locked_charge_aim() == aim, true)
+	_check_near("the indicator's range is the locked charge's", CHARGED_LINE.get_charged_param(knight, &"cast_range"),
+		1100.0 * (0.4 + 0.6 * locked_charge), 0.5)
+	_check("walking at x0.6 still applies in the windup", knight.stats_component.get_modifiers_from(AbilityComponent.CAST_MOVE_SPEED_SOURCE).size(), 1)
+	await _frames(12)
+	_check("0.2 s in: no hit yet", hits.size(), 0)
+	await _wait_until(func() -> bool: return not ab.casting, 20)
+	_check("after 0.3 s: the effect ran (hit), the indicator is gone", [hits.size(), ab.has_charge_indicator()], [1, false])
+
+	# A stun in the windup: interrupted, cost and cooldown refunded.
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	pool.restore(1000.0)
+	hits.clear()
+	ab.try_start_charge(&"q", aim)
+	await _frames(20)
+	ab.release_charge(aim)
+	await _frames(6)
+	knight.apply_stun(0.1)
+	_check("stunned in the windup: interrupted, the 40 and the charge back, no cooldown, no hit, indicator gone",
+		[ab.casting, pool.current, ab.get_charges(&"q"), ab.get_cooldown_left(&"q"), hits.size(), ab.has_charge_indicator()],
+		[false, 300.0, 1, 0.0, 0, false])
+	await _wait_until(func() -> bool: return not knight.is_stunned() and knight.dash.can_dash(), 60)
+
+	# A dash in the windup (dash_cancelable): cancelled, refunded.
+	ab.try_start_charge(&"q", aim)
+	await _frames(20)
+	ab.release_charge(aim)
+	await _frames(6)
+	knight.dash.try_dash(Vector2.DOWN)
+	await _frames(20)
+	_check("a dash in the windup: cancelled, refunded, no hit, indicator gone",
+		[ab.casting, pool.current, ab.get_charges(&"q"), hits.size(), ab.has_charge_indicator()], [false, 300.0, 1, 0, false])
+
+	Events.unit_hit.disconnect(on_hit)
+	ab.cast_started.disconnect(on_started)
+	dummy.queue_free()
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	ab.q = original_q
 
 
 func _with_description(ability: Ability, text: String) -> Ability:

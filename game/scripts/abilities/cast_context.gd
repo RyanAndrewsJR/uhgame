@@ -5,6 +5,9 @@ extends RefCounted
 var slot: StringName
 ## Recast part: 0 = the first cast, 1 = the first recast... (ABILITIES AB5).
 var part: int = 0
+## CHARGE_UP: how charged it was at release, 0 (a tap) to 1 (full). Every
+## other cast is 1.0, so charged params are their full value (ABILITIES AB6).
+var charge: float = 1.0
 ## Aim point in world space (already clamped to range for POINT abilities).
 var point: Vector2
 ## Normalized direction from the caster toward the aim point.
