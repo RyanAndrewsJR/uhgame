@@ -12,6 +12,27 @@ static func enemies_of(caster: Unit) -> Array[Unit]:
 	return out
 
 
+## Living units that aren't on `team` (for hits whose caster may be gone,
+## like projectiles; ABILITIES AB7).
+static func enemies_of_team(tree: SceneTree, team: Unit.Team) -> Array[Unit]:
+	var out: Array[Unit] = []
+	for node in tree.get_nodes_in_group("units"):
+		var u := node as Unit
+		if u and u.is_alive() and u.team != team:
+			out.append(u)
+	return out
+
+
+## Enemies of `team` touching a capsule from a to b.
+static func along_segment_of_team(tree: SceneTree, team: Unit.Team, a: Vector2, b: Vector2, half_width_px: float) -> Array[Unit]:
+	var out: Array[Unit] = []
+	for u in enemies_of_team(tree, team):
+		var closest := Geometry2D.get_closest_point_to_segment(u.global_position, a, b)
+		if closest.distance_to(u.global_position) <= half_width_px + u.get_gameplay_radius_px():
+			out.append(u)
+	return out
+
+
 ## Enemies inside a cone starting at `origin`, pointing along `dir`.
 static func in_cone(caster: Unit, origin: Vector2, dir: Vector2, range_px: float, half_angle: float) -> Array[Unit]:
 	var out: Array[Unit] = []

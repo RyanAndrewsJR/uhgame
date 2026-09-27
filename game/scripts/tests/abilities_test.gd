@@ -26,6 +26,9 @@ extends Node2D
 ## charge, a tap, overhold FIRE and CANCEL_REFUND, Esc, a stun and a dash
 ## cancelling with refunds, the Player's hold and release, a lost release, a
 ## buffered press whose key was let go firing as a tap).
+## AB7: projectiles (WorldQuery.shape_sweep, test_bolt: travel time, pierce
+## 0 and 2, walls and ignores_walls, range, +2 projectiles fanned out with one
+## crit roll, only the other team is hit, a caster freed mid-flight).
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
@@ -43,6 +46,7 @@ const TRIPLE_STEP: Ability = preload("res://data/abilities/test_q_triple_step.tr
 const CHARGED_LINE: Ability = preload("res://data/abilities/test_q_charged_line.tres")
 ## A looping SoundEvent to stand in for a charging sound (AB6 exits).
 const LOOP_SOUND: SoundEvent = preload("res://data/sounds/sound_knight_low_health.tres")
+const BOLT: Ability = preload("res://data/abilities/test_q_bolt.tres")
 const ARENA := Vector2(-2000, 0)
 
 var knight: Player
@@ -89,6 +93,11 @@ func _ready() -> void:
 	await _test_charge_up_input()
 	await _test_charge_up_exits()
 	await _test_release_windup()
+	print("\n=== Abilities test (ABILITIES AB7) ===")
+	await _test_shape_sweep()
+	await _test_projectiles()
+	await _test_projectile_spread_and_teams()
+	await _test_projectile_orphaned()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).
@@ -1176,6 +1185,208 @@ func _test_release_windup() -> void:
 	dummy.queue_free()
 	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
 	ab.q = original_q
+
+
+# --- AB7 ------------------------------------------------------------------------
+
+func _test_shape_sweep() -> void:
+	_section("AB7: WorldQuery.shape_sweep()")
+	var at := ARENA + Vector2(0, -600)
+	var wall := _wall_at(at + Vector2(100, 0), Vector2(16, 100))
+	await get_tree().physics_frame   # the wall joins the physics space
+	var hit := WorldQuery.shape_sweep(at, at + Vector2(200, 0), 2.0)
+	_check("a sweep through a wall stops where the circle touches it (x = 92 - 2)",
+		[hit.is_empty(), snappedf(hit.get("position", Vector2.ZERO).x - at.x, 0.5)], [false, 90.0])
+	_check("a clear sweep returns nothing", WorldQuery.shape_sweep(at, at + Vector2(0, 200), 2.0).is_empty(), true)
+	wall.queue_free()
+
+
+func _projectiles() -> Array[Projectile]:
+	var out: Array[Projectile] = []
+	for n in get_children():
+		if n is Projectile and not n.is_queued_for_deletion():
+			out.append(n)
+	return out
+
+
+func _test_projectiles() -> void:
+	_section("AB7: projectiles (test_bolt)")
+	await _reset_knight()
+	var ab := knight.abilities
+	var defaults := Ability.new()
+	_check("defaults: 1200 u/s, 60 u wide, 1 projectile, 15 deg apart, pierce 0",
+		[defaults.projectile_speed, defaults.projectile_width, defaults.projectile_count, defaults.projectile_spread_deg, defaults.projectile_pierce],
+		[1200.0, 60.0, 1, 15.0, 0])
+	_check("the bolt: a core projectile, and its tooltip", [BOLT.get_role(), BOLT.get_tooltip_plain(knight)],
+		[&"core", "Fire a bolt up to 900 units: 82 physical damage (50 +50% AD) to the first enemy it hits. Walls stop it."])
+	var original_q := ab.q
+	ab.q = BOLT
+	var hits: Array[HitContext] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.ability != null and ctx.ability.id == &"test_bolt":
+			hits.append(ctx)
+	Events.unit_hit.connect(on_hit)
+	var right := knight.global_position + Vector2(400, 0)
+
+	# Travel time and pierce 0.
+	var near := _dummy_at(Vector2(150, 0))
+	var behind := _dummy_at(Vector2(220, 0))
+	ab.try_cast(&"q", right)
+	await _wait_until(func() -> bool: return not _projectiles().is_empty(), 20)
+	_check("after the 0.1 s cast time: one bolt in flight, nothing hit yet", [_projectiles().size(), hits.size()], [1, 0])
+	await _frames(8)
+	_check("still flying (384 px/s)", [hits.size(), _projectiles().size()], [0, 1])
+	await _wait_until(func() -> bool: return not hits.is_empty(), 40)
+	_check("it hits the first dummy for 82 and stops (pierce 0); the one behind is safe",
+		[hits.size(), hits[0].target == near if hits.size() > 0 else false, hits[0].raw_damage if hits.size() > 0 else 0.0],
+		[1, true, 82.0])
+	await _frames(2)
+	_check("the bolt is gone", _projectiles().size(), 0)
+
+	# Pierce 2 (a scoped item modifier): through both, then on to its range.
+	var item := &"item_test_projectiles"
+	knight.stats_component.add_modifier(StatModifier.create(&"projectile_pierce", StatModifier.Type.FLAT, 2.0, item, &"ability:test_bolt"))
+	hits.clear()
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 120)
+	ab.try_cast(&"q", right)
+	await _wait_until(func() -> bool: return hits.size() >= 2, 60)
+	_check("pierce 2: both dummies hit, the near one first", [hits.size(), hits[0].target == near, hits[1].target == behind], [2, true, true])
+	_check("and it flies on", _projectiles().size(), 1)
+	await _wait_until(func() -> bool: return _projectiles().is_empty(), 90)
+	_check("gone at its range (900 u = 288 px)", _projectiles().size(), 0)
+	knight.stats_component.remove_modifiers_from(item)
+	near.queue_free()
+	behind.queue_free()
+
+	# Walls stop it; ignores_walls doesn't.
+	var target := _dummy_at(Vector2(150, 0))
+	var wall := _wall_at(knight.global_position + Vector2(80, 0), Vector2(16, 120))
+	hits.clear()
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 120)
+	ab.try_cast(&"q", right)
+	await _wait_until(func() -> bool: return not _projectiles().is_empty(), 20)
+	await _wait_until(func() -> bool: return _projectiles().is_empty(), 40)
+	_check("a wall between: the bolt stops at it, no hit", hits.size(), 0)
+	var ghost: Ability = BOLT.duplicate()
+	ghost.ignores_walls = true
+	ab.q = ghost
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 120)
+	ab.try_cast(&"q", right)
+	await _wait_until(func() -> bool: return not hits.is_empty(), 60)
+	_check("ignores_walls: through the wall, the dummy is hit", hits.size(), 1)
+	wall.queue_free()
+	target.queue_free()
+
+	# Out of range.
+	ab.q = BOLT
+	var far := _dummy_at(Vector2(340, 0))
+	hits.clear()
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 120)
+	ab.try_cast(&"q", right)
+	await _wait_until(func() -> bool: return not _projectiles().is_empty(), 20)
+	await _wait_until(func() -> bool: return _projectiles().is_empty(), 90)
+	_check("a dummy beyond the range (340 px) isn't hit", hits.size(), 0)
+	far.queue_free()
+
+	Events.unit_hit.disconnect(on_hit)
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 120)
+	ab.q = original_q
+
+
+func _test_projectile_spread_and_teams() -> void:
+	_section("AB7: +2 projectiles, one crit roll, only the other team")
+	await _reset_knight()
+	var ab := knight.abilities
+	var original_q := ab.q
+	ab.q = BOLT
+	var hits: Array[HitContext] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.ability != null and ctx.ability.id == &"test_bolt":
+			hits.append(ctx)
+	Events.unit_hit.connect(on_hit)
+	var item := &"item_test_projectiles"
+	knight.stats_component.add_modifier(StatModifier.create(&"projectile_count", StatModifier.Type.FLAT, 2.0, item, &"ability:test_bolt"))
+	var dummies: Array[Enemy] = []
+	for deg: float in [-15.0, 0.0, 15.0]:
+		dummies.append(_dummy_at(Vector2.RIGHT.rotated(deg_to_rad(deg)) * 160.0))
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 120)
+	ab.try_cast(&"q", knight.global_position + Vector2(400, 0))
+	await _wait_until(func() -> bool: return not _projectiles().is_empty(), 20)
+	var angles: Array[float] = []
+	for p in _projectiles():
+		angles.append(snappedf(rad_to_deg(p.direction.angle()), 0.1))
+	angles.sort()
+	_check("+2 projectiles: three bolts, 15 deg apart", angles, [-15.0, 0.0, 15.0] as Array[float])
+	await _wait_until(func() -> bool: return hits.size() >= 3, 60)
+	_check("each hits its dummy", hits.size(), 3)
+	if hits.size() >= 3:
+		_check("all three share one crit roll", [hits[0].crit_roll == hits[1].crit_roll, hits[1].crit_roll == hits[2].crit_roll, hits[0].crit_roll != null],
+			[true, true, true])
+	knight.stats_component.remove_modifiers_from(item)
+	for d in dummies:
+		d.queue_free()
+
+	# An enemy's bolt passes its own team and hits the Knight.
+	hits.clear()
+	var elite: Enemy = ELITE_SCENE.instantiate()
+	elite.passive = true
+	add_child(elite)
+	_place(elite, knight.global_position + Vector2(200, 0))
+	var between := _dummy_at(Vector2(100, 0))
+	await _frames(1)
+	elite.abilities.q = BOLT
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	elite.abilities.try_cast(&"q", knight.global_position)
+	await _wait_until(func() -> bool: return not hits.is_empty(), 60)
+	_check("an enemy's bolt flies through the slime (its team) and hits the Knight",
+		[hits.size(), hits[0].target == knight if hits.size() > 0 else false], [1, true])
+	elite.queue_free()
+	between.queue_free()
+	knight.health.heal(10000.0)
+	Events.unit_hit.disconnect(on_hit)
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 120)
+	ab.q = original_q
+
+
+func _test_projectile_orphaned() -> void:
+	_section("AB7: the caster freed mid-flight")
+	await _reset_knight()
+	var hits: Array[HitContext] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.ability != null and ctx.ability.id == &"test_bolt":
+			hits.append(ctx)
+	Events.unit_hit.connect(on_hit)
+	var shooter: Player = PLAYER_SCENE.instantiate()
+	add_child(shooter)
+	_place(shooter, knight.global_position + Vector2(0, -300))
+	await _frames(1)
+	shooter.abilities.q = BOLT
+	shooter.stats_component.add_modifier(StatModifier.create(&"crit_chance", StatModifier.Type.FLAT, 1.0, &"item_test_crit"))
+	var dummy := _dummy_at(Vector2(250, -300))
+	shooter.abilities.try_cast(&"q", dummy.global_position)
+	await _wait_until(func() -> bool: return not _projectiles().is_empty(), 20)
+	shooter.queue_free()
+	await _wait_until(func() -> bool: return not hits.is_empty(), 60)
+	_check("the bolt keeps flying and hits for the snapshot (82), with no source, no crit",
+		[hits.size(), hits[0].raw_damage if hits.size() > 0 else 0.0, hits[0].source == null if hits.size() > 0 else false,
+			hits[0].is_crit if hits.size() > 0 else true],
+		[1, 82.0, true, false])
+	Events.unit_hit.disconnect(on_hit)
+	dummy.queue_free()
+
+
+func _wall_at(pos: Vector2, size: Vector2) -> StaticBody2D:
+	var wall := StaticBody2D.new()
+	wall.collision_layer = 1
+	wall.collision_mask = 0
+	var shape := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = size
+	shape.shape = rect
+	wall.add_child(shape)
+	add_child(wall)
+	wall.global_position = pos
+	return wall
 
 
 func _with_description(ability: Ability, text: String) -> Ability:

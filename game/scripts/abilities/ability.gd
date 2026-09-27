@@ -147,6 +147,19 @@ const DAMAGE_NUMBER_STYLE_PATH := "res://data/damage_number_styles/damage_number
 ## has it). On: it hits through walls (e.g. a meteor shower). COMBAT C7.
 @export var ignores_walls: bool = false
 
+@export_group("Projectile")
+## Read only by abilities that fire projectiles (Projectile.fire(); ABILITIES
+## AB7). Range is cast_range. All scoped params ("+1 projectile" is an item).
+## LoL units per second (1200 = 384 px/s).
+@export var projectile_speed: float = 1200.0
+## Full width in LoL units (60 = 19 px).
+@export var projectile_width: float = 60.0
+## Projectiles per cast, fanned out projectile_spread_deg apart.
+@export var projectile_count: int = 1
+@export var projectile_spread_deg: float = 15.0
+## Extra enemies a projectile passes through: 0 = it stops on the first hit.
+@export var projectile_pierce: int = 0
+
 @export_group("Sounds")
 ## At cast start (AUDIO.md). null = silent.
 @export var cast_sound: SoundEvent

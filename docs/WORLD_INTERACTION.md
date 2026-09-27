@@ -39,11 +39,11 @@ Walking masks world, pit, low_obstacle, and the other team's bodies. `dash()` cu
 
 ## WorldQuery (autoload, `res://scripts/autoload/world_query.gd`)
 This is the only place raycasts are written. It's built on `PhysicsDirectSpaceState2D` (`intersect_ray`, `intersect_shape`, `cast_motion`).
-**Built so far:** only `has_line_of_sight(from, to, mask = 1)` (walls only; units don't block it), for the melee target pull (COMBAT.md). The rest below is planned.
+**Built so far:** `has_line_of_sight(from, to, mask = 1)` (walls only; units don't block it), for the melee target pull (COMBAT.md), and `shape_sweep()` (ABILITIES AB7, for projectiles). The rest below is planned.
 - `raycast_terrain(from, dir, max_dist_px) -> Dictionary {position, normal, collider, tags}` (empty if nothing hit)
 - `find_grapple_point(from, dir, max_dist_px)`: the first world hit must be `grappleable`, otherwise empty
 - `resolve_valid_position(target, from)`: if an endpoint is in a wall or pit, returns the nearest valid floor point on the caster's side
-- `shape_sweep(from, to, radius, mask)`: the first block along the path (prevents tunneling)
+- `shape_sweep(from, to, radius, mask = 1)`: the first block along the path (prevents tunneling). Built in ABILITIES AB7: a circle through `PhysicsDirectSpaceState2D.cast_motion`; returns {position (the circle's center where it stops), fraction} or {} when clear.
 - `has_line_of_sight(a, b)`: built (melee pull, then every hit in COMBAT C7: basic attacks never hit through walls; abilities unless `ignores_walls`)
 - `get_units_in_radius(center, r, team_filter)`
 
