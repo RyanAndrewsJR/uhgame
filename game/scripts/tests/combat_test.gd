@@ -32,6 +32,8 @@ extends Node2D
 ## and kill credit, statuses on hits, events, death).
 ## C10: shields (absorb after armor, the soonest-expiring first, used up =
 ## removed, stacks, numbers, knockback / life steal / i-frames still apply).
+## Fix: a caster that dies or is freed mid-cast takes its telegraph with it
+## at once (COMBAT.md, Known bugs).
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
@@ -1065,6 +1067,7 @@ func _test_elite() -> void:
 	await _test_slam_hits()
 	await _test_slam_dodges()
 	await _test_elite_ai()
+	await _test_telegraph_on_death()
 
 
 func _test_elite_data() -> void:
@@ -1164,6 +1167,73 @@ func _test_elite_ai() -> void:
 	_check("the Knight walked out: no damage", knight.health.current, hp)
 	elite.passive = true
 	elite.attack.cancel()
+	elite.queue_free()
+	await _frames(2)
+
+
+func _test_telegraph_on_death() -> void:
+	_section("Fix: a caster that dies or is freed mid-cast")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	knight.health.heal(10000.0)
+	var hp := knight.health.current
+
+	# Killed early (0.1 s in): freed by its death tween long before the
+	# 0.65 s cast time ends. This is the case that left the telegraph forever.
+	var elite := _spawn_elite(knight.global_position + Vector2(60, 0), true)
+	await _frames(1)
+	var finished := [0]
+	elite.abilities.cast_finished.connect(func(_s: StringName, _a: Ability) -> void: finished[0] += 1)
+	elite.abilities.try_cast(&"q", knight.global_position, knight)
+	var telegraph := _find_telegraph()
+	await _frames(6)
+	_check("the slam's telegraph is on the floor", telegraph != null and is_instance_valid(telegraph), true)
+	elite.take_damage(100000.0)
+	_check("killed mid-cast: the cast ends at once", [elite.is_alive(), elite.abilities.casting, finished[0]], [false, false, 1])
+	await _frames(1)
+	_check("its telegraph is gone the next frame", is_instance_valid(telegraph), false)
+	await _frames(60)
+	_check("the elite is freed and nothing is left on the floor", [is_instance_valid(elite), _find_telegraph() == null], [false, true])
+	_check("no slam landed", knight.health.current, hp)
+
+	# Killed late (0.5 s in): still in the tree when the cast time ends, so
+	# the old path runs; it must see the cast is already over.
+	elite = _spawn_elite(knight.global_position + Vector2(60, 0), true)
+	await _frames(1)
+	finished[0] = 0
+	elite.abilities.cast_finished.connect(func(_s: StringName, _a: Ability) -> void: finished[0] += 1)
+	elite.abilities.try_cast(&"q", knight.global_position, knight)
+	telegraph = _find_telegraph()
+	await _frames(30)
+	elite.take_damage(100000.0)
+	await _frames(1)
+	_check("killed late in the cast: the telegraph is gone at once", is_instance_valid(telegraph), false)
+	await _frames(12)   # past the end of the cast time, before the elite is freed
+	_check("cast_finished fired once, and no slam landed", [finished[0], knight.health.current], [1, hp])
+	await _frames(30)
+
+	# Freed without dying (a room unloading, a test cleaning up).
+	elite = _spawn_elite(knight.global_position + Vector2(60, 0), true)
+	await _frames(1)
+	elite.abilities.try_cast(&"q", knight.global_position, knight)
+	telegraph = _find_telegraph()
+	await _frames(6)
+	elite.queue_free()
+	await _frames(2)
+	_check("freed mid-cast: its telegraph goes with it", is_instance_valid(telegraph), false)
+
+	# interrupt_cast() on a living caster refunds, like a stun interrupt.
+	elite = _spawn_elite(knight.global_position + Vector2(60, 0), true)
+	await _frames(1)
+	elite.abilities.try_cast(&"q", knight.global_position, knight)
+	telegraph = _find_telegraph()
+	await _frames(6)
+	_check("interrupt_cast() on a living caster", [elite.abilities.interrupt_cast(), elite.abilities.casting, elite.abilities.is_ready(&"q")], [true, false, true])
+	await _frames(1)
+	_check("removes its telegraph too", is_instance_valid(telegraph), false)
+	_check("with no cast running it does nothing", elite.abilities.interrupt_cast(), false)
+	await _frames(45)
+	_check("and no slam lands later", knight.health.current, hp)
 	elite.queue_free()
 	await _frames(2)
 

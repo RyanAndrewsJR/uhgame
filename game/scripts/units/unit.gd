@@ -387,6 +387,7 @@ func _on_died() -> void:
 	attack.cancel()
 	if abilities:
 		abilities.cancel_pending()
+		abilities.interrupt_cast()   # its telegraph goes now, not at the end of the cast time
 	if has_node("StunEffect"):
 		$StunEffect.queue_free()
 	if status_component:
