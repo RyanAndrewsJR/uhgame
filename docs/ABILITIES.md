@@ -28,7 +28,7 @@ Every champion's kit reads at a glance and feels instant: press, and it goes whe
 - A cast happens when: the ability is ready (cooldown done or a charge available), the caster can pay its cost, and no status blocks casting.
 - At cast start: pay the cost, show the telegraph, play `cast_sound`, fire the "on cast" trigger (augments, rules). The cooldown (or a charge) starts at cast start for INSTANT and CHANNEL, and at release for CHARGE_UP.
 - A cast cancelled (dash, move, Esc or overhold CANCEL_REFUND during a charge-up) or interrupted (stun, death) before its effect refunds its cost and cooldown/charge. Once `execute()` starts, nothing is refunded.
-- A stun (or any status that blocks casting) applied during the cast time or a charge-up interrupts the cast at once (Ryan's pick). This resolves COMBAT.md's open question. (Until AB1 the check runs only at the end of the cast time.)
+- A stun (or any status that blocks casting) applied during the cast time or a charge-up interrupts the cast at once (Ryan's pick). This resolves COMBAT.md's open question. AbilityComponent listens to its unit's `StatusComponent.status_applied`; a unit without a StatusComponent (none today) still gets the old check at the end of the cast time.
 - The cast movement rules (`roots_during_cast`, `cast_move_speed_multiplier`, `cancel_on_move`, `dash_cancelable`, `cancels_swing`) move here from MOVEMENT.md unchanged (Movement during casts, below); MOVEMENT.md keeps a one-line pointer. They also govern walking while charging up.
 - **Free casts** (`CastAbilityGameplayEffect`): a free cast triggered at a cast's start (the ABILITY_CAST trigger) waits until that cast's effect starts (the end of its cast time), then runs at once, with no cast time of its own, no slot, no locks, no cost and no cooldown. Anything that blocks casting (stun) and death block it; if the triggering cast is cancelled or interrupted first, it's dropped. A free cast from any other trigger (HIT, UNIT_DIED...) runs at once. Free casts are chain-limited like C11 rules (`chain_limit`, `ReactionRule.MAX_CHAIN` 5).
 
@@ -175,7 +175,7 @@ What it does, step by step:
 Supported augment flags: none yet. (AB-M's wave is a REPLACE: knight_cleave_wave, variant_of knight_cleave.)
 Sounds: cast_sound sound_knight_cleave_cast; hit_sound none (HitFeel's light tier plays)
 Walls: blocked (COMBAT C7): an enemy behind the pillar isn't hit.
-Stunned mid-cast: interrupted at once, no hit, cooldown refunded (AB1; before AB1: only if still stunned when the 0.2 s ends).
+Stunned mid-cast: interrupted at once, no hit, cooldown refunded (AB1).
 Caster dies mid-cast: interrupt_cast(), no hit. Mid-effect: the effect is one frame; it resolves.
 Tooltip template: "Sweep your sword in a wide arc in front of you, dealing {damage} physical damage ({base_damage} {ratios}) and knocking enemies back."
   (Today's description says 70 base; the data is 80. The template fixes the mismatch.)
@@ -464,7 +464,7 @@ Signals (new): `charges_changed(slot, charges, max_charges)`, `charge_started(sl
 | A cooldown reset on a slot that's mid-cast | INSTANT and CHANNEL took their charge at cast start, so a reset gives it back now; the slot is castable once the cast finishes. Mid-charge-up or mid-recast-window, no cooldown is running yet: the reset restores any missing charges and has nothing else to act on. |
 | A free cast triggered at cast start, then that cast is cancelled or interrupted | Dropped with it; nothing ran. |
 | A free cast when the caster is stunned or dead at its run time | Refused (the rule's effect does nothing). |
-| A stun during the cast time of an enemy's telegraphed ability | Interrupted at once: the telegraph and its wind-up go the same frame, cooldown refunded (AB1; before: only if still stunned at the end). |
+| A stun during the cast time of an enemy's telegraphed ability | Interrupted at once: the telegraph and its wind-up go the same frame, cooldown refunded (AB1). |
 | A cast refused for "not enough resource" | The resource bar flashes; the press isn't buffered, so it won't fire when mana regenerates. |
 | An untargetable enemy under the cursor for a UNIT cast | Not a target: "no target", or the next targetable one within `target_forgiveness`. A target that turns untargetable mid-cast: the hit is blocked (invulnerable), so the cast misses. |
 | `max_charges` lowered while charges are stored | Extra charges stay until spent; the recharge runs only below the new max. |
@@ -474,6 +474,7 @@ Every step: with no cast style changes, scalings beyond today's, costs, charges,
 
 1. **AB1 – Cast style, the stun interrupt, cast mode.** The cast rules moved here (done with this doc). `Ability.cast_style` (INSTANT default; CHANNEL behaves as `cancel_on_move`), `is_channel()`; Judgement's .tres gets CHANNEL (its `cancel_on_move` stays on). AbilityComponent interrupts a cast at once when a `blocks_cast` status is applied during the cast time. `Settings` cast mode (default QUICK) + the pause menu option; Player copies it. `abilities_test.tscn` created.
    **Done means:** the test passes: a stun 0.1 s into Judgement ends the cast at once with the cooldown refunded; a stun on the elite mid-slam removes the telegraph that frame; CHANNEL on an ability with `cancel_on_move` off cancels on a new move press; the setting saves and loads. In play: Q/E cast on press; switching to "Hold to aim" in the pause menu brings back hold-and-release; Judgement still cancels when you move; everything else plays as before.
+   AB1 built 2026-09-26, see CHANGELOG.md.
 2. **AB2 – Damage scalings, tooltips, tags.** `DamageScaling`, `ap_ratio`, `scalings`, `get_base_param()` (StatsComponent reads it), `from_ability(…, cast)` with the terms; Judgement's missing health into data; `get_tooltip()` / `get_tooltip_plain()`; the Knight's descriptions become templates; the ability bar tooltip uses the plain one; the standard tags on the Knight's abilities and the slam; `get_role()`.
    **Done means:** Judgement deals exactly the same on a dummy at 100% and 50% health as before; a scoped modifier on `target_missing_health_ratio` raises it; tooltips show the same numbers as the hits, and change when a fake +AD modifier is added and removed; Cleave's tooltip says 80; hits carry the new tags; every ability has exactly one role tag.
 3. **AB3 – Costs, the resource bar, fail cues.** `resource_cost`, pay and refund, `"not enough resource"` (not buffered) and `"silenced"` fail reasons, the HUD resource bar and the fail cues; `SandboxAbilities` with `demo_costs`.

@@ -4,13 +4,15 @@ extends CanvasLayer
 ## main.gd opens it on Esc (unless that Esc cancelled an aimed ability);
 ## Esc again or Resume closes it. Runs while the game is paused
 ## (process_mode = Always in pause_menu.tscn).
-## Options: the dash direction, and one volume slider per audio bus
-## (Settings.VOLUME_BUSES, built in code under %Volumes; AUDIO.md).
+## Options: the dash direction, the cast mode (ABILITIES.md), and one volume
+## slider per audio bus (Settings.VOLUME_BUSES, built in code under %Volumes;
+## AUDIO.md).
 
 ## Font size of the volume rows (matches the buttons).
 const VOLUME_FONT_SIZE := 10
 
 @onready var _dash_button: Button = %DashButton
+@onready var _cast_mode_button: Button = %CastModeButton
 @onready var _resume_button: Button = %ResumeButton
 @onready var _volumes: VBoxContainer = %Volumes
 
@@ -21,6 +23,7 @@ var _volume_labels: Dictionary = {}    # bus -> Label (the percent)
 func _ready() -> void:
 	visible = false
 	_dash_button.pressed.connect(_on_dash_button_pressed)
+	_cast_mode_button.pressed.connect(_on_cast_mode_button_pressed)
 	_resume_button.pressed.connect(close)
 	_build_volume_rows()
 	Settings.setting_changed.connect(_on_settings_setting_changed)
@@ -61,6 +64,11 @@ func _on_dash_button_pressed() -> void:
 	Settings.set_dash_direction(Settings.DashDirection.MOVE_KEYS if cursor else Settings.DashDirection.CURSOR)
 
 
+func _on_cast_mode_button_pressed() -> void:
+	var quick := Settings.get_cast_mode() == Player.CastMode.QUICK
+	Settings.set_cast_mode(Player.CastMode.QUICK_WITH_INDICATOR if quick else Player.CastMode.QUICK)
+
+
 func _on_settings_setting_changed(_key: StringName, _value: Variant) -> void:
 	_refresh()
 
@@ -68,6 +76,8 @@ func _on_settings_setting_changed(_key: StringName, _value: Variant) -> void:
 func _refresh() -> void:
 	var cursor := Settings.get_dash_direction() == Settings.DashDirection.CURSOR
 	_dash_button.text = "Dash direction: %s" % ("Cursor" if cursor else "Move keys (WASD)")
+	var quick := Settings.get_cast_mode() == Player.CastMode.QUICK
+	_cast_mode_button.text = "Cast mode: %s" % ("Quick" if quick else "Hold to aim")
 	for bus: StringName in _volume_sliders:
 		var percent := roundi(Settings.get_volume(bus) * 100.0)
 		(_volume_sliders[bus] as HSlider).set_value_no_signal(percent)

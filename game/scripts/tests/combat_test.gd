@@ -1149,9 +1149,8 @@ func _test_slam_dodges() -> void:
 	elite.abilities.try_cast(&"q", knight.global_position, knight)
 	var telegraph := _find_telegraph()
 	await _frames(10)
-	# Lasts past the cast's end: AbilityComponent checks for a stun when the
-	# cast time is over (a stun that ends earlier doesn't interrupt; see
-	# the report for C5).
+	# Since ABILITIES AB1 any stun interrupts at once; a short one is tested
+	# in abilities_test.
 	elite.apply_stun(1.0)
 	await _wait_until(func() -> bool: return not elite.abilities.casting, 60)
 	await _frames(2)

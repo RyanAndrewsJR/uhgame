@@ -23,6 +23,13 @@ enum SwingCancel {
 	ANYTIME,    ## Cuts the swing at once, even before its hit.
 }
 
+## How the ability's key works (ABILITIES.md, Cast styles).
+enum CastStyle {
+	INSTANT,    ## Press to cast after the cast time (QUICK or hold-to-aim, the player's cast mode).
+	CHARGE_UP,  ## Hold to charge, release to fire (ABILITIES AB6; until then it casts like INSTANT).
+	CHANNEL,    ## Cast on press; stand still through the cast time, a new move press cancels it.
+}
+
 ## <champion>_<ability>, no slot (CONVENTIONS.md), e.g. &"knight_lunge".
 ## Scoped modifiers target it as &"ability:knight_lunge" (STATS.md).
 @export var id: StringName = &""
@@ -35,6 +42,10 @@ enum SwingCancel {
 @export var icon_color: Color = Color(0.8, 0.8, 0.8)
 
 @export_group("Casting")
+## INSTANT (default), CHARGE_UP or CHANNEL. CHANNEL works exactly like
+## cancel_on_move on (a cast that roots and is cancelled by a new move press);
+## the cast mode setting (QUICK / hold to aim) only applies to INSTANT.
+@export var cast_style: CastStyle = CastStyle.INSTANT
 @export var targeting: Targeting = Targeting.DIRECTION
 ## Seconds.
 @export var cooldown: float = 5.0
@@ -53,12 +64,13 @@ enum SwingCancel {
 ## Walking speed during the cast when roots_during_cast is false (0.5 = half).
 ## Applied as a move_speed StatModifier, so the soft caps still apply after it:
 ## with the Knight, 0.75 is exact but 0.5 gives ~0.57x and 0 still walks.
-## Ignored while cancel_on_move is on.
+## Ignored for a channel (cancel_on_move or cast_style CHANNEL).
 @export var cast_move_speed_multiplier: float = 1.0
 ## A movement key pressed after the cast starts cancels it during its cast
 ## time (cooldown refunded, like dash_cancelable). Keys already held when it
 ## started don't count. On: the cast roots for its cast time even if
 ## roots_during_cast is false (a channel: stand still, move to cancel).
+## cast_style CHANNEL does the same; this flag is kept and still works.
 @export var cancel_on_move: bool = false
 ## Can this cast cut short a basic attack swing? AFTER_HIT (default): only
 ## once the swing's hit has landed. Cutting a swing after its hit keeps the
@@ -91,6 +103,12 @@ enum SwingCancel {
 ## When the cooldown ends (AbilityComponent.cooldown_finished), e.g. the
 ## ultimate-ready ping. A refunded cooldown doesn't ping.
 @export var ready_sound: SoundEvent
+
+
+## True for a channel: cast_style CHANNEL, or the older cancel_on_move flag
+## (both mean: root for the cast time, a new move press cancels it).
+func is_channel() -> bool:
+	return cast_style == CastStyle.CHANNEL or cancel_on_move
 
 
 ## The units among `units` this ability can hit from `from`: all of them if

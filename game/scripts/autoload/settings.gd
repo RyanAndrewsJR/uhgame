@@ -3,7 +3,8 @@ extends Node
 ## user://settings.cfg so they survive restarts. Autoloaded as Settings.
 ## Gameplay reads them through the getters and listens to setting_changed to
 ## apply a change at once, even mid-run. Options: the dash direction
-## (MOVEMENT.md) and one volume per audio bus (AUDIO.md; Audio applies them).
+## (MOVEMENT.md), the cast mode (ABILITIES.md; Player applies it) and one
+## volume per audio bus (AUDIO.md; Audio applies them).
 ##
 ## Designer tuning never lives here: that's exports and .tres files.
 
@@ -17,6 +18,8 @@ enum DashDirection {
 
 const SAVE_PATH := "user://settings.cfg"
 const DASH_DIRECTION := &"dash_direction"
+## How INSTANT abilities cast: Player.CastMode (ABILITIES.md, Cast mode).
+const CAST_MODE := &"cast_mode"
 ## One volume slider per bus (AUDIO.md). Their keys are &"volume_<bus>" in
 ## lower case (&"volume_master"...), saved as whole percents in [audio].
 const VOLUME_BUSES: Array[StringName] = [&"Master", &"Music", &"SFX", &"UI", &"Ambience", &"Voice"]
@@ -27,8 +30,13 @@ const _DASH_DIRECTION_NAMES := {
 	DashDirection.CURSOR: "cursor",
 	DashDirection.MOVE_KEYS: "move_keys",
 }
+const _CAST_MODE_NAMES := {
+	Player.CastMode.QUICK: "quick",
+	Player.CastMode.QUICK_WITH_INDICATOR: "quick_with_indicator",
+}
 
 var _dash_direction: DashDirection = DashDirection.CURSOR
+var _cast_mode: Player.CastMode = Player.CastMode.QUICK
 var _volumes: Dictionary = {}   # bus -> 0..1 (1 = full, the default)
 
 
@@ -40,6 +48,12 @@ func _ready() -> void:
 
 func get_dash_direction() -> DashDirection:
 	return _dash_direction
+
+
+## QUICK (cast at the cursor on press; the default) or QUICK_WITH_INDICATOR
+## (hold to aim, release to cast). Only INSTANT abilities use it.
+func get_cast_mode() -> Player.CastMode:
+	return _cast_mode
 
 
 ## The player's volume for a bus, 0..1 (1 = the bus's own level, 0 = muted).
@@ -66,6 +80,15 @@ func set_dash_direction(value: DashDirection) -> void:
 	setting_changed.emit(DASH_DIRECTION, value)
 
 
+## Saves at once and emits setting_changed if the value changed.
+func set_cast_mode(value: Player.CastMode) -> void:
+	if value == _cast_mode:
+		return
+	_cast_mode = value
+	save_settings()
+	setting_changed.emit(CAST_MODE, value)
+
+
 ## 0..1, stored in whole percents. Saves at once and emits setting_changed
 ## (key get_volume_key(bus)) if the value changed.
 func set_volume(bus: StringName, value: float) -> void:
@@ -89,6 +112,10 @@ func load_settings() -> void:
 	for value in _DASH_DIRECTION_NAMES:
 		if _DASH_DIRECTION_NAMES[value] == dash_name:
 			_dash_direction = value
+	var cast_mode_name: String = str(cfg.get_value("controls", CAST_MODE, ""))
+	for value in _CAST_MODE_NAMES:
+		if _CAST_MODE_NAMES[value] == cast_mode_name:
+			_cast_mode = value
 	for bus in VOLUME_BUSES:
 		var percent: Variant = cfg.get_value("audio", get_volume_key(bus), 100)
 		if percent is int or percent is float:
@@ -99,6 +126,7 @@ func save_settings() -> void:
 	var cfg := ConfigFile.new()
 	cfg.load(SAVE_PATH)   # Keep any other sections already in the file.
 	cfg.set_value("controls", DASH_DIRECTION, _DASH_DIRECTION_NAMES[_dash_direction])
+	cfg.set_value("controls", CAST_MODE, _CAST_MODE_NAMES[_cast_mode])
 	for bus in VOLUME_BUSES:
 		cfg.set_value("audio", get_volume_key(bus), roundi(get_volume(bus) * 100.0))
 	var err := cfg.save(SAVE_PATH)

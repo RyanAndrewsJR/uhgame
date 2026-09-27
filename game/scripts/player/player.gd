@@ -8,10 +8,12 @@ extends Unit
 ##   S                   - stop (also cancels an attack windup)
 ##   Q / W / E / R       - abilities (see cast_mode)
 
+## How INSTANT abilities cast (ABILITIES.md, Cast mode). The player picks it
+## in the pause menu (Settings); CHANNEL and SELF abilities always cast on press.
 enum CastMode {
-	## Hold the key to see the indicator, release to cast. Right-click cancels.
+	## Hold the key to see the indicator, release to cast. Esc cancels.
 	QUICK_WITH_INDICATOR,
-	## Cast instantly at the cursor when the key is pressed.
+	## Cast instantly at the cursor when the key is pressed (the default).
 	QUICK,
 }
 
@@ -37,7 +39,9 @@ signal state_changed(from: State, to: State)
 
 const ABILITY_ACTIONS := {&"q": "ability_q", &"w": "ability_w", &"e": "ability_e", &"r": "ability_r"}
 
-@export var cast_mode: CastMode = CastMode.QUICK_WITH_INDICATOR
+## Set from Settings at start and whenever the player changes it in the
+## pause menu, so an Inspector value only lasts until then.
+@export var cast_mode: CastMode = CastMode.QUICK
 ## How often the order updates while right-click is held (seconds).
 @export var hold_repath_interval: float = 0.05
 ## How close (px) the cursor must be to an enemy for targeted abilities.
@@ -101,6 +105,15 @@ func _ready() -> void:
 	dash.dash_started.connect(_on_dash_started)
 	dash.dash_ended.connect(_on_dash_ended)
 	health.health_changed.connect(_on_health_health_changed)
+	cast_mode = Settings.get_cast_mode()
+	Settings.setting_changed.connect(_on_settings_setting_changed)
+
+
+func _on_settings_setting_changed(key: StringName, _value: Variant) -> void:
+	if key == Settings.CAST_MODE:
+		# An aim in progress finishes as it started (release casts); the new
+		# mode applies from the next press.
+		cast_mode = Settings.get_cast_mode()
 
 
 # --- Input ----------------------------------------------------------------------
@@ -155,7 +168,10 @@ func _on_ability_pressed(slot: StringName) -> void:
 	var ability := abilities.get_ability(slot)
 	if ability == null:
 		return
-	var instant := cast_mode == CastMode.QUICK or ability.targeting == Ability.Targeting.SELF
+	# The cast mode only applies to INSTANT abilities: channels always cast on
+	# press (ABILITIES.md, Cast mode). CHARGE_UP casts like INSTANT until AB6.
+	var instant := cast_mode == CastMode.QUICK or ability.targeting == Ability.Targeting.SELF \
+		or ability.is_channel()
 	if instant:
 		request_cast(slot)
 	else:

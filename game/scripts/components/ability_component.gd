@@ -7,9 +7,11 @@ extends Node
 ## - casting cancels an auto-attack windup, and (by default) resets the
 ##   auto-attack timer so the next auto comes out immediately
 ## - targeted (UNIT) abilities walk into range first if you're too far
-## - getting stunned during the cast time interrupts it (cooldown refunded)
+## - a stun (any status that blocks casting) applied during the cast time
+##   interrupts it at once (cooldown refunded; ABILITIES.md, AB1)
 ## - per ability: walk during the cast at a speed multiplier, or cancel the
-##   cast with a dash (dash_cancelable) or a new move press (cancel_on_move)
+##   cast with a dash (dash_cancelable) or a new move press (a channel:
+##   cast_style CHANNEL or cancel_on_move)
 
 signal cast_started(slot: StringName, ability: Ability, ctx: CastContext)
 signal cast_finished(slot: StringName, ability: Ability)
@@ -51,6 +53,24 @@ func _ready() -> void:
 	for s in SLOTS:
 		_cooldown_left[s] = 0.0
 		_cooldown_total[s] = 1.0
+	# Unit's @onready status_component is only set once the Unit itself is ready.
+	if unit.is_node_ready():
+		_on_unit_ready()
+	else:
+		unit.ready.connect(_on_unit_ready, CONNECT_ONE_SHOT)
+
+
+func _on_unit_ready() -> void:
+	if unit.status_component != null:
+		unit.status_component.status_applied.connect(_on_status_component_status_applied)
+
+
+## A status that blocks casting (stun, silence) interrupts a cast during its
+## cast time at once, cooldown refunded (ABILITIES.md, Casting). A unit
+## without a StatusComponent still gets the check at the end of the cast time.
+func _on_status_component_status_applied(_effect: StatusEffect) -> void:
+	if casting and not _executing and unit.is_cast_blocked():
+		interrupt_cast()
 
 
 # --- Queries --------------------------------------------------------------------
@@ -158,12 +178,12 @@ func try_cancel_cast() -> bool:
 
 
 ## True during a cast's cast time (before its effect) if the ability is
-## cancelled by a new movement press (Ability.cancel_on_move).
+## cancelled by a new movement press (a channel: Ability.is_channel()).
 func can_cancel_cast_on_move() -> bool:
 	if not casting or _executing:
 		return false
 	var ability := get_ability(casting_slot)
-	return ability != null and ability.cancel_on_move
+	return ability != null and ability.is_channel()
 
 
 ## Cancels the current cast because the unit started moving, if its ability
@@ -176,7 +196,7 @@ func try_cancel_cast_on_move() -> bool:
 
 
 ## Ends the current cast during its cast time as an interrupt (the caster
-## died): its telegraph goes at once, the locks are released and
+## died, or a stun or silence was applied): its telegraph goes at once, the locks are released and
 ## cast_finished is emitted, like a stun at the end of the cast time. A
 ## living caster gets the cooldown back. The effect (execute()) can't be
 ## stopped once it starts. Returns true if a cast was ended.
@@ -254,11 +274,11 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext) -> void:
 	_cooldown_left[slot] = _cooldown_total[slot]
 
 	unit.attack.add_lock(&"casting")   # also cancels an auto-attack windup
-	# cancel_on_move casts always root (a channel), whatever roots_during_cast says.
-	var rooted := (ability.roots_during_cast or ability.cancel_on_move) and ability.cast_time > 0.0
+	# Channels always root, whatever roots_during_cast says.
+	var rooted := (ability.roots_during_cast or ability.is_channel()) and ability.cast_time > 0.0
 	if rooted:
 		unit.movement.add_move_lock(&"casting")
-	if ability.cancel_on_move and ability.cast_time > 0.0:
+	if ability.is_channel() and ability.cast_time > 0.0:
 		unit.movement.stop()
 	_cast_rooted = rooted
 	_add_cast_move_speed(ability)
@@ -301,7 +321,7 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext) -> void:
 ## PERCENT_MULT move_speed modifier (stacks with slows instead of competing
 ## with them). Nothing is added at 1.0.
 func _add_cast_move_speed(ability: Ability) -> void:
-	if ability.roots_during_cast or ability.cancel_on_move:
+	if ability.roots_during_cast or ability.is_channel():
 		return
 	if is_equal_approx(ability.cast_move_speed_multiplier, 1.0):
 		return

@@ -9,6 +9,15 @@
 - Status: **Built (awaiting play test)** or **Passed** (Ryan's play test). When a play test passes, update the entry's status.
 - Entries up to 2026-09-27 were moved here word for word from the system docs.
 
+## Abilities (ABILITIES.md)
+
+### AB1 – Cast style, the stun interrupt, cast mode: 2026-09-26, Built (awaiting play test)
+**AB1 – Cast style, the stun interrupt, cast mode.** `Ability.cast_style`, a stun or silence interrupting a cast at once, the cast mode as a player setting.
+
+`Ability.CastStyle` (INSTANT / CHARGE_UP / CHANNEL) and `cast_style` (INSTANT default; CHARGE_UP casts like INSTANT until AB6), `Ability.is_channel()` (CHANNEL or the old `cancel_on_move`). AbilityComponent reads `is_channel()` wherever it read `cancel_on_move` (the root, the stop, `can_cancel_cast_on_move()`, the walking multiplier), so both work the same. AbilityComponent connects to its unit's `StatusComponent.status_applied` (on the Unit's `ready`, since `status_component` is an `@onready` of the Unit) and calls `interrupt_cast()` when a status leaves the unit cast-blocked during a cast time; the end-of-cast-time check stays for units without a StatusComponent. `Settings` gets `CAST_MODE`, `get_cast_mode()` / `set_cast_mode()`, saved as `quick` / `quick_with_indicator` in `[controls]`, default `quick`; it reuses `Player.CastMode`. Player's `cast_mode` export defaults to QUICK and is copied from Settings at start and on `setting_changed`; a channel (and SELF, as before) casts on press whatever the mode. PauseMenu: a "Cast mode: Quick / Hold to aim" button under the dash one. Data: `knight_r_judgement.tres` `cast_style` CHANNEL (`cancel_on_move` stays on). New `scenes/tests/abilities_test.tscn` + `scripts/tests/abilities_test.gd`.
+
+Abilities test 36/36: the cast styles of the Knight's abilities and the slam; a 0.2 s stun 0.1 s into Judgement ends the cast in the same frame (refunded, `cast_finished` once, no `cast_cancelled`, no hit later); a 0.1 s stun on the elite 0.1 s into its slam frees the telegraph that frame and no slam lands; a test silence (`blocks_cast` only) interrupts Cleave's cast time; a slow doesn't interrupt; a stun during Lunge's dash (its effect) changes nothing (it arrives, no refund); a CHANNEL with `cancel_on_move` off roots and is cancelled by a move press through PlayerInput, an INSTANT one isn't; the cast mode is emitted, followed by the Player, saved and loaded; in hold-to-aim E aims on press and casts on release, R (CHANNEL) casts on press, and in quick Q casts on press. The test writes the real `user://settings.cfg` and restores the cast mode it found. Stats test 172/172, audio test 109/109. Combat test 446/450: the 4 failures are the combo-speed checks (they expect `speed_scale` 1.0; Ryan's commit 5f7f0ae set `combo_knight.tres` `speed_scale` to 1.266), not AB1. `main.tscn` and `sandbox_main.tscn` run 600 frames with no errors or warnings.
+
 ## Audio (AUDIO.md)
 
 ### A3 – Abilities and statuses: 2026-09-27, Built (awaiting play test)
