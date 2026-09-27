@@ -1,18 +1,26 @@
 extends Control
 ## LoL-style ability bar: Q W E R slots with cooldown sweep, seconds left,
-## "being aimed" highlight and a tooltip on hover.
+## "being aimed" highlight and a tooltip on hover. Fail cues (ABILITIES.md,
+## HUD feedback): a red flash when a press fails "not ready", a grey tint
+## while the player can't cast (stunned, silenced), a blue tint while a
+## slot's cost can't be paid (the resource bar flashes on the failed press).
 
 const SLOT := 30.0
 const GAP := 4.0
+## Seconds a "not ready" / "silenced" flash lasts on a slot.
+const FAIL_FLASH_TIME := 0.2
 
 var abilities: AbilityComponent
 var player: Player
 
 var _hover: int = -1
 var _font: Font
+var _fail_flash: Dictionary = {}   # slot -> seconds left
 
 
 func _ready() -> void:
+	if abilities != null:
+		abilities.cast_failed.connect(_on_abilities_cast_failed)
 	_font = ThemeDB.fallback_font
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	var w := SLOT * 4 + GAP * 3
@@ -28,7 +36,19 @@ func _ready() -> void:
 	offset_bottom = -8
 
 
-func _process(_delta: float) -> void:
+## True while `slot` shows a fail flash (for tests).
+func is_flashing(slot: StringName) -> bool:
+	return _fail_flash.get(slot, 0.0) > 0.0
+
+
+func _on_abilities_cast_failed(slot: StringName, reason: String) -> void:
+	if reason == AbilityComponent.FAIL_NOT_READY or reason == AbilityComponent.FAIL_SILENCED:
+		_fail_flash[slot] = FAIL_FLASH_TIME
+
+
+func _process(delta: float) -> void:
+	for s: StringName in _fail_flash:
+		_fail_flash[s] = maxf(_fail_flash[s] - delta, 0.0)
 	var m := get_local_mouse_position()
 	_hover = -1
 	if Rect2(Vector2.ZERO, size).has_point(m):
@@ -63,6 +83,16 @@ func _draw() -> void:
 			draw_string(_font, rect.position + Vector2(0, SLOT * 0.62), txt,
 				HORIZONTAL_ALIGNMENT_CENTER, SLOT, 12, Color(1, 1, 1))
 
+		# Can't cast right now: grey while stunned or silenced, blue while
+		# the cost can't be paid.
+		if player and player.is_cast_blocked():
+			draw_rect(rect, Color(0.5, 0.5, 0.55, 0.55))
+		elif not abilities.can_afford(slot):
+			draw_rect(rect, Color(0.15, 0.3, 0.9, 0.45))
+		var flash: float = _fail_flash.get(slot, 0.0)
+		if flash > 0.0:
+			draw_rect(rect, Color(1, 0.2, 0.2, 0.6 * flash / FAIL_FLASH_TIME))
+
 		# Border: gold when aiming, bright when casting, else subtle.
 		var border := Color(1, 1, 1, 0.25)
 		if player and player.aiming_slot == slot:
@@ -95,7 +125,9 @@ func _draw_tooltip(i: int) -> void:
 	var title := "%s  [%s]" % [ability.display_name, String(slot).to_upper()]
 	draw_string(_font, rect.position + Vector2(6, 12), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, ability.icon_color)
 	var cd := abilities.get_cooldown_duration(ability)
-	draw_string(_font, rect.position + Vector2(6, 22), "Cooldown %ss%s" % [_num(cd), "   Auto reset" if ability.resets_auto_attack else ""],
+	var cost := abilities.get_cost(ability)
+	var cost_text := "   Cost %s" % _num(cost) if cost > 0.0 else ""
+	draw_string(_font, rect.position + Vector2(6, 22), "Cooldown %ss%s%s" % [_num(cd), cost_text, "   Auto reset" if ability.resets_auto_attack else ""],
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(0.75, 0.75, 0.8))
 	for li in lines.size():
 		draw_string(_font, rect.position + Vector2(6, 34 + li * 10), lines[li], HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(1, 1, 1, 0.9))

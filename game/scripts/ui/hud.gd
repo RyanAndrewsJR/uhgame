@@ -11,8 +11,11 @@ const HEART_EMPTY := Color(0.25, 0.1, 0.12)
 
 
 const AbilityBar := preload("res://scripts/ui/ability_bar.gd")
+const ResourceBar := preload("res://scripts/ui/resource_bar.gd")
 
 
+## The ability bar, and under it the resource bar if the player has a
+## resource pool (ABILITIES.md, HUD feedback).
 func setup_abilities(player: Player) -> void:
 	var bar := Control.new()
 	bar.set_script(AbilityBar)
@@ -20,6 +23,13 @@ func setup_abilities(player: Player) -> void:
 	bar.set("abilities", player.abilities)
 	bar.set("player", player)
 	add_child(bar)
+	if player.resource_pool != null:
+		var resource_bar := Control.new()
+		resource_bar.set_script(ResourceBar)
+		resource_bar.name = "ResourceBar"
+		resource_bar.set("pool", player.resource_pool)
+		resource_bar.set("abilities", player.abilities)
+		add_child(resource_bar)
 
 
 func set_info(text: String) -> void:

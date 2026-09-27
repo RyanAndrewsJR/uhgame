@@ -190,8 +190,13 @@ func _on_ability_released(slot: StringName) -> void:
 ## in PlayerInput so it fires as soon as it's allowed (MOVEMENT.md step 7).
 ## No casting while dashing. During a basic attack swing only if the
 ## ability's cancels_swing allows it (the cast then cancels the swing).
+## A ready ability you can't afford fails at once with its cue and is never
+## buffered, so it doesn't go off later when the resource comes back
+## (ABILITIES.md, Costs).
 func request_cast(slot: StringName) -> void:
-	if abilities.can_cast(slot) and not dash.is_dashing() and can_interrupt_swing(slot):
+	if abilities.is_ready(slot) and not is_cast_blocked() and not abilities.can_afford(slot):
+		abilities.fail_cast(slot, AbilityComponent.FAIL_NO_RESOURCE)
+	elif abilities.can_cast(slot) and not dash.is_dashing() and can_interrupt_swing(slot):
 		cast_ability(slot)
 	else:
 		player_input.buffer_action(slot)

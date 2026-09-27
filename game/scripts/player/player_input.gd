@@ -154,7 +154,14 @@ func _update_buffer(delta: float) -> void:
 		return
 	_buffer_left -= delta
 	if _buffer_left <= 0.0:
+		var dropped := _buffered
 		clear_buffer()
+		# A Q/W/E/R press that never became legal: the HUD shows why
+		# (not ready, silenced...; ABILITIES.md, HUD feedback).
+		if dropped in AbilityComponent.SLOTS:
+			var reason := player.abilities.get_fail_reason(dropped)
+			if reason != "":
+				player.abilities.fail_cast(dropped, reason)
 
 
 func _is_legal(action: StringName) -> bool:

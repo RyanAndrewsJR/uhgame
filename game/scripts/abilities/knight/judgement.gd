@@ -5,9 +5,6 @@ extends Ability
 ## &"target_missing_health_ratio", ABILITIES AB2), so HitPipeline.from_ability()
 ## adds it to the base damage (it crits too) and items can raise it.
 
-## Unused since ABILITIES AB2 (the ratio is the .tres scaling term). Kept
-## until Ryan confirms AB2 (change policy: disable before deleting).
-@export var missing_health_ratio: float = 0.2
 @export var stun_duration: float = 0.75
 
 

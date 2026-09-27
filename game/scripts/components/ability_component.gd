@@ -9,12 +9,17 @@ extends Node
 ## - targeted (UNIT) abilities walk into range first if you're too far
 ## - a stun (any status that blocks casting) applied during the cast time
 ##   interrupts it at once (cooldown refunded; ABILITIES.md, AB1)
+## - costs (resource_cost) are paid at cast start and refunded with the
+##   cooldown if the cast doesn't go off; a unit without a resource pool
+##   pays nothing (ABILITIES.md, AB3)
 ## - per ability: walk during the cast at a speed multiplier, or cancel the
 ##   cast with a dash (dash_cancelable) or a new move press (a channel:
 ##   cast_style CHANNEL or cancel_on_move)
 
 signal cast_started(slot: StringName, ability: Ability, ctx: CastContext)
 signal cast_finished(slot: StringName, ability: Ability)
+## A cast was refused. reason: one of the FAIL_* strings (ABILITIES.md, HUD
+## feedback); the HUD shows a cue per reason.
 signal cast_failed(slot: StringName, reason: String)
 ## A cast was cancelled during its cast time (e.g. by a dash). cast_finished
 ## is emitted right after, so existing listeners still clean up.
@@ -27,6 +32,12 @@ const SLOTS: Array[StringName] = [&"q", &"w", &"e", &"r"]
 ## Source id of the move_speed modifier from Ability.cast_move_speed_multiplier.
 ## One cast at a time, so one id.
 const CAST_MOVE_SPEED_SOURCE := &"ability_casting"
+## cast_failed reasons.
+const FAIL_NOT_READY := "not ready"
+const FAIL_BUSY := "busy"
+const FAIL_NO_TARGET := "no target"
+const FAIL_NO_RESOURCE := "not enough resource"
+const FAIL_SILENCED := "silenced"
 
 @export var q: Ability
 @export var w: Ability
@@ -45,6 +56,7 @@ var _cast_serial: int = 0        # bumped by each cast and by a cancel
 var _cast_rooted: bool = false
 var _executing: bool = false     # true while ability.execute() runs
 var _cast_ctx: CastContext       # the cast in progress (for its telegraph)
+var _cast_cost: float = 0.0      # what the cast in progress paid (refunded if it doesn't go off)
 
 
 func _ready() -> void:
@@ -104,8 +116,42 @@ func is_ready(slot: StringName) -> bool:
 	return get_ability(slot) != null and get_cooldown_left(slot) <= 0.0
 
 
+## Ready, not casting, alive and not blocked. Doesn't look at the cost:
+## a press that can't be afforded fails at once instead of being buffered
+## (can_afford(); ABILITIES.md, Costs).
 func can_cast(slot: StringName) -> bool:
 	return is_ready(slot) and not casting and unit.is_alive() and not unit.is_cast_blocked()
+
+
+## The ability's resource_cost after scoped modifiers.
+func get_cost(ability: Ability) -> float:
+	return ability.get_param(unit, &"resource_cost")
+
+
+## True if the unit can pay the slot's cost now. A unit without a resource
+## pool (resource type NONE, enemies) always can: it pays nothing.
+func can_afford(slot: StringName) -> bool:
+	var ability := get_ability(slot)
+	if ability == null:
+		return false
+	return unit.resource_pool == null or unit.resource_pool.can_afford(get_cost(ability))
+
+
+## Why the slot can't be cast right now (a FAIL_* string), or "" if it can.
+## Blocked (stunned, silenced) comes first, then not ready, then busy, then
+## the cost.
+func get_fail_reason(slot: StringName) -> String:
+	if get_ability(slot) == null or not unit.is_alive():
+		return FAIL_BUSY
+	if unit.is_cast_blocked():
+		return FAIL_SILENCED
+	if not is_ready(slot):
+		return FAIL_NOT_READY
+	if casting:
+		return FAIL_BUSY
+	if not can_afford(slot):
+		return FAIL_NO_RESOURCE
+	return ""
 
 
 func has_pending() -> bool:
@@ -121,8 +167,9 @@ func try_cast(slot: StringName, aim: Vector2, target_unit: Unit = null) -> bool:
 	var ability := get_ability(slot)
 	if ability == null:
 		return false
-	if not can_cast(slot):
-		cast_failed.emit(slot, "not ready" if not is_ready(slot) else "busy")
+	var reason := get_fail_reason(slot)
+	if reason != "":
+		cast_failed.emit(slot, reason)
 		return false
 
 	var ctx := CastContext.new()
@@ -139,7 +186,7 @@ func try_cast(slot: StringName, aim: Vector2, target_unit: Unit = null) -> bool:
 			ctx.point = origin + to_aim.limit_length(Units.to_px(ability.get_param(unit, &"cast_range")))
 		Ability.Targeting.UNIT:
 			if target_unit == null or not target_unit.is_alive() or not unit.is_enemy_of(target_unit):
-				cast_failed.emit(slot, "no target")
+				cast_failed.emit(slot, FAIL_NO_TARGET)
 				return false
 			ctx.target = target_unit
 			# Out of range, or no line of sight (COMBAT C7): walk until both hold.
@@ -157,6 +204,13 @@ func try_cast(slot: StringName, aim: Vector2, target_unit: Unit = null) -> bool:
 
 func cancel_pending() -> void:
 	_pending.clear()
+
+
+## Reports a press that won't cast (emits cast_failed), for callers that
+## refuse it themselves: the Player's "not enough resource" (never buffered)
+## and a buffered press that ran out (PlayerInput).
+func fail_cast(slot: StringName, reason: String) -> void:
+	cast_failed.emit(slot, reason)
 
 
 ## True during a cast's cast time (before its effect) if the ability allows
@@ -196,10 +250,10 @@ func try_cancel_cast_on_move() -> bool:
 
 
 ## Ends the current cast during its cast time as an interrupt (the caster
-## died, or a stun or silence was applied): its telegraph goes at once, the locks are released and
-## cast_finished is emitted, like a stun at the end of the cast time. A
-## living caster gets the cooldown back. The effect (execute()) can't be
-## stopped once it starts. Returns true if a cast was ended.
+## died, or a stun or silence was applied): its telegraph goes at once, the
+## locks are released and cast_finished is emitted. A living caster gets the
+## cooldown and the cost back. The effect (execute()) can't be stopped once
+## it starts. Returns true if a cast was ended.
 func interrupt_cast() -> bool:
 	if not casting or _executing:
 		return false
@@ -213,6 +267,7 @@ func interrupt_cast() -> bool:
 	_remove_cast_move_speed()
 	if unit.is_alive():
 		_cooldown_left[slot] = 0.0  # Refund interrupted casts.
+		_refund_cost()
 	casting = false
 	casting_slot = &""
 	cast_finished.emit(slot, ability)
@@ -229,6 +284,7 @@ func _cancel_cast() -> void:
 	unit.attack.remove_lock(&"casting")
 	_remove_cast_move_speed()
 	_cooldown_left[slot] = 0.0
+	_refund_cost()
 	casting = false
 	casting_slot = &""
 	cast_cancelled.emit(slot, ability)
@@ -272,6 +328,13 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext) -> void:
 	casting_slot = slot
 	_cooldown_total[slot] = get_cooldown_duration(ability)
 	_cooldown_left[slot] = _cooldown_total[slot]
+	# Pay at cast start (try_cast() checked it's affordable); refunded if the
+	# cast is cancelled or interrupted before its effect.
+	_cast_cost = 0.0
+	if unit.resource_pool != null:
+		var cost := get_cost(ability)
+		if unit.resource_pool.try_spend(cost):
+			_cast_cost = maxf(cost, 0.0)
 
 	unit.attack.add_lock(&"casting")   # also cancels an auto-attack windup
 	# Channels always root, whatever roots_during_cast says.
@@ -299,7 +362,9 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext) -> void:
 		_remove_telegraph(ctx)
 		if is_instance_valid(unit) and unit.is_alive():
 			_cooldown_left[slot] = 0.0  # Refund interrupted casts.
+			_refund_cost()
 	else:
+		_cast_cost = 0.0   # the effect starts: nothing is refunded from here
 		_executing = true
 		await ability.execute(unit, ctx)
 		_executing = false
@@ -342,6 +407,14 @@ func _notification(what: int) -> void:
 func _remove_telegraph(ctx: CastContext) -> void:
 	if ctx != null and is_instance_valid(ctx.telegraph):
 		ctx.telegraph.queue_free()
+
+
+## Gives back what the cast in progress paid (a cancel or interrupt before
+## its effect). The pool clamps at its max.
+func _refund_cost() -> void:
+	if _cast_cost > 0.0 and unit.resource_pool != null:
+		unit.resource_pool.restore(_cast_cost)
+	_cast_cost = 0.0
 
 
 func _remove_cast_move_speed() -> void:

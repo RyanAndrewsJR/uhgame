@@ -9,6 +9,11 @@ extends Node2D
 ## AB2: damage scalings (DamageScaling terms, ap_ratio, Judgement's missing
 ## health in data with the same numbers, scoped modifiers raising a ratio),
 ## tooltips from the description template, and the standard tags.
+## AB3: costs (paid at cast start, refunded on a cancel or interrupt, not once
+## the effect starts; a unit without a pool pays nothing), "not enough
+## resource" failing at once and never buffered, the fail reasons, a
+## buffered press that runs out reporting why, and the HUD cues (the
+## resource bar and the slot flashes).
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
@@ -20,6 +25,8 @@ const IRON_RESOLVE: Ability = preload("res://data/abilities/knight_w_iron_resolv
 const LUNGE: Ability = preload("res://data/abilities/knight_e_lunge.tres")
 const JUDGEMENT: Ability = preload("res://data/abilities/knight_r_judgement.tres")
 const SLAM: Ability = preload("res://data/abilities/slime_elite_q_slam.tres")
+const HUD_SCENE: PackedScene = preload("res://scenes/ui/hud.tscn")
+const COST_SOURCE := &"item_test_costs"
 const ARENA := Vector2(-2000, 0)
 
 var knight: Player
@@ -51,6 +58,10 @@ func _ready() -> void:
 	await _test_scalings()
 	_test_tooltips()
 	_test_tags()
+	print("\n=== Abilities test (ABILITIES AB3) ===")
+	await _test_costs()
+	await _test_fail_cues()
+	await _test_hud_cues()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).
@@ -263,7 +274,7 @@ func _test_scalings() -> void:
 	var term := JUDGEMENT.get_scaling(&"target_missing_health_ratio")
 	_check("Judgement has the term: 20% of the target's missing health",
 		[term != null, term.ratio if term else 0.0, term.of if term else -1], [true, 0.2, DamageScaling.Of.TARGET_MISSING_HEALTH])
-	_check("the old export is kept, unused", JUDGEMENT.get("missing_health_ratio"), 0.2)
+	_check("the old missing_health_ratio export is gone (deleted after AB2 passed)", JUDGEMENT.get("missing_health_ratio"), null)
 	var full := HitPipeline.get_scaled_damage(HitPipeline.from_ability(knight, JUDGEMENT, dummy))
 	_check("full health: 150 + 64 = 214", full, 214.0)
 	dummy.health.take_damage(max_hp * 0.5)
@@ -387,6 +398,138 @@ func _test_tags() -> void:
 		[90.0, 110.0, 50.0])
 	knight.stats_component.remove_modifiers_from(src)
 	dummy.queue_free()
+
+
+# --- AB3 ------------------------------------------------------------------------
+
+func _test_costs() -> void:
+	_section("AB3: costs")
+	await _reset_knight()
+	var pool := knight.resource_pool
+	_check("every ability costs 0 by default (room_01 plays as before)",
+		[CLEAVE.resource_cost, IRON_RESOLVE.resource_cost, LUNGE.resource_cost, JUDGEMENT.resource_cost, SLAM.resource_cost],
+		[0.0, 0.0, 0.0, 0.0, 0.0])
+	pool.restore(1000.0)
+	_check("the Knight has 300 mana", [pool.current, pool.max_resource], [300.0, 300.0])
+	await _wait_until(func() -> bool: return knight.abilities.can_cast(&"q"), 240)
+	knight.abilities.try_cast(&"q", knight.global_position + Vector2(40, 0))
+	_check("a free cast spends nothing", pool.current, 300.0)
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 60)
+
+	_add_costs({&"knight_cleave": 40.0, &"knight_lunge": 50.0, &"knight_judgement": 80.0})
+	_check("scoped costs: Cleave 40, Lunge 50, Judgement 80",
+		[knight.abilities.get_cost(CLEAVE), knight.abilities.get_cost(LUNGE), knight.abilities.get_cost(JUDGEMENT)], [40.0, 50.0, 80.0])
+	var probe: Ability = CLEAVE.duplicate()
+	probe.description = "costs {cost}"
+	_check("{cost} in a tooltip", probe.get_tooltip_plain(knight), "costs 40")
+
+	var dummy := _dummy_at(Vector2(80, 0))
+	pool.restore(1000.0)
+	knight.abilities.try_cast(&"r", dummy.global_position, dummy)
+	_check("paid at cast start: 300 - 80 = 220", pool.current, 220.0)
+	await _frames(6)
+	knight.apply_stun(0.1)
+	_check_near("stunned in the cast time: the 80 comes back", pool.current, 300.0, 0.001)
+	await _wait_until(func() -> bool: return not knight.is_stunned(), 30)
+	pool.try_spend(100.0)
+	var before := pool.current
+	knight.abilities.try_cast(&"r", dummy.global_position, dummy)
+	await _frames(3)
+	knight.abilities.try_cancel_cast_on_move()
+	_check_near("a move cancel refunds it too", pool.current, before + 0.3, 0.2)   # + 3 frames of regen (6/s)
+	await _wait_until(func() -> bool: return knight.abilities.can_cast(&"e"), 600)   # Lunge's 8 s cooldown from AB1
+	pool.restore(1000.0)
+	_check("Lunge casts (50 paid)", [knight.abilities.try_cast(&"e", knight.global_position + Vector2(100, 0)), pool.current], [true, 250.0])
+	await _wait_until(func() -> bool: return knight.movement.is_displaced(), 10)
+	knight.apply_stun(0.1)
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 60)
+	_check("stunned once Lunge's effect started: no refund", pool.current < 260.0, true)
+
+	# A unit without a resource pool pays nothing.
+	var elite: Enemy = ELITE_SCENE.instantiate()
+	elite.passive = true
+	add_child(elite)
+	_place(elite, knight.global_position + Vector2(0, 150))
+	await _frames(1)
+	elite.stats_component.add_modifier(StatModifier.create(&"resource_cost", StatModifier.Type.FLAT, 50.0, COST_SOURCE, &"ability:slime_elite_slam"))
+	_check("the elite has no pool, so it can afford a 50 cost", [elite.resource_pool == null, elite.abilities.can_afford(&"q")], [true, true])
+	_check("and casts it", elite.abilities.try_cast(&"q", elite.global_position + Vector2(20, 0)), true)
+	elite.abilities.interrupt_cast()
+	elite.queue_free()
+	dummy.queue_free()
+	await _reset_knight()
+
+
+func _test_fail_cues() -> void:
+	_section("AB3: not enough resource, fail reasons")
+	await _reset_knight()
+	var pool := knight.resource_pool
+	var fails: Array = []
+	var record := func(slot: StringName, reason: String) -> void: fails.append([slot, reason])
+	knight.abilities.cast_failed.connect(record)
+	await _wait_until(func() -> bool: return knight.abilities.can_cast(&"q"), 240)
+
+	pool.try_spend(pool.current - 20.0)
+	_check("20 mana: Cleave (40) can't be afforded", [knight.abilities.can_afford(&"q"), knight.abilities.get_fail_reason(&"q")],
+		[false, AbilityComponent.FAIL_NO_RESOURCE])
+	knight.request_cast(&"q")
+	_check("the press fails at once with 'not enough resource'", fails, [[&"q", AbilityComponent.FAIL_NO_RESOURCE]])
+	_check("and isn't buffered, nothing cast, nothing spent",
+		[knight.player_input.get_buffered_action(), knight.abilities.casting], [&"", false])
+	_check_near("mana still ~20", pool.current, 20.0, 0.2)
+	fails.clear()
+	_check("try_cast() refuses it the same way", knight.abilities.try_cast(&"q", knight.global_position + Vector2(40, 0)), false)
+	_check("with the same reason", fails, [[&"q", AbilityComponent.FAIL_NO_RESOURCE]])
+
+	# Blocked comes first: a stunned press is buffered (as before) and its cue is 'silenced'.
+	fails.clear()
+	knight.apply_stun(0.5)
+	_check("stunned: the reason is 'silenced'", knight.abilities.get_fail_reason(&"q"), AbilityComponent.FAIL_SILENCED)
+	knight.request_cast(&"q")
+	_check("the press is buffered", knight.player_input.get_buffered_action(), &"q")
+	await _frames(12)
+	_check("the buffer runs out (0.15 s): cue 'silenced'", [fails, knight.player_input.get_buffered_action()],
+		[[[&"q", AbilityComponent.FAIL_SILENCED]], &""])
+	await _wait_until(func() -> bool: return not knight.is_stunned(), 60)
+
+	# A press on cooldown: buffered, then 'not ready' when it runs out.
+	pool.restore(1000.0)
+	knight.abilities.try_cast(&"q", knight.global_position + Vector2(40, 0))
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 60)
+	fails.clear()
+	knight.request_cast(&"q")
+	await _frames(12)
+	_check("on cooldown: buffered, then cue 'not ready'", fails, [[&"q", AbilityComponent.FAIL_NOT_READY]])
+	knight.abilities.cast_failed.disconnect(record)
+
+
+func _test_hud_cues() -> void:
+	_section("AB3: the HUD resource bar and slot cues")
+	var hud: CanvasLayer = HUD_SCENE.instantiate()
+	add_child(hud)
+	hud.setup_abilities(knight)
+	await _frames(1)
+	var bar: Control = hud.get_node_or_null("AbilityBar")
+	var resource_bar: Control = hud.get_node_or_null("ResourceBar")
+	_check("the HUD has an ability bar and a resource bar (the Knight has mana)", [bar != null, resource_bar != null], [true, true])
+	if bar == null or resource_bar == null:
+		return
+	knight.abilities.fail_cast(&"q", AbilityComponent.FAIL_NO_RESOURCE)
+	_check("'not enough resource': the resource bar flashes, the slot doesn't",
+		[resource_bar.is_flashing(), bar.is_flashing(&"q")], [true, false])
+	knight.abilities.fail_cast(&"e", AbilityComponent.FAIL_NOT_READY)
+	_check("'not ready': the slot flashes", bar.is_flashing(&"e"), true)
+	await _frames(14)
+	_check("both flashes are over after 0.2 s", [resource_bar.is_flashing(), bar.is_flashing(&"e")], [false, false])
+	hud.queue_free()
+	knight.stats_component.remove_modifiers_from(COST_SOURCE)
+	knight.resource_pool.restore(1000.0)
+
+
+func _add_costs(costs: Dictionary) -> void:
+	for id: StringName in costs:
+		knight.stats_component.add_modifier(StatModifier.create(&"resource_cost",
+			StatModifier.Type.FLAT, costs[id], COST_SOURCE, StringName("ability:" + id)))
 
 
 # --- Helpers ------------------------------------------------------------------
