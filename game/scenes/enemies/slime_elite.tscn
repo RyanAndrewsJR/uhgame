@@ -4,6 +4,7 @@
 [ext_resource type="Resource" path="res://data/units/slime_elite.tres" id="2_stats"]
 [ext_resource type="Script" path="res://scripts/components/ability_component.gd" id="3_abilities"]
 [ext_resource type="Resource" path="res://data/abilities/slime_elite_q_slam.tres" id="4_slam"]
+[ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_death.tres" id="5_death_sound"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_elite"]
 radius = 19.0
@@ -11,6 +12,7 @@ radius = 19.0
 [node name="SlimeElite" instance=ExtResource("1_slime")]
 stats = ExtResource("2_stats")
 body_center = Vector2(0, -14)
+death_sound = ExtResource("5_death_sound")
 
 [node name="Blob" parent="Body"]
 scale = Vector2(1.4, 1.4)

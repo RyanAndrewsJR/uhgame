@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://scripts/vfx/movement_vfx_component.gd" id="8_movement_vfx"]
 [ext_resource type="Script" path="res://scripts/components/stats_component.gd" id="9_stats_component"]
 [ext_resource type="Script" path="res://scripts/components/status_component.gd" id="10_status_component"]
+[ext_resource type="Resource" path="res://data/sounds/sound_slime_death.tres" id="11_death_sound"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_body"]
 radius = 14.0
@@ -24,6 +25,7 @@ motion_mode = 1
 script = ExtResource("1_enemy")
 stats = ExtResource("6_stats")
 body_center = Vector2(0, -10)
+death_sound = ExtResource("11_death_sound")
 
 [node name="Shadow" type="Polygon2D" parent="."]
 color = Color(0, 0, 0, 0.35)

@@ -38,6 +38,8 @@ const INVULNERABILITY_ID := &"dash"
 @export var end_lag: float = 0.05
 ## Invulnerable for the whole dash.
 @export var iframes: bool = true
+## Played at the dash's start (AUDIO.md). null = silent.
+@export var dash_sound: SoundEvent
 
 @export_group("Debug")
 ## Draws the dash charges as pips under the unit.
@@ -127,6 +129,7 @@ func try_dash(direction: Vector2) -> bool:
 		unit.add_invulnerability(INVULNERABILITY_ID)
 	var speed_px := Units.to_px(dash_distance) / maxf(dash_duration, 0.01)
 	unit.movement.dash(_direction * speed_px, dash_duration, true, dash_curve)
+	Audio.play_on(dash_sound, unit)
 	charges_changed.emit(_charges, get_max_charges())
 	dash_started.emit(_direction)
 	queue_redraw()

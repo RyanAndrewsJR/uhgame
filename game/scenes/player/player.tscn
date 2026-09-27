@@ -19,6 +19,8 @@
 [ext_resource type="Script" path="res://scripts/components/resource_component.gd" id="18_resource_component"]
 [ext_resource type="Resource" path="res://data/combos/combo_knight.tres" id="19_combo"]
 [ext_resource type="Script" path="res://scripts/components/status_component.gd" id="20_status_component"]
+[ext_resource type="Resource" path="res://data/sounds/sound_knight_hurt.tres" id="21_hurt_sound"]
+[ext_resource type="Resource" path="res://data/sounds/sound_knight_dash.tres" id="22_dash_sound"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_body"]
 radius = 11.0
@@ -35,6 +37,7 @@ stats = ExtResource("7_stats")
 team = 0
 body_center = Vector2(0, -15)
 post_hit_iframes = 0.3
+hurt_sound = ExtResource("21_hurt_sound")
 
 [node name="Shadow" type="Polygon2D" parent="." unique_id=27522859]
 color = Color(0, 0, 0, 0.35)
@@ -81,6 +84,7 @@ script = ExtResource("14_input")
 
 [node name="DashComponent" type="Node2D" parent="."]
 script = ExtResource("15_dash")
+dash_sound = ExtResource("22_dash_sound")
 
 [node name="AbilityComponent" type="Node" parent="." unique_id=1812066537]
 script = ExtResource("9_abilities")

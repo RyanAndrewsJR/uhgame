@@ -109,14 +109,14 @@ Methods: `get_stream() -> AudioStream` (the cached randomizer; null without usab
 The mix-wide numbers, like HitFeel for GameFeel:
 - `voice_cap` 32 (16–64)
 - `pause_music_duck_db` −6 (0 to −12); `pause_low_pass` (true, FREE) and `pause_low_pass_hz` (FREE); `duck_fade_time` 0.15 s, real time (FREE)
-- `pack_burst_sound` (null), `pack_burst_count` 3, `pack_burst_window` 0.1 s (added in A2, with CombatSounds)
+- `pack_burst_sound` (`sound_death_pack_burst`; null = each death plays its own sound), `pack_burst_count` 3 (2–6), `pack_burst_window` 0.1 s (0.05–0.3)
 - `log_size` 256, `debug_lines` 10, `debug_line_time` 3 s (FREE)
 
 ### Hook fields on existing classes (additive; all null by default)
 | Class | Field(s) | Step |
 |---|---|---|
 | `AttackSwing` | `swing_sound`, `hit_sound`, `sound_pitch` (1.0; multiplies both) | A2 |
-| `HitContext` | `hit_sound` (copied by `HitPipeline.basic_attack()` in A2, `from_ability()` in A3) | A2 |
+| `HitContext` | `hit_sound` (copied by `HitPipeline.basic_attack()` in A2, `from_ability()` in A3), `hit_sound_pitch` (the swing's `sound_pitch`; applies to whichever hit sound plays, its own or the tier's) | A2 |
 | `HitFeel` | `light_sound`, `heavy_sound`, `kill_sound`, `crit_sound`, `shield_absorb_sound` | A2 |
 | `DashComponent` | `dash_sound` | A2 |
 | `Unit` (export group "Sounds") | `hurt_sound` (player; later elites and bosses), `death_sound` (per enemy scene) | A2 |
@@ -167,7 +167,7 @@ Registered after Settings (it reads it in `_ready()`). Process mode Always, so i
 - **debug_draw:** a CanvasLayer list, top-left, of the last `mix.debug_lines` entries (`sound_hit_light  SFX  HIGH  played`); dropped and stolen ones in red with their reason; each line fades after `debug_line_time`.
 
 ### CombatSounds (Node, `res://scripts/audio/combat_sounds.gd`; a child of Audio, created in `Audio._ready()`)
-Listens to Events; the only place hit, death and status sounds are played.
+Listens to Events; the only place hit, death and status sounds are played. `reset()` (called by `Audio.stop_all()`) forgets the pack burst window and this frame's pending deaths.
 - **`unit_hit(ctx)`:**
   - Hits tagged `dot` are silent.
   - Hit sound: `ctx.hit_sound` if set. Otherwise, a hit on the Player plays nothing here (the hurt sound covers it); any other hit plays HitFeel's tier: `killed` → `kill_sound`, HEAVY → `heavy_sound`, LIGHT or NONE → `light_sound`.
@@ -176,7 +176,7 @@ Listens to Events; the only place hit, death and status sounds are played.
   - Crit layer: `ctx.is_crit` → `HitFeel.crit_sound`, same once-per key.
   - Shield: `ctx.absorbed` > 0 → `HitFeel.shield_absorb_sound` at the target (instance limits cap it).
 - **`unit_damaged(ctx)`:** `ctx.health_lost` > 0 and the target has a `hurt_sound` → play it at the target (centered on the Player), HIGH. A hit a shield fully absorbed plays no hurt.
-- **`unit_died(unit, ctx)`:** deaths are collected during the frame and flushed at its end (`call_deferred`). Enemies only count toward the pack burst. At the flush: count enemy deaths in the last `pack_burst_window` (real time), this frame's included. If that reaches `pack_burst_count` and no burst played in the window, `pack_burst_sound` plays once (at the average position of this frame's deaths) instead of this frame's death sounds; if a burst already played in the window, they're silent. Otherwise each unit's `death_sound` plays at its position. The player's death plays its own `death_sound` (if set) and never counts.
+- **`unit_died(unit, ctx)`:** deaths are collected during the frame and flushed at its end (`call_deferred`). Enemies only count toward the pack burst. At the flush: count enemy deaths in the last `pack_burst_window` (real time), this frame's included. If that reaches `pack_burst_count` and no burst played in the window, `pack_burst_sound` plays once (at the average position of this frame's deaths) instead of this frame's death sounds; if a burst already played in the window, they're silent. Otherwise each unit's `death_sound` plays at its position. With no `pack_burst_sound` set, every death plays its own sound. The player's death plays its own `death_sound` (if set) and never counts.
 - **`status_applied(unit, status)`:** `apply_sound` at the unit on every application (refresh and stack included; limits cap spam). `loop_sound`: if no loop is running for (unit, `status.id`), `Audio.play_on(loop_sound, unit)`, kept in a dictionary.
 - **`status_removed(unit, status)`:** stops that loop; `expire_sound` only if the unit is alive (the death `clear()` is silent). A used-up shield ends through here, so the shield status's `expire_sound` is the shield break.
 - Status sounds on the Player are HIGH; on anyone else the event's own priority.
@@ -240,9 +240,11 @@ Written from knowledge of Godot 4.0–4.5; A1 checked what it could in Godot 4.7
 - **A paused tree:** a player whose process mode stops when the tree pauses pauses its sound and resumes on unpause. Autoloads inherit Pausable from the root, so Audio sets each player's process mode by bus. Checked in 4.7.2: while the tree is paused a pausable player reads `stream_paused` true and `can_process()` false, and unpausing sets `stream_paused` back to false (so it would also clear one set by hand; Audio never sets it). Players with process mode Always keep playing.
 - **`Engine.time_scale`** doesn't change audio speed or pitch (the separate knob is `AudioServer.playback_speed_scale`). Anything timed in game time (timers, tweens, `delta`) does slow down, hence real-time limits and fades.
 - **Start timing:** AudioStreamPlayer starts at the next audio mix; AudioStreamPlayer2D starts on its next physics tick (up to 16.7 ms later). Physics ticks keep coming at 60 Hz real time during hitstop (only their `delta` is scaled), so a hit sound during hitstop isn't delayed further. Not measurable headless (the dummy driver): a 2D player's `playing` reads true right after `play()`, but when it becomes audible needs the real driver. Still unverified.
-- **End-of-frame batching:** a `call_deferred` made during a physics step runs when that step's message queue is flushed, still in the same frame (the pack burst relies on it). To verify in A2.
+- **End-of-frame batching:** a `call_deferred` made during a physics step runs when that step's message queue is flushed, still in the same frame (the pack burst relies on it). Checked in A2: the burst's log entry has the kills' physics frame.
 - **Headless:** checked: the Dummy driver runs streams to their end (a 0.05 s one-shot ended and its voice was released), but reports 0 ms latency; tests check the log, never what was heard.
-- **Output latency:** `audio/driver/output_latency` 15 ms by default; the driver may round it; `AudioServer.get_output_latency()` reports the real value (the audio test prints it; Ryan's machine: see CHANGELOG.md once measured).
+- **Output latency:** `audio/driver/output_latency` 15 ms by default; the driver may round it; `AudioServer.get_output_latency()` reports the real value. Measured on Ryan's machine (A1): 10 ms with WASAPI, under the 15 ms requested.
+- **Signal connections ignore `bind()` arguments** (checked in A2): connecting the same method twice to one signal fails even with different bound values. Audio keeps one `tree_exiting` connection per `play_on()` node and a list of that node's handles.
+- **Quitting while a sound plays** (checked in A2): any AudioStreamPlayer still playing at quit prints "ObjectDB instances were leaked" and "resources still in use" at exit (debug output only, harmless; a bare player without Audio does the same). A sound stopped a frame before quitting doesn't.
 
 ## File layout
 ```
@@ -270,7 +272,7 @@ Every step: with every sound field empty the game plays exactly as before, and t
 1. **A1 – Plumbing.** `default_bus_layout.tres` (six buses, starting levels, Music low-pass off), `project.godot` (Audio autoload after Settings; `2d_panning_strength` 0.5 written explicitly), `SoundEvent`, `AudioMix` + `audio_mix_default.tres`, the Audio autoload (pool, limits, priority, voice cap, real time, pause behavior, `stop_all()`, the log, `debug_draw`), `Settings` volumes, six sliders in the pause menu, `Audio.stop_all()` before the restart in `main.gd`, the `audio/` folders with `LICENSES.md`, `audio_test.tscn`. CLAUDE.md gets Audio under Autoloads and the new folders under Project layout.
    **Done means:** the audio test passes with tones generated in code (no files): a null event is silent and unlogged; an empty one warns once; 4 plays in one frame = 3 played + 1 `instance_limit`, and it plays again after 0.05 s real time, also with `Engine.time_scale` 0.05; a full voice cap drops a LOW sound and a HIGH one steals the lowest; a sound from the Player is centered and an enemy's positional; beyond `max_distance_px` = `out_of_range`; `stop()`, `stop_all_on()`, `stop_all()`; a `play_on` loop stops when its node is freed; SFX players are pausable and UI and Music players aren't, and pausing ducks Music −6 dB and restores it; volumes reach the buses and 0 mutes; the six buses exist with their levels. It prints the output latency. In play nothing sounds and nothing changes; the sliders change volume at once and survive a restart; Esc still pauses.
    A1 built 2026-09-27, see CHANGELOG.md.
-2. **A2 – Combat sounds with placeholders.** `AttackSwing.swing_sound` / `hit_sound` / `sound_pitch`, `HitContext.hit_sound` (from `basic_attack()`), HitFeel's five sounds, `DashComponent.dash_sound`, `Unit.hurt_sound` / `death_sound`, `AudioMix.pack_burst_sound`, CombatSounds (hits, crit layer, shield absorb, hurt, deaths, pack burst). Data: `combo_knight.tres`, `hit_feel_default.tres`, `player.tscn`, `slime.tscn` / `slime_elite.tscn`, `audio_mix_default.tres`. Placeholder files Ryan drops in (CC0), about 20 WAVs:
+2. **A2 – Combat sounds with placeholders.** `AttackSwing.swing_sound` / `hit_sound` / `sound_pitch`, `HitContext.hit_sound` (from `basic_attack()`), HitFeel's five sounds, `DashComponent.dash_sound`, `Unit.hurt_sound` / `death_sound`, `AudioMix.pack_burst_sound`, CombatSounds (hits, crit layer, shield absorb, hurt, deaths, pack burst). Data: `combo_knight.tres`, `hit_feel_default.tres`, `player.tscn`, `slime.tscn` / `slime_elite.tscn`, `audio_mix_default.tres`. Placeholder files (CC0), about 20 WAVs. Built with synthesized stand-ins under these names (`audio/LICENSES.md`); replace a file with a real CC0 one of the same name, or point the SoundEvent at new files. The dash-strike swing uses the finisher's swing sound at pitch 1.1:
 
    | Sound event | Files | Should sound like |
    |---|---|---|
@@ -287,6 +289,7 @@ Every step: with every sound field empty the game plays exactly as before, and t
    | `sound_death_pack_burst` | 1 | one big layered wet burst (~0.5 s) |
 
    **Done means:** the audio test also covers: a swing on 5 dummies = one hit sound; a crit adds one crit layer; DoT ticks are silent; a hit on the player plays only its hurt (none when a shield takes it all, which plays the shield sound); a Cleave killing 3 slimes plays one pack burst and no death sounds, and two deaths 0.2 s apart play two death sounds. In play: swings whoosh and rise in pitch, hits crunch, the finisher and kills land heavier, crits ring, the dash whooshes, getting hit sounds different from hitting, slimes splat, and a pack dies in one burst. With every field empty, nothing sounds.
+   A2 built 2026-09-27, see CHANGELOG.md.
 3. **A3 – Abilities and statuses.** `Ability.cast_sound` / `hit_sound` / `telegraph_sound` / `ready_sound`, `HitContext.hit_sound` from `from_ability()`, `AbilityComponent.cooldown_finished`, `Telegraph.play_sound()`, `StatusEffect.apply_sound` / `expire_sound` / `loop_sound` in CombatSounds, the low-health heartbeat on Player, the room cleared and "You died" stingers in `main.gd`. Data: the four Knight abilities, the slam, the status files, `player.tscn`, `main.tscn`. Placeholders: a cast sound per Knight ability, Judgement's hit, the slam's wind-up (a rising rumble ~0.65 s) and hit, stun / slow / haste apply, shield apply and break, a heartbeat loop, the ultimate-ready ping, two stingers.
    **Done means:** each Knight ability has its own cast sound; the elite's wind-up is heard from off screen, stops when the slam lands, and stops at once when the cast is interrupted; Judgement's stun plays its apply sound once; a status loop plays once per unit however many stacks; the heartbeat starts below 25% health and stops above it and at death; R pings when it comes off cooldown; "Room cleared!" and "You died" have stingers.
 - **Later, per system** (each written into that system's build order, pointing here): LOOT (drop by rarity, pickup), CHAMPIONS (voice lines; champion sounds onto ChampionData), ENEMIES_AI (enemy attack wind-ups and whiffs, aggro), WORLD_INTERACTION (impacts, hazard loops), DUNGEONS (music with explore and combat layers, room ambience, the room-clear transition), UI (hover, click, menu open and close, slider ticks), movement with sprites (footsteps on the F3 walk bob).

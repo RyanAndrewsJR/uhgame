@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/sound_event.gd" id="1_sound"]
+[ext_resource type="AudioStream" path="res://audio/sfx/knight_hurt_01.wav" id="2_knight_hurt_01"]
+[ext_resource type="AudioStream" path="res://audio/sfx/knight_hurt_02.wav" id="3_knight_hurt_02"]
+
+[resource]
+script = ExtResource("1_sound")
+variations = Array[AudioStream]([ExtResource("2_knight_hurt_01"), ExtResource("3_knight_hurt_02")])
+priority = 2
