@@ -11,10 +11,12 @@
 
 ## Combat (COMBAT.md)
 
-### Telegraph fix – a caster that dies mid-cast: 2026-09-27, Built (awaiting play test)
+### Telegraph fix – a caster that dies mid-cast: 2026-09-27, Passed
 **Fix – Telegraph on caster death** (before C11; COMBAT.md, Known bugs).
 
 Reproduced first in Godot 4.7.2 headless: the sandbox-style elite killed 0.1 s into its slam was freed by its death tween (0.33 s) before the 0.65 s cast time ended, its waiting `_do_cast()` never resumed (no error printed), and the telegraph was still on the floor, full, 2 s later. Fix: `AbilityComponent.interrupt_cast()` (new), called by `Unit._on_died()`: during the cast time it frees the telegraph, releases the cast's locks, refunds the cooldown for a living caster and emits `cast_finished`; a `NOTIFICATION_PREDELETE` guard frees the telegraph when a caster is freed without dying. `_cancel_cast()` and the cast flow are unchanged. Combat test 399/399 (12 new checks: killed 0.1 s in, the cast ends at once with one `cast_finished` and the telegraph is gone the next frame, nothing left after the elite is freed, no slam lands; killed 0.5 s in, the telegraph goes at once and `cast_finished` still fires only once after the cast time passes; freed mid-cast without dying, the telegraph goes with it; `interrupt_cast()` on a living caster refunds and removes the telegraph, and does nothing with no cast running). 8 of the 12 fail on the old code. Stats test 172/172. Headless sandbox check: the real `Elite1` casts on its own after 18 frames, is killed 4 frames in, its circle is gone 2 frames later and none are left 1.5 s later. `main.tscn` and `sandbox_main.tscn` run 300 frames with no errors.
+
+**Passed** (Ryan's play test, 2026-09-27): telegraphs are removed when their caster dies. Merged to main.
 
 ### C10 – Shields: 2026-09-27, Built (awaiting play test)
 **C10 – Shields** (shield statuses; absorb order: the one expiring soonest first, proposed).
