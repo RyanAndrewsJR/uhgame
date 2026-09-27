@@ -11,6 +11,11 @@
 
 ## Combat (COMBAT.md)
 
+### C12 – Dash-strike: 2026-09-27, Built (awaiting play test)
+**C12 – Dash-strike.** Decided in an interview first (DECISIONS.md, Combat): its own strong swing per champion, doesn't count as a combo hit, the Knight's 1.5 × AD with a 16 px step (other classes in CHAMPIONS.md), window 0.15 s.
+
+`combo_knight.tres` gets a `dash_strike` swing (1.5 AD, 16 px step / 32 px pull, heavy feel, 0.35 s, 80° thrust, reach × 1.15, 16 px push, no breather); `AutoAttackComponent` runs it with index −1 (`is_dash_strike()`), tags its hits `dash_strike`, and resumes the combo where it was when it ends; `PlayerInput.dash_strike_window` 0.1 → 0.15 s; the Player's slash uses the finisher look for it. Combat test 439/439 (14 new C12 checks: the swing's numbers and the 0.15 s window; index −1 and `is_dash_strike()`; a 16 px step in the air; 96 damage tagged `basic_attack` + `dash_strike` with the heavy 0.06 s hitstop; a normal swing isn't tagged; through PlayerInput a click during the dash and one 0.13 s after it are dash-strikes, one 0.23 s after is a normal swing; swing 1, dash-strike, swing 2, dash-strike, swing 3 deal 64 / 96 / 64 / 96 / 102.4; after a reset it leaves the combo at swing 1; a cancelled dash-strike resets the combo). Stats test 172/172; headless in-game check 43/43; `main.tscn` and `sandbox_main.tscn` run 600 frames with no errors. Left open for Ryan: a dash out of a landed swing's recovery still resets the combo (C2 rule; COMBAT.md, Open questions).
+
 ### C11 – Reaction rules: 2026-09-27, Built (awaiting play test)
 **C11 – Reaction rules** (`HIT`, `UNIT_DIED`, `STATUS_APPLIED`; the four GameplayEffects). Decided in an interview first (DECISIONS.md, Combat): world rules and unit rules; chain length set per rule (`chain_limit`), capped at 5; system only, plus one sandbox demo.
 

@@ -40,7 +40,8 @@ signal windup_cancelled
 ## League-style attack: the windup ended but the target was out of reach
 ## (it walked or dashed away), so the attack missed (COMBAT.md, Enemies).
 signal attack_whiffed(target: Unit)
-## Combo mode: a swing started (index 0 = first swing of the combo).
+## Combo mode: a swing started (index 0 = first swing of the combo, -1 = the
+## dash-strike, COMBAT C12).
 signal swing_started(index: int, direction: Vector2, swing: AttackSwing)
 ## Combo mode: the swing's hit moment. `targets` is empty for a whiff.
 signal swing_landed(index: int, targets: Array[Unit])
@@ -118,6 +119,10 @@ var _swing_windup_left: float = 0.0
 var _swing_left: float = 0.0           # until the swing ends
 var _swing_fresh: bool = false         # started this physics frame
 var _next_swing_index: int = 0
+## The swing running is the combo's dash_strike (COMBAT C12). Its index is
+## -1; the combo position it interrupted is kept in _dash_strike_resume.
+var _is_dash_strike: bool = false
+var _dash_strike_resume: int = 0
 var _combo_reset_left: float = 0.0
 var _root_released: bool = false       # walking ended the root early
 var _pause_left: float = 0.0           # breather after a swing (pause_after)
@@ -198,6 +203,11 @@ func get_combo_index() -> int:
 	return _swing_index if _swing != null else _next_swing_index
 
 
+## True while the running swing is the dash-strike (COMBAT C12).
+func is_dash_strike() -> bool:
+	return _swing != null and _is_dash_strike
+
+
 ## A swing is playing out and still roots the unit (walking hasn't ended
 ## its recovery early).
 func is_swing_rooted() -> bool:
@@ -239,14 +249,19 @@ func get_swing_reach_px(swing: AttackSwing) -> float:
 
 ## Starts the next swing of the combo toward `direction`. Returns false if a
 ## swing can't start now (see can_swing()). dash_strike picks the combo's
-## dash_strike swing when it has one (COMBAT C12).
+## dash_strike swing when it has one (COMBAT C12): its own swing (index -1)
+## that doesn't count as a combo hit, so the swing after it continues the
+## combo where it was (a new combo_reset_time window starts when it ends).
 func try_swing(direction: Vector2, dash_strike: bool = false) -> bool:
 	if not can_swing() or direction.length() < 0.01:
 		return false
 	var index := _next_swing_index if _combo_reset_left > 0.0 else 0
 	var swing: AttackSwing = combo.swings[index]
-	if dash_strike and combo.dash_strike != null:
+	_is_dash_strike = dash_strike and combo.dash_strike != null
+	if _is_dash_strike:
 		swing = combo.dash_strike
+		_dash_strike_resume = index
+		index = -1
 	var speed := get_swing_speed()
 	_swing = swing
 	_swing_index = index
@@ -573,6 +588,8 @@ func _land_swing() -> void:
 	for t in targets:
 		var ctx := HitPipeline.basic_attack(unit, t, _swing)
 		ctx.crit_roll = crit_roll
+		if _is_dash_strike:
+			ctx.add_tag(&"dash_strike")   # hit:dash_strike bonuses, reaction rules (C12)
 		ctx.base_damage += bonus
 		ctx.highlight = empowered
 		HitPipeline.resolve(ctx)
@@ -587,6 +604,8 @@ func _finish_swing() -> void:
 	_pause_left = _swing.pause_after / get_swing_speed()
 	var count := combo.swings.size()
 	_next_swing_index = (_swing_index + 1) % count
+	if _is_dash_strike:
+		_next_swing_index = _dash_strike_resume   # not a combo hit (COMBAT C12)
 	_combo_reset_left = combo.combo_reset_time
 	_end_swing()
 	swing_finished.emit()
@@ -594,6 +613,7 @@ func _finish_swing() -> void:
 
 func _end_swing() -> void:
 	_swing = null
+	_is_dash_strike = false
 	_swing_landed = false
 	_swing_fresh = false
 	_root_released = false

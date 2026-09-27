@@ -35,6 +35,8 @@ extends Node2D
 ## C11: reaction rules (world and unit rules, the three triggers, owner roles
 ## and effect targets, tags, chance, chain limits capped at 5, the four
 ## GameplayEffects, the Shatter rule).
+## C12: the dash-strike (its data, the 0.15 s window through PlayerInput,
+## damage and tags, heavy feel, its step, the combo kept across it).
 ## Fix: a caster that dies or is freed mid-cast takes its telegraph with it
 ## at once (COMBAT.md, Known bugs).
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
@@ -274,6 +276,7 @@ func _test_combo() -> void:
 	await _test_statuses()
 	await _test_shields()
 	await _test_reactions()
+	await _test_dash_strike()
 	await _test_death_mid_swing()
 
 
@@ -2464,6 +2467,115 @@ func _test_c11_effects() -> void:
 	await _frames(12)
 	_check_near("Knockback: 20 px straight away from the source", dummy.global_position.x - start.x, 20.0, 1.0)
 	dummy.queue_free()
+
+
+# --- C12: dash-strike -------------------------------------------------------------
+
+func _test_dash_strike() -> void:
+	await _test_c12_data_and_hit()
+	await _test_c12_window()
+	await _test_c12_combo_kept()
+
+
+func _test_c12_data_and_hit() -> void:
+	_section("C12: the Knight's dash-strike swing")
+	var ds := knight.attack.combo.dash_strike
+	_check("combo_knight.tres dash_strike: 1.5 AD, 16 px step (max 32), heavy, 0.35 s, 80 deg, reach x1.15, 16 px push, no breather",
+		[ds != null, ds.ad_ratio, ds.lunge_px, ds.lunge_max_px, ds.feel, ds.duration, ds.arc_deg, ds.reach_multiplier, ds.knockback_px, ds.pause_after],
+		[true, 1.5, 16.0, 32.0, HitContext.Feel.HEAVY, 0.35, 80.0, 1.15, 16.0, 0.0])
+	_check("PlayerInput's dash_strike_window is 0.15 s", knight.player_input.dash_strike_window, 0.15)
+	await _reset_knight()
+	await _hitstop_over()
+	var from := knight.global_position
+	knight.attack.try_swing(Vector2.RIGHT, true)
+	_check("a dash-strike: index -1, is_dash_strike()", [knight.attack.get_combo_index(), knight.attack.is_dash_strike()], [-1, true])
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+	_check_near("in the air it steps 16 px", knight.global_position.x - from.x, 16.0, 0.5)
+	await _reset_knight()
+	await _hitstop_over()
+	var dummy := _tough_dummy_at(Vector2(60, 0))
+	await _frames(1)
+	var landed_before := _landed.size()
+	var hits := await _record_hits(func() -> void:
+		knight.attack.try_swing(Vector2.RIGHT, true)
+		await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20))
+	_check("it hits for 64 x 1.5 = 96, tagged basic_attack + dash_strike, heavy feel",
+		hits.map(func(h: HitContext) -> Array: return [h.taken_damage, h.has_tag(&"basic_attack"), h.has_tag(&"dash_strike"), h.feel]),
+		[[96.0, true, true, HitContext.Feel.HEAVY]])
+	_check("swing_landed reports index -1", _landed.size() > landed_before and _landed[-1][1] == -1, true)
+	_check_near("heavy feel: 0.06 s hitstop", GameFeel.get_hitstop_left(), 0.06, 0.02)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+	var normal := await _record_hits(func() -> void:
+		await _reset_knight_in_place()
+		knight.attack.try_swing(Vector2.RIGHT)
+		await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20))
+	_check("a normal swing isn't tagged dash_strike", normal.map(func(h: HitContext) -> bool: return h.has_tag(&"dash_strike")), [false])
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+	dummy.queue_free()
+	await _hitstop_over()
+
+
+func _test_c12_window() -> void:
+	_section("C12: the 0.15 s window (through PlayerInput)")
+	var results: Array = []
+	for wait_frames in [-1, 8, 14]:   # -1 = a click during the dash
+		await _reset_knight()
+		await _hitstop_over()
+		await _wait_until(func() -> bool: return knight.dash.can_dash(), 120)
+		var flags: Array = []
+		var record := func(dash_strike: bool) -> void: flags.append(dash_strike)
+		knight.player_input.attack_pressed.connect(record)
+		knight.dash.try_dash(Vector2.RIGHT)
+		if wait_frames < 0:
+			await _frames(2)
+			knight.player_input.buffer_action(&"attack")
+			await _wait_until(func() -> bool: return not flags.is_empty(), 60)
+		else:
+			await _wait_until(func() -> bool: return not knight.dash.is_dashing(), 60)
+			await _frames(wait_frames)
+			knight.player_input.buffer_action(&"attack")
+			await _wait_until(func() -> bool: return not flags.is_empty(), 30)
+		knight.player_input.attack_pressed.disconnect(record)
+		results.append([flags, knight.attack.is_dash_strike()])
+		await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+	_check("a click during the dash fires as it ends: a dash-strike", results[0], [[true], true])
+	_check("8 frames (0.13 s) after the dash: a dash-strike", results[1], [[true], true])
+	_check("14 frames (0.23 s) after: a normal swing", results[2], [[false], false])
+
+
+func _test_c12_combo_kept() -> void:
+	_section("C12: the dash-strike doesn't count as a combo hit")
+	await _reset_knight()
+	await _hitstop_over()
+	var dummy := _tough_dummy_at(Vector2(50, 0))
+	await _frames(1)
+	var damages: Array = []
+	var record := func(ctx: HitContext) -> void:
+		if ctx.target == dummy:
+			damages.append(snappedf(ctx.taken_damage, 0.1))
+	Events.unit_hit.connect(record)
+	for dash_strike in [false, true, false, true, false]:
+		_place(dummy, knight.global_position + Vector2(50, 0))
+		knight.attack.try_swing(Vector2.RIGHT, dash_strike)
+		await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+		await _wait_until(func() -> bool: return not knight.attack.is_in_pause(), 30)
+		await _hitstop_over()
+	Events.unit_hit.disconnect(record)
+	_check("swing 1, dash-strike, swing 2, dash-strike, swing 3 (the finisher): 64 / 96 / 64 / 96 / 102.4",
+		damages, [64.0, 96.0, 64.0, 96.0, 102.4])
+	await _reset_knight()
+	knight.attack.try_swing(Vector2.RIGHT, true)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+	_check("after the combo has reset, a dash-strike leaves it at swing 1", knight.attack.get_combo_index(), 0)
+	await _reset_knight()
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+	knight.attack.try_swing(Vector2.RIGHT, true)
+	await _frames(2)
+	knight.attack.cancel_swing()
+	_check("a cancelled dash-strike resets the combo, like any cancelled swing", knight.attack.get_combo_index(), 0)
+	dummy.queue_free()
+	await _hitstop_over()
 
 
 func _make_rule(trigger: ReactionRule.Trigger, effects: Array) -> ReactionRule:
