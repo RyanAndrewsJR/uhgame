@@ -54,6 +54,13 @@ const DAMAGE_NUMBER_STYLE_PATH := "res://data/damage_number_styles/damage_number
 ## (STATS.md); hits carry them (COMBAT.md).
 @export var tags: Array[StringName] = []
 @export var display_name: String = "Ability"
+## FLAG augments this ability's script checks (CastContext.has_flag()), e.g.
+## &"lunge_stuns". An exact-scope (ability:<id>) FLAG it doesn't list is an
+## error; a tag-scoped one is simply ignored here. ABILITIES AB8.
+@export var supported_flags: Array[StringName] = []
+## For a REPLACE variant: the id of the ability it replaces. Its scopes then
+## include &"ability:<variant_of>", so modifiers on the base reach it.
+@export var variant_of: StringName = &""
 ## The tooltip template (get_tooltip()): plain text with placeholders such
 ## as {damage}, {base_damage}, {ratios}, {cooldown}, {cost}, {charges}, {range}, {cast_time},
 ## or any param by name ({stun_duration}); {param%} shows it as a percent
@@ -296,6 +303,8 @@ func get_role() -> StringName:
 ## &"tag:<tag>" for each tag.
 func get_modifier_scopes() -> Array[StringName]:
 	var scopes: Array[StringName] = [StringName("ability:" + id)]
+	if variant_of != &"":
+		scopes.append(StringName("ability:" + variant_of))
 	for t in tags:
 		scopes.append(StringName("tag:" + t))
 	return scopes
@@ -311,7 +320,8 @@ func get_damage(caster: Unit) -> float:
 
 ## The tooltip: `description` with its placeholders filled from the real
 ## numbers (scoped modifiers and ability haste applied), the damage colored by
-## damage type (BBCode). Where it's shown is UI.md's.
+## damage type (BBCode), then one line per augment the caster has on it
+## (AB8). Where it's shown is UI.md's.
 func get_tooltip(caster: Unit) -> String:
 	return _fill_template(caster, true)
 
@@ -330,7 +340,12 @@ func _fill_template(caster: Unit, bbcode: bool) -> String:
 		out += description.substr(last, m.get_start() - last)
 		out += _placeholder_text(caster, m.get_string(1), m.get_string(2) == "%", m.get_string(), bbcode)
 		last = m.get_end()
-	return out + description.substr(last)
+	out += description.substr(last)
+	# One line per augment on this ability, and one per disabled one (AB8).
+	if is_instance_valid(caster) and caster.abilities != null:
+		for line in caster.abilities.get_augment_tooltip_lines(self):
+			out += "\n" + line
+	return out
 
 
 func _placeholder_text(caster: Unit, key: String, percent: bool, raw: String, bbcode: bool) -> String:

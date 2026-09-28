@@ -82,6 +82,11 @@ var is_crit: bool = false
 ## The target's status tags just before the hit (Unit.on_hit fills it in;
 ## reaction rules read it, since a kill clears the statuses). COMBAT C11.
 var target_tags: Array[StringName] = []
+## The reaction chain depth this hit counts at (ABILITIES AB8): a free cast's
+## hits carry its depth (HitPipeline.from_ability() copies CastContext
+## .chain_depth), so a "on hit, also cast" rule can't loop. 0 for every
+## ordinary hit.
+var chain_depth: int = 0
 ## Blocked by invulnerability (i-frames) or a dead target: nothing happened.
 var blocked: bool = false
 ## This hit killed the target.

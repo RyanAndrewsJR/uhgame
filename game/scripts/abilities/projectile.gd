@@ -123,6 +123,7 @@ func _hit(target: Unit) -> void:
 		hit.can_crit = false
 		hit.proc_coefficient = ability.proc_coefficient
 		hit.hit_sound = ability.hit_sound
+		hit.chain_depth = cast.chain_depth
 		hit.add_tag(&"ability")
 		for t in ability.tags:
 			hit.add_tag(t)

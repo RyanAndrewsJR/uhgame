@@ -16,6 +16,7 @@ extends Resource
 ##   HIT             affected = the unit hit        other = the attacker
 ##   UNIT_DIED       affected = the unit that died   other = the killer
 ##   STATUS_APPLIED  affected = the unit that got it other = who applied it
+##   ABILITY_CAST    affected = the cast's target    other = the caster
 
 enum Trigger {
 	IMPACT,          ## Not built yet (WORLD_INTERACTION.md, impacts).
@@ -25,6 +26,10 @@ enum Trigger {
 	STATUS_APPLIED,  ## Events.status_applied (also refreshes and new stacks).
 	UNIT_DIED,       ## Events.unit_died.
 	HAZARD_OVERLAP,  ## Not built yet (hazard meets hazard).
+	## Events.ability_cast: an ability's effect started (ABILITIES AB8).
+	## affected = the cast's target (none for most casts), other = the caster.
+	## Added last so saved rules keep their trigger numbers.
+	ABILITY_CAST,
 }
 
 ## Whose event a unit rule answers. Ignored for world rules.
@@ -55,6 +60,10 @@ const MAX_CHAIN := 5
 @export var required_unit_tags: Array[StringName] = []
 ## STATUS_APPLIED: the applied status must carry all of these.
 @export var required_status_tags: Array[StringName] = []
+## &"" = any. &"ability:<id>" / &"tag:<tag>", matched against the event's
+## ability (Ability.get_modifier_scopes()): ABILITY_CAST's ability, HIT's and
+## UNIT_DIED's HitContext.ability (no ability never matches). ABILITIES AB8.
+@export var required_ability_scope: StringName = &""
 ## IMPACT (not built yet).
 @export var required_surface_tags: Array[StringName] = []
 ## IMPACT (not built yet).
@@ -71,6 +80,13 @@ const MAX_CHAIN := 5
 ## events the game itself caused, never on one another rule's effects
 ## caused). Set per champion ability, passive or item; capped at MAX_CHAIN.
 @export_range(1, 5) var chain_limit: int = 1
+
+
+## True if the event's ability matches required_ability_scope.
+func matches_ability(ability: Ability) -> bool:
+	if required_ability_scope == &"":
+		return true
+	return ability != null and ability.get_modifier_scopes().has(required_ability_scope)
 
 
 ## True if this rule may fire on an event `depth` links into a chain (0 = not

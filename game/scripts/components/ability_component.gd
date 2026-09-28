@@ -12,6 +12,9 @@ extends Node
 ## - costs (resource_cost) are paid at cast start and refunded with the
 ##   cooldown if the cast doesn't go off; a unit without a resource pool
 ##   pays nothing (ABILITIES.md, AB3)
+## - augments (AB8): FLAG / EVENT / REPLACE by source id; get_ability() is
+##   what a press casts (a recast sequence's ability, a REPLACE variant, or
+##   the slot's own); Events.ability_cast when an effect starts; free casts
 ## - per ability: walk during the cast at a speed multiplier, or cancel the
 ##   cast with a dash (dash_cancelable) or a new move press (a channel:
 ##   cast_style CHANNEL or cancel_on_move)
@@ -45,6 +48,9 @@ signal charge_released(slot: StringName, ability: Ability, charge: float)
 ## overhold, Esc, stun, dash, move, death...): the indicator, the charge bar
 ## and the charging sound go (AB6).
 signal charge_ended(slot: StringName, ability: Ability)
+## The augments on the slot's abilities changed (added or removed; AB8): the
+## HUD and tooltips refresh.
+signal augments_changed(slot: StringName)
 
 const SLOTS: Array[StringName] = [&"q", &"w", &"e", &"r"]
 ## Source id of the move_speed modifier from Ability.cast_move_speed_multiplier.
@@ -93,6 +99,10 @@ var _cast_rooted: bool = false
 var _executing: bool = false     # true while ability.execute() runs
 var _cast_ctx: CastContext       # the cast in progress (for its telegraph)
 var _cast_cost: float = 0.0      # what the cast in progress paid (refunded if it doesn't go off)
+## Augments (AB8): [AbilityAugment, source_id] in the order added. The same id
+## from several sources counts once.
+var _augments: Array = []
+var _flag_errors: Dictionary = {}   # "<ability id>/<flag>" -> true (reported once)
 
 
 func _ready() -> void:
@@ -123,7 +133,21 @@ func _on_status_component_status_applied(_effect: StatusEffect) -> void:
 
 # --- Queries --------------------------------------------------------------------
 
+## The ability a press on the slot casts: the ability of a recast sequence
+## still going (its window stays with the ability that opened it), else the
+## active REPLACE variant (AB8), else the slot's own ability.
 func get_ability(slot: StringName) -> Ability:
+	var base := get_base_ability(slot)
+	if base == null:
+		return null
+	if _recast.has(slot):
+		return _recast[slot].ability
+	var variant := _get_replacement(base)
+	return variant if variant != null else base
+
+
+## The slot's own ability (the q / w / e / r export), whatever augments do.
+func get_base_ability(slot: StringName) -> Ability:
 	match slot:
 		&"q": return q
 		&"w": return w
@@ -282,6 +306,8 @@ func try_cast(slot: StringName, aim: Vector2, target_unit: Unit = null) -> bool:
 func _make_context(slot: StringName, ability: Ability, aim: Vector2, charge: float) -> CastContext:
 	var ctx := CastContext.new()
 	ctx.slot = slot
+	ctx.ability = ability
+	ctx.flags = get_flags(ability)   # read at cast start: removing an augment later doesn't change this cast
 	ctx.part = get_recast_part(slot)   # 0, or the next part of a recast sequence
 	ctx.charge = charge
 	var origin := unit.global_position
@@ -646,6 +672,9 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext, precharged: 
 		_cast_took_charge = false
 		_end_charge()   # a released charge-up: the effect starts, its indicator goes
 		_executing = true
+		# The effect starts: ABILITY_CAST rules fire now (never for a cast
+		# that was cancelled or interrupted before this point). AB8.
+		_emit_ability_cast(ability, ctx)
 		await ability.execute(unit, ctx)
 		_executing = false
 
@@ -709,6 +738,263 @@ func _remove_telegraph(ctx: CastContext) -> void:
 		ctx.telegraph.queue_free()
 
 
+# --- Augments (ABILITIES AB8) ---------------------------------------------------------
+
+## Adds an augment under `source_id` (an item, a passive, a status). The same
+## augment id from several sources counts once: its EVENT rules are added
+## once, under AbilityAugment.get_rules_source_id(). An exact-scope FLAG an
+## ability in a slot doesn't support is reported (push_error) once.
+func add_augment(augment: AbilityAugment, source_id: StringName) -> void:
+	if augment == null or augment.id == &"":
+		push_error("AbilityComponent: an augment needs an id")
+		return
+	var before := _snapshot_slot_abilities()
+	var was_active := _is_augment_active(augment.id)
+	_augments.append([augment, source_id])
+	if not was_active and augment.kind == AbilityAugment.Kind.EVENT:
+		_add_event_rules(augment)
+	if augment.kind == AbilityAugment.Kind.FLAG:
+		for slot in SLOTS:
+			for ability in [get_base_ability(slot), get_ability(slot)]:
+				if ability != null:
+					_check_flag_support(augment, ability)
+	_after_augments_changed(before)
+
+
+## Takes back every augment added under `source_id`. An augment another
+## source still grants stays.
+func remove_augments_from(source_id: StringName) -> void:
+	var removed: Array = _augments.filter(func(e: Array) -> bool: return e[1] == source_id)
+	if removed.is_empty():
+		return
+	var before := _snapshot_slot_abilities()
+	_augments = _augments.filter(func(e: Array) -> bool: return e[1] != source_id)
+	for e: Array in removed:
+		var augment: AbilityAugment = e[0]
+		if augment.kind == AbilityAugment.Kind.EVENT and not _is_augment_active(augment.id):
+			unit.remove_reaction_rules_from(augment.get_rules_source_id())
+	_after_augments_changed(before)
+
+
+## The augments active on the slot's ability (what a press would cast): its
+## FLAGs and EVENTs (by scope) and the REPLACE that made it the slot's
+## ability. Each id once.
+func get_augments(slot: StringName) -> Array[AbilityAugment]:
+	var result: Array[AbilityAugment] = []
+	var ability := get_ability(slot)
+	var base := get_base_ability(slot)
+	if ability == null:
+		return result
+	for augment in _get_unique_augments():
+		match augment.kind:
+			AbilityAugment.Kind.REPLACE:
+				if augment.replacement == ability and ability != base:
+					result.append(augment)
+			_:
+				if _scope_matches(augment, ability):
+					result.append(augment)
+	return result
+
+
+## REPLACE augments for the slot's ability that aren't used, each with why:
+## [{augment, reason}]. Only one REPLACE per ability; the first added wins.
+func get_disabled_augments(slot: StringName) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var base := get_base_ability(slot)
+	if base == null:
+		return result
+	var winner := _get_replace_augment(base)
+	for augment in _get_unique_augments():
+		if augment.kind == AbilityAugment.Kind.REPLACE and augment != winner \
+				and augment.scope == StringName("ability:" + base.id):
+			result.append({"augment": augment, "reason": "another replacement is active"})
+	return result
+
+
+## The FLAG augments active on `ability` that it supports (its supported_flags).
+func get_flags(ability: Ability) -> Array[StringName]:
+	var flags: Array[StringName] = []
+	if ability == null:
+		return flags
+	for augment in _get_unique_augments():
+		if augment.kind == AbilityAugment.Kind.FLAG and _scope_matches(augment, ability) \
+				and ability.supported_flags.has(augment.id) and not flags.has(augment.id):
+			flags.append(augment.id)
+	return flags
+
+
+## Tooltip lines for `ability`: one per active augment on it, then one per
+## disabled REPLACE for it (Ability.get_tooltip() appends them).
+func get_augment_tooltip_lines(ability: Ability) -> PackedStringArray:
+	var lines: PackedStringArray = []
+	if ability == null or _augments.is_empty():
+		return lines
+	var replaced_id := ability.variant_of if ability.variant_of != &"" else ability.id
+	for augment in _get_unique_augments():
+		match augment.kind:
+			AbilityAugment.Kind.FLAG:
+				if _scope_matches(augment, ability) and ability.supported_flags.has(augment.id):
+					lines.append(augment.get_tooltip_line())
+			AbilityAugment.Kind.EVENT:
+				if _scope_matches(augment, ability):
+					lines.append(augment.get_tooltip_line())
+			AbilityAugment.Kind.REPLACE:
+				if augment.replacement == ability:
+					lines.append(augment.get_tooltip_line())
+				elif augment.scope == StringName("ability:" + replaced_id):
+					lines.append("%s (disabled: another replacement is active)" % augment.get_tooltip_line())
+	return lines
+
+
+func _get_unique_augments() -> Array[AbilityAugment]:
+	var result: Array[AbilityAugment] = []
+	var seen := {}
+	for e: Array in _augments:
+		var augment: AbilityAugment = e[0]
+		if not seen.has(augment.id):
+			seen[augment.id] = true
+			result.append(augment)
+	return result
+
+
+func _is_augment_active(id: StringName) -> bool:
+	for e: Array in _augments:
+		if (e[0] as AbilityAugment).id == id:
+			return true
+	return false
+
+
+func _scope_matches(augment: AbilityAugment, ability: Ability) -> bool:
+	return augment.scope != &"" and ability.get_modifier_scopes().has(augment.scope)
+
+
+## The winning REPLACE for `base`: the first added whose scope is its id.
+func _get_replace_augment(base: Ability) -> AbilityAugment:
+	var scope := StringName("ability:" + base.id)
+	for augment in _get_unique_augments():
+		if augment.kind == AbilityAugment.Kind.REPLACE and augment.scope == scope and augment.replacement != null:
+			return augment
+	return null
+
+
+func _get_replacement(base: Ability) -> Ability:
+	if _augments.is_empty():
+		return null
+	var augment := _get_replace_augment(base)
+	return augment.replacement if augment != null else null
+
+
+## One copy of each rule, under the augment's rules source id; a rule without
+## an ability scope gets the augment's (the shared .tres isn't changed).
+func _add_event_rules(augment: AbilityAugment) -> void:
+	for rule in augment.rules:
+		if rule == null:
+			continue
+		var copy: ReactionRule = rule.duplicate()
+		if copy.required_ability_scope == &"":
+			copy.required_ability_scope = augment.scope
+		unit.add_reaction_rule(copy, augment.get_rules_source_id())
+
+
+## An exact-scope FLAG on an ability that doesn't list it: an error, once.
+## A tag-scoped FLAG is just ignored by abilities that don't support it.
+func _check_flag_support(augment: AbilityAugment, ability: Ability) -> void:
+	if augment.scope != StringName("ability:" + ability.id) or ability.supported_flags.has(augment.id):
+		return
+	var key := "%s/%s" % [ability.id, augment.id]
+	if not _flag_errors.has(key):
+		_flag_errors[key] = true
+		push_error("Ability '%s' doesn't support the FLAG augment '%s'; it's ignored" % [ability.id, augment.id])
+
+
+func _snapshot_slot_abilities() -> Dictionary:
+	var result := {}
+	for slot in SLOTS:
+		result[slot] = get_ability(slot)
+	return result
+
+
+## After augments change: a walk-into-range cast whose slot now casts another
+## ability is dropped; every slot reports the change.
+func _after_augments_changed(before: Dictionary) -> void:
+	if not _pending.is_empty() and before.get(_pending.slot) != get_ability(_pending.slot):
+		_pending.clear()
+	for slot in SLOTS:
+		augments_changed.emit(slot)
+
+
+# --- Cooldown changes (ModifyCooldownGameplayEffect; AB8) ----------------------------
+
+## The slots whose ability (what a press casts) matches `scope`
+## (&"ability:<id>" / &"tag:<tag>"); &"" = every slot with an ability.
+func get_slots_matching(scope: StringName) -> Array[StringName]:
+	var result: Array[StringName] = []
+	for slot in SLOTS:
+		var ability := get_ability(slot)
+		if ability != null and (scope == &"" or ability.get_modifier_scopes().has(scope)):
+			result.append(slot)
+	return result
+
+
+## Takes `seconds` off the slot's running cooldown (recharge). Reaching 0
+## finishes it (+1 charge). Nothing while no cooldown runs (ready, or a recast
+## window open: its cooldown hasn't started).
+func reduce_cooldown(slot: StringName, seconds: float) -> void:
+	if not _is_recharging(slot) or seconds <= 0.0:
+		return
+	_cooldown_left[slot] = maxf(_cooldown_left[slot] - seconds, 0.0)
+	if _cooldown_left[slot] <= 0.0:
+		_finish_recharge(slot, get_ability(slot))
+
+
+## Takes `fraction` (0.25 = 25%) of the running cooldown's time left.
+func reduce_cooldown_percent(slot: StringName, fraction: float) -> void:
+	if _is_recharging(slot):
+		reduce_cooldown(slot, _cooldown_left[slot] * clampf(fraction, 0.0, 1.0))
+
+
+## Finishes the running recharge: +1 charge (with 1 charge: the cooldown is
+## done). Not a full refill. Nothing while no cooldown runs.
+func reset_cooldown(slot: StringName) -> void:
+	if _is_recharging(slot):
+		_cooldown_left[slot] = 0.0
+		_finish_recharge(slot, get_ability(slot))
+
+
+func _is_recharging(slot: StringName) -> bool:
+	return get_ability(slot) != null and not _recast.has(slot) \
+		and get_charges(slot) < get_max_charges(slot) and _cooldown_left.get(slot, 0.0) > 0.0
+
+
+# --- Free casts (CastAbilityGameplayEffect; AB8) -------------------------------------
+
+## Casts `ability` for free at `aim` (and `target`), granted by `source_id`: no
+## cost, no cooldown, no charge, no cast time, no slot, no locks, and a cast in
+## progress isn't touched. Its effect runs at once: cast_sound, ability_cast
+## (one reaction link deeper than whatever asked for it), execute(). Refused
+## (false) for a dead or cast-blocked unit.
+func try_cast_free(ability: Ability, aim: Vector2, target: Unit, source_id: StringName) -> bool:
+	if ability == null or not unit.is_alive() or unit.is_cast_blocked():
+		return false
+	var ctx := _make_context(&"", ability, aim, 1.0)
+	ctx.target = target if is_instance_valid(target) else null
+	ctx.is_free = true
+	ctx.source_id = source_id
+	ctx.chain_depth = Reactions.get_chain_depth()   # a rule's effects run one link deeper already
+	Audio.play_on(ability.cast_sound, unit)
+	_emit_ability_cast(ability, ctx)
+	ability.execute(unit, ctx)   # not awaited: it runs alongside anything else
+	return true
+
+
+## Events.ability_cast at the cast's chain depth (0 for a slot cast).
+func _emit_ability_cast(ability: Ability, ctx: CastContext) -> void:
+	if ctx.chain_depth > 0:
+		Reactions.run_at_depth(ctx.chain_depth, func() -> void: Events.ability_cast.emit(unit, ability, ctx))
+	else:
+		Events.ability_cast.emit(unit, ability, ctx)
+
+
 ## One slot's recharge, each physics frame: while below max_charges, the
 ## timer counts one cooldown (duration taken when it starts), then +1 charge
 ## and, if still below max, the next one. At or above max nothing runs (a
@@ -728,7 +1014,15 @@ func _update_recharge(slot: StringName, delta: float) -> void:
 	_cooldown_left[slot] = maxf(_cooldown_left[slot] - delta, 0.0)
 	if _cooldown_left[slot] > 0.0:
 		return
-	_charges[slot] += 1
+	_finish_recharge(slot, ability)
+
+
+## A recharge is done: +1 charge; going from 0 to 1 is "ready" (the ping and
+## cooldown_finished); still below max, the next recharge starts.
+func _finish_recharge(slot: StringName, ability: Ability) -> void:
+	var maximum := get_max_charges(slot)
+	_cooldown_left[slot] = 0.0
+	_charges[slot] = get_charges(slot) + 1
 	charges_changed.emit(slot, _charges[slot], maximum)
 	if _charges[slot] == 1:
 		Audio.play(ability.ready_sound, 1.0, SoundEvent.Priority.HIGH)

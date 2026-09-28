@@ -20,3 +20,9 @@ signal status_applied(unit: Unit, status: StatusEffect)
 ## A status effect ended on a unit (ran out, removed, or the unit died).
 @warning_ignore("unused_signal")
 signal status_removed(unit: Unit, status: StatusEffect)
+## An ability's effect started (ABILITIES AB8): after the cast time for
+## INSTANT and CHANNEL, after the release windup for CHARGE_UP, at each recast
+## part's effect, and when a free cast runs. Never for a cast that was
+## cancelled or interrupted before its effect. Reaction rules' ABILITY_CAST.
+@warning_ignore("unused_signal")
+signal ability_cast(unit: Unit, ability: Ability, ctx: CastContext)

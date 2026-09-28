@@ -48,6 +48,8 @@ static func from_ability(caster: Unit, ability: Ability, target: Node, cast: Cas
 		+ ability.get_scaling_damage(caster, target, charge)   # after scoped modifiers
 	ctx.ad_ratio = ability.get_charged_param(caster, &"ad_ratio", charge)
 	ctx.ap_ratio = ability.get_charged_param(caster, &"ap_ratio", charge)
+	if cast != null:
+		ctx.chain_depth = cast.chain_depth   # a free cast's hits count one link deeper (AB8)
 	ctx.damage_type = ability.damage_type
 	ctx.proc_coefficient = ability.proc_coefficient
 	ctx.hit_sound = ability.hit_sound   # AUDIO.md: CombatSounds plays it once per cast

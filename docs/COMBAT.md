@@ -240,7 +240,8 @@ How damage numbers look (built in C6): `size_thresholds` 0 / 100 / 1000 → `fon
   - `DealDamageGameplayEffect`: `base_damage`, `ad_ratio` (the source's), `damage_type` (MAGIC default), extra `tags`; a `proc` hit (`HitPipeline.make_proc()`): can't crit, triggers no on-hit and no HIT rules.
   - `KnockbackGameplayEffect`: `distance_px`, `duration`; away from the source, dash-cancelable; nothing without a source.
   - `HealGameplayEffect`: `amount` + `max_health_ratio` × max health (`Unit.heal()`, green number).
-- Only `HIT`, `UNIT_DIED` and `STATUS_APPLIED` are built in C11. `IMPACT` and the hazard triggers come with WORLD_INTERACTION's impacts and Hazards. Effects hit one unit; area effects ("explode on death") come later.
+  - ABILITIES AB8 (built) adds `ModifyCooldownGameplayEffect`, `RestoreResourceGameplayEffect`, `CastAbilityGameplayEffect` and `RemoveStatusesByTagGameplayEffect`, the trigger `ABILITY_CAST` (an ability's effect started; added last in the enum), `required_ability_scope`, and `HitContext.chain_depth` (a free cast's hits count deeper); specified in ABILITIES.md.
+- Only `HIT`, `UNIT_DIED` and `STATUS_APPLIED` are built in C11 (ABILITY_CAST in ABILITIES AB8). `IMPACT` and the hazard triggers come with WORLD_INTERACTION's impacts and Hazards. Effects hit one unit; area effects ("explode on death") come later.
 - Demo (sandbox only): `res://data/reactions/reaction_shatter.tres` (HIT on a `stun`-tagged target → a 30 MAGIC proc tagged `shatter`, the attacker's rule, chain_limit 1), given to the player by the `SandboxReactions` node in `sandbox.tscn` (`res://scripts/rooms/sandbox_reactions.gd`, source `&"sandbox_demo"`). room_01 has none.
 
 ### New stats (STATS.md; neutral defaults, built in C8)

@@ -29,6 +29,12 @@ extends Node2D
 ## AB7: projectiles (WorldQuery.shape_sweep, test_bolt: travel time, pierce
 ## 0 and 2, walls and ignores_walls, range, +2 projectiles fanned out with one
 ## crit roll, only the other team is hit, a caster freed mid-flight).
+## AB8: augments (FLAG with snapshot, tag scope, the exact-scope error, two
+## sources; REPLACE mid-cooldown / mid-cast / mid-charge-up / mid-recast,
+## a second one disabled, variant_of; EVENT rules once per id), ability_cast
+## at the effect start, the four GameplayEffects, status rules, free casts
+## (timing, no cost, no interruption, chain limits, the HIT loop), and a fake
+## item that restores everything exactly when unequipped.
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
@@ -47,6 +53,8 @@ const CHARGED_LINE: Ability = preload("res://data/abilities/test_q_charged_line.
 ## A looping SoundEvent to stand in for a charging sound (AB6 exits).
 const LOOP_SOUND: SoundEvent = preload("res://data/sounds/sound_knight_low_health.tres")
 const BOLT: Ability = preload("res://data/abilities/test_q_bolt.tres")
+const STRIKE: Ability = preload("res://data/abilities/test_q_strike.tres")
+const STATUS_SLOW: StatusEffect = preload("res://data/statuses/status_slow.tres")
 const ARENA := Vector2(-2000, 0)
 
 var knight: Player
@@ -98,6 +106,14 @@ func _ready() -> void:
 	await _test_projectiles()
 	await _test_projectile_spread_and_teams()
 	await _test_projectile_orphaned()
+	print("\n=== Abilities test (ABILITIES AB8) ===")
+	await _test_augment_flag()
+	await _test_augment_replace()
+	await _test_ability_cast_event()
+	await _test_augment_event()
+	await _test_gameplay_effects()
+	await _test_free_casts()
+	await _test_fake_item()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).
@@ -1373,6 +1389,564 @@ func _test_projectile_orphaned() -> void:
 		[1, 82.0, true, false])
 	Events.unit_hit.disconnect(on_hit)
 	dummy.queue_free()
+
+
+# --- AB8 ------------------------------------------------------------------------
+
+func _augment(id: StringName, kind: AbilityAugment.Kind, scope: StringName, description: String = "") -> AbilityAugment:
+	var a := AbilityAugment.new()
+	a.id = id
+	a.kind = kind
+	a.scope = scope
+	a.description = description
+	return a
+
+
+func _rule(trigger: ReactionRule.Trigger, effects: Array[GameplayEffect], effect_target := ReactionRule.EffectTarget.OTHER,
+		chain_limit := 1) -> ReactionRule:
+	var r := ReactionRule.new()
+	r.trigger = trigger
+	r.effects = effects
+	r.effect_target = effect_target
+	r.chain_limit = chain_limit
+	return r
+
+
+## Puts STRIKE on Q, ready, with a fresh dummy at +100; returns the old Q.
+func _setup_strike() -> Ability:
+	await _reset_knight()
+	var original_q := knight.abilities.q
+	knight.abilities.q = STRIKE
+	knight.abilities.reset_cooldown(&"q")
+	await _wait_until(func() -> bool: return knight.abilities.can_cast(&"q"), 200)
+	return original_q
+
+
+func _strike_at(target: Node2D) -> void:
+	knight.abilities.reset_cooldown(&"q")
+	knight.abilities.try_cast(&"q", target.global_position)
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 30)
+	await _frames(1)
+
+
+func _test_augment_flag() -> void:
+	_section("AB8: FLAG augments")
+	var ab := knight.abilities
+	var original_q: Ability = await _setup_strike()
+	var dummy := _dummy_at(Vector2(100, 0))
+	_check("the strike supports test_strike_stuns; no augments: no flags", [STRIKE.supported_flags.has(&"test_strike_stuns"), ab.get_flags(STRIKE)],
+		[true, [] as Array[StringName]])
+	await _strike_at(dummy)
+	_check("without the augment the strike doesn't stun", dummy.is_stunned(), false)
+
+	var stuns := _augment(&"test_strike_stuns", AbilityAugment.Kind.FLAG, &"ability:test_strike", "Strike stuns for 0.5 s.")
+	ab.add_augment(stuns, &"item_test_stunner")
+	_check("equipped: the flag is on, listed on the slot", [ab.get_flags(STRIKE), ab.get_augments(&"q").has(stuns)],
+		[[&"test_strike_stuns"] as Array[StringName], true])
+	await _strike_at(dummy)
+	_check("the strike now stuns", dummy.is_stunned(), true)
+	await _wait_until(func() -> bool: return not dummy.is_stunned(), 60)
+
+	# Removed mid-cast: the cast keeps what it read at its start.
+	ab.reset_cooldown(&"q")
+	ab.try_cast(&"q", dummy.global_position)
+	await _frames(3)
+	ab.remove_augments_from(&"item_test_stunner")
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("removed mid-cast: that cast still stuns", dummy.is_stunned(), true)
+	await _wait_until(func() -> bool: return not dummy.is_stunned(), 60)
+	await _strike_at(dummy)
+	_check("the next cast doesn't", dummy.is_stunned(), false)
+
+	# A tag scope.
+	var by_tag := _augment(&"test_strike_stuns", AbilityAugment.Kind.FLAG, &"tag:core")
+	ab.add_augment(by_tag, &"item_test_core_stuns")
+	_check("a tag:core FLAG reaches the strike (core); Cleave (core) doesn't support it: ignored, no error",
+		[ab.get_flags(STRIKE), ab.get_flags(CLEAVE)], [[&"test_strike_stuns"] as Array[StringName], [] as Array[StringName]])
+	ab.remove_augments_from(&"item_test_core_stuns")
+
+	# An exact scope on an ability that doesn't support it.
+	print("  (one expected error: an unsupported FLAG augment)")
+	var bad := _augment(&"cleave_burns", AbilityAugment.Kind.FLAG, &"ability:knight_cleave")
+	var original_w := ab.w
+	ab.w = CLEAVE
+	ab.add_augment(bad, &"item_test_bad")
+	_check("an exact-scope FLAG Cleave doesn't support is ignored", ab.get_flags(CLEAVE), [] as Array[StringName])
+	ab.remove_augments_from(&"item_test_bad")
+	ab.w = original_w
+
+	# Two sources: once.
+	ab.add_augment(stuns, &"item_test_a")
+	ab.add_augment(stuns, &"passive_test")
+	_check("the same augment from two sources counts once", ab.get_augments(&"q").size(), 1)
+	ab.remove_augments_from(&"item_test_a")
+	_check("removing one source keeps it (the passive still grants it)", ab.get_flags(STRIKE), [&"test_strike_stuns"] as Array[StringName])
+	ab.remove_augments_from(&"passive_test")
+	_check("removing the last one takes it away", ab.get_flags(STRIKE), [] as Array[StringName])
+	dummy.queue_free()
+	ab.q = original_q
+
+
+func _test_augment_replace() -> void:
+	_section("AB8: REPLACE augments")
+	var ab := knight.abilities
+	var original_q: Ability = await _setup_strike()
+	var variant: Ability = BOLT.duplicate()
+	variant.id = &"test_strike_bolt"
+	variant.variant_of = &"test_strike"
+	variant.description = "The strike becomes a bolt."
+	var replace := _augment(&"test_strike_becomes_bolt", AbilityAugment.Kind.REPLACE, &"ability:test_strike", "Strike fires a bolt.")
+	replace.replacement = variant
+	var dummy := _dummy_at(Vector2(100, 0))
+	dummy.stats_component.add_modifier(StatModifier.create(&"max_health", StatModifier.Type.FLAT, 3000.0, &"test_tough"))
+
+	ab.add_augment(replace, &"item_test_bolter")
+	_check("equipped: the slot casts the variant, its own ability is unchanged",
+		[ab.get_ability(&"q") == variant, ab.get_base_ability(&"q") == STRIKE, ab.q == STRIKE], [true, true, true])
+	ab.reset_cooldown(&"q")
+	ab.try_cast(&"q", dummy.global_position)
+	await _wait_until(func() -> bool: return not _projectiles().is_empty(), 20)
+	_check("casting it fires a bolt", _projectiles().size(), 1)
+	await _wait_until(func() -> bool: return _projectiles().is_empty(), 60)
+	knight.stats_component.add_modifier(StatModifier.create(&"cooldown", StatModifier.Type.FLAT, -0.5, &"item_test_cdr", &"ability:test_strike"))
+	_check("a modifier on the strike reaches the variant (variant_of): cooldown 1 - 0.5", variant.get_param(knight, &"cooldown"), 0.5)
+	knight.stats_component.remove_modifiers_from(&"item_test_cdr")
+	_check("the tooltip has the augment's line", variant.get_tooltip_plain(knight).ends_with("\nStrike fires a bolt."), true)
+
+	# A second REPLACE for the same ability: disabled, with a reason.
+	var other: Ability = STRIKE.duplicate()
+	other.id = &"test_strike_other"
+	other.variant_of = &"test_strike"
+	var replace2 := _augment(&"test_strike_other", AbilityAugment.Kind.REPLACE, &"ability:test_strike", "Strike is other.")
+	replace2.replacement = other
+	ab.add_augment(replace2, &"item_test_other")
+	var disabled := ab.get_disabled_augments(&"q")
+	_check("a second REPLACE is disabled (the first added wins), with its reason",
+		[ab.get_ability(&"q") == variant, disabled.size(), disabled[0].augment == replace2 if disabled.size() == 1 else false],
+		[true, 1, true])
+	_check("the tooltip says why", variant.get_tooltip_plain(knight).contains("Strike is other. (disabled: another replacement is active)"), true)
+	ab.remove_augments_from(&"item_test_bolter")
+	_check("removing the first: the second takes over", ab.get_ability(&"q") == other, true)
+	ab.remove_augments_from(&"item_test_other")
+	_check("removing both: the strike is back", ab.get_ability(&"q") == STRIKE, true)
+
+	# Mid-cooldown: the cooldown carries over.
+	ab.reset_cooldown(&"q")
+	ab.try_cast(&"q", dummy.global_position)
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	var left := ab.get_cooldown_left(&"q")
+	ab.add_augment(replace, &"item_test_bolter")
+	_check("equipped mid-cooldown: the variant waits for the same cooldown", [ab.get_ability(&"q") == variant, ab.is_ready(&"q"), ab.get_cooldown_left(&"q") == left],
+		[true, false, true])
+	ab.remove_augments_from(&"item_test_bolter")
+
+	# Mid-cast: the cast finishes as the strike.
+	var hits: Array[HitContext] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.ability != null and ctx.source == knight:
+			hits.append(ctx)
+	Events.unit_hit.connect(on_hit)
+	ab.reset_cooldown(&"q")
+	ab.try_cast(&"q", dummy.global_position)
+	await _frames(3)
+	ab.add_augment(replace, &"item_test_bolter")
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	await _frames(1)
+	_check("equipped mid-cast: that cast finishes as the strike (no bolt)",
+		[hits.size(), hits[0].ability == STRIKE if hits.size() > 0 else false, _projectiles().size()], [1, true, 0])
+	ab.remove_augments_from(&"item_test_bolter")
+	Events.unit_hit.disconnect(on_hit)
+
+	# Mid-charge-up: the release fires the charged ability.
+	var line_replace := _augment(&"test_line_becomes_bolt", AbilityAugment.Kind.REPLACE, &"ability:test_charged_line")
+	var line_bolt: Ability = BOLT.duplicate()
+	line_bolt.variant_of = &"test_charged_line"
+	line_replace.replacement = line_bolt
+	ab.q = CHARGED_LINE
+	ab.reset_cooldown(&"q")
+	var released: Array = []
+	var on_released := func(_s: StringName, a: Ability, _c: float) -> void: released.append(a)
+	ab.charge_released.connect(on_released)
+	ab.try_start_charge(&"q", dummy.global_position)
+	await _frames(10)
+	ab.add_augment(line_replace, &"item_test_line")
+	ab.release_charge(dummy.global_position)
+	_check("equipped mid-charge-up: the release fires the charged line", released, [CHARGED_LINE])
+	await _wait_until(func() -> bool: return not ab.casting, 40)
+	_check("and the slot shows the variant after", ab.get_ability(&"q") == line_bolt, true)
+	ab.charge_released.disconnect(on_released)
+	ab.remove_augments_from(&"item_test_line")
+
+	# Mid-recast: the window stays with the ability that opened it.
+	var step_replace := _augment(&"test_step_becomes_bolt", AbilityAugment.Kind.REPLACE, &"ability:test_triple_step")
+	var step_bolt: Ability = BOLT.duplicate()
+	step_bolt.variant_of = &"test_triple_step"
+	step_replace.replacement = step_bolt
+	ab.q = TRIPLE_STEP
+	ab.reset_cooldown(&"q")
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 60)
+	ab.try_cast(&"q", knight.global_position + Vector2(0, 100))
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	ab.add_augment(step_replace, &"item_test_step")
+	_check("equipped mid-recast: the slot still casts Triple Step's next part", [ab.get_ability(&"q") == TRIPLE_STEP, ab.get_recast_part(&"q")], [true, 1])
+	ab.try_cast(&"q", knight.global_position + Vector2(0, 100))
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	ab.try_cast(&"q", knight.global_position + Vector2(0, 100))
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("once the sequence ends, the slot casts the variant", [ab.get_recast_part(&"q"), ab.get_ability(&"q") == step_bolt], [0, true])
+	ab.remove_augments_from(&"item_test_step")
+
+	dummy.queue_free()
+	await _frames(20)
+	ab.q = original_q
+
+
+func _test_ability_cast_event() -> void:
+	_section("AB8: Events.ability_cast fires when the effect starts")
+	var ab := knight.abilities
+	var original_q: Ability = await _setup_strike()
+	var casts: Array = []   # [ability, part, is_free]
+	var on_cast := func(u: Unit, a: Ability, ctx: CastContext) -> void:
+		if u == knight:
+			casts.append([a, ctx.part, ctx.is_free])
+	Events.ability_cast.connect(on_cast)
+	var dummy := _dummy_at(Vector2(100, 0))
+
+	ab.try_cast(&"q", dummy.global_position)
+	_check("not at cast start", casts.size(), 0)
+	await _frames(6)
+	_check("not during the cast time", casts.size(), 0)
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("once, when the effect starts", casts, [[STRIKE, 0, false]])
+	casts.clear()
+	ab.reset_cooldown(&"q")
+	ab.try_cast(&"q", dummy.global_position)
+	await _frames(3)
+	knight.apply_stun(0.1)
+	await _frames(20)
+	_check("a cast stunned before its effect: none", casts.size(), 0)
+	await _wait_until(func() -> bool: return not knight.is_stunned(), 30)
+
+	# Recast parts, a charge-up release, a free cast.
+	ab.q = TRIPLE_STEP
+	ab.reset_cooldown(&"q")
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 60)
+	for i in 3:
+		ab.try_cast(&"q", knight.global_position + Vector2(0, -100))
+		await _wait_until(func() -> bool: return not ab.casting, 30)
+	await _frames(2)   # the sequence's recharge starts the frame after it ends
+	_check("one per recast part (0, 1, 2)", casts, [[TRIPLE_STEP, 0, false], [TRIPLE_STEP, 1, false], [TRIPLE_STEP, 2, false]])
+	casts.clear()
+	ab.q = CHARGED_LINE
+	ab.reset_cooldown(&"q")
+	ab.try_start_charge(&"q", dummy.global_position)
+	await _frames(10)
+	ab.release_charge(dummy.global_position)
+	_check("not at a charge-up's release", casts.size(), 0)
+	await _wait_until(func() -> bool: return not ab.casting, 40)
+	_check("after its release windup", casts, [[CHARGED_LINE, 0, false]])
+	casts.clear()
+	ab.try_cast_free(STRIKE, dummy.global_position, null, &"passive_test")
+	_check("a free cast: at once, marked free", casts, [[STRIKE, 0, true]])
+
+	Events.ability_cast.disconnect(on_cast)
+	dummy.queue_free()
+	await _frames(20)
+	ab.q = original_q
+
+
+func _test_augment_event() -> void:
+	_section("AB8: EVENT augments (reaction rules)")
+	var ab := knight.abilities
+	var pool := knight.resource_pool
+	var original_q: Ability = await _setup_strike()
+	var dummy := _dummy_at(Vector2(100, 0))
+	var restore := RestoreResourceGameplayEffect.new()
+	restore.amount = 20.0
+	var on_cast_restore := _augment(&"test_strike_refunds", AbilityAugment.Kind.EVENT, &"ability:test_strike", "Strike restores 20 mana.")
+	on_cast_restore.rules = [_rule(ReactionRule.Trigger.ABILITY_CAST, [restore] as Array[GameplayEffect])] as Array[ReactionRule]
+
+	ab.add_augment(on_cast_restore, &"item_test_refund")
+	ab.add_augment(on_cast_restore, &"passive_test")
+	var entries := knight.get_reaction_rule_entries().filter(func(e: Array) -> bool: return e[1] == &"augment_test_strike_refunds")
+	_check("its rule is added once (two sources), scoped to the strike", [entries.size(), (entries[0][0] as ReactionRule).required_ability_scope if entries.size() > 0 else &""],
+		[1, &"ability:test_strike"])
+	_check("the shared rule itself isn't changed", on_cast_restore.rules[0].required_ability_scope, &"")
+	pool.try_spend(100.0)
+	var before := pool.current
+	await _strike_at(dummy)
+	_check_near("casting the strike restores 20 (at its effect; + a little regen)", pool.current - before, 20.0, 2.0)
+
+	# Stunned before the effect: nothing restored (and the cost refunded, as always).
+	before = pool.current
+	ab.reset_cooldown(&"q")
+	ab.try_cast(&"q", dummy.global_position)
+	await _frames(3)
+	knight.apply_stun(0.1)
+	await _frames(15)
+	_check_near("stunned before its effect: no restore", pool.current - before, 0.0, 2.0)
+	await _wait_until(func() -> bool: return not knight.is_stunned(), 30)
+
+	# Another ability doesn't trigger it.
+	ab.q = BOLT
+	ab.reset_cooldown(&"q")
+	before = pool.current
+	ab.try_cast(&"q", dummy.global_position)
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check_near("the bolt doesn't restore", pool.current - before, 0.0, 1.0)
+	await _wait_until(func() -> bool: return _projectiles().is_empty(), 60)   # it must not land during the kill test below
+	ab.q = STRIKE
+	ab.remove_augments_from(&"item_test_refund")
+	ab.remove_augments_from(&"passive_test")
+	_check("both sources gone: the rule is gone", knight.get_reaction_rule_entries().filter(
+		func(e: Array) -> bool: return e[1] == &"augment_test_strike_refunds").size(), 0)
+
+	# A kill resets the strike's cooldown (UNIT_DIED + ModifyCooldown RESET).
+	var reset := ModifyCooldownGameplayEffect.new()
+	reset.ability_scope = &"ability:test_strike"
+	reset.mode = ModifyCooldownGameplayEffect.Mode.RESET
+	var kill_reset := _augment(&"test_strike_kill_reset", AbilityAugment.Kind.EVENT, &"ability:test_strike")
+	kill_reset.rules = [_rule(ReactionRule.Trigger.UNIT_DIED, [reset] as Array[GameplayEffect])] as Array[ReactionRule]
+	ab.add_augment(kill_reset, &"item_test_reset")
+	dummy.health.take_damage(dummy.health.current - 10.0)
+	await _strike_at(dummy)
+	_check("a strike kill resets its cooldown", [dummy.is_alive(), ab.is_ready(&"q")], [false, true])
+	var dummy2 := _dummy_at(Vector2(100, 0))
+	await _strike_at(dummy2)
+	_check("a strike that doesn't kill: on cooldown", ab.is_ready(&"q"), false)
+	ab.remove_augments_from(&"item_test_reset")
+	dummy2.queue_free()
+	await _frames(20)
+	ab.q = original_q
+	pool.restore(1000.0)
+
+
+func _test_gameplay_effects() -> void:
+	_section("AB8: ModifyCooldown, RestoreResource, RemoveStatusesByTag, status rules")
+	var ab := knight.abilities
+	var original_q: Ability = await _setup_strike()
+	var aim := knight.global_position + Vector2(100, 0)
+	var effect := ModifyCooldownGameplayEffect.new()
+	effect.ability_scope = &"ability:test_strike"
+	ab.try_cast(&"q", aim)
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	var left := ab.get_cooldown_left(&"q")
+	effect.mode = ModifyCooldownGameplayEffect.Mode.REDUCE_SECONDS
+	effect.amount = 0.5
+	effect.apply(knight, knight, null)
+	_check_near("REDUCE_SECONDS 0.5", ab.get_cooldown_left(&"q"), left - 0.5, 0.001)
+	left = ab.get_cooldown_left(&"q")
+	effect.mode = ModifyCooldownGameplayEffect.Mode.REDUCE_PERCENT
+	effect.amount = 0.5
+	effect.apply(knight, knight, null)
+	_check_near("REDUCE_PERCENT 50% of the time left", ab.get_cooldown_left(&"q"), left * 0.5, 0.001)
+	var readies := [0]
+	var on_ready := func(slot: StringName, _a: Ability) -> void:
+		if slot == &"q":
+			readies[0] += 1
+	ab.cooldown_finished.connect(on_ready)
+	effect.mode = ModifyCooldownGameplayEffect.Mode.RESET
+	effect.apply(knight, knight, null)
+	_check("RESET: ready, with the ready signal", [ab.is_ready(&"q"), readies[0]], [true, 1])
+	effect.ability_scope = &"ability:knight_lunge"
+	ab.try_cast(&"q", aim)
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	effect.apply(knight, knight, null)
+	_check("a scope that doesn't match leaves the strike alone", ab.is_ready(&"q"), false)
+	effect.ability_scope = &"ability:test_strike"
+
+	# With charges: RESET finishes the current recharge, not a full refill.
+	knight.stats_component.add_modifier(StatModifier.create(&"max_charges", StatModifier.Type.FLAT, 1.0, &"item_test_charges", &"ability:test_strike"))
+	effect.apply(knight, knight, null)
+	await _wait_until(func() -> bool: return ab.get_charges(&"q") == 2, 200)
+	ab.try_cast(&"q", aim)
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	ab.try_cast(&"q", aim)
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("2 charges spent: 0 left", ab.get_charges(&"q"), 0)
+	effect.apply(knight, knight, null)
+	_check("RESET: +1 charge, the next one recharging", [ab.get_charges(&"q"), ab.get_cooldown_left(&"q") > 1.5], [1, true])
+	knight.stats_component.remove_modifiers_from(&"item_test_charges")
+	ab.cooldown_finished.disconnect(on_ready)
+
+	# A recast window open: nothing.
+	ab.q = TRIPLE_STEP
+	ab.reset_cooldown(&"q")
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 60)
+	ab.try_cast(&"q", knight.global_position + Vector2(0, 100))
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	var step_reset := ModifyCooldownGameplayEffect.new()
+	step_reset.mode = ModifyCooldownGameplayEffect.Mode.RESET
+	step_reset.apply(knight, knight, null)
+	_check("RESET while a recast window is open: nothing (part 1 next, no charge back)", [ab.get_recast_part(&"q"), ab.get_charges(&"q")], [1, 0])
+	await _wait_until(func() -> bool: return ab.get_recast_part(&"q") == 0, 240)
+
+	# RestoreResource.
+	var pool := knight.resource_pool
+	pool.try_spend(200.0)
+	var before := pool.current
+	var restore := RestoreResourceGameplayEffect.new()
+	restore.amount = 10.0
+	restore.max_resource_ratio = 0.1
+	restore.apply(knight, null, null)
+	_check_near("RestoreResource: 10 + 10% of 300", pool.current - before, 40.0, 0.001)
+	pool.restore(1000.0)
+
+	# RemoveStatusesByTag (a cleanse).
+	var dummy := _dummy_at(Vector2(200, 0))
+	dummy.apply_stun(2.0)
+	dummy.status_component.apply_status(STATUS_SLOW)
+	var cleanse := RemoveStatusesByTagGameplayEffect.new()
+	_check("the cleanse defaults to [cc]", cleanse.tags, [&"cc"] as Array[StringName])
+	cleanse.apply(dummy, null, null)
+	_check("the stun and the slow (both cc) are gone", [dummy.is_stunned(), dummy.status_component.has_tag(&"slow")], [false, false])
+
+	# A status's reaction rules come and go with it.
+	var buff := StatusEffect.new()
+	buff.id = &"test_buff"
+	buff.duration = 0.2
+	buff.reaction_rules = [_rule(ReactionRule.Trigger.HIT, [restore] as Array[GameplayEffect])] as Array[Resource]
+	knight.status_component.apply_status(buff)
+	_check("a status's rule is on the unit while it lasts", knight.get_reaction_rule_entries().filter(
+		func(e: Array) -> bool: return e[1] == &"status_test_buff").size(), 1)
+	await _frames(20)
+	_check("and gone when it ends", knight.get_reaction_rule_entries().filter(
+		func(e: Array) -> bool: return e[1] == &"status_test_buff").size(), 0)
+	dummy.queue_free()
+	ab.q = original_q
+
+
+func _test_free_casts() -> void:
+	_section("AB8: CastAbility and free casts")
+	var ab := knight.abilities
+	var pool := knight.resource_pool
+	var original_q: Ability = await _setup_strike()
+	var dummy := _dummy_at(Vector2(100, 0))
+	dummy.stats_component.add_modifier(StatModifier.create(&"max_health", StatModifier.Type.FLAT, 3000.0, &"test_tough"))   # survives the chains
+	var free_bolt: Ability = BOLT.duplicate()
+	free_bolt.id = &"test_free_bolt"
+	var cast_bolt := CastAbilityGameplayEffect.new()
+	cast_bolt.ability = free_bolt
+	var also_bolt := _augment(&"test_strike_also_bolts", AbilityAugment.Kind.EVENT, &"ability:test_strike")
+	also_bolt.rules = [_rule(ReactionRule.Trigger.ABILITY_CAST, [cast_bolt] as Array[GameplayEffect])] as Array[ReactionRule]
+	var free_ctx: Array[CastContext] = []
+	var on_cast := func(u: Unit, a: Ability, ctx: CastContext) -> void:
+		if u == knight and ctx.is_free:
+			free_ctx.append(ctx)
+	Events.ability_cast.connect(on_cast)
+
+	ab.add_augment(also_bolt, &"item_test_also")
+	var charges := ab.get_charges(&"q")
+	ab.try_cast(&"q", dummy.global_position)
+	await _frames(6)
+	_check("in the strike's cast time: no free bolt yet", _projectiles().size(), 0)
+	await _wait_until(func() -> bool: return not _projectiles().is_empty(), 20)
+	_check("at the strike's effect: the free bolt flies, aimed at the strike's point, from the item",
+		[free_ctx.size(), free_ctx[0].point == ab.get("_cast_ctx").point if free_ctx.size() > 0 else false,
+			free_ctx[0].source_id if free_ctx.size() > 0 else &""],
+		[1, true, &"augment_test_strike_also_bolts"])
+	_check("only the strike used a charge", ab.get_charges(&"q"), charges - 1)
+	await _wait_until(func() -> bool: return _projectiles().is_empty(), 60)
+	free_ctx.clear()
+	ab.reset_cooldown(&"q")
+	ab.try_cast(&"q", dummy.global_position)
+	await _frames(3)
+	knight.apply_stun(0.1)
+	await _frames(20)
+	_check("the strike stunned in its cast time: no free bolt", [free_ctx.size(), _projectiles().size()], [0, 0])
+	await _wait_until(func() -> bool: return not knight.is_stunned(), 30)
+	ab.remove_augments_from(&"item_test_also")
+
+	# From a HIT: at once.
+	var on_hit_bolt := _augment(&"test_strike_hit_bolts", AbilityAugment.Kind.EVENT, &"ability:test_strike")
+	on_hit_bolt.rules = [_rule(ReactionRule.Trigger.HIT, [cast_bolt] as Array[GameplayEffect])] as Array[ReactionRule]
+	ab.add_augment(on_hit_bolt, &"item_test_hit")
+	free_ctx.clear()
+	await _strike_at(dummy)
+	_check("a strike hit casts a free bolt at once, aimed at the unit hit",
+		[free_ctx.size(), free_ctx[0].target == dummy if free_ctx.size() > 0 else false], [1, true])
+	ab.remove_augments_from(&"item_test_hit")
+	await _wait_until(func() -> bool: return _projectiles().is_empty(), 60)
+
+	# During another cast: it doesn't interrupt it, and costs nothing.
+	knight.stats_component.add_modifier(StatModifier.create(&"resource_cost", StatModifier.Type.FLAT, 30.0, &"item_test_cost", &"ability:test_free_bolt"))
+	pool.restore(1000.0)
+	ab.reset_cooldown(&"q")
+	ab.try_cast(&"q", dummy.global_position)
+	await _frames(3)
+	var free_ok := ab.try_cast_free(free_bolt, dummy.global_position, null, &"passive_test")
+	_check("a free cast during the strike's cast time: accepted, the strike goes on, no cost",
+		[free_ok, ab.casting, ab.casting_slot, pool.current], [true, true, &"q", 300.0])
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("the strike still lands its effect", ab.is_ready(&"q"), false)
+	knight.stats_component.remove_modifiers_from(&"item_test_cost")
+	knight.apply_stun(0.2)
+	_check("a stunned unit refuses a free cast", ab.try_cast_free(free_bolt, dummy.global_position, null, &"passive_test"), false)
+	await _wait_until(func() -> bool: return not knight.is_stunned(), 30)
+
+	# Chains: "casting anything also casts the strike".
+	for limit: int in [1, 3]:
+		var cast_strike := CastAbilityGameplayEffect.new()
+		cast_strike.ability = STRIKE
+		var echo := _augment(StringName("test_echo_%d" % limit), AbilityAugment.Kind.EVENT, &"tag:core")
+		echo.rules = [_rule(ReactionRule.Trigger.ABILITY_CAST, [cast_strike] as Array[GameplayEffect], ReactionRule.EffectTarget.OTHER, limit)] as Array[ReactionRule]
+		ab.add_augment(echo, &"item_test_echo")
+		free_ctx.clear()
+		await _strike_at(dummy)
+		_check("an ability_cast rule casting the strike, chain_limit %d: %d free cast(s), then it stops" % [limit, limit],
+			free_ctx.size(), limit)
+		ab.remove_augments_from(&"item_test_echo")
+		dummy.health.heal(10000.0)
+
+	# A HIT -> free cast -> HIT loop stops at the chain limit.
+	var cast_on_hit := CastAbilityGameplayEffect.new()
+	cast_on_hit.ability = STRIKE
+	var loop := _augment(&"test_hit_loop", AbilityAugment.Kind.EVENT, &"tag:core")
+	loop.rules = [_rule(ReactionRule.Trigger.HIT, [cast_on_hit] as Array[GameplayEffect])] as Array[ReactionRule]
+	ab.add_augment(loop, &"item_test_loop")
+	free_ctx.clear()
+	await _strike_at(dummy)
+	await _frames(5)
+	_check("a strike hit casts a free strike; its hit (one link deeper) casts nothing more", free_ctx.size(), 1)
+	ab.remove_augments_from(&"item_test_loop")
+
+	Events.ability_cast.disconnect(on_cast)
+	dummy.queue_free()
+	await _wait_until(func() -> bool: return _projectiles().is_empty(), 60)
+	ab.q = original_q
+	pool.restore(1000.0)
+
+
+func _test_fake_item() -> void:
+	_section("AB8: a fake item: equipping changes the Knight, unequipping restores him exactly")
+	var ab := knight.abilities
+	var original_q: Ability = await _setup_strike()
+	var stuns := _augment(&"test_strike_stuns", AbilityAugment.Kind.FLAG, &"ability:test_strike", "Strike stuns for 0.5 s.")
+	var restore := RestoreResourceGameplayEffect.new()
+	restore.amount = 5.0
+	var refund := _augment(&"test_strike_refunds", AbilityAugment.Kind.EVENT, &"ability:test_strike", "Strike restores 5 mana.")
+	refund.rules = [_rule(ReactionRule.Trigger.ABILITY_CAST, [restore] as Array[GameplayEffect])] as Array[ReactionRule]
+	var item := {
+		"source": &"item_test_gauntlet",
+		"modifiers": [StatModifier.create(&"cooldown", StatModifier.Type.FLAT, -0.5, &"item_test_gauntlet", &"ability:test_strike")],
+		"augments": [stuns, refund],
+	}
+	var snapshot := func() -> Array:
+		return [STRIKE.get_tooltip_plain(knight), ab.get_ability(&"q"), ab.get_flags(STRIKE), knight.get_reaction_rule_entries().size(),
+			STRIKE.get_param(knight, &"cooldown"), ab.get_augments(&"q").size()]
+	var before: Array = snapshot.call()
+	for m: StatModifier in item.modifiers:
+		knight.stats_component.add_modifier(m)
+	for a: AbilityAugment in item.augments:
+		ab.add_augment(a, item.source)
+	var equipped: Array = snapshot.call()
+	_check("equipped: the tooltip gains two lines, the flag is on, one rule, cooldown 1.5, two augments",
+		[equipped[0].count("\n"), equipped[2], equipped[3] - before[3], equipped[4], equipped[5]],
+		[2, [&"test_strike_stuns"] as Array[StringName], 1, 1.5, 2])
+	knight.stats_component.remove_modifiers_from(item.source)
+	ab.remove_augments_from(item.source)
+	_check("unequipped: everything exactly as before", snapshot.call(), before)
+	ab.q = original_q
 
 
 func _wall_at(pos: Vector2, size: Vector2) -> StaticBody2D:

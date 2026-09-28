@@ -124,6 +124,22 @@ func remove_status(id: StringName) -> bool:
 	return true
 
 
+## Removes every status carrying any of `tags` (a cleanse: [&"cc"];
+## ABILITIES AB8). Returns how many were removed.
+func remove_statuses_with_tags(tags: Array[StringName]) -> int:
+	var removed := 0
+	for id: StringName in _active.keys():
+		var active: ActiveStatus = _active.get(id)
+		if active == null:
+			continue
+		for t in tags:
+			if active.effect.tags.has(t):
+				if remove_status(id):
+					removed += 1
+				break
+	return removed
+
+
 ## Removes every status (death).
 func clear() -> void:
 	for id: StringName in _active.keys():
@@ -308,6 +324,9 @@ func _start(active: ActiveStatus, effect: StatusEffect, source: Unit) -> void:
 	if effect.vfx != null:
 		active.vfx = effect.vfx.instantiate()
 		unit.add_child(active.vfx)
+	for rule in effect.reaction_rules:   # ABILITIES AB8
+		if rule is ReactionRule:
+			unit.add_reaction_rule(rule, effect.get_source_id())
 
 
 ## Takes back what _start() added.
@@ -320,6 +339,8 @@ func _stop(active: ActiveStatus) -> void:
 			unit.movement.remove_move_lock(effect.id)
 		if effect.blocks_attack:
 			unit.attack.remove_lock(effect.id)
+		if not effect.reaction_rules.is_empty():
+			unit.remove_reaction_rules_from(effect.get_source_id())
 	if is_instance_valid(active.vfx):
 		active.vfx.queue_free()
 	active.vfx = null

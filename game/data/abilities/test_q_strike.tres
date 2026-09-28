@@ -1,0 +1,18 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/abilities/test/strike.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"test_strike"
+tags = Array[StringName]([&"core", &"area"])
+display_name = "Strike"
+description = "Strike a spot up to {range} units away: {damage} physical damage ({base_damage} {ratios}) to every enemy within {radius_px} px."
+icon_color = Color(0.95, 0.55, 0.9, 1)
+supported_flags = Array[StringName]([&"test_strike_stuns"])
+targeting = 2
+cooldown = 2.0
+cast_time = 0.2
+cast_range = 300.0
+base_damage = 40.0
+ad_ratio = 0.5

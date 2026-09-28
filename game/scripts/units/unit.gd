@@ -296,6 +296,12 @@ func get_reaction_rules() -> Array[ReactionRule]:
 	return result
 
 
+## Every unit rule with the source id it was added under: [[rule, source_id]]
+## (a copy). Reactions reads the source id for free casts (ABILITIES AB8).
+func get_reaction_rule_entries() -> Array:
+	return _reaction_rules.duplicate()
+
+
 # --- Healing ------------------------------------------------------------------
 
 ## Heals and shows the green number for what was actually healed (not above

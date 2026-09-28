@@ -31,6 +31,14 @@ enum StackRule {
 ## hastes are move_speed PERCENT_ADD modifiers.
 @export var modifiers: Array[StatModifier] = []
 
+@export_group("Rules")
+## Unit rules (ReactionRule resources) the unit has while this status is
+## active, under get_source_id() (ABILITIES AB8): a buff, a passive's state or
+## an empower can bring its own "when X, do Y". Typed as Resource on purpose:
+## MovementComponent preloads status .tres files while scripts compile, and a
+## ReactionRule type here would pull GameplayEffect and Unit into that cycle.
+@export var reaction_rules: Array[Resource] = []
+
 @export_group("Blocks")
 @export var blocks_move: bool = false
 ## Also cancels an attack windup or a combo swing when applied.
