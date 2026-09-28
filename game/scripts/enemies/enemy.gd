@@ -134,6 +134,7 @@ func _try_cast_ability() -> bool:
 		return true
 	if attack.is_winding_up():
 		return false
+	abilities.set_aim_hint(_player.global_position)   # conditions look at the target (AB12)
 	for slot in AbilityComponent.SLOTS:
 		var ability := abilities.get_ability(slot)
 		if ability == null or not abilities.can_cast(slot):

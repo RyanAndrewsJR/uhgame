@@ -185,6 +185,17 @@ func get_tags() -> Array[StringName]:
 	return result
 
 
+## The stacks of every active status carrying `tag`, summed (a status
+## without stacks counts 1). What Condition's SELF_ / TARGET_HAS_STATUS read
+## (ABILITIES AB12).
+func get_tag_stacks(tag: StringName) -> int:
+	var total := 0
+	for active: ActiveStatus in _active.values():
+		if active.effect.tags.has(tag):
+			total += maxi(active.stack_times.size(), 1)
+	return total
+
+
 ## The active empowers used up by `trigger`, in the order applied
 ## (ABILITIES AB10).
 func get_empowers(trigger: StatusEffect.EmpowerTrigger) -> Array[StatusEffect]:

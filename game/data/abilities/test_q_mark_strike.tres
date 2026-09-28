@@ -1,0 +1,32 @@
+[gd_resource type="Resource" format=3 uid="uid://dil35oftu6xhq"]
+
+[ext_resource type="Script" uid="uid://bdqpeopv23jst" path="res://scripts/abilities/test/mark_strike.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="2_btjy4"]
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="2_condition"]
+[ext_resource type="Script" uid="uid://effvdqcl7tjf" path="res://scripts/data/conditional_bonus.gd" id="3_foqtt"]
+[ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="4_v4ij1"]
+
+[sub_resource type="Resource" id="marked_near"]
+script = ExtResource("2_condition")
+kind = 5
+status_tag = &"test_mark"
+fail_text = "No marked enemy in range"
+
+[sub_resource type="Resource" id="last_hit"]
+script = ExtResource("2_condition")
+kind = 7
+fail_text = "The first strike missed"
+
+[resource]
+script = ExtResource("1_script")
+id = &"test_mark_strike"
+tags = Array[StringName]([&"core", &"area"])
+display_name = "Mark Strike"
+description = "Strike a spot up to {range} units away for {damage} physical damage, marking every enemy hit. Recast within {recast_window}s while a marked enemy is in range to strike it again."
+icon_color = Color(0.95, 0.8, 0.35, 1)
+targeting = 2
+cooldown = 3.0
+recast_count = 1
+cast_time = 0.1
+base_damage = 40.0
+recast_conditions = Array[ExtResource("2_condition")]([SubResource("marked_near"), SubResource("last_hit")])

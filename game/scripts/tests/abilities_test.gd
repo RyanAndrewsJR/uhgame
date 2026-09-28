@@ -55,6 +55,11 @@ const LOOP_SOUND: SoundEvent = preload("res://data/sounds/sound_knight_low_healt
 const BOLT: Ability = preload("res://data/abilities/test_q_bolt.tres")
 const STRIKE: Ability = preload("res://data/abilities/test_q_strike.tres")
 const STATUS_SLOW: StatusEffect = preload("res://data/statuses/status_slow.tres")
+const NOVA: Ability = preload("res://data/abilities/test_q_nova.tres")
+const MARK_STRIKE: Ability = preload("res://data/abilities/test_q_mark_strike.tres")
+const STATUS_FOCUS: StatusEffect = preload("res://data/statuses/status_test_focus.tres")
+const STATUS_MARK: StatusEffect = preload("res://data/statuses/status_test_mark.tres")
+const EXECUTE_RULE: ReactionRule = preload("res://data/reactions/reaction_test_execute.tres")
 const ARENA := Vector2(-2000, 0)
 
 var knight: Player
@@ -126,6 +131,12 @@ func _ready() -> void:
 	await _test_ab11_judgement()
 	await _test_ab11_iron_resolve()
 	_test_ab11_scripts()
+	_test_ab12_condition_kinds()
+	await _test_ab12_cast_condition()
+	await _test_ab12_bonus_and_input()
+	await _test_ab12_condition_target()
+	await _test_ab12_recast()
+	await _test_ab12_reaction_condition()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).
@@ -2767,6 +2778,319 @@ func _test_ab11_scripts() -> void:
 			if src.contains(call):
 				offenders.append("%s: %s" % [path.get_file(), call])
 	_check("no displace / apply_stun / add_speed_modifier / add_next_attack_modifier / own crit roll or resolve", offenders, [] as Array[String])
+
+
+# --- AB12 -----------------------------------------------------------------------
+
+func _cond(kind: Condition.Kind, props: Dictionary = {}) -> Condition:
+	var c := Condition.new()
+	c.kind = kind
+	for key: String in props:
+		c.set(key, props[key])
+	return c
+
+
+func _test_ab12_condition_kinds() -> void:
+	_section("AB12: the Condition kinds")
+	knight.heal(10000.0)
+	var a := _dummy_at(Vector2(60, 0))
+	var far := _dummy_at(Vector2(400, 0))
+	a.status_component.apply_status(STATUS_MARK, knight)
+	var stacking := _status(&"test_stacks", [&"test_stack"], 5.0)
+	stacking.stack_rule = StatusEffect.StackRule.STACK
+	stacking.max_stacks = 3
+	a.status_component.apply_status(stacking)
+	a.status_component.apply_status(stacking)
+	_check("get_tag_stacks: stacks summed per tag (a status without stacks counts 1)",
+		[a.status_component.get_tag_stacks(&"test_stack"), a.status_component.get_tag_stacks(&"test_mark"), a.status_component.get_tag_stacks(&"nope")], [2, 1, 0])
+	var has := _cond(Condition.Kind.TARGET_HAS_STATUS, {"status_tag": &"test_stack", "min_stacks": 2})
+	var has3 := _cond(Condition.Kind.TARGET_HAS_STATUS, {"status_tag": &"test_stack", "min_stacks": 3})
+	_check("TARGET_HAS_STATUS: 2 stacks meet 2, not 3", [has.is_met(knight, a), has3.is_met(knight, a)], [true, false])
+	var not_has := _cond(Condition.Kind.TARGET_HAS_STATUS, {"status_tag": &"test_stack", "negate": true})
+	_check("negate flips it; with no target a TARGET_ kind fails even negated", [not_has.is_met(knight, a), not_has.is_met(knight, null), not_has.is_met(knight, far)], [false, false, true])
+	var self_has := _cond(Condition.Kind.SELF_HAS_STATUS, {"status_tag": &"test_focus"})
+	var before := self_has.is_met(knight, null)
+	knight.status_component.apply_status(STATUS_FOCUS, knight)
+	_check("SELF_HAS_STATUS: off, then on (needs no target)", [before, self_has.is_met(knight, null)], [false, true])
+	knight.status_component.remove_status(STATUS_FOCUS.id)
+	var hp := a.health.max_health
+	a.health.take_damage(hp * 0.75)
+	var low := _cond(Condition.Kind.TARGET_HEALTH_PERCENT, {"comparison": Condition.Comparison.LESS_THAN, "value": 0.3})
+	var high := _cond(Condition.Kind.TARGET_HEALTH_PERCENT, {"value": 0.3})
+	_check("TARGET_HEALTH_PERCENT at 25%: < 30% yes, >= 30% no", [low.is_met(knight, a), high.is_met(knight, a)], [true, false])
+	var self_high := _cond(Condition.Kind.SELF_HEALTH_PERCENT, {"value": 0.9})
+	_check("SELF_HEALTH_PERCENT: the Knight at full health is >= 90%", self_high.is_met(knight, null), true)
+	var close := _cond(Condition.Kind.TARGET_DISTANCE, {"comparison": Condition.Comparison.LESS_THAN, "value": 300.0})
+	_check("TARGET_DISTANCE < 300 u: the near dummy yes, the far one no", [close.is_met(knight, a), close.is_met(knight, far)], [true, false])
+	var two_near := _cond(Condition.Kind.ENEMIES_IN_RANGE, {"count": 2, "radius": 300.0})
+	var one_marked := _cond(Condition.Kind.ENEMIES_IN_RANGE, {"count": 1, "radius": 300.0, "status_tag": &"test_mark"})
+	var two_far := _cond(Condition.Kind.ENEMIES_IN_RANGE, {"count": 2, "radius": 2000.0})
+	_check("ENEMIES_IN_RANGE: 1 near (not 2), 1 marked near, 2 within 2000 u",
+		[two_near.is_met(knight, null), one_marked.is_met(knight, null), two_far.is_met(knight, null)], [false, true, true])
+	var mana := _cond(Condition.Kind.RESOURCE_AT_LEAST, {"value": 50.0})
+	_check("RESOURCE_AT_LEAST 50: the Knight yes, a slime (no pool) no", [mana.is_met(knight, null), mana.is_met(a, null)], [true, false])
+	var last_hit := _cond(Condition.Kind.LAST_PART_HIT)
+	var ctx := CastContext.new()
+	var outside := last_hit.is_met(knight, null, ctx)
+	ctx.last_part_hit = true
+	_check("LAST_PART_HIT reads the cast: false outside a sequence, true when set, false without a cast",
+		[outside, last_hit.is_met(knight, null, ctx), last_hit.is_met(knight, null)], [false, true, false])
+	var list: Array[Condition] = [self_high, close, has3]
+	var empty: Array[Condition] = []
+	has3.fail_text = "Needs 3 stacks"
+	_check("all_met is AND (an empty list passes); first_failed gives the failing one's text",
+		[Condition.all_met(list, knight, a), Condition.all_met(empty, knight, null), Condition.first_failed(list, knight, a).fail_text], [false, true, "Needs 3 stacks"])
+	var cast := CastContext.new()
+	cast.charge = 0.3
+	cast.set_input(&"custom", 1.7)
+	_check("CastContext: charge is a wrapper over inputs; set_input clamps to 0-1",
+		[snappedf(cast.get_input(&"charge"), 0.01), snappedf(cast.charge, 0.01), cast.get_input(&"custom"), cast.get_input(&"missing", 0.25)], [0.3, 0.3, 1.0, 0.25])
+	_check("every existing ChargeScaling reads charge (the default input)",
+		CHARGED_LINE.charge_scalings.all(func(s: ChargeScaling) -> bool: return s.input == &"charge"), true)
+	a.queue_free()
+	far.queue_free()
+
+
+func _test_ab12_cast_condition() -> void:
+	_section("AB12: a cast condition (Nova needs Focus)")
+	await _reset_knight()
+	var ab := knight.abilities
+	var original_q := ab.q
+	ab.q = NOVA
+	ab.reset_cooldown(&"q")
+	knight.stats_component.add_modifier(StatModifier.create(&"resource_cost", StatModifier.Type.FLAT, 20.0, &"item_test_nova_cost", &"ability:test_nova"))
+	var hud: CanvasLayer = HUD_SCENE.instantiate()
+	add_child(hud)
+	hud.setup_abilities(knight)
+	await _frames(2)
+	var bar: Control = hud.get_node("AbilityBar")
+	var fails: Array = []
+	var on_fail := func(_slot: StringName, reason: String) -> void: fails.append(reason)
+	ab.cast_failed.connect(on_fail)
+	var started := [0]
+	var on_started := func(_s: StringName, _a: Ability, _c: CastContext) -> void: started[0] += 1
+	ab.cast_started.connect(on_started)
+
+	_check("without Focus: the fail reason is 'condition', with its fail text",
+		[ab.get_fail_reason(&"q"), ab.get_condition_fail_text(&"q")], [AbilityComponent.FAIL_CONDITION, "Needs Focus"])
+	_check("the slot is greyed", bar.is_condition_greyed(&"q"), true)
+	var mana := knight.resource_pool.current
+	knight.request_cast(&"q")
+	_check("a press fails at once with 'condition', flashes the slot, spends nothing",
+		[fails, bar.is_flashing(&"q"), knight.resource_pool.current == mana, ab.is_ready(&"q"), ab.get_charges(&"q")],
+		[[AbilityComponent.FAIL_CONDITION], true, true, true, 1])
+	_check("and isn't buffered", knight.player_input.get_buffered_action(), &"")
+	knight.status_component.apply_status(STATUS_FOCUS, knight)
+	_check("Focus applied: un-greyed the same frame, the reason clears", [bar.is_condition_greyed(&"q"), ab.get_fail_reason(&"q")], [false, ""])
+	await _frames(10)
+	_check("nothing fired later (the failed press wasn't kept)", started[0], 0)
+	var dummy := _dummy_at(Vector2(40, 0))
+	_tough(dummy)
+	knight.request_cast(&"q")
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("with Focus the press casts (cost paid, the dummy hit)",
+		[started[0], snappedf(mana - knight.resource_pool.current, 1.0) >= 19.0, dummy.health.current < dummy.health.max_health], [1, true, true])
+	knight.status_component.remove_status(STATUS_FOCUS.id)
+	_check("Focus gone: greyed again (once ready)", [ab.is_ready(&"q"), bar.is_condition_greyed(&"q")], [false, false])
+	await _wait_until(func() -> bool: return ab.is_ready(&"q"), 120)
+	_check("ready again without Focus: greyed", bar.is_condition_greyed(&"q"), true)
+
+	ab.cast_failed.disconnect(on_fail)
+	ab.cast_started.disconnect(on_started)
+	knight.stats_component.remove_modifiers_from(&"item_test_nova_cost")
+	knight.resource_pool.restore(1000.0)
+	hud.queue_free()
+	dummy.queue_free()
+	await _frames(3)
+	ab.q = original_q
+
+
+func _test_ab12_bonus_and_input() -> void:
+	_section("AB12: a conditional bonus (checked at the effect) and a named input")
+	await _reset_knight()
+	var ab := knight.abilities
+	var original_q := ab.q
+	ab.q = NOVA
+	ab.reset_cooldown(&"q")
+	knight.status_component.apply_status(STATUS_FOCUS, knight)
+	var hits: Array[HitContext] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == knight and ctx.ability == NOVA:
+			hits.append(ctx)
+	Events.unit_hit.connect(on_hit)
+	var slime_r := 55.0 * 0.32
+	var edge := _dummy_at(Vector2(64.0 + slime_r + 12.0, 0))   # outside 200 u, inside 300 u
+	_tough(edge)
+	await _frames(2)
+	_check("the tooltip lists the bonus", NOVA.get_tooltip_plain(knight).contains("+50% radius while 2 or more enemies are within 300 units."), true)
+
+	ab.try_cast(&"q", knight.global_position)
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("one enemy near: no bonus, the edge dummy (outside 200 u) isn't hit", hits.size(), 0)
+	_check("(the radius as the effect reads it: 200 u)", NOVA.get_effect_param(knight, &"radius", null), 200.0)
+
+	ab.reset_cooldown(&"q")
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 60)
+	ab.try_cast(&"q", knight.global_position)
+	var near := _dummy_at(Vector2(0, 30))   # joins during the cast time: checked at the effect, not at the press
+	_tough(near)
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("a second enemy arrives during the cast time: +50% radius at the effect, both hit",
+		[hits.size(), hits.any(func(h: HitContext) -> bool: return h.target == edge)], [2, true])
+	_check("(the radius with two enemies near: 300 u)", NOVA.get_effect_param(knight, &"radius", null), 300.0)
+
+	# The named input self_missing_health scales base_damage (0.5 at full health).
+	_check("at full health: 60 x 0.5 = 30", snappedf(hits[0].raw_damage, 0.01) if hits.size() > 0 else 0.0, 30.0)
+	knight.health.take_damage(knight.health.max_health * 0.5)
+	hits.clear()
+	ab.reset_cooldown(&"q")
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 60)
+	ab.try_cast(&"q", knight.global_position)
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("at half health (input 0.5): 60 x lerp(0.5, 1, 0.5) = 45", snappedf(hits[0].raw_damage, 0.01) if hits.size() > 0 else 0.0, 45.0)
+	_check("the tooltip shows the plain full value (60)", NOVA.get_tooltip_plain(knight).contains("up to 60 magic"), true)
+	knight.heal(10000.0)
+
+	Events.unit_hit.disconnect(on_hit)
+	knight.status_component.remove_status(STATUS_FOCUS.id)
+	edge.queue_free()
+	near.queue_free()
+	await _frames(3)
+	ab.q = original_q
+
+
+func _test_ab12_condition_target() -> void:
+	_section("AB12: the condition target of a cast that doesn't pick one")
+	await _reset_knight()
+	var ab := knight.abilities
+	var original_q := ab.q
+	var needs_mark: Ability = STRIKE.duplicate()
+	needs_mark.id = &"test_strike_needs_mark"
+	var cond := _cond(Condition.Kind.TARGET_HAS_STATUS, {"status_tag": &"test_mark", "fail_text": "No mark"})
+	var conds: Array[Condition] = [cond]
+	needs_mark.cast_conditions = conds
+	ab.q = needs_mark
+	ab.reset_cooldown(&"q")
+	var marked := _dummy_at(Vector2(80, -40))
+	var plain := _dummy_at(Vector2(80, 40))
+	marked.status_component.apply_status(STATUS_MARK, knight)
+	await _frames(2)
+	_check("aimed near the marked dummy: passes; near the unmarked one: 'condition'",
+		[ab.get_fail_reason(&"q", marked.global_position), ab.get_fail_reason(&"q", plain.global_position)], ["", AbilityComponent.FAIL_CONDITION])
+	var ctx_hits: Array = []
+	var on_cast := func(_u: Unit, _a: Ability, c: CastContext) -> void: ctx_hits.append(c.target)
+	Events.ability_cast.connect(on_cast)
+	ab.try_cast(&"q", marked.global_position)
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("the cast's ctx.target is that condition target (the enemy nearest the aim in range)", ctx_hits, [marked])
+	Events.ability_cast.disconnect(on_cast)
+	_place(marked, knight.global_position + Vector2(600, 0))
+	_place(plain, knight.global_position + Vector2(620, 0))
+	ab.reset_cooldown(&"q")
+	await _frames(2)
+	cond.negate = true
+	_check("no enemy within cast range: a TARGET_ condition fails even negated", ab.get_fail_reason(&"q", knight.global_position + Vector2(80, 0)), AbilityComponent.FAIL_CONDITION)
+	marked.queue_free()
+	plain.queue_free()
+	await _frames(3)
+	ab.q = original_q
+
+
+func _test_ab12_recast() -> void:
+	_section("AB12: recast conditions (ENEMIES_IN_RANGE with a tag, LAST_PART_HIT)")
+	await _reset_knight()
+	var ab := knight.abilities
+	var original_q := ab.q
+	ab.q = MARK_STRIKE
+	ab.reset_cooldown(&"q")
+	var dummy := _dummy_at(Vector2(60, 0))
+	_tough(dummy)
+	await _frames(2)
+	var hits: Array[HitContext] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == knight and ctx.ability == MARK_STRIKE:
+			hits.append(ctx)
+	Events.unit_hit.connect(on_hit)
+	var fails: Array = []
+	var on_fail := func(_slot: StringName, reason: String) -> void: fails.append(reason)
+	ab.cast_failed.connect(on_fail)
+
+	# Part 0 hits and marks: the recast works.
+	ab.try_cast(&"q", dummy.global_position)
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("part 0 hits and marks the dummy; the window opens",
+		[hits.size(), dummy.status_component.has_status(&"test_mark"), ab.get_recast_part(&"q")], [1, true, 1])
+	_check("recast conditions pass (a marked enemy in range, part 0 hit)", ab.get_fail_reason(&"q"), "")
+	ab.try_cast(&"q", dummy.global_position)
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("part 1 strikes the marked dummy and removes the mark; the sequence ends",
+		[hits.size(), hits[1].target == dummy if hits.size() > 1 else false, dummy.status_component.has_status(&"test_mark"), ab.get_recast_part(&"q")],
+		[2, true, false, 0])
+
+	# LAST_PART_HIT: part 0 misses while an old mark is still on the dummy.
+	await _frames(2)   # the recharge starts the frame after a sequence ends
+	ab.reset_cooldown(&"q")
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 60)
+	dummy.status_component.apply_status(STATUS_MARK, knight)
+	hits.clear()
+	fails.clear()
+	ab.try_cast(&"q", knight.global_position + Vector2(-60, 0))   # nobody there
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("part 0 missed (a marked enemy is still in range): 'condition', text 'The first strike missed'",
+		[hits.size(), ab.get_fail_reason(&"q"), ab.get_condition_fail_text(&"q")], [0, AbilityComponent.FAIL_CONDITION, "The first strike missed"])
+	var left := ab.get_recast_time_left(&"q")
+	ab.try_cast(&"q", dummy.global_position)
+	_check("the press fails with 'condition'; the window stays open", [fails, ab.get_recast_part(&"q"), ab.get_recast_time_left(&"q") == left], [[AbilityComponent.FAIL_CONDITION], 1, true])
+	await _wait_until(func() -> bool: return ab.get_recast_part(&"q") == 0, 240)
+	_check("the window runs out normally, then the cooldown starts", [ab.get_recast_part(&"q"), ab.is_ready(&"q")], [0, false])
+
+	# ENEMIES_IN_RANGE with the tag: part 0 hits, but the mark is gone.
+	await _frames(2)
+	ab.reset_cooldown(&"q")
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 60)
+	dummy.status_component.remove_status(&"test_mark")
+	ab.try_cast(&"q", dummy.global_position)
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	dummy.status_component.remove_status(&"test_mark")
+	_check("part 0 hit but no marked enemy in range: 'condition', text 'No marked enemy in range'",
+		[ab.get_fail_reason(&"q"), ab.get_condition_fail_text(&"q")], [AbilityComponent.FAIL_CONDITION, "No marked enemy in range"])
+	dummy.status_component.apply_status(STATUS_MARK, knight)
+	_check("marked again: the recast passes", ab.get_fail_reason(&"q"), "")
+
+	Events.unit_hit.disconnect(on_hit)
+	ab.cast_failed.disconnect(on_fail)
+	dummy.queue_free()
+	await _frames(3)
+	ab.reset_cooldown(&"q")
+	await _wait_until(func() -> bool: return ab.get_recast_part(&"q") == 0, 240)
+	ab.q = original_q
+
+
+func _test_ab12_reaction_condition() -> void:
+	_section("AB12: a fake item with a Condition in its reaction rule (execute below 30%)")
+	await _reset_knight()
+	var dummy := _dummy_at(Vector2(60, 0))
+	_tough(dummy)
+	await _frames(2)
+	knight.add_reaction_rule(EXECUTE_RULE, &"item_test_execute")
+	var executes: Array[HitContext] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.has_tag(&"execute"):
+			executes.append(ctx)
+	Events.unit_hit.connect(on_hit)
+	HitPipeline.resolve(HitPipeline.from_ability(knight, STRIKE, dummy))
+	_check("a hit on a healthy dummy: no execute", executes.size(), 0)
+	dummy.health.take_damage(dummy.health.current - dummy.health.max_health * 0.25)
+	HitPipeline.resolve(HitPipeline.from_ability(knight, STRIKE, dummy))
+	_check("a hit on a dummy below 30%: one 30 execute proc (its own hit doesn't chain)",
+		[executes.size(), executes[0].raw_damage if executes.size() > 0 else 0.0, executes[0].has_tag(&"proc") if executes.size() > 0 else false], [1, 30.0, true])
+	knight.remove_reaction_rules_from(&"item_test_execute")
+	executes.clear()
+	HitPipeline.resolve(HitPipeline.from_ability(knight, STRIKE, dummy))
+	_check("unequipped: no execute", executes.size(), 0)
+	Events.unit_hit.disconnect(on_hit)
+	dummy.queue_free()
+	await _frames(3)
 
 
 func _wall_at(pos: Vector2, size: Vector2) -> StaticBody2D:

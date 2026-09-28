@@ -140,12 +140,16 @@ func _fire(trigger: ReactionRule.Trigger, affected: Unit, other: Unit, unit_tags
 		if not _has_all(hit_tags, rule.required_hit_tags) or not _has_all(unit_tags, rule.required_unit_tags) \
 				or not _has_all(status_tags, rule.required_status_tags) or not rule.matches_ability(ability):
 			continue
-		var chance := rule.chance * chance_scale
-		if chance <= 0.0 or (chance < 1.0 and rng.randf() >= chance):
-			continue
 		var owner: Unit = c[1]
 		var source: Unit = owner if owner != null else other
 		var target: Unit = affected if rule.effect_target == ReactionRule.EffectTarget.AFFECTED else other
+		# Conditions (ABILITIES AB12): after the tag filters, before chance.
+		if not rule.conditions.is_empty() \
+				and not Condition.all_met(rule.conditions, source, target, trigger_ctx as CastContext):
+			continue
+		var chance := rule.chance * chance_scale
+		if chance <= 0.0 or (chance < 1.0 and rng.randf() >= chance):
+			continue
 		if not is_instance_valid(target):
 			continue
 		_depth = depth + 1

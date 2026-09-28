@@ -1,0 +1,52 @@
+[gd_resource type="Resource" format=3 uid="uid://clnn177g0j1hp"]
+
+[ext_resource type="Script" uid="uid://driwb5300fer5" path="res://scripts/abilities/test/nova.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="2_scaling"]
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="3_condition"]
+[ext_resource type="Script" uid="uid://effvdqcl7tjf" path="res://scripts/data/conditional_bonus.gd" id="4_bonus"]
+[ext_resource type="Script" uid="uid://b03uhk6wyab30" path="res://scripts/data/status_effect.gd" id="5_bpymi"]
+[ext_resource type="Script" uid="uid://cvwv2nrsbyrah" path="res://scripts/data/stat_modifier.gd" id="5_modifier"]
+[ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="6_mdb45"]
+
+[sub_resource type="Resource" id="focus"]
+script = ExtResource("3_condition")
+status_tag = &"test_focus"
+fail_text = "Needs Focus"
+
+[sub_resource type="Resource" id="injured"]
+script = ExtResource("2_scaling")
+param = &"base_damage"
+input = &"self_missing_health"
+
+[sub_resource type="Resource" id="crowd"]
+script = ExtResource("3_condition")
+kind = 5
+count = 2
+
+[sub_resource type="Resource" id="bigger"]
+script = ExtResource("5_modifier")
+stat = &"radius"
+type = 1
+value = 0.5
+
+[sub_resource type="Resource" id="crowd_bonus"]
+script = ExtResource("4_bonus")
+conditions = Array[ExtResource("3_condition")]([SubResource("crowd")])
+modifiers = Array[ExtResource("5_modifier")]([SubResource("bigger")])
+description = "+50% radius while 2 or more enemies are within 300 units."
+
+[resource]
+script = ExtResource("1_script")
+id = &"test_nova"
+tags = Array[StringName]([&"core", &"area"])
+display_name = "Nova"
+description = "Only while Focused: blast every enemy within {radius} units of you for up to {damage} magic damage (half at full health, full at 0)."
+icon_color = Color(0.45, 0.95, 0.75, 1)
+targeting = 0
+cooldown = 1.0
+charge_scalings = Array[ExtResource("2_scaling")]([SubResource("injured")])
+cast_time = 0.1
+base_damage = 60.0
+damage_type = 1
+cast_conditions = Array[ExtResource("3_condition")]([SubResource("focus")])
+conditional_bonuses = Array[ExtResource("4_bonus")]([SubResource("crowd_bonus")])

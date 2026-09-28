@@ -62,6 +62,8 @@ const FAIL_BUSY := "busy"
 const FAIL_NO_TARGET := "no target"
 const FAIL_NO_RESOURCE := "not enough resource"
 const FAIL_SILENCED := "silenced"
+## A cast or recast condition (or the script's custom check) fails (AB12).
+const FAIL_CONDITION := "condition"
 
 @export var q: Ability
 @export var w: Ability
@@ -103,6 +105,9 @@ var _cast_cost: float = 0.0      # what the cast in progress paid (refunded if i
 ## from several sources counts once.
 var _augments: Array = []
 var _flag_errors: Dictionary = {}   # "<ability id>/<flag>" -> true (reported once)
+## Where conditions checked outside a press look (the HUD's grey preview):
+## the Player sets the cursor every physics frame, the enemy AI its target (AB12).
+var _aim_hint: Vector2 = Vector2.INF
 
 
 func _ready() -> void:
@@ -111,6 +116,7 @@ func _ready() -> void:
 	for s in SLOTS:
 		_cooldown_left[s] = 0.0
 		_cooldown_total[s] = 1.0
+	Events.unit_hit.connect(_on_events_unit_hit)   # LAST_PART_HIT (AB12)
 	# Unit's @onready status_component is only set once the Unit itself is ready.
 	if unit.is_node_ready():
 		_on_unit_ready()
@@ -244,8 +250,9 @@ func can_afford(slot: StringName) -> bool:
 
 ## Why the slot can't be cast right now (a FAIL_* string), or "" if it can.
 ## Blocked (stunned, silenced) comes first, then not ready, then busy, then
-## the cost.
-func get_fail_reason(slot: StringName) -> String:
+## the cost, then the conditions (AB12: `aim` and `target` as for try_cast();
+## without them the aim hint and the condition target near it).
+func get_fail_reason(slot: StringName, aim: Vector2 = Vector2.INF, target: Unit = null) -> String:
 	if get_ability(slot) == null or not unit.is_alive():
 		return FAIL_BUSY
 	if unit.is_cast_blocked():
@@ -256,7 +263,100 @@ func get_fail_reason(slot: StringName) -> String:
 		return FAIL_BUSY
 	if not can_afford(slot):
 		return FAIL_NO_RESOURCE
+	if not conditions_pass(slot, aim, target):
+		return FAIL_CONDITION
 	return ""
+
+
+# --- Conditions (ABILITIES AB12) --------------------------------------------------
+
+## Where conditions checked outside a press look: the Player sets the cursor
+## every physics frame; the enemy AI its target's position before it asks.
+func set_aim_hint(point: Vector2) -> void:
+	_aim_hint = point
+
+
+func get_aim_hint() -> Vector2:
+	return _aim_hint if _aim_hint != Vector2.INF else unit.global_position
+
+
+## True if a press on the slot now passes its conditions: cast_conditions for
+## a first cast, recast_conditions for the next part, and the script's
+## can_cast_custom(). `aim` (INF = the aim hint) and `target` (a UNIT cast's
+## chosen target; null = the condition target near the aim) as for try_cast().
+func conditions_pass(slot: StringName, aim: Vector2 = Vector2.INF, target: Unit = null) -> bool:
+	var ability := get_ability(slot)
+	if ability == null:
+		return false
+	var ctx := _make_condition_context(slot, ability, aim, target)
+	return Condition.all_met(ability.get_conditions_for_part(ctx.part), unit, ctx.target, ctx) \
+		and ability.can_cast_custom(unit, ctx)
+
+
+## The first failed condition's fail_text, else the script's custom fail
+## text, else "" (for later UI; the slot's conditions at the aim hint).
+func get_condition_fail_text(slot: StringName) -> String:
+	var ability := get_ability(slot)
+	if ability == null:
+		return ""
+	var ctx := _make_condition_context(slot, ability, Vector2.INF, null)
+	var failed := Condition.first_failed(ability.get_conditions_for_part(ctx.part), unit, ctx.target, ctx)
+	if failed != null:
+		return failed.fail_text
+	if not ability.can_cast_custom(unit, ctx):
+		return ability.get_custom_fail_text()
+	return ""
+
+
+func _make_condition_context(slot: StringName, ability: Ability, aim: Vector2, target: Unit) -> CastContext:
+	if aim == Vector2.INF:
+		aim = get_aim_hint()
+	var ctx := _make_context(slot, ability, aim, 1.0, target)
+	if ability.targeting == Ability.Targeting.UNIT and not is_instance_valid(ctx.target):
+		ctx.target = _condition_target(ability, aim)   # the HUD preview: the enemy near the aim
+		_fill_inputs(ctx, ability)
+	return ctx
+
+
+## The condition target of a cast that doesn't pick one: the living enemy
+## nearest the aim within the ability's cast range of the unit, or null.
+func _condition_target(ability: Ability, aim: Vector2) -> Unit:
+	return AbilityUtil.nearest_enemy_in_range(unit, aim, Units.to_px(ability.get_param(unit, &"cast_range")))
+
+
+## The built-in named inputs (charge is set already): self_missing_health
+## and target_distance (edge distance to ctx.target ÷ cast range; 0 without
+## one). target_missing_health is per target (Ability.get_effect_param()).
+func _fill_inputs(ctx: CastContext, ability: Ability) -> void:
+	var max_health := unit.health.max_health
+	ctx.set_input(&"self_missing_health", 1.0 - unit.health.current / max_health if max_health > 0.0 else 0.0)
+	var distance := 0.0
+	var range_px := Units.to_px(ability.get_param(unit, &"cast_range"))
+	if is_instance_valid(ctx.target) and range_px > 0.0:
+		distance = maxf(unit.edge_distance_to(ctx.target), 0.0) / range_px
+	ctx.set_input(&"target_distance", distance)
+
+
+## Applies the self_statuses of every conditional bonus that passes at the
+## effect start (flow step 10).
+func _apply_bonus_self_statuses(ability: Ability, ctx: CastContext) -> void:
+	if unit.status_component == null or ability.conditional_bonuses.is_empty():
+		return
+	for b in ability.get_active_bonuses(unit, ctx):
+		for s in b.self_statuses:
+			if s != null:
+				unit.status_component.apply_status(s, unit)
+
+
+## LAST_PART_HIT: a hit from this unit by a running recast sequence's
+## ability marks that sequence (a projectile of the previous part that lands
+## later still counts, until the next part starts).
+func _on_events_unit_hit(ctx: HitContext) -> void:
+	if ctx.source != unit or ctx.ability == null or _recast.is_empty():
+		return
+	for slot: StringName in _recast.keys():
+		if _recast[slot].ability == ctx.ability:
+			_recast[slot].last_part_hit = true
 
 
 func has_pending() -> bool:
@@ -272,12 +372,12 @@ func try_cast(slot: StringName, aim: Vector2, target_unit: Unit = null) -> bool:
 	var ability := get_ability(slot)
 	if ability == null:
 		return false
-	var reason := get_fail_reason(slot)
+	var reason := get_fail_reason(slot, aim, target_unit)
 	if reason != "":
 		cast_failed.emit(slot, reason)
 		return false
 
-	var ctx := _make_context(slot, ability, aim, 1.0)
+	var ctx := _make_context(slot, ability, aim, 1.0, target_unit)
 	var origin := unit.global_position
 
 	match ability.targeting:
@@ -303,7 +403,11 @@ func try_cast(slot: StringName, aim: Vector2, target_unit: Unit = null) -> bool:
 ## the aim by targeting (SELF: the caster; POINT: clamped to the range at
 ## that charge; DIRECTION / UNIT: toward the aim). UNIT's target is set by
 ## try_cast().
-func _make_context(slot: StringName, ability: Ability, aim: Vector2, charge: float) -> CastContext:
+## AB12: `target` is a UNIT cast's chosen target (ctx.target); another cast
+## gets the condition target (the enemy nearest the aim within cast range)
+## when the ability needs one (Ability.needs_condition_target()). Then the
+## built-in named inputs and, in a recast sequence, last_part_hit.
+func _make_context(slot: StringName, ability: Ability, aim: Vector2, charge: float, target: Unit = null) -> CastContext:
 	var ctx := CastContext.new()
 	ctx.slot = slot
 	ctx.ability = ability
@@ -319,6 +423,13 @@ func _make_context(slot: StringName, ability: Ability, aim: Vector2, charge: flo
 			ctx.point = origin
 		Ability.Targeting.POINT:
 			ctx.point = origin + to_aim.limit_length(Units.to_px(ability.get_charged_param(unit, &"cast_range", charge)))
+	if ability.targeting == Ability.Targeting.UNIT:
+		ctx.target = target if is_instance_valid(target) else null
+	elif ability.needs_condition_target():
+		ctx.target = _condition_target(ability, aim)
+	if ctx.part > 0 and _recast.has(slot):
+		ctx.last_part_hit = _recast[slot].last_part_hit
+	_fill_inputs(ctx, ability)
 	return ctx
 
 
@@ -409,7 +520,7 @@ func try_start_charge(slot: StringName, aim: Vector2) -> bool:
 	if ability.targeting == Ability.Targeting.UNIT:
 		push_error("Ability '%s': CHARGE_UP doesn't support UNIT targeting" % ability.id)
 		return false
-	var reason := get_fail_reason(slot)
+	var reason := get_fail_reason(slot, aim)
 	if reason != "":
 		cast_failed.emit(slot, reason)
 		return false
@@ -633,12 +744,14 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext, precharged: 
 		_charges[slot] = get_charges(slot) - 1
 		_cast_took_charge = true
 		if ability.recast_count > 0:
-			_recast[slot] = {"next": 1, "left": ability.get_param(unit, &"recast_window"), "ability": ability}
+			_recast[slot] = {"next": 1, "left": ability.get_param(unit, &"recast_window"), "ability": ability, "last_part_hit": false}
 		elif _cooldown_left[slot] <= 0.0 and _charges[slot] < get_max_charges(slot):
 			_start_recharge(slot, ability)
 		charges_changed.emit(slot, _charges[slot], get_max_charges(slot))
 	else:
 		_cast_took_charge = false   # a later part needs no charge
+		if _recast.has(slot):
+			_recast[slot].last_part_hit = false   # this part starts: LAST_PART_HIT now tracks it (AB12)
 	if not precharged:
 		# Pay at cast start (try_cast() checked it's affordable); refunded if the
 		# cast is cancelled or interrupted before its effect. A charge-up paid
@@ -673,6 +786,7 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext, precharged: 
 		_end_charge()   # a released charge-up: the effect starts, its indicator goes
 		_executing = true
 		_use_up_ability_empowers(ability, ctx)   # AB10: before ABILITY_CAST, so a rule can grant the next one
+		_apply_bonus_self_statuses(ability, ctx)   # AB12: passing conditional bonuses' self statuses
 		# The effect starts: ABILITY_CAST rules fire now (never for a cast
 		# that was cancelled or interrupted before this point). AB8.
 		_emit_ability_cast(ability, ctx)
@@ -977,12 +1091,15 @@ func _is_recharging(slot: StringName) -> bool:
 func try_cast_free(ability: Ability, aim: Vector2, target: Unit, source_id: StringName) -> bool:
 	if ability == null or not unit.is_alive() or unit.is_cast_blocked():
 		return false
-	var ctx := _make_context(&"", ability, aim, 1.0)
-	ctx.target = target if is_instance_valid(target) else null
+	var ctx := _make_context(&"", ability, aim, 1.0, target)
+	if is_instance_valid(target):
+		ctx.target = target   # the unit hit or the triggering cast's target (else the condition target, if any)
+		_fill_inputs(ctx, ability)
 	ctx.is_free = true
 	ctx.source_id = source_id
 	ctx.chain_depth = Reactions.get_chain_depth()   # a rule's effects run one link deeper already
 	Audio.play_on(ability.cast_sound, unit)
+	_apply_bonus_self_statuses(ability, ctx)
 	_emit_ability_cast(ability, ctx)
 	ability.execute(unit, ctx)   # not awaited: it runs alongside anything else
 	return true

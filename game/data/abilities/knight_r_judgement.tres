@@ -1,8 +1,10 @@
 [gd_resource type="Resource" format=3 uid="uid://dlwftnjvwcsk0"]
 
 [ext_resource type="Script" uid="uid://bak88ay0ax4ie" path="res://scripts/abilities/knight/judgement.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="1_yxomc"]
 [ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="2_jothp"]
 [ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="2_scaling"]
+[ext_resource type="Script" uid="uid://effvdqcl7tjf" path="res://scripts/data/conditional_bonus.gd" id="4_j0odc"]
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_judgement_cast.tres" id="s1_cast_sound"]
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_judgement_hit.tres" id="s2_hit_sound"]
 [ext_resource type="Resource" path="res://data/sounds/sound_ui_ultimate_ready.tres" id="s3_ready_sound"]

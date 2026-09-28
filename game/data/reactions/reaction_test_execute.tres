@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="ReactionRule" format=3 uid="uid://dkbsg6ue2hjn8"]
+
+[ext_resource type="Script" uid="uid://4jx6fbr85xri" path="res://scripts/data/reaction_rule.gd" id="1_rule"]
+[ext_resource type="Script" uid="uid://ih85im21qmcl" path="res://scripts/data/deal_damage_gameplay_effect.gd" id="2_damage"]
+[ext_resource type="Script" uid="uid://bnt28s0u3qkaw" path="res://scripts/data/gameplay_effect.gd" id="3_effect"]
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="4_condition"]
+
+[sub_resource type="Resource" id="low_health"]
+script = ExtResource("4_condition")
+kind = 3
+comparison = 1
+value = 0.3
+
+[sub_resource type="Resource" id="execute_damage"]
+script = ExtResource("2_damage")
+base_damage = 30.0
+tags = Array[StringName]([&"execute"])
+
+[resource]
+script = ExtResource("1_rule")
+id = &"test_execute"
+conditions = Array[ExtResource("4_condition")]([SubResource("low_health")])
+effects = Array[ExtResource("3_effect")]([SubResource("execute_damage")])

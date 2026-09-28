@@ -215,6 +215,8 @@ func _on_ability_released(slot: StringName) -> void:
 func request_charge(slot: StringName) -> void:
 	if abilities.is_ready(slot) and not is_cast_blocked() and not abilities.can_afford(slot):
 		abilities.fail_cast(slot, AbilityComponent.FAIL_NO_RESOURCE)
+	elif abilities.is_ready(slot) and not is_cast_blocked() and not abilities.conditions_pass(slot, get_global_mouse_position()):
+		abilities.fail_cast(slot, AbilityComponent.FAIL_CONDITION)   # AB12: not buffered
 	elif abilities.can_cast(slot) and not dash.is_dashing() and can_interrupt_swing(slot):
 		_start_charge(slot)
 	else:
@@ -283,6 +285,8 @@ func _on_abilities_charge_ended(_slot: StringName, _ability: Ability) -> void:
 func request_cast(slot: StringName) -> void:
 	if abilities.is_ready(slot) and not is_cast_blocked() and not abilities.can_afford(slot):
 		abilities.fail_cast(slot, AbilityComponent.FAIL_NO_RESOURCE)
+	elif abilities.is_ready(slot) and not is_cast_blocked() and not abilities.conditions_pass(slot, get_global_mouse_position(), _condition_target_for(slot)):
+		abilities.fail_cast(slot, AbilityComponent.FAIL_CONDITION)   # AB12: fails at once, not buffered
 	elif abilities.can_cast(slot) and not dash.is_dashing() and can_interrupt_swing(slot):
 		cast_ability(slot)
 	else:
@@ -304,6 +308,17 @@ func can_interrupt_swing(slot: StringName) -> bool:
 		Ability.SwingCancel.AFTER_HIT:
 			return attack.is_in_recovery()
 	return false
+
+
+## A UNIT ability's target for a press at the cursor (the same pick as
+## cast_ability()), or null for other abilities (AB12: the press's conditions).
+func _condition_target_for(slot: StringName) -> Unit:
+	var ability := abilities.get_ability(slot)
+	if ability == null or ability.targeting != Ability.Targeting.UNIT:
+		return null
+	var aim := get_global_mouse_position()
+	var target := _enemy_under_point(aim)
+	return target if target != null else AbilityUtil.nearest_enemy_to(self, aim, target_forgiveness)
 
 
 ## Cast an ability at the cursor (also used by tests).
@@ -352,6 +367,7 @@ func _enemy_under_point(point: Vector2) -> Unit:
 func _physics_process(delta: float) -> void:
 	if not is_alive():
 		return
+	abilities.set_aim_hint(get_global_mouse_position())   # conditions checked outside a press (AB12)
 	_update_charge_input()
 	_update_facing()
 	_update_state()

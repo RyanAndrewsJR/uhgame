@@ -1,9 +1,10 @@
 extends Control
 ## LoL-style ability bar: Q W E R slots with cooldown sweep, seconds left,
 ## "being aimed" highlight and a tooltip on hover. Fail cues (ABILITIES.md,
-## HUD feedback): a red flash when a press fails "not ready", a grey tint
-## while the player can't cast (stunned, silenced), a blue tint while a
-## slot's cost can't be paid (the resource bar flashes on the failed press).
+## HUD feedback): a red flash when a press fails "not ready" or "condition", a
+## grey tint while the player can't cast (stunned, silenced) or a slot's cast
+## or recast condition fails (AB12), a blue tint while a slot's cost can't be
+## paid (the resource bar flashes on the failed press).
 
 const SLOT := 30.0
 const GAP := 4.0
@@ -38,13 +39,21 @@ func _ready() -> void:
 	offset_bottom = -8
 
 
+## True while `slot` is greyed because its cast or recast condition fails
+## (AB12): ready, not casting, affordable, but the conditions don't pass.
+func is_condition_greyed(slot: StringName) -> bool:
+	return abilities != null and is_instance_valid(abilities) \
+		and abilities.get_fail_reason(slot) == AbilityComponent.FAIL_CONDITION
+
+
 ## True while `slot` shows a fail flash (for tests).
 func is_flashing(slot: StringName) -> bool:
 	return _fail_flash.get(slot, 0.0) > 0.0
 
 
 func _on_abilities_cast_failed(slot: StringName, reason: String) -> void:
-	if reason == AbilityComponent.FAIL_NOT_READY or reason == AbilityComponent.FAIL_SILENCED:
+	if reason == AbilityComponent.FAIL_NOT_READY or reason == AbilityComponent.FAIL_SILENCED \
+			or reason == AbilityComponent.FAIL_CONDITION:
 		_fail_flash[slot] = FAIL_FLASH_TIME
 
 
@@ -120,9 +129,9 @@ func _draw() -> void:
 				var over := maxf(abilities.get_charge_ability().get_param(abilities.unit, &"overhold_time"), 0.001)
 				draw_rect(Rect2(bar.position, Vector2(SLOT * abilities.get_overhold_left() / over, 3)), Color(1, 0.55, 0.15))
 
-		# Can't cast right now: grey while stunned or silenced, blue while
-		# the cost can't be paid.
-		if player and player.is_cast_blocked():
+		# Can't cast right now: grey while stunned or silenced or while a cast
+		# or recast condition fails (AB12), blue while the cost can't be paid.
+		if (player and player.is_cast_blocked()) or is_condition_greyed(slot):
 			draw_rect(rect, Color(0.5, 0.5, 0.55, 0.55))
 		elif not abilities.can_afford(slot):
 			draw_rect(rect, Color(0.15, 0.3, 0.9, 0.45))

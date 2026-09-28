@@ -44,10 +44,23 @@ static func from_ability(caster: Unit, ability: Ability, target: Node, cast: Cas
 	ctx.source = caster
 	ctx.target = target
 	ctx.ability = ability
-	ctx.base_damage = ability.get_charged_param(caster, &"base_damage", charge) \
-		+ ability.get_scaling_damage(caster, target, charge)   # after scoped modifiers
-	ctx.ad_ratio = ability.get_charged_param(caster, &"ad_ratio", charge)
-	ctx.ap_ratio = ability.get_charged_param(caster, &"ap_ratio", charge)
+	if cast != null:
+		# ABILITIES AB12: the params as the effect uses them for this target
+		# (the charge and other named inputs, conditional bonuses that pass
+		# now for the unit hit), and the passing bonuses' target statuses.
+		ctx.base_damage = ability.get_effect_param(caster, &"base_damage", cast, target) \
+			+ ability.get_scaling_damage(caster, target, charge, cast)
+		ctx.ad_ratio = ability.get_effect_param(caster, &"ad_ratio", cast, target)
+		ctx.ap_ratio = ability.get_effect_param(caster, &"ap_ratio", cast, target)
+		for b in ability.get_active_bonuses(caster, cast, target):
+			for s in b.target_statuses:
+				if s != null:
+					ctx.statuses.append(s)
+	else:
+		ctx.base_damage = ability.get_charged_param(caster, &"base_damage", charge) \
+			+ ability.get_scaling_damage(caster, target, charge)   # after scoped modifiers
+		ctx.ad_ratio = ability.get_charged_param(caster, &"ad_ratio", charge)
+		ctx.ap_ratio = ability.get_charged_param(caster, &"ap_ratio", charge)
 	if cast != null:
 		ctx.chain_depth = cast.chain_depth   # a free cast's hits count one link deeper (AB8)
 		add_empowers(ctx, cast.empowers)   # the empowers this cast used up (AB10)

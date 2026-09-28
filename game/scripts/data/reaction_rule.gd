@@ -68,6 +68,12 @@ const MAX_CHAIN := 5
 @export var required_surface_tags: Array[StringName] = []
 ## IMPACT (not built yet).
 @export var min_impact_speed_px: float = 0.0
+## Unit-state checks (ABILITIES AB12, the shared Condition resource): all
+## must pass after the tag filters above and before chance is rolled. Self =
+## the unit the effects come from (the rule's owner; for a world rule the
+## event's other unit); target = the effect target (effect_target); the cast
+## = the trigger's CastContext (ABILITY_CAST), else none.
+@export var conditions: Array[Condition] = []
 ## 0-1. For HIT it's multiplied by the hit's proc_coefficient, so DoT ticks
 ## and procs (coefficient 0) never trigger HIT rules.
 @export_range(0.0, 1.0) var chance: float = 1.0

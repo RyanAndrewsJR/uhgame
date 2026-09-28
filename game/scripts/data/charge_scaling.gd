@@ -13,9 +13,15 @@ extends Resource
 @export_range(0.0, 1.0) var min_fraction: float = 0.5
 ## x = charge 0-1, y = progress from min to full 0-1. null = linear.
 @export var curve: Curve
+## The named 0-1 input it reads (ABILITIES AB12; CastContext.inputs):
+## &"charge" (default: every AB6 charge-up is unchanged), &"self_missing_health",
+## &"target_missing_health", &"target_distance", or one a script sets. With
+## another input it's a named-input scaling ("stronger the more / less…"),
+## read by Ability.get_effect_param(); get_charged_param() reads only charge.
+@export var input: StringName = &"charge"
 
 
-## The multiplier on the full value at `charge` (0-1).
+## The multiplier on the full value at `charge` (0-1; the input's value).
 func get_multiplier(charge: float) -> float:
 	var t := clampf(charge, 0.0, 1.0)
 	if curve != null:

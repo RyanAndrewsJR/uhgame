@@ -169,6 +169,15 @@ const DAMAGE_NUMBER_STYLE_PATH := "res://data/damage_number_styles/damage_number
 ## Seconds (GameFeel.hitstop(): the longest running one wins).
 @export var hit_hitstop: float = 0.0
 
+@export_group("Conditions")
+## All must pass to start a cast (part 0; ABILITIES AB12). A failed press
+## fails with "condition", spends nothing and isn't buffered; the slot greys.
+@export var cast_conditions: Array[Condition] = []
+## All must pass to use the next recast part. Failing doesn't end the window.
+@export var recast_conditions: Array[Condition] = []
+## "Bonus if…": checked at the effect (get_effect_param(), HitPipeline).
+@export var conditional_bonuses: Array[ConditionalBonus] = []
+
 @export_group("Projectile")
 ## Read only by abilities that fire projectiles (Projectile.fire(); ABILITIES
 ## AB7). Range is cast_range. All scoped params ("+1 projectile" is an item).
@@ -309,17 +318,20 @@ func get_charged_param(caster: Unit, param: StringName, charge: float = -1.0) ->
 	return full * scaling.get_multiplier(charge)
 
 
-## The ChargeScaling for `param`, or null.
+## The charge ChargeScaling for `param` (input &"charge"), or null. Scalings
+## on other named inputs are read by get_effect_param() only (AB12).
 func get_charge_scaling(param: StringName) -> ChargeScaling:
 	for s in charge_scalings:
-		if s != null and s.param == param:
+		if s != null and s.param == param and s.input == &"charge":
 			return s
 	return null
 
 
 ## The scaling terms' damage against `target` (null = no target: the target
-## terms count 0), each ratio after scoped modifiers and at `charge`.
-func get_scaling_damage(caster: Unit, target: Node, charge: float = 1.0) -> float:
+## terms count 0), each ratio after scoped modifiers and at `charge`. With a
+## `cast` (AB12), each ratio is get_effect_param() for that target instead
+## (named inputs and conditional bonuses).
+func get_scaling_damage(caster: Unit, target: Node, charge: float = 1.0, cast: CastContext = null) -> float:
 	var total := 0.0
 	for term in scalings:
 		if term == null:
@@ -327,8 +339,105 @@ func get_scaling_damage(caster: Unit, target: Node, charge: float = 1.0) -> floa
 		if term.param in self:
 			push_error("Ability '%s': scaling param '%s' clashes with an @export" % [id, term.param])
 			continue
-		total += get_charged_param(caster, term.param, charge) * term.get_amount(caster, target)
+		var ratio := get_effect_param(caster, term.param, cast, target) if cast != null \
+			else get_charged_param(caster, term.param, charge)
+		total += ratio * term.get_amount(caster, target)
 	return total
+
+
+# --- Conditions (ABILITIES AB12) -------------------------------------------------
+
+## The script's one-off cast check, ANDed with cast_conditions (part 0) or
+## recast_conditions (later parts, ctx.part). True by default. Override for
+## logic data can't express (the escape hatch).
+func can_cast_custom(_caster: Unit, _ctx: CastContext) -> bool:
+	return true
+
+
+## The fail text when can_cast_custom() fails (later UI). "" by default.
+func get_custom_fail_text() -> String:
+	return ""
+
+
+## The conditions a press on `part` checks: cast_conditions for part 0,
+## recast_conditions for a later part.
+func get_conditions_for_part(part: int) -> Array[Condition]:
+	return cast_conditions if part == 0 else recast_conditions
+
+
+## True if a cast of this needs a condition target even when it doesn't pick
+## one (not UNIT): a TARGET_ condition, any conditional bonus, or a named
+## input scaling on target_distance. AbilityComponent then fills ctx.target
+## with the enemy nearest the aim within cast range.
+func needs_condition_target() -> bool:
+	if not conditional_bonuses.is_empty():
+		return true
+	if Condition.any_target_kind(cast_conditions) or Condition.any_target_kind(recast_conditions):
+		return true
+	for s in charge_scalings:
+		if s != null and s.input == &"target_distance":
+			return true
+	return false
+
+
+## The conditional bonuses whose conditions pass now for `target` (null =
+## the cast's target).
+func get_active_bonuses(caster: Unit, cast: CastContext, target: Node = null) -> Array[ConditionalBonus]:
+	var result: Array[ConditionalBonus] = []
+	if conditional_bonuses.is_empty():
+		return result
+	var t: Unit = target as Unit
+	if t == null and cast != null:
+		t = cast.target
+	for b in conditional_bonuses:
+		if b != null and b.is_active(caster, t, cast):
+			result.append(b)
+	return result
+
+
+## A param as the effect uses it (AB12): get_param() (scoped modifiers), times
+## each of its named-input scalings (ChargeScaling with any input, the value
+## from `cast`; target_missing_health from `target`), then every conditional
+## bonus that passes now for `target` (null = the cast's target), its
+## modifiers with the StatModifier formula. Never below 0. Without a cast,
+## named inputs count full (1), like a cast without a charge.
+func get_effect_param(caster: Unit, param: StringName, cast: CastContext, target: Node = null) -> float:
+	var value := get_param(caster, param)
+	var t: Unit = target as Unit
+	if t == null and cast != null:
+		t = cast.target
+	for s in charge_scalings:
+		if s != null and s.param == param:
+			value *= s.get_multiplier(_input_value(s.input, cast, t))
+	if conditional_bonuses.is_empty():
+		return value
+	var flat := 0.0
+	var percent_add := 0.0
+	var percent_mult := 1.0
+	for b in get_active_bonuses(caster, cast, t):
+		for mod in b.modifiers:
+			if mod == null or mod.stat != param:
+				continue
+			match mod.type:
+				StatModifier.Type.FLAT:
+					flat += mod.value
+				StatModifier.Type.PERCENT_ADD:
+					percent_add += mod.value
+				StatModifier.Type.PERCENT_MULT:
+					percent_mult *= 1.0 + mod.value
+	return maxf((value + flat) * (1.0 + percent_add) * percent_mult, 0.0)
+
+
+## A named input's value (0-1): target_missing_health from the target (0
+## with none); the others from the cast (full without a cast).
+func _input_value(input_name: StringName, cast: CastContext, target: Unit) -> float:
+	if input_name == &"target_missing_health":
+		if not is_instance_valid(target) or target.health == null or target.health.max_health <= 0.0:
+			return 0.0
+		return clampf(1.0 - target.health.current / target.health.max_health, 0.0, 1.0)
+	if cast == null:
+		return 1.0
+	return cast.get_input(input_name, 0.0)
 
 
 ## What a hit on `target` deals before damage_increase, crit and mitigation:
@@ -400,6 +509,11 @@ func _fill_template(caster: Unit, bbcode: bool) -> String:
 		out += _placeholder_text(caster, m.get_string(1), m.get_string(2) == "%", m.get_string(), bbcode)
 		last = m.get_end()
 	out += description.substr(last)
+	# One line per conditional bonus, always (AB12; "only while active" is an
+	# open question).
+	for b in conditional_bonuses:
+		if b != null and b.description != "":
+			out += "\n" + b.description
 	# One line per augment on this ability, and one per disabled one (AB8).
 	if is_instance_valid(caster) and caster.abilities != null:
 		for line in caster.abilities.get_augment_tooltip_lines(self):
