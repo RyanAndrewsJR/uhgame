@@ -92,7 +92,7 @@ Per ability; the defaults keep every Knight ability as it was.
 - The same augment from two sources doesn't stack; only one REPLACE per ability (a second is disabled and its tooltip says why). Ryan's picks.
 - Augments are read at cast start: removing one mid-cast doesn't change that cast.
 - Tooltips and indicators show the augmented ability.
-- Forms/stances *(proposed)*: one source can REPLACE several slots at once (League's Nidalee and Jayce, Diablo 4 Druid shapeshifts); the REPLACE mechanism supports multi-slot sets and a status that grants and removes them.
+- Forms/stances (AB9): one source can REPLACE several slots at once (League's Nidalee and Jayce, Diablo 4 Druid shapeshifts): a status tagged `form` holding several REPLACE augments grants them while active and removes them when it ends; one form at a time.
 
 ### New GameplayEffects (for augments, passives and items; each takes a source id)
 - `ModifyCooldownGameplayEffect`: reduce by seconds or percent, or reset (League kill resets, Diablo "cooldown reduced when…"). REDUCE_PERCENT is a percent of the remaining cooldown. RESET on a slot with charges finishes the current recharge (+1 charge), not a full refill. While a recast window is open (the cooldown hasn't started), it does nothing.
@@ -386,7 +386,7 @@ All take the usual `apply(target, source, trigger_ctx)`; the source id is the ru
 
 ### StatusEffect (additions, `res://scripts/data/status_effect.gd`)
 - `reaction_rules` (AB8, built): unit rules on the unit while the status is active, source `&"status_<id>"` (added in `_start()`, removed in `_stop()`). Typed `Array[Resource]` (ReactionRule resources): MovementComponent preloads status .tres files while scripts compile, and a `ReactionRule` type there pulled GameplayEffect and Unit into that preload cycle (found while building AB8). `StatusComponent.remove_statuses_with_tags(tags) -> int` (the cleanse) is built too.
-- `augments: Array[AbilityAugment]` (AB9): augments on the unit's AbilityComponent while active, source `&"status_<id>"`. A form is a status tagged `form` whose augments REPLACE several slots *(proposed)*.
+- `augments` (AB9, built): AbilityAugment resources on the unit's AbilityComponent while active, source `&"status_<id>"` (added in `_start()`, removed in `_stop()`; nothing on a unit without an AbilityComponent). Typed `Array[Resource]`, for the same preload cycle as `reaction_rules`. A REFRESH of the same status keeps its augments (no remove and re-add, so the slots don't flicker). A form is a status tagged `form` (`is_form()`) whose augments REPLACE several slots.
 - Empower fields (AB10); a status is an empower when `empower_consumed_by` isn't NONE (and it's tagged `empower`):
   - `empower_consumed_by: StatusEffect.EmpowerTrigger`: `NONE` (default), `BASIC_ATTACK_HIT` (the next swing that hits anything), `ABILITY_CAST` (the next ability cast that matches `empower_scope`)
   - `empower_scope: StringName` (`&""` = any ability; `ability:<id>` / `tag:<tag>`)
@@ -498,7 +498,7 @@ Signals (new): `charges_changed(slot, charges, max_charges)`, `charge_started(sl
 - REPLACE: the first active REPLACE for an ability (in the order added) wins; any other is disabled, with its reason for the tooltip (`get_disabled_augments(slot)`). Removing the winner activates the next one. The q / w / e / r exports never change (`get_base_ability(slot)`); `get_ability(slot)` is what a press casts: a recast sequence's ability while one is going, else the winning REPLACE variant, else the base. So per-slot state (charges, recharge timer) carries over, a running cast or charge-up finishes as the ability it started with (`_cast_ability`, `_charge_ability`), and the recast window stays with the ability that opened it. A walk-into-range cast whose slot now casts another ability is dropped.
 - Tooltips: `Ability.get_tooltip()` appends `get_augment_tooltip_lines(ability)`: one line per active augment on it, then "<line> (disabled: another replacement is active)" per disabled REPLACE.
 - Room for AB12: rule copies are full duplicates, so `ReactionRule.conditions` will ride along; an augment can later get its own `conditions` field without restructuring.
-- Forms *(proposed, AB9)*: a StatusEffect tagged `form` with several REPLACE augments; applying a `form` status removes any other `form` status on the unit (one form at a time).
+- Forms (AB9, built): a StatusEffect tagged `form` with several REPLACE augments (one per swapped ability); applying a `form` status that isn't already on removes any other `form` status on the unit first (StatusComponent; one form at a time). Everything else is REPLACE as above: the exports never change, cooldowns are per slot, a running cast keeps its ability.
 - `augments_changed(slot)` fires on every change, for the HUD and tooltips.
 
 ### Empowers (AB10)
@@ -558,6 +558,9 @@ Signals (new): `charges_changed(slot, charges, max_charges)`, `charge_started(sl
 | A REPLACE equipped while the slot is on cooldown | The slot's charges and recharge timer carry over; the variant is ready when the slot would have been. |
 | A REPLACE equipped mid-charge-up or mid-cast | The running cast or charge finishes as the old ability (snapshotted). The slot shows the variant afterwards. An open recast window stays with the old ability until it closes. |
 | A form swap mid-cast | Same as a REPLACE: the running cast keeps its ability; cooldowns are per slot, so they carry across forms (separate per-form cooldowns: Open questions). |
+| A second form applied | The first form is removed (its slots go back), then the new one's REPLACEs go on. A status that isn't a form never removes one. |
+| The same form re-applied | Its stack rule as usual; its augments stay on (a REFRESH doesn't remove and re-add them), so the slots and a pending walk-into-range cast are untouched. |
+| A form ends (runs out, removed, death) | Its augments go with it; the slots cast their own abilities again, with whatever cooldown was running. |
 | Cost paid, then the cast interrupted | Refunded (Rules, Casting). Even if that pushes the pool above what it was (regen meanwhile), it's clamped to max. |
 | Resource drained during a cast or charge-up | Nothing: the cost was paid at the start. |
 | A charge-up released during a swing, dash or stun | Can't happen as such: charging holds the attack lock (no swing starts); a dash either cancels the charge (`dash_cancelable`, refunded) or waits (buffered) until after the release; a stun interrupts the charge at once (refunded). A release after a cancel or interrupt is ignored. |
@@ -617,8 +620,9 @@ Every step: with no cast style changes, scalings beyond today's, costs, charges,
 8. **AB8 – Augments and the new GameplayEffects.** `AbilityAugment` (FLAG, EVENT, REPLACE), `supported_flags`, `variant_of`, `Events.ability_cast`, the ABILITY_CAST trigger, `required_ability_scope`, free casts (at once; ABILITY_CAST at the effect start), `StatusEffect.reaction_rules`; `ModifyCooldown`, `RestoreResource`, `CastAbility`, `RemoveStatusesByTag`. A fake item test like STATS': equipping changes behavior, unequipping restores exactly.
    **Done means:** the test covers each kind, the duplicate and second-REPLACE rules, a mid-cast removal, an unsupported flag, ABILITY_CAST at the effect start (none for a stunned cast, so no restore), a free cast during another cast's cast time (no interruption, no cost), a chain stopping at its limit, and each effect. In play nothing changes (no augments are given).
    AB8 built 2026-09-27, see CHANGELOG.md.
-9. **AB9 – Forms** *(proposed)*: `StatusEffect.augments`, one `form` status at a time, multi-slot REPLACE from one status.
+9. **AB9 – Forms**: `StatusEffect.augments`, one `form` status at a time, multi-slot REPLACE from one status.
    **Done means:** a test form status swaps Q and E, removing it restores them, and cooldowns carry across.
+   AB9 built 2026-09-27, see CHANGELOG.md.
 10. **AB10 – Empowers, unstoppable, untargetable.** The `empower_*` fields, the `empowered` hit tag, Iron Resolve through the `add_next_attack_modifier()` wrapper; `unstoppable` (cc immunity and removal, no knockback from hits), `untargetable` (`is_targetable()`), the cleanse.
     **Done means:** Iron Resolve plays exactly as before (the same bonus, crit with the swing, slow and feel on every enemy the swing hits); the same empower applied from a fake passive source (`passive_test`) works the same; an ability empower is consumed by the next matching cast only; unstoppable removes a stun and blocks slows and knockback; an untargetable dummy can't be Judgement's target.
 11. **AB11 – The Knight's 4 abilities rebuilt from toolkit pieces only.** This replaces working code: plan it and ask Ryan before doing it.
@@ -646,7 +650,7 @@ Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modi
 - Can a recast part be dash-cancelled separately?
 - Resource-type rhythms (energy regen rate, fury decay out of combat): here or CHAMPIONS.md?
 - Charge-up and the input buffer: a press buffered during a swing or dash whose key is already released when it fires: a tap (charge 0), or dropped? *(proposed: a tap)*
-- Forms: shared per-slot cooldowns (today's proposal) or separate cooldowns per form (Jayce)?
+- Forms: shared per-slot cooldowns (built in AB9) or separate cooldowns per form (Jayce)?
 - The "on end" augment event (`ability_finished`): when something needs it.
 - Does `KnockbackGameplayEffect` count as knockback that unstoppable blocks? *(proposed: yes)*
 - Conditions: will we ever need OR, or do scripts cover it?

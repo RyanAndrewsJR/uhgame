@@ -39,6 +39,14 @@ enum StackRule {
 ## ReactionRule type here would pull GameplayEffect and Unit into that cycle.
 @export var reaction_rules: Array[Resource] = []
 
+@export_group("Augments")
+## AbilityAugment resources on the unit's AbilityComponent while this status is
+## active, under get_source_id() (ABILITIES AB9). A form is a status tagged
+## &"form" whose REPLACE augments swap several slots at once; applying one
+## removes any other form. Typed as Resource for the same preload cycle as
+## reaction_rules.
+@export var augments: Array[Resource] = []
+
 @export_group("Blocks")
 @export var blocks_move: bool = false
 ## Also cancels an attack windup or a combo swing when applied.
@@ -84,6 +92,11 @@ func get_source_id() -> StringName:
 ## Crowd control: tenacity shortens it.
 func is_cc() -> bool:
 	return tags.has(&"cc")
+
+
+## A form (ABILITIES AB9): one at a time per unit.
+func is_form() -> bool:
+	return tags.has(&"form")
 
 
 func is_shield() -> bool:

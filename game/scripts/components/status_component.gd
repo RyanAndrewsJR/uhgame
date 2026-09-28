@@ -4,9 +4,10 @@ extends Node
 ## hastes, damage over time. A child of the Unit (Unit.status_component).
 ##
 ## Applying one adds its StatModifiers (source &"status_<id>"), its move and
-## attack locks (lock id = the status id), its VFX, and starts its timer and
-## DoT ticks. Removing it (timer, remove_status(), death) takes all of that
-## back. Timers run in game time (_physics_process), so they follow hitstop
+## attack locks (lock id = the status id), its VFX, its reaction rules and
+## augments (ABILITIES AB8, AB9), and starts its timer and DoT ticks. Removing
+## it (timer, remove_status(), death) takes all of that back. A form (tagged
+## &"form") removes any other form first: one at a time. Timers run in game time (_physics_process), so they follow hitstop
 ## and pausing.
 ##
 ## Re-applying follows the status's stack_rule. Tenacity shortens &"cc"
@@ -75,6 +76,8 @@ func apply_status(effect: StatusEffect, source: Unit = null, duration_override: 
 		return false
 	var active: ActiveStatus = _active.get(effect.id)
 	if active == null:
+		if effect.is_form():
+			_remove_other_forms(effect.id)   # one form at a time (ABILITIES AB9)
 		active = ActiveStatus.new()
 		active.stack_times.append(duration)
 		active.stack_shields.append(effect.shield_amount)
@@ -90,10 +93,12 @@ func apply_status(effect: StatusEffect, source: Unit = null, duration_override: 
 					active.stack_times[0] = duration
 				active.stack_shields[0] = maxf(active.stack_shields[0], effect.shield_amount)   # the bigger shield
 			StatusEffect.StackRule.REFRESH:
-				_stop(active)
+				# The same status refreshed keeps its augments: its slots don't flicker.
+				var same := active.effect == effect
+				_stop(active, same)
 				active.stack_times = [duration]
 				active.stack_shields = [effect.shield_amount]
-				_start(active, effect, source)
+				_start(active, effect, source, same)
 			StatusEffect.StackRule.STACK:
 				if active.stack_times.size() < maxi(active.effect.max_stacks, 1):
 					active.stack_times.append(duration)
@@ -310,8 +315,9 @@ func _physics_process(delta: float) -> void:
 
 # --- Internals ----------------------------------------------------------------
 
-## Adds what the status gives: modifiers, locks, VFX, DoT snapshot.
-func _start(active: ActiveStatus, effect: StatusEffect, source: Unit) -> void:
+## Adds what the status gives: modifiers, locks, VFX, DoT snapshot, rules,
+## augments (kept_augments: they're still on from a refresh).
+func _start(active: ActiveStatus, effect: StatusEffect, source: Unit, kept_augments: bool = false) -> void:
 	active.effect = effect
 	active.source = source
 	active.tick_amount = _snapshot_tick(effect, source)
@@ -327,10 +333,14 @@ func _start(active: ActiveStatus, effect: StatusEffect, source: Unit) -> void:
 	for rule in effect.reaction_rules:   # ABILITIES AB8
 		if rule is ReactionRule:
 			unit.add_reaction_rule(rule, effect.get_source_id())
+	if not kept_augments and not effect.augments.is_empty() and unit.abilities != null:   # ABILITIES AB9
+		for augment in effect.augments:
+			if augment is AbilityAugment:
+				unit.abilities.add_augment(augment, effect.get_source_id())
 
 
-## Takes back what _start() added.
-func _stop(active: ActiveStatus) -> void:
+## Takes back what _start() added (keep_augments: a refresh of the same status).
+func _stop(active: ActiveStatus, keep_augments: bool = false) -> void:
 	var effect := active.effect
 	if is_instance_valid(unit) and unit.stats_component != null:
 		unit.stats_component.remove_modifiers_from(effect.get_source_id())
@@ -341,9 +351,19 @@ func _stop(active: ActiveStatus) -> void:
 			unit.attack.remove_lock(effect.id)
 		if not effect.reaction_rules.is_empty():
 			unit.remove_reaction_rules_from(effect.get_source_id())
+		if not keep_augments and not effect.augments.is_empty() and is_instance_valid(unit.abilities):
+			unit.abilities.remove_augments_from(effect.get_source_id())
 	if is_instance_valid(active.vfx):
 		active.vfx.queue_free()
 	active.vfx = null
+
+
+## Removes every form except `keep_id` (applying a form; ABILITIES AB9).
+func _remove_other_forms(keep_id: StringName) -> void:
+	for id: StringName in _active.keys():
+		var active: ActiveStatus = _active.get(id)
+		if active != null and id != keep_id and active.effect.is_form():
+			remove_status(id)
 
 
 ## The status's modifiers, once per stack, under its source id.

@@ -114,6 +114,7 @@ func _ready() -> void:
 	await _test_gameplay_effects()
 	await _test_free_casts()
 	await _test_fake_item()
+	await _test_forms()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).
@@ -1947,6 +1948,133 @@ func _test_fake_item() -> void:
 	ab.remove_augments_from(item.source)
 	_check("unequipped: everything exactly as before", snapshot.call(), before)
 	ab.q = original_q
+
+
+# --- AB9 ------------------------------------------------------------------------
+
+## A form status: tagged form, until removed, refreshed on re-apply.
+func _form(id: StringName, augments: Array[Resource]) -> StatusEffect:
+	var s := StatusEffect.new()
+	s.id = id
+	s.tags = [&"form", &"buff"]
+	s.duration = -1.0
+	s.stack_rule = StatusEffect.StackRule.REFRESH
+	s.augments = augments
+	return s
+
+
+func _test_forms() -> void:
+	_section("AB9: forms")
+	var ab := knight.abilities
+	var statuses := knight.status_component
+	var original_q: Ability = await _setup_strike()
+	var original_e := ab.e
+	ab.e = LUNGE
+	var q_variant: Ability = BOLT.duplicate()
+	q_variant.id = &"test_form_bolt"
+	q_variant.variant_of = &"test_strike"
+	var e_variant: Ability = STRIKE.duplicate()
+	e_variant.id = &"test_form_strike"
+	e_variant.variant_of = LUNGE.id
+	var swap_q := _augment(&"test_form_q", AbilityAugment.Kind.REPLACE, &"ability:test_strike")
+	swap_q.replacement = q_variant
+	var swap_e := _augment(&"test_form_e", AbilityAugment.Kind.REPLACE, StringName("ability:" + LUNGE.id))
+	swap_e.replacement = e_variant
+	var form := _form(&"test_form_a", [swap_q, swap_e])
+	var dummy := _dummy_at(Vector2(100, 0))
+	dummy.stats_component.add_modifier(StatModifier.create(&"max_health", StatModifier.Type.FLAT, 3000.0, &"test_tough"))
+	var changes := [0]
+	var on_changed := func(_slot: StringName) -> void: changes[0] += 1
+	ab.augments_changed.connect(on_changed)
+	var w_before := ab.get_ability(&"w")
+	var r_before := ab.get_ability(&"r")
+
+	statuses.apply_status(form, knight)
+	_check("a form swaps Q and E; W, R and the q / e exports are unchanged",
+		[ab.get_ability(&"q") == q_variant, ab.get_ability(&"e") == e_variant, ab.get_ability(&"w") == w_before,
+			ab.get_ability(&"r") == r_before, ab.q == STRIKE, ab.e == LUNGE],
+		[true, true, true, true, true, true])
+	_check("the slots report the change, and the form's augments are on Q and E",
+		[changes[0] > 0, ab.get_augments(&"q").has(swap_q), ab.get_augments(&"e").has(swap_e)], [true, true, true])
+
+	# Cooldowns are per slot: they carry across.
+	ab.try_cast(&"q", dummy.global_position)
+	await _wait_until(func() -> bool: return not _projectiles().is_empty(), 20)
+	_check("in the form, Q fires the bolt", _projectiles().size(), 1)
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	var left := ab.get_cooldown_left(&"q")
+	statuses.remove_status(&"test_form_a")
+	_check("removing the form restores Q and E exactly",
+		[ab.get_ability(&"q") == STRIKE, ab.get_ability(&"e") == LUNGE, ab.get_augments(&"q").is_empty(), ab.get_augments(&"e").is_empty()],
+		[true, true, true, true])
+	_check("the cooldown carries across: the strike waits for the same time", [left > 0.0, ab.is_ready(&"q"), ab.get_cooldown_left(&"q") == left],
+		[true, false, true])
+	statuses.apply_status(form, knight)
+	_check("and back into the form: still the same cooldown", [ab.get_ability(&"q") == q_variant, ab.get_cooldown_left(&"q") == left], [true, true])
+	await _wait_until(func() -> bool: return _projectiles().is_empty(), 60)
+
+	# One form at a time.
+	var other_q: Ability = STRIKE.duplicate()
+	other_q.id = &"test_form_other"
+	other_q.variant_of = &"test_strike"
+	var swap_q_b := _augment(&"test_form_b_q", AbilityAugment.Kind.REPLACE, &"ability:test_strike")
+	swap_q_b.replacement = other_q
+	var form_b := _form(&"test_form_b", [swap_q_b])
+	statuses.apply_status(form_b, knight)
+	_check("applying another form removes the first",
+		[statuses.has_status(&"test_form_a"), statuses.has_status(&"test_form_b"), ab.get_ability(&"q") == other_q, ab.get_ability(&"e") == LUNGE],
+		[false, true, true, true])
+	_check("no REPLACE of the old form is left (none disabled)", ab.get_disabled_augments(&"q").size(), 0)
+	statuses.apply_status(STATUS_SLOW, knight, 0.5)
+	_check("a status that isn't a form leaves the form on", [statuses.has_status(&"test_form_b"), ab.get_ability(&"q") == other_q], [true, true])
+	statuses.remove_status(STATUS_SLOW.id)
+	statuses.remove_status(&"test_form_b")
+
+	# Re-applying the same form refreshes it without a flicker.
+	statuses.apply_status(form, knight)
+	changes[0] = 0
+	statuses.apply_status(form, knight)
+	_check("re-applying the same form: still on, the slots never changed", [ab.get_ability(&"q") == q_variant, changes[0]], [true, 0])
+	statuses.remove_status(&"test_form_a")
+	_check("then removing it once restores everything", [ab.get_ability(&"q") == STRIKE, ab.get_ability(&"e") == LUNGE], [true, true])
+
+	# A form that runs out, and one cleared (death clears every status).
+	statuses.apply_status(form, knight, 0.2)
+	await _frames(20)
+	_check("a form that runs out restores the slots",
+		[statuses.has_status(&"test_form_a"), ab.get_ability(&"q") == STRIKE, ab.get_ability(&"e") == LUNGE], [false, true, true])
+	statuses.apply_status(form, knight)
+	statuses.clear()
+	_check("clearing statuses (death) restores the slots", [ab.get_ability(&"q") == STRIKE, ab.get_ability(&"e") == LUNGE], [true, true])
+
+	# A form applied mid-cast: that cast finishes as the strike.
+	var hits: Array[HitContext] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.ability != null and ctx.source == knight:
+			hits.append(ctx)
+	Events.unit_hit.connect(on_hit)
+	ab.reset_cooldown(&"q")
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 200)
+	ab.try_cast(&"q", dummy.global_position)
+	await _frames(3)
+	statuses.apply_status(form, knight)
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	await _frames(1)
+	_check("a form applied mid-cast: that cast finishes as the strike (no bolt)",
+		[hits.size(), hits[0].ability == STRIKE if hits.size() > 0 else false, _projectiles().size()], [1, true, 0])
+	_check("and the slot shows the form's ability after", ab.get_ability(&"q") == q_variant, true)
+	Events.unit_hit.disconnect(on_hit)
+	statuses.remove_status(&"test_form_a")
+
+	# A unit without an AbilityComponent can carry a form (nothing to swap).
+	_check("a unit without abilities takes a form without an error", [dummy.abilities == null, dummy.status_component.apply_status(form)], [true, true])
+	dummy.status_component.remove_status(&"test_form_a")
+
+	ab.augments_changed.disconnect(on_changed)
+	dummy.queue_free()
+	await _frames(20)
+	ab.q = original_q
+	ab.e = original_e
 
 
 func _wall_at(pos: Vector2, size: Vector2) -> StaticBody2D:
