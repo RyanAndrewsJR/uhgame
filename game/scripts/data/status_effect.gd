@@ -13,6 +13,13 @@ enum StackRule {
 	IGNORE,          ## Nothing happens while it's active.
 }
 
+## What uses up an empower (ABILITIES AB10). NONE = not an empower.
+enum EmpowerTrigger {
+	NONE,
+	BASIC_ATTACK_HIT,  ## The next basic attack swing that hits anything.
+	ABILITY_CAST,      ## The next ability cast (started by the player or the AI; not a free cast) matching empower_scope.
+}
+
 ## &"stun". Its StatModifiers use the source id &"status_stun"
 ## (get_source_id()), and its move / attack locks use the id itself.
 @export var id: StringName = &""
@@ -46,6 +53,22 @@ enum StackRule {
 ## removes any other form. Typed as Resource for the same preload cycle as
 ## reaction_rules.
 @export var augments: Array[Resource] = []
+
+@export_group("Empower")
+## "Your next attack / next ability" (ABILITIES AB10). Tag it &"empower" too.
+## Used up (removed) by the first swing that hits anything, or by the next
+## matching cast's effect start; its bonus goes into every hit of that swing
+## or cast (so it crits with the hit).
+@export var empower_consumed_by: EmpowerTrigger = EmpowerTrigger.NONE
+## ABILITY_CAST only: &"" = any ability; &"ability:<id>" / &"tag:<tag>".
+@export var empower_scope: StringName = &""
+@export var empower_base_damage: float = 0.0
+## Of the attacker's attack_damage at the hit.
+@export var empower_ad_ratio: float = 0.0
+## Applied to every enemy the swing or cast hits (through HitContext.statuses).
+## StatusEffect resources, typed as Resource: a typed array of its own class
+## made the script reference itself (a leak reported at exit).
+@export var empower_statuses: Array[Resource] = []
 
 @export_group("Blocks")
 @export var blocks_move: bool = false
@@ -92,6 +115,11 @@ func get_source_id() -> StringName:
 ## Crowd control: tenacity shortens it.
 func is_cc() -> bool:
 	return tags.has(&"cc")
+
+
+## An empower (ABILITIES AB10): something uses it up.
+func is_empower() -> bool:
+	return empower_consumed_by != EmpowerTrigger.NONE
 
 
 ## A form (ABILITIES AB9): one at a time per unit.

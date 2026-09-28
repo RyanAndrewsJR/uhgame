@@ -337,7 +337,7 @@ func _enemy_under_point(point: Vector2) -> Unit:
 	var best_d := INF
 	for node in get_tree().get_nodes_in_group("units"):
 		var u := node as Unit
-		if u == null or not u.is_alive() or not is_enemy_of(u):
+		if u == null or not u.is_targetable() or not is_enemy_of(u):   # untargetable: not picked (ABILITIES AB10)
 			continue
 		if u.contains_point(point):
 			var d := point.distance_to(u.get_center())

@@ -7,7 +7,10 @@ extends Node
 ## attack locks (lock id = the status id), its VFX, its reaction rules and
 ## augments (ABILITIES AB8, AB9), and starts its timer and DoT ticks. Removing
 ## it (timer, remove_status(), death) takes all of that back. A form (tagged
-## &"form") removes any other form first: one at a time. Timers run in game time (_physics_process), so they follow hitstop
+## &"form") removes any other form first: one at a time. While the unit is
+## &"unstoppable", new &"cc" statuses are refused (and applying unstoppable
+## removes them); while it's &"untargetable", statuses from other units are
+## refused (ABILITIES AB10). Empowers are statuses too (get_empowers()). Timers run in game time (_physics_process), so they follow hitstop
 ## and pausing.
 ##
 ## Re-applying follows the status's stack_rule. Tenacity shortens &"cc"
@@ -74,6 +77,14 @@ func apply_status(effect: StatusEffect, source: Unit = null, duration_override: 
 		duration *= 1.0 - _get_tenacity()
 	if duration >= 0.0 and duration <= EPSILON:
 		return false
+	# ABILITIES AB10: unstoppable refuses new cc; untargetable refuses statuses
+	# from other units (the environment and the unit itself still apply them).
+	if effect.is_cc() and has_tag(&"unstoppable"):
+		return false
+	if is_instance_valid(source) and source != unit and has_tag(&"untargetable"):
+		return false
+	if effect.tags.has(&"unstoppable"):
+		remove_statuses_with_tags([&"cc"])   # applying unstoppable ends every cc at once
 	var active: ActiveStatus = _active.get(effect.id)
 	if active == null:
 		if effect.is_form():
@@ -171,6 +182,16 @@ func get_tags() -> Array[StringName]:
 		for t in active.effect.tags:
 			if not result.has(t):
 				result.append(t)
+	return result
+
+
+## The active empowers used up by `trigger`, in the order applied
+## (ABILITIES AB10).
+func get_empowers(trigger: StatusEffect.EmpowerTrigger) -> Array[StatusEffect]:
+	var result: Array[StatusEffect] = []
+	for active: ActiveStatus in _active.values():
+		if active.effect.empower_consumed_by == trigger and trigger != StatusEffect.EmpowerTrigger.NONE:
+			result.append(active.effect)
 	return result
 
 

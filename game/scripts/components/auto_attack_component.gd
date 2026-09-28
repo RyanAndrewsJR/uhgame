@@ -109,8 +109,12 @@ var _attack_moving: bool = false
 var _attack_move_point: Vector2
 var _locks: Dictionary = {}        # e.g. casting an ability
 ## Bonuses applied to the next attack that lands, then removed.
-## id -> {bonus_damage, on_hit: Callable, time_left}
+## id -> {bonus_damage, on_hit: Callable, time_left}. Since ABILITIES AB10
+## only used by a unit without a StatusComponent (empowers are statuses).
 var _next_attack_mods: Dictionary = {}
+## add_next_attack_modifier()'s on_hit per empower status id, called per
+## target when that empower is used up (AB10).
+var _empower_callbacks: Dictionary = {}
 
 # Combo mode
 var _swing: AttackSwing                # the swing playing out, or null
@@ -360,16 +364,69 @@ func reset_attack_timer() -> void:
 
 ## Empower the next auto-attack (e.g. "your next attack deals +50 damage and
 ## slows"). on_hit receives the target. duration < 0 = until used.
+## A thin wrapper (ABILITIES AB10): it applies an empower status
+## &"empower_<id>" (tags empower + buff, BASIC_ATTACK_HIT, the bonus as
+## empower_base_damage, refreshed by a new call) and calls on_hit per enemy
+## the swing hits when it's used up. Without a StatusComponent, the old path.
 func add_next_attack_modifier(id: StringName, bonus_damage: float, on_hit: Callable = Callable(), duration: float = -1.0) -> void:
-	_next_attack_mods[id] = {"bonus_damage": bonus_damage, "on_hit": on_hit, "time_left": duration}
+	var statuses := unit.status_component
+	if statuses == null:
+		_next_attack_mods[id] = {"bonus_damage": bonus_damage, "on_hit": on_hit, "time_left": duration}
+		return
+	var effect := StatusEffect.new()
+	effect.id = get_empower_status_id(id)
+	effect.display_name = String(id)
+	effect.tags = [&"empower", &"buff"]
+	effect.duration = duration if duration >= 0.0 else -1.0
+	effect.stack_rule = StatusEffect.StackRule.REFRESH   # a new call replaces it, as before
+	effect.empower_consumed_by = StatusEffect.EmpowerTrigger.BASIC_ATTACK_HIT
+	effect.empower_base_damage = bonus_damage
+	if not statuses.status_removed.is_connected(_on_status_removed):
+		statuses.status_removed.connect(_on_status_removed)
+	if statuses.apply_status(effect, unit):
+		if on_hit.is_valid():
+			_empower_callbacks[effect.id] = on_hit
+		else:
+			_empower_callbacks.erase(effect.id)
 
 
 func has_next_attack_modifier(id: StringName) -> bool:
-	return _next_attack_mods.has(id)
+	if _next_attack_mods.has(id):
+		return true
+	return unit.status_component != null and unit.status_component.has_status(get_empower_status_id(id))
 
 
+## The next swing that hits has a bonus (any basic attack empower).
 func is_empowered() -> bool:
-	return not _next_attack_mods.is_empty()
+	return not _next_attack_mods.is_empty() or not _get_basic_attack_empowers().is_empty()
+
+
+## The status id add_next_attack_modifier(id) uses: &"empower_<id>" (so it
+## never replaces another status with the same id, like Iron Resolve's haste).
+static func get_empower_status_id(id: StringName) -> StringName:
+	return StringName("empower_" + id)
+
+
+func _get_basic_attack_empowers() -> Array[StatusEffect]:
+	if unit.status_component == null:
+		return []
+	return unit.status_component.get_empowers(StatusEffect.EmpowerTrigger.BASIC_ATTACK_HIT)
+
+
+## Removes `empowers` (used up by the swing landing) and returns their
+## on_hit callbacks.
+func _use_up_empowers(empowers: Array[StatusEffect]) -> Array[Callable]:
+	var on_hits: Array[Callable] = []
+	for e in empowers:
+		var f: Callable = _empower_callbacks.get(e.id, Callable())
+		if f.is_valid():
+			on_hits.append(f)
+		unit.status_component.remove_status(e.id)
+	return on_hits
+
+
+func _on_status_removed(effect: StatusEffect) -> void:
+	_empower_callbacks.erase(effect.id)
 
 
 ## A lock (stun, casting) stops attacking: it interrupts a windup and
@@ -581,8 +638,8 @@ func _on_debug_node_draw() -> void:
 
 
 ## The hit moment: every enemy in the arc (with hit forgiveness) takes a
-## basic attack hit. The next-attack modifiers (Iron Resolve) are used up by
-## the first swing that hits anything, and apply to every enemy it hits.
+## basic attack hit. Basic attack empowers (Iron Resolve's, AB10) are used up
+## by the first swing that hits anything, and apply to every enemy it hits.
 func _land_swing() -> void:
 	_swing_landed = true
 	var forgiveness := 1.0 + combo.hit_forgiveness
@@ -592,13 +649,15 @@ func _land_swing() -> void:
 		AbilityUtil.in_cone(unit, unit.global_position, _swing_direction, reach, half_arc))   # no hits through walls
 	var bonus := 0.0
 	var on_hits: Array[Callable] = []
-	var empowered := not targets.is_empty() and not _next_attack_mods.is_empty()
+	var empowers := _get_basic_attack_empowers()   # read at the hit moment (AB10)
+	var empowered := not targets.is_empty() and (not _next_attack_mods.is_empty() or not empowers.is_empty())
 	if empowered:
 		for mod in _next_attack_mods.values():
 			bonus += mod.bonus_damage
 			if mod.on_hit.is_valid():
 				on_hits.append(mod.on_hit)
 		_next_attack_mods.clear()
+		on_hits.append_array(_use_up_empowers(empowers))   # used up before the hits resolve
 	var crit_roll := HitContext.CritRoll.new()   # one crit roll per swing
 	for t in targets:
 		var ctx := HitPipeline.basic_attack(unit, t, _swing)
@@ -606,6 +665,8 @@ func _land_swing() -> void:
 		if _is_dash_strike:
 			ctx.add_tag(&"dash_strike")   # hit:dash_strike bonuses, reaction rules (C12)
 		ctx.base_damage += bonus
+		if empowered:
+			HitPipeline.add_empowers(ctx, empowers)
 		ctx.highlight = empowered
 		HitPipeline.resolve(ctx)
 		if not ctx.blocked:
@@ -657,16 +718,27 @@ func _land_attack() -> void:
 	if not is_in_range(hit) or not WorldQuery.has_line_of_sight(unit.global_position, hit.global_position):
 		attack_whiffed.emit(hit)   # Out of reach, or a wall in between: a miss.
 		return
-	var dmg := unit.stats_component.get_stat(&"attack_damage")
+	var ad := unit.stats_component.get_stat(&"attack_damage")
+	var dmg := ad
 	var on_hits: Array[Callable] = []
 	for mod in _next_attack_mods.values():
 		dmg += mod.bonus_damage
 		if mod.on_hit.is_valid():
 			on_hits.append(mod.on_hit)
-	var empowered := not _next_attack_mods.is_empty()
+	var empowers := _get_basic_attack_empowers()   # AB10: the same empowers as a swing
+	for e in empowers:
+		dmg += e.empower_base_damage + e.empower_ad_ratio * ad
+	var empowered := not _next_attack_mods.is_empty() or not empowers.is_empty()
 	_next_attack_mods.clear()
+	on_hits.append_array(_use_up_empowers(empowers))
 	attack_landed.emit(hit, dmg)
 	var ctx := hit.make_hit_context(dmg, unit, empowered)
+	if not empowers.is_empty():
+		ctx.add_tag(&"empowered")
+		for e in empowers:
+			for s in e.empower_statuses:
+				if s is StatusEffect:
+					ctx.statuses.append(s)
 	ctx.add_tag(&"basic_attack")   # on-hit and hit:basic_attack scopes (C8); enemies have none yet
 	ctx.knockback_px = hit_knockback_px
 	ctx.knockback_duration = hit_knockback_duration
@@ -725,7 +797,7 @@ func _approach_point() -> Vector2:
 
 
 func _is_valid_target(t: Unit) -> bool:
-	return t != null and is_instance_valid(t) and t.is_alive() and unit.is_enemy_of(t)
+	return t != null and is_instance_valid(t) and t.is_targetable() and unit.is_enemy_of(t)   # untargetable: dropped (AB10)
 
 
 func _find_attack_move_target() -> Unit:

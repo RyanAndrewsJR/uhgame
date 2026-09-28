@@ -109,6 +109,24 @@ func has_invulnerability(id: StringName) -> bool:
 	return _invulnerable.has(id)
 
 
+## Can be chosen as a target: alive and not &"untargetable" (ABILITIES AB10).
+## Unit-targeted casts, the target picks, AbilityUtil.enemies_of(), enemy
+## aggro and attack targets check it.
+func is_targetable() -> bool:
+	return _alive and not is_untargetable()
+
+
+## A status tagged &"untargetable": new hits and statuses from other units
+## are blocked; damage over time already applied keeps ticking (AB10).
+func is_untargetable() -> bool:
+	return status_component != null and status_component.has_tag(&"untargetable")
+
+
+## A status tagged &"unstoppable": no new cc, no knockback (AB10).
+func is_unstoppable() -> bool:
+	return status_component != null and status_component.has_tag(&"unstoppable")
+
+
 func is_enemy_of(other: Unit) -> bool:
 	return other != null and other.team != team
 
@@ -169,6 +187,9 @@ func on_hit(ctx: HitContext) -> void:
 	if not _alive or is_invulnerable():
 		ctx.blocked = true
 		return
+	if is_untargetable() and not ctx.has_tag(&"dot"):   # a DoT already applied keeps ticking (AB10)
+		ctx.blocked = true
+		return
 	ctx.target = self
 	ctx.target_tags = get_status_tags()   # before the hit (reaction rules, C11)
 	ctx.taken_damage = HitPipeline.mitigate(ctx.raw_damage, ctx.damage_type, stats_component) \
@@ -184,7 +205,7 @@ func on_hit(ctx: HitContext) -> void:
 	damaged.emit(ctx.taken_damage, ctx.source)
 	_spawn_hit_number(ctx)
 	_flash()
-	if ctx.knockback_px > 0.0 and _alive:
+	if ctx.knockback_px > 0.0 and _alive and not is_unstoppable():   # unstoppable: the hit lands, no knockback (AB10)
 		_apply_knockback(ctx)
 	if _alive and status_component:   # statuses after the damage (COMBAT C9)
 		for effect in ctx.statuses:
@@ -320,7 +341,7 @@ func heal(amount: float) -> float:
 ## Hitbox overlaps go through the hit pipeline too (no scene has a Hitbox
 ## yet). Hitbox.knockback is a push speed held for HURTBOX_KNOCKBACK_TIME.
 func _on_hurtbox_hurt(hitbox: Hitbox) -> void:
-	if is_invulnerable():
+	if is_invulnerable() or is_untargetable():
 		return
 	var source := hitbox.owner as Unit
 	if source and not source.is_enemy_of(self):

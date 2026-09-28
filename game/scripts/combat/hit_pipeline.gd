@@ -50,6 +50,7 @@ static func from_ability(caster: Unit, ability: Ability, target: Node, cast: Cas
 	ctx.ap_ratio = ability.get_charged_param(caster, &"ap_ratio", charge)
 	if cast != null:
 		ctx.chain_depth = cast.chain_depth   # a free cast's hits count one link deeper (AB8)
+		add_empowers(ctx, cast.empowers)   # the empowers this cast used up (AB10)
 	ctx.damage_type = ability.damage_type
 	ctx.proc_coefficient = ability.proc_coefficient
 	ctx.hit_sound = ability.hit_sound   # AUDIO.md: CombatSounds plays it once per cast
@@ -57,6 +58,24 @@ static func from_ability(caster: Unit, ability: Ability, target: Node, cast: Cas
 	for t in ability.tags:   # the ability's own tags (STATS step 6)
 		ctx.add_tag(t)
 	return ctx
+
+
+## Adds empowers (ABILITIES AB10) to a hit before resolve(): each one's
+## empower_base_damage joins base_damage (so it crits with the hit), its
+## empower_ad_ratio joins ad_ratio (the attacker's AD at the hit), its
+## empower_statuses join the hit's statuses; the hit is tagged &"empowered"
+## and highlighted. Nothing for an empty list.
+static func add_empowers(ctx: HitContext, empowers: Array[StatusEffect]) -> void:
+	if empowers.is_empty():
+		return
+	for e in empowers:
+		ctx.base_damage += e.empower_base_damage
+		ctx.ad_ratio += e.empower_ad_ratio
+		for s in e.empower_statuses:
+			if s is StatusEffect:
+				ctx.statuses.append(s)
+	ctx.add_tag(&"empowered")
+	ctx.highlight = true
 
 
 ## A basic attack swing's hit: ad_ratio x attack_damage, PHYSICAL, the

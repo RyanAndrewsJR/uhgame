@@ -10,6 +10,8 @@ extends GameplayEffect
 func apply(target: Unit, source: Unit, _trigger_ctx: RefCounted) -> void:
 	if not is_instance_valid(target) or not target.is_alive() or not is_instance_valid(source) or source == target:
 		return
+	if target.is_unstoppable():   # knockback from another unit's rule (ABILITIES AB10)
+		return
 	var dir := (target.global_position - source.global_position).normalized()
 	if dir == Vector2.ZERO:
 		return

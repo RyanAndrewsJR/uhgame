@@ -15,6 +15,10 @@ var source_id: StringName = &""
 ## The reaction chain depth a free cast counts at (its ability_cast event and
 ## its hits); 0 for a slot cast.
 var chain_depth: int = 0
+## The ABILITY_CAST empowers this cast used up at its effect start (AB10);
+## HitPipeline.from_ability(…, cast) adds them to every hit. Always empty for
+## a free cast (free casts don't use up empowers).
+var empowers: Array[StatusEffect] = []
 ## Recast part: 0 = the first cast, 1 = the first recast... (ABILITIES AB5).
 var part: int = 0
 ## CHARGE_UP: how charged it was at release, 0 (a tap) to 1 (full). Every

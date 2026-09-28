@@ -115,6 +115,11 @@ func _ready() -> void:
 	await _test_free_casts()
 	await _test_fake_item()
 	await _test_forms()
+	await _test_empower_basic_attack()
+	await _test_empower_abilities()
+	await _test_unstoppable()
+	await _test_untargetable()
+	await _test_untargetable_enemy_ai()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).
@@ -2075,6 +2080,406 @@ func _test_forms() -> void:
 	await _frames(20)
 	ab.q = original_q
 	ab.e = original_e
+
+
+# --- AB10 -----------------------------------------------------------------------
+
+func _tough(u: Unit) -> void:
+	u.stats_component.add_modifier(StatModifier.create(&"max_health", StatModifier.Type.FLAT, 3000.0, &"test_tough"))
+
+
+## The Knight's next combo swing's AD ratio (swings differ: 1.0 / 1.5 / 1.6).
+func _next_swing_ratio() -> float:
+	return knight.attack.combo.swings[knight.attack.get_combo_index()].ad_ratio
+
+
+func _empower(id: StringName, trigger: StatusEffect.EmpowerTrigger, base_damage: float, scope: StringName = &"") -> StatusEffect:
+	var s := StatusEffect.new()
+	s.id = id
+	s.tags = [&"empower", &"buff"]
+	s.duration = -1.0
+	s.stack_rule = StatusEffect.StackRule.REFRESH
+	s.empower_consumed_by = trigger
+	s.empower_base_damage = base_damage
+	s.empower_scope = scope
+	return s
+
+
+func _status(id: StringName, tags: Array[StringName], duration: float) -> StatusEffect:
+	var s := StatusEffect.new()
+	s.id = id
+	s.tags = tags
+	s.duration = duration
+	return s
+
+
+func _test_empower_basic_attack() -> void:
+	_section("AB10: basic attack empowers (Iron Resolve through the wrapper)")
+	await _reset_knight()
+	var ab := knight.abilities
+	var sc := knight.status_component
+	var a := _dummy_at(Vector2(50, -15))
+	var b := _dummy_at(Vector2(50, 15))
+	_tough(a)
+	_tough(b)
+	var normal_speed := a.movement.get_move_speed()
+	var hits: Array[HitContext] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == knight:
+			hits.append(ctx)
+	Events.unit_hit.connect(on_hit)
+
+	ab.reset_cooldown(&"w")
+	await _wait_until(func() -> bool: return ab.can_cast(&"w"), 200)
+	knight.request_cast(&"w")
+	await _frames(1)
+	var e := sc.get_status(&"empower_iron_resolve")
+	_check("Iron Resolve applies empower_iron_resolve (empower + buff, next swing that hits, 82, 4 s) next to its haste",
+		[e != null, e.tags if e else [], e.empower_consumed_by if e else -1, e.empower_base_damage if e else 0.0,
+			snappedf(sc.get_time_left(&"empower_iron_resolve"), 0.1), sc.has_status(&"iron_resolve")],
+		[true, [&"empower", &"buff"], StatusEffect.EmpowerTrigger.BASIC_ATTACK_HIT, 82.0, 4.0, true])
+	_check("the wrapper's queries still answer", [knight.attack.has_next_attack_modifier(&"iron_resolve"), knight.attack.is_empowered()], [true, true])
+
+	# A swing that hits nothing keeps it.
+	knight.attack.try_swing(Vector2.LEFT)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+	_check("a swing that hits nothing doesn't use it up", [sc.has_status(&"empower_iron_resolve"), hits.size()], [true, 0])
+
+	knight.stats_component.add_modifier(StatModifier.create(&"crit_chance", StatModifier.Type.FLAT, 1.0, &"item_test_crit"))
+	var crit_mult := knight.stats_component.get_stat(&"crit_damage")
+	await _frames(12)
+	var ratio := _next_swing_ratio()
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 30)
+	knight.stats_component.remove_modifiers_from(&"item_test_crit")
+	var expected := (64.0 * ratio + 82.0) * crit_mult
+	_check("the swing hits both for (its 64 x ratio + 82) and the bonus crits with it",
+		[hits.size(), a.health.max_health - a.health.current, b.health.max_health - b.health.current], [2, expected, expected])
+	_check("both hits are crits, tagged empowered and highlighted",
+		[hits.all(func(h: HitContext) -> bool: return h.is_crit and h.has_tag(&"empowered") and h.highlight)], [true])
+	_check("both are slowed (on_hit per enemy), and the empower is used up",
+		[a.movement.get_move_speed() < normal_speed, b.movement.get_move_speed() < normal_speed, sc.has_status(&"empower_iron_resolve"),
+			knight.attack.is_empowered(), knight.attack.has_next_attack_modifier(&"iron_resolve")],
+		[true, true, false, false, false])
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+	hits.clear()
+	var hp := a.health.current
+	var plain := 64.0 * _next_swing_ratio()
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 30)
+	_check("the next swing has no bonus and no tag", [snappedf(hp - a.health.current, 0.01), hits[0].has_tag(&"empowered") if hits.size() > 0 else true], [snappedf(plain, 0.01), false])
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+
+	# Unused, it runs out after 4 s.
+	ab.reset_cooldown(&"w")
+	await _wait_until(func() -> bool: return ab.can_cast(&"w"), 200)
+	knight.request_cast(&"w")
+	await _frames(1)
+	await _wait_until(func() -> bool: return not sc.has_status(&"empower_iron_resolve"), 300)
+	_check("unused, it runs out after its 4 s window", [sc.has_status(&"empower_iron_resolve"), knight.attack.is_empowered()], [false, false])
+
+	# The same empower from a fake passive: a unit rule under passive_test
+	# grants it when the strike is cast.
+	var passive_empower := _empower(&"test_passive_empower", StatusEffect.EmpowerTrigger.BASIC_ATTACK_HIT, 82.0)
+	var grant := ApplyStatusGameplayEffect.new()
+	grant.status = passive_empower
+	var effects: Array[GameplayEffect] = [grant]
+	var rule := _rule(ReactionRule.Trigger.ABILITY_CAST, effects)
+	rule.required_ability_scope = &"ability:test_strike"
+	knight.add_reaction_rule(rule, &"passive_test")
+	var original_q := ab.q
+	ab.q = STRIKE
+	ab.reset_cooldown(&"q")
+	ab.try_cast(&"q", knight.global_position + Vector2(-100, 0))   # away from the dummies
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("passive_test's rule granted the empower when the strike was cast", sc.has_status(&"test_passive_empower"), true)
+	ab.q = original_q
+	await _frames(12)
+	hits.clear()
+	var ha := a.health.current
+	var hb := b.health.current
+	var with_bonus := 64.0 * _next_swing_ratio() + 82.0
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 30)
+	_check("an empower from passive_test works the same: both take 64 + 82, tagged, used up",
+		[snappedf(ha - a.health.current, 0.01), snappedf(hb - b.health.current, 0.01), hits.size() == 2 and hits.all(func(h: HitContext) -> bool: return h.has_tag(&"empowered")),
+			sc.has_status(&"test_passive_empower")],
+		[snappedf(with_bonus, 0.01), snappedf(with_bonus, 0.01), true, false])
+	knight.remove_reaction_rules_from(&"passive_test")
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+
+	# The League-style attack path (enemies) reads the same empowers.
+	var slime := _dummy_at(Vector2(0, 40))
+	slime.passive = false
+	var slime_empower := _empower(&"test_slime_empower", StatusEffect.EmpowerTrigger.BASIC_ATTACK_HIT, 10.0)
+	slime.status_component.apply_status(slime_empower, slime)
+	var knight_hp := knight.health.current
+	var slime_hits: Array[HitContext] = []
+	var on_slime_hit := func(ctx: HitContext) -> void:
+		if ctx.source == slime:
+			slime_hits.append(ctx)
+	Events.unit_hit.connect(on_slime_hit)
+	slime.attack.attack(knight)
+	await _wait_until(func() -> bool: return not slime_hits.is_empty(), 180)
+	var slime_ad := slime.stats_component.get_stat(&"attack_damage")
+	_check("an enemy's attack adds its empower (+10) and uses it up",
+		[slime_hits.size() >= 1, slime_hits[0].raw_damage if slime_hits.size() > 0 else 0.0, slime_hits[0].has_tag(&"empowered") if slime_hits.size() > 0 else false,
+			slime.status_component.has_status(&"test_slime_empower")],
+		[true, slime_ad + 10.0, true, false])
+	Events.unit_hit.disconnect(on_slime_hit)
+	slime.queue_free()
+	knight.health.heal(knight_hp)
+
+	Events.unit_hit.disconnect(on_hit)
+	a.queue_free()
+	b.queue_free()
+	await _frames(5)
+
+
+func _test_empower_abilities() -> void:
+	_section("AB10: ability empowers")
+	var ab := knight.abilities
+	var sc := knight.status_component
+	var original_q: Ability = await _setup_strike()
+	var original_e := ab.e
+	ab.e = BOLT
+	ab.reset_cooldown(&"e")
+	var dummy := _dummy_at(Vector2(100, 0))
+	_tough(dummy)
+	var hits: Array[HitContext] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == knight and ctx.ability != null:
+			hits.append(ctx)
+	Events.unit_hit.connect(on_hit)
+	var emp := _empower(&"test_strike_empower", StatusEffect.EmpowerTrigger.ABILITY_CAST, 30.0, &"ability:test_strike")
+	emp.empower_statuses = [STATUS_SLOW]
+	sc.apply_status(emp, knight)
+
+	ab.try_cast(&"e", dummy.global_position)
+	await _wait_until(func() -> bool: return not hits.is_empty(), 60)
+	_check("the bolt (outside its scope) doesn't use it: a plain 82 hit, the empower stays",
+		[hits.size(), hits[0].raw_damage if hits.size() > 0 else 0.0, hits[0].has_tag(&"empowered") if hits.size() > 0 else true, sc.has_status(&"test_strike_empower")],
+		[1, 82.0, false, true])
+	await _wait_until(func() -> bool: return _projectiles().is_empty() and not ab.casting, 60)
+
+	hits.clear()
+	await _strike_at(dummy)
+	_check("the next strike uses it: 72 + 30, tagged empowered, the target slowed, the empower gone",
+		[hits.size(), hits[0].raw_damage if hits.size() > 0 else 0.0, hits[0].has_tag(&"empowered") if hits.size() > 0 else false,
+			dummy.status_component.has_status(STATUS_SLOW.id), sc.has_status(&"test_strike_empower")],
+		[1, 102.0, true, true, false])
+	hits.clear()
+	await _strike_at(dummy)
+	_check("the strike after that is plain (72)", [hits.size(), hits[0].raw_damage if hits.size() > 0 else 0.0], [1, 72.0])
+
+	# Free casts don't use up empowers.
+	sc.apply_status(emp, knight)
+	hits.clear()
+	_check("a free strike runs", ab.try_cast_free(STRIKE, dummy.global_position, dummy, &"item_test_free"), true)
+	await _wait_until(func() -> bool: return not hits.is_empty(), 30)
+	_check("a free cast leaves the empower for the next real cast (its hit is plain 72)",
+		[hits.size(), hits[0].raw_damage if hits.size() > 0 else 0.0, sc.has_status(&"test_strike_empower")], [1, 72.0, true])
+	hits.clear()
+	await _strike_at(dummy)
+	_check("the next real cast uses it (102)", [hits[0].raw_damage if hits.size() > 0 else 0.0, sc.has_status(&"test_strike_empower")], [102.0, false])
+
+	# Used up before ABILITY_CAST: a rule granting the next one on cast doesn't feed the same cast.
+	var grant := ApplyStatusGameplayEffect.new()
+	grant.status = emp
+	var effects: Array[GameplayEffect] = [grant]
+	var rule := _rule(ReactionRule.Trigger.ABILITY_CAST, effects)
+	rule.required_ability_scope = &"ability:test_strike"
+	knight.add_reaction_rule(rule, &"passive_test")
+	hits.clear()
+	await _strike_at(dummy)
+	_check("a passive_test rule granting it on cast: this strike is plain, the next one is empowered",
+		[hits[0].raw_damage if hits.size() > 0 else 0.0, sc.has_status(&"test_strike_empower")], [72.0, true])
+	hits.clear()
+	await _strike_at(dummy)
+	_check("and the next strike uses it (102), and the rule grants another", [hits[0].raw_damage if hits.size() > 0 else 0.0, sc.has_status(&"test_strike_empower")], [102.0, true])
+	knight.remove_reaction_rules_from(&"passive_test")
+	sc.remove_status(&"test_strike_empower")
+
+	# An empower with an empty scope: any ability.
+	var any := _empower(&"test_any_empower", StatusEffect.EmpowerTrigger.ABILITY_CAST, 5.0)
+	sc.apply_status(any, knight)
+	hits.clear()
+	ab.reset_cooldown(&"e")
+	ab.try_cast(&"e", dummy.global_position)
+	await _wait_until(func() -> bool: return not hits.is_empty(), 60)
+	_check("an empty scope: the bolt uses it (82 + 5)", [hits[0].raw_damage if hits.size() > 0 else 0.0, sc.has_status(&"test_any_empower")], [87.0, false])
+	await _wait_until(func() -> bool: return _projectiles().is_empty() and not ab.casting, 60)
+
+	Events.unit_hit.disconnect(on_hit)
+	dummy.queue_free()
+	await _frames(20)
+	ab.q = original_q
+	ab.e = original_e
+
+
+func _test_unstoppable() -> void:
+	_section("AB10: unstoppable")
+	await _reset_knight()
+	var dummy := _dummy_at(Vector2(60, 0))
+	_tough(dummy)
+	var dsc := dummy.status_component
+	var unstoppable := _status(&"test_unstoppable", [&"unstoppable", &"buff"], 1.0)
+	dummy.apply_stun(1.0, knight)
+	dsc.apply_status(STATUS_SLOW, knight)
+	_check("stunned and slowed first", [dummy.is_stunned(), dsc.has_status(STATUS_SLOW.id)], [true, true])
+	dsc.apply_status(unstoppable, dummy)
+	_check("applying unstoppable removes every cc at once", [dummy.is_stunned(), dsc.has_status(STATUS_SLOW.id), dummy.is_unstoppable()], [false, false, true])
+	var speed := dummy.movement.get_move_speed()
+	dummy.apply_stun(1.0, knight)
+	dummy.movement.add_speed_modifier(&"test_unstoppable_slow", 0.0, -0.4, 1.0)
+	_check("new stuns and slows are refused", [dummy.is_stunned(), dsc.apply_status(STATUS_SLOW, knight), dummy.movement.get_move_speed()], [false, false, speed])
+	dummy.movement.add_speed_modifier(&"test_unstoppable_haste", 0.0, 0.3, 1.0)
+	_check("a haste (not cc) still applies", dsc.has_status(&"test_unstoppable_haste"), true)
+	dsc.remove_status(&"test_unstoppable_haste")
+
+	var swing: AttackSwing = knight.attack.combo.swings[0]
+	var hp := dummy.health.current
+	var hit := HitPipeline.basic_attack(knight, dummy, swing)
+	hit.knockback_px = 40.0
+	HitPipeline.resolve(hit)
+	_check("a hit lands but doesn't knock it back", [hp - dummy.health.current > 0.0, dummy.movement.is_displaced()], [true, false])
+	var kb := KnockbackGameplayEffect.new()
+	kb.distance_px = 40.0
+	kb.apply(dummy, knight, null)
+	_check("KnockbackGameplayEffect is skipped too", dummy.movement.is_displaced(), false)
+
+	dsc.remove_status(&"test_unstoppable")
+	await _frames(12)   # the dummy's post-hit i-frames, if any
+	hit = HitPipeline.basic_attack(knight, dummy, swing)
+	hit.knockback_px = 40.0
+	HitPipeline.resolve(hit)
+	_check("once it ends: knockback again", dummy.movement.is_displaced(), true)
+	dummy.apply_stun(0.5, knight)
+	_check("and cc again", dummy.is_stunned(), true)
+
+	# The cleanse (AB8's RemoveStatusesByTag) on the same statuses.
+	dsc.apply_status(STATUS_SLOW, knight)
+	var cleanse := RemoveStatusesByTagGameplayEffect.new()
+	cleanse.apply(dummy, dummy, null)
+	_check("the cleanse removes the stun and the slow", [dummy.is_stunned(), dsc.has_status(STATUS_SLOW.id)], [false, false])
+	dummy.queue_free()
+	await _frames(5)
+
+
+func _test_untargetable() -> void:
+	_section("AB10: untargetable")
+	await _reset_knight()
+	var ab := knight.abilities
+	var dummy := _dummy_at(Vector2(80, 0))
+	_tough(dummy)
+	var dsc := dummy.status_component
+	var burn := _status(&"test_burn", [&"burn", &"debuff"], 3.0)
+	burn.tick_interval = 0.25
+	burn.tick_damage = 5.0
+	dsc.apply_status(burn, knight)
+	var untargetable := _status(&"test_untargetable", [&"untargetable", &"buff"], -1.0)
+	dsc.apply_status(untargetable, dummy)
+	_check("untargetable: alive but not targetable", [dummy.is_alive(), dummy.is_targetable(), dummy.is_untargetable()], [true, false, true])
+	_check("AbilityUtil.enemies_of() skips it", AbilityUtil.enemies_of(knight).has(dummy), false)
+
+	ab.reset_cooldown(&"r")
+	var fails: Array = []
+	var on_fail := func(_slot: StringName, reason: String) -> void: fails.append(reason)
+	ab.cast_failed.connect(on_fail)
+	_check("Judgement on it: not picked under the cursor or by forgiveness, 'no target'",
+		[knight.cast_ability(&"r", dummy.get_center()), fails], [false, [AbilityComponent.FAIL_NO_TARGET]])
+	_check("given as the target directly: 'no target' too", ab.try_cast(&"r", dummy.global_position, dummy), false)
+	ab.cast_failed.disconnect(on_fail)
+
+	var hp := dummy.health.current
+	var hit := HitPipeline.from_ability(knight, STRIKE, dummy)
+	HitPipeline.resolve(hit)
+	_check("a new hit is blocked", [hit.blocked, dummy.health.current], [true, hp])
+	_check("a status from another unit is refused; its own and the environment's apply",
+		[dsc.apply_status(STATUS_SLOW, knight), dsc.apply_status(_status(&"test_self_buff", [&"buff"], 1.0), dummy),
+			dsc.apply_status(_status(&"test_env", [&"debuff"], 1.0), null)],
+		[false, true, true])
+	hp = dummy.health.current
+	await _frames(40)
+	_check("the burn applied before keeps ticking (DoT isn't blocked)", dummy.health.current <= hp - 5.0, true)
+
+	knight.attack.attack(dummy)
+	_check("it can't be made an attack target", knight.attack.target, null)
+	dsc.remove_status(&"test_untargetable")
+	knight.attack.attack(dummy)
+	_check("targetable again: an attack target", knight.attack.target == dummy, true)
+	dsc.apply_status(untargetable, dummy)
+	await _frames(2)
+	_check("turning untargetable drops it as the attack target", knight.attack.target, null)
+	knight.attack.cancel()
+	dsc.remove_status(&"test_untargetable")
+
+	# The walk-into-range cast is dropped.
+	var far := _dummy_at(Vector2(500, 0))
+	ab.reset_cooldown(&"r")
+	await _wait_until(func() -> bool: return ab.can_cast(&"r"), 200)
+	_check("Judgement on a far dummy walks into range", [ab.try_cast(&"r", far.global_position, far), ab.has_pending()], [true, true])
+	far.status_component.apply_status(untargetable, far)
+	await _frames(2)
+	_check("it turns untargetable: the walk-into-range cast is dropped", [ab.has_pending(), ab.casting], [false, false])
+	knight.movement.stop()
+	far.queue_free()
+
+	# A projectile flies through it.
+	dsc.apply_status(untargetable, dummy)
+	var behind := _dummy_at(Vector2(160, 0))
+	_tough(behind)
+	var bolt_hits: Array[Unit] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == knight and ctx.ability != null:
+			bolt_hits.append(ctx.target)
+	Events.unit_hit.connect(on_hit)
+	var original_e := ab.e
+	ab.e = BOLT
+	ab.reset_cooldown(&"e")
+	ab.try_cast(&"e", behind.global_position)
+	await _wait_until(func() -> bool: return not bolt_hits.is_empty(), 60)
+	_check("a bolt (pierce 0) flies through it and hits the dummy behind", bolt_hits, [behind])
+	await _wait_until(func() -> bool: return _projectiles().is_empty() and not ab.casting, 60)
+	Events.unit_hit.disconnect(on_hit)
+	ab.e = original_e
+	dsc.remove_status(&"test_untargetable")
+	_check("removed: targetable again", [dummy.is_targetable(), AbilityUtil.enemies_of(knight).has(dummy)], [true, true])
+	dummy.queue_free()
+	behind.queue_free()
+	await _frames(5)
+
+
+func _test_untargetable_enemy_ai() -> void:
+	_section("AB10: enemies and an untargetable player")
+	await _reset_knight()
+	var sc := knight.status_component
+	var untargetable := _status(&"test_untargetable", [&"untargetable", &"buff"], -1.0)
+	sc.apply_status(untargetable, knight)
+	var slime := _dummy_at(Vector2(30, 0))   # in attack range: the test arena has no navigation mesh to walk on
+	slime.passive = false
+	await _frames(30)
+	_check("an untargetable player isn't aggroed", slime.ai == Enemy.AI.AGGRO, false)
+	sc.remove_status(&"test_untargetable")
+	await _wait_until(func() -> bool: return slime.ai == Enemy.AI.AGGRO and slime.attack.target == knight, 60)
+	_check("targetable: aggro and attacking", [slime.ai == Enemy.AI.AGGRO, slime.attack.target == knight], [true, true])
+	await _wait_until(func() -> bool: return slime.attack.is_winding_up(), 120)
+	var winding := slime.attack.is_winding_up()
+	var hp := knight.health.current
+	sc.apply_status(untargetable, knight)
+	await _frames(2)
+	_check("untargetable mid-windup: keeps aggro, the windup is cancelled, no attack target",
+		[winding, slime.ai == Enemy.AI.AGGRO, slime.attack.is_winding_up(), slime.attack.target], [true, true, false, null])
+	_place(knight, knight.global_position + Vector2(-80, 0))
+	await _frames(30)
+	_check("it keeps chasing (a move order to the player), without attacking",
+		[slime.movement.has_order(), slime.attack.target, knight.health.current], [true, null, hp])
+	_place(knight, knight.global_position + Vector2(80, 0))
+	sc.remove_status(&"test_untargetable")
+	await _wait_until(func() -> bool: return slime.attack.target == knight, 10)
+	_check("targetable again: it attacks again", slime.attack.target == knight, true)
+	slime.queue_free()
+	await _frames(5)
 
 
 func _wall_at(pos: Vector2, size: Vector2) -> StaticBody2D:

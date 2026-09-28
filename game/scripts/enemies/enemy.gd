@@ -22,6 +22,7 @@ var _ai_timer: float = 0.0
 var _bob_time: float = 0.0
 var _home: Vector2
 var _player: Unit
+var _chase_repath: float = 0.0   # chasing an untargetable player (AB10)
 
 
 func _ready() -> void:
@@ -61,6 +62,8 @@ func _physics_process(delta: float) -> void:
 				attack.cancel()
 				movement.stop()
 				_enter_idle()
+			elif not _player.is_targetable():
+				_chase_untargetable(delta)
 			elif _try_cast_ability():
 				pass  # Casting (rooted); the chase resumes after.
 			elif attack.target != _player:
@@ -98,6 +101,21 @@ func _enter_aggro() -> void:
 	attack.attack(_player)
 
 
+## The player is untargetable (ABILITIES AB10): keep aggro, stop attacking
+## (a windup is cancelled) and keep chasing; attacking resumes the frame the
+## player is targetable again. A cast already going finishes.
+func _chase_untargetable(delta: float) -> void:
+	if abilities != null and abilities.casting:
+		return
+	if attack.target != null or attack.is_winding_up():
+		attack.cancel()
+		_chase_repath = 0.0
+	_chase_repath -= delta
+	if _chase_repath <= 0.0:
+		_chase_repath = 0.1
+		movement.move_to(_player.global_position)
+
+
 func _on_damaged(_amount: float, source: Unit) -> void:
 	if passive:
 		return
@@ -129,7 +147,7 @@ func _try_cast_ability() -> bool:
 
 
 func _can_see_player() -> bool:
-	if _player == null or not _player.is_alive():
+	if _player == null or not _player.is_targetable():   # no new aggro on an untargetable player (AB10)
 		return false
 	if edge_distance_to(_player) > Units.to_px(detect_range):
 		return false

@@ -282,7 +282,7 @@ func try_cast(slot: StringName, aim: Vector2, target_unit: Unit = null) -> bool:
 
 	match ability.targeting:
 		Ability.Targeting.UNIT:
-			if target_unit == null or not target_unit.is_alive() or not unit.is_enemy_of(target_unit):
+			if target_unit == null or not target_unit.is_targetable() or not unit.is_enemy_of(target_unit):   # untargetable: no target (AB10)
 				cast_failed.emit(slot, FAIL_NO_TARGET)
 				return false
 			ctx.target = target_unit
@@ -600,7 +600,7 @@ func _physics_process(delta: float) -> void:
 	var target: Unit = _pending.target
 	var slot: StringName = _pending.slot
 	var ability := get_ability(slot)
-	if not is_instance_valid(target) or not target.is_alive() or not unit.is_alive():
+	if not is_instance_valid(target) or not target.is_targetable() or not unit.is_alive():   # untargetable: dropped (AB10)
 		_pending.clear()
 		return
 	if unit.edge_distance_to(target) <= Units.to_px(ability.get_param(unit, &"cast_range")) \
@@ -672,6 +672,7 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext, precharged: 
 		_cast_took_charge = false
 		_end_charge()   # a released charge-up: the effect starts, its indicator goes
 		_executing = true
+		_use_up_ability_empowers(ability, ctx)   # AB10: before ABILITY_CAST, so a rule can grant the next one
 		# The effect starts: ABILITY_CAST rules fire now (never for a cast
 		# that was cancelled or interrupted before this point). AB8.
 		_emit_ability_cast(ability, ctx)
@@ -985,6 +986,19 @@ func try_cast_free(ability: Ability, aim: Vector2, target: Unit, source_id: Stri
 	_emit_ability_cast(ability, ctx)
 	ability.execute(unit, ctx)   # not awaited: it runs alongside anything else
 	return true
+
+
+## At a cast's effect start (ABILITIES AB10): the unit's ABILITY_CAST
+## empowers whose scope matches the ability go into ctx.empowers and are
+## removed. Only casts the player or the AI started (not free casts).
+func _use_up_ability_empowers(ability: Ability, ctx: CastContext) -> void:
+	if unit.status_component == null or ctx.is_free:
+		return
+	var scopes := ability.get_modifier_scopes()
+	for e in unit.status_component.get_empowers(StatusEffect.EmpowerTrigger.ABILITY_CAST):
+		if e.empower_scope == &"" or scopes.has(e.empower_scope):
+			ctx.empowers.append(e)
+			unit.status_component.remove_status(e.id)
 
 
 ## Events.ability_cast at the cast's chain depth (0 for a slot cast).

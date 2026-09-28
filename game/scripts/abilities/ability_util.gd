@@ -3,22 +3,25 @@ class_name AbilityUtil
 ## radius, so big monsters are easier to hit, like in LoL.
 
 
+## Living, targetable enemies of `caster` (untargetable ones are skipped:
+## ABILITIES AB10).
 static func enemies_of(caster: Unit) -> Array[Unit]:
 	var out: Array[Unit] = []
 	for node in caster.get_tree().get_nodes_in_group("units"):
 		var u := node as Unit
-		if u and u.is_alive() and caster.is_enemy_of(u):
+		if u and u.is_targetable() and caster.is_enemy_of(u):
 			out.append(u)
 	return out
 
 
 ## Living units that aren't on `team` (for hits whose caster may be gone,
-## like projectiles; ABILITIES AB7).
+## like projectiles; ABILITIES AB7). Untargetable units are skipped
+## (a projectile flies through them; AB10).
 static func enemies_of_team(tree: SceneTree, team: Unit.Team) -> Array[Unit]:
 	var out: Array[Unit] = []
 	for node in tree.get_nodes_in_group("units"):
 		var u := node as Unit
-		if u and u.is_alive() and u.team != team:
+		if u and u.is_targetable() and u.team != team:
 			out.append(u)
 	return out
 

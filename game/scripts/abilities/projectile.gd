@@ -70,6 +70,8 @@ func _setup(p_caster: Unit, p_ability: Ability, p_cast: CastContext, origin: Vec
 	half_width_px = Units.to_px(p_ability.get_charged_param(p_caster, &"projectile_width", p_cast.charge)) * 0.5
 	_hits_left = maxi(floori(p_ability.get_charged_param(p_caster, &"projectile_pierce", p_cast.charge)), 0) + 1
 	_snapshot_damage = p_ability.get_damage_against(p_caster, null, p_cast.charge)   # target terms come at the hit
+	for e in p_cast.empowers:   # the cast's empowers, for hits after the caster is freed (AB10)
+		_snapshot_damage += e.empower_base_damage + e.empower_ad_ratio * p_caster.stats_component.get_stat(&"attack_damage")
 	crit_roll = roll
 	position = origin
 	_last_from = origin
@@ -127,6 +129,13 @@ func _hit(target: Unit) -> void:
 		hit.add_tag(&"ability")
 		for t in ability.tags:
 			hit.add_tag(t)
+		if not cast.empowers.is_empty():   # the bonus is in the snapshot (AB10)
+			for e in cast.empowers:
+				for s in e.empower_statuses:
+					if s is StatusEffect:
+						hit.statuses.append(s)
+			hit.add_tag(&"empowered")
+			hit.highlight = true
 	HitPipeline.resolve(hit)
 	if not hit.blocked:
 		VFX.impact(target.get_parent(), target.global_position, Color(ability.icon_color, 0.8), 24.0, 0.15)

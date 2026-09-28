@@ -71,9 +71,9 @@ The rule for every combo with `attack_style` MELEE (the default; the Knight is t
 - tenacity shortens crowd control duration; it doesn't affect damage over time.
 - DoT kill credit goes to whoever applied the status.
 - A status that blocks casting (stun, silence) applied during a cast time or a charge-up interrupts the cast at once, refunding its cost and cooldown (ABILITIES.md, Casting; built in AB1).
-- **Unstoppable** (status tag `unstoppable`): immune to new cc, and applying it removes every cc status; it also blocks knockback from hits (not the unit's own dashes and swing steps). ABILITIES.md; built in AB10.
-- **Untargetable** (status tag `untargetable`): the status adds an invulnerability under its id, so every hit is blocked, and `Unit.is_targetable()` is false, so targeting and aggro skip the unit. ABILITIES.md; built in AB10.
-- **Empowers** ("your next attack / next ability") are statuses tagged `empower` whose bonus HitPipeline adds into the hit (ABILITIES.md, Empowers); Iron Resolve becomes one in AB10.
+- **Unstoppable** (status tag `unstoppable`): immune to new cc, and applying it removes every cc status; it also blocks knockback from hits and `KnockbackGameplayEffect` (not the unit's own dashes and swing steps). ABILITIES.md; built in AB10.
+- **Untargetable** (status tag `untargetable`): `Unit.on_hit()` blocks every new hit except damage-over-time ticks (a DoT applied before keeps ticking, the League rule), statuses from other units are refused, and `Unit.is_targetable()` is false, so targeting, projectiles and aggro skip the unit (aggroed enemies keep chasing without attacking). ABILITIES.md; built in AB10.
+- **Empowers** ("your next attack / next ability") are statuses tagged `empower` whose bonus HitPipeline adds into the hit (`HitPipeline.add_empowers()`, hit tag `empowered`; ABILITIES.md, Empowers). Iron Resolve's is one since AB10 (`empower_iron_resolve`, through the `add_next_attack_modifier()` wrapper).
 
 ### Sustain
 - Every champion starts with zero sustain (health_regen 0). Healing comes only from build choices: abilities, passives and items (life on hit, life steal, regen).
