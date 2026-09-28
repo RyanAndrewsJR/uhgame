@@ -61,6 +61,7 @@ var knight: Player
 
 var _passed: int = 0
 var _failed: int = 0
+var _shakes: Array[float] = []   # GameFeel.shake() amounts seen by _spy_camera() (AB11)
 var _finished: int = 0
 var _cancelled: int = 0
 
@@ -120,6 +121,11 @@ func _ready() -> void:
 	await _test_unstoppable()
 	await _test_untargetable()
 	await _test_untargetable_enemy_ai()
+	await _test_ab11_cleave()
+	await _test_ab11_lunge()
+	await _test_ab11_judgement()
+	await _test_ab11_iron_resolve()
+	_test_ab11_scripts()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).
@@ -2480,6 +2486,287 @@ func _test_untargetable_enemy_ai() -> void:
 	_check("targetable again: it attacks again", slime.attack.target == knight, true)
 	slime.queue_free()
 	await _frames(5)
+
+
+# --- AB11 -----------------------------------------------------------------------
+
+## A camera that records GameFeel.shake() amounts (as in combat_test).
+func _spy_camera() -> Camera2D:
+	var script := GDScript.new()
+	script.source_code = "extends Camera2D\nvar on_shake: Callable\nfunc shake(amount: float) -> void:\n\ton_shake.call(amount)\n"
+	script.reload()
+	var cam := Camera2D.new()
+	cam.process_callback = Camera2D.CAMERA2D_PROCESS_PHYSICS
+	cam.set_script(script)
+	cam.set("on_shake", func(amount: float) -> void: _shakes.append(amount))
+	add_child(cam)
+	cam.make_current()
+	return cam
+
+
+func _hitstop_over() -> void:
+	while GameFeel.is_hitstop_active():
+		await get_tree().create_timer(0.02, true, false, true).timeout
+
+
+## Waits until the knight's cast is over; returns whether a hitstop ran meanwhile.
+func _cast_over_saw_hitstop() -> bool:
+	var saw := [false]
+	await _wait_until(func() -> bool:
+		if GameFeel.is_hitstop_active():
+			saw[0] = true
+		return not knight.abilities.casting, 150)
+	if GameFeel.is_hitstop_active():
+		saw[0] = true
+	return saw[0]
+
+
+func _test_ab11_cleave() -> void:
+	_section("AB11: Cleave from toolkit pieces (hit_units, hit_knockback_px, play_hit_feel)")
+	await _reset_knight()
+	await _hitstop_over()
+	var ab := knight.abilities
+	var cam := _spy_camera()
+	var hits: Array[HitContext] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == knight and ctx.ability != null:
+			hits.append(ctx)
+	Events.unit_hit.connect(on_hit)
+	_check("the data: push 17 px over 0.1 s (170 px/s x 0.1 s), shake 3, hitstop 0.05",
+		[CLEAVE.hit_knockback_px, CLEAVE.hit_knockback_duration, CLEAVE.hit_shake, CLEAVE.hit_hitstop], [17.0, 0.1, 3.0, 0.05])
+
+	var dummy := _dummy_at(Vector2(50, 25))   # off the axis, so the direction is checked
+	_tough(dummy)
+	await _frames(2)
+	var start := dummy.global_position
+	var away := (start - knight.global_position).normalized()   # today's push direction: from the Knight to the target
+	_shakes.clear()
+	ab.reset_cooldown(&"q")
+	ab.try_cast(&"q", dummy.global_position)
+	var saw_hitstop := await _cast_over_saw_hitstop()
+	await _wait_until(func() -> bool: return not dummy.movement.is_displaced(), 30)
+	var moved := dummy.global_position - start
+	_check("one hit for 124.8 (80 + 0.7 x 64), tags unchanged",
+		[hits.size(), snappedf(hits[0].raw_damage, 0.01) if hits.size() > 0 else 0.0, hits[0].has_tag(&"cone") if hits.size() > 0 else false], [1, 124.8, true])
+	_check_near("pushed 17 px", moved.length(), 17.0, 0.5)
+	_check_near("in exactly today's direction (angle to Knight -> target, rad)", absf(moved.angle_to(away)), 0.0, 0.01)
+	_check("its feel once: a 3 px shake, a hitstop", [_shakes, saw_hitstop], [[3.0], true])
+	await _hitstop_over()
+
+	# A unit the hit kills still slides 17 px the same way (as before AB11).
+	await _wait_until(func() -> bool: return not dummy.movement.is_displaced(), 30)
+	var victim := _dummy_at(Vector2(45, -30))
+	await _frames(2)
+	victim.health.take_damage(victim.health.current - 5.0)
+	var v0 := victim.global_position
+	var v_away := (v0 - knight.global_position).normalized()
+	ab.reset_cooldown(&"q")
+	ab.try_cast(&"q", victim.global_position)
+	await _cast_over_saw_hitstop()
+	await _frames(12)
+	var slid := victim.global_position - v0 if is_instance_valid(victim) else Vector2.ZERO
+	_check("a unit Cleave kills still slides 17 px in the same direction (as before)",
+		[victim.is_alive() if is_instance_valid(victim) else false, snappedf(slid.length(), 0.1), absf(slid.angle_to(v_away)) < 0.01],
+		[false, 17.0, true])
+	await _hitstop_over()
+	await _wait_until(func() -> bool: return not dummy.movement.is_displaced(), 30)
+
+	# Unstoppable now blocks the push (it was a manual displace before AB11).
+	_place(dummy, knight.global_position + Vector2(50, 25))
+	await _frames(2)
+	hits.clear()
+	dummy.status_component.apply_status(_status(&"test_unstoppable", [&"unstoppable", &"buff"], -1.0), dummy)
+	start = dummy.global_position
+	ab.reset_cooldown(&"q")
+	ab.try_cast(&"q", dummy.global_position)
+	await _cast_over_saw_hitstop()
+	await _frames(8)
+	_check("an unstoppable target takes the hit but isn't pushed",
+		[hits.size(), dummy.movement.is_displaced(), dummy.global_position.distance_to(start) < 0.5], [1, false, true])
+	dummy.status_component.remove_status(&"test_unstoppable")
+	await _hitstop_over()
+
+	# An ability empower scoped to Cleave reaches its hit now (the cast's context).
+	_place(dummy, knight.global_position + Vector2(50, 25))
+	await _frames(2)
+	hits.clear()
+	knight.status_component.apply_status(_empower(&"test_cleave_empower", StatusEffect.EmpowerTrigger.ABILITY_CAST, 20.0, &"ability:knight_cleave"), knight)
+	ab.reset_cooldown(&"q")
+	ab.try_cast(&"q", dummy.global_position)
+	await _cast_over_saw_hitstop()
+	_check("an ability empower on Cleave adds to its hit: 124.8 + 20, tagged empowered",
+		[snappedf(hits[0].raw_damage, 0.01) if hits.size() > 0 else 0.0, hits[0].has_tag(&"empowered") if hits.size() > 0 else false,
+			knight.status_component.has_status(&"test_cleave_empower")], [144.8, true, false])
+	await _hitstop_over()
+	await _wait_until(func() -> bool: return not dummy.movement.is_displaced(), 30)
+
+	# No feel when every hit is blocked (the dummy is in the cone: it was in reach before AB11 too).
+	_place(dummy, knight.global_position + Vector2(50, 25))
+	await _frames(2)
+	var in_cone := AbilityUtil.in_cone(knight, knight.global_position, (dummy.global_position - knight.global_position).normalized(),
+		Units.to_px(CLEAVE.get_param(knight, &"cast_range")), deg_to_rad(60.0)).has(dummy)
+	_shakes.clear()
+	hits.clear()
+	dummy.add_invulnerability(&"test")
+	ab.reset_cooldown(&"q")
+	ab.try_cast(&"q", dummy.global_position)
+	var blocked_hitstop := await _cast_over_saw_hitstop()
+	dummy.remove_invulnerability(&"test")
+	_check("every hit blocked (the dummy was in the cone): no shake, no hitstop", [in_cone, _shakes, blocked_hitstop], [true, [], false])
+
+	Events.unit_hit.disconnect(on_hit)
+	dummy.queue_free()
+	cam.queue_free()
+	await _frames(5)
+
+
+func _test_ab11_lunge() -> void:
+	_section("AB11: Lunge from toolkit pieces")
+	await _reset_knight()
+	await _hitstop_over()
+	var ab := knight.abilities
+	var cam := _spy_camera()
+	var hits: Array[HitContext] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == knight and ctx.ability != null:
+			hits.append(ctx)
+	Events.unit_hit.connect(on_hit)
+	var dummy := _dummy_at(Vector2(60, 0))
+	_tough(dummy)
+	await _frames(2)
+	var from := knight.global_position
+	_shakes.clear()
+	ab.reset_cooldown(&"e")
+	ab.try_cast(&"e", from + Vector2(120, 0))
+	var saw_hitstop := await _cast_over_saw_hitstop()
+	await _wait_until(func() -> bool: return not knight.movement.is_displaced() and not hits.is_empty(), 60)
+	_check("the Knight dashes 120 px; the dummy on the path takes 82 (50 + 0.5 x 64)",
+		[snappedf(knight.global_position.distance_to(from), 1.0), hits.size(), snappedf(hits[0].raw_damage, 0.01) if hits.size() > 0 else 0.0],
+		[120.0, 1, 82.0])
+	_check("its feel: a 2.5 px shake, no hitstop (none in the data)", [_shakes, saw_hitstop, LUNGE.hit_hitstop], [[2.5], false, 0.0])
+
+	# A free Lunge at chain depth 2: its hits keep the depth (the cast's context).
+	hits.clear()
+	_place(knight, dummy.global_position + Vector2(-60, 0))
+	await _frames(2)
+	var point := knight.global_position + Vector2(120, 0)
+	Reactions.run_at_depth(2, func() -> void: ab.try_cast_free(LUNGE, point, null, &"item_test_free"))
+	await _wait_until(func() -> bool: return not hits.is_empty(), 60)
+	_check("a free Lunge's hits carry its chain depth (2)", [hits.size(), hits[0].chain_depth if hits.size() > 0 else -1], [1, 2])
+	await _wait_until(func() -> bool: return not knight.movement.is_displaced(), 30)
+
+	Events.unit_hit.disconnect(on_hit)
+	dummy.queue_free()
+	cam.queue_free()
+	await _frames(5)
+
+
+func _test_ab11_judgement() -> void:
+	_section("AB11: Judgement from toolkit pieces")
+	await _reset_knight()
+	await _hitstop_over()
+	var ab := knight.abilities
+	var cam := _spy_camera()
+	var hits: Array[HitContext] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == knight and ctx.ability != null:
+			hits.append(ctx)
+	Events.unit_hit.connect(on_hit)
+	var dummy := _dummy_at(Vector2(80, 0))
+	_tough(dummy)
+	await _frames(2)
+	dummy.take_damage(1000.0)   # 1000 missing
+	await _frames(2)
+	var missing := dummy.health.max_health - dummy.health.current
+	_shakes.clear()
+	ab.reset_cooldown(&"r")
+	ab.try_cast(&"r", dummy.global_position, dummy)
+	var saw_hitstop := await _cast_over_saw_hitstop()
+	var dsc := dummy.status_component
+	_check("150 + 64 + 20% of the missing health, one hit",
+		[hits.size(), snappedf(hits[0].raw_damage, 0.01) if hits.size() > 0 else 0.0], [1, snappedf(150.0 + 64.0 + 0.2 * missing, 0.01)])
+	_check("the 0.75 s stun, from the Knight (a copy of status_stun: same id, tags, stars)",
+		[dsc.has_status(&"stun"), dsc.get_time_left(&"stun") > 0.7 and dsc.get_time_left(&"stun") <= 0.75, dsc.get_source(&"stun") == knight,
+			dsc.get_status(&"stun").tags if dsc.has_status(&"stun") else [], dsc.get_status(&"stun").vfx != null if dsc.has_status(&"stun") else false],
+		[true, true, true, [&"cc", &"stun", &"debuff"], true])
+	_check("its feel: a 6 px shake, a hitstop", [_shakes, saw_hitstop, JUDGEMENT.hit_hitstop], [[6.0], true, 0.09])
+	await _hitstop_over()
+
+	# Blocked: no stun, no feel.
+	await _wait_until(func() -> bool: return not dsc.has_status(&"stun"), 90)
+	_shakes.clear()
+	hits.clear()
+	ab.reset_cooldown(&"r")
+	ab.try_cast(&"r", dummy.global_position, dummy)
+	await _frames(30)
+	dummy.add_invulnerability(&"test")
+	var blocked_hitstop := await _cast_over_saw_hitstop()
+	dummy.remove_invulnerability(&"test")
+	_check("a blocked Judgement: no stun, no shake, no hitstop", [dsc.has_status(&"stun"), _shakes, blocked_hitstop], [false, [], false])
+
+	Events.unit_hit.disconnect(on_hit)
+	dummy.queue_free()
+	cam.queue_free()
+	await _frames(5)
+
+
+func _test_ab11_iron_resolve() -> void:
+	_section("AB11: Iron Resolve from toolkit pieces")
+	await _reset_knight()
+	await _hitstop_over()
+	var ab := knight.abilities
+	var sc := knight.status_component
+	var cam := _spy_camera()
+	var a := _dummy_at(Vector2(50, -15))
+	var b := _dummy_at(Vector2(50, 15))
+	_tough(a)
+	_tough(b)
+	await _frames(2)
+	var speed := knight.movement.get_move_speed()
+	ab.reset_cooldown(&"w")
+	await _wait_until(func() -> bool: return ab.can_cast(&"w"), 200)
+	knight.request_cast(&"w")
+	await _frames(2)
+	var haste := sc.get_status(&"iron_resolve")
+	var empower := sc.get_status(&"empower_iron_resolve")
+	var slow: StatusEffect = empower.empower_statuses[0] if empower != null and not empower.empower_statuses.is_empty() else null
+	_check("the haste: status iron_resolve (haste + buff, +35% for 2 s), 560 -> 739.6",
+		[haste != null, haste.tags if haste else [], snappedf(sc.get_time_left(&"iron_resolve"), 0.1), speed, knight.movement.get_move_speed()],
+		[true, [&"haste", &"buff"], 2.0, 560.0, 739.6])
+	_check("the empower: empower_iron_resolve, 82 (snapshotted), 4 s, its slow iron_resolve_slow (cc + slow, -40%, 1.5 s)",
+		[empower != null, empower.empower_base_damage if empower else 0.0, snappedf(sc.get_time_left(&"empower_iron_resolve"), 0.1),
+			slow.id if slow else &"", slow.tags if slow else [], slow.modifiers[0].value if slow else 0.0, slow.duration if slow else 0.0],
+		[true, 82.0, 4.0, &"iron_resolve_slow", [&"cc", &"slow", &"debuff"], -0.4, 1.5])
+	var a_speed := a.movement.get_move_speed()
+	var expected := 64.0 * _next_swing_ratio() + 82.0
+	_shakes.clear()
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 30)
+	_check("the swing: both take 64 x ratio + 82", [snappedf(a.health.max_health - a.health.current, 0.01), snappedf(b.health.max_health - b.health.current, 0.01)],
+		[snappedf(expected, 0.01), snappedf(expected, 0.01)])
+	_check("both slowed by iron_resolve_slow, now from the Knight (it had no source before)",
+		[a.movement.get_move_speed() < a_speed, a.status_component.get_source(&"iron_resolve_slow") == knight, b.status_component.get_source(&"iron_resolve_slow") == knight],
+		[true, true, true])
+	_check("its per-enemy feel: a 2.5 px shake for each of the two", _shakes.count(2.5), 2)
+	_check("used up", [sc.has_status(&"empower_iron_resolve"), knight.attack.is_empowered()], [false, false])
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+	await _hitstop_over()
+	a.queue_free()
+	b.queue_free()
+	cam.queue_free()
+	await _frames(5)
+
+
+func _test_ab11_scripts() -> void:
+	_section("AB11: the Knight's scripts use toolkit pieces only")
+	var offenders: Array[String] = []
+	for path in ["res://scripts/abilities/knight/cleave.gd", "res://scripts/abilities/knight/iron_resolve.gd",
+			"res://scripts/abilities/knight/lunge.gd", "res://scripts/abilities/knight/judgement.gd"]:
+		var src := FileAccess.get_file_as_string(path)
+		for call in ["displace(", "apply_stun(", "add_speed_modifier(", "add_next_attack_modifier(", "CritRoll.new(", "HitPipeline.resolve("]:
+			if src.contains(call):
+				offenders.append("%s: %s" % [path.get_file(), call])
+	_check("no displace / apply_stun / add_speed_modifier / add_next_attack_modifier / own crit roll or resolve", offenders, [] as Array[String])
 
 
 func _wall_at(pos: Vector2, size: Vector2) -> StaticBody2D:

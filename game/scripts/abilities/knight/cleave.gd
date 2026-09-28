@@ -1,9 +1,16 @@
 extends Ability
 ## Knight Q - Cleave: a wide sword sweep in front of you that damages and
 ## knocks back every enemy in the cone.
+## Toolkit pieces (ABILITIES AB11): AbilityUtil.in_cone() + filter_by_walls()
+## for who's inside, hit_units() for the hits (one crit roll, the cast's
+## context, the push from hit_knockback_px in the .tres), play_hit_feel()
+## for the shake and hitstop (hit_shake / hit_hitstop). The slash VFX and the
+## cone indicator are Cleave's own.
 
 @export var cone_half_angle_deg: float = 60.0
-## Knockback push speed (px/s) for 0.1s.
+## Unused since ABILITIES AB11 (disabled, not deleted): the push is
+## hit_knockback_px (17 px) over hit_knockback_duration (0.1 s) in
+## knight_q_cleave.tres, the same 170 px/s x 0.1 s. Delete after AB-M passes.
 @export var knockback: float = 170.0
 
 
@@ -15,20 +22,8 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 	VFX.slash(caster.get_parent(), caster.get_center(), ctx.direction.angle(), 10.0, reach + 6.0, half,
 		Color(1, 1, 1, 0.85), 0.13, side)
 
-	var hits := filter_by_walls(origin, AbilityUtil.in_cone(caster, origin, ctx.direction, reach, half))
-	var crit_roll := HitContext.CritRoll.new()   # one crit roll per cast
-	for u in hits:
-		# Through the hit pipeline (COMBAT C8): crits, damage_increase, on-hit, tags.
-		var hit := HitPipeline.from_ability(caster, self, u)
-		hit.crit_roll = crit_roll
-		HitPipeline.resolve(hit)
-		if hit.blocked:
-			continue
-		var push := (u.global_position - origin).normalized()
-		u.movement.displace(push * knockback, 0.1)
-	if not hits.is_empty():
-		GameFeel.shake(3.0)
-		GameFeel.hitstop(0.05)
+	var targets := filter_by_walls(origin, AbilityUtil.in_cone(caster, origin, ctx.direction, reach, half))
+	play_hit_feel(hit_units(caster, targets, ctx))
 
 
 func draw_indicator(canvas: Node2D, caster: Unit, aim: Vector2) -> void:

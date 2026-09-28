@@ -381,13 +381,23 @@ func add_next_attack_modifier(id: StringName, bonus_damage: float, on_hit: Calla
 	effect.stack_rule = StatusEffect.StackRule.REFRESH   # a new call replaces it, as before
 	effect.empower_consumed_by = StatusEffect.EmpowerTrigger.BASIC_ATTACK_HIT
 	effect.empower_base_damage = bonus_damage
+	if statuses.apply_status(effect, unit):
+		set_empower_on_hit(effect.id, on_hit)
+
+
+## A per-target callback for the basic attack empower `status_id` (ABILITIES
+## AB11): when a swing uses it up, `on_hit` is called with each enemy whose
+## hit got through (feel and VFX that belong to the ability's script, like
+## Iron Resolve's). Forgotten when the status ends. An invalid Callable
+## clears it; nothing happens if the status isn't on the unit.
+func set_empower_on_hit(status_id: StringName, on_hit: Callable) -> void:
+	var statuses := unit.status_component
+	if statuses == null or not statuses.has_status(status_id) or not on_hit.is_valid():
+		_empower_callbacks.erase(status_id)
+		return
 	if not statuses.status_removed.is_connected(_on_status_removed):
 		statuses.status_removed.connect(_on_status_removed)
-	if statuses.apply_status(effect, unit):
-		if on_hit.is_valid():
-			_empower_callbacks[effect.id] = on_hit
-		else:
-			_empower_callbacks.erase(effect.id)
+	_empower_callbacks[status_id] = on_hit
 
 
 func has_next_attack_modifier(id: StringName) -> bool:

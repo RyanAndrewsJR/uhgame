@@ -4,6 +4,7 @@
 [ext_resource type="TileSet" uid="uid://cjrv70ikc2a4t" path="res://tilesets/dungeon_tileset.tres" id="2_tiles"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/slime.tscn" id="3_slime"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/slime_elite.tscn" id="4_elite"]
+[ext_resource type="Resource" uid="uid://w5seck43le0k" path="res://data/abilities/test_q_bolt.tres" id="9_3cgak"]
 [ext_resource type="Script" uid="uid://bm2nj8633t50a" path="res://scripts/rooms/sandbox_reactions.gd" id="90_reactions"]
 [ext_resource type="Resource" uid="uid://dybd2xurulns1" path="res://data/reactions/reaction_shatter.tres" id="91_shatter"]
 [ext_resource type="Script" uid="uid://4jx6fbr85xri" path="res://scripts/data/reaction_rule.gd" id="92_rule"]
@@ -52,3 +53,4 @@ player_rules = Array[ExtResource("92_rule")]([ExtResource("91_shatter")])
 
 [node name="SandboxAbilities" type="Node" parent="." unique_id=258340338]
 script = ExtResource("93_abilities")
+test_q = ExtResource("9_3cgak")

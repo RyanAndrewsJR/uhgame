@@ -153,6 +153,21 @@ const DAMAGE_NUMBER_STYLE_PATH := "res://data/damage_number_styles/damage_number
 ## line of sight to its target to start the cast (it walks around until it
 ## has it). On: it hits through walls (e.g. a meteor shower). COMBAT C7.
 @export var ignores_walls: bool = false
+## Push on each unit hit_units() hits, px, away from where the caster stood
+## (a scoped param). Unit.on_hit() applies it (like a swing's knockback), so
+## a blocked hit and an unstoppable unit aren't pushed; a unit the hit kills
+## still slides (hit_units()). ABILITIES AB11.
+@export var hit_knockback_px: float = 0.0
+## Seconds the push takes (the target's knockback_curve shapes it).
+@export var hit_knockback_duration: float = 0.1
+
+@export_group("Feel")
+## Played once per cast by play_hit_feel() when at least one hit landed
+## (ABILITIES AB11). Ability hits have no hit-feel tier of their own
+## (HitContext.Feel.NONE), so this is their shake and hitstop. 0 = none.
+@export var hit_shake: float = 0.0
+## Seconds (GameFeel.hitstop(): the longest running one wins).
+@export var hit_hitstop: float = 0.0
 
 @export_group("Projectile")
 ## Read only by abilities that fire projectiles (Projectile.fire(); ABILITIES
@@ -200,6 +215,50 @@ func filter_by_walls(from: Vector2, units: Array[Unit]) -> Array[Unit]:
 ## True if walls don't stop this ability from reaching `target` from `from`.
 func can_reach_through_walls(from: Vector2, target: Unit) -> bool:
 	return ignores_walls or WorldQuery.has_line_of_sight(from, target.global_position)
+
+
+## The toolkit's hit (ABILITIES AB11): each of `units` takes this ability's
+## hit through HitPipeline.from_ability(caster, self, u, ctx) (the cast's
+## charge, empowers and chain depth), one crit roll shared by the whole
+## cast, hit_knockback_px away from where the caster stands now, `statuses`
+## applied to each unit the hit gets through to (after the damage, from the
+## caster), then resolve(). Returns every hit, blocked ones included.
+func hit_units(caster: Unit, units: Array[Unit], ctx: CastContext, statuses: Array[StatusEffect] = []) -> Array[HitContext]:
+	var hits: Array[HitContext] = []
+	var crit_roll := HitContext.CritRoll.new()
+	var push := get_param(caster, &"hit_knockback_px")
+	var origin := caster.global_position
+	for u in units:
+		if not is_instance_valid(u):
+			continue
+		var hit := HitPipeline.from_ability(caster, self, u, ctx)
+		hit.crit_roll = crit_roll
+		if push > 0.0:
+			hit.knockback_px = push
+			hit.knockback_duration = hit_knockback_duration
+			hit.knockback_from = origin
+		hit.statuses.append_array(statuses)
+		HitPipeline.resolve(hit)
+		if push > 0.0 and hit.killed and is_instance_valid(u):
+			# Unit.on_hit() doesn't push the dead; a kill still slides the body,
+			# as Cleave's own push did before AB11 (the same velocity and curve).
+			var time := maxf(hit_knockback_duration, 0.01)
+			u.movement.displace((u.global_position - origin).normalized() * push / time, time)
+		hits.append(hit)
+	return hits
+
+
+## The cast's feel, once: hit_hitstop and hit_shake if any of `hits` landed
+## (wasn't blocked). Returns whether one did (ABILITIES AB11).
+func play_hit_feel(hits: Array[HitContext]) -> bool:
+	for h in hits:
+		if not h.blocked:
+			if hit_hitstop > 0.0:
+				GameFeel.hitstop(hit_hitstop)
+			if hit_shake > 0.0:
+				GameFeel.shake(hit_shake)
+			return true
+	return false
 
 
 ## A number of this ability (an @export param like &"cooldown",

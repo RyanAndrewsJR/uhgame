@@ -1,6 +1,11 @@
 extends Ability
 ## Knight E - Lunge: dash toward the target spot, passing through units and
 ## damaging every enemy you cut through.
+## Toolkit pieces (ABILITIES AB11): MovementComponent.dash() for the move,
+## AbilityUtil.along_segment() + line of sight for who's on the path,
+## hit_units() for the hits (one crit roll, the cast's context: a free cast's
+## hits keep their chain depth), play_hit_feel() for the shake (hit_shake in
+## the .tres). The afterimages and impact VFX are Lunge's own.
 
 ## Dash speed in LoL units per second.
 @export var dash_speed: float = 1400.0
@@ -32,17 +37,14 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 			return
 
 	var end := caster.global_position
-	var hits := AbilityUtil.along_segment(caster, start, end, Units.to_px(hit_width) * 0.5)
+	var targets := AbilityUtil.along_segment(caster, start, end, Units.to_px(hit_width) * 0.5)
 	if not ignores_walls:
 		# Line of sight from the nearest point of the path (COMBAT C7).
-		hits = hits.filter(func(u: Unit) -> bool:
+		targets = targets.filter(func(u: Unit) -> bool:
 			var near := Geometry2D.get_closest_point_to_segment(u.global_position, start, end)
 			return WorldQuery.has_line_of_sight(near, u.global_position))
-	var crit_roll := HitContext.CritRoll.new()   # one crit roll per cast
-	for u in hits:
-		var hit := HitPipeline.from_ability(caster, self, u)   # COMBAT C8
-		hit.crit_roll = crit_roll
-		HitPipeline.resolve(hit)
-		VFX.impact(u.get_parent(), u.global_position, Color(icon_color, 0.8), 36.0, 0.2)
-	if not hits.is_empty():
-		GameFeel.shake(2.5)
+	var hits := hit_units(caster, targets, ctx)
+	for u in targets:
+		if is_instance_valid(u):
+			VFX.impact(u.get_parent(), u.global_position, Color(icon_color, 0.8), 36.0, 0.2)
+	play_hit_feel(hits)

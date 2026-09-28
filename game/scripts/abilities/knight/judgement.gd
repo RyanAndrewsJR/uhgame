@@ -4,6 +4,12 @@ extends Ability
 ## The missing-health bonus is a DamageScaling term in the .tres (param
 ## &"target_missing_health_ratio", ABILITIES AB2), so HitPipeline.from_ability()
 ## adds it to the base damage (it crits too) and items can raise it.
+## Toolkit pieces (ABILITIES AB11): hit_units() for the hit (the cast's
+## context) with the stun as a status of the hit (applied after the damage,
+## from the Knight, if the hit gets through), play_hit_feel() for the shake
+## and hitstop (hit_shake / hit_hitstop in the .tres). The VFX are its own.
+
+const STATUS_STUN: StatusEffect = preload("res://data/statuses/status_stun.tres")
 
 @export var stun_duration: float = 0.75
 
@@ -26,12 +32,9 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 	VFX.slash(parent, target.get_center(), (target.global_position - caster.global_position).angle() + PI * 0.5,
 		4.0, 26.0, deg_to_rad(70.0), Color(icon_color, 0.95), 0.12)
 	VFX.ring(parent, target.global_position, 8.0, 44.0, icon_color, 0.4, 3.0)
-	# Through the hit pipeline (COMBAT C8): the missing-health bonus is a
-	# scaling term, part of the base damage, so it crits and gets
-	# damage_increase too.
-	var hit := HitPipeline.from_ability(caster, self, target)
-	HitPipeline.resolve(hit)
-	if not hit.blocked:
-		target.apply_stun(stun_duration, caster)
-	GameFeel.shake(6.0)
-	GameFeel.hitstop(0.09)
+	# The stun: status_stun for stun_duration (tenacity still shortens it).
+	var stun: StatusEffect = STATUS_STUN.duplicate()
+	stun.duration = get_param(caster, &"stun_duration")
+	var targets: Array[Unit] = [target]
+	var statuses: Array[StatusEffect] = [stun]
+	play_hit_feel(hit_units(caster, targets, ctx, statuses))

@@ -18,4 +18,5 @@ cast_time = 0.05
 cast_range = 400.0
 base_damage = 50.0
 ad_ratio = 0.5
+hit_shake = 2.5
 dash_curve = ExtResource("2_curve")
