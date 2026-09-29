@@ -11,8 +11,8 @@ Same as COMBAT.md: MUST (never change without asking Ryan), TARGET (start value 
 Every hit has a crunch you feel as much as see; the finisher and kills land heavier, and crits ring out. You hear an elite winding up before you see it, and a heartbeat tells you you're low without looking at the health bar. Packs die in one satisfying burst, not a wall of overlapping noise. The mix stays readable in chaos: what matters to you (your hits, your danger) is always on top.
 
 ## References
-- Hades. Take: crunchy, punchy hit sounds that land during the hitstop; wind-up cues on enemy attacks; a heavier finisher; music that lifts in combat and settles after a room clears.
-- League of Legends. Take: every ability has its own cast sound (kit identity); a distinct crit sound; an "ultimate ready" cue. Don't take: constant voice lines.
+- Hades. Take: crunchy, punchy hit sounds that land during the hitstop; wind-up sounds on enemy attacks; a heavier finisher; music that lifts in combat and settles after a room clears.
+- League of Legends. Take: every ability has its own cast sound (kit identity); a distinct crit sound; an "ultimate ready" ping. Don't take: constant voice lines.
 - Diablo. Take: item drops that sound different by rarity; pack deaths that burst; positional sound that tells you where enemies are. Don't take: sound spam from dozens of identical hits.
 
 ## Principles
@@ -24,7 +24,7 @@ Every hit has a crunch you feel as much as see; the finisher and kills land heav
 6. One way to play sounds: everything goes through the Audio autoload.
 
 ## Rules (MUST)
-- Every sound is a SoundEvent resource (`data/sounds/sound_<name>.tres`). A null SoundEvent field = silent, never an error. A SoundEvent with no usable audio (a missing or empty file) warns once per SoundEvent and stays silent. (Godot's loader also prints its own error when a .tres points at a missing file; we can't suppress that one.)
+- Every sound is a SoundEvent resource (`data/sounds/sound_<category>_<name>.tres`; File layout, Naming). A null SoundEvent field = silent, never an error. A SoundEvent with no usable audio (a missing or empty file) warns once per SoundEvent and stays silent. (Godot's loader also prints its own error when a .tres points at a missing file; we can't suppress that one.)
 - Owner components play the sounds on their own data (a swing's sound, a dash, an ability cast) through the Audio autoload, the same way they call GameFeel and VFX. Cross-system sounds (hits, deaths, statuses) come from an audio listener on Events (`unit_hit`, `unit_damaged`, `unit_died`, `status_applied`, `status_removed`): `CombatSounds`. Combat code never plays a hit or death sound itself; a swing's or ability's own hit sound reaches the listener through `HitContext.hit_sound`.
 - There is no "play sound" GameplayEffect. A ReactionRule makes a sound only through what it creates: the status it applies plays that status's sound; a proc hit plays a hit sound.
 - Sounds play in real time: `Engine.time_scale` (hitstop) never slows or pitches them, and instance limits are timed in real time (like GameFeel's hitstop).
@@ -35,7 +35,7 @@ Every hit has a crunch you feel as much as see; the finisher and kills land heav
 - Telegraph wind-up sounds are owned by the Telegraph: when a cast is cancelled or interrupted and the telegraph is freed, its sound stops.
 - Status loops (e.g. a burn crackle) start on apply and stop on remove, one loop per status per unit (not per stack).
 - DoT ticks are silent by default; the apply sound and the loop carry them.
-- Pack burst (proposed): when 3 or more enemies die within 0.1 s, the death that makes 3 plays one "pack burst" sound instead of its own, and later deaths in that window are silent. Deaths in the same frame are counted together at the end of that frame (still the same frame), so a swing that kills a pack plays only the burst; the first two of a spread-out trio keep their own sounds.
+- Pack burst (built in A2): when 3 or more enemies die within 0.1 s, the death that makes 3 plays one "pack burst" sound instead of its own, and later deaths in that window are silent. Deaths in the same frame are counted together at the end of that frame (still the same frame), so a swing that kills a pack plays only the burst; the first two of a spread-out trio keep their own sounds.
 - `hurt_sound` stays null on normal enemies (their hit sound is enough). It's for the player and, later, elites and bosses.
 - Volume is the player's choice: Master, Music, SFX, UI, Ambience, Voice sliders live in the Settings autoload (saved to `user://settings.cfg`) and the Esc pause menu.
 - Tests can check audio without hearing it: the Audio autoload keeps a log of what played, what was dropped and why.
@@ -55,7 +55,7 @@ Optional fields on existing classes, all null (silent) by default. Every SoundEv
 | `Unit.hurt_sound` (export group "Sounds") | `Events.unit_damaged` with `health_lost` > 0 | CombatSounds | SFX, centered for the player |
 | `Unit.death_sound` (set in each enemy scene), `AudioMix.pack_burst_sound` | `Events.unit_died`, flushed at the end of the frame | CombatSounds | SFX, the unit |
 | `Ability.cast_sound` | cast start (`AbilityComponent._do_cast()` at `cast_started`) | AbilityComponent | SFX, caster |
-| `Ability.hit_sound` | per cast that lands, not per target: `from_ability()` → `Events.unit_hit` | CombatSounds | SFX, target |
+| `Ability.hit_sound` | on landing, not per target: `from_ability()` copies it to `HitContext.hit_sound` → `Events.unit_hit`; CombatSounds plays it once per (source, sound, frame), so once for everyone a cast hits in one frame (a projectile's hits in later frames each play it) | CombatSounds | SFX, target |
 | `Ability.telegraph_sound` | a wind-up, after `Ability.on_cast_started()` sets `ctx.telegraph` (`Telegraph.play_sound(event)`) | Telegraph | SFX, telegraph, 640 px |
 | `Ability.ready_sound` | `AbilityComponent.cooldown_finished(slot, ability)` (the Knight's R) | AbilityComponent | the event's bus, centered |
 | `Ability.charge_sound` | a loop (the SoundEvent's `loop` on) on the caster from `charge_started` until release, cancel or interrupt (ABILITIES.md) | AbilityComponent (`play_on`, stopped by handle) | SFX, caster (centered for the player) |
@@ -73,7 +73,7 @@ Later hooks, per system: Build order, Later.
 - Positional: `max_distance_px` 480 (320–640; the screen is 640 wide); pan strength 0.5 (0–1), subtle, so sounds don't jump between ears. Pan strength is the project setting `audio/general/2d_panning_strength`; every player keeps its own `panning_strength` at 1.0.
 - Telegraph sounds carry farther: `max_distance_px` 640 (480–800), so an off-screen elite is heard.
 - Low-health heartbeat below 25% max health (15–35%).
-- Pack burst: 3 deaths within 0.1 s (proposed; FREE to retune).
+- Pack burst: 3 deaths within 0.1 s (built; FREE to retune).
 - Pause: Music −6 dB (0 to −12), low-pass FREE.
 - Bus starting levels: Master 0, Music −8, SFX 0, UI −4, Ambience −12, Voice −2 dB (all FREE to retune).
 - Latency: keep the project's audio output latency at the default or lower, and say what it is. The default `audio/driver/output_latency` is 15 ms and the project doesn't override it; the real value depends on the OS driver, so the audio test prints `AudioServer.get_output_latency()`.
@@ -180,7 +180,7 @@ Registered after Settings (it reads it in `_ready()`). Process mode Always, so i
   2. No usable audio: `push_warning()` once per SoundEvent, logged dropped `no_audio` every time.
   3. Instance limit: `max_instances` starts of this event already within the last `min_interval` (real time): dropped `instance_limit`.
   4. A positional one-shot farther than its `max_distance_px` from the listener (the screen center): dropped `out_of_range`. Loops always start (they may come into range).
-  5. Voice cap (SFX bus only): with `mix.voice_cap` SFX sounds playing, a new sound that outranks the lowest-priority one stops it (the oldest among equals; logged `stolen`); otherwise the new one is dropped `voice_cap`. A stolen loop stays stopped (FREE whether it resumes later).
+  5. Voice cap (SFX bus only): with `mix.voice_cap` SFX sounds playing, a new sound that outranks the lowest-priority one stops it (the oldest among equals; logged `stolen`); otherwise the new one is dropped `voice_cap`. A stolen loop stays stopped until its owner starts it again: a status loop restarts on that status's next application (CombatSounds, A3), the heartbeat on the next health change below the threshold (Player).
   6. Start: a pooled player (AudioStreamPlayer when centered, AudioStreamPlayer2D when positional; `max_polyphony` 1, `panning_strength` 1.0, `attenuation` 1.0, `max_distance` from the event), with the event's bus and `volume_db`, `pitch_scale` = event pitch × `pitch`. Logged `played`.
 - **Real time:** limits and the pack burst window use `Time.get_ticks_msec()`; fades use real delta (`delta / Engine.time_scale`, like GameCamera). Nothing touches `AudioServer.playback_speed_scale`.
 - **Pause:** players on SFX, Ambience and Voice are `PROCESS_MODE_PAUSABLE` (they pause with the tree and resume after); Music and UI players are `PROCESS_MODE_ALWAYS`. Audio watches `get_tree().paused` every frame: while paused, Music fades to `pause_music_duck_db` and its low-pass turns on; unpausing fades back. Any tree pause does this, not only the menu.

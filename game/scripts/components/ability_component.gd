@@ -160,6 +160,22 @@ func get_ability(slot: StringName) -> Ability:
 	return variant if variant != null else base
 
 
+## Every ability the unit holds: each slot's own ability and the REPLACE
+## variants of its augments (active or not), each once. StatsComponent checks
+## scoped modifier keys against them.
+func get_all_abilities() -> Array[Ability]:
+	var result: Array[Ability] = []
+	for slot in SLOTS:
+		var ability := get_base_ability(slot)
+		if ability != null and not result.has(ability):
+			result.append(ability)
+	for e: Array in _augments:
+		var augment: AbilityAugment = e[0]
+		if augment.replacement != null and not result.has(augment.replacement):
+			result.append(augment.replacement)
+	return result
+
+
 ## The slot's own ability (the q / w / e / r export), whatever augments do.
 func get_base_ability(slot: StringName) -> Ability:
 	match slot:
@@ -225,9 +241,11 @@ func get_max_charges(slot: StringName) -> int:
 	return maxi(floori(ability.get_param(unit, &"max_charges")), 1)
 
 
-## Ready, not casting, alive and not blocked. Doesn't look at the cost:
-## a press that can't be afforded fails at once instead of being buffered
-## (can_afford(); ABILITIES.md, Costs).
+## Ready, not casting, alive and not blocked. Doesn't look at the cost or the
+## conditions: a press that can't be afforded or fails its conditions fails at
+## once instead of being buffered (can_afford(), conditions_pass(); ABILITIES.md,
+## Costs and Conditions). get_fail_reason() is the full check (the enemy AI
+## uses it).
 func can_cast(slot: StringName) -> bool:
 	return is_ready(slot) and not casting and unit.is_alive() and not unit.is_cast_blocked()
 
@@ -330,8 +348,10 @@ func _make_condition_context(slot: StringName, ability: Ability, aim: Vector2, t
 
 ## The condition target of a cast that doesn't pick one: the living enemy
 ## nearest the aim within the ability's cast range of the unit, or null.
-func _condition_target(ability: Ability, aim: Vector2) -> Unit:
-	return AbilityUtil.nearest_enemy_in_range(unit, aim, Units.to_px(ability.get_param(unit, &"cast_range")))
+## The range is get_effect_param() for `ctx` (its charge and inputs so far;
+## no target yet), like every cast_range read here.
+func _condition_target(ability: Ability, aim: Vector2, ctx: CastContext = null) -> Unit:
+	return AbilityUtil.nearest_enemy_in_range(unit, aim, Units.to_px(ability.get_effect_param(unit, &"cast_range", ctx)))
 
 
 ## The built-in named inputs (charge is set already): self_missing_health
@@ -341,7 +361,7 @@ func _fill_inputs(ctx: CastContext, ability: Ability) -> void:
 	var max_health := unit.health.max_health
 	ctx.set_input(&"self_missing_health", 1.0 - unit.health.current / max_health if max_health > 0.0 else 0.0)
 	var distance := 0.0
-	var range_px := Units.to_px(ability.get_param(unit, &"cast_range"))
+	var range_px := Units.to_px(ability.get_effect_param(unit, &"cast_range", ctx))
 	if is_instance_valid(ctx.target) and range_px > 0.0:
 		distance = maxf(unit.edge_distance_to(ctx.target), 0.0) / range_px
 	ctx.set_input(&"target_distance", distance)
@@ -396,7 +416,7 @@ func try_cast(slot: StringName, aim: Vector2, target_unit: Unit = null) -> bool:
 				return false
 			ctx.target = target_unit
 			# Out of range, or no line of sight (COMBAT C7): walk until both hold.
-			if unit.edge_distance_to(target_unit) > Units.to_px(ability.get_param(unit, &"cast_range")) \
+			if unit.edge_distance_to(target_unit) > Units.to_px(ability.get_effect_param(unit, &"cast_range", ctx, target_unit)) \
 					or not ability.can_reach_through_walls(unit.global_position, target_unit):
 				_pending = {"slot": slot, "target": target_unit}
 				_pending_repath = 0.0
@@ -409,9 +429,10 @@ func try_cast(slot: StringName, aim: Vector2, target_unit: Unit = null) -> bool:
 
 
 ## A cast's context for an aim: the slot, its recast part, the charge, and
-## the aim by targeting (SELF: the caster; POINT: clamped to the range at
-## that charge; DIRECTION / UNIT: toward the aim). UNIT's target is set by
-## try_cast().
+## the aim by targeting (SELF: the caster; POINT: clamped to the range, read
+## last with get_effect_param() so the charge, the inputs and conditional
+## bonuses for the target count; DIRECTION / UNIT: toward the aim). UNIT's
+## target is set by try_cast().
 ## AB12: `target` is a UNIT cast's chosen target (ctx.target); another cast
 ## gets the condition target (the enemy nearest the aim within cast range)
 ## when the ability needs one (Ability.needs_condition_target()). Then the
@@ -427,18 +448,18 @@ func _make_context(slot: StringName, ability: Ability, aim: Vector2, charge: flo
 	var to_aim := aim - origin
 	ctx.direction = to_aim.normalized() if to_aim.length() > 0.01 else Vector2.RIGHT
 	ctx.point = aim
+	if ability.targeting == Ability.Targeting.UNIT:
+		ctx.target = target if is_instance_valid(target) else null
+	elif ability.needs_condition_target():
+		ctx.target = _condition_target(ability, aim, ctx)
+	if ctx.part > 0 and _recast.has(slot):
+		ctx.last_part_hit = _recast[slot].last_part_hit
+	_fill_inputs(ctx, ability)
 	match ability.targeting:
 		Ability.Targeting.SELF:
 			ctx.point = origin
 		Ability.Targeting.POINT:
-			ctx.point = origin + to_aim.limit_length(Units.to_px(ability.get_charged_param(unit, &"cast_range", charge)))
-	if ability.targeting == Ability.Targeting.UNIT:
-		ctx.target = target if is_instance_valid(target) else null
-	elif ability.needs_condition_target():
-		ctx.target = _condition_target(ability, aim)
-	if ctx.part > 0 and _recast.has(slot):
-		ctx.last_part_hit = _recast[slot].last_part_hit
-	_fill_inputs(ctx, ability)
+			ctx.point = origin + to_aim.limit_length(Units.to_px(ability.get_effect_param(unit, &"cast_range", ctx)))
 	return ctx
 
 
@@ -457,13 +478,13 @@ func _make_cast_context(slot: StringName, ability: Ability, aim: Vector2, target
 
 # --- VECTOR (ABILITIES AB13) -------------------------------------------------------
 
-## The start point for an aim: clamped to cast_range from the unit, then
-## (unless the ability ignores walls) to the last spot short of a wall on
-## the line from the unit, so a cursor inside a wall or out of sight puts it
-## at the wall's face.
-func _clamp_vector_start(ability: Ability, aim: Vector2) -> Vector2:
+## The start point for an aim: clamped to cast_range (get_effect_param(),
+## for `ctx` when there is one) from the unit, then (unless the ability
+## ignores walls) to the last spot short of a wall on the line from the
+## unit, so a cursor inside a wall or out of sight puts it at the wall's face.
+func _clamp_vector_start(ability: Ability, aim: Vector2, ctx: CastContext = null) -> Vector2:
 	var origin := unit.global_position
-	var start := origin + (aim - origin).limit_length(Units.to_px(ability.get_param(unit, &"cast_range")))
+	var start := origin + (aim - origin).limit_length(Units.to_px(ability.get_effect_param(unit, &"cast_range", ctx)))
 	if not ability.ignores_walls:
 		var wall := WorldQuery.shape_sweep(origin, start, VECTOR_WALL_RADIUS_PX)
 		if not wall.is_empty():
@@ -473,11 +494,12 @@ func _clamp_vector_start(ability: Ability, aim: Vector2) -> Vector2:
 
 ## Fills a VECTOR cast's line from its start point and the release aim: the
 ## direction (start -> aim, or a tap's fallback under vector_min_drag_px),
-## the end (vector_length along it) and vector_drag (drag length ÷
-## vector_length, 0 for a tap). `point` = the start and `direction` = unit ->
-## start, their usual meanings.
+## the end (vector_length along it: get_effect_param(), so a conditional
+## bonus can lengthen it) and vector_drag (drag length ÷ vector_length, 0
+## for a tap). `point` = the start and `direction` = unit -> start, their
+## usual meanings.
 func _fill_vector(ctx: CastContext, ability: Ability, start: Vector2, aim: Vector2) -> void:
-	var length_px := Units.to_px(ability.get_param(unit, &"vector_length"))
+	var length_px := Units.to_px(ability.get_effect_param(unit, &"vector_length", ctx))
 	var drag := (aim - start).length()
 	ctx.vector_start = start
 	ctx.vector_direction = ability.get_vector_direction(unit, start, aim)
@@ -511,7 +533,7 @@ func try_cast_vector(slot: StringName, start: Vector2, direction: Vector2) -> bo
 		return false
 	var s := _clamp_vector_start(ability, start)
 	var ctx := _make_context(slot, ability, s, 1.0)
-	var length_px := Units.to_px(ability.get_param(unit, &"vector_length"))
+	var length_px := Units.to_px(ability.get_effect_param(unit, &"vector_length", ctx))
 	_fill_vector(ctx, ability, s, s + direction.normalized() * maxf(length_px, ability.vector_min_drag_px))
 	_pending.clear()
 	_do_cast(slot, ability, ctx)
@@ -564,11 +586,6 @@ func get_charge() -> float:
 ## holding (the indicator follows the cursor) or with no charge-up.
 func get_locked_charge_aim() -> Vector2:
 	return _charge_aim if _charge_phase == ChargePhase.RELEASED else Vector2.INF
-
-
-## Seconds the charging key has been held (0 when not holding).
-func get_charge_hold_time() -> float:
-	return _charge_hold if is_charging() else 0.0
 
 
 ## Seconds left before the overhold behavior: the whole overhold_time until
@@ -824,7 +841,7 @@ func _physics_process(delta: float) -> void:
 	if not is_instance_valid(target) or not target.is_targetable() or not unit.is_alive():   # untargetable: dropped (AB10)
 		_pending.clear()
 		return
-	if unit.edge_distance_to(target) <= Units.to_px(ability.get_param(unit, &"cast_range")) \
+	if unit.edge_distance_to(target) <= Units.to_px(ability.get_effect_param(unit, &"cast_range", null, target)) \
 			and ability.can_reach_through_walls(unit.global_position, target):
 		_pending.clear()
 		unit.movement.stop()

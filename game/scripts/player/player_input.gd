@@ -7,8 +7,8 @@ extends Node
 ## - Input buffer: dash, attack and Q/W/E/R presses that aren't allowed yet
 ##   wait up to buffer_time and fire as soon as they are. One buffered press
 ##   at a time: a newer press replaces an older one. The timer pauses while a
-##   dash, a cast or a basic attack swing is playing out, so a press during
-##   one fires when it ends.
+##   dash, a cast, a basic attack swing or a swing's breather (pause_after)
+##   is playing out, so a press during one fires when it ends.
 ## - Dash (Space): toward the cursor at the moment of the press, or the held
 ##   direction (facing if none): the player's choice (Settings, pause menu).
 ## - Attack (left mouse): the next swing of the basic attack combo toward the

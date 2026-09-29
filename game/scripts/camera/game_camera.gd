@@ -1,12 +1,14 @@
+class_name GameCamera
 extends Camera2D
-## LoL-style camera.
+## The game camera (MOVEMENT.md, Architecture 4):
 ##   Y          - toggle locked / unlocked
-##   Hold Space - center on your character while held
+##   Hold C     - center on your character while held (camera_center)
 ##   Unlocked:  move the mouse to a screen edge, or use the arrow keys, to pan
 ## Also handles screen shake (GameFeel.shake()).
 ## Locked: leans toward the mouse (aim lead, MOVEMENT.md F4). No lean while
 ## the cursor is inside a dead zone; the lean eases in and out at its own
-## rate, and is full only while the player aims or casts.
+## rate, and is full only while the player aims, casts or swings (and for
+## aim_lead_hold_time after).
 
 @export var target: Node2D
 @export var locked: bool = true

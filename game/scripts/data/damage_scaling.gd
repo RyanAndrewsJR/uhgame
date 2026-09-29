@@ -38,11 +38,6 @@ const _STAT_LABELS := {
 }
 
 
-## True if the term reads the target (it's 0 without one, e.g. in a tooltip).
-func is_target_term() -> bool:
-	return of == Of.TARGET_MAX_HEALTH or of == Of.TARGET_MISSING_HEALTH or of == Of.TARGET_CURRENT_HEALTH
-
-
 ## The amount the ratio multiplies: the caster's stat (or bonus stat), or the
 ## target's health. 0 when the caster or target it needs is missing.
 func get_amount(caster: Unit, target: Node) -> float:

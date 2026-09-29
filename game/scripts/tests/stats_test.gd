@@ -11,7 +11,8 @@ extends Node
 ## StatsComponent (as Unit does) and checks the add_speed_modifier() wrapper
 ## (STATS.md step 4), including a timed slow running out.
 ##
-## Three push_errors in the output are expected (the unknown stat checks).
+## Eight push_errors in the output are expected (the unknown stat checks and
+## the misspelled scoped keys).
 ## Run headless and it quits with the number of failures as the exit code.
 
 const KNIGHT_STATS: UnitStats = preload("res://data/units/knight.tres")
@@ -55,6 +56,7 @@ func _ready() -> void:
 	_test_unknown_keys()
 	_test_scoped_modifiers()
 	_test_hit_scoped_modifiers()
+	_test_scoped_key_typos()
 	await _test_speed_modifier_wrapper()
 	await _test_health_and_resource_pools()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
@@ -131,6 +133,27 @@ func _test_hit_scoped_modifiers() -> void:
 	_signals.clear()
 
 
+## A misspelled key under each scope type is rejected with a push_error,
+## never silently kept (STATS.md: an unknown key is never a silent 0).
+func _test_scoped_key_typos() -> void:
+	_section("Misspelled scoped keys (5 errors expected above the results)")
+	var before := _all_values(knight_stats)
+	var cases := [
+		["ability: a misspelled param", _mod(&"cooldwon", FLAT, -1.0, &"item_typo", &"ability:knight_cleave")],
+		["tag: a misspelled param", _mod(&"cast_rnage", PERCENT_ADD, 0.3, &"item_typo", &"tag:area")],
+		["target: a misspelled stat", _mod(&"damage_increse", FLAT, 0.5, &"item_typo", &"target:stun")],
+		["a misspelled scope kind (abilty:)", _mod(&"cooldown", FLAT, -1.0, &"item_typo", &"abilty:knight_cleave")],
+		["ability: a subclass param no held ability has (no AbilityComponent here)", _mod(&"radius", FLAT, 10.0, &"item_typo", &"ability:test_nova")],
+	]
+	for c: Array in cases:
+		knight_stats.add_modifier(c[1])
+		_check("%s is rejected" % c[0], knight_stats.get_modifiers_from(&"item_typo").size(), 0)
+	knight_stats.add_modifier(_mod(&"cast_range", PERCENT_ADD, 0.3, &"item_ok", &"tag:area"))
+	_check("the same modifier spelled right is kept", knight_stats.get_modifiers_from(&"item_ok").size(), 1)
+	knight_stats.remove_modifiers_from(&"item_ok")
+	_check_exact("nothing else changed", _all_values(knight_stats), before)
+
+
 func _test_registry() -> void:
 	_section("Registry")
 	var keys := knight_stats.registry.get_keys()
@@ -159,7 +182,7 @@ func _test_base_values() -> void:
 		[1.0, 0.0, 0.0, 0.0, 0.0])
 	_check("max_resource 300 (knight.tres)", knight_stats.get_stat(&"max_resource"), 300.0)
 	_check("resource_regen 6 (knight.tres)", knight_stats.get_stat(&"resource_regen"), 6.0)
-	_check("health_regen 0 (knight.tres)", knight_stats.get_stat(&"health_regen"), 0.0)
+	_check("health_regen 0 (the default; knight.tres doesn't set it: zero sustain)", knight_stats.get_stat(&"health_regen"), 0.0)
 	_check("slime max_resource 0 (neutral default)", slime_stats.get_stat(&"max_resource"), 0.0)
 	_check("slime move_speed 285", slime_stats.get_stat(&"move_speed"), 285.0)
 
@@ -360,7 +383,7 @@ func _test_levels() -> void:
 
 func _test_helpers() -> void:
 	_section("Helpers")
-	_check("get_attack_interval = 1 / 0.7", knight_stats.get_attack_interval(), 1.0 / 0.7)
+	_check("attack_speed 0.7 (the interval, 1 / it, is AutoAttackComponent.get_attack_interval())", knight_stats.get_stat(&"attack_speed"), 0.7)
 	_check("get_cooldown(10) with 0 haste", knight_stats.get_cooldown(10.0), 10.0)
 	knight_stats.add_modifier(_mod(&"ability_haste", FLAT, 25.0, &"item_haste"))
 	_check("get_cooldown(10) with 25 haste = 8", knight_stats.get_cooldown(10.0), 8.0)

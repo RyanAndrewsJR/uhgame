@@ -43,12 +43,14 @@ var _last_to: Vector2
 
 ## Fires the ability's projectiles from `origin` along `direction`:
 ## projectile_count of them, projectile_spread_deg apart, centered on it.
-## Params are read once, at `cast`'s charge. They're added next to the caster
+## Params are read once, with Ability.get_effect_param() (the cast's charge
+## and other named inputs, and its conditional bonuses for the cast's
+## target; CONVENTIONS.md pattern 6). They're added next to the caster
 ## (the room's Entities). Returns them.
 static func fire(p_caster: Unit, p_ability: Ability, p_cast: CastContext, origin: Vector2, p_direction: Vector2) -> Array[Projectile]:
 	var out: Array[Projectile] = []
-	var count := maxi(floori(p_ability.get_charged_param(p_caster, &"projectile_count", p_cast.charge)), 1)
-	var spread := deg_to_rad(p_ability.get_charged_param(p_caster, &"projectile_spread_deg", p_cast.charge))
+	var count := maxi(floori(p_ability.get_effect_param(p_caster, &"projectile_count", p_cast)), 1)
+	var spread := deg_to_rad(p_ability.get_effect_param(p_caster, &"projectile_spread_deg", p_cast))
 	var roll := HitContext.CritRoll.new()   # one crit roll per cast
 	for i in count:
 		var p := Projectile.new()
@@ -65,10 +67,10 @@ func _setup(p_caster: Unit, p_ability: Ability, p_cast: CastContext, origin: Vec
 	cast = p_cast
 	team = p_caster.team
 	direction = p_direction.normalized() if p_direction.length() > 0.001 else Vector2.RIGHT
-	speed_px = Units.to_px(p_ability.get_charged_param(p_caster, &"projectile_speed", p_cast.charge))
-	range_px = Units.to_px(p_ability.get_charged_param(p_caster, &"cast_range", p_cast.charge))
-	half_width_px = Units.to_px(p_ability.get_charged_param(p_caster, &"projectile_width", p_cast.charge)) * 0.5
-	_hits_left = maxi(floori(p_ability.get_charged_param(p_caster, &"projectile_pierce", p_cast.charge)), 0) + 1
+	speed_px = Units.to_px(p_ability.get_effect_param(p_caster, &"projectile_speed", p_cast))
+	range_px = Units.to_px(p_ability.get_effect_param(p_caster, &"cast_range", p_cast))
+	half_width_px = Units.to_px(p_ability.get_effect_param(p_caster, &"projectile_width", p_cast)) * 0.5
+	_hits_left = maxi(floori(p_ability.get_effect_param(p_caster, &"projectile_pierce", p_cast)), 0) + 1
 	_snapshot_damage = p_ability.get_damage_against(p_caster, null, p_cast.charge)   # target terms come at the hit
 	for e in p_cast.empowers:   # the cast's empowers, for hits after the caster is freed (AB10)
 		_snapshot_damage += e.empower_base_damage + e.empower_ad_ratio * p_caster.stats_component.get_stat(&"attack_damage")
@@ -135,7 +137,6 @@ func _hit(target: Unit) -> void:
 					if s is StatusEffect:
 						hit.statuses.append(s)
 			hit.add_tag(&"empowered")
-			hit.highlight = true
 	HitPipeline.resolve(hit)
 	if not hit.blocked:
 		VFX.impact(target.get_parent(), target.global_position, Color(ability.icon_color, 0.8), 24.0, 0.15)

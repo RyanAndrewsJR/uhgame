@@ -1,12 +1,11 @@
 class_name Player
 extends Unit
-## LoL-style controls.
-##   Right-click ground  - move there (paths around walls and units)
-##   Right-click enemy   - chase it and auto-attack it
-##   Hold right-click    - keep re-targeting whatever is under the cursor
-##   A, then left-click  - attack-move (right-click or Esc cancels)
-##   S                   - stop (also cancels an attack windup)
-##   Q / W / E / R       - abilities (see cast_mode)
+## The player's champion (MOVEMENT.md, Input map):
+##   WASD                - walk (PlayerInput)
+##   Space               - dash toward the cursor (DashComponent)
+##   Left mouse          - the basic attack combo toward the cursor (PlayerInput)
+##   Q / right mouse (W) / E / R - abilities (see cast_mode)
+##   Esc                 - cancels an aim or a charge-up, else the pause menu
 
 ## How INSTANT abilities cast (ABILITIES.md, Cast mode). The player picks it
 ## in the pause menu (Settings); CHANNEL and SELF abilities always cast on press.
@@ -20,21 +19,17 @@ enum CastMode {
 ## What the player is doing, derived each physics frame from the components
 ## (MOVEMENT.md "Player states"). Priority: STUNNED > DASH > CASTING >
 ## ATTACK (a rooted combo swing, whose melee step is a displacement) >
-## DISPLACED > ATTACK (League-style windup) > MOVE > IDLE.
+## DISPLACED > MOVE > IDLE.
 enum State {
 	IDLE,       ## Standing still, free to act.
 	MOVE,       ## Walking (WASD, or a path such as R walking into range).
 	DASH,       ## The player's own dash (added in movement step 6).
-	ATTACK,     ## Basic attack windup.
+	ATTACK,     ## A basic attack swing while it roots (windup and recovery).
 	CASTING,    ## An ability is being cast (includes Lunge's dash).
 	STUNNED,    ## Stunned: can't move, attack or cast.
 	DISPLACED,  ## Pushed by something else (knockback, pull); can't walk.
 }
 
-## is_new_click is false while right-click is being held and dragged.
-signal move_commanded(target: Vector2, is_new_click: bool)
-signal attack_commanded(target: Unit, is_new_click: bool)
-signal attack_move_commanded(point: Vector2)
 signal state_changed(from: State, to: State)
 
 const ABILITY_ACTIONS := {&"q": "ability_q", &"w": "ability_w", &"e": "ability_e", &"r": "ability_r"}
@@ -42,8 +37,6 @@ const ABILITY_ACTIONS := {&"q": "ability_q", &"w": "ability_w", &"e": "ability_e
 ## Set from Settings at start and whenever the player changes it in the
 ## pause menu, so an Inspector value only lasts until then.
 @export var cast_mode: CastMode = CastMode.QUICK
-## How often the order updates while right-click is held (seconds).
-@export var hold_repath_interval: float = 0.05
 ## How close (px) the cursor must be to an enemy for targeted abilities.
 @export var target_forgiveness: float = 14.0
 ## Shows the current State name above the player.
@@ -64,11 +57,6 @@ const ABILITY_ACTIONS := {&"q": "ability_q", &"w": "ability_w", &"e": "ability_e
 @onready var dash: DashComponent = $DashComponent
 @onready var player_input: PlayerInput = $PlayerInput
 
-var attack_move_armed: bool = false:
-	set(value):
-		attack_move_armed = value
-		queue_redraw()
-
 ## Which ability is being aimed (QUICK_WITH_INDICATOR), or &"".
 var aiming_slot: StringName = &""
 ## A charge-up started by the player's own key press (so letting the key go,
@@ -86,7 +74,6 @@ var state: State = State.IDLE
 ## animation layer will pick one of 8 sprites from this (MOVEMENT.md).
 var facing: Vector2 = Vector2.RIGHT
 
-var _hold_timer: float = 0.0
 var _hovered_enemy: Unit
 var _walk_time: float = 0.0
 ## Where the current cast was aimed, locked at cast start (INF = none).
@@ -101,9 +88,6 @@ func _ready() -> void:
 	team = Team.PLAYER
 	super._ready()
 	add_to_group("player")
-	attack.windup_started.connect(_on_windup_started)
-	attack.attack_landed.connect(_on_attack_landed)
-	attack.windup_cancelled.connect(_on_windup_cancelled)
 	attack.swing_started.connect(_on_swing_started)
 	attack.swing_landed.connect(_on_swing_landed)
 	attack.swing_cancelled.connect(_on_swing_cancelled)
@@ -139,18 +123,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_on_ability_released(slot)
 			return
 
-	if event.is_action_pressed("move"):
-		if aiming_slot != &"":
-			aiming_slot = &""  # Right-click cancels the aim, like LoL.
-			queue_redraw()
-			return
-		attack_move_armed = false
-		_issue_right_click(true)
-		_hold_timer = hold_repath_interval
-	elif event.is_action_pressed("attack_move"):
-		attack_move_armed = true
-	elif event.is_action_pressed("ui_cancel"):
-		attack_move_armed = false
+	if event.is_action_pressed("ui_cancel"):
 		if aiming_slot != &"":
 			aiming_slot = &""
 			queue_redraw()
@@ -161,20 +134,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			_charge_from_input = false
 			queue_redraw()
 			get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("select") and attack_move_armed:
-		attack_move_armed = false
-		var enemy := _enemy_under_mouse()
-		abilities.cancel_pending()
-		if enemy:
-			attack.attack(enemy)
-			attack_commanded.emit(enemy, true)
-		else:
-			attack.attack_move(get_global_mouse_position())
-			attack_move_commanded.emit(movement.get_destination())
-	elif event.is_action_pressed("stop"):
-		abilities.cancel_pending()
-		attack.cancel()
-		movement.stop()
 
 
 func _on_ability_pressed(slot: StringName) -> void:
@@ -339,18 +298,6 @@ func cast_ability(slot: StringName, aim: Vector2 = Vector2.INF) -> bool:
 	return abilities.try_cast(slot, aim, target)
 
 
-func _issue_right_click(is_new_click: bool) -> void:
-	abilities.cancel_pending()
-	var enemy := _enemy_under_mouse()
-	if enemy:
-		attack.attack(enemy)
-		attack_commanded.emit(enemy, is_new_click)
-	else:
-		attack.cancel()
-		movement.move_to(get_global_mouse_position())
-		move_commanded.emit(movement.get_destination(), is_new_click)
-
-
 func _enemy_under_mouse() -> Unit:
 	return _enemy_under_point(get_global_mouse_position())
 
@@ -372,19 +319,13 @@ func _enemy_under_point(point: Vector2) -> Unit:
 
 # --- Update ---------------------------------------------------------------------
 
-func _physics_process(delta: float) -> void:
+func _physics_process(_delta: float) -> void:
 	if not is_alive():
 		return
 	abilities.set_aim_hint(get_global_mouse_position())   # conditions checked outside a press (AB12)
 	_update_charge_input()
 	_update_facing()
 	_update_state()
-	# Holding right-click keeps re-issuing the order, like LoL.
-	if Input.is_action_pressed("move") and aiming_slot == &"":
-		_hold_timer -= delta
-		if _hold_timer <= 0.0:
-			_hold_timer = hold_repath_interval
-			_issue_right_click(false)
 
 
 ## While charging: keep the charge's aim on the cursor (its overhold fires
@@ -419,7 +360,7 @@ func _process(delta: float) -> void:
 		if enemy:
 			enemy.hovered = true
 	var indicator_slot := get_indicator_slot()   # aiming, or charging up
-	var targeting := enemy != null or attack_move_armed or indicator_slot != &""
+	var targeting := enemy != null or indicator_slot != &""
 	var want_cursor := Input.CURSOR_CROSS if targeting else Input.CURSOR_ARROW
 	if Input.get_current_cursor_shape() != want_cursor:
 		Input.set_default_cursor_shape(want_cursor)
@@ -431,7 +372,7 @@ func _process(delta: float) -> void:
 
 	# Facing and a little walk bob.
 	var dir := movement.get_move_direction()
-	var busy := abilities.casting or attack.is_winding_up() or attack.is_swing_rooted()
+	var busy := abilities.casting or attack.is_swing_rooted()
 	if not busy and dir != Vector2.ZERO:
 		sword_pivot.rotation = dir.angle()
 		if absf(dir.x) > 0.05:
@@ -454,10 +395,6 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	super._draw()
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	if attack_move_armed:
-		# Attack range indicator, like holding A in LoL.
-		var r := attack.get_range_px() + get_gameplay_radius_px()
-		draw_arc(Vector2.ZERO, r, 0.0, TAU, 64, Color(1, 1, 1, 0.35), 1.0)
 	# The indicator: while aiming, and always during a charge-up (it grows with
 	# the charge: draw_indicator() reads the charged range; locked at the
 	# release aim during the release windup).
@@ -502,8 +439,6 @@ func _update_state() -> void:
 		next = State.ATTACK  # Over DISPLACED: a melee swing steps (displace()).
 	elif movement.is_displaced():
 		next = State.DISPLACED
-	elif attack.is_winding_up():
-		next = State.ATTACK
 	elif movement.get_move_direction() != Vector2.ZERO or movement.get_input_direction() != Vector2.ZERO:
 		# Holding a direction counts as moving, so there's no one-frame IDLE
 		# while the walk ramps back up after a cast.
@@ -537,18 +472,15 @@ func get_facing_octant() -> int:
 
 
 ## Facing priority: casting (the cast's aim, locked at cast start) >
-## attacking (a combo swing's aim, locked at swing start; or a League-style
-## windup's target) > dashing (the dash direction) > aiming an ability
-## (the cursor) > walking (the move direction). Standing still keeps the last
-## facing.
+## attacking (a combo swing's aim, locked at swing start) > dashing (the dash
+## direction) > aiming an ability (the cursor) > walking (the move
+## direction). Standing still keeps the last facing.
 func _update_facing() -> void:
 	var look := Vector2.ZERO
 	if abilities.casting and _cast_face_point != Vector2.INF:
 		look = _cast_face_point - global_position
 	elif attack.is_swing_rooted():
 		look = attack.get_swing_direction()
-	elif attack.is_winding_up() and is_instance_valid(attack.target):
-		look = attack.target.global_position - global_position
 	elif dash.is_dashing():
 		look = dash.get_dash_direction()
 	elif get_indicator_slot() != &"":   # aiming, or charging up
@@ -568,25 +500,6 @@ func face(point: Vector2) -> void:
 	sword_pivot.rotation = aim.angle()
 	if absf(aim.x) > 0.05:
 		body.scale.x = signf(aim.x)
-
-
-func _on_windup_started(target: Unit, windup_time: float) -> void:
-	face(target.get_center())
-	# Pull the sword back during the windup.
-	var tween := create_tween()
-	tween.tween_property(sword, "rotation", -0.9 * swing_side, windup_time * 0.8)
-
-
-func _on_attack_landed(target: Unit, _damage: float) -> void:
-	face(target.get_center())
-	sword.rotation = 0.0
-	_swing_sword(0.1)
-	VFX.slash(get_parent(), sword_pivot.global_position, sword_pivot.rotation, 14.0, 40.0,
-		deg_to_rad(55.0), Color(1, 1, 1, 0.7), 0.1, swing_side)
-
-
-func _on_windup_cancelled() -> void:
-	sword.rotation = 0.0
 
 
 ## Combo swing visuals (visual only): pull the sword back during the windup,
@@ -665,7 +578,6 @@ func on_hit(ctx: HitContext) -> void:
 
 func _on_died() -> void:
 	body.visible = true  # In case it died mid-blink.
-	attack_move_armed = false
 	aiming_slot = &""
 	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
 	Audio.stop(_low_health_handle)

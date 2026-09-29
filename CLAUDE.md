@@ -6,6 +6,7 @@
 ```
 uhgame/
   CLAUDE.md        # this file
+  PROMPTS.md       # Ryan's prompt playbook (for Ryan; don't read it unless asked)
   docs/            # one doc per system (see Docs index)
   game/            # the Godot project. res:// = uhgame/game/
 ```
@@ -88,7 +89,7 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 - **Disable before deleting.** Unbind a key, or add a flag, rather than deleting code. Delete only after the replacement works and I confirm.
 - **Don't rename** existing classes, files, input actions, or ability slots just for tidiness.
 - After each change, existing features (Knight abilities, enemies chasing, HUD) must still work.
-- The input map and the status of each LoL-era system (kept, dormant, replaced) are in docs/MOVEMENT.md, "Input and legacy systems".
+- The input map and the status of each LoL-era system (kept, replaced, deleted) are in docs/MOVEMENT.md, "Input and legacy systems".
 
 ## How to answer me
 - Give complete files, or complete functions with clear placement. Never partial snippets with "..." in them.
@@ -118,18 +119,16 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 | `docs/_TEMPLATE.md` | writing a new doc |
 
 ## Current status
-- **Now:** Waiting on Ryan's play test of AB13 (VECTOR: the elite casts `test_vector_wall` on W; the sandbox `test_q` is empty (AB-M), so set it to `test_vector_line` to try the line). Also waiting on AUDIO A3 (ability casts, Judgement's hit and ready ping, the elite's wind-up and slam, status sounds, the shield's break, the low-health heartbeat, the room cleared and "You died" stingers; all synthesized placeholders) and of "a swing counts once its hit has landed" and COMBAT C12. Still open: play tests of STATS steps 5–6, COMBAT C8–C11, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of the audit cleanup pass (CHANGELOG.md, 2026-09-29): the combo at `speed_scale` 1.266 again, the player Hurtbox's 0.2 s (no effect until a Hitbox exists; may go back to 0.0), Iron Resolve's aura and Lunge's afterimages now visible, the LoL input gone, `life_steal` 0. Also waiting on AB13 (VECTOR: the elite casts `test_vector_wall` on W; the sandbox `test_q` is empty (AB-M), so set it to `test_vector_line` to try the line), AUDIO A3 (ability casts, Judgement's hit and ready ping, the elite's wind-up and slam, status sounds, the shield's break, the low-health heartbeat, the room cleared and "You died" stingers; all synthesized placeholders), "a swing counts once its hit has landed" and COMBAT C12. Still open: play tests of STATS steps 5–6, COMBAT C8–C11, Feel pass F1–F4 at 144 Hz, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. Cleanup: Cleave's unused `knockback` export deleted (after AB-M passed).
-  2. ABILITIES milestone AB-M (passed Ryan's play test): the augment playground (`SandboxAugments`, keys 1–4).
-  3. Tests updated for the Knight's new stats; soft caps kept for the 375 Knight.
+  1. Audit cleanup pass: `speed_scale` 1.266 restored (tests fixed), enemy attacks through `HitPipeline.resolve()`, scoped key validation, `get_effect_param()` migration, the enemy AI skipping failing slots, floor VFX fixed, the LoL input and approved dead code deleted, docs reconciled. Movement steps 1 and 3–7 passed.
+  2. Cleanup: Cleave's unused `knockback` export deleted (after AB-M passed).
+  3. ABILITIES milestone AB-M (passed Ryan's play test): the augment playground (`SandboxAugments`, keys 1–4).
 - **Next:** The ABILITIES build order is done (AB13 awaits its play test). AUDIO's later steps come with their systems; real CC0 files can replace the placeholders any time (same names). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order (CHAMPIONS.md next).
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.
 - HUD ability bar labels the W slot "W" though it's on right mouse (the label comes from the slot name).
-- Header comments in `game_camera.gd` ("Hold Space") and `player.gd` (right-click / A / S controls) describe the old keys.
-- Lunge's afterimages (`VFX.afterimage`, `z_index` -1) draw under the floor tiles, so they never show.
 
 ## Decisions
 All decisions, grouped by system with date and why, are in `docs/DECISIONS.md`.

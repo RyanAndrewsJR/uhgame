@@ -9,8 +9,6 @@ extends Resource
 ## to a neutral value (no regen, no armor, no crit...), so a unit only gets
 ## them when its .tres sets them.
 
-@export var display_name: String = "Unit"
-
 @export_group("Defense")
 @export var max_health: float = 600.0
 ## Health per second.

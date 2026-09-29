@@ -21,6 +21,9 @@ extends Node
 ## ability, with the same formula. Hit-scoped ones (&"hit:<tag>",
 ## &"target:<tag>", COMBAT C8) change a stat only for the hits they match:
 ## get_scoped_stat(&"damage_increase", scopes).
+## An unknown key is never a silent 0: a modifier for an unknown stat, an
+## unknown ability param or an unknown scope kind is rejected with a
+## push_error (_is_valid()).
 
 signal stat_changed(key: StringName, old_value: float, new_value: float)
 
@@ -83,14 +86,10 @@ func get_level() -> int:
 	return _level
 
 
-## Seconds between basic attacks.
-func get_attack_interval() -> float:
-	return 1.0 / maxf(get_stat(&"attack_speed"), 0.001)
-
-
-## An ability's param after scoped modifiers: base = the ability's own
-## @export value (ability.get(param)); modifiers with stat == param and a
-## scope in ability.get_modifier_scopes(); the stat formula; never below 0.
+## An ability's param after scoped modifiers: base = ability.get_base_param()
+## (its @export of that name, or a scaling term's ratio); modifiers with stat
+## == param and a scope in ability.get_modifier_scopes(); the stat formula;
+## never below 0.
 ## Cached per ability and param until a scoped modifier is added or removed.
 func get_ability_param(ability: Ability, param: StringName) -> float:
 	var key := "%d/%s" % [ability.get_instance_id(), param]
@@ -235,7 +234,33 @@ func _is_valid(mod: StatModifier) -> bool:
 	if (not mod.is_scoped() or mod.is_hit_scoped()) and not registry.has_stat(mod.stat):
 		push_error("StatsComponent: modifier for unknown stat '%s' (source '%s')" % [mod.stat, mod.source_id])
 		return false
+	if mod.is_scoped() and not mod.is_hit_scoped():
+		# An ability param (STATS.md, Scoped modifiers): a typo would otherwise
+		# match nothing and silently change nothing.
+		if not (mod.scope.begins_with("ability:") or mod.scope.begins_with("tag:")):
+			push_error("StatsComponent: modifier for '%s' has an unknown scope '%s' (source '%s')" % [mod.stat, mod.scope, mod.source_id])
+			return false
+		if not _is_known_ability_param(mod.stat, mod.scope):
+			push_error("StatsComponent: modifier for unknown ability param '%s' (scope '%s', source '%s')" % [mod.stat, mod.scope, mod.source_id])
+			return false
 	return true
+
+
+## An ability param a scoped modifier may change: a number @export on the
+## Ability base class (cooldown, cast_range, base_damage...), or a param
+## (a subclass @export such as radius, or a scaling term's param) of an
+## ability the unit holds (its AbilityComponent's slots and active REPLACE
+## variants) that `scope` reaches.
+func _is_known_ability_param(param: StringName, scope: StringName) -> bool:
+	if Ability.is_base_param(param):
+		return true
+	var abilities := get_parent().get_node_or_null(^"AbilityComponent") as AbilityComponent if get_parent() else null
+	if abilities == null:
+		return false
+	for ability in abilities.get_all_abilities():
+		if ability.get_modifier_scopes().has(scope) and ability.has_param(param):
+			return true
+	return false
 
 
 func _has_scoped(mods: Array[StatModifier]) -> bool:

@@ -1,3 +1,4 @@
+class_name SandboxAugments
 extends Node
 ## Sandbox only (ABILITIES AB-M, the augment playground): four fake items,
 ## each one augment on the Knight under its own source id

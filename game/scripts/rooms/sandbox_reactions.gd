@@ -1,3 +1,4 @@
+class_name SandboxReactions
 extends Node
 ## Sandbox only (COMBAT C11 demo): gives the player these reaction rules
 ## (reaction_shatter.tres: hitting a stunned enemy deals a bonus 30 magic

@@ -1,8 +1,10 @@
 extends CanvasLayer
-## Heads-up display: hearts, enemy counter and centered messages.
+## Heads-up display: the health readout ("HP current / max" text in the
+## Hearts row), the enemy counter, the info line, centered messages, and the
+## ability and resource bars (setup_abilities()).
 
+## The health text's color at 0 health; it fades to white at full.
 const HEART_FULL := Color(0.9, 0.2, 0.25)
-const HEART_EMPTY := Color(0.25, 0.1, 0.12)
 
 @onready var hearts: HBoxContainer = $Margin/Top/Hearts
 @onready var enemy_label: Label = $Margin/Top/EnemyLabel

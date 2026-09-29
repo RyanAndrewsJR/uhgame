@@ -4,9 +4,7 @@
 [ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="2_scaling"]
 [ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="3_condition"]
 [ext_resource type="Script" uid="uid://effvdqcl7tjf" path="res://scripts/data/conditional_bonus.gd" id="4_bonus"]
-[ext_resource type="Script" uid="uid://b03uhk6wyab30" path="res://scripts/data/status_effect.gd" id="5_bpymi"]
 [ext_resource type="Script" uid="uid://cvwv2nrsbyrah" path="res://scripts/data/stat_modifier.gd" id="5_modifier"]
-[ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="6_mdb45"]
 
 [sub_resource type="Resource" id="focus"]
 script = ExtResource("3_condition")

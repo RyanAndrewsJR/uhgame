@@ -1,7 +1,8 @@
 class_name PauseMenu
 extends CanvasLayer
 ## Esc pause menu: pauses the game and shows the player's options (Settings).
-## main.gd opens it on Esc (unless that Esc cancelled an aimed ability);
+## main.gd opens it on Esc (unless that Esc cancelled an aimed ability, a
+## charge-up or a vector aim: the Player marks those handled);
 ## Esc again or Resume closes it. Runs while the game is paused
 ## (process_mode = Always in pause_menu.tscn).
 ## Options: the dash direction, the cast mode (ABILITIES.md), and one volume

@@ -4,7 +4,6 @@
 
 [resource]
 script = ExtResource("1_stats")
-display_name = "Elite Slime"
 max_health = 900.0
 health_regen = 0.0
 attack_damage = 30.0

@@ -42,4 +42,5 @@ swing_sound = ExtResource("4_finisher_sound")
 [resource]
 script = ExtResource("1_combo")
 swings = Array[ExtResource("2_swing")]([SubResource("swing_1"), SubResource("swing_2"), SubResource("swing_3")])
+speed_scale = 1.266
 dash_strike = SubResource("dash_strike")

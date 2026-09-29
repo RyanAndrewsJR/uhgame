@@ -127,7 +127,10 @@ func _on_damaged(_amount: float, source: Unit) -> void:
 ## player is within its cast_range (from the center) and in sight. Its cast
 ## time is the telegraph (COMBAT.md). Not during a basic attack windup. A
 ## VECTOR ability places its line with get_ai_vector() (ABILITIES AB13).
-## Returns true while casting.
+## A slot that can't be cast right now for any reason (get_fail_reason():
+## a failing condition or cost included, AB12) is skipped, so it never
+## blocks the slots after it and nothing emits cast_failed. Returns true
+## while casting.
 func _try_cast_ability() -> bool:
 	if abilities == null:
 		return false
@@ -147,7 +150,11 @@ func _try_cast_ability() -> bool:
 		if ability.cast_style == Ability.CastStyle.VECTOR:
 			# The ability lays its own line (ABILITIES AB13): no mouse to drag.
 			var v := ability.get_ai_vector(self, _player)
+			if abilities.get_fail_reason(slot, v.start) != "":
+				continue
 			return abilities.try_cast_vector(slot, v.start, v.direction)
+		if abilities.get_fail_reason(slot, _player.global_position, _player) != "":
+			continue
 		return abilities.try_cast(slot, _player.global_position, _player)
 	return false
 
@@ -162,7 +169,7 @@ func _can_see_player() -> bool:
 	return not sight.is_colliding()
 
 
-func _on_windup_started(target: Unit, windup_time: float) -> void:
+func _on_windup_started(_target: Unit, windup_time: float) -> void:
 	# Crouch before lunging.
 	var tween := create_tween()
 	tween.tween_property(body, "scale", Vector2(1.25, 0.75), windup_time)

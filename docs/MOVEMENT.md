@@ -10,7 +10,7 @@
 | `res://scripts/components/movement_component.gd` | Shared by all Units. Enemies walk with `move_to()` (NavigationServer2D pathing, steering); the player with `set_input_direction()`. Move locks, speed modifiers with soft caps, `displace()`, `dash()`. Speed is the `move_speed` stat (STATS.md). `add_speed_modifier()` is a wrapper: on a unit with a StatusComponent it applies a slow or haste status (COMBAT C9); without one it adds StatModifiers and keeps the timer itself. |
 | `res://scripts/player/player_input.gd` | `PlayerInput`, child of Player. Reads WASD, dash and attack each physics frame; owns the input buffer. |
 | `res://scripts/components/dash_component.gd` | `DashComponent`, child of Player. The dash. |
-| `res://scripts/player/player.gd` | Q/W/E/R casting, facing and aim, player states. The LoL right-click orders are still there, dormant. |
+| `res://scripts/player/player.gd` | Q/W/E/R casting, facing and aim, player states. (The dormant LoL right-click orders were deleted 2026-09-29.) |
 | `res://scripts/camera/game_camera.gd` | Locked follow with aim lead; unlocked edge pan; shake; room bounds. |
 | `res://scripts/vfx/movement_vfx_component.gd` | `MovementVFXComponent`, last child of the Player and of slimes. Movement feedback visuals (F3). |
 
@@ -49,19 +49,21 @@ Only keys that physically collided with WASD changed. Action names never change.
 | `ability_q` / `ability_e` / `ability_r` | Q / E / R | unchanged |
 | `ability_w` | Right mouse | was W |
 | `camera_center` | C | was Space |
-| `move` / `stop` / `attack_move` | none | were right mouse / S / A. Actions and code stay, dormant. |
-| `select`, `restart`, `camera_toggle_lock`, `camera_left/right/up/down` | none, Backspace, Y, arrow keys | unchanged, except `select` has no key since COMBAT C2 (was left mouse; the action and the attack-move code stay) |
+| `restart`, `camera_toggle_lock`, `camera_left/right/up/down` | Backspace, Y, arrow keys | unchanged |
+
+The LoL actions `move` / `stop` / `attack_move` (were right mouse / S / A) and `select` (was left mouse, unbound since COMBAT C2) were deleted 2026-09-29, with their code (LoL-era systems, below).
 
 ### LoL-era systems
 | System | Status |
 |---|---|
 | `MovementComponent.move_to()` pathing and steering | Kept. Enemies use it, and so does R walking the Knight into range. |
-| `player.gd` right-click move, attack-move, stop | Dormant: their keys are unbound. |
-| `click_marker.gd` | Dormant with right-click move. |
+| `player.gd` right-click move, attack-move, stop, select; `AutoAttackComponent.attack_move()` | Deleted 2026-09-29 (dormant since step 1; movement steps passed Ryan's play test). |
+| `click_marker.gd` and main.gd's marker wiring | Deleted 2026-09-29 with right-click move. |
+| `player.gd` League-style windup handlers (sword pull-back and slash on `windup_started` / `attack_landed`, the ATTACK state and facing from a League windup) | Deleted 2026-09-29: dormant since COMBAT C2 (the Knight only swings the combo). `Player.State.ATTACK` is the rooted combo swing only. |
 | `game_camera.gd` lock toggle, edge pan, shake, bounds | Kept. Aim lead added (Architecture, 4). |
 | `AbilityComponent` Q/W/E/R slots | Unchanged. W is on right mouse. |
 | Aim cancel (`player.gd`) | Right mouse used to cancel an aimed ability; it now casts W. Esc (`ui_cancel`) cancels. Esc while not aiming opens the pause menu (`main.gd`, `PauseMenu`); an Esc that cancels an aim is marked handled, so it doesn't also pause. |
-| `AutoAttackComponent` | Kept. Enemies use its League-style attack. The Knight uses its combo mode (COMBAT C2): left mouse swings toward the cursor. The Knight's League-style orders (right-click, A-click) stay dormant. |
+| `AutoAttackComponent` | Kept. Enemies use its League-style attack. The Knight uses its combo mode (COMBAT C2): left mouse swings toward the cursor. The Knight's League-style orders (right-click, A-click) were deleted 2026-09-29. |
 | `enemy.gd` | Kept. `passive` export turns an enemy into a training dummy: no wander, aggro, or attacks. |
 | `Ability.get_damage()` | Kept. Reads the caster's StatsComponent (`get_stat()`, scoped params) since STATS step 4; now `get_damage_against(caster, null)` (ABILITIES.md). |
 
@@ -83,7 +85,7 @@ Only keys that physically collided with WASD changed. Action names never change.
 - Units don't rotate. `Player.facing` (unit vector) is the look direction; the animation layer will pick one of 8 sprites with `get_facing_octant()` (0 = right, clockwise: 2 = down, 4 = left, 6 = up).
 - Facing priority, updated each physics frame:
   1. **Casting:** toward the cast's aim, locked at cast start (DIRECTION/POINT: the aim point; UNIT: the target). SELF casts don't change facing.
-  2. **Attacking:** a combo swing's aim, locked at swing start, for the whole swing (COMBAT C2). A League-style windup (dormant for the player) faces its target.
+  2. **Attacking:** a combo swing's aim, locked at swing start, while the swing roots (COMBAT C2).
   3. **Dashing:** the dash direction.
   4. **Aiming an ability** (hold-to-aim): toward the cursor. The sword follows the cursor too.
   5. **Walking:** the move direction.
@@ -97,17 +99,17 @@ Only keys that physically collided with WASD changed. Action names never change.
 - Direction: toward the cursor at the moment Space is pressed (`Player.get_aim_direction()`). A buffered dash keeps the direction from its press, even if the cursor moves before it fires. `PlayerInput.dash_toward_cursor = false` brings back the old rule: the held input direction, or `facing` with no input (DECISIONS.md, 2026-09-26).
 - **The player chooses** between the two in the Esc pause menu ("Dash direction: Cursor / Move keys (WASD)"; default Cursor). The choice lives in `Settings` (`get_dash_direction()`, `DashDirection.CURSOR` / `MOVE_KEYS`), is saved to `user://settings.cfg`, and applies at once, even mid-run: PlayerInput copies it into `dash_toward_cursor` at start and on `Settings.setting_changed`, so an Inspector value there only lasts until then.
 - The run-on after the dash (`carry_into_run`) still follows the held WASD direction, so dashing one way while holding another runs off in the held direction.
-- I-frames for the whole dash via `Unit.add_invulnerability(&"dash")`: `take_damage()` and Hurtbox hits (damage and knockback) are ignored. This sits on Unit, not only the Hurtbox, because enemy basic attacks call `take_damage()` directly. The body turns half see-through.
+- I-frames for the whole dash via `Unit.add_invulnerability(&"dash")`: every hit is blocked in `Unit.on_hit()` (damage, knockback, statuses, on-hit), Hurtbox hits and `take_damage()` included. This sits on Unit, not only the Hurtbox, because enemy basic attacks and abilities don't use a Hurtbox (they go through the hit pipeline). The body turns half see-through.
 - Charges: the `dash_charges` stat (base `UnitStats.dash_charges`, default 1, read through StatsComponent). One charge returns every `charge_recharge_time` = 0.35 s, one at a time, counted only while not dashing.
 - Exit: if a direction is held when the dash ends, the player runs on at full speed (`carry_into_run`, default true) and `end_lag` is skipped. Otherwise `end_lag` = 0.05 s of locked walking follows, which plants the stop. A dash can chain in during end-lag if a charge is left.
-- Not allowed while stunned or already displaced (dashing, knockback). Exceptions: a dash-cancelable displacement (a melee swing step; knockback from being hit, COMBAT C4) doesn't block the dash; the dash replaces it. While casting, only if the ability is `dash_cancelable` (then the dash cancels the cast). A press that isn't allowed is buffered. Starting a dash cancels a basic attack swing (windup: the combo resets; recovery, after the hit: the combo moves on, COMBAT.md; the hit itself happens inside one frame) and cancels a queued walk-into-range cast.
+- Not allowed (`DashComponent.can_dash()`) while dead, dash-blocked (stunned, or a status with `blocks_dash` such as a root; `Unit.is_dash_blocked()`), already dashing, out of charges, or displaced (knockback, pulls, Lunge's own dash). Exception: a dash-cancelable displacement (a melee swing step; knockback from being hit, COMBAT C4) doesn't block the dash; the dash replaces it. While casting (a charge-up or a vector aim included), only during the cast time and only if the ability is `dash_cancelable` (then the dash cancels the cast); never once `execute()` has started. A press that isn't allowed is buffered. Starting a dash cancels a basic attack swing (windup: the combo resets; recovery, after the hit: the combo moves on, COMBAT.md; the hit itself happens inside one frame) and cancels a queued walk-into-range cast.
 - Pits: not scheduled (step 8 was removed 2026-09-25). If they come back, the dash crosses them and the fall rule is in WORLD_INTERACTION.md, Pits and movement types *(proposed)*.
 
 ## Input buffering and cancels
 - **Buffer** (`PlayerInput`, `buffer_time` = 0.15 s): a `dash`, `attack` or Q/W/E/R press that isn't allowed yet fires as soon as it is.
   - One buffered press at a time; a newer press replaces an older one.
-  - The timer pauses while a dash, a cast or a basic attack swing is playing out, so a press during one fires the moment it ends (a click early in a 0.3 s swing queues the next swing). It doesn't pause for stuns or cooldowns.
-  - When a press is allowed: dash = `DashComponent.can_dash()`. Ability = `can_cast(slot)` and not dashing (no casting mid-dash). Attack = not stunned, casting, dashing or swinging (`AutoAttackComponent.can_swing()`). An ability during a swing only if its `cancels_swing` allows it right now (`Player.can_interrupt_swing()`; COMBAT.md).
+  - The timer pauses while a dash, a cast, a basic attack swing or a swing's breather (`pause_after`, COMBAT.md) is playing out, so a press during one fires the moment it ends (a click early in a swing queues the next swing; a click in the finisher's breather fires when it ends). It doesn't pause for stuns or cooldowns.
+  - When a press is allowed: dash = `DashComponent.can_dash()`. Ability = `can_cast(slot)` and not dashing (no casting mid-dash). Attack = not stunned, casting or dashing, and `AutoAttackComponent.can_swing()` (not swinging, not in a breather, no attack lock). An ability during a swing only if its `cancels_swing` allows it right now (`Player.can_interrupt_swing()`; COMBAT.md).
   - Q/W/E/R go through `Player.request_cast(slot)`: cast now if allowed, otherwise buffer.
 - **Dash cancels:** every basic attack swing roots for its whole duration (move lock `&"attack_swing"`), and a dash cancels it in its windup or its recovery; after the swing's hit has landed the combo moves on instead of resetting (COMBAT.md, Basic attack). Each ability decides whether a dash cancels its cast time with `Ability.dash_cancelable` (default off for all Knight abilities). A cancelled cast releases its locks at once, refunds the cooldown, and emits `AbilityComponent.cast_cancelled` then `cast_finished`. The effect (`execute()`) can't be cancelled once it starts.
 - **Basic attack swings** (COMBAT.md, Melee basic attacks): a swing roots, but a melee swing steps forward (or is pulled toward an aimed enemy) during its windup, and after the hit a movement press or held direction ends the root once `recovery_move_cancel_after` (0.1 s) has passed. The swing still runs out its duration, so the next swing waits.
@@ -115,7 +117,7 @@ Only keys that physically collided with WASD changed. Action names never change.
 - **Dash-strike hook:** when an `attack` press fires, PlayerInput emits `attack_pressed(dash_strike)`. `dash_strike` is true within `dash_strike_window` = 0.15 s after a dash ended (`DashComponent.get_time_since_dash_end()`; COMBAT C12). An attack pressed mid-dash fires as the dash ends, so it counts. PlayerInput then calls `AutoAttackComponent.try_swing(aim, dash_strike)`; the dash-strike swing is COMBAT.md's.
 
 ## Architecture (additive: see the Change policy in CLAUDE.md)
-1. **PlayerInput** (child of Player, runs before MovementComponent): each physics frame produces `move_dir` and `aim_point`, calls `movement.set_input_direction()`, and runs the input buffer (dash, attack, buffered Q/W/E/R). Holding a direction or dashing cancels a queued walk-into-range cast (like a LoL move order). player.gd's `_unhandled_input` still reads Q/W/E/R and calls `request_cast()`.
+1. **PlayerInput** (child of Player, runs before MovementComponent): each physics frame produces `move_dir` and `aim_point`, calls `movement.set_input_direction()`, and runs the input buffer (dash, attack, buffered Q/W/E/R). Holding a direction, dashing or attacking (a swing that starts, COMBAT C2) cancels a queued walk-into-range cast (like a LoL move order). player.gd's `_unhandled_input` still reads Q/W/E/R and calls `request_cast()`.
 2. **MovementComponent** (shared; additions only):
    - `set_input_direction(dir)`: speed ramps over `input_accel_time` / `input_decel_time`, direction changes instantly. A non-zero direction cancels any `move_to()` order.
    - `use_steering` (the player sets it false). Not `avoidance_enabled`: that flag also makes other units ignore this one, so slimes would stop steering around the player. `use_steering = false` only skips this unit's own steering.
@@ -162,7 +164,7 @@ Goal: closer to Hades. Dashes and knockback burst and then ease out, frames are 
 - A displacement follows a progress `Curve` (x = time 0–1, y = share of the distance covered 0–1). Each physics frame it moves `total_offset × (p(now) − p(previous frame))` through `move_and_slide()`. The total distance stays exactly velocity × duration; only the speed profile changes.
 - Progress is normalized (`(p(t) − p(0)) / (p(1) − p(0))`), so a hand-edited curve that doesn't run exactly 0 → 1 still covers the full distance.
 - `curve = null` means different things: `dash(..., curve = null)` = constant speed; `displace(..., curve = null)` = `knockback_curve`. So knockback eases by default and dash callers opt in.
-- **Curves** are .tres files in `data/curves/` (`curve_dash.tres`, `curve_knockback.tres`). Starting shapes: dash = ease-out quad (peak speed about 2× average, roughly 1420 px/s on the first frame, easing to 0); knockback = ease-out cubic (hard burst, fast settle).
+- **Curves** are .tres files in `data/curves/` (`curve_dash.tres`, `curve_knockback.tres`). Starting shapes: dash = ease-out quad (peak speed 2× the average: 128 px / 0.18 s = 711 px/s average, about 1422 px/s at the very start; the first physics frame averages 1356 px/s (measured, F2), easing to 0); knockback = ease-out cubic (hard burst, fast settle).
 - **Defaults** set in the scripts, so every unit gets them: `MovementComponent.knockback_curve` = `curve_knockback.tres`, `DashComponent.dash_curve` = `curve_dash.tres`. Lunge's `dash_curve` is set in `knight_e_lunge.tres`.
 - **Callers:** Cleave's knockback (17 px over 0.1 s) and Hurtbox knockback (`Unit._on_hurtbox_hurt`) use `knockback_curve`. The dash and Lunge use `curve_dash`.
 - **Lunge:** its hits don't depend on its speed: they're found along the segment from the start point to the end point after the dash. Its afterimages (spawned every 2 physics frames) bunch toward the slow end.
@@ -178,7 +180,7 @@ Goal: closer to Hades. Dashes and knockback burst and then ease out, frames are 
 - `MovementVFXComponent`, the last child of `player.tscn` and `slime.tscn`. `enabled` turns everything off; every number is an export (groups Dash, Walking, Displacement, Dust). It reads the components' signals and public state and never changes gameplay state. Dust uses its own random generator, so slime wander rolls don't change. It works on today's Polygon2D placeholders and on 8-direction sprites later.
 - **How the Body is deformed:** only while the frame is drawn. It applies the deformation on `RenderingServer.frame_pre_draw` and undoes it on `frame_post_draw`, so code that writes `body.scale` / `body.position` (player flip and bob, slime squash, death tweens) never sees it, and player.gd, enemy.gd and unit.gd are unchanged. While enabled, the Body's own physics interpolation is off, or the deformation only shows partly; the unit itself stays interpolated, so F1 smoothness is unchanged. Deformation pivots on the feet (`deform_pivot`), so the feet stay on the shadow. The Shadow and the sword are never deformed.
 - **Dash:** stretch 1.25 × 0.8 (along × across the dash) held 0.06 s, eases back over 0.08 s; squash 0.9 × 1.1 when the dash ends, held 0.05 s, eases back over 0.08 s. 4 afterimages 0.03 s apart (the first at the start point), each fading over 0.15 s: flat cyan silhouettes (`afterimage_color`, 50%) drawn as one shape (a CanvasGroup), so they can't be mistaken for the half see-through player; `afterimage_silhouette = false` gives tinted copies instead. Each is placed where the unit was at the start of its physics frame, so it never shows up ahead of the player. They're copies of the Body, so sprites work too (as a still frame). A dust puff (6 specks flying 14 px back, flattened ×0.5 onto the floor, 0.3 s) at the start.
-- **Walking:** a 1 px bob, one per 40 px walked (about 4.5 a second at 179 px/s; faster when hasted). While enabled it replaces player.gd's 2 px bob (`replace_existing_bob`). Reversal dust: a turn of more than 135°, after the old direction reached 90 px/s, within 0.1 s of walking it (so letting go and pressing the other way counts), at most every 0.15 s. With 8-way keys a full reversal counts; exactly 135° (right → down-left) doesn't.
+- **Walking:** a 1 px bob, one per 40 px walked (3 a second at the Knight's 120 px/s; about 4 when hasted by Iron Resolve, 162 px/s). While enabled it replaces player.gd's 2 px bob (`replace_existing_bob`). Reversal dust: a turn of more than 135°, after the old direction reached 90 px/s, within 0.1 s of walking it (so letting go and pressing the other way counts), at most every 0.15 s. With 8-way keys a full reversal counts; exactly 135° (right → down-left) doesn't.
 - **Knockback:** any displacement that isn't the unit's own dash (knockback, pulls, Lunge, swing steps) stretches along the push by 1 + 0.0005 × speed (px/s), up to 1.3; across = 1 / along. Cleave's knockback (407 px/s peak) gives 1.2; Lunge starts at 1.3 and eases out with its speed. It reads `is_displaced()` and the unit's velocity every frame instead of a new signal, so MovementComponent is unchanged.
 - **Slimes:** walk bob and reversal dust off (they have their own hop); knockback stretch on.
 - **Pixel snapping:** the squash doesn't jitter. `snap_2d_transforms_to_pixel` is off since F1, so the deformation scales smoothly (edges move in half-game-pixel steps at 1280×720). With 8-direction pixel sprites, a non-integer scale draws some art pixels one screen pixel wider than others for the ~0.15 s an effect lasts: the normal look of squash and stretch on pixel art. If it shows, pick stretch values that land on whole pixels or turn the deformation off for that unit.
@@ -195,7 +197,7 @@ Goal: closer to Hades. Dashes and knockback burst and then ease out, frames are 
 - **Feel pass F1 → F2 → F4 → F3.** Built 2026-09-25, see CHANGELOG.md.
 8. *(removed 2026-09-25)* Pit crossing and fall/respawn is no longer planned (DECISIONS.md, Movement). The unscheduled design stays in WORLD_INTERACTION.md, Pits and movement types.
 
-**Done means** (steps 1, 3–7, awaiting play test): no errors; WASD works in play mode; the Knight's 4 abilities, enemies chasing, and the HUD still work as before.
+Steps 1 and 3–7 passed Ryan's play test (2026-09-29, see CHANGELOG.md).
 
 ## Testing
 - `res://scenes/sandbox_main.tscn` (open it, press F6) runs `main.tscn` with `res://scenes/rooms/sandbox.tscn` as the room. room_01 stays the default game.

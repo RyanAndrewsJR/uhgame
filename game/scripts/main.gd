@@ -2,8 +2,6 @@ extends Node2D
 ## Game root: loads a room, spawns the player, wires up the camera and HUD.
 ## To play a different room, drag another room scene into `room_scene`.
 
-const ClickMarker := preload("res://scripts/ui/click_marker.gd")
-
 @export var room_scene: PackedScene = preload("res://scenes/rooms/room_01.tscn")
 @export var player_scene: PackedScene = preload("res://scenes/player/player.tscn")
 @export var pause_menu_scene: PackedScene = preload("res://scenes/ui/pause_menu.tscn")
@@ -35,9 +33,6 @@ func _ready() -> void:
 	player.health.health_changed.connect(hud.set_health)
 	hud.set_health(player.health.current, player.health.max_health)
 	player.died.connect(_on_player_died)
-	player.move_commanded.connect(_on_move_commanded)
-	player.attack_commanded.connect(_on_attack_commanded)
-	player.attack_move_commanded.connect(func(p: Vector2): _spawn_marker(p, Color(1.0, 0.6, 0.2)))
 	hud.setup_abilities(player)
 
 	for enemy in get_tree().get_nodes_in_group("enemies"):
@@ -79,26 +74,6 @@ func _setup_camera() -> void:
 	camera.bounds = Rect2(Vector2(rect.position) * size, Vector2(rect.size) * size)
 	camera.target = player
 	camera.snap_to_target()
-
-
-func _on_move_commanded(target: Vector2, is_new_click: bool) -> void:
-	if is_new_click:
-		_spawn_marker(target, Color(0.35, 1.0, 0.45))
-
-
-func _on_attack_commanded(target: Unit, is_new_click: bool) -> void:
-	if is_new_click:
-		_spawn_marker(target.global_position, Color(1.0, 0.25, 0.2))
-
-
-func _spawn_marker(pos: Vector2, color: Color) -> void:
-	var marker := Node2D.new()
-	marker.set_script(ClickMarker)
-	marker.set("color", color)
-	marker.global_position = pos
-	# Insert below the Entities layer so the marker is drawn on the floor.
-	room.add_child(marker)
-	room.move_child(marker, room.get_node("Entities").get_index())
 
 
 func _on_enemy_died(enemy: Enemy) -> void:

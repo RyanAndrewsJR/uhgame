@@ -82,7 +82,6 @@ static func in_sight(from: Vector2, units: Array[Unit]) -> Array[Unit]:
 	return out
 
 
-## The enemy nearest to `point` within `max_dist_px` (for forgiving clicks).
 ## The condition target for a cast that doesn't pick one (ABILITIES AB12):
 ## the living, targetable enemy nearest `point` whose edge distance to the
 ## caster is within `range_px`, or null.
@@ -99,6 +98,8 @@ static func nearest_enemy_in_range(caster: Unit, point: Vector2, range_px: float
 	return best
 
 
+## The enemy nearest to `point` within `max_dist_px` (the Player's
+## target_forgiveness pick for UNIT abilities).
 static func nearest_enemy_to(caster: Unit, point: Vector2, max_dist_px: float) -> Unit:
 	var best: Unit = null
 	var best_d := INF

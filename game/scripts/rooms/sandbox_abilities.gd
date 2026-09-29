@@ -1,3 +1,4 @@
+class_name SandboxAbilities
 extends Node
 ## Sandbox only (ABILITIES demos), all through scoped modifiers under
 ## &"sandbox_demo", like an item would:

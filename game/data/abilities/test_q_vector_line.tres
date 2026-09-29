@@ -1,10 +1,6 @@
 [gd_resource type="Resource" format=3 uid="uid://clfali5xxfrgp"]
 
-[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="1_8nc3l"]
 [ext_resource type="Script" uid="uid://dyy8ubr3x626u" path="res://scripts/abilities/test/vector_line.gd" id="1_script"]
-[ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="2_jf55c"]
-[ext_resource type="Script" uid="uid://effvdqcl7tjf" path="res://scripts/data/conditional_bonus.gd" id="3_nyy1q"]
-[ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="4_tptcn"]
 
 [resource]
 script = ExtResource("1_script")
