@@ -13,8 +13,6 @@ var amount: float = 0.0
 var color: Color = Color.WHITE
 ## 0 = worked out from the amount and kind.
 var font_size: int = 0
-## Kept from before C6: the old path (Unit._spawn_damage_number) sets these.
-var big: bool = false
 
 var _age: float = 0.0
 
@@ -78,6 +76,4 @@ func _pick_font_size() -> int:
 			return style.dot_font_size
 		Kind.CRIT:
 			return style.get_font_size(amount) + style.crit_size_bonus
-	if big:
-		return 13   # the old ability highlight (pre-C6 path)
 	return style.get_font_size(amount)

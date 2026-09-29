@@ -156,7 +156,7 @@ func contains_point(p: Vector2) -> bool:
 
 # --- Damage -------------------------------------------------------------------
 
-## `highlight` makes the damage number stand out (abilities, empowered hits).
+## `highlight` is copied to the HitContext (numbers don't read it since C6).
 ## A thin wrapper over the hit pipeline (COMBAT.md): `amount` is already
 ## scaled, so it enters at mitigation as PHYSICAL damage that can't crit.
 ## New code builds a HitContext and calls HitPipeline.resolve() instead.
@@ -417,23 +417,6 @@ func _add_number(n: Label) -> void:
 	var parent := get_parent() as Node2D
 	var spread: float = (n.style as DamageNumberStyle).spread_px
 	n.position = parent.to_local(get_center() + Vector2(randf_range(-spread, spread), -get_gameplay_radius_px() * 0.8))
-	parent.add_child(n)
-
-
-## The pre-C6 number (kept, unused since C6; delete after Ryan confirms C6).
-func _spawn_damage_number(amount: float, highlight: bool = false) -> void:
-	var n := Label.new()
-	n.set_script(DamageNumber)
-	var col := Color(1, 1, 1)
-	if team == Team.PLAYER:
-		col = Color(1, 0.35, 0.3)
-	elif highlight:
-		col = Color(1, 0.65, 0.2)
-	n.set("color", col)
-	n.set("big", highlight)
-	n.text = str(roundi(amount))
-	var parent := get_parent() as Node2D
-	n.position = parent.to_local(get_center() + Vector2(randf_range(-6, 6), -get_gameplay_radius_px() * 0.8))
 	parent.add_child(n)
 
 

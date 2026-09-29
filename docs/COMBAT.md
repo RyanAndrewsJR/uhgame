@@ -137,7 +137,7 @@ What exists today (the rest of the design is in Data and Architecture).
 | `Unit.add_invulnerability(id)` | **Kept.** Dash i-frames (`&"dash"`) and post-hit i-frames (`&"hit_iframes"`, `Unit.HIT_IFRAMES_ID`) block the hit; `Unit.on_hit` checks it first. `has_invulnerability(id)`. |
 | `res://scripts/autoload/game_feel.gd` (`GameFeel`) | **Kept, extended.** `hitstop(duration)`: `Engine.time_scale` 0.05 (`hitstop_time_scale`); the longest wins. `shake(amount)`: camera shake in px (the camera keeps the largest). `play_hit_feel(ctx)`, `is_hitstop_active()`, `get_hitstop_left()`. |
 | `Unit._flash()` | **Kept.** Body modulate ×3, back to white over `hit_feel.flash_time` (0.06 s) on every hit. |
-| `res://scripts/ui/damage_number.gd` | **Restyled:** look and motion from a `DamageNumberStyle`; kinds DAMAGE / CRIT / DOT / HEAL / SHIELD; `add_amount()` merges DoT ticks. `Unit._spawn_damage_number()` (the pre-C6 path) is kept, unused. |
+| `res://scripts/ui/damage_number.gd` | **Restyled:** look and motion from a `DamageNumberStyle`; kinds DAMAGE / CRIT / DOT / HEAL / SHIELD; `add_amount()` merges DoT ticks. The pre-C6 path (`Unit._spawn_damage_number()` and the number's `big` field) was deleted 2026-09-28. |
 | `Unit.apply_stun()` + `res://scripts/vfx/stun_effect.gd` | **Wrapped:** `apply_stun(duration, source = null)` applies `status_stun` (tenacity shortens it); its stars are `scenes/vfx/stun_stars.tscn`, that status's VFX. `is_stunned()` = any status tagged `stun`. `StunEffect` (a child node holding `&"stun"` move and attack locks, keeping the longer time) is used only by a unit without a StatusComponent. |
 | `MovementComponent.add_speed_modifier()` | **Wrapped:** with a StatusComponent each call applies a copy of `status_slow` (any negative part) or `status_haste` with that id, those `move_speed` modifiers (source `&"status_<id>"`) and that duration (−1 = until removed), REFRESH (the same id replaces); `remove_speed_modifier(id)` removes it. Without one, the old path (StatModifiers, its own timer) runs; the stats test uses it. |
 | `MovementComponent.displace()` | **Changed:** the stronger displacement wins; `displace()` returns false when it's dropped. |
@@ -168,7 +168,7 @@ One per hit. Built by the attacker, filled in by the pipeline.
 | `knockback_from` | `Vector2` | push away from this point (default: the source's position) |
 | `statuses` | `Array[StatusEffect]` | applied after damage |
 | `feel` | `HitContext.Feel` | `NONE`, `LIGHT`, `HEAVY`; a kill upgrades it |
-| `highlight` | `bool` | kept from `take_damage(highlight)`; set on empowered hits. Numbers ignore it (C6); only the unused old number path reads it |
+| `highlight` | `bool` | kept from `take_damage(highlight)`; set on empowered hits and projectile hits. Nothing reads it for display since C6 (kept for tests and later UI) |
 | `target_tags` | `Array[StringName]` | the target's status tags just before the hit (filled in by `Unit.on_hit`; reaction rules read it) |
 | `chain_depth` | `int` | the reaction chain depth of a free cast's hits (ABILITIES.md) |
 | **filled in by the pipeline:** `raw_damage` (before mitigation), `taken_damage` (after mitigation and `incoming_damage`), `absorbed` (by shields), `health_lost`, `is_crit`, `blocked` (i-frames), `killed` | | read by listeners, numbers, feel and on-hit |

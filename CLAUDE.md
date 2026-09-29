@@ -118,11 +118,11 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 | `docs/_TEMPLATE.md` | writing a new doc |
 
 ## Current status
-- **Now:** Waiting on Ryan's play test of ABILITIES AB12 (conditions; nothing new in the Knight's kit: no conditions are set, so the Knight's abilities, enemies and the HUD play as before; the sandbox can try `test_q_nova.tres` and `test_q_mark_strike.tres` on `SandboxAbilities.test_q`). Also waiting on AUDIO A3 (ability casts, Judgement's hit and ready ping, the elite's wind-up and slam, status sounds, the shield's break, the low-health heartbeat, the room cleared and "You died" stingers; all synthesized placeholders) and of "a swing counts once its hit has landed" and COMBAT C12. Still open: play tests of STATS steps 5–6, COMBAT C8–C11, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of the damage number cleanup (the unused pre-C6 path deleted: `Unit._spawn_damage_number()` and `damage_number.gd`'s `big`; numbers look exactly as before). Also waiting on AUDIO A3 (ability casts, Judgement's hit and ready ping, the elite's wind-up and slam, status sounds, the shield's break, the low-health heartbeat, the room cleared and "You died" stingers; all synthesized placeholders) and of "a swing counts once its hit has landed" and COMBAT C12. Still open: play tests of STATS steps 5–6, COMBAT C8–C11, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. ABILITIES AB12: conditions (`Condition`, `ConditionalBonus`, cast / recast conditions and the grey slot, `get_effect_param()`, named inputs, LAST_PART_HIT, `ReactionRule.conditions`; `test_nova`, `test_mark_strike`, the execute fake item). Abilities test 398/398, combat 449/450 (the known flaky hitstop check), stats 172/172, audio 109/109.
-  2. ABILITIES AB11 (passed Ryan's play test): the Knight's abilities from toolkit pieces.
-  3. ABILITIES AB10 (passed Ryan's play test): empowers, unstoppable, untargetable.
+  1. Cleanup: the pre-C6 damage number path deleted (`Unit._spawn_damage_number()`, `DamageNumber.big`). Abilities test 398/398, combat 449/450 (the known flaky hitstop check), stats 172/172, audio 109/109.
+  2. ABILITIES docs: the VECTOR cast style planned as AB13; TOGGLE and SUSTAINED not planned.
+  3. ABILITIES AB12 (passed Ryan's play test): conditions.
 - **Next:** ABILITIES build order: AB13 (VECTOR cast style), then milestone AB-M (augment playground). AUDIO's later steps come with their systems; real CC0 files can replace the placeholders any time (same names). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order (CHAMPIONS.md next).
 
 ## Known issues (leave for now)

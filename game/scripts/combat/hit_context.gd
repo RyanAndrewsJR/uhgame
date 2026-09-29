@@ -59,8 +59,9 @@ var knockback_from: Vector2 = Vector2.INF
 ## (COMBAT C9). Blocked hits apply none.
 var statuses: Array[StatusEffect] = []
 var feel: Feel = Feel.NONE
-## Makes the damage number stand out. Kept from take_damage(highlight)
-## until abilities build their own contexts.
+## Set by take_damage(highlight), empowered hits and projectiles. Since C6
+## damage numbers don't read it (size and color come from the hit); kept
+## for tests and later UI.
 var highlight: bool = false
 ## The swing's or ability's own hit sound (AUDIO.md); CombatSounds plays it
 ## once per swing or cast. null = HitFeel's sound for the hit's tier.

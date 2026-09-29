@@ -10,4 +10,6 @@ max_resource = 300.0
 resource_regen = 6.0
 attack_damage = 64.0
 base_attack_speed = 0.7
-move_speed = 560.0
+crit_chance = 0.25
+life_steal = 0.01
+move_speed = 375.0
