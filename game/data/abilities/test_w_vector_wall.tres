@@ -1,0 +1,24 @@
+[gd_resource type="Resource" format=3 uid="uid://cdl0mqbi6tv3x"]
+
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="1_lh0jw"]
+[ext_resource type="Script" uid="uid://d1wshi5cxbvbp" path="res://scripts/abilities/test/vector_wall.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="2_ayp8m"]
+[ext_resource type="Script" uid="uid://effvdqcl7tjf" path="res://scripts/data/conditional_bonus.gd" id="3_4qtfj"]
+[ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="4_kcyqh"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"test_vector_wall"
+tags = Array[StringName]([&"core", &"line", &"vector"])
+display_name = "Wall Line"
+description = "Lays a {vector_length}-unit line across the target's escape path, fills it over {cast_time} s, then {damage} physical damage to everyone on it."
+icon_color = Color(1, 0.35, 0.15, 1)
+cast_style = 3
+targeting = 2
+cooldown = 6.0
+cast_time = 0.7
+cast_range = 500.0
+resets_auto_attack = false
+base_damage = 100.0
+hit_shake = 3.0
+hit_hitstop = 0.06

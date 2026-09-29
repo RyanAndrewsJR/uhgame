@@ -76,6 +76,8 @@ var aiming_slot: StringName = &""
 var _charge_from_input: bool = false
 ## The indicator slot the last _draw() drew (&"" = none); tests read it.
 var _drawn_indicator_slot: StringName = &""
+## The VECTOR start point the last _draw() drew (INF = none; AB13); tests read it.
+var _drawn_vector_start: Vector2 = Vector2.INF
 ## Alternates each swing so consecutive slashes go opposite ways.
 var swing_side: float = 1.0
 ## Current State (read-only for other code; see _update_state()).
@@ -182,11 +184,12 @@ func _on_ability_pressed(slot: StringName) -> void:
 	# The cast mode only applies to INSTANT abilities: channels always cast on
 	# press, CHARGE_UP always holds and releases (ABILITIES.md, Cast mode).
 	# A press inside a recast window casts the next part at once, whatever the
-	# style (ABILITIES AB5).
-	if abilities.get_recast_part(slot) > 0:
+	# style (ABILITIES AB5), except a VECTOR part: every part is aimed (AB13).
+	var vector := ability.cast_style == Ability.CastStyle.VECTOR
+	if abilities.get_recast_part(slot) > 0 and not vector:
 		request_cast(slot)
 		return
-	if ability.cast_style == Ability.CastStyle.CHARGE_UP:
+	if ability.cast_style == Ability.CastStyle.CHARGE_UP or vector:
 		request_charge(slot)
 		return
 	var instant := cast_mode == CastMode.QUICK or ability.targeting == Ability.Targeting.SELF \
@@ -208,7 +211,7 @@ func _on_ability_released(slot: StringName) -> void:
 		request_cast(slot)
 
 
-## Input path for a CHARGE_UP press: start charging now if allowed (the same
+## Input path for a CHARGE_UP or VECTOR press: start holding now if allowed (the same
 ## rules as request_cast(): a swing is cut per cancels_swing, no charging
 ## while dashing, "not enough resource" fails at once), otherwise buffer the
 ## press (PlayerInput fires it through start_buffered_ability()).
@@ -225,13 +228,17 @@ func request_charge(slot: StringName) -> void:
 
 ## A buffered Q/W/E/R press that became legal (PlayerInput). A CHARGE_UP
 ## press starts charging; if its key was already let go, it fires at once as
-## a tap (charge 0; ABILITIES.md, Open questions, proposed).
+## a tap (charge 0; ABILITIES.md, Open questions, proposed). A VECTOR press
+## (any part) does the same: its start point goes where the cursor is now,
+## and a let-go key makes it a tap (AB13).
 func start_buffered_ability(slot: StringName) -> void:
 	var ability := abilities.get_ability(slot)
-	if ability != null and ability.cast_style == Ability.CastStyle.CHARGE_UP \
-			and abilities.get_recast_part(slot) == 0:
+	if ability != null and (ability.cast_style == Ability.CastStyle.VECTOR \
+			or (ability.cast_style == Ability.CastStyle.CHARGE_UP and abilities.get_recast_part(slot) == 0)):
 		if _start_charge(slot) and not Input.is_action_pressed(ABILITY_ACTIONS[slot]):
-			_release_charge()
+			# A VECTOR tap releases on its own start point (no drag); a
+			# charge-up (no start point: INF) at the cursor.
+			_release_charge(abilities.get_vector_start())
 		return
 	cast_ability(slot)
 
@@ -244,9 +251,10 @@ func _start_charge(slot: StringName) -> bool:
 	return true
 
 
-func _release_charge() -> void:
+## Releases the hold at `aim` (INF = the cursor).
+func _release_charge(aim: Vector2 = Vector2.INF) -> void:
 	_charge_from_input = false
-	abilities.release_charge(get_global_mouse_position())
+	abilities.release_charge(aim if aim != Vector2.INF else get_global_mouse_position())
 	queue_redraw()
 
 
@@ -455,11 +463,19 @@ func _draw() -> void:
 	# release aim during the release windup).
 	var indicator_slot := get_indicator_slot()
 	_drawn_indicator_slot = indicator_slot
+	_drawn_vector_start = Vector2.INF
 	if indicator_slot != &"":
 		var ability := abilities.get_ability(indicator_slot)
+		var vector_start := Vector2.INF
 		if aiming_slot == &"" and abilities.has_charge_indicator():
 			ability = abilities.get_charge_ability()   # the charge-up's own, even if the slot was swapped
-		if ability:
+			vector_start = abilities.get_vector_start()
+		if ability and vector_start != Vector2.INF:
+			# A VECTOR aim (AB13): the start marker and the line, from the press
+			# until the effect starts.
+			_drawn_vector_start = vector_start
+			ability.draw_vector_indicator(self, self, vector_start, get_indicator_aim())
+		elif ability:
 			ability.draw_indicator(self, self, get_indicator_aim())
 	if debug_draw:
 		draw_string(ThemeDB.fallback_font, Vector2(-30, -52), State.keys()[state],

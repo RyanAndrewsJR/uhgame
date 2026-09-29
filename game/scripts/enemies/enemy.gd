@@ -125,7 +125,8 @@ func _on_damaged(_amount: float, source: Unit) -> void:
 
 ## Enemies with an AbilityComponent (elites) cast a ready ability when the
 ## player is within its cast_range (from the center) and in sight. Its cast
-## time is the telegraph (COMBAT.md). Not during a basic attack windup.
+## time is the telegraph (COMBAT.md). Not during a basic attack windup. A
+## VECTOR ability places its line with get_ai_vector() (ABILITIES AB13).
 ## Returns true while casting.
 func _try_cast_ability() -> bool:
 	if abilities == null:
@@ -143,6 +144,10 @@ func _try_cast_ability() -> bool:
 			continue
 		if not _can_see_player():
 			continue
+		if ability.cast_style == Ability.CastStyle.VECTOR:
+			# The ability lays its own line (ABILITIES AB13): no mouse to drag.
+			var v := ability.get_ai_vector(self, _player)
+			return abilities.try_cast_vector(slot, v.start, v.direction)
 		return abilities.try_cast(slot, _player.global_position, _player)
 	return false
 

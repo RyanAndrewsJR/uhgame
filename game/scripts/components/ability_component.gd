@@ -18,6 +18,8 @@ extends Node
 ## - per ability: walk during the cast at a speed multiplier, or cancel the
 ##   cast with a dash (dash_cancelable) or a new move press (a channel:
 ##   cast_style CHANNEL or cancel_on_move)
+## - VECTOR (AB13) through the charge-up hold/release path: the press drops a
+##   start point, the release sets the line's direction (VECTOR flow)
 
 signal cast_started(slot: StringName, ability: Ability, ctx: CastContext)
 signal cast_finished(slot: StringName, ability: Ability)
@@ -64,6 +66,9 @@ const FAIL_NO_RESOURCE := "not enough resource"
 const FAIL_SILENCED := "silenced"
 ## A cast or recast condition (or the script's custom check) fails (AB12).
 const FAIL_CONDITION := "condition"
+## A VECTOR start point is swept from the caster with this small core against
+## walls (like a projectile's), so it stops at a wall's face (AB13).
+const VECTOR_WALL_RADIUS_PX := 2.0
 
 @export var q: Ability
 @export var w: Ability
@@ -90,6 +95,9 @@ var _charge_hold: float = 0.0          # seconds held (game time)
 var _charge_aim: Vector2 = Vector2.ZERO  # the cursor while holding (set_charge_aim()); locked at release
 var _released_charge: float = 0.0      # the charge locked at release
 var _charge_sound_handle: int = 0
+## A VECTOR aim's start point (AB13), placed at the press; Vector2.INF when no
+## VECTOR aim or release windup is going (_end_charge() forgets it).
+var _vector_start: Vector2 = Vector2.INF
 ## Recast sequences: slot -> {next: the next part, left: window seconds,
 ## ability}. Created when a part 0 with recasts starts; its window only runs
 ## between parts; erased when the sequence ends.
@@ -311,6 +319,8 @@ func get_condition_fail_text(slot: StringName) -> String:
 func _make_condition_context(slot: StringName, ability: Ability, aim: Vector2, target: Unit) -> CastContext:
 	if aim == Vector2.INF:
 		aim = get_aim_hint()
+	if ability.cast_style == Ability.CastStyle.VECTOR and ability.needs_condition_target():
+		aim = _clamp_vector_start(ability, aim)   # AB13: the condition target is near the start point
 	var ctx := _make_context(slot, ability, aim, 1.0, target)
 	if ability.targeting == Ability.Targeting.UNIT and not is_instance_valid(ctx.target):
 		ctx.target = _condition_target(ability, aim)   # the HUD preview: the enemy near the aim
@@ -377,8 +387,7 @@ func try_cast(slot: StringName, aim: Vector2, target_unit: Unit = null) -> bool:
 		cast_failed.emit(slot, reason)
 		return false
 
-	var ctx := _make_context(slot, ability, aim, 1.0, target_unit)
-	var origin := unit.global_position
+	var ctx := _make_cast_context(slot, ability, aim, target_unit)
 
 	match ability.targeting:
 		Ability.Targeting.UNIT:
@@ -433,6 +442,82 @@ func _make_context(slot: StringName, ability: Ability, aim: Vector2, charge: flo
 	return ctx
 
 
+## The context of a cast that runs without a hold (try_cast(), a free cast):
+## _make_context(), except a VECTOR ability casts as a tap (AB13): the start
+## is the aim clamped as at a press, the direction caster -> start,
+## vector_drag 0.
+func _make_cast_context(slot: StringName, ability: Ability, aim: Vector2, target: Unit) -> CastContext:
+	if ability.cast_style != Ability.CastStyle.VECTOR:
+		return _make_context(slot, ability, aim, 1.0, target)
+	var start := _clamp_vector_start(ability, aim)
+	var ctx := _make_context(slot, ability, start, 1.0, target)
+	_fill_vector(ctx, ability, start, start)
+	return ctx
+
+
+# --- VECTOR (ABILITIES AB13) -------------------------------------------------------
+
+## The start point for an aim: clamped to cast_range from the unit, then
+## (unless the ability ignores walls) to the last spot short of a wall on
+## the line from the unit, so a cursor inside a wall or out of sight puts it
+## at the wall's face.
+func _clamp_vector_start(ability: Ability, aim: Vector2) -> Vector2:
+	var origin := unit.global_position
+	var start := origin + (aim - origin).limit_length(Units.to_px(ability.get_param(unit, &"cast_range")))
+	if not ability.ignores_walls:
+		var wall := WorldQuery.shape_sweep(origin, start, VECTOR_WALL_RADIUS_PX)
+		if not wall.is_empty():
+			start = wall.position
+	return start
+
+
+## Fills a VECTOR cast's line from its start point and the release aim: the
+## direction (start -> aim, or a tap's fallback under vector_min_drag_px),
+## the end (vector_length along it) and vector_drag (drag length ÷
+## vector_length, 0 for a tap). `point` = the start and `direction` = unit ->
+## start, their usual meanings.
+func _fill_vector(ctx: CastContext, ability: Ability, start: Vector2, aim: Vector2) -> void:
+	var length_px := Units.to_px(ability.get_param(unit, &"vector_length"))
+	var drag := (aim - start).length()
+	ctx.vector_start = start
+	ctx.vector_direction = ability.get_vector_direction(unit, start, aim)
+	ctx.vector_end = start + ctx.vector_direction * length_px
+	var tap := drag < ability.vector_min_drag_px
+	ctx.set_input(&"vector_drag", 0.0 if tap or length_px <= 0.0 else drag / length_px)
+	ctx.point = start
+	ctx.direction = ability.get_vector_tap_direction(unit, start)
+
+
+## The start point while a VECTOR aim (or its release windup) is going, else
+## Vector2.INF. The Player draws the indicator from it.
+func get_vector_start() -> Vector2:
+	return _vector_start
+
+
+## Casts the VECTOR ability in `slot` at once with a start point (clamped as
+## at a press) and a direction, without a hold: for the enemy AI and tests.
+## vector_drag is 1 (no drag to measure). The usual checks, cost and cast
+## time. False if refused.
+func try_cast_vector(slot: StringName, start: Vector2, direction: Vector2) -> bool:
+	var ability := get_ability(slot)
+	if ability == null:
+		return false
+	if ability.cast_style != Ability.CastStyle.VECTOR:
+		push_error("Ability '%s': try_cast_vector() needs a VECTOR ability" % ability.id)
+		return false
+	var reason := get_fail_reason(slot, start)
+	if reason != "":
+		cast_failed.emit(slot, reason)
+		return false
+	var s := _clamp_vector_start(ability, start)
+	var ctx := _make_context(slot, ability, s, 1.0)
+	var length_px := Units.to_px(ability.get_param(unit, &"vector_length"))
+	_fill_vector(ctx, ability, s, s + direction.normalized() * maxf(length_px, ability.vector_min_drag_px))
+	_pending.clear()
+	_do_cast(slot, ability, ctx)
+	return true
+
+
 func cancel_pending() -> void:
 	_pending.clear()
 
@@ -468,7 +553,7 @@ func get_charge_ability() -> Ability:
 func get_charge() -> float:
 	match _charge_phase:
 		ChargePhase.HOLDING:
-			var time := _charge_ability.get_param(unit, &"charge_time")
+			var time := _get_charge_full_time()
 			return 1.0 if time <= 0.0 else clampf(_charge_hold / time, 0.0, 1.0)
 		ChargePhase.RELEASED:
 			return _released_charge
@@ -491,9 +576,18 @@ func get_charge_hold_time() -> float:
 func get_overhold_left() -> float:
 	if not is_charging():
 		return 0.0
-	var full_at := _charge_ability.get_param(unit, &"charge_time")
+	var full_at := _get_charge_full_time()
 	var overhold := _charge_ability.get_param(unit, &"overhold_time")
 	return clampf(overhold - maxf(_charge_hold - full_at, 0.0), 0.0, overhold)
+
+
+## Seconds from the press to full charge: charge_time (a scoped param); 0 for
+## a VECTOR aim, whose charge is 1 from the press, so overhold_time is its
+## hold limit (AB13).
+func _get_charge_full_time() -> float:
+	if _charge_ability.cast_style == Ability.CastStyle.VECTOR:
+		return 0.0
+	return _charge_ability.get_param(unit, &"charge_time")
 
 
 ## Where a charge-up fires if its overhold fires it (the Player keeps it on
@@ -509,14 +603,21 @@ func set_charge_aim(aim: Vector2) -> void:
 ## cooldown are taken at release. The cast movement rules apply while
 ## charging and during the release windup (roots_during_cast,
 ## cast_move_speed_multiplier, a channel's move cancel, dash_cancelable).
-## Anything else (another cast style, a recast part) is an ordinary
-## try_cast(). False if refused.
+## A VECTOR ability (AB13) is aimed the same way, every recast part too: the
+## press also drops its start point (_clamp_vector_start()).
+## Anything else (another cast style, a CHARGE_UP recast part) is an
+## ordinary try_cast(). False if refused.
 func try_start_charge(slot: StringName, aim: Vector2) -> bool:
 	var ability := get_ability(slot)
 	if ability == null:
 		return false
-	if ability.cast_style != Ability.CastStyle.CHARGE_UP or get_recast_part(slot) > 0:
+	var part := get_recast_part(slot)
+	var vector := ability.cast_style == Ability.CastStyle.VECTOR
+	if not vector and (ability.cast_style != Ability.CastStyle.CHARGE_UP or part > 0):
 		return try_cast(slot, aim)
+	if vector and ability.targeting != Ability.Targeting.POINT:
+		push_error("Ability '%s': VECTOR needs POINT targeting" % ability.id)
+		return false
 	if ability.targeting == Ability.Targeting.UNIT:
 		push_error("Ability '%s': CHARGE_UP doesn't support UNIT targeting" % ability.id)
 		return false
@@ -533,8 +634,9 @@ func try_start_charge(slot: StringName, aim: Vector2) -> bool:
 	_charge_hold = 0.0
 	_charge_aim = aim
 	_released_charge = 0.0
+	_vector_start = _clamp_vector_start(ability, aim) if vector else Vector2.INF
 	_cast_ctx = null
-	_cast_part = 0
+	_cast_part = part
 	_cast_took_charge = false
 	_cast_cost = 0.0
 	var cost := get_slot_cost(slot)
@@ -551,6 +653,8 @@ func try_start_charge(slot: StringName, aim: Vector2) -> bool:
 ## now: the charge and cooldown are taken, cast_sound, cast_started, the
 ## release windup (cast_time), then execute(). The indicator stays (locked)
 ## until the effect starts. False if nothing is holding.
+## A VECTOR aim (AB13): charge 1; the line goes from its start point toward
+## `aim` (_fill_vector()), and the condition target is near the start point.
 func release_charge(aim: Vector2) -> bool:
 	if not is_charging():
 		return false
@@ -561,7 +665,12 @@ func release_charge(aim: Vector2) -> bool:
 	_charge_aim = aim
 	_released_charge = charge
 	_stop_charge_sound()
-	var ctx := _make_context(slot, ability, aim, charge)
+	var ctx: CastContext
+	if ability.cast_style == Ability.CastStyle.VECTOR:
+		ctx = _make_context(slot, ability, _vector_start, charge)
+		_fill_vector(ctx, ability, _vector_start, aim)
+	else:
+		ctx = _make_context(slot, ability, aim, charge)
 	charge_released.emit(slot, ability, charge)
 	_do_cast(slot, ability, ctx, true)
 	return true
@@ -588,6 +697,7 @@ func _end_charge() -> void:
 	var ability := _charge_ability
 	_charge_phase = ChargePhase.NONE
 	_charge_hold = 0.0
+	_vector_start = Vector2.INF   # a VECTOR aim's start marker goes with it (AB13)
 	_stop_charge_sound()
 	charge_ended.emit(slot, ability)
 
@@ -607,7 +717,7 @@ func _update_charge(delta: float) -> void:
 		interrupt_cast()   # safety net for a unit without a StatusComponent
 		return
 	_charge_hold += delta
-	var limit := _charge_ability.get_param(unit, &"charge_time") + _charge_ability.get_param(unit, &"overhold_time")
+	var limit := _get_charge_full_time() + _charge_ability.get_param(unit, &"overhold_time")
 	if _charge_hold >= limit:
 		if _charge_ability.overhold == Ability.Overhold.FIRE:
 			release_charge(_charge_aim)
@@ -1091,7 +1201,7 @@ func _is_recharging(slot: StringName) -> bool:
 func try_cast_free(ability: Ability, aim: Vector2, target: Unit, source_id: StringName) -> bool:
 	if ability == null or not unit.is_alive() or unit.is_cast_blocked():
 		return false
-	var ctx := _make_context(&"", ability, aim, 1.0, target)
+	var ctx := _make_cast_context(&"", ability, aim, target)   # a VECTOR ability: a tap at the aim (AB13)
 	if is_instance_valid(target):
 		ctx.target = target   # the unit hit or the triggering cast's target (else the condition target, if any)
 		_fill_inputs(ctx, ability)

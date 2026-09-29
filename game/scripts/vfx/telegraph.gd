@@ -5,7 +5,9 @@ extends Node2D
 ## ability's own query decides what gets hit.
 ##
 ## Drawn as a true circle (not squashed for the 3/4 view), so it matches the
-## hit area exactly. Placed on the room's floor, under every unit.
+## hit area exactly. Placed on the room's floor, under every unit. A line
+## (ABILITIES AB13, VECTOR casts) is a band from its start whose fill grows
+## along its length.
 
 ## One consistent enemy-threat color (COMBAT.md, FREE which).
 const THREAT_COLOR := Color(1.0, 0.35, 0.15)
@@ -13,6 +15,11 @@ const THREAT_COLOR := Color(1.0, 0.35, 0.15)
 var radius_px: float = 40.0
 var duration: float = 0.75
 var color: Color = THREAT_COLOR
+## A line telegraph (line()): from this node's position to here, px. ZERO =
+## a circle.
+var line_vector: Vector2 = Vector2.ZERO
+## A line telegraph's full width, px.
+var width_px: float = 0.0
 
 var _elapsed: float = 0.0
 var _sound_handle: int = 0
@@ -30,6 +37,20 @@ static func circle(anchor: Node2D, center: Vector2, radius: float, time: float, 
 	t.color = tint
 	_add_to_floor(anchor, t)
 	t.global_position = center
+	return t
+
+
+## A line telegraph from `start` to `end` (world space), `width` px wide,
+## that fills from the start over `time` seconds (ABILITIES AB13). `anchor`
+## as for circle().
+static func line(anchor: Node2D, start: Vector2, end: Vector2, width: float, time: float, tint: Color = THREAT_COLOR) -> Telegraph:
+	var t := Telegraph.new()
+	t.line_vector = end - start
+	t.width_px = width
+	t.duration = maxf(time, 0.01)
+	t.color = tint
+	_add_to_floor(anchor, t)
+	t.global_position = start
 	return t
 
 
@@ -78,9 +99,32 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
+	if line_vector != Vector2.ZERO:
+		_draw_line_shape()
+		return
 	if _finishing:
 		draw_circle(Vector2.ZERO, radius_px, Color(color, 0.6 * clampf(_flash / 0.12, 0.0, 1.0)))
 		return
 	draw_circle(Vector2.ZERO, radius_px, Color(color, 0.12))
 	draw_circle(Vector2.ZERO, radius_px * get_progress(), Color(color, 0.35))
 	draw_arc(Vector2.ZERO, radius_px, 0.0, TAU, 48, Color(color, 0.9), 1.0)
+
+
+## The line: a band from the start, the fill growing along it.
+func _draw_line_shape() -> void:
+	if _finishing:
+		draw_colored_polygon(_band(1.0), Color(color, 0.6 * clampf(_flash / 0.12, 0.0, 1.0)))
+		return
+	draw_colored_polygon(_band(1.0), Color(color, 0.12))
+	if get_progress() > 0.0:
+		draw_colored_polygon(_band(get_progress()), Color(color, 0.35))
+	var outline := _band(1.0)
+	outline.append(outline[0])
+	draw_polyline(outline, Color(color, 0.9), 1.0)
+
+
+## The band's corners from the start to `fraction` of its length (local).
+func _band(fraction: float) -> PackedVector2Array:
+	var side := line_vector.normalized().orthogonal() * width_px * 0.5
+	var end := line_vector * fraction
+	return PackedVector2Array([side, end + side, end - side, -side])

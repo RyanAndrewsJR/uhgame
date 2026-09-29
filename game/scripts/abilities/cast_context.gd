@@ -23,8 +23,9 @@ var empowers: Array[StatusEffect] = []
 var part: int = 0
 ## Named 0-1 scaling inputs (ABILITIES AB12): ChargeScaling resources read
 ## them through Ability.get_effect_param(). AbilityComponent fills the
-## built-ins when the cast starts (at release for CHARGE_UP): &"charge",
-## &"self_missing_health", &"target_distance"; &"target_missing_health" is
+## built-ins when the cast starts (at release for CHARGE_UP and VECTOR):
+## &"charge", &"self_missing_health", &"target_distance", &"vector_drag"
+## (VECTOR: drag length ÷ vector_length; AB13); &"target_missing_health" is
 ## per target (computed at the hit). A script may set others (set_input()).
 var inputs: Dictionary = {&"charge": 1.0}
 ## CHARGE_UP: how charged it was at release, 0 (a tap) to 1 (full). Every
@@ -38,6 +39,15 @@ var charge: float:
 ## In a recast sequence: whether the previous part hit something
 ## (Condition LAST_PART_HIT; AB12). False for part 0 and outside a sequence.
 var last_part_hit: bool = false
+## VECTOR casts (ABILITIES AB13): the start point (world space, clamped to
+## cast_range and to walls). `point` is the same spot and `direction` caster
+## -> it, their usual meanings.
+var vector_start: Vector2 = Vector2.ZERO
+## VECTOR: the line's unit direction (start -> the release cursor, or the tap
+## fallback: caster -> start).
+var vector_direction: Vector2 = Vector2.RIGHT
+## VECTOR: vector_start + vector_direction x vector_length (px).
+var vector_end: Vector2 = Vector2.ZERO
 ## Aim point in world space (already clamped to range for POINT abilities).
 var point: Vector2
 ## Normalized direction from the caster toward the aim point.

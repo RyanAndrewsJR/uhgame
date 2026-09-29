@@ -5,6 +5,8 @@ extends Node
 ##   resource" cue can be played.
 ## - AB4: extra charges (Lunge +1: two Lunges back to back).
 ## - AB5+: test_q puts a test ability on Q (set it in the Inspector).
+## - AB13: test_elite_w puts an ability on the elite Elite1's W (the VECTOR
+##   wall, test_w_vector_wall.tres).
 ## The Knight's real numbers are CHAMPIONS.md's; room_01 has none of this.
 
 const SOURCE_ID := &"sandbox_demo"
@@ -28,6 +30,9 @@ const SOURCE_ID := &"sandbox_demo"
 ## A test ability to put on Q instead of Cleave (e.g.
 ## res://data/abilities/test_q_triple_step.tres). null = the Knight's own Q.
 @export var test_q: Ability
+## An ability to put on the sandbox elite Elite1's W (e.g.
+## res://data/abilities/test_w_vector_wall.tres). null = none.
+@export var test_elite_w: Ability
 
 
 func _ready() -> void:
@@ -35,8 +40,20 @@ func _ready() -> void:
 	if entities == null:
 		return
 	entities.child_entered_tree.connect(_give_costs)
+	entities.child_entered_tree.connect(_give_elite_w)
 	for child in entities.get_children():
 		_give_costs(child)
+		_give_elite_w(child)
+
+
+func _give_elite_w(node: Node) -> void:
+	var elite := node as Enemy
+	if elite == null or elite.name != &"Elite1" or test_elite_w == null:
+		return
+	if not elite.is_node_ready():
+		await elite.ready   # Unit.abilities is an @onready
+	if elite.abilities != null:
+		elite.abilities.w = test_elite_w
 
 
 func _give_costs(node: Node) -> void:

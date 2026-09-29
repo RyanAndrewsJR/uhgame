@@ -35,6 +35,7 @@ enum CastStyle {
 	INSTANT,    ## Press to cast after the cast time (QUICK or hold-to-aim, the player's cast mode).
 	CHARGE_UP,  ## Hold to charge, release to fire (ABILITIES AB6; until then it casts like INSTANT).
 	CHANNEL,    ## Cast on press; stand still through the cast time, a new move press cancels it.
+	VECTOR,     ## Press to drop a start point, drag to aim, release to cast along a line (ABILITIES AB13).
 }
 
 ## The role tags (Diablo 4's categories, "basic" renamed): every ability has
@@ -69,9 +70,10 @@ const DAMAGE_NUMBER_STYLE_PATH := "res://data/damage_number_styles/damage_number
 @export var icon_color: Color = Color(0.8, 0.8, 0.8)
 
 @export_group("Casting")
-## INSTANT (default), CHARGE_UP or CHANNEL. CHANNEL works exactly like
-## cancel_on_move on (a cast that roots and is cancelled by a new move press);
-## the cast mode setting (QUICK / hold to aim) only applies to INSTANT.
+## INSTANT (default), CHARGE_UP, CHANNEL or VECTOR. CHANNEL works exactly
+## like cancel_on_move on (a cast that roots and is cancelled by a new move
+## press); the cast mode setting (QUICK / hold to aim) only applies to
+## INSTANT. VECTOR needs targeting POINT (AB13).
 @export var cast_style: CastStyle = CastStyle.INSTANT
 @export var targeting: Targeting = Targeting.DIRECTION
 ## Seconds.
@@ -190,6 +192,18 @@ const DAMAGE_NUMBER_STYLE_PATH := "res://data/damage_number_styles/damage_number
 @export var projectile_spread_deg: float = 15.0
 ## Extra enemies a projectile passes through: 0 = it stops on the first hit.
 @export var projectile_pierce: int = 0
+
+@export_group("Vector")
+## Read only by VECTOR abilities (ABILITIES AB13). The start range is
+## cast_range. LoL units: the line's length from the start point (500 = 160
+## px; a scoped param). The cursor beyond it only sets the direction.
+@export var vector_length: float = 500.0
+## LoL units: the line's full width (75 = 24 px), for the indicator and the
+## shapes and ground areas that use the line.
+@export var vector_width: float = 75.0
+## px: a release closer than this to the start point is a tap (the direction
+## is caster -> start point, League's default).
+@export var vector_min_drag_px: float = 8.0
 
 @export_group("Sounds")
 ## At cast start (AUDIO.md). null = silent.
@@ -619,3 +633,58 @@ func draw_indicator(canvas: Node2D, caster: Unit, aim: Vector2) -> void:
 			canvas.draw_arc(p, 6.0, 0.0, TAU, 16, edge, 1.0)
 		Targeting.UNIT:
 			canvas.draw_arc(Vector2.ZERO, range_px + caster.get_gameplay_radius_px(), 0.0, TAU, 64, edge, 1.0)
+
+
+# --- VECTOR (ABILITIES AB13) ------------------------------------------------------
+
+## The VECTOR aiming indicator, drawn instead of draw_indicator() from the
+## press until the effect starts. `canvas` is the caster (local coordinates),
+## `start` the start point and `aim` the cursor (locked at release), both in
+## world space. The default: the start range, a start marker and the line
+## vector_length x vector_width along the direction a release now would use
+## (the tap fallback included). Override for custom shapes.
+func draw_vector_indicator(canvas: Node2D, caster: Unit, start: Vector2, aim: Vector2) -> void:
+	var range_px := Units.to_px(get_param(caster, &"cast_range"))
+	var length_px := Units.to_px(get_param(caster, &"vector_length"))
+	var half := Units.to_px(get_param(caster, &"vector_width")) * 0.5
+	var fill := Color(icon_color, 0.22)
+	var edge := Color(icon_color, 0.8)
+	var a := canvas.to_local(start)
+	var dir := get_vector_direction(caster, start, aim)
+	var b := a + dir * length_px
+	var side := dir.orthogonal() * half
+	canvas.draw_arc(Vector2.ZERO, range_px, 0.0, TAU, 64, Color(1, 1, 1, 0.25), 1.0)
+	canvas.draw_colored_polygon(PackedVector2Array([a + side, b + side, b - side, a - side]), fill)
+	canvas.draw_polyline(PackedVector2Array([a + side, b + side, b - side, a - side, a + side]), edge, 1.0)
+	canvas.draw_circle(a, 4.0, edge)
+
+
+## The line's direction for a VECTOR cast from `start` released at `aim`:
+## start -> aim when the drag is at least vector_min_drag_px, otherwise (a
+## tap) get_vector_tap_direction().
+func get_vector_direction(caster: Unit, start: Vector2, aim: Vector2) -> Vector2:
+	var drag := aim - start
+	if drag.length() >= vector_min_drag_px:
+		return drag.normalized()
+	return get_vector_tap_direction(caster, start)
+
+
+## A tap's direction: caster -> start point; the caster's facing if the start
+## is on the caster (a unit without one: right).
+func get_vector_tap_direction(caster: Unit, start: Vector2) -> Vector2:
+	var to_start := start - caster.global_position
+	if to_start.length() > 0.01:
+		return to_start.normalized()
+	var facing: Variant = caster.get(&"facing")
+	return facing if facing is Vector2 and facing != Vector2.ZERO else Vector2.RIGHT
+
+
+## Where the enemy AI lays a VECTOR cast against `target`: {start, direction}
+## (world space; AbilityComponent.try_cast_vector() clamps the start as at a
+## press). The default: start at the target, direction caster -> target.
+func get_ai_vector(caster: Unit, target: Unit) -> Dictionary:
+	var to_target := target.global_position - caster.global_position
+	return {
+		"start": target.global_position,
+		"direction": to_target.normalized() if to_target.length() > 0.01 else Vector2.RIGHT,
+	}

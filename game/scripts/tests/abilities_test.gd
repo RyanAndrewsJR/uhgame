@@ -35,6 +35,12 @@ extends Node2D
 ## at the effect start, the four GameplayEffects, status rules, free casts
 ## (timing, no cost, no interruption, chain limits, the HIT loop), and a fake
 ## item that restores everything exactly when unequipped.
+## AB13: VECTOR (test_vector_line: the start point with its range and wall
+## clamps, a drag and a tap, vector_drag, the hold limit and the orange bar,
+## every exit clearing the indicator, the Player's press and release, a
+## buffered press, aimed recast parts, try_cast / try_cast_vector / a free
+## cast / a hold-to-aim slot that became VECTOR; test_vector_wall on the elite:
+## get_ai_vector(), Telegraph.line(), the hit, a stun mid-cast).
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
@@ -60,6 +66,8 @@ const MARK_STRIKE: Ability = preload("res://data/abilities/test_q_mark_strike.tr
 const STATUS_FOCUS: StatusEffect = preload("res://data/statuses/status_test_focus.tres")
 const STATUS_MARK: StatusEffect = preload("res://data/statuses/status_test_mark.tres")
 const EXECUTE_RULE: ReactionRule = preload("res://data/reactions/reaction_test_execute.tres")
+const VECTOR_LINE: Ability = preload("res://data/abilities/test_q_vector_line.tres")
+const VECTOR_WALL: Ability = preload("res://data/abilities/test_w_vector_wall.tres")
 const ARENA := Vector2(-2000, 0)
 
 var knight: Player
@@ -137,6 +145,20 @@ func _ready() -> void:
 	await _test_ab12_condition_target()
 	await _test_ab12_recast()
 	await _test_ab12_reaction_condition()
+	print("\n=== Abilities test (ABILITIES AB13) ===")
+	await _reset_knight()
+	# No crits, so the AB13 damage checks are exact whatever knight.tres's crit_chance is.
+	knight.stats_component.add_modifier(StatModifier.create(&"crit_chance", StatModifier.Type.PERCENT_MULT, -1.0, &"test_no_crit"))
+	_test_ab13_data()
+	await _test_ab13_drag_and_tap()
+	await _test_ab13_start_point()
+	await _test_ab13_hold_limit()
+	await _test_ab13_exits()
+	await _test_ab13_player_input()
+	await _test_ab13_recast()
+	await _test_ab13_without_mouse()
+	await _test_ab13_enemy()
+	knight.stats_component.remove_modifiers_from(&"test_no_crit")
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).
@@ -3091,6 +3113,545 @@ func _test_ab12_reaction_condition() -> void:
 	Events.unit_hit.disconnect(on_hit)
 	dummy.queue_free()
 	await _frames(3)
+
+
+# --- AB13 -----------------------------------------------------------------------
+
+func _setup_vector_line(ability: Ability) -> Ability:
+	await _reset_knight()
+	var original_q := knight.abilities.q
+	knight.abilities.q = ability
+	knight.stats_component.remove_modifiers_from(COST_SOURCE)
+	_add_costs({&"test_vector_line": 40.0})
+	await _wait_until(func() -> bool: return knight.abilities.can_cast(&"q"), 300)
+	knight.resource_pool.restore(1000.0)
+	return original_q
+
+
+## The last q cast's context in `ctxs`, or an empty one (so a failed check
+## reads as a FAIL, not a script error).
+func _last_ctx(ctxs: Array[CastContext]) -> CastContext:
+	return ctxs.back() if not ctxs.is_empty() else CastContext.new()
+
+
+func _test_ab13_data() -> void:
+	_section("AB13: VECTOR data")
+	_check("VECTOR is added last in CastStyle", [Ability.CastStyle.VECTOR, Ability.CastStyle.keys().back()], [3, "VECTOR"])
+	var plain := Ability.new()
+	_check("defaults: vector_length 500, vector_width 75, vector_min_drag_px 8 (160 px long, 24 px wide)",
+		[plain.vector_length, plain.vector_width, plain.vector_min_drag_px, snappedf(Units.to_px(plain.vector_length), 0.01), snappedf(Units.to_px(plain.vector_width), 0.01)],
+		[500.0, 75.0, 8.0, 160.0, 24.0])
+	var v := VECTOR_LINE
+	_check("test_vector_line: VECTOR, POINT, start range 500, length 500, width 75, a tap under 8 px",
+		[v.cast_style, v.targeting, v.cast_range, v.vector_length, v.vector_width, v.vector_min_drag_px],
+		[Ability.CastStyle.VECTOR, Ability.Targeting.POINT, 500.0, 500.0, 75.0, 8.0])
+	_check("its 0.2 s release windup, 2 s hold limit (FIRE), walking at x0.6 (not rooted), dash-cancelable, 3 s cooldown",
+		[v.cast_time, v.overhold_time, v.overhold, v.roots_during_cast, v.cast_move_speed_multiplier, v.dash_cancelable, v.cooldown],
+		[0.2, 2.0, Ability.Overhold.FIRE, false, 0.6, true, 3.0])
+	_check("the role and style tags (core, line, vector) on both test abilities",
+		[v.get_role(), &"line" in v.tags, &"vector" in v.tags, VECTOR_WALL.get_role(), &"line" in VECTOR_WALL.tags, &"vector" in VECTOR_WALL.tags],
+		[&"core", true, true, &"core", true, true])
+	var styles_match := true
+	for a: Ability in [CLEAVE, IRON_RESOLVE, LUNGE, JUDGEMENT, SLAM, CHARGED_LINE, VECTOR_LINE, VECTOR_WALL]:
+		styles_match = styles_match \
+			and ((&"vector" in a.tags) == (a.cast_style == Ability.CastStyle.VECTOR)) \
+			and ((&"charge_up" in a.tags) == (a.cast_style == Ability.CastStyle.CHARGE_UP)) \
+			and ((&"channel" in a.tags) == (a.cast_style == Ability.CastStyle.CHANNEL))
+	_check("style tags match cast_style (vector, charge_up, channel)", styles_match, true)
+	_check("no Knight ability or the slam is VECTOR",
+		[CLEAVE, IRON_RESOLVE, LUNGE, JUDGEMENT, SLAM].any(func(a: Ability) -> bool: return a.cast_style == Ability.CastStyle.VECTOR), false)
+	_check("the wall: VECTOR, POINT, 0.7 s cast time, 100 physical, 6 s cooldown",
+		[VECTOR_WALL.cast_style, VECTOR_WALL.targeting, VECTOR_WALL.cast_time, VECTOR_WALL.base_damage, VECTOR_WALL.damage_type, VECTOR_WALL.cooldown],
+		[Ability.CastStyle.VECTOR, Ability.Targeting.POINT, 0.7, 100.0, HitContext.DamageType.PHYSICAL, 6.0])
+	_check("its tooltip", v.get_tooltip_plain(knight),
+		"Press to place the start up to 500 units away, drag to aim, release: a 500-unit line deals 92 magic damage (60 +50% AD) to every enemy on it. A tap lays it from you through the start. Held 2s, it fires on its own.")
+	var c := CastContext.new()
+	_check("CastContext's vector fields (defaults: start 0, direction right, end 0)",
+		[c.vector_start, c.vector_direction, c.vector_end], [Vector2.ZERO, Vector2.RIGHT, Vector2.ZERO])
+
+
+func _test_ab13_drag_and_tap() -> void:
+	_section("AB13: a drag and a tap (test_vector_line)")
+	var ab := knight.abilities
+	var pool := knight.resource_pool
+	var original_q: Ability = await _setup_vector_line(VECTOR_LINE)
+	var ctxs: Array[CastContext] = []
+	var on_started := func(slot: StringName, _a: Ability, ctx: CastContext) -> void:
+		if slot == &"q":
+			ctxs.append(ctx)
+	ab.cast_started.connect(on_started)
+	var hits: Array[HitContext] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.ability != null and ctx.ability.id == &"test_vector_line":
+			hits.append(ctx)
+	Events.unit_hit.connect(on_hit)
+	var k := knight.global_position
+	var start := k + Vector2(100, 0)
+	var below := _dummy_at(Vector2(100, 120))   # on a line dragged down from the start
+	var beyond := _dummy_at(Vector2(200, 0))    # past the start, on the caster -> start line
+	await _frames(1)
+
+	_check("press: the aim starts", ab.try_start_charge(&"q", start), true)
+	_check("the start point at the cursor; charge 1 from the press; the 40 paid; no charge or cooldown taken yet",
+		[ab.is_charging(), ab.get_vector_start() == start, ab.get_charge(), pool.current, ab.get_charges(&"q"), ab.get_cooldown_left(&"q")],
+		[true, true, 1.0, 260.0, 1, 0.0])
+	_check("walking while aiming: not rooted, at x0.6 (one move_speed modifier)",
+		[knight.movement.can_move(), knight.stats_component.get_modifiers_from(AbilityComponent.CAST_MOVE_SPEED_SOURCE).size()], [true, 1])
+	await _frames(30)
+	_check_near("0.5 s held: the hold limit counts from the press (1.5 s of 2 left)", ab.get_overhold_left(), 1.5, 0.05)
+
+	ab.release_charge(start + Vector2(0, 100))
+	var ctx := _last_ctx(ctxs)
+	_check("release, dragged 100 px down: the line runs down from the start, 160 px long",
+		[ctx.vector_start == start, ctx.vector_direction.is_equal_approx(Vector2.DOWN), ctx.vector_end.is_equal_approx(start + Vector2(0, 160))],
+		[true, true, true])
+	_check("point = the start, direction = caster -> start; vector_drag 100 / 160; charge 1",
+		[ctx.point == start, ctx.direction.is_equal_approx(Vector2.RIGHT), snappedf(ctx.get_input(&"vector_drag"), 0.001), ctx.charge],
+		[true, true, 0.625, 1.0])
+	_check("the charge and the 3 s cooldown are taken at release; the windup starts; the indicator stays, locked",
+		[ab.get_charges(&"q"), snappedf(ab.get_cooldown_left(&"q"), 0.01), hits.size(), ab.has_charge_indicator(), ab.get_vector_start() == start, ab.get_locked_charge_aim() == start + Vector2(0, 100)],
+		[0, 3.0, 0, true, true, true])
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("after the 0.2 s windup: only the dummy on the line is hit, for 92 magic (60 + 50% of 64 AD)",
+		[hits.size(), hits[0].target == below if hits.size() == 1 else false, hits[0].raw_damage if hits.size() == 1 else -1.0, hits[0].damage_type if hits.size() == 1 else -1],
+		[1, true, 92.0, HitContext.DamageType.MAGIC])
+	_check("its hits carry vector and line; the indicator, the start point and the walking modifier are gone",
+		[hits[0].has_tag(&"vector") if hits.size() == 1 else false, hits[0].has_tag(&"line") if hits.size() == 1 else false, ab.has_charge_indicator(), ab.get_vector_start(), knight.stats_component.get_modifiers_from(AbilityComponent.CAST_MOVE_SPEED_SOURCE).size()],
+		[true, true, false, Vector2.INF, 0])
+
+	# A tap: released under 8 px from the start.
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	pool.restore(1000.0)
+	hits.clear()
+	ab.try_start_charge(&"q", start)
+	ab.release_charge(start + Vector2(5, 3))
+	ctx = _last_ctx(ctxs)
+	_check("a tap (released 6 px from the start): direction caster -> start, vector_drag 0",
+		[ctx.vector_direction.is_equal_approx(Vector2.RIGHT), ctx.vector_end.is_equal_approx(start + Vector2(160, 0)), ctx.get_input(&"vector_drag")],
+		[true, true, 0.0])
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("only the dummy past the start is hit", [hits.size(), hits[0].target == beyond if hits.size() == 1 else false], [1, true])
+
+	# vector_drag as a named input: base damage from 50% (a tap) to 100% (a full drag).
+	var scaled: Ability = VECTOR_LINE.duplicate()   # same id: the scoped 40 cost applies
+	var s := ChargeScaling.new()
+	s.param = &"base_damage"
+	s.input = &"vector_drag"
+	s.min_fraction = 0.5
+	var scalings: Array[ChargeScaling] = [s]
+	scaled.charge_scalings = scalings
+	ab.q = scaled
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	pool.restore(1000.0)
+	hits.clear()
+	ab.try_start_charge(&"q", start)
+	ab.release_charge(start + Vector2(0, 100))
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("a ChargeScaling on vector_drag: 60 x (0.5 + 0.5 x 0.625) + 32 = 80.75",
+		[hits.size(), hits[0].raw_damage if hits.size() == 1 else -1.0], [1, 80.75])
+
+	ab.cast_started.disconnect(on_started)
+	Events.unit_hit.disconnect(on_hit)
+	below.queue_free()
+	beyond.queue_free()
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	ab.q = original_q
+
+
+func _test_ab13_start_point() -> void:
+	_section("AB13: the start point (range, walls, a tap on the caster)")
+	var ab := knight.abilities
+	var original_q: Ability = await _setup_vector_line(VECTOR_LINE)
+	var k := knight.global_position
+	ab.try_start_charge(&"q", k + Vector2(400, 0))
+	_check("a cursor 400 px away: the start is clamped to cast_range (160 px)", ab.get_vector_start().is_equal_approx(k + Vector2(160, 0)), true)
+	ab.try_cancel_charge()
+	var wall := _wall_at(k + Vector2(60, 0), Vector2(10, 100))
+	await _frames(2)
+	ab.try_start_charge(&"q", k + Vector2(100, 0))
+	_check_near("a wall in the way (its face at 55 px): the start stops at its face (53 px: the 2 px core)", ab.get_vector_start().x - k.x, 53.0, 0.5)
+	ab.try_cancel_charge()
+	ab.try_start_charge(&"q", k + Vector2(60, 0))
+	_check_near("a cursor inside the wall: the same", ab.get_vector_start().x - k.x, 53.0, 0.5)
+	ab.try_cancel_charge()
+	var through: Ability = VECTOR_LINE.duplicate()
+	through.ignores_walls = true
+	ab.q = through
+	ab.try_start_charge(&"q", k + Vector2(100, 0))
+	_check("ignores_walls: the start stays at the cursor", ab.get_vector_start() == k + Vector2(100, 0), true)
+	ab.try_cancel_charge()
+	ab.q = VECTOR_LINE
+	wall.queue_free()
+	await _frames(2)
+
+	# The start on the caster and a release on it: a tap along the facing.
+	var ctxs: Array[CastContext] = []
+	var on_started := func(slot: StringName, _a: Ability, ctx: CastContext) -> void:
+		if slot == &"q":
+			ctxs.append(ctx)
+	ab.cast_started.connect(on_started)
+	k = knight.global_position
+	ab.try_start_charge(&"q", k)
+	knight.facing = Vector2.UP
+	ab.release_charge(k)
+	var ctx := _last_ctx(ctxs)
+	_check("start and release on the caster: a tap along the caster's facing (up)",
+		[ctx.vector_start == k, ctx.vector_direction.is_equal_approx(Vector2.UP), ctx.vector_end.is_equal_approx(k + Vector2(0, -160)), ctx.get_input(&"vector_drag")],
+		[true, true, true, 0.0])
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	ab.cast_started.disconnect(on_started)
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	ab.q = original_q
+
+
+func _test_ab13_hold_limit() -> void:
+	_section("AB13: the hold limit (overhold_time from the press) and the orange bar")
+	var ab := knight.abilities
+	var pool := knight.resource_pool
+	var original_q: Ability = await _setup_vector_line(VECTOR_LINE)
+	var hud: CanvasLayer = HUD_SCENE.instantiate()
+	add_child(hud)
+	hud.setup_abilities(knight)
+	var bar: Control = hud.get_node("AbilityBar")
+	var released: Array = []
+	var on_released := func(_slot: StringName, _a: Ability, charge: float) -> void: released.append(charge)
+	ab.charge_released.connect(on_released)
+	var start := knight.global_position + Vector2(100, 0)
+
+	ab.try_start_charge(&"q", start)
+	_check("at the press: charge 1, the whole 2 s of hold limit left", [ab.get_charge(), snappedf(ab.get_overhold_left(), 0.01)], [1.0, 2.0])
+	await _frames(60)
+	_check("1 s held: still aiming, 1 s left, the charge bar shows (its orange part: the charge is 1)",
+		[ab.is_charging(), snappedf(ab.get_overhold_left(), 0.05), bar._drawn_charge_bar_slot], [true, 1.0, &"q"])
+	await _frames(65)
+	_check("after 2 s: fired by itself (FIRE)", [ab.is_charging(), released, ab.get_charges(&"q")], [false, [1.0], 0])
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+
+	var cancel_line: Ability = VECTOR_LINE.duplicate()
+	cancel_line.overhold = Ability.Overhold.CANCEL_REFUND
+	ab.q = cancel_line
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	pool.restore(1000.0)
+	ab.try_start_charge(&"q", start)
+	await _frames(125)
+	_check("CANCEL_REFUND after 2 s: cancelled, the 40 back, still ready, nothing fired, the start point gone",
+		[ab.is_charging(), ab.casting, pool.current, ab.is_ready(&"q"), released.size(), ab.get_vector_start()],
+		[false, false, 300.0, true, 1, Vector2.INF])
+
+	ab.charge_released.disconnect(on_released)
+	hud.queue_free()
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	ab.q = original_q
+
+
+## Every way a VECTOR aim ends clears the start marker and the line, the bar
+## and the sound, through the one end-charge path (charge_ended once).
+func _test_ab13_exits() -> void:
+	_section("AB13: every way a vector aim ends clears the indicator, the bar and the sound")
+	var ab := knight.abilities
+	var line: Ability = VECTOR_LINE.duplicate()   # same id: the scoped 40 cost applies
+	line.charge_sound = LOOP_SOUND
+	line.overhold_time = 0.2
+	var original_q: Ability = await _setup_vector_line(line)
+	var hud: CanvasLayer = HUD_SCENE.instantiate()
+	add_child(hud)
+	hud.setup_abilities(knight)
+	var bar: Control = hud.get_node("AbilityBar")
+	var ended := [0]
+	var on_ended := func(_slot: StringName, _a: Ability) -> void: ended[0] += 1
+	ab.charge_ended.connect(on_ended)
+	var start := knight.global_position + Vector2(100, 0)
+
+	_exit_line = line
+	_exit_aim = start + Vector2(0, 60)   # a drag down from the start
+	var exits := [
+		["release (after its windup)", _exit_release],
+		["the hold limit, FIRE (after its windup)", _exit_overhold_fire],
+		["the hold limit, CANCEL_REFUND", _exit_overhold_cancel],
+		["Esc", _exit_esc],
+		["a stun", _exit_stun],
+		["a dash", _exit_dash],
+		["a move press (a channel vector)", _exit_move],
+		["the slot swapped mid-aim (a REPLACE), then release", _exit_swap],
+		["a lost key release (the Player's own aim)", _exit_lost_release],
+	]
+	for exit: Array in exits:
+		var label: String = exit[0]
+		await _wait_until(func() -> bool: return ab.can_cast(&"q") and not knight.is_stunned() and knight.dash.can_dash(), 400)
+		knight.resource_pool.restore(1000.0)
+		line.cancel_on_move = label.begins_with("a move press")
+		if label.begins_with("a lost key"):
+			Input.action_press(&"ability_q")
+			knight._unhandled_input(_action(&"ability_q", true))
+		else:
+			ab.try_start_charge(&"q", start)
+		var handle: int = ab.get("_charge_sound_handle")
+		await _frames(3)
+		var showing := [ab.has_charge_indicator(), ab.get_vector_start() != Vector2.INF, knight.get_indicator_slot(), knight._drawn_indicator_slot,
+			knight._drawn_vector_start != Vector2.INF, bar._drawn_charge_bar_slot, Audio.is_playing(handle)]
+		var before: int = ended[0]
+		await (exit[1] as Callable).call()
+		await _frames(2)
+		_check("%s: shown while aiming, then the start marker and line, bar and sound gone, charge_ended once" % label,
+			[showing, [ab.has_charge_indicator(), ab.get_vector_start() != Vector2.INF, knight.get_indicator_slot(), knight._drawn_indicator_slot,
+				knight._drawn_vector_start != Vector2.INF, bar._drawn_charge_bar_slot, Audio.is_playing(handle)], ended[0] - before],
+			[[true, true, &"q", &"q", true, &"q", true], [false, false, &"", &"", false, &"", false], 1])
+	line.cancel_on_move = false
+
+	# Death (a second Knight, so this one lives on).
+	var other: Player = PLAYER_SCENE.instantiate()
+	add_child(other)
+	_place(other, knight.global_position + Vector2(0, 300))
+	await _frames(1)
+	other.abilities.q = line
+	var other_ended := [0]
+	other.abilities.charge_ended.connect(func(_s: StringName, _a: Ability) -> void: other_ended[0] += 1)
+	other.abilities.try_start_charge(&"q", other.global_position + Vector2(100, 0))
+	var other_handle: int = other.abilities.get("_charge_sound_handle")
+	await _frames(3)
+	other.take_damage(100000.0)
+	_check("death while aiming: the aim ends at once, the start point gone, sound stopped, charge_ended once",
+		[other.abilities.has_charge_indicator(), other.abilities.get_vector_start(), other.abilities.casting, Audio.is_playing(other_handle), other_ended[0]],
+		[false, Vector2.INF, false, false, 1])
+
+	ab.charge_ended.disconnect(on_ended)
+	hud.queue_free()
+	other.queue_free()
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	ab.q = original_q
+
+
+func _test_ab13_player_input() -> void:
+	_section("AB13: the Player's press, drag and release; a buffered press")
+	var ab := knight.abilities
+	var original_q: Ability = await _setup_vector_line(VECTOR_LINE)
+	var ctxs: Array[CastContext] = []
+	var on_started := func(slot: StringName, _a: Ability, ctx: CastContext) -> void:
+		if slot == &"q":
+			ctxs.append(ctx)
+	ab.cast_started.connect(on_started)
+
+	# The cast mode doesn't apply to VECTOR: hold to aim or quick, it's aimed.
+	var mode := Settings.get_cast_mode()
+	Settings.set_cast_mode(Player.CastMode.QUICK_WITH_INDICATOR)
+	Input.action_press(&"ability_q")
+	knight._unhandled_input(_action(&"ability_q", true))
+	var expected_start := knight.global_position + (knight.get_global_mouse_position() - knight.global_position).limit_length(Units.to_px(500.0))
+	_check("press Q (in hold-to-aim mode too): a vector aim, not a hold-to-aim aim; the start at the cursor, clamped",
+		[ab.is_charging(), knight.aiming_slot, knight.get_indicator_slot(), ab.get_vector_start().distance_to(expected_start) < 0.5],
+		[true, &"", &"q", true])
+	await _frames(20)
+	_check("held: still aiming; the Player draws the vector indicator from its start point",
+		[ab.is_charging(), knight._drawn_vector_start == ab.get_vector_start()], [true, true])
+	Input.action_release(&"ability_q")
+	knight._unhandled_input(_action(&"ability_q", false))
+	_check("release Q: cast (its windup starts)", [ab.is_charging(), ab.casting, ctxs.size()], [false, true, 1])
+	Settings.set_cast_mode(mode)
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+
+	# A press buffered during Lunge whose key is let go before it fires: a tap.
+	await _wait_until(func() -> bool: return ab.can_cast(&"q") and ab.can_cast(&"e"), 600)
+	knight.resource_pool.restore(1000.0)
+	ab.try_cast(&"e", knight.global_position + Vector2(0, 80))   # Lunge: a cast time and a dash
+	knight.request_charge(&"q")
+	_check("pressed during Lunge: buffered", knight.player_input.get_buffered_action(), &"q")
+	await _wait_until(func() -> bool: return ctxs.size() == 2, 60)
+	_check("fired when Lunge ended, as a tap at the cursor (the key wasn't held): vector_drag 0, not aiming",
+		[ctxs.size(), _last_ctx(ctxs).get_input(&"vector_drag"), ab.is_charging()], [2, 0.0, false])
+
+	ab.cast_started.disconnect(on_started)
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	ab.q = original_q
+
+
+func _test_ab13_recast() -> void:
+	_section("AB13: every VECTOR recast part is aimed")
+	var ab := knight.abilities
+	var pool := knight.resource_pool
+	var two_part: Ability = VECTOR_LINE.duplicate()   # same id: the scoped 40 cost applies to part 0
+	two_part.recast_count = 1
+	two_part.recast_window = 3.0
+	two_part.recast_resource_cost = 10.0
+	var original_q: Ability = await _setup_vector_line(two_part)
+	var ctxs: Array[CastContext] = []
+	var on_started := func(slot: StringName, _a: Ability, ctx: CastContext) -> void:
+		if slot == &"q":
+			ctxs.append(ctx)
+	ab.cast_started.connect(on_started)
+	var start := knight.global_position + Vector2(100, 0)
+
+	ab.try_start_charge(&"q", start)
+	ab.release_charge(start + Vector2(0, 100))
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("part 0 cast: the window for part 1 is open", [ab.get_recast_part(&"q"), ab.get_charges(&"q")], [1, 0])
+	await _frames(1)
+	var mana := pool.current
+	Input.action_press(&"ability_q")
+	knight._unhandled_input(_action(&"ability_q", true))
+	var window_left := ab.get_recast_time_left(&"q")
+	_check("press Q in the window: part 1 is aimed (its own start point), not cast at once; it costs 10",
+		[ab.is_charging(), ab.get_vector_start() != Vector2.INF, ctxs.size(), snappedf(mana - pool.current, 0.01)], [true, true, 1, 10.0])
+	await _frames(30)
+	_check("the window doesn't run while part 1 is aimed", ab.get_recast_time_left(&"q"), window_left)
+	Input.action_release(&"ability_q")
+	knight._unhandled_input(_action(&"ability_q", false))
+	_check("release: part 1 is cast", [ctxs.size(), _last_ctx(ctxs).part], [2, 1])
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	await _frames(2)
+	_check("after the last part: the sequence is over and the cooldown runs", [ab.get_recast_part(&"q"), ab.get_cooldown_left(&"q") > 0.0], [0, true])
+
+	ab.cast_started.disconnect(on_started)
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	ab.q = original_q
+
+
+func _test_ab13_without_mouse() -> void:
+	_section("AB13: without a mouse (try_cast, try_cast_vector, a free cast, a hold-to-aim slot that became VECTOR)")
+	var ab := knight.abilities
+	var original_q: Ability = await _setup_vector_line(VECTOR_LINE)
+	var ctxs: Array[CastContext] = []
+	var on_started := func(slot: StringName, _a: Ability, ctx: CastContext) -> void:
+		if slot == &"q":
+			ctxs.append(ctx)
+	ab.cast_started.connect(on_started)
+	var hits: Array[HitContext] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.ability != null and ctx.ability.id == &"test_vector_line":
+			hits.append(ctx)
+	Events.unit_hit.connect(on_hit)
+	var k := knight.global_position
+	var start := k + Vector2(100, 0)
+	var below := _dummy_at(Vector2(100, 120))
+	var beyond := _dummy_at(Vector2(200, 0))
+	await _frames(1)
+
+	_check("try_cast() on a VECTOR ability: cast at once, no hold, no indicator",
+		[ab.try_cast(&"q", start), ab.is_charging(), ab.has_charge_indicator(), ab.casting], [true, false, false, true])
+	var ctx := _last_ctx(ctxs)
+	_check("... as a tap: start = the aim, direction caster -> start, vector_drag 0",
+		[ctx.vector_start == start, ctx.vector_direction.is_equal_approx(Vector2.RIGHT), ctx.get_input(&"vector_drag")], [true, true, 0.0])
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("its line hits the dummy past the start", [hits.size(), hits[0].target == beyond if hits.size() == 1 else false], [1, true])
+
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	knight.resource_pool.restore(1000.0)
+	hits.clear()
+	_check("try_cast_vector(start, down): cast at once", ab.try_cast_vector(&"q", start, Vector2.DOWN), true)
+	ctx = _last_ctx(ctxs)
+	_check("... with that start and direction; vector_drag 1 (no drag to measure); no indicator",
+		[ctx.vector_start == start, ctx.vector_direction.is_equal_approx(Vector2.DOWN), ctx.vector_end.is_equal_approx(start + Vector2(0, 160)), ctx.get_input(&"vector_drag"), ab.has_charge_indicator()],
+		[true, true, true, 1.0, false])
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("its line hits the dummy below the start", [hits.size(), hits[0].target == below if hits.size() == 1 else false], [1, true])
+
+	# A free cast (CastAbility): a tap at the aim, clamped as at a press.
+	hits.clear()
+	var free_ctxs: Array[CastContext] = []
+	var on_cast := func(unit: Unit, _a: Ability, c: CastContext) -> void:
+		if unit == knight and c.is_free:
+			free_ctxs.append(c)
+	Events.ability_cast.connect(on_cast)
+	_check("a free cast runs at once", ab.try_cast_free(VECTOR_LINE, k + Vector2(400, 0), null, &"item_test_free"), true)
+	var fc := _last_ctx(free_ctxs)
+	_check("... as a tap from the aim clamped to 160 px: direction caster -> start, vector_drag 0; the dummy past the start is hit",
+		[fc.vector_start.is_equal_approx(k + Vector2(160, 0)), fc.vector_direction.is_equal_approx(Vector2.RIGHT), fc.get_input(&"vector_drag"), hits.size()],
+		[true, true, 0.0, 1])
+	Events.ability_cast.disconnect(on_cast)
+
+	# A hold-to-aim INSTANT aim whose slot became VECTOR: released, it casts the VECTOR ability as a tap.
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	knight.resource_pool.restore(1000.0)
+	var mode := Settings.get_cast_mode()
+	Settings.set_cast_mode(Player.CastMode.QUICK_WITH_INDICATOR)
+	ab.q = STRIKE
+	knight._unhandled_input(_action(&"ability_q", true))
+	_check("hold-to-aim on Strike (INSTANT): aiming", knight.aiming_slot, &"q")
+	ab.q = VECTOR_LINE   # the slot became VECTOR mid-aim
+	var count := ctxs.size()
+	knight._unhandled_input(_action(&"ability_q", false))
+	_check("released after the slot became VECTOR: the VECTOR ability cast at once as a tap",
+		[ctxs.size() - count, _last_ctx(ctxs).ability == VECTOR_LINE, _last_ctx(ctxs).get_input(&"vector_drag"), ab.is_charging()], [1, true, 0.0, false])
+	Settings.set_cast_mode(mode)
+
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	ab.cast_started.disconnect(on_started)
+	Events.unit_hit.disconnect(on_hit)
+	below.queue_free()
+	beyond.queue_free()
+	knight.stats_component.remove_modifiers_from(COST_SOURCE)
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	ab.q = original_q
+
+
+func _test_ab13_enemy() -> void:
+	_section("AB13: an enemy VECTOR ability (test_vector_wall) with a line telegraph")
+	await _reset_knight()
+	var k := knight.global_position
+	var t := Telegraph.line(knight, k, k + Vector2(0, 160), 24.0, 0.5)
+	_check("Telegraph.line(): placed at the start, its line and width kept, empty at first",
+		[t.global_position == k, t.line_vector == Vector2(0, 160), t.width_px, t.get_progress()], [true, true, 24.0, 0.0])
+	t.queue_free()
+
+	var elite: Enemy = ELITE_SCENE.instantiate()
+	elite.passive = true
+	add_child(elite)
+	_place(elite, k + Vector2(120, 0))
+	await _frames(1)
+	var d := Ability.new().get_ai_vector(elite, knight)
+	_check("the default get_ai_vector(): start at the target, direction caster -> target",
+		[d.start == k, (d.direction as Vector2).is_equal_approx(Vector2.LEFT)], [true, true])
+	var w := VECTOR_WALL.get_ai_vector(elite, knight)
+	_check("the wall's: across the elite -> player direction, centered on the player (start 80 px to one side)",
+		[is_zero_approx((w.direction as Vector2).dot(Vector2.LEFT)), ((w.start as Vector2) + (w.direction as Vector2) * 80.0).is_equal_approx(k)], [true, true])
+
+	elite.abilities.q = null   # only the wall (the slam has its own tests)
+	elite.abilities.w = VECTOR_WALL
+	var ctxs: Array[CastContext] = []
+	var on_started := func(slot: StringName, _a: Ability, c: CastContext) -> void:
+		if slot == &"w":
+			ctxs.append(c)
+	elite.abilities.cast_started.connect(on_started)
+	var hits: Array[HitContext] = []
+	var on_hit := func(c: HitContext) -> void:
+		if c.ability != null and c.ability.id == &"test_vector_wall":
+			hits.append(c)
+	Events.unit_hit.connect(on_hit)
+	var hp := knight.health.current
+	elite.passive = false
+	await _wait_until(func() -> bool: return elite.abilities.casting, 60)
+	var telegraph := _find_telegraph()
+	var ctx := _last_ctx(ctxs)
+	_check("the elite casts the wall (W) through try_cast_vector(): the line across the player, vector_drag 1",
+		[elite.abilities.casting_slot, is_zero_approx(ctx.vector_direction.dot(Vector2.LEFT)), (ctx.vector_start + ctx.vector_direction * 80.0).distance_to(k) < 1.0, ctx.get_input(&"vector_drag")],
+		[&"w", true, true, 1.0])
+	_check("a line telegraph over the line (24 px wide) during the 0.7 s cast time",
+		[telegraph != null, telegraph.line_vector.is_equal_approx(ctx.vector_end - ctx.vector_start) if telegraph != null else false, telegraph.width_px if telegraph != null else 0.0],
+		[true, true, 24.0])
+	await _wait_until(func() -> bool: return not elite.abilities.casting, 60)
+	_check("after the cast time: the player on the line takes one 100 physical hit; the telegraph finishes",
+		[hits.size(), hits[0].target == knight if hits.size() == 1 else false, hits[0].raw_damage if hits.size() == 1 else -1.0, knight.health.current < hp, not is_instance_valid(telegraph) or telegraph._finishing],
+		[1, true, 100.0, true, true])
+
+	# A stun mid-cast: interrupted, the telegraph goes that frame.
+	var first: WeakRef = weakref(telegraph)
+	await _wait_until(func() -> bool: return first.get_ref() == null, 30)   # the first one's flash is over
+	elite.abilities.reset_cooldown(&"w")
+	await _wait_until(func() -> bool: return elite.abilities.casting, 60)
+	telegraph = _find_telegraph()
+	await _frames(6)
+	elite.apply_stun(0.1)
+	_check("a stun mid-cast: interrupted at once, cooldown refunded, the telegraph goes that frame",
+		[elite.abilities.casting, elite.abilities.is_ready(&"w"), telegraph != null and telegraph.is_queued_for_deletion()], [false, true, true])
+	elite.passive = true
+	elite.attack.cancel()
+	hits.clear()
+	await _frames(50)
+	_check("no wall lands", hits.size(), 0)
+
+	elite.abilities.cast_started.disconnect(on_started)
+	Events.unit_hit.disconnect(on_hit)
+	elite.queue_free()
+	await _frames(1)
 
 
 func _wall_at(pos: Vector2, size: Vector2) -> StaticBody2D:
