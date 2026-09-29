@@ -26,11 +26,11 @@ Every champion's kit reads at a glance and feels instant: press, and it goes whe
 ## Rules (MUST unless marked proposed)
 ### Casting
 - A cast happens when: the ability is ready (cooldown done or a charge available), the caster can pay its cost, no status blocks casting, and its conditions pass (Conditions).
-- At cast start: pay the cost, show the telegraph, play `cast_sound`. The cooldown (or a charge) starts at cast start for INSTANT and CHANNEL, and at release for CHARGE_UP.
-- A cast cancelled (dash, move, Esc or overhold CANCEL_REFUND during a charge-up) or interrupted (stun, death) before its effect refunds its cost and cooldown/charge. Once `execute()` starts, nothing is refunded.
-- A stun (or any status that blocks casting) applied during the cast time or a charge-up interrupts the cast at once (Ryan's pick). AbilityComponent listens to its unit's `StatusComponent.status_applied`; a unit without a StatusComponent (none today) still gets the old check at the end of the cast time.
-- The cast movement rules (Movement during casts, below) also govern walking while charging up.
-- **The "on cast" trigger fires when the effect starts** (Ryan, AB8): `Events.ability_cast` / ABILITY_CAST come after the cast time for INSTANT and CHANNEL, after the release windup for CHARGE_UP, at each recast part's effect, and when a free cast runs; never for a cast cancelled or interrupted before its effect (so a "restore on cast" rule can't pay out for a cast that was refunded). `cast_started` stays at cast start for sounds and telegraphs.
+- At cast start: pay the cost, show the telegraph, play `cast_sound`. The cooldown (or a charge) starts at cast start for INSTANT and CHANNEL, and at release for CHARGE_UP and VECTOR.
+- A cast cancelled (dash, move, Esc or overhold CANCEL_REFUND during a charge-up or a vector aim) or interrupted (stun, death) before its effect refunds its cost and cooldown/charge. Once `execute()` starts, nothing is refunded.
+- A stun (or any status that blocks casting) applied during the cast time, a charge-up or a vector aim interrupts the cast at once (Ryan's pick). AbilityComponent listens to its unit's `StatusComponent.status_applied`; a unit without a StatusComponent (none today) still gets the old check at the end of the cast time.
+- The cast movement rules (Movement during casts, below) also govern walking while charging up or aiming a vector.
+- **The "on cast" trigger fires when the effect starts** (Ryan, AB8): `Events.ability_cast` / ABILITY_CAST come after the cast time for INSTANT and CHANNEL, after the release windup for CHARGE_UP and VECTOR, at each recast part's effect, and when a free cast runs; never for a cast cancelled or interrupted before its effect (so a "restore on cast" rule can't pay out for a cast that was refunded). `cast_started` stays at cast start for sounds and telegraphs.
 - **Free casts** (`CastAbilityGameplayEffect`, `CastContext.is_free`): no cost, no cooldown started, no charge used; no cast time (the effect runs at once); they don't root the caster, don't lock the slot and don't interrupt a cast already in progress; they aim at the triggering cast's aim point and target (a hit: the unit hit), or the caster's current aim if there isn't one. A dead or cast-blocked unit refuses them. Since ABILITY_CAST fires at the effect start, a free cast it triggers runs right then; nothing is queued. Free casts are chain-limited like reaction rules (`chain_limit`, `ReactionRule.MAX_CHAIN` 5), their hits included (`HitContext.chain_depth`). They don't use up ability empowers.
 
 ### Movement during casts
@@ -48,12 +48,20 @@ Moved here from MOVEMENT.md unchanged (MOVEMENT.md keeps a pointer). Per ability
 - CHARGE_UP: hold the key to charge, release to fire at the cursor's position at release. The cast context carries `charge` (0 at a tap, 1 at full). Each ability lists which params grow with the charge (e.g. `cast_range` from 40% to 100%, `base_damage` from 50% to 100%) with an optional curve; the full value is the normal param after modifiers, so items raise both ends. The indicator is always shown while charging and grows with it. After full charge, the player may keep holding for `overhold_time`; then the ability does its overhold behavior: FIRE (default) or CANCEL_REFUND, per ability.
   - Release windup (Xerath Q style): for CHARGE_UP, `cast_time` is the delay after release (the cast starts at release, so no separate field). On release the aim and the charge lock at the release point, the indicator stays visible (locked, no longer following the cursor), `cast_sound` plays, and after `cast_time` the effect runs (damage, VFX, hit sounds). During it the cast movement rules apply, `dash_cancelable` and stuns work like any cast time, and a cancel or interrupt refunds the cost and the cooldown. The indicator clears when the effect runs or the cast ends any other way. An enemy's release windup shows its telegraph (`on_cast_started()`), like the slam's cast time.
   - Every way a charge-up ends (its effect starting after release, overhold FIRE or CANCEL_REFUND, Esc, a stun, a dash, a move on a channel, death, the slot swapped by a REPLACE, a lost key release) goes through one end-charge path, which clears the indicator, the charge bar and `charge_sound`.
-- CHANNEL: the caster stands still through the cast time; moving cancels it (refunded); the effect comes at the end. This is `cancel_on_move`, formalized (Judgement). A lasting channelled effect (a drain, a held beam) comes later with SUSTAINED.
-- Later (not built now): TOGGLE, SUSTAINED (held stream), VECTOR (click-drag).
+- CHANNEL: the caster stands still through the cast time; moving cancels it (refunded); the effect comes at the end. This is `cancel_on_move`, formalized (Judgement). A lasting channelled effect (a drain, a held beam) isn't a cast style: statuses, auras and reaction rules (Not planned, below).
+- VECTOR (AB13; League's Viktor E, Rumble R): press the key to drop a start point at the cursor (clamped to `cast_range` from the caster, and to the last valid spot short of a wall), hold and move the mouse to aim, release to cast from the start point toward the cursor. The aim locks at release.
+  - The line is `vector_length` long from the start point; the cursor beyond it only sets the direction. The cast carries the start point, direction and end point, so shapes and ground areas can use the line (a laser, a wall of fire, a line of spears).
+  - Tap: if the cursor is less than `vector_min_drag_px` from the start point at release, the direction is from the caster through the start point (League's default).
+  - It uses the CHARGE_UP hold/release path and its release windup (`cast_time` after release, aim locked, indicator stays); cancels and interrupts work exactly as for CHARGE_UP. Its `charge` is always 1; `overhold_time` counts from the press as a hold limit (then `overhold`: FIRE or CANCEL_REFUND).
+  - Indicator: a start marker plus a line preview, shown from the press until the release windup ends.
+  - Every recast part of a VECTOR ability is aimed the same way (a CHARGE_UP recast part still casts at once).
+  - The enemy AI places the start point and direction itself (no mouse), with the usual telegraph during the cast time.
+  - Walking while aiming follows the cast movement rules: the test ability walks at `cast_move_speed_multiplier` 0.6; a kit can still root fully with `roots_during_cast`.
+- Not planned: TOGGLE and SUSTAINED. Always-on and "while X" effects use statuses, auras and reaction rules (items, passives). Revisit only if a champion needs one.
 
 ### Cast mode (player setting)
 - Cast mode is a player setting in Settings and the pause menu, like dash direction: QUICK (cast at the cursor on press; default, Ryan's pick) or QUICK_WITH_INDICATOR (hold to aim, release to cast). Esc cancels an aim.
-- Cast mode only applies to INSTANT abilities. CHARGE_UP always uses hold-and-release and CHANNEL always casts on press, whatever the setting.
+- Cast mode only applies to INSTANT abilities. CHARGE_UP and VECTOR always use hold-and-release and CHANNEL always casts on press, whatever the setting.
 
 ### Damage scalings (League ratios)
 - An ability's damage is `base_damage` plus a list of scaling terms, each "ratio × a stat", read from the caster (attack_damage, bonus attack damage = final − base, ability_power, max_health, bonus health, armor, magic_resist...) or from the target (max health, missing health, current health). `ap_ratio` is supported.
@@ -134,7 +142,7 @@ Moved here from MOVEMENT.md unchanged (MOVEMENT.md keeps a pointer). Per ability
   3. Conditional bonuses: a list of {conditions, param changes (StatModifiers: add or multiply, so tooltips can show them), statuses to apply to each unit the effect hits, statuses to apply to the caster}. Checked at the moment the effect happens (cast or hit), not earlier.
 - Custom check: an Ability script can override a virtual custom check; it's ANDed with the data conditions. This is the escape hatch for one-off logic.
 - Feedback: when a cast or recast condition fails, the slot shows as unavailable (greyed, League style) and pressing it plays the fail cue with reason "condition"; nothing is spent and the press isn't buffered. A condition can carry a short fail text for later UI (e.g. "No marked target").
-- Named 0–1 scaling inputs: CastContext carries named values from 0 to 1. Charge is the first one; `CastContext.charge` keeps working exactly as it is (a thin wrapper, change policy). Any charge-style scaling can read any named input through its optional curve. Built in: `charge`, `self_missing_health`, `target_missing_health`, `target_distance` (distance ÷ cast range); an ability script can set any other (e.g. stack count ÷ max stacks).
+- Named 0–1 scaling inputs: CastContext carries named values from 0 to 1. Charge is the first one; `CastContext.charge` keeps working exactly as it is (a thin wrapper, change policy). Any charge-style scaling can read any named input through its optional curve. Built in: `charge`, `self_missing_health`, `target_missing_health`, `target_distance` (distance ÷ cast range), `vector_drag` (a VECTOR cast's drag length ÷ `vector_length`; AB13); an ability script can set any other (e.g. stack count ÷ max stacks).
 - Conditions work outside ability slots (passives, items, enemy AI), like the rest of the toolkit: a condition is a pure check on units, and whatever holds it (a rule, an augment, a status, an item) is added and removed by its source id.
 
 ## The toolkit (every ability is built from these)
@@ -143,9 +151,9 @@ Targeting and indicators; cast styles; shapes (cone, line, circle, line of sight
 
 | Piece | Where it lives | What it's for | Passives and items use it as-is: how the source is carried |
 |---|---|---|---|
-| Targeting and indicators | `Ability.targeting`, `Ability.draw_indicator()` (override per shape), `Ability.get_charged_param()` | where a cast goes; the aim shape the player sees | through an Ability resource (a hidden variant cast by `CastAbilityGameplayEffect`); an item never needs an indicator of its own |
+| Targeting and indicators | `Ability.targeting`, `Ability.draw_indicator()` (override per shape), `Ability.draw_vector_indicator()` (VECTOR), `Ability.get_charged_param()` | where a cast goes; the aim shape the player sees | through an Ability resource (a hidden variant cast by `CastAbilityGameplayEffect`); an item never needs an indicator of its own |
 | Cast styles, costs, charges, recasts | `AbilityComponent` + fields on `Ability` | when and how often a slot fires | slots only; items change them through scoped modifiers (`StatsComponent.add_modifier()`, `source_id`) and REPLACE augments (`add_augment(augment, source_id)`) |
-| Shapes and sight | `AbilityUtil` (`in_cone`, `along_segment`, `in_circle`, `in_sight`, `nearest_enemy_to`, `nearest_enemy_in_range`), `WorldQuery.has_line_of_sight()` | who's inside an area | static functions: any caller with a caster Unit |
+| Shapes and sight | `AbilityUtil` (`in_cone`, `along_segment`, `in_circle`, `in_sight`, `nearest_enemy_to`, `nearest_enemy_in_range`), `WorldQuery.has_line_of_sight()` | who's inside an area (a VECTOR line: `along_segment()` from `vector_start` to `vector_end`, `vector_width` wide) | static functions: any caller with a caster Unit |
 | The hit | `Ability.hit_units()` (one crit roll per cast, the cast's context, `hit_knockback_px`, statuses on the hit), `HitPipeline.from_ability()`, `make_proc()`, `DealDamageGameplayEffect` | damage, crits, mitigation, on-hit, knockback, statuses | the hit's `source` is a Unit (kill credit); an item's damage is a rule's `DealDamageGameplayEffect` (source = the rule's owner) or a free cast |
 | Damage scalings | `DamageScaling` Resources on `Ability.scalings`; `ad_ratio`, `ap_ratio` | League ratios | scoped modifiers raise a term's ratio (`scope` `ability:<id>` / `tag:<tag>`, `source_id` the item's) |
 | Statuses | `StatusComponent.apply_status(effect, source)`, `StatusEffect` | buffs, debuffs, cc, shields, DoT | the applier is a Unit; the status's own modifiers, rules and augments go under `&"status_<id>"` |
@@ -154,7 +162,7 @@ Targeting and indicators; cast styles; shapes (cone, line, circle, line of sight
 | Movement methods | `MovementComponent.dash()`, `displace()` (later `blink()`, `pull_to()`) | abilities never set position themselves (WORLD_INTERACTION.md) | any caller; displacements carry no source id (kill credit for impacts is WORLD_INTERACTION's) |
 | Projectiles | `Projectile` (`res://scripts/abilities/projectile.gd`), `Projectile.fire()` | skillshots, waves, bolts | fired with an Ability resource and a `CastContext` whose `source_id` names the item or passive (free casts set it) |
 | Ground areas | `Hazard` *(proposed, WORLD_INTERACTION.md)* | fire trails, oil pools | a Hazard's `source` Unit; planned there |
-| Telegraphs | `Telegraph.circle()`, `Ability.on_cast_started()`, `CastContext.telegraph` | the floor warning during a cast time | through an ability's cast |
+| Telegraphs | `Telegraph.circle()`, `Telegraph.line()` (AB13), `Ability.on_cast_started()`, `CastContext.telegraph` | the floor warning during a cast time | through an ability's cast |
 | Reaction rules and GameplayEffects | `Unit.add_reaction_rule(rule, source_id)`, `Reactions.add_world_rule(rule, source_id)`; trigger ABILITY_CAST; the four new effects | "when X, do Y" | `source_id` on add, removed with `remove_reaction_rules_from(source_id)` |
 | Augments | `AbilityAugment`, `AbilityComponent.add_augment(augment, source_id)` / `remove_augments_from(source_id)`; `StatusEffect.augments` | behavior changes and forms | `source_id` on add; a status's augments use `&"status_<id>"` |
 | Tooltips | `Ability.get_tooltip(caster)`, `get_tooltip_plain(caster)` | what the player reads | shows augment lines with their source's text |
@@ -167,8 +175,8 @@ Every new ability is written from this sheet first (it replaces WORLD_INTERACTIO
 ```
 Name / Champion / Slot / id:
 Role tag / other tags:
-Cast style: INSTANT / CHARGE_UP (charge_time, overhold_time, overhold, charge-scaled params) / CHANNEL
-Targeting: SELF / DIRECTION / POINT / UNIT
+Cast style: INSTANT / CHARGE_UP (charge_time, overhold_time, overhold, charge-scaled params) / CHANNEL / VECTOR (cast_range = start range, vector_length, vector_width, vector_min_drag_px, overhold_time as the hold limit)
+Targeting: SELF / DIRECTION / POINT / UNIT (VECTOR: POINT)
 Cost: resource_cost (recast_resource_cost)       Cooldown: __ s      Charges: max_charges
 Recasts: recast_count, recast_window, what each part does
 Cast time: __ s      Range: cast_range __ u (__ px)
@@ -177,7 +185,7 @@ Damage: base_damage, ad_ratio, ap_ratio, scalings, damage_type, proc_coefficient
 Cast conditions: (Condition kinds, AND; "not"; fail text) + custom check, if any
 Recast conditions: (per the next part) + custom check, if any
 Conditional bonuses: {conditions → param changes, statuses on targets, statuses on self}, checked at cast / hit
-Named scaling inputs: which params scale by which input (charge, self_missing_health, target_missing_health, target_distance, script-set), min fraction, curve
+Named scaling inputs: which params scale by which input (charge, self_missing_health, target_missing_health, target_distance, vector_drag, script-set), min fraction, curve
 What it does, step by step:
 Supported augment flags:
 Sounds (AUDIO.md): cast_sound, hit_sound, telegraph_sound, ready_sound, charge_sound
@@ -224,6 +232,7 @@ Extra tunables: cone_half_angle_deg 60. (The old `knockback` export, 170 px/s, i
 - Cooldowns: non-ultimate abilities 3–10 s; ultimates 30–60 s (shorter than League, for run pacing).
 - Charge-up: time to full 1.5 s (0.5–3); overhold 2 s after full (1–4); a tap gives charge 0 (the listed minimums); walking while charging per ability (e.g. `cast_move_speed_multiplier` 0.6).
 - Charge-up release windup (`cast_time` on a CHARGE_UP ability): 0.3 s (0.15–0.5). The default stays 0 (no windup); the test Charged Line uses 0.3 s.
+- VECTOR (AB13, all placeholders until a champion uses one): start range (`cast_range`) 500 u (160 px), `vector_length` 500 u (160 px), `vector_width` 75 u (24 px), `vector_min_drag_px` 8 px (4–16), release windup 0.2 s (0.1–0.3), hold limit (`overhold_time`) 2 s, walking while aiming (`cast_move_speed_multiplier`) 0.6 (0.5–0.6); a full root only through `roots_during_cast`.
 - `recast_window` 3 s (1–6).
 - Charges: recharge time = the ability's cooldown.
 - Costs (placeholder until CHAMPIONS.md): mana abilities 30–80 of a 300 pool (6/s regen); fury abilities spend what basic attacks build.
@@ -264,7 +273,7 @@ Audio hooks: see AUDIO.md (`charge_sound` is added there for CHARGE_UP).
 ### New fields on Ability (`res://scripts/abilities/ability.gd`)
 | Field | Type | Default | Notes |
 |---|---|---|---|
-| `cast_style` | `Ability.CastStyle` | `INSTANT` | `INSTANT`, `CHARGE_UP`, `CHANNEL`. CHANNEL behaves as `cancel_on_move` on (the bool stays and still works: `is_channel()` = CHANNEL or `cancel_on_move`). Judgement's .tres has CHANNEL. |
+| `cast_style` | `Ability.CastStyle` | `INSTANT` | `INSTANT`, `CHARGE_UP`, `CHANNEL`, `VECTOR` (AB13; added last in the enum). CHANNEL behaves as `cancel_on_move` on (the bool stays and still works: `is_channel()` = CHANNEL or `cancel_on_move`). Judgement's .tres has CHANNEL. A VECTOR ability's `targeting` is POINT (anything else: `push_error` when its aim starts). |
 | `ap_ratio` | `float` | 0 | × `ability_power`, stage 2 like `ad_ratio`. |
 | `scalings` | `Array[DamageScaling]` | `[]` | every other ratio (below). |
 | `hit_knockback_px` | `float` | 0 | push on each unit `hit_units()` hits, away from where the caster stands; a scoped param. `Unit.on_hit()` applies it (blocked hits and unstoppable units aren't pushed); a unit the hit kills still slides. |
@@ -285,6 +294,9 @@ Audio hooks: see AUDIO.md (`charge_sound` is added there for CHARGE_UP).
 | `projectile_count` | `int` | 1 | scoped param. |
 | `projectile_spread_deg` | `float` | 15 | angle between neighboring projectiles of one cast. |
 | `projectile_pierce` | `int` | 0 | 0 = stops on the first hit; scoped param. Its range is `cast_range`. |
+| `vector_length` | `float` | 500 | AB13, export group "Vector": LoL units (160 px), the line's length from the start point; scoped param. Read only by VECTOR abilities; the start range is `cast_range`. |
+| `vector_width` | `float` | 75 | LoL units (24 px), the line's full width (the indicator; shapes and ground areas that use the line). |
+| `vector_min_drag_px` | `float` | 8 | a drag shorter than this at release is a tap (the direction is caster → start point). |
 | `supported_flags` | `Array[StringName]` | `[]` | FLAG augments this script checks (e.g. `&"lunge_stuns"`). |
 | `variant_of` | `StringName` | `&""` | for a REPLACE variant: the id of the ability it replaces. `get_modifier_scopes()` adds `ability:<variant_of>`, so item numbers on Cleave carry to its variant. |
 | `ready_mode` | `Ability.ReadyMode` | `COOLDOWN` | `COOLDOWN`, `METER`: the slot is ready when the unit's meter is full. Reserved (CHAMPIONS); not built until the meter is. |
@@ -306,6 +318,7 @@ New methods:
 - `can_cast_custom(caster, ctx) -> bool` (virtual, true by default; the script's one-off check, ANDed with `cast_conditions` or `recast_conditions` by `ctx.part`), `get_custom_fail_text()` (virtual, "" by default).
 - `get_effect_param(caster, param, cast, target = null)`: the param after scoped modifiers, its named-input scaling from `cast`, and every conditional bonus whose conditions pass now for that target (Architecture, Conditions).
 - `get_conditions_for_part(part)`, `get_active_bonuses(caster, cast, target)`, `needs_condition_target()`.
+- AB13: `draw_vector_indicator(canvas, caster, start, aim)` (virtual; the default draws a start marker and the line `vector_length` × `vector_width` along the direction the release would use, tap fallback included); `get_ai_vector(caster, target) -> Dictionary` (virtual, `{start, direction}` for the enemy AI; the default: start at the target, direction caster → target).
 
 ### DamageScaling (Resource, `res://scripts/data/damage_scaling.gd`; inline in the ability's .tres)
 | Field | Type | Notes |
@@ -369,6 +382,9 @@ Methods: `is_met(self_unit, target, cast = null)` (the kind's check, then `negat
 | `chain_depth` | `int` | 0 | the reaction chain depth a free cast was triggered at |
 | `inputs` | `Dictionary` (StringName → float 0–1) | `{charge: 1.0}` | the named scaling inputs; `get_input(name, default := 0.0)`, `set_input(name, value)` (clamped 0–1) |
 | `last_part_hit` | `bool` | false | in a recast sequence, whether the previous part hit something (LAST_PART_HIT) |
+| `vector_start` | `Vector2` | | AB13, VECTOR casts: the start point (world space, clamped). `point` = the same spot and `direction` = caster → it, their usual meanings |
+| `vector_direction` | `Vector2` | | AB13: the line's unit direction (start → the release cursor, or the tap fallback) |
+| `vector_end` | `Vector2` | | AB13: `vector_start` + `vector_direction` × `vector_length` (px) |
 | `target` | (existing) | | for a non-UNIT cast, AbilityComponent fills it with the condition target when conditions or bonuses need one (Architecture, Conditions) |
 
 ### AbilityAugment (Resource, `res://scripts/data/ability_augment.gd`; files `res://data/augments/augment_<name>.tres`)
@@ -421,7 +437,9 @@ All take the usual `apply(target, source, trigger_ctx)`; the source id is the ru
   - `test_nova` (`test/nova.gd`, `test_q_nova.tres`): a circle around the caster (`radius` 200 u); `cast_conditions` SELF_HAS_STATUS `test_focus` with a fail text; a conditional bonus of +50% `radius` while ENEMIES_IN_RANGE ≥ 2; damage scaling by `self_missing_health`.
   - `test_mark_strike` (`test/mark_strike.gd`, `test_q_mark_strike.tres`): part 0 hits and applies `status_test_mark`; `recast_conditions` ENEMIES_IN_RANGE with tag `test_mark` and LAST_PART_HIT; part 1 strikes the marked enemy.
   - Test statuses `status_test_focus.tres` (tag `test_focus`, on the caster) and `status_test_mark.tres` (tag `test_mark`, on a target); a fake item `res://data/reactions/reaction_test_execute.tres` (not in `world/`, so it's only on a unit that's given it; HIT, the attacker's rule, `conditions` TARGET_HEALTH_PERCENT < 0.3 → a 30 proc hit), source `item_test_execute`.
-- `SandboxAbilities` node in `sandbox.tscn` (`res://scripts/rooms/sandbox_abilities.gd`, source `&"sandbox_demo"`): `demo_costs` (on) and `costs` (ability id → cost: Cleave 30, Iron Resolve 40, Lunge 50, Judgement 80), given as scoped FLAT `resource_cost` modifiers so the bar and the fail cue can be played; `demo_charges` (on) and `extra_charges` (ability id → extra charges: Lunge +1), scoped FLAT `max_charges`; `test_q: Ability` (null = the Knight's Q; set a test ability in the Inspector to put it on Q in the sandbox). room_01 has none.
+- AB13 (planned): `test_vector_line` (`test/vector_line.gd`, `test_q_vector_line.tres`): a Viktor E-style line. VECTOR, POINT, `cast_range` 500 u (160 px start range), `vector_length` 500 u (160 px), `vector_width` 75 u (24 px), `vector_min_drag_px` 8, a 0.2 s release windup (`cast_time`), `overhold_time` 2 s FIRE, `roots_during_cast` off and `cast_move_speed_multiplier` 0.6 (aiming slows, doesn't root), 60 + 50% AD MAGIC on every enemy along the line (`along_segment()`, in sight from the start point, one hit each through `hit_units()`), cooldown 3 s, tags `core` `line` `vector`. All numbers are placeholders.
+- AB13 (planned): `test_vector_wall` (`test/vector_wall.gd`, `test_w_vector_wall.tres`), an enemy test ability: VECTOR, POINT, the same range, length and width, a 0.7 s cast time with a `Telegraph.line()`, 100 PHYSICAL along the line, cooldown 6 s, tags `core` `line` `vector`; its `get_ai_vector()` lays the line across the elite → player direction, centered on the player (a wall across the escape path). Put on the sandbox elite's W by `SandboxAbilities.test_elite_w`.
+- `SandboxAbilities` node in `sandbox.tscn` (`res://scripts/rooms/sandbox_abilities.gd`, source `&"sandbox_demo"`): `demo_costs` (on) and `costs` (ability id → cost: Cleave 30, Iron Resolve 40, Lunge 50, Judgement 80), given as scoped FLAT `resource_cost` modifiers so the bar and the fail cue can be played; `demo_charges` (on) and `extra_charges` (ability id → extra charges: Lunge +1), scoped FLAT `max_charges`; `test_q: Ability` (null = the Knight's Q; set a test ability in the Inspector to put it on Q in the sandbox); AB13 (planned): `test_elite_w: Ability` (null = none; puts an ability on the sandbox elite `Elite1`'s W). room_01 has none.
 - AB-M (planned): `knight/cleave_wave.gd` + `knight_q_cleave_wave.tres` (id `knight_cleave_wave`, `variant_of` `knight_cleave`); augments `augment_lunge_stuns.tres`, `augment_cleave_wave.tres`, `augment_judgement_reset.tres`, `augment_cleave_casts_lunge.tres`; a `SandboxAugments` node (`res://scripts/rooms/sandbox_augments.gd`) holding four fake items (source ids `item_test_<name>`), toggled with the number keys 1–4 read as raw keys in that sandbox-only script (no input action).
 
 ## Architecture / contracts
@@ -434,13 +452,14 @@ Queries:
 - `can_cast(slot)` (ignores the cost), `can_afford(slot)`, `get_fail_reason(slot, aim, target)` (`""` = can cast; order: blocked → `"silenced"`, on cooldown → `"not ready"`, casting → `"busy"`, cost → `"not enough resource"`, conditions → `"condition"`).
 - Charges: `get_charges()`, `get_max_charges()`, `get_cooldown_left()` (time until the next charge), `get_cooldown_fraction()` (the sweep).
 - Recasts: `get_recast_part()` (the next part, 0 = no sequence going), `get_recast_time_left()`, `get_recast_window()`, `get_slot_cost()` (the next press's cost).
-- Charge-up: `is_charging()`, `get_charge()` (0–1), `get_charge_hold_time()`, `get_overhold_left()`, `get_charge_ability()`, `get_locked_charge_aim()`.
+- Charge-up (and the VECTOR hold, which uses the same path): `is_charging()`, `get_charge()` (0–1), `get_charge_hold_time()`, `get_overhold_left()`, `get_charge_ability()`, `get_locked_charge_aim()`, `has_charge_indicator()`. AB13: `get_vector_start()` (the start point while a VECTOR aim or its release windup is going; `Vector2.INF` otherwise).
 - Augments: `get_augments(slot)`, `get_disabled_augments(slot)` (`{augment, reason}`), `get_flags(ability)`, `get_augment_tooltip_lines(ability)`, `get_slots_matching(scope)`.
 - Conditions: `conditions_pass()`, `get_condition_fail_text()`, `get_aim_hint()`.
 
 Commands:
 - `try_cast(slot, aim, target_unit)`: a recast part when the slot's window is open; fail reasons through `cast_failed(slot, reason)`: `"not ready"`, `"busy"`, `"no target"`, `"not enough resource"`, `"silenced"`, `"condition"` (constants `FAIL_NOT_READY`, `FAIL_BUSY`, `FAIL_NO_TARGET`, `FAIL_NO_RESOURCE`, `FAIL_SILENCED`, `FAIL_CONDITION`). `fail_cast(slot, reason)` emits `cast_failed` for a press the Player or the buffer refuses. The cost is paid in `_do_cast()` and refunded by `_cancel_cast()`, `interrupt_cast()` and the end-of-cast-time interrupt.
-- `try_start_charge(slot, aim)`, `release_charge(aim)`, `try_cancel_charge()` (Esc; refund), `set_charge_aim(aim)`.
+- `try_start_charge(slot, aim)`, `release_charge(aim)`, `try_cancel_charge()` (Esc; refund), `set_charge_aim(aim)`: CHARGE_UP and VECTOR.
+- AB13: `try_cast_vector(slot, start, direction) -> bool`: casts a VECTOR ability at once with a given start (clamped as at a press) and direction, for the enemy AI and tests (VECTOR flow).
 - `reduce_cooldown(slot, seconds)`, `reduce_cooldown_percent(slot, fraction)` (of the time left), `reset_cooldown(slot)` (finishes the current recharge: +1 charge; `cooldown_finished` fires if the slot had 0 charges). All three do nothing while no cooldown runs (ready, or a recast window open); a recharge that finishes goes through `_finish_recharge()`, the same code as the timer.
 - `add_augment(augment, source_id)`, `remove_augments_from(source_id)`, `try_cast_free(ability, aim, target, source_id)`, `set_aim_hint(point)`.
 - `interrupt_cast()`: also ends a charge-up, and refunds the cost as well as the charge.
@@ -472,13 +491,32 @@ Signals: `charges_changed(slot, charges, max_charges)`, `charge_started(slot, ab
 8. The indicator: `Player.get_indicator_slot()` is the aimed slot, or the charge-up's slot from the press until its effect starts (`has_charge_indicator()`); the Player draws that ability's indicator at `get_indicator_aim()` (the cursor while holding, the locked aim in the release windup), points the sword there and shows the cross cursor. `draw_indicator()` reads `get_charged_param(caster, &"cast_range")`: the current charge's range while holding, the locked charge's in the windup.
 9. Hits: an ability script passes its `ctx` to `HitPipeline.from_ability(caster, self, target, ctx)` so damage, ratios and scaling terms use `ctx.charge`.
 
+### VECTOR flow
+(AB13, planned.) The CHARGE_UP flow above, through the same methods, signals and end path (they keep their charge-up names), with these differences:
+1. **Press** → `Player._on_ability_pressed()` → `request_charge(slot)` → `try_start_charge(slot, aim)`: the same checks, cost paid now, cast locks and walking rules (`_begin_cast_locks(ability, true)`), `charge_sound` if the ability sets one, `charge_started`. Also for a recast part (part > 0) of a VECTOR ability: every part is aimed (a CHARGE_UP part still goes to `try_cast()`). It also places the **start point** (`_vector_start`, `get_vector_start()`): the aim clamped to `cast_range` from the caster, then, unless the ability `ignores_walls`, to the last valid spot on the line from the caster (`WorldQuery.shape_sweep(caster, clamped point, 2 px core, world layer 1)`), so a cursor inside a wall or out of line of sight puts the start at the wall's face.
+2. **Holding** (`_update_charge()`): the Player keeps `set_charge_aim()` on the cursor. `get_charge()` is 1 (a VECTOR cast isn't a charge-up; `ctx.charge` is 1.0, so charged params are full). `charge_time` counts as 0: after `overhold_time` from the press the `overhold` behavior runs (FIRE at the current cursor, or CANCEL_REFUND). "Key not held" = released, as for CHARGE_UP.
+3. **Release** → `release_charge(aim)`: the aim locks; `_make_context()` fills the vector from `_vector_start` and the release aim:
+   - drag = aim − start. At least `vector_min_drag_px` long: `vector_direction` = its direction and `vector_drag` = min(drag length ÷ `vector_length` (px), 1). Shorter (a **tap**): `vector_direction` = caster → start (the caster's `facing` if the start is on the caster) and `vector_drag` 0.
+   - `vector_end` = `vector_start` + `vector_direction` × `vector_length` (px); the cursor beyond it only sets the direction.
+   - `point` = `vector_start` and `direction` = caster → start (their usual meanings), so the condition target is the enemy nearest the start point within `cast_range`.
+   - Then, as CHARGE_UP: the charge (stored cast) is taken and the cooldown starts, `cast_sound`, `cast_started`, `on_cast_started()` (a telegraph), the release windup (`cast_time`), and at effect start `_end_charge()` then `execute()`.
+4. **Cancels and interrupts**: exactly CHARGE_UP's (Esc, a dash on a `dash_cancelable` ability, a move press on a channel, a stun, death, overhold CANCEL_REFUND), refunded, through `_end_charge()`, which also forgets `_vector_start`. So every exit clears the indicator.
+5. **The indicator**: from the press until the effect starts (`has_charge_indicator()`), the Player draws `ability.draw_vector_indicator(self, self, get_vector_start(), get_indicator_aim())` instead of `draw_indicator()` for a VECTOR ability: following the cursor while holding, locked during the release windup. The Player faces `get_indicator_aim()` and points the sword there, as for a charge-up.
+6. **Without a mouse**:
+   - `try_cast()` on a VECTOR ability (a free cast, or a hold-to-aim release whose slot became VECTOR) casts at once as a tap: start = the aim clamped as at a press, direction = caster → start, `vector_drag` 0.
+   - `try_cast_vector(slot, start, direction)`: casts at once with that start (clamped as at a press) and direction, `vector_drag` 1 (no drag to measure; full, like an input without a cast). The usual checks and cost; the cast time as usual.
+   - Enemy AI: `Enemy._try_cast_ability()` calls `try_cast_vector(slot, v.start, v.direction)` with `v = ability.get_ai_vector(unit, player)` for a VECTOR ability (after `set_aim_hint()`, as for any ability). The ability's `on_cast_started()` shows a `Telegraph.line()` during the cast time; a stun or death removes it the same frame, as for the slam.
+7. **Hits and ground areas** use the three vector fields: e.g. `AbilityUtil.along_segment(caster, vector_start, vector_end, width)` for a line of hits; a ground area (a wall of fire) along the same segment.
+8. **Named input** `vector_drag` is filled at release (step 3) and read like any other (`ChargeScaling.input`, `get_effect_param()`).
+
 ### Charges and recasts
 - Recharge: while `charges < max_charges`, the timer counts down one cooldown (`get_cooldown_duration()` at the moment it starts); at 0, +1 charge and, if still below max, it starts again. A cast takes a charge and starts the timer only if none is running and the slot is now below max. A lower max (an item removed) leaves extra charges until they're spent, with no timer; a higher max starts recharging (like DashComponent). A slot starts full the first time it's asked. `cooldown_finished` (and the ready ping) fire only when a slot goes from 0 charges to 1. A refund gives back the one charge the cast took: back at max the timer stops, below max a running recharge keeps its progress. The HUD draws the sweep dark only at 0 charges.
 - Recasts: part 0 takes a charge; its recharge doesn't start. The sequence exists from part 0's cast start (`_recast[slot]` = next part, window time, the ability, `last_part_hit`), so `is_ready()` is true and `get_recast_part()` is 1 even during part 0's cast time (a press then is buffered and fires as part 1). When part 0's effect finishes, the window opens (`recast_window`, game time; `recast_window_started`). A press on the slot inside the window casts part 1 (no charge needed, `recast_resource_cost`; `get_slot_cost()` / `can_afford()` use the next part's cost), and so on up to `recast_count`. The window doesn't run while one of the slot's parts is being cast and restarts after each part. The sequence ends (`recast_window_finished`) when the last part finishes or the window runs out; the next physics frame the recharge starts. A refunded part 0 never starts its sequence; a refunded later part gives back its cost and keeps the window time it had. A recast ability should have `max_charges` 1; with more, the recharge timer pauses during a sequence.
 
 ### Input (Player, PlayerInput)
-- `_on_ability_pressed(slot)` by the active ability's `cast_style`: INSTANT → QUICK: `request_cast()`; QUICK_WITH_INDICATOR: aim (`aiming_slot`), release casts (SELF casts at once). CHANNEL → `request_cast()` on press. CHARGE_UP → `request_charge(slot)` (start now, or buffer). A press while the slot's recast window is open → `request_cast()` (the next part), whatever the style.
-- `_on_ability_released(slot)`: the aimed slot casts; the charging slot releases.
+- `_on_ability_pressed(slot)` by the active ability's `cast_style`: INSTANT → QUICK: `request_cast()`; QUICK_WITH_INDICATOR: aim (`aiming_slot`), release casts (SELF casts at once). CHANNEL → `request_cast()` on press. CHARGE_UP and VECTOR → `request_charge(slot)` (start now, or buffer). A press while the slot's recast window is open → `request_cast()` (the next part), whatever the style, except a VECTOR ability's next part → `request_charge(slot)` (AB13: every part is aimed).
+- `_on_ability_released(slot)`: the aimed slot casts; the charging (or vector-aiming) slot releases.
+- A buffered VECTOR press fires through `Player.start_buffered_ability()` like a CHARGE_UP one: the start point goes where the cursor is when it fires, and if the key isn't held any more it releases at once (a tap).
 - Keys and right mouse (W) arrive the same way: `ability_q` / `ability_w` / `ability_e` / `ability_r` in `_unhandled_input` with `is_action_pressed` / `is_action_released`, which work for mouse buttons too.
 - Cast mode: Player copies `Settings.get_cast_mode()` into `cast_mode` at start and on `Settings.setting_changed` (like `dash_toward_cursor`), so the Inspector value only lasts until then. A switch mid-aim doesn't touch the aim in progress.
 - The buffer (MOVEMENT.md) is unchanged except: a press on an ability that's ready and not blocked but can't be afforded, or fails its conditions, fails at once and isn't buffered (`Player.request_cast()` / `request_charge()`); a press that is also blocked or on cooldown is buffered as before and, if it runs out, shows that reason; a buffered CHARGE_UP press starts charging when it fires (step 7 above).
@@ -545,7 +583,7 @@ Signals: `charges_changed(slot, charges, max_charges)`, `charge_started(slot, ab
   - Conditional bonuses: `get_effect_param(caster, param, cast, target)` = `get_param()` × its named-input scaling (`ChargeScaling` with `input`, value `cast.get_input(input)`) × every `ConditionalBonus` whose `conditions` pass right now for `target` (null = the cast's `ctx.target`), their `modifiers` applied with the StatModifier formula on top of the scoped and scaled value (a second layer: (value + flat) × (1 + Σ add) × Π(1 + mult), never below 0). Without a cast, named inputs count full (1), like a cast without a charge; `target_missing_health` always comes from the target. `HitPipeline.from_ability()` uses it per unit hit for `base_damage`, `ad_ratio`, `ap_ratio` and scaling-term ratios when it's given the cast (every toolkit hit), and appends each passing bonus's `target_statuses` to `HitContext.statuses`; without a cast it keeps the old path (charge params, no bonuses). A script reads cast-time params (a radius, a range) with it in `execute()`. At effect start (flow step 10) AbilityComponent applies each passing bonus's `self_statuses` to the caster (a free cast's effect start too).
   - Reaction rules: `Reactions._fire()` checks `rule.conditions` after the tag filters, before `chance`. A HIT rule's conditions see the target after the hit (`Events.unit_hit` fires once the damage is taken), so "below 30%" includes that hit's damage.
   - `get_charge_scaling()` / `get_charged_param()` read only `charge` scalings, so a scaling on another input never changes indicators, tooltips or `get_damage()` (they show the plain values).
-- **Named inputs.** AbilityComponent fills the built-ins when the cast starts (at release for CHARGE_UP): `charge`, `self_missing_health` ((max − current) ÷ max of the caster), `target_distance` (edge distance to the condition target ÷ cast range, 0 with no target). `target_missing_health` is per target, so `get_effect_param()` computes it at the hit (with no target: 0). A script may `set_input()` anything else before it reads params.
+- **Named inputs.** AbilityComponent fills the built-ins when the cast starts (at release for CHARGE_UP and VECTOR): `charge`, `vector_drag` (VECTOR only; VECTOR flow), `self_missing_health` ((max − current) ÷ max of the caster), `target_distance` (edge distance to the condition target ÷ cast range, 0 with no target). `target_missing_health` is per target, so `get_effect_param()` computes it at the hit (with no target: 0). A script may `set_input()` anything else before it reads params.
 - **LAST_PART_HIT.** The recast sequence's `last_part_hit` is reset when a part starts; AbilityComponent listens to `Events.unit_hit` and sets it when a hit's `source` is this unit and its `ability` is the sequence's ability (so a projectile from the previous part that lands later still counts, until the next part starts). `_make_context()` copies it into `CastContext.last_part_hit` (false outside a recast, and false for part 0).
 - **Tooltips.** Each conditional bonus adds its `description` as a line (always; whether to show them only while active is an open question). `{…}` placeholders keep showing the plain values (no bonus).
 - **Scripts.** New ability scripts read with `get_effect_param()` anything a conditional bonus could change; `get_param()` stays for old code (CONVENTIONS.md).
@@ -558,15 +596,16 @@ Signals: `charges_changed(slot, charges, max_charges)`, `charge_started(slot, ab
 - Charges: the charge count (small number, bottom right) on a slot with `max_charges` > 1 (or extra charges left over); the dark sweep and seconds only at 0 charges, otherwise the initials and a 2 px bar along the bottom that fills as the next charge comes back.
 - Recasts: while a recast window is open, the slot shows its initials (not the sweep), a gold border and a 3 px gold bar along the bottom that shrinks as the window runs out.
 - Charge-up: a 3 px bar just above the slot: white, filling while held; once full, orange, shrinking as the overhold runs out; gone at release. The indicator grows with the charge, stays locked during the release windup, and goes when the effect runs or the charge-up ends any other way.
+- VECTOR (AB13): the same bar shows only its orange part (the charge is 1 from the press), shrinking as the hold limit runs out. The indicator: VECTOR flow, step 5.
 
 ### Where each AUDIO.md hook fires (abilities)
 | Hook | Fires | Played by |
 |---|---|---|
-| `cast_sound` | cast flow step 7; CHARGE_UP at release; each recast part; free casts when they run | AbilityComponent (`Audio.play_on(…, unit)`) |
+| `cast_sound` | cast flow step 7; CHARGE_UP and VECTOR at release; each recast part; free casts when they run | AbilityComponent (`Audio.play_on(…, unit)`) |
 | `hit_sound` | via `HitContext.hit_sound` from `from_ability()`, once per cast (CombatSounds' once per source, sound and frame; a projectile's hits that land in different frames each play it) | CombatSounds |
 | `telegraph_sound` | after `on_cast_started()` sets a telegraph | Telegraph |
 | `ready_sound` | `cooldown_finished`: a slot going from 0 charges to 1 (not on a refund; not when a recast sequence ends with charges left) | AbilityComponent |
-| `charge_sound` | a loop from `charge_started` to release, cancel or interrupt | AbilityComponent (`play_on`, stopped by handle) |
+| `charge_sound` | a loop from `charge_started` to release, cancel or interrupt (a VECTOR ability may set one for its aim) | AbilityComponent (`play_on`, stopped by handle) |
 
 ## How each edge case is handled
 | Edge case | Handling |
@@ -615,9 +654,17 @@ Signals: `charges_changed(slot, charges, max_charges)`, `charge_started(slot, ab
 | A free cast while an ability empower is up | The free cast doesn't use it; the next cast the player or AI starts that matches does. |
 | A rule that grants an ability empower on cast | The cast that triggered it doesn't use it (empowers are used up before `ability_cast`); the next matching cast does. |
 | `max_charges` lowered while charges are stored | Extra charges stay until spent; the recharge runs only below the new max. |
+| A VECTOR press during a swing or a dash (AB13) | The CHARGE_UP buffer rule: buffered; when it fires, the start point goes where the cursor is then, and if the key was already let go it releases at once as a tap. |
+| Focus lost or the cursor leaving the window mid-aim | As for CHARGE_UP, "key not held" is a release: the vector fires from its start toward the last cursor position the window saw (Godot stops updating the mouse position outside the window). |
+| Released with the cursor exactly on the start point | Shorter than `vector_min_drag_px`: a tap (direction caster → start, `vector_drag` 0). If the start is also on the caster (a start point clamped to 0 by a wall at the caster's feet), the direction is the caster's `facing`. |
+| The cursor inside a wall or out of line of sight at the press | The start point is clamped to the last valid spot on the line from the caster (the wall's face); an `ignores_walls` ability keeps the clamped cursor. |
+| A VECTOR recast part | Every part is pressed, dragged and released like part 0 (its own start point and line), costing `recast_resource_cost`. The recast window doesn't run while a part is aimed or cast. |
+| A REPLACE that makes the slot VECTOR mid-aim | A hold already going (charge-up or vector) keeps its own ability. A hold-to-aim INSTANT aim (QUICK_WITH_INDICATOR) whose slot became VECTOR casts the VECTOR ability on release as a tap (`try_cast()`). The next press aims a vector. |
+| A free cast (CastAbility) of a VECTOR ability | Casts at once: start = the triggering cast's aim point (a hit: the unit hit), clamped as at a press; direction = caster → that point; `vector_drag` 0. No hold, no indicator. |
+| A stun, dash, Esc or death during a vector aim or its release windup | Exactly as for a charge-up: interrupted or cancelled, refunded, and the one end path clears the start marker and the line. |
 
 ## Build order (one step per request)
-Every step: with no cast style changes, scalings, costs, charges, recasts, augments or conditions set, the game plays exactly as before, and the Knight's abilities, enemies chasing and the HUD still work. Build logs go in `docs/CHANGELOG.md` (an Abilities section); this doc keeps one line per built step.
+Every step: with no cast style changes, scalings, costs, charges, recasts, augments, conditions or VECTOR abilities set, the game plays exactly as before, and the Knight's abilities, enemies chasing and the HUD still work. Build logs go in `docs/CHANGELOG.md` (an Abilities section); this doc keeps one line per built step.
 
 1. **AB1 – Cast style, the stun interrupt, cast mode.** Built 2026-09-26, see CHANGELOG.md.
 2. **AB2 – Damage scalings, tooltips, tags.** Built 2026-09-27, see CHANGELOG.md.
@@ -633,7 +680,10 @@ Every step: with no cast style changes, scalings, costs, charges, recasts, augme
 12. **AB12 – Conditions.** Built 2026-09-27, see CHANGELOG.md.
     **Done means** (awaiting play test): the abilities test covers: a test ability that only casts while the caster has a test status (a failed press: the "condition" cue, nothing spent, not buffered; the slot greys and un-greys); a recast that only works while a test status is on the target (ENEMIES_IN_RANGE with the tag); a conditional bonus (a bigger radius when a condition passes, checked at the effect); a named input other than charge scaling a param; LAST_PART_HIT; a fake item using the same `Condition` inside a reaction rule. With no conditions set, the game plays exactly as before, and the Knight's abilities, enemies chasing and the HUD still work.
 
-**Milestone AB-M – augment playground** (after AB12): in the sandbox, `SandboxAugments` with 4 fake items that visibly change the Knight: Lunge stuns (FLAG), Cleave becomes a projectile wave (REPLACE), a Judgement kill resets its cooldown (EVENT + ModifyCooldown), casting Cleave also casts a free Lunge-style dash (CastAbility, at Cleave's effect start). Keys 1–4 equip and unequip them; the tooltips show each change; unequipping restores the Knight exactly.
+13. **AB13 – VECTOR cast style.** `Ability.CastStyle.VECTOR`, `vector_length` / `vector_width` / `vector_min_drag_px`, the start point (range and wall clamp), the tap fallback, `CastContext.vector_start` / `vector_direction` / `vector_end`, the `vector_drag` input, VECTOR through the CHARGE_UP hold/release path (`get_vector_start()`, aimed recast parts, the hold limit), `draw_vector_indicator()`, `try_cast_vector()`, `get_ai_vector()` and the Enemy hook, `Telegraph.line()`; `test_vector_line`, `test_vector_wall`, `SandboxAbilities.test_elite_w` (Data, Test and sandbox data).
+    **Done means:** the test ability works with a drag and with a tap; every cancel and interrupt clears the indicator; an enemy test ability uses a vector with a telegraph; with no VECTOR ability equipped, the game plays exactly as before.
+
+**Milestone AB-M – augment playground** (after AB13): in the sandbox, `SandboxAugments` with 4 fake items that visibly change the Knight: Lunge stuns (FLAG), Cleave becomes a projectile wave (REPLACE), a Judgement kill resets its cooldown (EVENT + ModifyCooldown), casting Cleave also casts a free Lunge-style dash (CastAbility, at Cleave's effect start). Keys 1–4 equip and unequip them; the tooltips show each change; unequipping restores the Knight exactly.
 
 ## Later toolkit pieces (build when a champion needs one)
 Not build steps. Each is data once 2+ kits use it (Data or script, above).
@@ -643,7 +693,7 @@ Not build steps. Each is data once 2+ kits use it (Data or script, above).
 - Example use: capture-and-throw abilities (Tahm Kench, Singed E style).
 
 ## Out of scope
-Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modifiers, unit reaction rules, statuses, empowers and an optional script, all under a source id like `passive_knight`, built on this toolkit); items and affix rolls (LOOT.md); enemy AI choosing abilities (ENEMIES_AI.md); ability ranks and leveling (waits for the run-structure decision, VISION.md); summons; ability slot swapping (VISION.md, open question 5); TOGGLE, SUSTAINED and VECTOR cast styles; the ultimate meter (CHAMPIONS.md).
+Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modifiers, unit reaction rules, statuses, empowers and an optional script, all under a source id like `passive_knight`, built on this toolkit); items and affix rolls (LOOT.md); enemy AI choosing abilities (ENEMIES_AI.md); ability ranks and leveling (waits for the run-structure decision, VISION.md); summons; ability slot swapping (VISION.md, open question 5); TOGGLE and SUSTAINED cast styles (not planned: Cast styles); the ultimate meter (CHAMPIONS.md).
 
 ## Open questions
 - Ultimate meter details (CHAMPIONS.md).

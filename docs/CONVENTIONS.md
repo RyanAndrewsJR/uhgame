@@ -31,7 +31,8 @@
 - **Unit**: anything using `Unit` (champions, enemies, summons). Not "entity", "actor", or "character".
 - **Champion**: a playable kit. **Enemy**: a hostile Unit (**elite**, **boss** are enemy tiers).
 - **Ability**: a castable action in a slot. **Passive**: always-on champion behavior. **Augment**: a change to an ability's behavior granted by a source (an item, a passive, a status), added and removed by source id (ABILITIES.md).
-- **Cast style**: how an ability's key works, per ability: INSTANT, CHARGE_UP, CHANNEL. **Cast mode**: the player's setting for INSTANT abilities: QUICK (cast on press) or QUICK_WITH_INDICATOR (hold to aim, release to cast).
+- **Cast style**: how an ability's key works, per ability: INSTANT, CHARGE_UP, CHANNEL, VECTOR. **Cast mode**: the player's setting for INSTANT abilities: QUICK (cast on press) or QUICK_WITH_INDICATOR (hold to aim, release to cast).
+- **Vector**: a cast along a line the player places: press to drop a **start point** at the cursor, drag to aim, release to cast from the start point toward the cursor (`vector_start`, `vector_direction`, `vector_end` on the CastContext). A drag too short to aim is a **tap**: the line points from the caster through the start point. Not to be confused with Godot's `Vector2`, or with the cast's `direction` (caster → aim).
 - **Charge-up**: holding an ability's key to power a cast (range, damage) before releasing it. **Charge**: a stored cast of an ability (`max_charges`), recharging over its cooldown. Never mix the two: "charges" are stored casts, "charge-up" / `charge` on a CastContext is the hold.
 - **Channel**: a cast the caster must stand still through; moving cancels it. **Recast**: pressing an ability's slot again inside its recast window to cast its next part.
 - **Empower**: a status that makes the next basic attack or next ability stronger ("your next attack"), consumed once per swing or cast. **Form**: a status that swaps several ability slots at once (Nidalee, Jayce, Druid shapeshifts).
@@ -75,7 +76,7 @@ Planned triggers *(spec in COMBAT.md, ReactionRule; list also in WORLD_INTERACTI
 #### Standard ability tags (ABILITIES.md)
 - **Role** (exactly one per ability, Diablo 4's categories): `generator`, `core`, `defensive`, `mobility`, `ultimate`.
 - **Shape:** `area`, `projectile`, `line`, `cone`, `dash`.
-- **Style:** `charge_up`, `channel` (must match the ability's `cast_style`).
+- **Style:** `charge_up`, `channel`, `vector` (must match the ability's `cast_style`).
 - **Element** (the list is an open question): `fire`, `cold`, `lightning`, `poison`, `shadow`, `holy`.
 - Existing tags stay as they are (Lunge's `movement`, Iron Resolve's `buff`).
 - Status tags used by ability rules: `empower`, `unstoppable`, `untargetable`, `form`. Hit tag: `empowered` (a hit that got an empower's bonus).
@@ -130,7 +131,8 @@ Example: since `StatusComponent` (COMBAT C9), `Unit.apply_stun()` and `add_speed
 | `Projectile` | the shared projectile piece (Node2D, `scripts/abilities/projectile.gd`) | ABILITIES.md |
 | `ModifyCooldownGameplayEffect`, `RestoreResourceGameplayEffect`, `CastAbilityGameplayEffect`, `RemoveStatusesByTagGameplayEffect` | GameplayEffects for augments, passives and items (cooldowns, resource, free casts, cleanse) | ABILITIES.md |
 | `Condition` (enums `Condition.Kind`: `SELF_HAS_STATUS`, `TARGET_HAS_STATUS`, `SELF_HEALTH_PERCENT`, `TARGET_HEALTH_PERCENT`, `TARGET_DISTANCE`, `ENEMIES_IN_RANGE`, `RESOURCE_AT_LEAST`, `LAST_PART_HIT`; `Condition.Comparison`: `AT_LEAST`, `LESS_THAN`), `ConditionalBonus` | the one shared condition resource and an ability's conditional bonus; files `data/conditions/condition_<name>.tres` when shared | ABILITIES.md |
-| Named inputs `charge`, `self_missing_health`, `target_missing_health`, `target_distance` | the built-in 0–1 scaling inputs on `CastContext.inputs` (scripts may add others) | ABILITIES.md |
+| Named inputs `charge`, `self_missing_health`, `target_missing_health`, `target_distance`, `vector_drag` | the built-in 0–1 scaling inputs on `CastContext.inputs` (scripts may add others) | ABILITIES.md |
+| `Ability.CastStyle.VECTOR`; `vector_length`, `vector_width`, `vector_min_drag_px` (Ability); `vector_start`, `vector_direction`, `vector_end` (CastContext); `try_cast_vector()`, `get_vector_start()` (AbilityComponent); `draw_vector_indicator()`, `get_ai_vector()` (Ability); `Telegraph.line()` | the VECTOR cast style (AB13) | ABILITIES.md |
 | `FAIL_CONDITION` (`"condition"`) | the cast-failed reason for a failed cast or recast condition | ABILITIES.md |
 | `SandboxAbilities`, `SandboxAugments` | sandbox-only demo nodes (costs and test abilities; the augment playground) | ABILITIES.md |
 | `Audio`, `SoundEvent`, `AudioMix`, `CombatSounds` | the audio autoload, one sound's data, the mix-wide numbers, the Events listener that plays hit, death and status sounds | AUDIO.md |

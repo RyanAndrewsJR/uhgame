@@ -123,7 +123,7 @@ The game in `game/` is the **reference build**. It works, and changes build on i
   1. ABILITIES AB12: conditions (`Condition`, `ConditionalBonus`, cast / recast conditions and the grey slot, `get_effect_param()`, named inputs, LAST_PART_HIT, `ReactionRule.conditions`; `test_nova`, `test_mark_strike`, the execute fake item). Abilities test 398/398, combat 449/450 (the known flaky hitstop check), stats 172/172, audio 109/109.
   2. ABILITIES AB11 (passed Ryan's play test): the Knight's abilities from toolkit pieces.
   3. ABILITIES AB10 (passed Ryan's play test): empowers, unstoppable, untargetable.
-- **Next:** ABILITIES build order: milestone AB-M (augment playground). AUDIO's later steps come with their systems; real CC0 files can replace the placeholders any time (same names). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order (CHAMPIONS.md next).
+- **Next:** ABILITIES build order: AB13 (VECTOR cast style), then milestone AB-M (augment playground). AUDIO's later steps come with their systems; real CC0 files can replace the placeholders any time (same names). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order (CHAMPIONS.md next).
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.
