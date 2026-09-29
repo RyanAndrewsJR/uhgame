@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="AbilityAugment" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ability_augment.gd" id="1_augment"]
+[ext_resource type="Resource" path="res://data/abilities/knight_q_cleave_wave.tres" id="2_wave"]
+
+[resource]
+script = ExtResource("1_augment")
+id = &"cleave_wave"
+kind = 2
+scope = &"ability:knight_cleave"
+replacement = ExtResource("2_wave")
+display_name = "Cleave Wave"
+description = "Cleave becomes a wave of force that travels 700 units, passing through enemies."

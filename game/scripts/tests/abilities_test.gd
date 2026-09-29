@@ -41,6 +41,9 @@ extends Node2D
 ## buffered press, aimed recast parts, try_cast / try_cast_vector / a free
 ## cast / a hold-to-aim slot that became VECTOR; test_vector_wall on the elite:
 ## get_ai_vector(), Telegraph.line(), the hit, a stun mid-cast).
+## AB-M: the augment playground's four fake items on the real Knight (Lunge
+## stuns, Cleave Wave, a Judgement kill resetting it, Cleave also casting a
+## free Lunge) and SandboxAugments (keys 1-4, unequipping restores exactly).
 ## The Knight's own crit_chance and life_steal are held at 0 by a test
 ## baseline, so damage checks are exact.
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
@@ -70,6 +73,12 @@ const STATUS_MARK: StatusEffect = preload("res://data/statuses/status_test_mark.
 const EXECUTE_RULE: ReactionRule = preload("res://data/reactions/reaction_test_execute.tres")
 const VECTOR_LINE: Ability = preload("res://data/abilities/test_q_vector_line.tres")
 const VECTOR_WALL: Ability = preload("res://data/abilities/test_w_vector_wall.tres")
+const CLEAVE_WAVE: Ability = preload("res://data/abilities/knight_q_cleave_wave.tres")
+const AUG_LUNGE_STUNS: AbilityAugment = preload("res://data/augments/augment_lunge_stuns.tres")
+const AUG_CLEAVE_WAVE: AbilityAugment = preload("res://data/augments/augment_cleave_wave.tres")
+const AUG_JUDGEMENT_RESET: AbilityAugment = preload("res://data/augments/augment_judgement_reset.tres")
+const AUG_CLEAVE_CASTS_LUNGE: AbilityAugment = preload("res://data/augments/augment_cleave_casts_lunge.tres")
+const SANDBOX_AUGMENTS: Script = preload("res://scripts/rooms/sandbox_augments.gd")
 const ARENA := Vector2(-2000, 0)
 
 var knight: Player
@@ -165,6 +174,13 @@ func _ready() -> void:
 	await _test_ab13_recast()
 	await _test_ab13_without_mouse()
 	await _test_ab13_enemy()
+	print("\n=== Abilities test (ABILITIES AB-M) ===")
+	_test_abm_data()
+	await _test_abm_lunge_stuns()
+	await _test_abm_cleave_wave()
+	await _test_abm_judgement_reset()
+	await _test_abm_cleave_casts_lunge()
+	await _test_abm_playground()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).
@@ -3658,6 +3674,243 @@ func _test_ab13_enemy() -> void:
 	Events.unit_hit.disconnect(on_hit)
 	elite.queue_free()
 	await _frames(1)
+
+
+# --- AB-M -----------------------------------------------------------------------
+
+func _test_abm_data() -> void:
+	_section("AB-M: the four augments' data")
+	_check("ids, kinds and scopes",
+		[[AUG_LUNGE_STUNS.id, AUG_LUNGE_STUNS.kind, AUG_LUNGE_STUNS.scope], [AUG_CLEAVE_WAVE.id, AUG_CLEAVE_WAVE.kind, AUG_CLEAVE_WAVE.scope],
+			[AUG_JUDGEMENT_RESET.id, AUG_JUDGEMENT_RESET.kind, AUG_JUDGEMENT_RESET.scope], [AUG_CLEAVE_CASTS_LUNGE.id, AUG_CLEAVE_CASTS_LUNGE.kind, AUG_CLEAVE_CASTS_LUNGE.scope]],
+		[[&"lunge_stuns", AbilityAugment.Kind.FLAG, &"ability:knight_lunge"], [&"cleave_wave", AbilityAugment.Kind.REPLACE, &"ability:knight_cleave"],
+			[&"judgement_reset", AbilityAugment.Kind.EVENT, &"ability:knight_judgement"], [&"cleave_casts_lunge", AbilityAugment.Kind.EVENT, &"ability:knight_cleave"]])
+	_check("Lunge supports lunge_stuns (0.5 s); the wave replaces Cleave", [LUNGE.supported_flags.has(&"lunge_stuns"), LUNGE.get(&"flag_stun_duration"), AUG_CLEAVE_WAVE.replacement == CLEAVE_WAVE], [true, 0.5, true])
+	var reset_rule: ReactionRule = AUG_JUDGEMENT_RESET.rules[0] if AUG_JUDGEMENT_RESET.rules.size() == 1 else ReactionRule.new()
+	var reset_effect: ModifyCooldownGameplayEffect = reset_rule.effects[0] as ModifyCooldownGameplayEffect if reset_rule.effects.size() == 1 else null
+	_check("the reset: UNIT_DIED, on the killer (OTHER), a RESET of knight_judgement's cooldown",
+		[reset_rule.trigger, reset_rule.owner_role, reset_rule.effect_target, reset_effect != null, reset_effect.mode if reset_effect else -1, reset_effect.ability_scope if reset_effect else &""],
+		[ReactionRule.Trigger.UNIT_DIED, ReactionRule.OwnerRole.SOURCE, ReactionRule.EffectTarget.OTHER, true, ModifyCooldownGameplayEffect.Mode.RESET, &"ability:knight_judgement"])
+	var lunge_rule: ReactionRule = AUG_CLEAVE_CASTS_LUNGE.rules[0] if AUG_CLEAVE_CASTS_LUNGE.rules.size() == 1 else ReactionRule.new()
+	var lunge_effect: CastAbilityGameplayEffect = lunge_rule.effects[0] as CastAbilityGameplayEffect if lunge_rule.effects.size() == 1 else null
+	_check("the also-cast: ABILITY_CAST, on the caster (OTHER), a free Lunge",
+		[lunge_rule.trigger, lunge_rule.effect_target, lunge_effect != null and lunge_effect.ability == LUNGE], [ReactionRule.Trigger.ABILITY_CAST, ReactionRule.EffectTarget.OTHER, true])
+	_check("the wave: variant_of knight_cleave, core + projectile, 700 u, 150 u wide, pierce 20, 80 + 70% AD, Cleave's 3 s cooldown and 0.2 s cast",
+		[CLEAVE_WAVE.variant_of, CLEAVE_WAVE.get_role(), &"projectile" in CLEAVE_WAVE.tags, CLEAVE_WAVE.cast_range, CLEAVE_WAVE.projectile_width, CLEAVE_WAVE.projectile_pierce,
+			CLEAVE_WAVE.base_damage, CLEAVE_WAVE.ad_ratio, CLEAVE_WAVE.cooldown, CLEAVE_WAVE.cast_time],
+		[&"knight_cleave", &"core", true, 700.0, 150.0, 20, 80.0, 0.7, CLEAVE.cooldown, CLEAVE.cast_time])
+
+
+func _test_abm_lunge_stuns() -> void:
+	_section("AB-M: Lunge stuns (FLAG)")
+	await _reset_knight()
+	var ab := knight.abilities
+	var hits := [0]
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == knight and ctx.ability == LUNGE:
+			hits[0] += 1
+	Events.unit_hit.connect(on_hit)
+	var dummy := _dummy_at(Vector2(60, 0))
+	_tough(dummy)
+	await _frames(2)
+	ab.add_augment(AUG_LUNGE_STUNS, &"item_test_lunge_stuns")
+	_check("equipped: Lunge has the flag; its tooltip gains the line",
+		[ab.get_flags(LUNGE), LUNGE.get_tooltip_plain(knight).ends_with("\nLunge stuns every enemy it hits for 0.5 s.")], [[&"lunge_stuns"] as Array[StringName], true])
+	ab.reset_cooldown(&"e")
+	ab.try_cast(&"e", knight.global_position + Vector2(120, 0))
+	await _wait_until(func() -> bool: return hits[0] == 1, 60)
+	_check("the dummy on the path is hit and stunned (status_stun)", [hits[0], dummy.is_stunned(), dummy.status_component.has_status(&"stun")], [1, true, true])
+	_check_near("for 0.5 s", dummy.status_component.get_time_left(&"stun"), 0.5, 0.04)
+	await _wait_until(func() -> bool: return not dummy.is_stunned() and not knight.movement.is_displaced(), 60)
+
+	ab.remove_augments_from(&"item_test_lunge_stuns")
+	_place(knight, dummy.global_position + Vector2(-60, 0))
+	await _frames(2)
+	ab.reset_cooldown(&"e")
+	ab.try_cast(&"e", knight.global_position + Vector2(120, 0))
+	await _wait_until(func() -> bool: return hits[0] == 2, 60)
+	_check("unequipped: no flag; the next Lunge hits without a stun", [ab.get_flags(LUNGE).is_empty(), hits[0], dummy.is_stunned()], [true, 2, false])
+
+	await _wait_until(func() -> bool: return not knight.movement.is_displaced(), 30)
+	Events.unit_hit.disconnect(on_hit)
+	dummy.queue_free()
+	ab.reset_cooldown(&"e")
+	await _frames(3)
+
+
+func _test_abm_cleave_wave() -> void:
+	_section("AB-M: Cleave Wave (REPLACE)")
+	await _reset_knight()
+	var ab := knight.abilities
+	_check("the Knight's Q is Cleave", ab.get_base_ability(&"q") == CLEAVE, true)
+	var hits: Array[HitContext] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.ability == CLEAVE_WAVE:
+			hits.append(ctx)
+	Events.unit_hit.connect(on_hit)
+	var near := _dummy_at(Vector2(150, 0))   # beyond Cleave's 96 px reach
+	var far := _dummy_at(Vector2(200, 10))
+	_tough(near)
+	_tough(far)
+	await _frames(2)
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	ab.add_augment(AUG_CLEAVE_WAVE, &"item_test_cleave_wave")
+	_check("equipped: Q casts the wave (the export stays Cleave); the wave's tooltip gains the augment line",
+		[ab.get_ability(&"q") == CLEAVE_WAVE, ab.get_base_ability(&"q") == CLEAVE,
+			CLEAVE_WAVE.get_tooltip_plain(knight).ends_with("\nCleave becomes a wave of force that travels 700 units, passing through enemies.")],
+		[true, true, true])
+	knight.stats_component.add_modifier(StatModifier.create(&"base_damage", StatModifier.Type.FLAT, 10.0, &"item_test_cleave_plus", &"ability:knight_cleave"))
+	_check("Cleave's scoped modifiers reach the wave (variant_of): +10 base damage", CLEAVE_WAVE.get_param(knight, &"base_damage"), 90.0)
+	knight.stats_component.remove_modifiers_from(&"item_test_cleave_plus")
+
+	ab.try_cast(&"q", knight.global_position + Vector2(300, 0))
+	await _wait_until(func() -> bool: return not _projectiles().is_empty(), 30)
+	var waves := _projectiles()
+	_check("after the 0.2 s cast time: one wave flies, its crescent on it",
+		[waves.size(), waves[0].get_child_count() > 0 if waves.size() == 1 else false], [1, true])
+	await _wait_until(func() -> bool: return _projectiles().is_empty(), 120)
+	_check("it passes through both dummies: 124.8 each (80 + 0.7 x 64), tagged projectile",
+		[hits.size(), hits.map(func(h: HitContext) -> float: return h.raw_damage), hits.all(func(h: HitContext) -> bool: return h.has_tag(&"projectile"))],
+		[2, [124.8, 124.8], true])
+	var cooldown := ab.get_cooldown_left(&"q")
+	ab.remove_augments_from(&"item_test_cleave_wave")
+	_check("unequipped: Q casts Cleave again; the slot's cooldown carried over",
+		[ab.get_ability(&"q") == CLEAVE, ab.is_ready(&"q"), ab.get_cooldown_left(&"q") == cooldown, cooldown > 0.0], [true, false, true, true])
+
+	Events.unit_hit.disconnect(on_hit)
+	near.queue_free()
+	far.queue_free()
+	ab.reset_cooldown(&"q")
+	await _frames(3)
+
+
+func _test_abm_judgement_reset() -> void:
+	_section("AB-M: a Judgement kill resets its cooldown (EVENT + ModifyCooldown)")
+	await _reset_knight()
+	var ab := knight.abilities
+	var rules_before := knight.get_reaction_rule_entries().size()
+	ab.add_augment(AUG_JUDGEMENT_RESET, &"item_test_judgement_reset")
+	_check("equipped: one unit rule; Judgement's tooltip gains the line",
+		[knight.get_reaction_rule_entries().size() - rules_before, JUDGEMENT.get_tooltip_plain(knight).ends_with("\nA Judgement kill resets its cooldown.")], [1, true])
+	ab.reset_cooldown(&"r")
+	var weak := _dummy_at(Vector2(60, 0))
+	await _frames(2)
+	weak.health.take_damage(weak.health.current - 1.0)
+	ab.try_cast(&"r", weak.global_position, weak)
+	await _wait_until(func() -> bool: return not ab.casting, 150)
+	_check("Judgement kills the dummy: R is ready again at once", [weak.is_alive(), ab.is_ready(&"r"), ab.get_cooldown_left(&"r")], [false, true, 0.0])
+
+	var tough := _dummy_at(Vector2(60, 30))
+	_tough(tough)
+	await _frames(2)
+	ab.try_cast(&"r", tough.global_position, tough)
+	await _wait_until(func() -> bool: return not ab.casting, 150)
+	_check("a Judgement that doesn't kill: its cooldown runs", [tough.is_alive(), ab.is_ready(&"r")], [true, false])
+
+	ab.remove_augments_from(&"item_test_judgement_reset")
+	ab.reset_cooldown(&"r")
+	var weak2 := _dummy_at(Vector2(60, -30))
+	await _frames(2)
+	weak2.health.take_damage(weak2.health.current - 1.0)
+	ab.try_cast(&"r", weak2.global_position, weak2)
+	await _wait_until(func() -> bool: return not ab.casting, 150)
+	_check("unequipped: the rule is gone and a kill doesn't reset it",
+		[knight.get_reaction_rule_entries().size(), weak2.is_alive(), ab.is_ready(&"r")], [rules_before, false, false])
+
+	ab.reset_cooldown(&"r")
+	for d in [weak, tough, weak2]:
+		if is_instance_valid(d):
+			d.queue_free()
+	await _frames(3)
+
+
+func _test_abm_cleave_casts_lunge() -> void:
+	_section("AB-M: Cleave also casts a free Lunge (EVENT + CastAbility at Cleave's effect start)")
+	await _reset_knight()
+	var ab := knight.abilities
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	ab.reset_cooldown(&"e")
+	ab.add_augment(AUG_CLEAVE_CASTS_LUNGE, &"item_test_cleave_casts_lunge")
+	_check("equipped: Cleave's tooltip gains the line", CLEAVE.get_tooltip_plain(knight).ends_with("\nCasting Cleave also casts a free Lunge toward your aim."), true)
+	var casts: Array[CastContext] = []
+	var on_cast := func(unit: Unit, _a: Ability, c: CastContext) -> void:
+		if unit == knight:
+			casts.append(c)
+	Events.ability_cast.connect(on_cast)
+	var hit_abilities: Array[StringName] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == knight and ctx.ability != null:
+			hit_abilities.append(ctx.ability.id)
+	Events.unit_hit.connect(on_hit)
+	var dummy := _dummy_at(Vector2(40, 0))
+	_tough(dummy)
+	await _frames(2)
+	var from := knight.global_position
+	var e_charges := ab.get_charges(&"e")
+
+	ab.try_cast(&"q", from + Vector2(100, 0))
+	await _wait_until(func() -> bool: return casts.size() >= 2, 30)
+	var lunges := casts.filter(func(c: CastContext) -> bool: return c.ability == LUNGE)
+	var cleaves := casts.filter(func(c: CastContext) -> bool: return c.ability == CLEAVE)
+	_check("at Cleave's effect start: Cleave's cast and a free Lunge from the augment's rule",
+		[cleaves.size(), lunges.size(), lunges[0].is_free if lunges.size() == 1 else false, lunges[0].source_id if lunges.size() == 1 else &""],
+		[1, 1, true, &"augment_cleave_casts_lunge"])
+	await _wait_until(func() -> bool: return not ab.casting and not knight.movement.is_displaced() and hit_abilities.has(&"knight_lunge"), 60)   # Lunge hits the frame after its dash
+	_check("the Knight lunged 100 px toward the aim; the dummy took Cleave's and Lunge's hits; E untouched (charges, ready)",
+		[snappedf(knight.global_position.distance_to(from), 1.0), hit_abilities.has(&"knight_cleave"), hit_abilities.has(&"knight_lunge"), ab.get_charges(&"e"), ab.is_ready(&"e")],
+		[100.0, true, true, e_charges, true])
+
+	ab.remove_augments_from(&"item_test_cleave_casts_lunge")
+	ab.reset_cooldown(&"q")
+	casts.clear()
+	from = knight.global_position
+	ab.try_cast(&"q", from + Vector2(100, 0))
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("unequipped: Cleave casts alone and doesn't move the Knight", [casts.size(), snappedf(knight.global_position.distance_to(from), 1.0)], [1, 0.0])
+
+	Events.ability_cast.disconnect(on_cast)
+	Events.unit_hit.disconnect(on_hit)
+	dummy.queue_free()
+	ab.reset_cooldown(&"q")
+	await _frames(3)
+
+
+func _test_abm_playground() -> void:
+	_section("AB-M: SandboxAugments (keys 1-4; unequipping restores the Knight exactly)")
+	await _reset_knight()
+	var ab := knight.abilities
+	var sa: Node = SANDBOX_AUGMENTS.new()
+	var items: Array[AbilityAugment] = [AUG_LUNGE_STUNS, AUG_CLEAVE_WAVE, AUG_JUDGEMENT_RESET, AUG_CLEAVE_CASTS_LUNGE]
+	sa.set(&"items", items)
+	sa.set(&"show_list", false)
+	add_child(sa)
+	sa.call(&"_on_entity", knight)   # the test has no room: hand it the Knight
+	var snapshot := func() -> Array:
+		return [ab.get_ability(&"q"), ab.get_ability(&"e"), ab.get_ability(&"r"), ab.get_flags(LUNGE), knight.get_reaction_rule_entries().size(),
+			CLEAVE.get_tooltip_plain(knight), LUNGE.get_tooltip_plain(knight), JUDGEMENT.get_tooltip_plain(knight),
+			ab.get_augments(&"q").size(), ab.get_augments(&"e").size(), ab.get_augments(&"r").size()]
+	var before: Array = snapshot.call()
+	_check("each fake item's source id: item_test_<augment id>",
+		items.map(func(a: AbilityAugment) -> StringName: return sa.call(&"get_source_id", a)),
+		[&"item_test_lunge_stuns", &"item_test_cleave_wave", &"item_test_judgement_reset", &"item_test_cleave_casts_lunge"])
+	var equipped: Array = []
+	for i in 4:
+		equipped.append(sa.call(&"toggle", i))
+	var on: Array = snapshot.call()
+	_check("1-4 equipped: Q casts the wave, Lunge has its flag, two unit rules, the tooltips gain their lines",
+		[equipped, on[0] == CLEAVE_WAVE, on[3], on[4] - before[4], (on[6] as String).count("\n") - (before[6] as String).count("\n"),
+			(on[7] as String).count("\n") - (before[7] as String).count("\n"), CLEAVE_WAVE.get_tooltip_plain(knight).contains("Casting Cleave also casts a free Lunge")],
+		[[true, true, true, true], true, [&"lunge_stuns"] as Array[StringName], 2, 1, 1, true])
+	var key := InputEventKey.new()
+	key.physical_keycode = KEY_2
+	key.pressed = true
+	sa.call(&"_unhandled_input", key)
+	_check("the 2 key: the wave is off, Q casts Cleave again", [sa.call(&"is_equipped", 1), ab.get_ability(&"q") == CLEAVE], [false, true])
+	for i: int in [0, 2, 3]:
+		sa.call(&"toggle", i)
+	_check("all four unequipped: the Knight exactly as before", snapshot.call(), before)
+	sa.queue_free()
+	await _frames(2)
 
 
 func _wall_at(pos: Vector2, size: Vector2) -> StaticBody2D:

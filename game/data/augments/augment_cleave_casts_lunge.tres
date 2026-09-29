@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="AbilityAugment" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ability_augment.gd" id="1_augment"]
+[ext_resource type="Script" path="res://scripts/data/reaction_rule.gd" id="2_rule"]
+[ext_resource type="Script" path="res://scripts/data/cast_ability_gameplay_effect.gd" id="3_cast"]
+[ext_resource type="Script" path="res://scripts/data/gameplay_effect.gd" id="4_effect"]
+[ext_resource type="Resource" path="res://data/abilities/knight_e_lunge.tres" id="5_lunge"]
+
+[sub_resource type="Resource" id="lunge"]
+script = ExtResource("3_cast")
+ability = ExtResource("5_lunge")
+
+[sub_resource type="Resource" id="on_cast"]
+script = ExtResource("2_rule")
+id = &"cleave_casts_lunge"
+trigger = 7
+effects = Array[ExtResource("4_effect")]([SubResource("lunge")])
+effect_target = 1
+
+[resource]
+script = ExtResource("1_augment")
+id = &"cleave_casts_lunge"
+kind = 1
+scope = &"ability:knight_cleave"
+rules = Array[ExtResource("2_rule")]([SubResource("on_cast")])
+display_name = "Cleave lunges"
+description = "Casting Cleave also casts a free Lunge toward your aim."

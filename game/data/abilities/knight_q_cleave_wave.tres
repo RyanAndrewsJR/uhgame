@@ -1,0 +1,22 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/abilities/knight/cleave_wave.gd" id="1_script"]
+[ext_resource type="Resource" path="res://data/sounds/sound_knight_cleave_cast.tres" id="s1_cast_sound"]
+
+[resource]
+script = ExtResource("1_script")
+cast_sound = ExtResource("s1_cast_sound")
+id = &"knight_cleave_wave"
+tags = Array[StringName]([&"core", &"projectile"])
+display_name = "Cleave Wave"
+variant_of = &"knight_cleave"
+description = "Send a wave of force up to {range} units ahead, dealing {damage} physical damage ({base_damage} {ratios}) to every enemy it passes through."
+icon_color = Color(0.85, 0.9, 1, 1)
+cooldown = 3.0
+cast_time = 0.2
+cast_range = 700.0
+base_damage = 80.0
+ad_ratio = 0.7
+projectile_speed = 900.0
+projectile_width = 150.0
+projectile_pierce = 20

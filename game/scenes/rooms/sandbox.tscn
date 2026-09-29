@@ -4,12 +4,17 @@
 [ext_resource type="TileSet" uid="uid://cjrv70ikc2a4t" path="res://tilesets/dungeon_tileset.tres" id="2_tiles"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/slime.tscn" id="3_slime"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/slime_elite.tscn" id="4_elite"]
-[ext_resource type="Resource" path="res://data/abilities/slime_elite_q_slam.tres" id="9_ne3px"]
 [ext_resource type="Resource" path="res://data/abilities/test_w_vector_wall.tres" id="10_vector_wall"]
 [ext_resource type="Script" uid="uid://bm2nj8633t50a" path="res://scripts/rooms/sandbox_reactions.gd" id="90_reactions"]
 [ext_resource type="Resource" uid="uid://dybd2xurulns1" path="res://data/reactions/reaction_shatter.tres" id="91_shatter"]
 [ext_resource type="Script" uid="uid://4jx6fbr85xri" path="res://scripts/data/reaction_rule.gd" id="92_rule"]
 [ext_resource type="Script" uid="uid://dkp5k88kgwtnd" path="res://scripts/rooms/sandbox_abilities.gd" id="93_abilities"]
+[ext_resource type="Script" path="res://scripts/rooms/sandbox_augments.gd" id="94_augments"]
+[ext_resource type="Script" path="res://scripts/data/ability_augment.gd" id="95_augment"]
+[ext_resource type="Resource" path="res://data/augments/augment_lunge_stuns.tres" id="96_lunge_stuns"]
+[ext_resource type="Resource" path="res://data/augments/augment_cleave_wave.tres" id="97_cleave_wave"]
+[ext_resource type="Resource" path="res://data/augments/augment_judgement_reset.tres" id="98_judgement_reset"]
+[ext_resource type="Resource" path="res://data/augments/augment_cleave_casts_lunge.tres" id="99_cleave_casts_lunge"]
 
 [node name="Sandbox" type="Node2D" unique_id=1476142640]
 script = ExtResource("1_room")
@@ -54,5 +59,8 @@ player_rules = Array[ExtResource("92_rule")]([ExtResource("91_shatter")])
 
 [node name="SandboxAbilities" type="Node" parent="." unique_id=258340338]
 script = ExtResource("93_abilities")
-test_q = ExtResource("9_ne3px")
 test_elite_w = ExtResource("10_vector_wall")
+
+[node name="SandboxAugments" type="Node" parent="."]
+script = ExtResource("94_augments")
+items = Array[ExtResource("95_augment")]([ExtResource("96_lunge_stuns"), ExtResource("97_cleave_wave"), ExtResource("98_judgement_reset"), ExtResource("99_cleave_casts_lunge")])

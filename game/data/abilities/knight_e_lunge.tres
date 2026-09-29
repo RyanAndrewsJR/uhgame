@@ -9,6 +9,7 @@ script = ExtResource("1_script")
 cast_sound = ExtResource("s1_cast_sound")
 id = &"knight_lunge"
 tags = Array[StringName]([&"movement", &"mobility", &"dash"])
+supported_flags = Array[StringName]([&"lunge_stuns"])
 display_name = "Lunge"
 description = "Dash up to {range} units toward the target spot, passing through units and dealing {damage} physical damage ({base_damage} {ratios}) to every enemy you cut through."
 icon_color = Color(0.45, 0.8, 1, 1)

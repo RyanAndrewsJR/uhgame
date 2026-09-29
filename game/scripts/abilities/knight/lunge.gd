@@ -6,6 +6,10 @@ extends Ability
 ## hit_units() for the hits (one crit roll, the cast's context: a free cast's
 ## hits keep their chain depth), play_hit_feel() for the shake (hit_shake in
 ## the .tres). The afterimages and impact VFX are Lunge's own.
+## FLAG augment &"lunge_stuns" (ABILITIES AB-M): every enemy it hits is also
+## stunned (status_stun for flag_stun_duration, as a status of the hit).
+
+const STATUS_STUN: StatusEffect = preload("res://data/statuses/status_stun.tres")
 
 ## Dash speed in LoL units per second.
 @export var dash_speed: float = 1400.0
@@ -14,6 +18,9 @@ extends Ability
 ## Speed profile of the lunge (MOVEMENT.md F2). null = constant speed.
 ## The distance and the hit path don't depend on it.
 @export var dash_curve: Curve
+## With &"lunge_stuns": the stun's length in seconds (a scoped param;
+## tenacity still shortens it).
+@export var flag_stun_duration: float = 0.5
 
 
 func execute(caster: Unit, ctx: CastContext) -> void:
@@ -43,7 +50,12 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 		targets = targets.filter(func(u: Unit) -> bool:
 			var near := Geometry2D.get_closest_point_to_segment(u.global_position, start, end)
 			return WorldQuery.has_line_of_sight(near, u.global_position))
-	var hits := hit_units(caster, targets, ctx)
+	var statuses: Array[StatusEffect] = []
+	if ctx.has_flag(&"lunge_stuns"):
+		var stun: StatusEffect = STATUS_STUN.duplicate()
+		stun.duration = get_param(caster, &"flag_stun_duration")
+		statuses.append(stun)
+	var hits := hit_units(caster, targets, ctx, statuses)
 	for u in targets:
 		if is_instance_valid(u):
 			VFX.impact(u.get_parent(), u.global_position, Color(icon_color, 0.8), 36.0, 0.2)
