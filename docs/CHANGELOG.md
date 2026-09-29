@@ -145,7 +145,12 @@ Combat test 450/450, stats test 172/172 (unchanged). A headless in-game check of
 
 ## Combat (COMBAT.md)
 
-### Cleanup – the pre-C6 damage number path: 2026-09-28, Built (awaiting play test)
+### Tests for the Knight's new stats: 2026-09-28, Built
+`knight.tres` (Ryan, commit 45d3457): `move_speed` 375 (was 560), `crit_chance` 0.25, `life_steal` 0.01. Checks written for the old numbers failed in every suite: abilities 5–8 (crit-dependent, varying per run), combat 30, stats 14, audio 1. Updated: the combat, abilities and audio tests add a test baseline on the Knight (source `test_baseline`: FLAT minus the base `crit_chance` and `life_steal`), so exact-number checks aren't random and checks that add crit get exactly what they add (the abilities test's AB13-only no-crit modifier is gone); a new combat check pins the real 0.25 and 0.01 and the baseline's 0. Move speed checks now use 375: the Iron Resolve haste 375 → 506.25 (combat, abilities); stats: base 375, the 50% slow 272.25 and the 30% slow 309.75 (both under the low soft cap now), the haste check raised from +50% to +150% so it still reaches the high caps (937.5 → 842.05, with a 20% slow 750 → 734.8), no soft caps 375, the speed-modifier wrapper 412.5 / 450 / 467.5 / 309.75. Docs: MOVEMENT.md (speed, examples, an open question on the soft caps), STATS.md, ABILITIES.md (the walking-while-casting examples), DECISIONS.md (one row).
+
+Abilities test 467/467, combat 451/451 (both twice in a row), stats 172/172, audio 109/109, with the current `knight.tres`. `main.tscn` and `sandbox_main.tscn` run 600 frames with no errors or warnings.
+
+### Cleanup – the pre-C6 damage number path: 2026-09-28, Passed
 C6 passed, so its old number path goes (disabled in practice since C6: nothing called it). Deleted `Unit._spawn_damage_number()` and `damage_number.gd`'s `big` field with its `_pick_font_size()` branch (only that function set it, by name). Checked first: no script, scene, resource or test referenced either. `HitContext.highlight` stays (take_damage, empowered hits and projectiles set it; two tests check it); its comment and `Unit.take_damage()`'s now say numbers don't read it. Abilities test 398/398, combat 449/450 (the known flaky real-time "heavy feel: 0.06 s hitstop" check), stats 172/172, audio 109/109; `main.tscn` and `sandbox_main.tscn` run 600 frames with no errors.
 
 ### A swing counts once its hit has landed: 2026-09-27, Built (awaiting play test)

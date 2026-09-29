@@ -118,15 +118,14 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 | `docs/_TEMPLATE.md` | writing a new doc |
 
 ## Current status
-- **Now:** Waiting on Ryan's play test of ABILITIES AB13 (VECTOR: the sandbox Q is `test_vector_line`, the elite casts `test_vector_wall` on W), and his call on `knight.tres` (Known issues). Also waiting on AUDIO A3 (ability casts, Judgement's hit and ready ping, the elite's wind-up and slam, status sounds, the shield's break, the low-health heartbeat, the room cleared and "You died" stingers; all synthesized placeholders) and of "a swing counts once its hit has landed" and COMBAT C12. Still open: play tests of STATS steps 5–6, COMBAT C8–C11, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** Waiting on Ryan's play test of ABILITIES AB13 (VECTOR: the sandbox Q is `test_vector_line`, the elite casts `test_vector_wall` on W), and a call on the soft caps for a 375 Knight (MOVEMENT.md, Open questions). Also waiting on AUDIO A3 (ability casts, Judgement's hit and ready ping, the elite's wind-up and slam, status sounds, the shield's break, the low-health heartbeat, the room cleared and "You died" stingers; all synthesized placeholders) and of "a swing counts once its hit has landed" and COMBAT C12. Still open: play tests of STATS steps 5–6, COMBAT C8–C11, Feel pass F1–F4 at 144 Hz and movement steps 1 and 3–7, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. ABILITIES AB13: the VECTOR cast style (start point, drag or tap, `vector_drag`, the hold limit, aimed recast parts, `try_cast_vector()`, `get_ai_vector()`, `Telegraph.line()`; `test_vector_line`, `test_vector_wall`). With the pre-commit `knight.tres`: abilities 467/467, combat 450/450, stats 172/172, audio 109/109.
-  2. Cleanup (passed Ryan's play test): the pre-C6 damage number path deleted (`Unit._spawn_damage_number()`, `DamageNumber.big`).
-  3. ABILITIES docs: the VECTOR cast style planned as AB13; TOGGLE and SUSTAINED not planned.
+  1. Tests updated for the Knight's new stats (`move_speed` 375, `crit_chance` 0.25, `life_steal` 0.01; a test baseline holds the Knight's crit and life steal at 0). Abilities 467/467, combat 451/451, stats 172/172, audio 109/109.
+  2. ABILITIES AB13: the VECTOR cast style (start point, drag or tap, `vector_drag`, the hold limit, aimed recast parts, `try_cast_vector()`, `get_ai_vector()`, `Telegraph.line()`; `test_vector_line`, `test_vector_wall`).
+  3. Cleanup (passed Ryan's play test): the pre-C6 damage number path deleted.
 - **Next:** ABILITIES build order: milestone AB-M (augment playground). AUDIO's later steps come with their systems; real CC0 files can replace the placeholders any time (same names). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order (CHAMPIONS.md next).
 
 ## Known issues (leave for now)
-- `data/units/knight.tres` (commit 45d3457) has `crit_chance` 0.25, `life_steal` 0.01, `move_speed` 375 (was 0, 0, 560). Checks written for the old numbers fail: abilities 5–8 (varies with crits), combat 30, stats 14, audio 1. Waiting on Ryan: keep them (then the tests and docs get updated) or revert.
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.
 - HUD ability bar labels the W slot "W" though it's on right mouse (the label comes from the slot name).
 - Header comments in `game_camera.gd` ("Hold Space") and `player.gd` (right-click / A / S controls) describe the old keys.

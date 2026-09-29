@@ -150,10 +150,10 @@ func _test_base_values() -> void:
 	_check("attack_damage", knight_stats.get_stat(&"attack_damage"), 64.0)
 	_check("attack_speed = base_attack_speed", knight_stats.get_stat(&"attack_speed"), 0.7)
 	_check("attack_range", knight_stats.get_stat(&"attack_range"), 175.0)
-	_check("move_speed 560 (inside the soft caps)", knight_stats.get_stat(&"move_speed"), 560.0)
+	_check("move_speed 375 (inside the soft caps)", knight_stats.get_stat(&"move_speed"), 375.0)
 	_check("dash_charges", knight_stats.get_stat(&"dash_charges"), 1.0)
 	_check("armor: neutral default 0", knight_stats.get_stat(&"armor"), 0.0)
-	_check("crit_damage: 1.75 for every unit (COMBAT C8; crit_chance stays 0)", [knight_stats.get_stat(&"crit_damage"), slime_stats.get_stat(&"crit_damage"), knight_stats.get_stat(&"crit_chance")], [1.75, 1.75, 0.0])
+	_check("crit_damage: 1.75 for every unit (COMBAT C8); the Knight's crit_chance 0.25, the slime's 0", [knight_stats.get_stat(&"crit_damage"), slime_stats.get_stat(&"crit_damage"), knight_stats.get_stat(&"crit_chance"), slime_stats.get_stat(&"crit_chance")], [1.75, 1.75, 0.25, 0.0])
 	_check("C8 stats: incoming_damage 1, the rest 0",
 		[knight_stats.get_stat(&"incoming_damage"), knight_stats.get_stat(&"damage_increase"), knight_stats.get_stat(&"on_hit_damage"), knight_stats.get_stat(&"life_on_hit"), knight_stats.get_stat(&"resource_on_hit")],
 		[1.0, 0.0, 0.0, 0.0, 0.0])
@@ -195,10 +195,10 @@ func _test_formula_and_exact_restore() -> void:
 func _test_clamps_and_rounding() -> void:
 	_section("Clamps and integer rounding")
 	knight_stats.add_modifier(_mod(&"crit_chance", FLAT, 1.5, &"item_crit"))
-	_check("crit_chance 1.5 clamps to max 1", knight_stats.get_stat(&"crit_chance"), 1.0)
+	_check("crit_chance 0.25 + 1.5 clamps to max 1", knight_stats.get_stat(&"crit_chance"), 1.0)
 	knight_stats.remove_modifiers_from(&"item_crit")
 	knight_stats.add_modifier(_mod(&"crit_chance", FLAT, -0.5, &"item_crit"))
-	_check("crit_chance -0.5 clamps to min 0", knight_stats.get_stat(&"crit_chance"), 0.0)
+	_check("crit_chance 0.25 - 0.5 clamps to min 0", knight_stats.get_stat(&"crit_chance"), 0.0)
 	knight_stats.remove_modifiers_from(&"item_crit")
 
 	knight_stats.add_modifier(_mod(&"dash_charges", FLAT, 1.6, &"item_dash"))
@@ -237,23 +237,23 @@ func _test_move_speed() -> void:
 	_section("move_speed rules")
 	knight_stats.add_modifier(_mod(&"move_speed", PERCENT_ADD, -0.3, &"status_slow_a"))
 	knight_stats.add_modifier(_mod(&"move_speed", PERCENT_ADD, -0.5, &"status_slow_b"))
-	# Strongest slow only: 560 x 0.5 = 280, below the low cap 357:
-	# 357 - (357 - 280) x 0.5 = 318.5
-	_check("only the strongest slow (50%), then the low soft cap", knight_stats.get_stat(&"move_speed"), 318.5)
+	# Strongest slow only: 375 x 0.5 = 187.5, below the low cap 357:
+	# 357 - (357 - 187.5) x 0.5 = 272.25
+	_check("only the strongest slow (50%), then the low soft cap", knight_stats.get_stat(&"move_speed"), 272.25)
 	knight_stats.remove_modifiers_from(&"status_slow_b")
-	# 560 x 0.7 = 392, inside the caps.
-	_check("remove it: the 30% slow applies", knight_stats.get_stat(&"move_speed"), 392.0)
+	# 375 x 0.7 = 262.5, below the low cap: 357 - (357 - 262.5) x 0.5 = 309.75
+	_check("remove it: the 30% slow applies (low soft cap)", knight_stats.get_stat(&"move_speed"), 309.75)
 	knight_stats.remove_modifiers_from(&"status_slow_a")
 
-	knight_stats.add_modifier(_mod(&"move_speed", PERCENT_ADD, 0.5, &"status_haste"))
-	# 840 > 795: 674 + (795 - 674) x 0.8 = 770.8, + (840 - 795) x 0.5 = 793.3
-	_check("+50%: 840 soft capped to 793.3", knight_stats.get_stat(&"move_speed"), 793.3)
+	knight_stats.add_modifier(_mod(&"move_speed", PERCENT_ADD, 1.5, &"status_haste"))
+	# 375 x 2.5 = 937.5 > 795: 674 + (795 - 674) x 0.8 = 770.8, + (937.5 - 795) x 0.5 = 842.05
+	_check("+150%: 937.5 soft capped to 842.05", knight_stats.get_stat(&"move_speed"), 842.05)
 	knight_stats.add_modifier(_mod(&"move_speed", PERCENT_ADD, -0.2, &"status_slow_a"))
-	# 560 x 1.5 x 0.8 = 672, just under the high cap.
-	_check("haste and slow: 560 x 1.5 x 0.8", knight_stats.get_stat(&"move_speed"), 672.0)
+	# 375 x 2.5 x 0.8 = 750, between the high cap and the max: 674 + (750 - 674) x 0.8 = 734.8
+	_check("haste and slow: 375 x 2.5 x 0.8 = 750, high soft cap 734.8", knight_stats.get_stat(&"move_speed"), 734.8)
 	knight_stats.remove_modifiers_from(&"status_haste")
 	knight_stats.remove_modifiers_from(&"status_slow_a")
-	_check("move_speed restored", knight_stats.get_stat(&"move_speed"), 560.0)
+	_check("move_speed restored", knight_stats.get_stat(&"move_speed"), 375.0)
 
 	for raw: float in [100.0, 219.0, 300.0, 450.0, 600.0, 900.0]:
 		slime_stats.add_modifier(_mod(&"move_speed", FLAT, raw - 285.0, &"test_raw"))
@@ -354,7 +354,7 @@ func _test_levels() -> void:
 	stats.set_level(0)
 	_check("set_level(0) clamps to level 1", stats.get_level(), 1)
 	_check("back at level 1: 64 x 1.5", stats.get_stat(&"attack_damage"), 96.0)
-	_check("no soft caps without a MovementComponent", stats.get_stat(&"move_speed"), 560.0)
+	_check("no soft caps without a MovementComponent", stats.get_stat(&"move_speed"), 375.0)
 	stats.queue_free()
 
 
@@ -381,25 +381,25 @@ func _test_speed_modifier_wrapper() -> void:
 	knight_movement.add_speed_modifier(&"test_early", 0.0, 0.1)
 	knight_movement.set_stats_component(knight_stats)
 	_check("a modifier added before wiring moves over", knight_stats.get_modifiers_from(&"test_early").size(), 1)
-	_check("get_move_speed reads the stat: 560 x 1.1", knight_movement.get_move_speed(), 616.0)
+	_check("get_move_speed reads the stat: 375 x 1.1", knight_movement.get_move_speed(), 412.5)
 	knight_movement.remove_speed_modifier(&"test_early")
 
 	knight_movement.add_speed_modifier(&"iron_resolve", 0.0, 0.2)
 	_check("stored in StatsComponent under its id", knight_stats.get_modifiers_from(&"iron_resolve").size(), 1)
-	_check("560 x 1.2", knight_movement.get_move_speed(), 672.0)
+	_check("375 x 1.2", knight_movement.get_move_speed(), 450.0)
 	knight_movement.add_speed_modifier(&"iron_resolve", 50.0, 0.1)
 	_check("same id replaces it (now flat + %)", knight_stats.get_modifiers_from(&"iron_resolve").size(), 2)
-	_check("(560 + 50) x 1.1", knight_movement.get_move_speed(), 671.0)
+	_check("(375 + 50) x 1.1", knight_movement.get_move_speed(), 467.5)
 	knight_movement.remove_speed_modifier(&"iron_resolve")
 	_check("remove_speed_modifier removes it", knight_stats.get_modifiers_from(&"iron_resolve").size(), 0)
-	_check("move_speed back to 560", knight_movement.get_move_speed(), 560.0)
+	_check("move_speed back to 375", knight_movement.get_move_speed(), 375.0)
 
 	knight_movement.add_speed_modifier(&"iron_resolve_slow", 0.0, -0.3, 0.1)
-	_check("timed 30% slow applies: 560 x 0.7", knight_movement.get_move_speed(), 392.0)
+	_check("timed 30% slow applies: 375 x 0.7 = 262.5, low soft cap 309.75", knight_movement.get_move_speed(), 309.75)
 	for i in 12:   # 0.2 s at 60 Hz
 		await get_tree().physics_frame
 	_check("timed slow removed after its duration", knight_stats.get_modifiers_from(&"iron_resolve_slow").size(), 0)
-	_check("move_speed back to 560 after it", knight_movement.get_move_speed(), 560.0)
+	_check("move_speed back to 375 after it", knight_movement.get_move_speed(), 375.0)
 
 
 func _test_health_and_resource_pools() -> void:

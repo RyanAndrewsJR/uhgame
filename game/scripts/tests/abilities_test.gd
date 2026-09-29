@@ -41,6 +41,8 @@ extends Node2D
 ## buffered press, aimed recast parts, try_cast / try_cast_vector / a free
 ## cast / a hold-to-aim slot that became VECTOR; test_vector_wall on the elite:
 ## get_ai_vector(), Telegraph.line(), the hit, a stun mid-cast).
+## The Knight's own crit_chance and life_steal are held at 0 by a test
+## baseline, so damage checks are exact.
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
@@ -86,6 +88,13 @@ func _ready() -> void:
 	knight.abilities.cast_finished.connect(func(_s: StringName, _a: Ability) -> void: _finished += 1)
 	knight.abilities.cast_cancelled.connect(func(_s: StringName, _a: Ability) -> void: _cancelled += 1)
 	await get_tree().physics_frame
+	# The test baseline: the Knight's own crit_chance and life_steal
+	# (knight.tres) back to 0, so damage checks are exact; a check that wants
+	# crits adds them itself.
+	for stat: StringName in [&"crit_chance", &"life_steal"]:
+		var base := knight.stats_component.get_base_value(stat)
+		if base != 0.0:
+			knight.stats_component.add_modifier(StatModifier.create(stat, StatModifier.Type.FLAT, -base, &"test_baseline"))
 
 	print("\n=== Abilities test (ABILITIES AB1) ===")
 	_test_cast_styles()
@@ -147,8 +156,6 @@ func _ready() -> void:
 	await _test_ab12_reaction_condition()
 	print("\n=== Abilities test (ABILITIES AB13) ===")
 	await _reset_knight()
-	# No crits, so the AB13 damage checks are exact whatever knight.tres's crit_chance is.
-	knight.stats_component.add_modifier(StatModifier.create(&"crit_chance", StatModifier.Type.PERCENT_MULT, -1.0, &"test_no_crit"))
 	_test_ab13_data()
 	await _test_ab13_drag_and_tap()
 	await _test_ab13_start_point()
@@ -158,7 +165,6 @@ func _ready() -> void:
 	await _test_ab13_recast()
 	await _test_ab13_without_mouse()
 	await _test_ab13_enemy()
-	knight.stats_component.remove_modifiers_from(&"test_no_crit")
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).
@@ -2763,9 +2769,9 @@ func _test_ab11_iron_resolve() -> void:
 	var haste := sc.get_status(&"iron_resolve")
 	var empower := sc.get_status(&"empower_iron_resolve")
 	var slow: StatusEffect = empower.empower_statuses[0] if empower != null and not empower.empower_statuses.is_empty() else null
-	_check("the haste: status iron_resolve (haste + buff, +35% for 2 s), 560 -> 739.6",
-		[haste != null, haste.tags if haste else [], snappedf(sc.get_time_left(&"iron_resolve"), 0.1), speed, knight.movement.get_move_speed()],
-		[true, [&"haste", &"buff"], 2.0, 560.0, 739.6])
+	_check("the haste: status iron_resolve (haste + buff, +35% for 2 s), 375 -> 506.25",
+		[haste != null, haste.tags if haste else [], snappedf(sc.get_time_left(&"iron_resolve"), 0.1), speed, snappedf(knight.movement.get_move_speed(), 0.01)],
+		[true, [&"haste", &"buff"], 2.0, 375.0, 506.25])
 	_check("the empower: empower_iron_resolve, 82 (snapshotted), 4 s, its slow iron_resolve_slow (cc + slow, -40%, 1.5 s)",
 		[empower != null, empower.empower_base_damage if empower else 0.0, snappedf(sc.get_time_left(&"empower_iron_resolve"), 0.1),
 			slow.id if slow else &"", slow.tags if slow else [], slow.modifiers[0].value if slow else 0.0, slow.duration if slow else 0.0],

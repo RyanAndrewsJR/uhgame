@@ -41,6 +41,8 @@ extends Node2D
 ## recovery keeps the combo; the windup, a stun or death resets it.
 ## Fix: a caster that dies or is freed mid-cast takes its telegraph with it
 ## at once (COMBAT.md, Known bugs).
+## The Knight's own crit_chance and life_steal are held at 0 by a test
+## baseline (_zero_knight_extras()), so exact-number checks aren't random.
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
@@ -77,6 +79,7 @@ func _ready() -> void:
 	knight = PLAYER_SCENE.instantiate()
 	add_child(knight)
 	await get_tree().physics_frame
+	_zero_knight_extras()
 
 	print("\n=== Combat test (COMBAT C1) ===")
 	_test_mitigation_math()
@@ -93,6 +96,21 @@ func _ready() -> void:
 
 	if DisplayServer.get_name() == "headless":
 		get_tree().quit(_failed)
+
+
+## The test baseline: the Knight's own crit_chance and life_steal
+## (knight.tres) taken back to 0 for the whole run (a FLAT minus each base
+## value), so checks of exact numbers aren't random. Crit and life steal
+## checks add their own on top (+0.25 gives exactly 25%); C8 checks the real
+## values.
+const BASELINE_SOURCE := &"test_baseline"
+
+
+func _zero_knight_extras() -> void:
+	for stat: StringName in [&"crit_chance", &"life_steal"]:
+		var base := knight.stats_component.get_base_value(stat)
+		if base != 0.0:
+			knight.stats_component.add_modifier(StatModifier.create(stat, FLAT, -base, BASELINE_SOURCE))
 
 
 # --- Tests --------------------------------------------------------------------
@@ -1596,7 +1614,10 @@ func _test_c8_crits() -> void:
 
 	var nothing := Node2D.new()   # no on_hit(): only the attacker's stages run
 	add_child(nothing)
-	_check("0% crit (the default): 0 crits in 200 rolls", _count_crits(nothing, 200), 0)
+	_check("knight.tres: crit_chance 0.25, life_steal 0.01 (0 for this test: the baseline)",
+		[knight.stats_component.get_base_value(&"crit_chance"), knight.stats_component.get_base_value(&"life_steal"),
+			knight.stats_component.get_stat(&"crit_chance"), knight.stats_component.get_stat(&"life_steal")], [0.25, 0.01, 0.0, 0.0])
+	_check("0% crit (the Knight's own 25% taken back by the test baseline): 0 crits in 200 rolls", _count_crits(nothing, 200), 0)
 	knight.stats_component.add_modifier(StatModifier.create(&"crit_chance", FLAT, 0.25, &"test_c8"))
 	HitPipeline.crit_rng.seed = 8
 	var crits := _count_crits(nothing, 400)
@@ -1904,10 +1925,10 @@ func _test_c9_speed_wrapper() -> void:
 	await _frames(2)
 	_check("Iron Resolve: a haste status 'iron_resolve' (haste + buff), 2 s",
 		[sc.has_status(&"iron_resolve"), sc.get_status(&"iron_resolve").tags, snappedf(sc.get_time_left(&"iron_resolve"), 0.1)], [true, [&"haste", &"buff"], 2.0])
-	_check("same speed as before C9: 560 -> 739.6", [base_speed, knight.movement.get_move_speed()], [560.0, 739.6])
+	_check("the haste: 375 -> 506.25 (+35%)", [base_speed, snappedf(knight.movement.get_move_speed(), 0.01)], [375.0, 506.25])
 	_check("its modifier's source is status_iron_resolve", knight.stats_component.get_modifiers_from(&"status_iron_resolve").size(), 1)
 	await _wait_until(func() -> bool: return not sc.has_status(&"iron_resolve"), 150)
-	_check("gone after 2 s, speed back to 560", [sc.has_status(&"iron_resolve"), knight.movement.get_move_speed()], [false, 560.0])
+	_check("gone after 2 s, speed back to 375", [sc.has_status(&"iron_resolve"), knight.movement.get_move_speed()], [false, 375.0])
 	knight.attack.cancel_swing()
 	knight.attack.add_next_attack_modifier(&"iron_resolve", 0.0)   # clear its empowered swing
 	knight.attack.cancel()

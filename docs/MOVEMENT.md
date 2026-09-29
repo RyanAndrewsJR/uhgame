@@ -26,7 +26,7 @@ Instant and precise, never floaty. The player steers directly with almost no mom
 
 | Property | Value |
 |---|---|
-| Move speed | **560 LoL units ≈ 179 px/s** (Knight, `knight.tres`). See Speed and soft caps. |
+| Move speed | **375 LoL units = 120 px/s** (Knight, `knight.tres`; 560 until 2026-09-28). See Speed and soft caps. |
 | Time to full speed | 0.05 s (`input_accel_time`) |
 | Time to stop | 0.04 s (`input_decel_time`), no visible slide |
 | Direction change | instant, no turn-around slowdown |
@@ -66,8 +66,8 @@ Only keys that physically collided with WASD changed. Action names never change.
 | `Ability.get_damage()` | Kept. Reads the caster's StatsComponent (`get_stat()`, scoped params) since STATS step 4; now `get_damage_against(caster, null)` (ABILITIES.md). |
 
 ## Speed and soft caps
-- The Knight's base `move_speed` is **560** (was 345).
-- The soft cap thresholds are scaled by the same ratio (560 / 345 ≈ 1.623) and are `@export`s on `MovementComponent`:
+- The Knight's base `move_speed` is **375** (Ryan, 2026-09-28; it was 560, and 345 before that).
+- The soft cap thresholds were scaled for 560 (560 / 345 ≈ 1.623) and haven't changed since the Knight went to 375 (Open questions). They are `@export`s on `MovementComponent`:
 
 | Export | LoL original | Scaled default | Rule |
 |---|---|---|---|
@@ -76,7 +76,7 @@ Only keys that physically collided with WASD changed. Action names never change.
 | `soft_cap_max` | 490 | 795 | above: the excess counts ×0.5 |
 
 - Computed as "threshold + excess × factor", so the curve is continuous for any thresholds; the LoL originals give exactly the old numbers. `get_move_speed()` uses the exports; the static `apply_soft_caps()` stays as the LoL reference.
-- Examples: Knight 560 → 560 (179 px/s). With Iron Resolve (+35%): raw 756 → 740 (237 px/s).
+- Examples: Knight 375 → 375 (120 px/s). With Iron Resolve (+35%): 506.25, inside the caps (162 px/s). A 30% slow: raw 262.5 is under the low cap, so it ends at 309.75 (99 px/s): at 375 every slow is softened.
 - **Slimes keep the LoL thresholds** (220 / 415 / 490) as overrides in `slime.tscn`, so they move exactly as before (the scaled low cap would lift 285 to 321). Enemy speeds get retuned in ENEMIES_AI.md.
 
 ## Facing and aim
@@ -205,6 +205,7 @@ Goal: closer to Hades. Dashes and knockback burst and then ease out, frames are 
 - The camera can only lean sideways in the middle third of the sandbox (room bounds). `debug_draw` on the Camera node (in `main.tscn`) shows the dead zone and the lean.
 
 ## Open questions
+- **Soft caps for a 375 Knight:** the thresholds (357 / 674 / 795) were scaled for the Knight's old 560. At 375 even small slows fall under the low cap and get halved (a 30% slow gives 309.75, not 262.5). Keep them, or rescale for 375 (×375 / 345: 239 / 451 / 533)?
 - **Clicks on the HUD:** PlayerInput reads `attack` from the Input state, so a click on the ability bar also swings; the bar's `MOUSE_FILTER_STOP` doesn't block that. Fix when the HUD gets clickable parts (UI.md).
 - Should the vertical speed be scaled (e.g. 0.9×) for the 3/4 view? Default: no.
 - **Aim zoom (parked until the first long-range champion):** while aiming an ability, zoom out just enough to show its full range, keeping the cursor lean as is. The Knight's ranges (96–180 px) already fit on screen, so it would barely show today. Costs to weigh then: a zoom between 1.0 and 0.5 draws art pixels at uneven sizes (at 0.8 they're 1.6 screen px), and zooming around the screen center moves the world under a still cursor (about 36 px at the edge at 0.9, 80 px at 0.8) unless it zooms around the cursor. Alternative with neither cost: while aiming, lean just far enough that the ability's full range is on screen.

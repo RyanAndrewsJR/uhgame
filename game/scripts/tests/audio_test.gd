@@ -56,6 +56,13 @@ func _ready() -> void:
 	add_child(slime)
 	_place(slime, center + Vector2(100, 0))
 	await get_tree().physics_frame
+	# The test baseline: the Knight's own crit_chance and life_steal
+	# (knight.tres) back to 0, so a hit plays a crit layer only when a check
+	# adds crit itself.
+	for stat: StringName in [&"crit_chance", &"life_steal"]:
+		var base := knight.stats_component.get_base_value(stat)
+		if base != 0.0:
+			knight.stats_component.add_modifier(StatModifier.create(stat, StatModifier.Type.FLAT, -base, &"test_baseline"))
 
 	print("\n=== Audio test (AUDIO A1) ===")
 	_test_data()

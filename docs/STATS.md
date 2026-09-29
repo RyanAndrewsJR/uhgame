@@ -42,15 +42,15 @@ Existing `UnitStats` fields keep their names. New ones get added to `UnitStats`.
 | `attack_damage` | 60 | 0 / - | |
 | `ability_power` | 0 | 0 / - | |
 | `attack_speed` | base = `UnitStats.base_attack_speed` (0.65) | 0.2 / the unit's `attack_speed_cap` (2.5) | % modifiers = LoL bonus attack speed. `attack_speed_cap` is a per-unit maximum for this stat, not a stat |
-| `crit_chance` | 0 | 0 / 1 | the average; rolled with PRD, one roll per swing or cast (COMBAT.md, Hits) |
+| `crit_chance` | 0 | 0 / 1 | the average; rolled with PRD, one roll per swing or cast (COMBAT.md, Hits). The Knight: 0.25 (`knight.tres`, since 2026-09-28) |
 | `crit_damage` | 1.75 | 1 / - | multiplier; COMBAT.md's default for every unit |
 | `armor` | 0 | - / - | mitigation formula in COMBAT.md (proposed: damage × 100 / (100 + armor)) |
 | `magic_resist` | 0 | - / - | |
-| `move_speed` | 345 | scaled soft caps | Knight base is 560 (≈179 px/s) for Hades pace; slime stays 285 (MOVEMENT.md) |
+| `move_speed` | 345 | scaled soft caps | Knight base is 375 (120 px/s; 560 until 2026-09-28); slime stays 285 (MOVEMENT.md) |
 | `ability_haste` | 0 | 0 / - | cooldown × 100 / (100 + haste) |
 | `dash_charges` | 1 | 1 / 5 | integer; read by DashComponent (MOVEMENT.md) |
 | `attack_range` | 175 | - / - | LoL units edge-to-edge |
-| `life_steal` | 0 | 0 / 1 | × damage taken by the target; basic attacks only *(proposed; built that way in COMBAT C8)* |
+| `life_steal` | 0 | 0 / 1 | × damage taken by the target; basic attacks only *(proposed; built that way in COMBAT C8)*. The Knight: 0.01 (`knight.tres`, since 2026-09-28) |
 | `tenacity` | 0 | 0 / 0.8 | crowd control duration × (1 − tenacity) for statuses tagged `cc` |
 | `knockback_resistance` | 0 | 0 / 1 | *(proposed)* displacement distance × (1 − value); bosses 1 (WORLD_INTERACTION.md). Registry entry only; **not on UnitStats** until the knockback work |
 | `pickup_radius` | 0 | - / - | LoL units. The planned value is 200 (64 px); set per unit when pickups exist (LOOT.md) |
