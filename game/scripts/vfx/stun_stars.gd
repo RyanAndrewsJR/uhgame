@@ -1,7 +1,6 @@
 extends Node2D
 ## The stun's VFX (status_stun.tres): little spinning stars over the unit's
-## head. Visuals only; the StatusComponent adds and frees it. (The pre-C9
-## StunEffect drew the same stars and also held the locks.)
+## head. Visuals only; the StatusComponent adds and frees it.
 
 
 var _spin: float = 0.0

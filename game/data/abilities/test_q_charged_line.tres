@@ -1,10 +1,7 @@
 [gd_resource type="Resource" format=3 uid="uid://cke00jf86pjt2"]
 
 [ext_resource type="Script" uid="uid://cench3nnvgs7r" path="res://scripts/abilities/test/charged_line.gd" id="1_script"]
-[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="1_vt5yc"]
 [ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="2_charge"]
-[ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="2_o02vo"]
-[ext_resource type="Script" uid="uid://effvdqcl7tjf" path="res://scripts/data/conditional_bonus.gd" id="3_4s4fu"]
 
 [sub_resource type="Resource" id="range"]
 script = ExtResource("2_charge")

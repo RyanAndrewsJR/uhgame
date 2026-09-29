@@ -53,7 +53,7 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 	var statuses: Array[StatusEffect] = []
 	if ctx.has_flag(&"lunge_stuns"):
 		var stun: StatusEffect = STATUS_STUN.duplicate()
-		stun.duration = get_param(caster, &"flag_stun_duration")
+		stun.duration = get_effect_param(caster, &"flag_stun_duration", ctx)
 		statuses.append(stun)
 	var hits := hit_units(caster, targets, ctx, statuses)
 	for u in targets:

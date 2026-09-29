@@ -28,11 +28,3 @@ func _physics_process(delta: float) -> void:
 			_invincible_timer = invincibility_time
 			hurt.emit(hitbox)
 			return
-
-
-func is_invincible() -> bool:
-	return _invincible_timer > 0.0
-
-
-func set_invincible(duration: float) -> void:
-	_invincible_timer = maxf(_invincible_timer, duration)

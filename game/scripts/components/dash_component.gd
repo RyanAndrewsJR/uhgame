@@ -2,18 +2,23 @@ class_name DashComponent
 extends Node2D
 ## Hades-style dash for a Unit (docs/MOVEMENT.md "Dash").
 ##
-## - A fixed-length burst at constant speed, through units but not walls,
-##   using MovementComponent.dash().
+## - A fixed-length burst through units, sliding along walls, using
+##   MovementComponent.dash(). The speed follows dash_curve (burst, then ease
+##   out); the distance is exact.
 ## - I-frames for the whole dash (Unit.add_invulnerability).
 ## - Charges from the dash_charges stat (StatsComponent). One charge comes back every
 ##   charge_recharge_time seconds, counted while not dashing.
-## - The speed follows dash_curve (burst, then ease out); the distance is exact.
 ## - If a direction is held when the dash ends, the unit runs on at full
 ##   speed (carry_into_run). Otherwise walking is locked for end_lag seconds.
 ##   Another dash can chain in right away if a charge is left.
-## - Can't start while stunned, already displaced (dashing, knockback), or
-##   casting, unless the ability being cast is dash_cancelable (then the dash
-##   cancels it). Starting a dash cancels a basic attack windup.
+## - Can't start (can_dash()) while dead, dash-blocked (a stun, or a status
+##   with blocks_dash such as a root), already dashing, out of charges,
+##   displaced (unless the displacement is dash-cancelable: a melee swing step
+##   or knockback from being hit, which the dash replaces), or casting (a
+##   charge-up or vector aim included) unless the cast is in its cast time and
+##   dash_cancelable (then the dash cancels it). Starting a dash cancels a
+##   basic attack swing (windup: the combo resets; after the hit: it moves on)
+##   and a League-style windup.
 
 signal dash_started(direction: Vector2)
 signal dash_ended
@@ -24,7 +29,7 @@ const INVULNERABILITY_ID := &"dash"
 
 ## Dash length in LoL units (400 = 128 px).
 @export var dash_distance: float = 400.0
-## How long the dash takes, in seconds (constant speed).
+## How long the dash takes, in seconds (its speed profile is dash_curve).
 @export var dash_duration: float = 0.18
 ## Speed profile of the dash (MOVEMENT.md F2). null = constant speed.
 @export var dash_curve: Curve = preload("res://data/curves/curve_dash.tres")
@@ -82,7 +87,7 @@ func is_dashing() -> bool:
 
 
 ## Seconds since the last dash ended (INF if none yet, 0 while dashing).
-## Used for the dash-strike window (MOVEMENT.md step 7).
+## Used for the dash-strike window (PlayerInput.dash_strike_window, COMBAT C12).
 func get_time_since_dash_end() -> float:
 	return 0.0 if _dashing else _since_dash_end
 

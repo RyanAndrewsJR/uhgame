@@ -5,10 +5,13 @@ class_name HitPipeline
 ##
 ##   base -> stat scaling (ratios) -> damage_increase -> crit
 ##   -> [target.on_hit] i-frames -> mitigation -> incoming_damage
-##   -> shields (C10) -> health -> knockback, statuses (C9), events, on-hit
+##   -> shields (C10) -> health -> knockback, statuses (C9), feel, events,
+##   on-hit, post-hit i-frames
 ##
-## Stages marked with a build step aren't built yet and pass damage through
-## unchanged.
+## Every hit goes through it: swings (basic_attack()), abilities
+## (from_ability()), League-style enemy attacks
+## (AutoAttackComponent.make_attack_context()), DoT ticks, procs.
+## take_damage() and Hurtbox hits enter at the target's on_hit() (pre-scaled).
 
 ## Every crit roll uses it. Tests seed it for repeatable rolls.
 static var crit_rng := RandomNumberGenerator.new()
@@ -76,8 +79,8 @@ static func from_ability(caster: Unit, ability: Ability, target: Node, cast: Cas
 ## Adds empowers (ABILITIES AB10) to a hit before resolve(): each one's
 ## empower_base_damage joins base_damage (so it crits with the hit), its
 ## empower_ad_ratio joins ad_ratio (the attacker's AD at the hit), its
-## empower_statuses join the hit's statuses; the hit is tagged &"empowered"
-## and highlighted. Nothing for an empty list.
+## empower_statuses join the hit's statuses; the hit is tagged &"empowered".
+## Nothing for an empty list.
 static func add_empowers(ctx: HitContext, empowers: Array[StatusEffect]) -> void:
 	if empowers.is_empty():
 		return
@@ -88,7 +91,6 @@ static func add_empowers(ctx: HitContext, empowers: Array[StatusEffect]) -> void
 			if s is StatusEffect:
 				ctx.statuses.append(s)
 	ctx.add_tag(&"empowered")
-	ctx.highlight = true
 
 
 ## A basic attack swing's hit: ad_ratio x attack_damage, PHYSICAL, the
@@ -267,7 +269,7 @@ static func make_proc(source: Unit, target: Node, amount: float) -> HitContext:
 
 ## Damage multiplier for a resistance (armor or magic_resist):
 ## 100 / (100 + r). Negative resistance uses LoL's 2 - 100 / (100 - r)
-## (proposed, COMBAT.md Open questions), so it never divides by zero.
+## (COMBAT.md, Hits), so it never divides by zero.
 static func get_mitigation_multiplier(resistance: float) -> float:
 	if resistance >= 0.0:
 		return 100.0 / (100.0 + resistance)

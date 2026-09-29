@@ -16,7 +16,6 @@ signal damaged(amount: float, source: Unit)
 enum Team { PLAYER, ENEMY }
 
 const DamageNumber := preload("res://scripts/ui/damage_number.gd")
-const StunEffect := preload("res://scripts/vfx/stun_effect.gd")   # pre-C9 stun, used only without a StatusComponent
 const STATUS_STUN: StatusEffect = preload("res://data/statuses/status_stun.tres")
 ## How long a Hurtbox hit's knockback lasts (seconds).
 const HURTBOX_KNOCKBACK_TIME := 0.12
@@ -29,8 +28,8 @@ const HIT_IFRAMES_ID := &"hit_iframes"
 ## clicking on the unit and for health bar placement.
 @export var body_center: Vector2 = Vector2(0, -14)
 ## Seconds of invulnerability after a hit gets through (COMBAT.md, "post-hit
-## i-frames"; the player 0.5). 0 = none. Other hits in the same frame are
-## blocked by it too. DoT ticks don't start it.
+## i-frames"; the player 0.3 since M1). 0 = none. Other hits in the same
+## frame are blocked by it too. DoT ticks and procs don't start it.
 @export var post_hit_iframes: float = 0.0
 
 @export_group("Sounds")
@@ -50,8 +49,9 @@ const HIT_IFRAMES_ID := &"hit_iframes"
 ## Optional: mana/energy/fury (ResourceComponent). Named resource_pool so it
 ## isn't mixed up with Godot's Resource.
 @onready var resource_pool: ResourceComponent = get_node_or_null("ResourceComponent")
-## Status effects (COMBAT C9). Optional so old scenes still load; without it
-## apply_stun() and add_speed_modifier() use their pre-C9 code.
+## Status effects (COMBAT C9). Optional so old scenes still load; every Unit
+## scene has one. Without it a unit can't be stunned (apply_stun() does
+## nothing) and add_speed_modifier() uses its pre-C9 modifiers.
 @onready var status_component: StatusComponent = get_node_or_null("StatusComponent")
 
 var hovered: bool = false:
@@ -91,8 +91,9 @@ func is_alive() -> bool:
 	return _alive
 
 
-## While any invulnerability id is held, take_damage() and Hurtbox hits
-## (damage and knockback) are ignored. Used for dash i-frames.
+## While any invulnerability id is held, every hit is blocked (on_hit():
+## damage, knockback, statuses, on-hit; Hurtbox hits too). Used for the dash
+## i-frames (&"dash") and the post-hit i-frames (HIT_IFRAMES_ID).
 func add_invulnerability(id: StringName) -> void:
 	_invulnerable[id] = true
 
@@ -156,33 +157,32 @@ func contains_point(p: Vector2) -> bool:
 
 # --- Damage -------------------------------------------------------------------
 
-## `highlight` is copied to the HitContext (numbers don't read it since C6).
 ## A thin wrapper over the hit pipeline (COMBAT.md): `amount` is already
 ## scaled, so it enters at mitigation as PHYSICAL damage that can't crit.
 ## New code builds a HitContext and calls HitPipeline.resolve() instead.
-func take_damage(amount: float, source: Unit = null, highlight: bool = false) -> void:
-	on_hit(make_hit_context(amount, source, highlight))
+func take_damage(amount: float, source: Unit = null) -> void:
+	on_hit(make_hit_context(amount, source))
 
 
-## The HitContext take_damage() uses: pre-scaled PHYSICAL damage, no crit,
-## no feel of its own (callers keep their own shake and hitstop).
-func make_hit_context(amount: float, source: Unit = null, highlight: bool = false) -> HitContext:
+## The HitContext take_damage() and Hurtbox hits use: pre-scaled PHYSICAL
+## damage, no crit, no feel of its own (callers keep their own shake and
+## hitstop).
+func make_hit_context(amount: float, source: Unit = null) -> HitContext:
 	var ctx := HitContext.new()
 	ctx.source = source
 	ctx.target = self
 	ctx.base_damage = amount
 	ctx.raw_damage = amount
 	ctx.can_crit = false
-	ctx.highlight = highlight
 	ctx.add_tag(HitContext.get_damage_type_tag(ctx.damage_type))
 	return ctx
 
 
 ## The defender's half of the hit pipeline (COMBAT.md, Architecture). Starts
 ## from ctx.raw_damage (HitPipeline.resolve() fills it in). In order:
-## i-frames, mitigation, incoming_damage, shields, health, knockback,
-## statuses, feel, events, the source's on-hit effects, post-hit i-frames. Interactables use the
-## same method name.
+## i-frames (and untargetable), mitigation, incoming_damage, shields, health,
+## the number and flash, knockback, statuses, feel, events, the source's
+## on-hit effects, post-hit i-frames. Interactables use the same method name.
 func on_hit(ctx: HitContext) -> void:
 	if not _alive or is_invulnerable():
 		ctx.blocked = true
@@ -233,7 +233,7 @@ func _apply_knockback(ctx: HitContext) -> void:
 		from = ctx.source.global_position if is_instance_valid(ctx.source) else global_position
 	var duration := maxf(ctx.knockback_duration, 0.01)
 	var dir := (global_position - from).normalized()
-	movement.displace(dir * ctx.knockback_px / duration, duration, ctx.knockback_curve, true)
+	movement.displace(dir * ctx.knockback_px / duration, duration, null, true)   # null: the unit's knockback_curve
 
 
 ## Post-hit i-frames: invulnerable for post_hit_iframes seconds of game time
@@ -252,26 +252,13 @@ func _start_hit_iframes() -> void:
 ## longer one. A thin wrapper (COMBAT C9): it applies status_stun for
 ## `duration` from `source` (tenacity shortens it).
 func apply_stun(duration: float, source: Unit = null) -> void:
-	if not _alive:
-		return
-	if status_component:
+	if _alive and status_component:
 		status_component.apply_status(STATUS_STUN, source, duration)
-		return
-	var fx := get_node_or_null("StunEffect")
-	if fx == null:
-		fx = Node2D.new()
-		fx.set_script(StunEffect)
-		fx.name = "StunEffect"
-		fx.position = body_center + Vector2(0, -get_gameplay_radius_px() * 0.9)
-		add_child(fx)
-	fx.extend(duration)
 
 
-## Any status tagged &"stun" (or the pre-C9 StunEffect).
+## Any status tagged &"stun".
 func is_stunned() -> bool:
-	if status_component and status_component.has_tag(&"stun"):
-		return true
-	return has_node("StunEffect")
+	return status_component != null and status_component.has_tag(&"stun")
 
 
 ## A status blocks casting (stun, silence).
@@ -285,14 +272,12 @@ func is_dash_blocked() -> bool:
 
 
 ## The tags of the unit's active status effects (&"target:<tag>" scopes,
-## COMBAT C8). From the StatusComponent (C9); without one, only the stun.
+## COMBAT C8), from the StatusComponent (none without one).
 func get_status_tags() -> Array[StringName]:
 	if status_component:
 		return status_component.get_tags()
-	var result: Array[StringName] = []
-	if is_stunned():
-		result.append_array([&"cc", &"stun"])
-	return result
+	var none: Array[StringName] = []
+	return none
 
 
 # --- Reaction rules -----------------------------------------------------------
@@ -429,8 +414,6 @@ func _on_died() -> void:
 	if abilities:
 		abilities.cancel_pending()
 		abilities.interrupt_cast()   # its telegraph goes now, not at the end of the cast time
-	if has_node("StunEffect"):
-		$StunEffect.queue_free()
 	if status_component:
 		status_component.clear()
 	movement.stop()

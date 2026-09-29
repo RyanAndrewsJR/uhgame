@@ -52,7 +52,10 @@ var vector_end: Vector2 = Vector2.ZERO
 var point: Vector2
 ## Normalized direction from the caster toward the aim point.
 var direction: Vector2 = Vector2.RIGHT
-## The clicked unit, for UNIT abilities.
+## UNIT abilities: the chosen target (the enemy under the cursor, or the
+## target_forgiveness pick). Other casts: the condition target (the enemy
+## nearest the aim within cast_range) when the ability needs one (AB12), or
+## a free cast's given target (the unit hit, the triggering cast's target).
 var target: Unit
 ## A floor warning shown during the cast time (Ability.on_cast_started()).
 ## AbilityComponent removes it if the cast is cancelled or interrupted;

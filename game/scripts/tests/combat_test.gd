@@ -41,8 +41,14 @@ extends Node2D
 ## recovery keeps the combo; the windup, a stun or death resets it.
 ## Fix: a caster that dies or is freed mid-cast takes its telegraph with it
 ## at once (COMBAT.md, Known bugs).
+## Cleanup pass (2026-09-29): League-style enemy attacks through
+## HitPipeline.resolve() (damage_increase, crit, hit: scopes).
 ## The Knight's own crit_chance and life_steal are held at 0 by a test
 ## baseline (_zero_knight_extras()), so exact-number checks aren't random.
+## Combo timings are read from the data (combo_knight.tres speed_scale, 1.266):
+## a data check pins the tuning, timing checks derive from it
+## (_swing_frames()), and a check that changes the shared combo puts back
+## the value it found.
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
@@ -168,16 +174,16 @@ func _test_take_damage_wrapper() -> void:
 	var local: Array = []
 	dummy.damaged.connect(func(amount: float, source: Unit) -> void: local.append([amount, source]))
 	_clear_events()
-	dummy.take_damage(50.0, knight, true)
+	dummy.take_damage(50.0, knight)
 	_check("health 280 -> 230", dummy.health.current, 230.0)
 	_check("Unit.damaged still emits (amount, source)", local, [[50.0, knight]])
 	_check("Events.unit_hit once", _hits.size(), 1)
 	_check("Events.unit_damaged once", _damaged.size(), 1)
 	if _hits.size() == 1:
 		var ctx := _hits[0]
-		_check("wrapped hit: PHYSICAL, can't crit, highlight kept",
-			[ctx.damage_type, ctx.can_crit, ctx.highlight, ctx.source == knight],
-			[HitContext.DamageType.PHYSICAL, false, true, true])
+		_check("wrapped hit: PHYSICAL, can't crit",
+			[ctx.damage_type, ctx.can_crit, ctx.source == knight],
+			[HitContext.DamageType.PHYSICAL, false, true])
 	_clear_events()
 	dummy.take_damage(0.0, knight)
 	_check("0 damage: unit_hit yes, unit_damaged no", [_hits.size(), _damaged.size()], [1, 0])
@@ -315,7 +321,7 @@ func _test_combo_data() -> void:
 	_check("knockback 6 / 6 / 20 px", [s[0].knockback_px, s[1].knockback_px, s[2].knockback_px], [6.0, 6.0, 20.0])
 	_check("combo_reset_time 0.6, forgiveness 0.1", [combo.combo_reset_time, combo.hit_forgiveness], [0.6, 0.1])
 	_check("reach at base = 175 u = 56 px", knight.attack.get_swing_reach_px(s[0]), 56.0)
-	_check("select is unbound (left mouse is attack only)", InputMap.action_get_events(&"select").is_empty(), true)
+	_check("left mouse is attack only (the LoL select action is gone)", InputMap.has_action(&"select"), false)
 	_check("slimes have no combo (League-style attack)", _spawn_dummy().attack.can_swing(), false)
 	_check("Knight abilities default to cancels_swing AFTER_HIT",
 		[knight.abilities.q.cancels_swing, knight.abilities.w.cancels_swing, knight.abilities.e.cancels_swing, knight.abilities.r.cancels_swing],
@@ -339,14 +345,17 @@ func _test_swing_timing_and_damage() -> void:
 		_report(false, "the swing landed", "never")
 		return
 	var frames: int = _landed[0][0] - start
-	_check_near("hit lands ~0.08 s after the click (5 frames)", frames, 5.0, 1.0)
+	_check_near("hit lands ~0.08 s / speed_scale after the click (%d frames)" % _swing_frames(0.08), frames, _swing_frames(0.08), 1.0)
 	_check("swing 1 hits the dummy for 1.0 x 64 AD", dummy.health.max_health - dummy.health.current, 64.0)
 	_check("in recovery after the hit", knight.attack.is_in_recovery(), true)
 	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 30)
 	# Game time: the hit's light hitstop (0.03 s at time_scale 0.05) adds
 	# physics frames but almost no game time. The test's clock also counts
 	# the frame the swing started in, which the swing itself skips (+1/60).
-	_check_near("the swing lasts 0.3 s of game time (18 frames at 1/60 s)", _game_time - start_time, 0.3 + 1.0 / 60.0, 0.004)
+	# At speed_scale 1.266 (combo_knight.tres) a 0.3 s swing is 0.237 s: 15 frames.
+	var swing_frames := _swing_frames(0.3)
+	_check_near("the swing lasts 0.3 s / speed_scale of game time (%d frames at 1/60 s)" % swing_frames,
+		_game_time - start_time, (swing_frames + 1) / 60.0, 0.004)
 	_check("root released after the swing", knight.movement.can_move(), true)
 	_check("next swing is swing 2", knight.attack.get_combo_index(), 1)
 	dummy.queue_free()
@@ -417,7 +426,7 @@ func _test_buffered_press() -> void:
 	knight.attack.swing_started.disconnect(record)
 	_check("the queued click started swing 2 (the buffer waited out the swing)", started.size() >= 2 and started[1][1] == 1, true)
 	if started.size() >= 2:
-		_check_near("right after swing 1 ended (~18 frames)", started[1][0] - started[0][0], 18.0, 2.0)
+		_check_near("right after swing 1 ended (~%d frames)" % _swing_frames(0.3), started[1][0] - started[0][0], _swing_frames(0.3), 2.0)
 	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
 
 
@@ -502,13 +511,16 @@ func _test_iron_resolve_swing() -> void:
 func _test_attack_speed() -> void:
 	_section("C2: attack speed speeds up the combo")
 	await _reset_knight()
-	_check("base: combo speed 1.0", knight.attack.get_swing_speed(), 1.0)
+	var scale := knight.attack.combo.speed_scale
+	_check("get_attack_interval() = 1 / 0.7 attack speed", knight.attack.get_attack_interval(), 1.0 / 0.7)
+	_check("base: combo speed = speed_scale (%s)" % scale, knight.attack.get_swing_speed(), scale)
 	knight.stats_component.add_modifier(StatModifier.create(&"attack_speed", PERCENT_ADD, 0.5, &"test_attack_speed"))
-	_check("+50% bonus attack speed: combo speed 1.5", knight.attack.get_swing_speed(), 1.5)
+	_check("+50% bonus attack speed: combo speed 1.5 x speed_scale", knight.attack.get_swing_speed(), 1.5 * scale)
 	var start := _frame
 	knight.attack.try_swing(Vector2.RIGHT)
 	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
-	_check_near("the swing lasts 0.3 / 1.5 = 0.2 s (12 frames)", _frame - start, 12.0, 1.0)
+	var frames := _swing_frames(0.3 / 1.5)
+	_check_near("the swing lasts 0.3 / (1.5 x speed_scale) s (%d frames)" % frames, _frame - start, frames, 1.0)
 	knight.stats_component.remove_modifiers_from(&"test_attack_speed")
 
 
@@ -517,8 +529,9 @@ func _test_attack_speed() -> void:
 func _test_combo_pace() -> void:
 	_section("Combo pace: the finisher's breather and the speed knob")
 	var combo := knight.attack.combo
-	_check("pause_after 0 / 0 / 0.25 s, speed_scale 1.0",
-		[combo.swings[0].pause_after, combo.swings[1].pause_after, combo.swings[2].pause_after, combo.speed_scale], [0.0, 0.0, 0.25, 1.0])
+	var scale := combo.speed_scale
+	_check("pause_after 0 / 0 / 0.25 s, speed_scale 1.266",
+		[combo.swings[0].pause_after, combo.swings[1].pause_after, combo.swings[2].pause_after, combo.speed_scale], [0.0, 0.0, 0.25, 1.266])
 	await _reset_knight()
 	for i in 3:
 		knight.attack.try_swing(Vector2.RIGHT)
@@ -531,7 +544,7 @@ func _test_combo_pace() -> void:
 	var t0 := _game_time
 	knight.player_input.buffer_action(&"attack")   # a click during the breather
 	await _wait_until(func() -> bool: return knight.attack.is_swinging(), 40)
-	_check_near("the click fires when the 0.25 s breather ends", _game_time - t0, 0.25, 0.04)
+	_check_near("the click fires when the 0.25 s / speed_scale breather ends", _game_time - t0, 0.25 / scale, 0.04)
 	_check("starting the combo over", knight.attack.get_combo_index(), 0)
 	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
 
@@ -552,7 +565,15 @@ func _test_combo_pace() -> void:
 	knight.attack.try_swing(Vector2.RIGHT)
 	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
 	_check_near("a 0.3 s swing takes 0.15 s", _game_time - start, 0.15 + 1.0 / 60.0, 0.02)
-	combo.speed_scale = 1.0
+	combo.speed_scale = scale   # back to the data's value (it's the shared combo_knight.tres), not to 1.0
+
+
+## Physics frames a swing timing of `seconds` (at base attack speed) lasts at
+## the Knight's combo speed_scale: the timer is done within
+## AutoAttackComponent.SWING_TIME_EPSILON of 0.
+func _swing_frames(seconds: float) -> int:
+	var scaled := seconds / knight.attack.combo.speed_scale
+	return ceili((scaled - AutoAttackComponent.SWING_TIME_EPSILON) * 60.0)
 
 
 # --- Combo lengths: any number of swings --------------------------------------------
@@ -955,6 +976,7 @@ func _test_getting_hit() -> void:
 	await _test_getting_hit_data()
 	await _test_post_hit_iframes()
 	await _test_slime_hit_and_push()
+	await _test_enemy_hit_pipeline()
 	await _test_whiff()
 	await _test_stronger_knockback()
 
@@ -1039,6 +1061,51 @@ func _test_slime_hit_and_push() -> void:
 	_check("dashed down instead of being pushed", knight.global_position.y - ARENA.y > 100.0, true)
 	slime.attack.cancel()
 	slime.queue_free()
+
+
+## Cleanup pass (2026-09-29): a League-style enemy attack is built by
+## AutoAttackComponent.make_attack_context() and goes through
+## HitPipeline.resolve(), so the attacker's damage_increase, crit and hit:
+## scopes apply to it like they do to the player's swings.
+func _test_enemy_hit_pipeline() -> void:
+	_section("Enemy basic attacks through HitPipeline.resolve() (damage_increase, crit, hit: scopes)")
+	var scoped := func(stat: StringName, value: float, scope: StringName) -> StatModifier:
+		return StatModifier.create(stat, FLAT, value, &"test_enemy_hit", scope)
+	var cases := [
+		["no modifiers: 22 (1.0 x 22 AD), unchanged", [], 22.0, false],
+		["+50% damage_increase: 33", [scoped.call(&"damage_increase", 0.5, &"")], 33.0, false],
+		["+50% on hit:basic_attack: 33", [scoped.call(&"damage_increase", 0.5, &"hit:basic_attack")], 33.0, false],
+		["+50% on hit:ability only: still 22", [scoped.call(&"damage_increase", 0.5, &"hit:ability")], 22.0, false],
+		["100% crit: 22 x 1.75 = 38.5", [scoped.call(&"crit_chance", 1.0, &"")], 38.5, true],
+		["100% crit on hit:basic_attack only: 38.5", [scoped.call(&"crit_chance", 1.0, &"hit:basic_attack")], 38.5, true],
+	]
+	var slime := _spawn_dummy()
+	for c: Array in cases:
+		await _reset_knight()
+		await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+		knight.health.heal(10000.0)
+		_place(slime, knight.global_position + Vector2(45, 0))
+		var mods: Array[StatModifier] = []
+		mods.assign(c[1])
+		slime.stats_component.add_modifiers(mods)
+		await _frames(1)
+		_hits.clear()
+		slime.attack.attack(knight)
+		await _wait_until(func() -> bool: return _hits.any(func(h: HitContext) -> bool: return h.source == slime), 60)
+		slime.attack.cancel()
+		slime.stats_component.remove_modifiers_from(&"test_enemy_hit")
+		var found := _hits.filter(func(h: HitContext) -> bool: return h.source == slime)
+		if found.is_empty():
+			_report(false, c[0], "no hit")
+			continue
+		var hit: HitContext = found[0]
+		_check("%s" % c[0], [hit.raw_damage, hit.is_crit, hit.has_tag(&"basic_attack"), hit.has_tag(&"physical")], [c[2], c[3], true, true])
+	var hit_ctx := slime.attack.make_attack_context(knight)
+	_check("its HitContext: 1.0 x AD, PHYSICAL, can crit, feel NONE, the slime's 12 px push",
+		[hit_ctx.ad_ratio, hit_ctx.base_damage, hit_ctx.damage_type, hit_ctx.can_crit, hit_ctx.feel, hit_ctx.knockback_px],
+		[1.0, 0.0, HitContext.DamageType.PHYSICAL, true, HitContext.Feel.NONE, 12.0])
+	slime.queue_free()
+	knight.health.heal(10000.0)
 
 
 func _test_whiff() -> void:
@@ -1614,9 +1681,9 @@ func _test_c8_crits() -> void:
 
 	var nothing := Node2D.new()   # no on_hit(): only the attacker's stages run
 	add_child(nothing)
-	_check("knight.tres: crit_chance 0.25, life_steal 0.01 (0 for this test: the baseline)",
+	_check("knight.tres: crit_chance 0.25 (0 for this test: the baseline), life_steal 0 (zero sustain)",
 		[knight.stats_component.get_base_value(&"crit_chance"), knight.stats_component.get_base_value(&"life_steal"),
-			knight.stats_component.get_stat(&"crit_chance"), knight.stats_component.get_stat(&"life_steal")], [0.25, 0.01, 0.0, 0.0])
+			knight.stats_component.get_stat(&"crit_chance"), knight.stats_component.get_stat(&"life_steal")], [0.25, 0.0, 0.0, 0.0])
 	_check("0% crit (the Knight's own 25% taken back by the test baseline): 0 crits in 200 rolls", _count_crits(nothing, 200), 0)
 	knight.stats_component.add_modifier(StatModifier.create(&"crit_chance", FLAT, 0.25, &"test_c8"))
 	HitPipeline.crit_rng.seed = 8
@@ -1930,7 +1997,7 @@ func _test_c9_speed_wrapper() -> void:
 	await _wait_until(func() -> bool: return not sc.has_status(&"iron_resolve"), 150)
 	_check("gone after 2 s, speed back to 375", [sc.has_status(&"iron_resolve"), knight.movement.get_move_speed()], [false, 375.0])
 	knight.attack.cancel_swing()
-	knight.attack.add_next_attack_modifier(&"iron_resolve", 0.0)   # clear its empowered swing
+	sc.remove_status(AutoAttackComponent.get_empower_status_id(&"iron_resolve"))   # clear its empowered swing
 	knight.attack.cancel()
 
 	var dummy := _spawn_dummy()

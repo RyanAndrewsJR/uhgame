@@ -1,27 +1,27 @@
 class_name AutoAttackComponent
 extends Node
-## League-of-Legends-style auto-attacks for a Unit.
+## A Unit's basic attacks (COMBAT.md). Two modes:
 ##
+## League-style (enemies; `combo` null):
 ## attack(target)       - chase the target until in range, then attack it
-##                        repeatedly (like right-clicking an enemy).
-## attack_move(point)   - walk toward a point, attacking the nearest enemy
-##                        that comes within acquisition range (A-click).
-## cancel()             - drop the attack order (moving does this).
+##                        repeatedly.
+## cancel()             - drop the attack order.
 ##
-## Each attack has a windup (the unit is rooted; moving now cancels the
-## attack and refunds it) and then the hit. After the hit you are free to
-## move while the attack timer counts down; that's what lets players
-## "kite" / "orb walk". The attack timer starts when the windup starts, like
-## LoL, so attack speed = attacks per second.
+## Each attack has a windup (the unit is rooted; a lock cancels the attack
+## and refunds it) and then the hit, through the hit pipeline
+## (HitPipeline.resolve(): damage_increase, crit and hit: scopes apply). After
+## the hit the unit is free to move while the attack timer counts down. The
+## attack timer starts when the windup starts, like LoL, so attack speed =
+## attacks per second.
 ##
-## Combo mode (COMBAT.md): with `combo` set, the unit instead swings on
+## Combo mode (the player; COMBAT.md): with `combo` set, the unit swings on
 ## command, Hades-style: try_swing(direction) starts the next swing of the
 ## combo toward that direction. Each swing roots for its whole duration, hits
 ## everything in its arc at the end of its windup (through the hit pipeline),
 ## then recovers. The next swing continues the combo; combo_reset_time
 ## without attacking starts it over. cancel_swing() (dash, stun, a cast)
-## stops a swing with no hit and resets the combo. The player uses this; the
-## League-style orders above stay for enemies.
+## stops a swing; a swing counts once its hit has landed, so a cancel the
+## player chose after the hit keeps the combo and anything else resets it.
 ##
 ## MELEE combos (COMBAT.md, Melee basic attacks): at swing start the unit
 ## looks for an aimed enemy (within reach + assist_range_bonus_px and
@@ -35,6 +35,8 @@ extends Node
 ## full duration.
 
 signal windup_started(target: Unit, windup_time: float)
+## League-style attack: the hit is about to resolve. `damage` is the hit's
+## damage before damage_increase, crit and mitigation.
 signal attack_landed(target: Unit, damage: float)
 signal windup_cancelled
 ## League-style attack: the windup ended but the target was out of reach
@@ -46,10 +48,9 @@ signal swing_started(index: int, direction: Vector2, swing: AttackSwing)
 ## Combo mode: the swing's hit moment. `targets` is empty for a whiff.
 signal swing_landed(index: int, targets: Array[Unit])
 ## Combo mode: a swing stopped early (dash, stun, cast, death). No hit if it
-## was still winding up. The combo resets.
+## was still winding up. The combo resets unless the hit had landed and the
+## player chose the cancel (cancel_swing(true)).
 signal swing_cancelled
-## Combo mode: a swing ran to the end of its recovery.
-signal swing_finished
 
 enum State { IDLE, CHASING, WINDUP, BACKSWING }
 
@@ -62,9 +63,6 @@ const SWING_LOCK := &"attack_swing"
 ## residue (0.3 - 18 x 1/60) doesn't add a physics frame.
 const SWING_TIME_EPSILON := 0.0001
 
-## Extra range (LoL units) beyond attack range in which attack-move will
-## pick up targets.
-@export var attack_move_acquire_bonus: float = 250.0
 ## How often to re-path while chasing a moving target (seconds).
 @export var chase_repath_interval: float = 0.1
 ## League-style attack: the hit pushes the target this far, px (slime 12).
@@ -105,13 +103,7 @@ var bonus_attack_speed: float = 0.0:
 var _attack_timer: float = 0.0     # time until the next attack may start
 var _windup_left: float = 0.0
 var _repath_timer: float = 0.0
-var _attack_moving: bool = false
-var _attack_move_point: Vector2
 var _locks: Dictionary = {}        # e.g. casting an ability
-## Bonuses applied to the next attack that lands, then removed.
-## id -> {bonus_damage, on_hit: Callable, time_left}. Since ABILITIES AB10
-## only used by a unit without a StatusComponent (empowers are statuses).
-var _next_attack_mods: Dictionary = {}
 ## add_next_attack_modifier()'s on_hit per empower status id, called per
 ## target when that empower is used up (AB10).
 var _empower_callbacks: Dictionary = {}
@@ -168,10 +160,6 @@ func get_range_px() -> float:
 ## enemy_hit_forgiveness. The windup starts, and the hit lands, only within it.
 func is_in_range(other: Unit) -> bool:
 	return unit.edge_distance_to(other) <= get_range_px() * (1.0 - enemy_hit_forgiveness)
-
-
-func is_attacking() -> bool:
-	return target != null or _attack_moving
 
 
 func is_winding_up() -> bool:
@@ -318,7 +306,6 @@ func cancel_swing(keep_combo_if_landed: bool = false) -> void:
 func attack(new_target: Unit) -> void:
 	if not _is_valid_target(new_target):
 		return
-	_attack_moving = false
 	if new_target == target and state != State.IDLE:
 		return  # Re-clicking the same target doesn't restart the attack.
 	if state == State.WINDUP:
@@ -328,22 +315,11 @@ func attack(new_target: Unit) -> void:
 	_repath_timer = 0.0
 
 
-func attack_move(point: Vector2) -> void:
-	if state == State.WINDUP:
-		_cancel_windup()
-	target = null
-	_attack_moving = true
-	_attack_move_point = point
-	state = State.IDLE
-	unit.movement.move_to(point)
-
-
 func cancel() -> void:
 	cancel_swing()
 	if state == State.WINDUP:
 		_cancel_windup()
 	target = null
-	_attack_moving = false
 	state = State.IDLE
 
 
@@ -367,11 +343,11 @@ func reset_attack_timer() -> void:
 ## A thin wrapper (ABILITIES AB10): it applies an empower status
 ## &"empower_<id>" (tags empower + buff, BASIC_ATTACK_HIT, the bonus as
 ## empower_base_damage, refreshed by a new call) and calls on_hit per enemy
-## the swing hits when it's used up. Without a StatusComponent, the old path.
+## the swing hits when it's used up. Nothing on a unit without a
+## StatusComponent (every Unit scene has one).
 func add_next_attack_modifier(id: StringName, bonus_damage: float, on_hit: Callable = Callable(), duration: float = -1.0) -> void:
 	var statuses := unit.status_component
 	if statuses == null:
-		_next_attack_mods[id] = {"bonus_damage": bonus_damage, "on_hit": on_hit, "time_left": duration}
 		return
 	var effect := StatusEffect.new()
 	effect.id = get_empower_status_id(id)
@@ -401,14 +377,12 @@ func set_empower_on_hit(status_id: StringName, on_hit: Callable) -> void:
 
 
 func has_next_attack_modifier(id: StringName) -> bool:
-	if _next_attack_mods.has(id):
-		return true
 	return unit.status_component != null and unit.status_component.has_status(get_empower_status_id(id))
 
 
 ## The next swing that hits has a bonus (any basic attack empower).
 func is_empowered() -> bool:
-	return not _next_attack_mods.is_empty() or not _get_basic_attack_empowers().is_empty()
+	return not _get_basic_attack_empowers().is_empty()
 
 
 ## The status id add_next_attack_modifier(id) uses: &"empower_<id>" (so it
@@ -457,12 +431,6 @@ func remove_lock(id: StringName) -> void:
 
 func _physics_process(delta: float) -> void:
 	_attack_timer = maxf(_attack_timer - delta, 0.0)
-	for id in _next_attack_mods.keys():
-		var mod: Dictionary = _next_attack_mods[id]
-		if mod.time_left >= 0.0:
-			mod.time_left -= delta
-			if mod.time_left <= 0.0:
-				_next_attack_mods.erase(id)
 	if not unit.is_alive():
 		return
 	if combo != null:
@@ -473,16 +441,6 @@ func _physics_process(delta: float) -> void:
 		if state == State.WINDUP:
 			_cancel_windup()
 		state = State.IDLE
-		if _attack_moving:
-			unit.movement.move_to(_attack_move_point)
-
-	if _attack_moving and target == null:
-		var found := _find_attack_move_target()
-		if found:
-			target = found
-			state = State.CHASING
-		elif not unit.movement.has_order():
-			_attack_moving = false  # Arrived with nothing to hit.
 
 	if target == null or not _locks.is_empty():
 		return
@@ -657,16 +615,10 @@ func _land_swing() -> void:
 	var half_arc := deg_to_rad(_swing.arc_deg) * 0.5 * forgiveness
 	var targets := AbilityUtil.in_sight(unit.global_position,
 		AbilityUtil.in_cone(unit, unit.global_position, _swing_direction, reach, half_arc))   # no hits through walls
-	var bonus := 0.0
 	var on_hits: Array[Callable] = []
 	var empowers := _get_basic_attack_empowers()   # read at the hit moment (AB10)
-	var empowered := not targets.is_empty() and (not _next_attack_mods.is_empty() or not empowers.is_empty())
+	var empowered := not targets.is_empty() and not empowers.is_empty()
 	if empowered:
-		for mod in _next_attack_mods.values():
-			bonus += mod.bonus_damage
-			if mod.on_hit.is_valid():
-				on_hits.append(mod.on_hit)
-		_next_attack_mods.clear()
 		on_hits.append_array(_use_up_empowers(empowers))   # used up before the hits resolve
 	var crit_roll := HitContext.CritRoll.new()   # one crit roll per swing
 	for t in targets:
@@ -674,10 +626,8 @@ func _land_swing() -> void:
 		ctx.crit_roll = crit_roll
 		if _is_dash_strike:
 			ctx.add_tag(&"dash_strike")   # hit:dash_strike bonuses, reaction rules (C12)
-		ctx.base_damage += bonus
 		if empowered:
 			HitPipeline.add_empowers(ctx, empowers)
-		ctx.highlight = empowered
 		HitPipeline.resolve(ctx)
 		if not ctx.blocked:
 			for f in on_hits:
@@ -691,7 +641,6 @@ func _finish_swing() -> void:
 	_next_swing_index = _get_index_after_swing()
 	_combo_reset_left = combo.combo_reset_time
 	_end_swing()
-	swing_finished.emit()
 
 
 ## The combo index after the current swing: the next swing (after the last
@@ -728,37 +677,34 @@ func _land_attack() -> void:
 	if not is_in_range(hit) or not WorldQuery.has_line_of_sight(unit.global_position, hit.global_position):
 		attack_whiffed.emit(hit)   # Out of reach, or a wall in between: a miss.
 		return
-	var ad := unit.stats_component.get_stat(&"attack_damage")
-	var dmg := ad
-	var on_hits: Array[Callable] = []
-	for mod in _next_attack_mods.values():
-		dmg += mod.bonus_damage
-		if mod.on_hit.is_valid():
-			on_hits.append(mod.on_hit)
+	var ctx := make_attack_context(hit)
 	var empowers := _get_basic_attack_empowers()   # AB10: the same empowers as a swing
-	for e in empowers:
-		dmg += e.empower_base_damage + e.empower_ad_ratio * ad
-	var empowered := not _next_attack_mods.is_empty() or not empowers.is_empty()
-	_next_attack_mods.clear()
-	on_hits.append_array(_use_up_empowers(empowers))
-	attack_landed.emit(hit, dmg)
-	var ctx := hit.make_hit_context(dmg, unit, empowered)
-	if not empowers.is_empty():
-		ctx.add_tag(&"empowered")
-		for e in empowers:
-			for s in e.empower_statuses:
-				if s is StatusEffect:
-					ctx.statuses.append(s)
-	ctx.add_tag(&"basic_attack")   # on-hit and hit:basic_attack scopes (C8); enemies have none yet
-	ctx.knockback_px = hit_knockback_px
-	ctx.knockback_duration = hit_knockback_duration
-	ctx.knockback_from = unit.global_position
-	hit.on_hit(ctx)
+	HitPipeline.add_empowers(ctx, empowers)
+	var on_hits := _use_up_empowers(empowers)
+	attack_landed.emit(hit, HitPipeline.get_scaled_damage(ctx))
+	HitPipeline.resolve(ctx)   # damage_increase, crit and hit:/target: scopes, like a swing
 	if ctx.blocked:
 		return  # I-frames block on-hit effects too.
 	for f in on_hits:
 		if is_instance_valid(hit):
 			f.call(hit)
+
+
+## The League-style attack's hit on `hit` (before empowers): 1.0 x the
+## attack_damage stat, PHYSICAL, tagged basic_attack, can crit, feel NONE,
+## the hit_knockback_px push away from the attacker. Pass it to
+## HitPipeline.resolve().
+func make_attack_context(hit: Unit) -> HitContext:
+	var ctx := HitContext.new()
+	ctx.source = unit
+	ctx.target = hit
+	ctx.ad_ratio = 1.0
+	ctx.damage_type = HitContext.DamageType.PHYSICAL
+	ctx.add_tag(&"basic_attack")   # on-hit and hit:basic_attack scopes (C8)
+	ctx.knockback_px = hit_knockback_px
+	ctx.knockback_duration = hit_knockback_duration
+	ctx.knockback_from = unit.global_position
+	return ctx
 
 
 func _cancel_windup() -> void:
@@ -808,18 +754,3 @@ func _approach_point() -> Vector2:
 
 func _is_valid_target(t: Unit) -> bool:
 	return t != null and is_instance_valid(t) and t.is_targetable() and unit.is_enemy_of(t)   # untargetable: dropped (AB10)
-
-
-func _find_attack_move_target() -> Unit:
-	var best: Unit = null
-	var best_dist := INF
-	var reach := get_range_px() + Units.to_px(attack_move_acquire_bonus)
-	for node in unit.get_tree().get_nodes_in_group("units"):
-		var other := node as Unit
-		if not _is_valid_target(other):
-			continue
-		var d := unit.edge_distance_to(other)
-		if d <= reach and d < best_dist:
-			best = other
-			best_dist = d
-	return best

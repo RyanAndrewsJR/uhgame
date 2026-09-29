@@ -2,6 +2,10 @@ class_name VFX
 ## Quick placeholder effects built from shapes and tweens. Everything here
 ## cleans itself up. Swap for real particles/sprites later.
 
+## afterimage() sorts this far above the unit's feet (px), so y-sorting draws
+## it just behind the unit (MovementVFXComponent uses the same offset).
+const AFTERIMAGE_SORT_OFFSET := 0.02
+
 
 ## Crescent slash sweeping across `half_arc` on either side of `angle`.
 static func slash(parent: Node, origin: Vector2, angle: float, inner: float, outer: float,
@@ -50,12 +54,18 @@ static func ring(parent: Node, pos: Vector2, from_radius: float, to_radius: floa
 	tw.tween_callback(line.queue_free)
 
 
-## A fading copy of the unit's body shapes (dash trails).
+## A fading copy of the unit's body shapes (dash trails). Like the F3 dash
+## afterimages (MovementVFXComponent), it sorts just above the unit's feet in
+## the y-sorted Entities, so it draws behind the unit and above the floor
+## tiles (a negative z_index drew it under the TileMapLayer, unseen).
 static func afterimage(unit: Unit, color: Color = Color(0.6, 0.8, 1.0, 0.5), duration: float = 0.25) -> void:
+	var holder := Node2D.new()
+	holder.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF   # a still image where it's placed
+	holder.global_position = unit.global_position - Vector2(0.0, AFTERIMAGE_SORT_OFFSET)
 	var ghost := Node2D.new()
-	ghost.global_position = unit.global_position
+	ghost.position = Vector2(0.0, AFTERIMAGE_SORT_OFFSET)
 	ghost.scale = unit.body.scale
-	ghost.z_index = -1
+	holder.add_child(ghost)
 	for child in unit.body.get_children():
 		var src := child as Polygon2D
 		if src == null:
@@ -65,10 +75,10 @@ static func afterimage(unit: Unit, color: Color = Color(0.6, 0.8, 1.0, 0.5), dur
 		p.position = src.position
 		p.color = color
 		ghost.add_child(p)
-	unit.get_parent().add_child(ghost)
-	var tw := ghost.create_tween()
+	unit.get_parent().add_child(holder)
+	var tw := holder.create_tween()
 	tw.tween_property(ghost, "modulate:a", 0.0, duration)
-	tw.tween_callback(ghost.queue_free)
+	tw.tween_callback(holder.queue_free)
 
 
 ## Vertical light pillar / impact flash at a point.

@@ -20,8 +20,10 @@ const SAVE_PATH := "user://settings.cfg"
 const DASH_DIRECTION := &"dash_direction"
 ## How INSTANT abilities cast: Player.CastMode (ABILITIES.md, Cast mode).
 const CAST_MODE := &"cast_mode"
-## One volume slider per bus (AUDIO.md). Their keys are &"volume_<bus>" in
-## lower case (&"volume_master"...), saved as whole percents in [audio].
+## Every bus in default_bus_layout.tres, in order: the one bus list (Audio
+## and the pause menu read it). One volume slider per bus (AUDIO.md); their
+## keys are &"volume_<bus>" in lower case (&"volume_master"...), saved as
+## whole percents in [audio].
 const VOLUME_BUSES: Array[StringName] = [&"Master", &"Music", &"SFX", &"UI", &"Ambience", &"Voice"]
 
 # Saved as readable words, so a hand-edited or old file can't pick a wrong

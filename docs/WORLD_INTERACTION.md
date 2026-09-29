@@ -29,7 +29,7 @@ Example: an Akshan-style swing is an ability that asks `WorldQuery` for a grappl
 | 9 | pickup | dropped loot, gold, potions | planned |
 | 10 | hazard | traps, damaging floors | planned |
 
-Walking masks world, pit, low_obstacle, and the other team's bodies. `dash()` currently masks world only (`collision_mask & 1`), which is correct: pits and units are ignored during a dash.
+Planned: walking masks world, pit, low_obstacle, and the other team's bodies. As it is today: the player's and the slimes' bodies both mask 7 (world, player, enemies), so units also collide with their own team (pit and low_obstacle don't exist yet). A ghosted `dash()` (the dash, Lunge) masks world only while it runs (`collision_mask & 1`), which is correct: pits and units are ignored during a dash; `displace()` keeps the unit's own mask.
 
 ## Surface tags
 - **Tiles:** add TileSet **custom data layers** to `dungeon_tileset.tres` with bools `grappleable`, `destructible`, `bounce`, `wall_slam`, and set them per tile.
@@ -38,7 +38,7 @@ Walking masks world, pit, low_obstacle, and the other team's bodies. `dash()` cu
 - `WorldQuery` hides the difference: for a TileMapLayer hit it gets the cell via `get_coords_for_body_rid()` and reads the tile data. For anything else it reads `SurfaceTags`.
 
 ## WorldQuery (autoload, `res://scripts/autoload/world_query.gd`)
-This is the only place raycasts are written. It's built on `PhysicsDirectSpaceState2D` (`intersect_ray`, `intersect_shape`, `cast_motion`).
+This is the only place raycasts are written, with one exception today: each Enemy's own `Sight` RayCast2D (`slime.tscn`, mask 1, used by `enemy.gd` `_can_see_player()` for aggro), older than WorldQuery; it moves into `has_line_of_sight()` when ENEMIES_AI.md reworks aggro. It's built on `PhysicsDirectSpaceState2D` (`intersect_ray`, `intersect_shape`, `cast_motion`). No `debug_draw` yet (How to answer, below, asks for one): add it with the next query.
 Built:
 - `has_line_of_sight(from, to, mask = 1)`: walls only; units don't block it. The melee target pull and every hit (COMBAT.md: basic attacks never hit through walls; abilities unless `ignores_walls`).
 - `shape_sweep(from, to, radius, mask = 1)`: the first block along the path (prevents tunneling; projectiles, ABILITIES.md). A circle through `cast_motion`; returns {position (the circle's center where it stops), fraction} or {} when clear.
@@ -57,7 +57,7 @@ To add when the first ability needs them:
 - `tether(anchor, max_length)`: free movement clamped to a radius around the anchor
 - `orbit(anchor, radius, angular_speed, dir_sign, max_angle)`: the swing
 
-Movement methods emit `Events.unit_impacted(ImpactContext)` when a displacement hits a wall or a unit. Wall-slam stuns are `ReactionRule`s (trigger `IMPACT`, surface tag `wall_slam`), as in the CONVENTIONS.md worked example. Whether `bounce` is movement or an effect is an open question.
+*(proposed, not built)* Movement methods will emit `Events.unit_impacted(ImpactContext)` when a displacement hits a wall or a unit; neither the signal nor `ImpactContext` exists yet (DECISIONS.md, World Interaction, 2026-09-25). Wall-slam stuns will be `ReactionRule`s (trigger `IMPACT`, surface tag `wall_slam`), as in the CONVENTIONS.md worked example. Whether `bounce` is movement or an effect is an open question.
 `dash()` and `displace()` move with `move_and_slide()`, so a dash or knockback into a wall slides along it (like walking) instead of stopping; only a near-head-on hit stops.
 Each movement method defines how it starts, what ends it, and what happens on hitting a wall or a unit. A stun doesn't end a displacement that's already running (knockback still moves a stunned unit; DECISIONS.md, Movement); it only stops the unit from starting new ones. They emit the existing `displacement_finished` signal.
 
@@ -95,7 +95,7 @@ Entering applies its status; re-entering refreshes it instead of stacking. It em
 - Two knockbacks at once: the stronger wins (COMBAT.md; built in COMBAT C4): `displace()` is dropped (returns false) when the running displacement has more distance left than the new one's whole distance.
 
 ## Reaction triggers *(specified in COMBAT.md, ReactionRule)*
-`IMPACT`, `HIT`, `HAZARD_ENTERED`, `HAZARD_EXITED`, `STATUS_APPLIED`, `UNIT_DIED`, `HAZARD_OVERLAP` (hazard meets hazard, e.g. fire + oil). Also listed as planned in CONVENTIONS.md, Extension pattern 1.
+`ReactionRule.Trigger` has 8: `IMPACT`, `HIT`, `HAZARD_ENTERED`, `HAZARD_EXITED`, `STATUS_APPLIED`, `UNIT_DIED`, `HAZARD_OVERLAP` (hazard meets hazard, e.g. fire + oil), `ABILITY_CAST` (ABILITIES.md). 4 are built (`HIT`, `UNIT_DIED`, `STATUS_APPLIED`, `ABILITY_CAST`); the 4 world ones (`IMPACT` and the three hazard triggers) are *(proposed)* with impacts and Hazards here. The same list is in CONVENTIONS.md, Extension pattern 1.
 
 ## Destructibles *(proposed)*
 - `hits_to_break` (default 1). Any `HitContext` counts.

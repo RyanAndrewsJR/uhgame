@@ -14,13 +14,6 @@ const STATUS_STUN: StatusEffect = preload("res://data/statuses/status_stun.tres"
 @export var stun_duration: float = 0.75
 
 
-## The extra damage from the target's missing health (the scaling term, base
-## ratio). Kept as a wrapper for existing callers.
-func get_missing_health_bonus(target: Unit) -> float:
-	var term := get_scaling(&"target_missing_health_ratio")
-	return 0.0 if term == null else term.ratio * term.get_amount(null, target)
-
-
 func execute(caster: Unit, ctx: CastContext) -> void:
 	var target := ctx.target
 	if not is_instance_valid(target) or not target.is_alive():

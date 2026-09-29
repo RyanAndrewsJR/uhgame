@@ -8,7 +8,7 @@
 - `UnitStats` (`res://scripts/data/unit_stats.gd`): one .tres per unit in `res://data/units/`. A field for every stat in the Stat list except `knockback_resistance` (proposed), plus the identity fields.
 - `StatModifier`, `StatDefinition`, `StatRegistry` (`stat_registry.tres`, 26 stats) and `StatsComponent`, tested by `res://scenes/tests/stats_test.tscn`. `player.tscn` and `slime.tscn` have a `StatsComponent` node; `Unit.stats_component` points to it (a required child, like HealthComponent) and `Unit._ready()` calls `setup(stats, movement)`.
 - On `Unit`, `stats` stays the base `UnitStats` export and `stats_component` is the live StatsComponent. Gameplay reads go through `stats_component.get_stat(&"x")`. Only `attack_windup`, `gameplay_radius` and `pathing_radius` are still read from `unit.stats` (identity fields, not stats).
-- Every Ability has `id` (`knight_cleave`, `knight_iron_resolve`, `knight_lunge`, `knight_judgement`, `slime_elite_slam`...) and `tags` (ABILITIES.md). Ability params go through `StatsComponent.get_ability_param()` / `Ability.get_param()`: every param ABILITIES.md lists as a scoped param (`cooldown`, then ability haste in `AbilityComponent.get_cooldown_duration()`; `cast_range` in range checks, the POINT clamp, the enemy cast check, Cleave's reach and the indicator; `base_damage`, `ad_ratio`, `ap_ratio` and scaling-term ratios in `HitPipeline.from_ability()`; costs, charges, the recast window, charge-up times, projectile params, `hit_knockback_px`), plus any param an ability script reads with `get_param()` / `get_effect_param()` (Judgement's `stun_duration`). Others (Cleave's cone angle, the slam radius...) are still read directly; each gets routed when an item first needs it.
+- Every Ability has `id` (`knight_cleave`, `knight_iron_resolve`, `knight_lunge`, `knight_judgement`, `slime_elite_slam`...) and `tags` (ABILITIES.md). Ability params go through `StatsComponent.get_ability_param()` / `Ability.get_param()`: every param ABILITIES.md lists as a scoped param (`cooldown`, then ability haste in `AbilityComponent.get_cooldown_duration()`; `cast_range` in range checks, the POINT clamp, the enemy cast check, Cleave's reach and the indicator; `base_damage`, `ad_ratio`, `ap_ratio` and scaling-term ratios in `HitPipeline.from_ability()`; costs, charges, the recast window, charge-up times, projectile params, `hit_knockback_px`), plus any param an ability script reads with `get_param()` / `get_effect_param()` (Judgement's `stun_duration`, Lunge's `flag_stun_duration`; the reads that named inputs and conditional bonuses can change use `get_effect_param()`, ABILITIES.md, Conditions). Others (Cleave's cone angle, the slam radius...) are still read directly; each gets routed when an item first needs it.
 - Hit-scoped modifiers (`hit:<tag>`, `target:<tag>`) are read per hit with `StatsComponent.get_scoped_stat(key, scopes)` (COMBAT.md, Architecture).
 - `MovementComponent.get_move_speed()` returns `get_stat(&"move_speed")` (soft caps included, applied once). `add_speed_modifier(id, flat, percent, duration)` is a thin wrapper: on a unit with a StatusComponent it applies a slow or haste status (modifier source `&"status_<id>"`, timer on the StatusComponent; COMBAT C9); without one it adds FLAT / PERCENT_ADD `move_speed` modifiers with `source_id = id` (the same id replaces) and keeps the timer itself. Without a StatsComponent (`set_stats_component()` not called) MovementComponent uses its old `base_move_speed` math; the stats test uses that path for its parity checks.
 - `AutoAttackComponent.bonus_attack_speed` is a thin wrapper too: setting it replaces one PERCENT_ADD `attack_speed` modifier (source `&"bonus_attack_speed"`). Nothing writes it yet; new code adds StatModifiers directly.
@@ -36,7 +36,7 @@ Existing `UnitStats` fields keep their names. New ones get added to `UnitStats`.
 | Key | Default | Min / Max | Notes |
 |---|---|---|---|
 | `max_health` | 600 | 1 / - | |
-| `health_regen` | 0 | 0 / - | per second. Knight and slime set 0 explicitly |
+| `health_regen` | 0 | 0 / - | per second. The Knight and slimes rely on the default (0; zero sustain, COMBAT.md) |
 | `max_resource` | 0 | 0 / - | mana/energy/fury. Knight 300 (placeholder, CHAMPIONS.md) |
 | `resource_regen` | 0 | 0 / - | per second. Knight 6 (placeholder) |
 | `attack_damage` | 60 | 0 / - | |
@@ -44,13 +44,13 @@ Existing `UnitStats` fields keep their names. New ones get added to `UnitStats`.
 | `attack_speed` | base = `UnitStats.base_attack_speed` (0.65) | 0.2 / the unit's `attack_speed_cap` (2.5) | % modifiers = LoL bonus attack speed. `attack_speed_cap` is a per-unit maximum for this stat, not a stat |
 | `crit_chance` | 0 | 0 / 1 | the average; rolled with PRD, one roll per swing or cast (COMBAT.md, Hits). The Knight: 0.25 (`knight.tres`, since 2026-09-28) |
 | `crit_damage` | 1.75 | 1 / - | multiplier; COMBAT.md's default for every unit |
-| `armor` | 0 | - / - | mitigation formula in COMBAT.md (proposed: damage × 100 / (100 + armor)) |
-| `magic_resist` | 0 | - / - | |
+| `armor` | 0 | - / - | mitigation formula in COMBAT.md (proposed: damage × 100 / (100 + armor)). Negative armor is allowed: × (2 − 100 / (100 − armor)), a core rule (below) |
+| `magic_resist` | 0 | - / - | as armor, for MAGIC damage; negative allowed (core rule, below) |
 | `move_speed` | 345 | scaled soft caps | Knight base is 375 (120 px/s; 560 until 2026-09-28); slime stays 285 (MOVEMENT.md) |
 | `ability_haste` | 0 | 0 / - | cooldown × 100 / (100 + haste) |
 | `dash_charges` | 1 | 1 / 5 | integer; read by DashComponent (MOVEMENT.md) |
 | `attack_range` | 175 | - / - | LoL units edge-to-edge |
-| `life_steal` | 0 | 0 / 1 | × damage taken by the target; basic attacks only *(proposed; built that way in COMBAT C8)*. The Knight: 0.01 (`knight.tres`, since 2026-09-28) |
+| `life_steal` | 0 | 0 / 1 | × damage taken by the target; basic attacks only *(proposed; built that way in COMBAT C8)*. 0 for every unit (zero sustain; the Knight's 0.01 of 2026-09-28 was reverted 2026-09-29) |
 | `tenacity` | 0 | 0 / 0.8 | crowd control duration × (1 − tenacity) for statuses tagged `cc` |
 | `knockback_resistance` | 0 | 0 / 1 | *(proposed)* displacement distance × (1 − value); bosses 1 (WORLD_INTERACTION.md). Registry entry only; **not on UnitStats** until the knockback work |
 | `pickup_radius` | 0 | - / - | LoL units. The planned value is 200 (64 px); set per unit when pickups exist (LOOT.md) |
@@ -62,8 +62,10 @@ Existing `UnitStats` fields keep their names. New ones get added to `UnitStats`.
 | `life_on_hit` | 0 | 0 / - | heal per hit × proc_coefficient |
 | `resource_on_hit` | 0 | 0 / - | resource per hit × proc_coefficient |
 
-These are **not stats** (fixed identity fields, plain on UnitStats): `display_name`, `attack_windup`, `attack_speed_cap` (the max for `attack_speed`), `gameplay_radius`, `pathing_radius`.
-To add a stat: add a row here, a field to UnitStats, and an entry in the registry, all with a neutral default. Unknown keys cause a `push_error`, never a silent 0.
+These are **not stats** (fixed identity fields, plain on UnitStats): `attack_windup`, `attack_speed_cap` (the max for `attack_speed`), `gameplay_radius`, `pathing_radius`. (`display_name` was deleted 2026-09-29: nothing read it; a champion's name goes on ChampionData.)
+To add a stat: add a row here, a field to UnitStats, and an entry in the registry, all with a neutral default. Unknown keys cause a `push_error`, never a silent 0: `get_stat()` of an unknown stat, and a modifier for an unknown stat, an unknown ability param or an unknown scope kind (Scoped modifiers, below), which is rejected.
+
+**Negative resistance (core rule, built since COMBAT C1):** `armor` and `magic_resist` have no minimum. Below 0 the damage multiplier is LoL's 2 − 100 / (100 − r) (−100 → × 1.5), so it never divides by zero (`HitPipeline.get_mitigation_multiplier()`).
 
 ## Modifier math
 Types: `FLAT`, `PERCENT_ADD` ("increased", summed), `PERCENT_MULT` ("more", each multiplies separately).
@@ -91,6 +93,7 @@ A modifier has: `stat: StringName`, `type`, `value: float`, `source_id: StringNa
   - `&"ability:knight_lunge"`: one ability; `stat` = the param name
   - `&"tag:projectile"`: every ability with that tag
   - `&"hit:<tag>"` / `&"target:<tag>"`: a stat (`damage_increase`, also `crit_chance` and `crit_damage`) that counts only for hits carrying that tag, or against targets with that status tag (e.g. `&"target:burning"`). `stat` must be a registered stat. `get_scoped_stat(key, scopes)` returns the stat with the matching scoped modifiers added (same formula and limits; not cached; `get_stat()` ignores them).
+- Keys are checked when a modifier is added, so a typo is never a silent 0: a normal or `hit:` / `target:` modifier's `stat` must be a registered stat; an `ability:` / `tag:` modifier's `stat` must be a number `@export` of the Ability base class (`cooldown`, `cast_range`, `base_damage`...), or a param (a subclass `@export` like `radius`, or a scaling term's param) of an ability the unit holds (its AbilityComponent's slots and REPLACE variants) that the scope reaches; any other scope kind is rejected. A rejected modifier `push_error`s and isn't added (tested per scope type in `stats_test.tscn`).
 - `get_ability_param(ability, param)` reads the base with `ability.get_base_param(param)` (an export, or a scaling term's ratio; ABILITIES.md), applies the modifiers whose `stat` is the param and whose `scope` is in `ability.get_modifier_scopes()` (`ability:<id>`, `tag:<tag>` for each tag, `ability:<variant_of>`) with the same formula, never returns below 0, and caches the result per ability and param until a scoped modifier is added or removed. `Ability.get_param(caster, param)` is the shortcut abilities use (the plain value without a caster).
 - Cooldown order: `get_ability_param(ability, &"cooldown")`, then ability haste; `AbilityComponent.get_cooldown_duration()` is the one place this happens.
 - Damage order: params (base_damage, ratios), then stat scaling, then crit and mitigation (COMBAT.md).
@@ -114,7 +117,7 @@ Specified in ABILITIES.md, Augments (FLAG / EVENT / REPLACE, added and removed b
   - `base_field`: the UnitStats field holding the base (empty = same as the key; `attack_speed` reads `base_attack_speed`)
   - `max_field`: a UnitStats field used as a per-unit max (`attack_speed` → `attack_speed_cap`)
   - A stat with no UnitStats field yet (only `knockback_resistance`) uses its registry default as the base.
-- `res://scripts/components/stats_component.gd`: `StatsComponent` (child of Unit). `setup(base_stats, movement, growth)` (`movement` supplies the soft cap thresholds); `get_stat()` and `get_ability_param()` are cached, `get_scoped_stat()` isn't; adding or removing a modifier recalculates only the stats it touches. Also: `get_base_value()` (base + growth, before modifiers), `get_modifiers_from(source_id)`, `get_level()` / `set_level()` (for the overlay and tooltips), `add_modifier()`, `add_modifiers()`, `remove_modifiers_from(source_id)`, `get_attack_interval()`, `get_cooldown(base)`; signal `stat_changed(key, old, new)`, only when a value actually changes.
+- `res://scripts/components/stats_component.gd`: `StatsComponent` (child of Unit). `setup(base_stats, movement, growth)` (`movement` supplies the soft cap thresholds); `get_stat()` and `get_ability_param()` are cached, `get_scoped_stat()` isn't; adding or removing a modifier recalculates only the stats it touches. Also: `get_base_value()` (base + growth, before modifiers), `get_modifiers_from(source_id)`, `get_level()` / `set_level()` (for the overlay and tooltips), `add_modifier()`, `add_modifiers()`, `remove_modifiers_from(source_id)`, `get_cooldown(base)` (the attack interval is `AutoAttackComponent.get_attack_interval()`); signal `stat_changed(key, old, new)`, only when a value actually changes.
 - `res://scripts/components/resource_component.gd`: `ResourceComponent`, mana/energy/fury, same shape as HealthComponent: `try_spend()` (returns false on failure, CONVENTIONS), `restore()`, `can_afford()`, `is_empty()`, regen, signals `resource_changed(current, maximum)` (mirrors `health_changed`) and `depleted`. `resource_type` (MANA / ENERGY / FURY) is an export on it for now, only a label until ChampionData. On Unit it's `resource_pool` (CONVENTIONS.md, Vocabulary).
 - `HealthComponent` and `ResourceComponent` read their max from stats (`set_stats_component()`, called by `Unit._ready()`): the max going up raises current by the same amount; going down clamps it.
 - *(planned, CHAMPIONS.md)* `res://scripts/data/champion_data.gd` + `res://data/champions/<name>.tres`: `stats: UnitStats`, `growth: Dictionary[StringName, float]`, `resource_type` (MANA / ENERGY / FURY / NONE), passive, ability slots.
@@ -132,6 +135,6 @@ Specified in ABILITIES.md, Augments (FLAG / EVENT / REPLACE, added and removed b
 
 ## Open questions
 - Leveling, stat allocation, and the AD/AP split (see Fill in).
-- Armor/MR formula: proposed `100 / (100 + armor)`; still to confirm (COMBAT.md, Open questions).
+- Armor/MR formula: proposed `100 / (100 + armor)`; still to confirm (COMBAT.md, Open questions). Negative values are settled (core rule, above).
 - Enemy scaling by dungeon depth via modifiers (source `&"dungeon_scaling"`)? Proposed: yes.
 - Champion-specific items dropping for other champions? Proposed: no (LOOT.md).

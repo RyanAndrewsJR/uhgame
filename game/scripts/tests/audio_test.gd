@@ -6,8 +6,10 @@ extends Node2D
 ## listener range, handles and stop_all_on() / stop_all(), a play_on() loop
 ## stopping when its node is freed, the voice cap and priorities, the pause
 ## (SFX, Ambience and Voice pause; Music ducks and low-passes; UI plays on),
-## the volume settings, the log size and debug_draw. Tones are generated in
-## code (no files), quiet (-18 dB).
+## pitch and playback speed staying real at Engine.time_scale 0.05, the
+## volume settings, the log size and debug_draw. The A1 tones are generated
+## in code (no files), quiet (-18 dB). At the end it prints the output
+## latency (AudioServer.get_output_latency(); 0 ms headless).
 ## A2: combat sounds with the real data (the placeholder files): the Knight's
 ## swing sounds and combo pitch, one hit sound per swing, the crit layer,
 ## silent DoT ticks, hits on the player (hurt only, shield absorb), deaths and
@@ -19,6 +21,8 @@ extends Node2D
 ## status sounds (apply on every application, one loop per unit however many
 ## stacks, expire only while alive, the shield's apply and break) and the
 ## Knight's low-health heartbeat.
+## The Knight's own crit_chance is held at 0 by a test baseline, so a hit
+## plays a crit layer only when a check adds crit itself.
 ## Prints PASS/FAIL per check, then a total.
 ## Run headless and it quits with the number of failures as the exit code.
 ## The volume checks save to user://settings.cfg and restore it at the end.
@@ -119,13 +123,13 @@ func _test_buses() -> void:
 	var names: Array[StringName] = []
 	for i in AudioServer.bus_count:
 		names.append(AudioServer.get_bus_name(i))
-	_check("six buses in order", names, Audio.BUSES)
+	_check("six buses in order", names, Settings.VOLUME_BUSES)
 	var levels := []
-	for bus in Audio.BUSES:
+	for bus in Settings.VOLUME_BUSES:
 		levels.append(Audio.get_bus_base_db(bus))
 	_check("starting levels 0 / -8 / 0 / -4 / -12 / -2 dB", levels, [0.0, -8.0, 0.0, -4.0, -12.0, -2.0])
 	var sends := []
-	for bus in Audio.BUSES.slice(1):
+	for bus in Settings.VOLUME_BUSES.slice(1):
 		sends.append(AudioServer.get_bus_send(AudioServer.get_bus_index(bus)))
 	_check("every bus sends to Master", sends, [&"Master", &"Master", &"Master", &"Master", &"Master"])
 	var music := AudioServer.get_bus_index(&"Music")

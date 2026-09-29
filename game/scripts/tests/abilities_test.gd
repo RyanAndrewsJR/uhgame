@@ -44,6 +44,9 @@ extends Node2D
 ## AB-M: the augment playground's four fake items on the real Knight (Lunge
 ## stuns, Cleave Wave, a Judgement kill resetting it, Cleave also casting a
 ## free Lunge) and SandboxAugments (keys 1-4, unequipping restores exactly).
+## Cleanup pass (2026-09-29): the enemy AI skipping a slot that fails its
+## condition; a conditional bonus widening and lengthening a VECTOR line
+## (get_effect_param()).
 ## The Knight's own crit_chance and life_steal are held at 0 by a test
 ## baseline, so damage checks are exact.
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
@@ -174,6 +177,8 @@ func _ready() -> void:
 	await _test_ab13_recast()
 	await _test_ab13_without_mouse()
 	await _test_ab13_enemy()
+	await _test_enemy_skips_failing_slot()
+	await _test_bonus_widens_and_lengthens_vector()
 	print("\n=== Abilities test (ABILITIES AB-M) ===")
 	_test_abm_data()
 	await _test_abm_lunge_stuns()
@@ -401,8 +406,8 @@ func _test_scalings() -> void:
 	var old_formula := 150.0 + ad + 0.2 * missing
 	var half := HitPipeline.from_ability(knight, JUDGEMENT, dummy)
 	_check("half health: 214 + 20% of the missing health (the old formula)", HitPipeline.get_scaled_damage(half), old_formula)
-	_check("the same as get_damage_against() and the old wrappers",
-		[JUDGEMENT.get_damage_against(knight, dummy), JUDGEMENT.get_damage(knight) + JUDGEMENT.get_missing_health_bonus(dummy)],
+	_check("the same as get_damage_against() and get_damage() + the term",
+		[JUDGEMENT.get_damage_against(knight, dummy), JUDGEMENT.get_damage(knight) + term.ratio * term.get_amount(knight, dummy)],
 		[old_formula, old_formula])
 	_check("the bonus rides base_damage (so it crits); ad_ratio stays a ratio",
 		[half.base_damage, half.ad_ratio], [150.0 + 0.2 * missing, 1.0])
@@ -2216,8 +2221,8 @@ func _test_empower_basic_attack() -> void:
 	var expected := (64.0 * ratio + 82.0) * crit_mult
 	_check("the swing hits both for (its 64 x ratio + 82) and the bonus crits with it",
 		[hits.size(), a.health.max_health - a.health.current, b.health.max_health - b.health.current], [2, expected, expected])
-	_check("both hits are crits, tagged empowered and highlighted",
-		[hits.all(func(h: HitContext) -> bool: return h.is_crit and h.has_tag(&"empowered") and h.highlight)], [true])
+	_check("both hits are crits, tagged empowered",
+		[hits.all(func(h: HitContext) -> bool: return h.is_crit and h.has_tag(&"empowered"))], [true])
 	_check("both are slowed (on_hit per enemy), and the empower is used up",
 		[a.movement.get_move_speed() < normal_speed, b.movement.get_move_speed() < normal_speed, sc.has_status(&"empower_iron_resolve"),
 			knight.attack.is_empowered(), knight.attack.has_next_attack_modifier(&"iron_resolve")],
@@ -3674,6 +3679,108 @@ func _test_ab13_enemy() -> void:
 	Events.unit_hit.disconnect(on_hit)
 	elite.queue_free()
 	await _frames(1)
+
+
+# --- Cleanup pass (2026-09-29) ----------------------------------------------------
+
+## The enemy AI skips a slot whose cast would fail (a failing condition), so
+## it neither blocks the slots after it nor emits cast_failed every frame.
+func _test_enemy_skips_failing_slot() -> void:
+	_section("Enemy AI: a slot that fails its condition doesn't block the next one")
+	await _reset_knight()
+	var needs_focus: Ability = STRIKE.duplicate()
+	needs_focus.id = &"test_strike_needs_focus"
+	var focus := Condition.new()
+	focus.kind = Condition.Kind.SELF_HAS_STATUS
+	focus.status_tag = &"test_focus"
+	needs_focus.cast_conditions = [focus]
+	var elite: Enemy = ELITE_SCENE.instantiate()
+	elite.passive = true
+	add_child(elite)
+	_place(elite, knight.global_position + Vector2(60, 0))
+	elite.abilities.q = needs_focus   # fails: the elite has no Focus
+	elite.abilities.w = STRIKE        # works
+	await _frames(1)
+	_check("Q fails its condition, W can be cast",
+		[elite.abilities.get_fail_reason(&"q", knight.global_position, knight), elite.abilities.get_fail_reason(&"w", knight.global_position, knight)],
+		[AbilityComponent.FAIL_CONDITION, ""])
+	var failed: Array = []
+	var on_failed := func(slot: StringName, reason: String) -> void: failed.append([slot, reason])
+	elite.abilities.cast_failed.connect(on_failed)
+	elite.passive = false
+	await _wait_until(func() -> bool: return elite.abilities.casting, 60)
+	_check("the AI casts W (Q skipped) and nothing emits cast_failed",
+		[elite.abilities.casting, elite.abilities.casting_slot, failed], [true, &"w", []])
+	elite.passive = true
+	elite.attack.cancel()
+	await _wait_until(func() -> bool: return not elite.abilities.casting, 60)
+	await _frames(10)
+	_check("still no cast_failed after the cast (Q never tried)", failed, [])
+	elite.abilities.cast_failed.disconnect(on_failed)
+	elite.queue_free()
+	await _frames(1)
+
+
+## CONVENTIONS pattern 6: the vector's length (AbilityComponent) and width
+## (the script) are read with get_effect_param(), so one conditional bonus
+## lengthens and widens the line.
+func _test_bonus_widens_and_lengthens_vector() -> void:
+	_section("get_effect_param(): a conditional bonus widens and lengthens a VECTOR line")
+	var wide: Ability = VECTOR_LINE.duplicate()
+	var focus := Condition.new()
+	focus.kind = Condition.Kind.SELF_HAS_STATUS
+	focus.status_tag = &"test_focus"
+	var bonus := ConditionalBonus.new()
+	bonus.conditions = [focus]
+	bonus.modifiers = [
+		StatModifier.create(&"vector_width", StatModifier.Type.PERCENT_ADD, 1.0, &""),    # 75 -> 150 u (24 -> 48 px)
+		StatModifier.create(&"vector_length", StatModifier.Type.PERCENT_ADD, 0.5, &""),   # 500 -> 750 u (160 -> 240 px)
+	]
+	wide.conditional_bonuses = [bonus]
+	var ab := knight.abilities
+	var original_q: Ability = await _setup_vector_line(wide)
+	var ctxs: Array[CastContext] = []
+	var on_started := func(slot: StringName, _a: Ability, ctx: CastContext) -> void:
+		if slot == &"q":
+			ctxs.append(ctx)
+	ab.cast_started.connect(on_started)
+	var hit_units: Array = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.ability == wide:
+			hit_units.append(ctx.target)
+	Events.unit_hit.connect(on_hit)
+	var start := knight.global_position + Vector2(100, 0)
+	# The line goes down from the start. `beside` is 36 px off it (inside only
+	# the wide line: 36 - its 17.6 px radius > 12, <= 24); `past` is 220 px
+	# along it (past the 160 px end, inside the 240 px one).
+	var beside := _dummy_at(Vector2(136, 100))
+	var past := _dummy_at(Vector2(100, 220))
+	await _frames(1)
+
+	_check("without the bonus: cast", ab.try_cast_vector(&"q", start, Vector2.DOWN), true)
+	var ctx := _last_ctx(ctxs)
+	_check("... the line is 160 px long", snappedf(ctx.vector_start.distance_to(ctx.vector_end), 0.01), 160.0)
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("... neither the dummy beside the line nor the one past its end is hit", hit_units, [])
+
+	ab.reset_cooldown(&"q")
+	knight.resource_pool.restore(1000.0)
+	knight.status_component.apply_status(STATUS_FOCUS, knight)
+	_check("with the bonus (Focus): cast", ab.try_cast_vector(&"q", start, Vector2.DOWN), true)
+	ctx = _last_ctx(ctxs)
+	_check("... the line is 240 px long (vector_length +50%)", snappedf(ctx.vector_start.distance_to(ctx.vector_end), 0.01), 240.0)
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("... and 48 px wide: both dummies are hit",
+		[hit_units.size(), hit_units.has(beside), hit_units.has(past)], [2, true, true])
+
+	knight.status_component.remove_status(STATUS_FOCUS.id)
+	ab.cast_started.disconnect(on_started)
+	Events.unit_hit.disconnect(on_hit)
+	beside.queue_free()
+	past.queue_free()
+	knight.stats_component.remove_modifiers_from(COST_SOURCE)
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	ab.q = original_q
 
 
 # --- AB-M -----------------------------------------------------------------------

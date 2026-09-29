@@ -18,8 +18,6 @@ extends Node
 ## - Every play, drop, stop and steal is logged (get_log()) so tests can check
 ##   audio without hearing it; debug_draw lists the recent ones on screen.
 
-## Every bus in default_bus_layout.tres, in order.
-const BUSES: Array[StringName] = [&"Master", &"Music", &"SFX", &"UI", &"Ambience", &"Voice"]
 ## Buses whose players pause with the scene tree (AUDIO.md, Rules).
 const PAUSABLE_BUSES: Array[StringName] = [&"SFX", &"Ambience", &"Voice"]
 
@@ -69,7 +67,7 @@ var _combat_sounds: CombatSounds
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS   # fades, bookkeeping and debug run while paused
-	for bus in BUSES:
+	for bus in Settings.VOLUME_BUSES:   # every bus in default_bus_layout.tres, in order
 		var index := AudioServer.get_bus_index(bus)
 		if index < 0:
 			push_warning("Audio: bus '%s' is missing from default_bus_layout.tres" % bus)
@@ -391,7 +389,7 @@ func _add_log(entry: Dictionary, result: StringName, reason: StringName) -> void
 # --- Buses and pause ------------------------------------------------------------
 
 func _apply_bus_volumes() -> void:
-	for bus in BUSES:
+	for bus in Settings.VOLUME_BUSES:
 		_apply_bus_volume(bus)
 
 

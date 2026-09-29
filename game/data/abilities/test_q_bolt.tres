@@ -1,8 +1,6 @@
 [gd_resource type="Resource" format=3 uid="uid://w5seck43le0k"]
 
-[ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="1_6txwg"]
 [ext_resource type="Script" uid="uid://xe8syitpy4eq" path="res://scripts/abilities/test/bolt.gd" id="1_script"]
-[ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="2_ucxpq"]
 
 [resource]
 script = ExtResource("1_script")

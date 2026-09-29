@@ -48,21 +48,16 @@ var can_crit: bool = true
 var crit_roll: CritRoll
 ## Scales on-hit chances and effects (COMBAT C8).
 var proc_coefficient: float = 1.0
-## Push distance in px. 0 = no knockback.
+## Push distance in px. 0 = no knockback. The push follows the target's
+## MovementComponent.knockback_curve.
 var knockback_px: float = 0.0
 var knockback_duration: float = 0.1
-## null = the target's MovementComponent.knockback_curve.
-var knockback_curve: Curve
 ## The push goes away from this point. INF = the source's position.
 var knockback_from: Vector2 = Vector2.INF
 ## Statuses applied to the target after the damage, from the source
 ## (COMBAT C9). Blocked hits apply none.
 var statuses: Array[StatusEffect] = []
 var feel: Feel = Feel.NONE
-## Set by take_damage(highlight), empowered hits and projectiles. Since C6
-## damage numbers don't read it (size and color come from the hit); kept
-## for tests and later UI.
-var highlight: bool = false
 ## The swing's or ability's own hit sound (AUDIO.md); CombatSounds plays it
 ## once per swing or cast. null = HitFeel's sound for the hit's tier.
 var hit_sound: SoundEvent

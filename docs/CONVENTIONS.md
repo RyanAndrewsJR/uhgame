@@ -6,7 +6,7 @@
 ## Naming (matches the existing code; don't rename existing things)
 | Thing | Rule | Examples |
 |---|---|---|
-| Class | PascalCase, `class_name` on every reusable script | `Unit`, `AbilityComponent` |
+| Class | PascalCase, `class_name` on every reusable script and every script docs or other code name as a class (autoloads use their autoload name instead) | `Unit`, `AbilityComponent`, `GameCamera` |
 | Component node | ends in `Component`. Exceptions: `Hitbox`, `Hurtbox` (Area2D), `PlayerInput` (reads input), `SurfaceTags` (data only) | `HealthComponent`, `StatusComponent` |
 | Data Resource | a plain noun for what it is; `Data` suffix only for bundles of other resources | `UnitStats`, `Ability`, `StatModifier`, `ChampionData` |
 | Per-event object | `<Thing>Context` (RefCounted) | `CastContext` (exists), `HitContext`, `ImpactContext` |
@@ -14,7 +14,7 @@
 | Ability script | `scripts/abilities/<champion>/<ability>.gd` | `knight/lunge.gd` |
 | Ability .tres | `<champion>_<slot>_<ability>.tres` (the filename keeps the slot) | `knight_e_lunge.tres` |
 | Ability `id` | `<champion>_<ability>`, no slot, so ids survive slot swaps | `&"knight_lunge"` |
-| Other .tres | `<kind>_<name>.tres` in `data/<kind>s/` | `status_stun.tres`, `item_grapplers_gauntlet.tres`, `affix_fire_damage.tres`, `reaction_wall_slam.tres` |
+| Other .tres | `<kind>_<name>.tres` in `data/<kind>s/`. Exception: a unit's stats keep the unit's plain name in `data/units/` (existing files; `data/champions/<name>.tres` will too) | `status_stun.tres`, `item_grapplers_gauntlet.tres`, `affix_fire_damage.tres`, `reaction_wall_slam.tres`; units: `knight.tres`, `slime.tres`, `slime_elite.tres` |
 | Signal | past tense, or `_started` / `_finished` / `_cancelled` / `_failed` / `_changed`; typed args | `died`, `cast_started`, `health_changed` |
 | Global event (on `Events`) | `<subject>_<past verb>` | `unit_hit`, `unit_impacted`, `status_applied` |
 | Query method | `get_`, `is_` / `has_` / `can_` (bool) | `get_move_speed()`, `can_cast()` |
@@ -71,7 +71,7 @@ Anything that can take part in an interaction carries tags:
 - units (their active status effects add tags like `oiled`, `burning`, `displaced`)
 
 Cross-system interactions are **`ReactionRule`** Resources: *trigger* + *required tags* → list of **`GameplayEffect`**s.
-Planned triggers *(spec in COMBAT.md, ReactionRule; list also in WORLD_INTERACTION.md)*: `IMPACT`, `HIT`, `HAZARD_ENTERED`, `HAZARD_EXITED`, `STATUS_APPLIED`, `UNIT_DIED`, `HAZARD_OVERLAP` (hazard meets hazard, e.g. fire + oil), and `ABILITY_CAST` (from `Events.ability_cast`; ABILITIES.md).
+Triggers *(spec in COMBAT.md, ReactionRule; list also in WORLD_INTERACTION.md)*, 8 in `ReactionRule.Trigger`: `IMPACT`, `HIT`, `HAZARD_ENTERED`, `HAZARD_EXITED`, `STATUS_APPLIED`, `UNIT_DIED`, `HAZARD_OVERLAP` (hazard meets hazard, e.g. fire + oil), and `ABILITY_CAST` (from `Events.ability_cast`; ABILITIES.md). Built: `HIT`, `UNIT_DIED`, `STATUS_APPLIED` (COMBAT C11) and `ABILITY_CAST` (ABILITIES AB8). Planned: `IMPACT` and the three hazard triggers (WORLD_INTERACTION.md).
 
 #### Standard ability tags (ABILITIES.md)
 - **Role** (exactly one per ability, Diablo 4's categories): `generator`, `core`, `defensive`, `mobility`, `ultimate`.
@@ -86,16 +86,17 @@ Adding an interaction should mean adding a `.tres`. Code changes are only needed
 ### 2. Context objects at every seam
 Pass one context object, not long argument lists, so new fields can be added without changing signatures:
 - `CastContext` (exists)
-- `HitContext`: source, target, ability (nullable: null for basic attacks, hazards and knockback), amount, damage type, tags, knockback, effects to apply
-- `ImpactContext`: unit, velocity, impact speed, collider, surface tags, who caused the displacement
+- `HitContext` (exists; COMBAT.md, HitContext): `source`, `target`, `ability` (nullable: null for basic attacks, statuses, hazards and knockback), `base_damage` / `ad_ratio` / `ap_ratio`, `damage_type`, `tags`, `knockback_px` / `knockback_duration` / `knockback_from`, `statuses` (effects to apply); results such as `raw_damage`, `taken_damage`, `blocked`, `killed`
+- `ImpactContext` *(planned)*: `unit`, `velocity` (px/s), `impact_speed_px` (px/s), `collider`, `surface_tags`, `source` (who caused the displacement)
 
 ### 3. Events at every seam
 Systems announce what happened on the `Events` autoload, and reactions listen there. Reserved names:
 - `unit_hit(ctx: HitContext)`, `unit_damaged(ctx)`, `unit_died(unit, ctx)`
-- `unit_impacted(ctx: ImpactContext)`
+- `unit_impacted(ctx: ImpactContext)` *(planned)*
 - `status_applied(unit, status)`, `status_removed(unit, status)`
 - `hazard_entered(unit, hazard)`, `hazard_exited(unit, hazard)`
 - `ability_cast(unit, ability, ctx: CastContext)`
+- `ability_finished(unit, ability, ctx: CastContext)` *(planned: the "on end" augment event, ABILITIES.md, when something needs it)*
 - `item_equipped(unit, item)`, `item_unequipped(unit, item)`
 
 Existing local signals (`died`, `damaged`, `cast_started`...) stay. New code re-emits them on Events where cross-system listeners need them.
@@ -116,7 +117,7 @@ Example: since `StatusComponent` (COMBAT C9), `Unit.apply_stun()` and `add_speed
 | `Events` | global signal bus autoload | here |
 | `WorldQuery`, `SurfaceTags` | spatial queries, surface tags | WORLD_INTERACTION.md |
 | `Settings`, `PauseMenu` | the player's own options autoload (saved to `user://settings.cfg`) and the Esc pause menu that edits them (both exist) | MOVEMENT.md (Dash), ABILITIES.md (cast mode) until UI.md |
-| `StatsComponent`, `StatModifier`, `StatDefinition`, `StatRegistry`, `ResourceComponent`, `ChampionData` | stats (the first four exist) | STATS.md |
+| `StatsComponent`, `StatModifier`, `StatDefinition`, `StatRegistry`, `ResourceComponent`, `ChampionData` | stats (the first five exist; `ChampionData` is planned) | STATS.md |
 | `HitContext`, `DamageType` (enum `HitContext.DamageType`), `ImpactContext`, `HitPipeline` | the hit pipeline | COMBAT.md |
 | `AttackSwing`, `AttackCombo` | basic attack combo data | COMBAT.md |
 | `HitFeel` | hit feel per tier (hitstop, shake, flash) | COMBAT.md |
@@ -134,7 +135,8 @@ Example: since `StatusComponent` (COMBAT C9), `Unit.apply_stun()` and `add_speed
 | Named inputs `charge`, `self_missing_health`, `target_missing_health`, `target_distance`, `vector_drag` | the built-in 0–1 scaling inputs on `CastContext.inputs` (scripts may add others) | ABILITIES.md |
 | `Ability.CastStyle.VECTOR`; `vector_length`, `vector_width`, `vector_min_drag_px` (Ability); `vector_start`, `vector_direction`, `vector_end` (CastContext); `try_cast_vector()`, `get_vector_start()` (AbilityComponent); `draw_vector_indicator()`, `get_ai_vector()` (Ability); `Telegraph.line()` | the VECTOR cast style (AB13) | ABILITIES.md |
 | `FAIL_CONDITION` (`"condition"`) | the cast-failed reason for a failed cast or recast condition | ABILITIES.md |
-| `SandboxAbilities`, `SandboxAugments` | sandbox-only demo nodes (costs and test abilities; the augment playground) | ABILITIES.md |
+| `SandboxAbilities`, `SandboxAugments`, `SandboxReactions` | sandbox-only demo nodes (costs and test abilities; the augment playground; the Shatter reaction rule) (all exist) | ABILITIES.md, COMBAT.md (`SandboxReactions`) |
+| `Ability.ReadyMode` (`COOLDOWN`, `METER`), `ready_mode` | how a slot becomes ready: a cooldown (built) or the ultimate meter (reserved, built with the meter in CHAMPIONS.md) | ABILITIES.md |
 | `Audio`, `SoundEvent`, `AudioMix`, `CombatSounds` | the audio autoload, one sound's data, the mix-wide numbers, the Events listener that plays hit, death and status sounds | AUDIO.md |
 
 ## Worked example: "knocking an enemy into a wall or oil stuns or debuffs it"
@@ -142,18 +144,18 @@ With these patterns in place, this request is:
 1. **One-time code** (if it doesn't exist yet): `MovementComponent` detects collisions during a displacement and emits `Events.unit_impacted(ImpactContext)`.
 2. **Oil**: a `Hazard` scene tagged `oil`. Entering it applies `status_oiled` (tag `oiled`).
 3. **Data only**:
-   - `reaction_wall_slam.tres`: trigger `IMPACT`, surface tag `wall_slam`, min impact speed 200 px/s → apply `status_stun` for 1.0 s
+   - `reaction_wall_slam.tres`: trigger `IMPACT`, surface tag `wall_slam`, `min_impact_speed_px` 200 (px/s) → apply `status_stun` for 1.0 s
    - `reaction_knocked_into_oil.tres`: trigger `HAZARD_ENTERED`, hazard tag `oil`, unit tag `displaced` → apply `status_slicked` for 3 s
 4. **No ability changes.** Every ability or item that causes knockback gets this behavior automatically.
 
 The prompt would be: *"Read CONVENTIONS.md and COMBAT.md. Add wall-slam stun and knocked-into-oil slick as reaction rules."*
 
 ## Testing
-- `res://scenes/sandbox_main.tscn` (open it, press F6) runs `main.tscn` with `res://scenes/rooms/sandbox.tscn` as the room. What's in it now (walls, corners, corridors, dash-length markers, three passive training dummies, two slimes) is listed in MOVEMENT.md, Testing.
+- `res://scenes/sandbox_main.tscn` (open it, press F6) runs `main.tscn` with `res://scenes/rooms/sandbox.tscn` as the room. What's in it now (walls, corners, corridors, dash-length markers, three passive training dummies, two slimes, one elite slime with the telegraphed slam, and the `SandboxAbilities`, `SandboxAugments` and `SandboxReactions` demo nodes) is listed in MOVEMENT.md, Testing and ABILITIES.md, Test and sandbox data.
 - Pits, hazards and grappleable walls get added to the sandbox with their systems (DECISIONS.md, Testing). Every new mechanic adds whatever it needs to test there.
 - Script-level test scenes live in `res://scenes/tests/` with their scripts in `res://scripts/tests/` (e.g. `stats_test.tscn`, F6). They print PASS/FAIL per check and a total; run headless, they quit with the failure count as the exit code.
 - Every new system has a `debug_draw` toggle.
 - The F3 stat overlay is planned (STATS.md step 7), not built. It will need a new input action when it's built (none exists yet).
 
 ## Open questions
-- Reaction triggers: specified in COMBAT.md (ReactionRule); `HIT`, `UNIT_DIED` and `STATUS_APPLIED` are built first (COMBAT C11).
+- Reaction triggers: specified in COMBAT.md (ReactionRule); 4 of the 8 are built (`HIT`, `UNIT_DIED`, `STATUS_APPLIED`, `ABILITY_CAST`); `IMPACT` and the hazard triggers wait for WORLD_INTERACTION's impacts and Hazards.

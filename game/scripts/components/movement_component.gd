@@ -1,8 +1,10 @@
 class_name MovementComponent
 extends Node2D
-## League-of-Legends-style unit movement for a CharacterBody2D parent.
+## Unit movement for a CharacterBody2D parent: League-style pathing for
+## enemies (and R walking the Knight into range), Hades-style direct control
+## for the player (set_input_direction()), and displacements for both.
 ##
-## - move_to(point) paths around walls using the navigation map; clicking
+## - move_to(point) paths around walls using the navigation map; a point
 ##   inside a wall walks to the closest reachable spot.
 ## - Instant top speed and instant turning, no acceleration or sliding,
 ##   and stops exactly on the destination.
@@ -13,15 +15,17 @@ extends Node2D
 ## - Movement speed is in LoL units (345 = typical champion) with LoL's
 ##   rules: flat bonuses, then % bonuses (additive), then only the strongest
 ##   slow, then the soft caps (thresholds are exports; the defaults are
-##   LoL's 220 / 415 / 490 scaled x560/345 for Hades pace, see MOVEMENT.md).
-##   With a StatsComponent (set_stats_component(), done by Unit) the speed is
-##   its move_speed stat, and add_speed_modifier() is a thin wrapper that
-##   adds StatModifiers under the modifier's id and keeps only the timer here
-##   (STATS.md step 4). Without one, base_move_speed and the modifiers here
-##   are used as before.
+##   LoL's 220 / 415 / 490 scaled x560/345, kept for the 375 Knight; see
+##   MOVEMENT.md). With a StatsComponent (set_stats_component(), done by
+##   Unit) the speed is its move_speed stat. add_speed_modifier() is a thin
+##   wrapper: with a StatusComponent (COMBAT C9) it applies a slow or haste
+##   status; with only a StatsComponent it adds StatModifiers under the
+##   modifier's id and keeps the timer here (STATS.md step 4). Without
+##   either, base_move_speed and the modifiers here are used as before.
 ## - Move locks (cast times, attack windups, stuns) pause movement but keep
 ##   the move order, so you carry on to your destination afterwards.
-## - displace() pushes the unit (knockbacks, dashes) and overrides walking.
+## - displace() pushes the unit (knockbacks, melee swing steps) and dash()
+##   moves it (the player's dash, Lunge); both override walking.
 ##   A displacement follows a progress Curve (x = time 0-1, y = share of the
 ##   distance 0-1): burst then ease out. The total distance is always
 ##   velocity x duration; only the speed profile changes (MOVEMENT.md F2).

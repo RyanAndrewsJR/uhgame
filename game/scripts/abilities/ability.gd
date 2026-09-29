@@ -33,7 +33,7 @@ enum SwingCancel {
 ## How the ability's key works (ABILITIES.md, Cast styles).
 enum CastStyle {
 	INSTANT,    ## Press to cast after the cast time (QUICK or hold-to-aim, the player's cast mode).
-	CHARGE_UP,  ## Hold to charge, release to fire (ABILITIES AB6; until then it casts like INSTANT).
+	CHARGE_UP,  ## Hold to charge, release to fire (ABILITIES AB6).
 	CHANNEL,    ## Cast on press; stand still through the cast time, a new move press cancels it.
 	VECTOR,     ## Press to drop a start point, drag to aim, release to cast along a line (ABILITIES AB13).
 }
@@ -112,6 +112,7 @@ const DAMAGE_NUMBER_STYLE_PATH := "res://data/damage_number_styles/damage_number
 ## Seconds rooted before the effect happens (LoL "cast time").
 @export var cast_time: float = 0.25
 ## LoL units. DIRECTION/POINT: from the caster's center. UNIT: edge to edge.
+## VECTOR: the start point's range (AB13).
 @export var cast_range: float = 300.0
 ## Casting this lets your next auto-attack start immediately.
 @export var resets_auto_attack: bool = true
@@ -123,7 +124,8 @@ const DAMAGE_NUMBER_STYLE_PATH := "res://data/damage_number_styles/damage_number
 @export var dash_cancelable: bool = false
 ## Walking speed during the cast when roots_during_cast is false (0.5 = half).
 ## Applied as a move_speed StatModifier, so the soft caps still apply after it:
-## with the Knight, 0.75 is exact but 0.5 gives ~0.57x and 0 still walks.
+## with the 375 Knight every multiplier below 1 is softened by the low cap
+## (0.75 gives 319 u, 0.85x; 0.5 gives 272 u, 0.73x; 0 still walks at 178.5 u).
 ## Ignored for a channel (cancel_on_move or cast_style CHANNEL).
 @export var cast_move_speed_multiplier: float = 1.0
 ## A movement key pressed after the cast starts cancels it during its cast
@@ -208,8 +210,10 @@ const DAMAGE_NUMBER_STYLE_PATH := "res://data/damage_number_styles/damage_number
 @export_group("Sounds")
 ## At cast start (AUDIO.md). null = silent.
 @export var cast_sound: SoundEvent
-## When the cast lands on someone, once per cast however many it hits
-## (through HitContext.hit_sound). null = HitFeel's sound for the hit's tier.
+## When the cast lands on someone (through HitContext.hit_sound): CombatSounds
+## plays it once per (source, sound, frame), so once for everyone a cast hits
+## in one frame; a projectile's hits in later frames each play it. null =
+## HitFeel's sound for the hit's tier.
 @export var hit_sound: SoundEvent
 ## The wind-up, owned by the cast's telegraph (plays at the telegraph, stops
 ## when it finishes or is freed). Use max_distance_px 640 so it carries.
@@ -219,6 +223,7 @@ const DAMAGE_NUMBER_STYLE_PATH := "res://data/damage_number_styles/damage_number
 @export var ready_sound: SoundEvent
 
 static var _placeholder_regex: RegEx
+static var _base_params: Dictionary = {}   # StringName -> true (is_base_param())
 var _role_warned: bool = false
 var _warned_placeholders: Dictionary = {}   # placeholder key -> true (warned once)
 
@@ -243,17 +248,18 @@ func can_reach_through_walls(from: Vector2, target: Unit) -> bool:
 ## The toolkit's hit (ABILITIES AB11): each of `units` takes this ability's
 ## hit through HitPipeline.from_ability(caster, self, u, ctx) (the cast's
 ## charge, empowers and chain depth), one crit roll shared by the whole
-## cast, hit_knockback_px away from where the caster stands now, `statuses`
+## cast, hit_knockback_px (get_effect_param() for that unit, so a conditional
+## bonus can change it) away from where the caster stands now, `statuses`
 ## applied to each unit the hit gets through to (after the damage, from the
 ## caster), then resolve(). Returns every hit, blocked ones included.
 func hit_units(caster: Unit, units: Array[Unit], ctx: CastContext, statuses: Array[StatusEffect] = []) -> Array[HitContext]:
 	var hits: Array[HitContext] = []
 	var crit_roll := HitContext.CritRoll.new()
-	var push := get_param(caster, &"hit_knockback_px")
 	var origin := caster.global_position
 	for u in units:
 		if not is_instance_valid(u):
 			continue
+		var push := get_effect_param(caster, &"hit_knockback_px", ctx, u)
 		var hit := HitPipeline.from_ability(caster, self, u, ctx)
 		hit.crit_roll = crit_roll
 		if push > 0.0:
@@ -287,7 +293,8 @@ func play_hit_feel(hits: Array[HitContext]) -> bool:
 ## A number of this ability (an @export param like &"cooldown",
 ## &"cast_range", &"base_damage", or a scaling term's param) after the
 ## caster's scoped modifiers (items, buffs; STATS.md). Without a caster: the
-## plain value.
+## plain value. Anything a named input or conditional bonus could change is
+## read with get_effect_param() instead (CONVENTIONS.md, pattern 6).
 func get_param(caster: Unit, param: StringName) -> float:
 	if is_instance_valid(caster) and caster.stats_component != null:
 		return caster.stats_component.get_ability_param(self, param)
@@ -305,6 +312,25 @@ func get_base_param(param: StringName) -> float:
 		return term.ratio
 	push_error("Ability '%s': no number param '%s'" % [id, param])
 	return 0.0
+
+
+## True if `param` is a number param of this ability (an @export of that
+## name, a subclass's included, or a scaling term's param), without an error.
+func has_param(param: StringName) -> bool:
+	var value: Variant = get(param)
+	return value is float or value is int or get_scaling(param) != null
+
+
+## True if `param` is a number @export of the Ability base class itself
+## (cooldown, cast_range, base_damage, vector_length...): a param every
+## ability has. StatsComponent checks scoped modifier keys with it.
+static func is_base_param(param: StringName) -> bool:
+	if _base_params.is_empty():
+		for p in (Ability as GDScript).get_script_property_list():
+			if p.usage & PROPERTY_USAGE_SCRIPT_VARIABLE and p.usage & PROPERTY_USAGE_EDITOR \
+					and (p.type == TYPE_FLOAT or p.type == TYPE_INT):
+				_base_params[StringName(p.name)] = true
+	return _base_params.has(param)
 
 
 ## The scaling term whose ratio is `param`, or null.
