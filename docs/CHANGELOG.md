@@ -11,7 +11,12 @@
 
 ## Abilities (ABILITIES.md)
 
-### AB-M – The augment playground: 2026-09-28, Built (awaiting play test)
+### Cleanup – Cleave's old knockback export: 2026-09-28, Built
+AB-M passed, so the unused `knockback` export (170 px/s, disabled since AB11: the push is `hit_knockback_px` 17 over 0.1 s in `knight_q_cleave.tres`) is deleted from `knight/cleave.gd`, with its comment. Nothing read it: no script, .tres or scene sets or reads Cleave's `knockback` (the other `knockback` fields are `Hitbox.knockback` and `hit_knockback_*`).
+
+Abilities test 494/494, stats 172/172, audio 109/109. Combat 450/451 twice: the known flaky real-time "heavy feel: 0.06 s hitstop" check (got 0.039); the committed code without this change passed it once and failed it once the same way. `main.tscn` and `sandbox_main.tscn` run 600 frames with no errors or warnings.
+
+### AB-M – The augment playground: 2026-09-28, Passed
 **Milestone AB-M.** Four fake items on the real Knight through the AB8 augment machinery, toggled in the sandbox with keys 1–4.
 
 New: `scripts/abilities/knight/cleave_wave.gd` + `data/abilities/knight_q_cleave_wave.tres` (Cleave as a projectile wave; `variant_of` `knight_cleave`; a crescent drawn on the projectile), `data/augments/` with `augment_lunge_stuns.tres` (FLAG), `augment_cleave_wave.tres` (REPLACE), `augment_judgement_reset.tres` (EVENT: UNIT_DIED → ModifyCooldown RESET), `augment_cleave_casts_lunge.tres` (EVENT: ABILITY_CAST → CastAbility with Lunge), `scripts/rooms/sandbox_augments.gd` (`items`, `show_list`, `toggle()`, `is_equipped()`, `get_source_id()`, raw keys 1–4, a small on-screen list). Changed: `lunge.gd` supports `lunge_stuns` (`flag_stun_duration` 0.5, a `status_stun` copy passed to `hit_units()`), `knight_e_lunge.tres` lists it in `supported_flags`; `sandbox.tscn` gets the `SandboxAugments` node with the four items, and its `test_q` (Ryan had set the slam) is emptied so Q is Cleave. Also decided: the soft caps stay as they are for the 375 Knight (Ryan). Found while building: while the wave is equipped, Cleave's own tooltip (not shown by the HUD, which shows the wave's) lists the wave as "disabled: another replacement is active", since `get_augment_tooltip_lines()` treats every REPLACE for the base id that isn't the ability itself as disabled; left as it is.

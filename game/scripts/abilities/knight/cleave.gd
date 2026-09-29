@@ -8,10 +8,6 @@ extends Ability
 ## cone indicator are Cleave's own.
 
 @export var cone_half_angle_deg: float = 60.0
-## Unused since ABILITIES AB11 (disabled, not deleted): the push is
-## hit_knockback_px (17 px) over hit_knockback_duration (0.1 s) in
-## knight_q_cleave.tres, the same 170 px/s x 0.1 s. Delete after AB-M passes.
-@export var knockback: float = 170.0
 
 
 func execute(caster: Unit, ctx: CastContext) -> void:

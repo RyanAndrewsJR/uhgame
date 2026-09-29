@@ -224,7 +224,7 @@ Walls: blocked (COMBAT C7): an enemy behind the pillar isn't hit.
 Stunned mid-cast: interrupted at once, no hit, cooldown refunded.
 Caster dies mid-cast: interrupt_cast(), no hit. Mid-effect: the effect is one frame; it resolves.
 Tooltip template: "Sweep your sword in a wide arc in front of you, dealing {damage} physical damage ({base_damage} {ratios}) and knocking enemies back."
-Extra tunables: cone_half_angle_deg 60. (The old `knockback` export, 170 px/s, is unused: disabled, deleted after AB-M passes.)
+Extra tunables: cone_half_angle_deg 60. (The old `knockback` export was deleted after AB-M passed, 2026-09-28.)
 ```
 
 ## Numbers (TARGET: start, range)
@@ -251,7 +251,7 @@ What each piece does now (details in Data and Architecture).
 | `res://scripts/abilities/cast_context.gd` (`CastContext`) | `slot`, `point`, `direction`, `target`, `telegraph`, plus the fields in Data (the three vector fields since AB13). |
 | `res://scripts/components/ability_component.gd` (`AbilityComponent`) | Four slots (`q`, `w`, `e`, `r` exports; `SLOTS`) with charges, recasts, charge-ups and VECTOR aims (the same hold path), augments, conditions (Architecture). `_do_cast()` runs the cast flow; the cast time is an `await` on a game-time timer; `_cast_serial` stops a cancelled `_do_cast()`; a stun/death check at the end of the cast time stays as a safety net behind the at-once stun interrupt. `try_cancel_cast()` (dash), `try_cancel_cast_on_move()`, `interrupt_cast()` (death). |
 | `res://scripts/abilities/ability_util.gd` (`AbilityUtil`) | `enemies_of`, `enemies_of_team`, `in_cone`, `along_segment`, `along_segment_of_team`, `in_circle`, `in_sight`, `nearest_enemy_to`, `nearest_enemy_in_range`. `enemies_of()` and `enemies_of_team()` skip untargetable units; the `_of_team` versions work for projectiles whose caster may be gone. |
-| `knight/cleave.gd` (Q) | Built from toolkit pieces: `in_cone()` + `filter_by_walls()`, `hit_units()` (the push is `hit_knockback_px` 17 over 0.1 s in the .tres), `play_hit_feel()` (`hit_shake` 3, `hit_hitstop` 0.05). The slash VFX and cone indicator are its own; the old `knockback` export is unused (deleted after AB-M passes). |
+| `knight/cleave.gd` (Q) | Built from toolkit pieces: `in_cone()` + `filter_by_walls()`, `hit_units()` (the push is `hit_knockback_px` 17 over 0.1 s in the .tres), `play_hit_feel()` (`hit_shake` 3, `hit_hitstop` 0.05). The slash VFX and cone indicator are its own. The old `knockback` export is deleted (2026-09-28, after AB-M passed). |
 | `knight/iron_resolve.gd` (W) | SELF, 0 s cast. Applies a haste status `iron_resolve` (+35% for 2 s, built from its exports like the old speed wrapper's) and an empower status `empower_iron_resolve` (50 + 50% AD snapshotted at cast = 82, 4 s) whose `empower_statuses` carry the slow `iron_resolve_slow` (−40% for 1.5 s, from the Knight). Its per-enemy VFX, shake 2.5 and hitstop 0.04 are its own through `AutoAttackComponent.set_empower_on_hit()`. An aura VFX while the empower is up. It calls neither `add_speed_modifier()` nor `add_next_attack_modifier()` (both stay as wrappers for other callers). |
 | `knight/lunge.gd` (E) | POINT, 0.05 s cast, `movement.dash()` at 1400 u/s with `dash_curve`, afterimages, then every enemy along the start–end capsule (80 u wide) in sight from the nearest point of the path, through `hit_units()` (so a free Lunge's hits keep their chain depth) and `play_hit_feel()` (`hit_shake` 2.5). The first FLAG (AB-M): `lunge_stuns` stuns each enemy it hits for `flag_stun_duration` 0.5 s (a `status_stun` copy passed to `hit_units()` as a status of the hit). |
 | `knight/cleave_wave.gd` (Q variant, AB-M) | `knight_q_cleave_wave.tres`, id `knight_cleave_wave`, `variant_of` `knight_cleave` (the `augment_cleave_wave` REPLACE puts it on Q). A small slash, then `Projectile.fire()` along the aim: 700 u (224 px), 900 u/s (288 px/s), 150 u (48 px) wide, pierce 20, 80 + 70% AD PHYSICAL, blocked by walls; a crescent `Polygon2D` rides on the projectile (visual only). Cleave's 0.2 s cast and 3 s cooldown; tags `core` `projectile`. |
@@ -688,7 +688,7 @@ Every step: with no cast style changes, scalings, costs, charges, recasts, augme
     **Done means** (awaiting play test): the test ability works with a drag and with a tap; every cancel and interrupt clears the indicator; an enemy test ability uses a vector with a telegraph; with no VECTOR ability equipped, the game plays exactly as before.
 
 **Milestone AB-M – augment playground** (after AB13): in the sandbox, `SandboxAugments` with 4 fake items that visibly change the Knight: Lunge stuns (FLAG), Cleave becomes a projectile wave (REPLACE), a Judgement kill resets its cooldown (EVENT + ModifyCooldown), casting Cleave also casts a free Lunge-style dash (CastAbility, at Cleave's effect start). Built 2026-09-28, see CHANGELOG.md.
-    **Done means** (awaiting play test): keys 1–4 equip and unequip them; the tooltips show each change; unequipping restores the Knight exactly.
+    **Done means** (passed Ryan's play test, 2026-09-28): keys 1–4 equip and unequip them; the tooltips show each change; unequipping restores the Knight exactly.
 
 ## Later toolkit pieces (build when a champion needs one)
 Not build steps. Each is data once 2+ kits use it (Data or script, above).
