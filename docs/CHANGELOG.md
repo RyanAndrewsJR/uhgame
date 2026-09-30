@@ -11,7 +11,7 @@
 
 ## Abilities (ABILITIES.md)
 
-### AB14b – the old timer's extra tick removed: 2026-09-29, Built (awaiting play test)
+### AB14b – the old timer's extra tick removed: 2026-09-29, Passed
 `AbilityComponent.CAST_TIME_EPSILON` (0.0001 s): the cast-time countdown is done at `_cast_time_left <= CAST_TIME_EPSILON` instead of `<= 0`, the rule the swings already use (`SWING_TIME_EPSILON`). A cast time that is an exact number of ticks now takes exactly that many.
 
 Measured (abilities test, 60 Hz): Cleave 0.2 s and the test vector line: 12 ticks (was 13); Lunge 0.05 s: 3 (was 4); Judgement's channel 1.5 s: 90 (was 91); the test Charged Line 0.3 s: 18 (was 19); the test Mark Strike's recast 0.1 s: 6 (was 7); Iron Resolve (no cast time): the same frame; the elite's slam 0.65 s and the test vector wall 0.7 s: 39 and 42, unchanged (they were already on time). Which frame a cast counts from (at a frame's start, in the node pass, between frames, at another cast's end) is unchanged. The test now computes each tick count as the nominal count rounded up, independently of the component, and pins the table above in one check.
@@ -203,6 +203,15 @@ Combat test 450/450, stats test 172/172 (unchanged). A headless in-game check of
 **Passed** (Ryan's play test, 2026-09-27): audio test 62/62 on his machine; output latency 10 ms with WASAPI (15 ms requested). Merged to main.
 
 ## Champions (CHAMPIONS.md)
+
+### CH2 – The passive framework and Unbroken: 2026-09-29, Built (awaiting play test)
+New: `Passive` (`scripts/data/passive.gd`: modifiers, stat scalings, reaction rules, statuses, augments; `apply_to()` / `remove_from()` by source id; `_on_added()` / `_on_removed()` for a one-off script), `StatScaling` (`scripts/data/stat_scaling.gd`: a modifier, an input, a curve; `get_value()`, `read_input()`), `Unit.add_stat_scaling()` / `remove_stat_scalings_from()` / `get_stat_scalings()` (refreshed once per frame on `health_changed`, deferred after the frame's hits), `StatsComponent.replace_modifiers()`, `ChampionData.passive` and `get_passive_source_id()`, the attach in `Player._ready()` after `Unit._ready()`. Unbroken inline in `data/champions/knight.tres` (attack_damage PERCENT_ADD +0.40 on `self_missing_health`), `data/curves/curve_knight_unbroken.tres` (linear to full at 70% missing, flat after).
+
+**Changed during the step:** the refresh swaps each moved copy through the new `StatsComponent.replace_modifiers()` instead of "remove the source's copies, add them again" (that would also remove a passive's plain modifiers under the same source id and fire a dip and a rise; DECISIONS, Champions). The combat test's baseline (`_zero_knight_extras()`, which already zeroes the Knight's crit and life steal) now also removes his passive: 7 exact-damage checks run after the Knight has taken damage and saw Unbroken's AD (DECISIONS, Testing).
+
+Measured (champions test): the Knight's AD is 64 at full health, 73.14 at 75%, 82.29 at 50%, 89.6 at 30% and at 10%, back to 82.29 and then exactly 64 when healed; unchanged in the frame the health changes (refreshed after its hits); one `stat_changed` per refresh, even for two health changes in one frame, and none when the value doesn't move; a +350 max health item re-evaluates it (675 / 1000 health: 75.89 AD). Removing the passive at 30% health gives 64 at once and every live stat equal to a Knight without it; attaching it again gives 89.6 at once. A test passive with a modifier, a scaling, a rule, a status (duration −1) and an augment attaches and detaches with every stat restored.
+
+Champions 82/82 (37 new), abilities 558/558, stats 179/179, audio 109/109. Combat 457/459: the same two real-time hitstop checks as before CH1. `main.tscn` and `sandbox_main.tscn` run 600 frames with no errors.
 
 ### CH1 – ChampionData and the Knight's migration: 2026-09-29, Passed
 New: `ChampionData` (`scripts/data/champion_data.gd`: id, display name, `champion_class`, stats, resource type, Q/W/E/R, combo, hurt / death / low health sounds, `champion_level` 1, `champion_xp` 0), `data/champions/knight.tres` pointing at the Knight's existing files, `ResourceComponent.ResourceType.NONE` (appended last, so saved MANA / ENERGY / FURY values keep their numbers), `Player.champion` and `Player._apply_champion()` (before `Unit._ready()`), `player.tscn`'s `champion` set to the Knight. The scene's old exports stay (the same values) until the play test confirms CH1. Test: `scenes/tests/champions_test.tscn`.

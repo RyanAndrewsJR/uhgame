@@ -67,6 +67,8 @@ var _alive: bool = true
 var _reaction_rules: Array = []   # [ReactionRule, source_id] (COMBAT C11)
 var _dot_number: Label   # the latest DoT number, to merge the next tick into
 var _invulnerable: Dictionary = {}   # id -> true (e.g. &"dash" i-frames)
+var _stat_scalings: Array = []   # [StatScaling, source_id, its StatModifier copy] (CHAMPIONS CH2)
+var _stat_scalings_dirty: bool = false
 
 
 func _ready() -> void:
@@ -75,6 +77,7 @@ func _ready() -> void:
 	stats_component.setup(stats, movement)
 	health.set_stats_component(stats_component)
 	health.died.connect(_on_died)
+	health.health_changed.connect(_on_health_changed_for_stat_scalings)
 	if resource_pool:
 		resource_pool.set_stats_component(stats_component)
 	movement.set_stats_component(stats_component)
@@ -306,6 +309,72 @@ func get_reaction_rules() -> Array[ReactionRule]:
 ## (a copy). Reactions reads the source id for free casts (ABILITIES AB8).
 func get_reaction_rule_entries() -> Array:
 	return _reaction_rules.duplicate()
+
+
+# --- Stat scalings -----------------------------------------------------------
+
+## Gives this unit a StatScaling under `source_id` (a passive; CHAMPIONS CH2):
+## one StatModifier copy in its StatsComponent, valued for the unit now.
+## When health changes (max health too) the copies are refreshed once,
+## deferred to after that physics frame's hits, so every hit of one swing
+## or cast sees the same value.
+func add_stat_scaling(scaling: StatScaling, source_id: StringName) -> void:
+	if scaling == null or scaling.modifier == null:
+		push_error("%s: a StatScaling needs a modifier" % name)
+		return
+	var copy := scaling.make_modifier(self, source_id)
+	_stat_scalings.append([scaling, source_id, copy])
+	stats_component.add_modifier(copy)
+
+
+## Takes back every StatScaling added under `source_id` and its modifier.
+func remove_stat_scalings_from(source_id: StringName) -> void:
+	var copies: Array[StatModifier] = []
+	var kept: Array = []
+	for e: Array in _stat_scalings:
+		if e[1] == source_id:
+			copies.append(e[2])
+		else:
+			kept.append(e)
+	if copies.is_empty():
+		return
+	_stat_scalings = kept
+	var none: Array[StatModifier] = []
+	stats_component.replace_modifiers(copies, none)
+
+
+func get_stat_scalings() -> Array[StatScaling]:
+	var result: Array[StatScaling] = []
+	for e: Array in _stat_scalings:
+		result.append(e[0])
+	return result
+
+
+func _on_health_changed_for_stat_scalings(_current: float, _maximum: float) -> void:
+	if _stat_scalings.is_empty() or _stat_scalings_dirty:
+		return
+	_stat_scalings_dirty = true
+	_refresh_stat_scalings.call_deferred()
+
+
+## Revalues every scaling's copy in one StatsComponent change; stat_changed
+## fires only for a stat whose value moved.
+func _refresh_stat_scalings() -> void:
+	_stat_scalings_dirty = false
+	var old_mods: Array[StatModifier] = []
+	var new_mods: Array[StatModifier] = []
+	for e: Array in _stat_scalings:
+		var scaling: StatScaling = e[0]
+		var old_copy: StatModifier = e[2]
+		var value := scaling.get_value(self)
+		if is_equal_approx(value, old_copy.value):
+			continue
+		var new_copy := scaling.make_modifier(self, e[1])
+		e[2] = new_copy
+		old_mods.append(old_copy)
+		new_mods.append(new_copy)
+	if not new_mods.is_empty():
+		stats_component.replace_modifiers(old_mods, new_mods)
 
 
 # --- Healing ------------------------------------------------------------------

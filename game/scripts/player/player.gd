@@ -95,6 +95,9 @@ func _ready() -> void:
 	if champion != null:
 		_apply_champion()
 	super._ready()
+	if champion != null and champion.passive != null:
+		# After Unit._ready(): the StatsComponent is set up (CHAMPIONS CH2).
+		champion.passive.apply_to(self, champion.get_passive_source_id())
 	add_to_group("player")
 	attack.swing_started.connect(_on_swing_started)
 	attack.swing_landed.connect(_on_swing_landed)

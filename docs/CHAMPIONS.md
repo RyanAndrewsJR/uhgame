@@ -74,7 +74,7 @@ A bruiser: heavy swings, dives into packs, gets stronger and harder to kill the 
 ### Passive: Unbroken (name is a placeholder)
 - As the Knight's health drops he gains bonus attack damage, smoothly (like Olaf's passive, no hard breakpoint).
 - One `StatScaling`: `attack_damage` PERCENT_ADD, full value **+0.40** (TARGET 0.25–0.6), input `self_missing_health`, curve `data/curves/curve_knight_unbroken.tres`: linear from 0 at full health to full at 70% missing (30% health), flat after. So +0% at full health, about +14% at 75%, +28.6% at 50%, +40% at 30% or less. On the Knight's 64 AD: 73 / 82 / 90 AD. It multiplies (base + flat) AD, so AD from items grows with it.
-- Armor: not in the first build *(proposed: an armor entry, e.g. +20 FLAT on the same curve, stays off; Open questions)*. Cleave's heal already carries low-health survival.
+- Armor: none. Unbroken is AD only (Ryan, 2026-09-29). Cleave's heal already carries low-health survival.
 - Tooltip: "The lower your health, the harder you hit: up to +40% attack damage at 30% health or less."
 
 ### Fury (the Knight's resource)
@@ -238,7 +238,7 @@ Methods: `apply_to(unit, source_id)`, `remove_from(unit, source_id)`; virtual `_
 
 ### The passive (CH2)
 - `Passive.apply_to(unit, source_id)`: `stats_component.add_modifiers()` (each a copy with `source_id`), `unit.add_stat_scaling(s, source_id)` for each scaling, `unit.add_reaction_rule(rule, source_id)`, `status_component.apply_status(status, unit)` for each status (its own `duration`, −1 = until removed; its modifiers go under `status_<id>` as usual), `abilities.add_augment(aug, source_id)`, then `_on_added()`. `remove_from()` undoes each by source id (`remove_modifiers_from`, `remove_stat_scalings_from`, `remove_reaction_rules_from`, `remove_status` per status id, `remove_augments_from`), then `_on_removed()`. The same pattern items and SandboxAugments use.
-- `Unit.add_stat_scaling(scaling, source_id)` / `remove_stat_scalings_from(source_id)` (mirroring `add_reaction_rule()`): the unit keeps one StatModifier copy per scaling (value `get_value()`, the given source id) in its StatsComponent. On `health_changed` (which also fires when max health changes) it marks the scalings dirty and refreshes them once, deferred to after that physics frame's hits (`call_deferred`): remove that source's scaled copies, add them again with the new values. So every hit of one swing or cast sees the same AD, and `stat_changed` fires only when the value moves.
+- `Unit.add_stat_scaling(scaling, source_id)` / `remove_stat_scalings_from(source_id)` (mirroring `add_reaction_rule()`): the unit keeps one StatModifier copy per scaling (value `get_value()`, the given source id) in its StatsComponent. On `health_changed` (which also fires when max health changes) it marks the scalings dirty and refreshes them once, deferred to after that physics frame's hits (`call_deferred`): each copy whose value moved is swapped for a new one in a single `StatsComponent.replace_modifiers(old, new)` call (added in CH2: it swaps exact instances, so a passive's plain modifiers under the same source id are untouched, and `stat_changed` fires once per stat, never a dip and a rise). So every hit of one swing or cast sees the same AD, and `stat_changed` fires only when the value moves. Adding or removing a scaling applies at once (not deferred). `Passive.remove_from()` removes the plain modifiers by source id first; the scalings' copies go with them, and `remove_stat_scalings_from()` then only forgets the entries. `StatScaling.read_input()` computes `self_missing_health` itself (1 − health ÷ max health; the same formula as AbilityComponent's named input).
 - Unbroken on the F3 overlay (STATS step 7, later) shows as a modifier from `passive_knight`.
 
 ### Fury (CH3)
@@ -289,7 +289,7 @@ Every step: the Knight's abilities, enemies chasing and the HUD still work; buil
 
 1. **CH1 – ChampionData and the Knight's migration.** `champion_data.gd` (every field except `passive`, `modifiers` and the `resource_*` rhythm fields), `ResourceType.NONE`, `data/champions/knight.tres` pointing at the existing files, `Player.champion` and `_apply_champion()`, `player.tscn` set to it, the champion sounds, `champion_level` / `champion_xp`; `res://scenes/tests/champions_test.tscn` + `scripts/tests/champions_test.gd`. Built 2026-09-29, see CHANGELOG.md.
    **Done means:** the game plays exactly as before (the same numbers, slots, combo, sounds); a Player with `champion` null uses its exports; the champions test checks the loaded values against the .tres and that NONE removes the pool; every existing test passes unchanged.
-2. **CH2 – The passive framework and Unbroken.** `passive.gd`, `stat_scaling.gd`, `ChampionData.passive`, `Unit.add_stat_scaling()` / `remove_stat_scalings_from()`, the attach after `super._ready()`, Unbroken inline in the Knight's .tres, `curve_knight_unbroken.tres`.
+2. **CH2 – The passive framework and Unbroken.** `passive.gd`, `stat_scaling.gd`, `ChampionData.passive`, `Unit.add_stat_scaling()` / `remove_stat_scalings_from()`, the attach after `super._ready()`, Unbroken inline in the Knight's .tres, `curve_knight_unbroken.tres`. Built 2026-09-29, see CHANGELOG.md.
    **Done means:** the Knight's AD is 64 at full health, about 82 at 50%, 90 at 30% and below, following health both ways (damage and a heal); every enemy of one swing or Cleave sees the same AD; removing the passive restores every stat exactly; a test passive with a modifier, a rule, a status and an augment attaches and detaches cleanly.
 3. **CH3 – Fury.** `ResourceComponent` (`starts_empty`, decay, combat time), the scoped `resource_on_hit` read in `apply_on_hit()`, `ChampionData.modifiers` and the `resource_*` rhythm fields, the Knight's ChampionData to FURY (and its rhythm), `units/knight.tres` (max 100, regen 0), Cleave's cost 20, `demo_costs` off in `sandbox.tscn`; the stats, abilities and combat tests that pinned 300 mana read the new data instead (DECISIONS, Testing).
    **Done means:** the bar starts empty; each enemy a swing hits adds 8, ability hits add nothing; 3 s after the last hit dealt or taken it drains at 20/s; Cleave below 20 Fury fails with the bar's blink; Lunge, Iron Resolve and Judgement cast from 0.
@@ -307,7 +307,7 @@ The leveling curve, XP sources and talent points (TALENTS.md); saving the champi
 ## Open questions
 Claude's proposals from the approved plan (written in above as *(proposed)*; Ryan can overrule any):
 1. ~~`champion_class` as the field name~~: answered, yes (Ryan, 2026-09-29).
-2. Unbroken: AD only (proposed), or armor too (e.g. +20 on the same curve)?
+2. ~~Unbroken: AD only, or armor too~~: answered, AD only (Ryan, 2026-09-29).
 3. Fury: +8 per enemy hit by a basic attack (proposed, through the scoped `resource_on_hit`), or once per swing that lands? Should taking damage build Fury too (proposed: no)?
 4. Does the empowered Judgement consume all Fury (proposed: yes), or only read it?
 5. Cleave's heal on overkill: the full `taken_damage` like `life_steal` (proposed), or capped at the health the target actually lost?

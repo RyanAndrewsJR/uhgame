@@ -8,8 +8,8 @@ extends Resource
 ## nodes before Unit._ready(). A Player with no champion keeps its scene's
 ## own exports. Champions are data, never subclasses of Player.
 ##
-## Later steps add the passive (CH2), the resource rhythm and the champion's
-## own stat modifiers (CH3).
+## The passive attaches after Unit._ready() under passive_<id> (CH2). CH3 adds
+## the resource rhythm and the champion's own stat modifiers.
 
 @export_group("Identity")
 ## Lowercase id. Source ids built from it: passive_<id>, champion_<id>.
@@ -36,6 +36,11 @@ extends Resource
 ## The default basic attack combo (until weapons exist).
 @export var combo: AttackCombo
 
+@export_group("Passive")
+## Attached at load under get_passive_source_id() (CHAMPIONS.md, Passives).
+## null = no passive.
+@export var passive: Passive
+
 @export_group("Sounds")
 @export var hurt_sound: SoundEvent
 @export var death_sound: SoundEvent
@@ -49,3 +54,8 @@ extends Resource
 ## XP earned toward the next level (not total XP), so retuning the curve
 ## can never take a level away.
 @export var champion_xp: int = 0
+
+
+## The source id the passive's pieces are added under: passive_<id>.
+func get_passive_source_id() -> StringName:
+	return StringName("passive_%s" % id)

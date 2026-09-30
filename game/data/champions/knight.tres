@@ -9,6 +9,28 @@
 [ext_resource type="Resource" path="res://data/combos/combo_knight.tres" id="7_combo"]
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_hurt.tres" id="8_hurt_sound"]
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_low_health.tres" id="9_low_health_sound"]
+[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="10_stat_modifier"]
+[ext_resource type="Script" path="res://scripts/data/stat_scaling.gd" id="11_stat_scaling"]
+[ext_resource type="Script" path="res://scripts/data/passive.gd" id="12_passive"]
+[ext_resource type="Curve" path="res://data/curves/curve_knight_unbroken.tres" id="13_unbroken_curve"]
+
+[sub_resource type="Resource" id="StatModifier_unbroken"]
+script = ExtResource("10_stat_modifier")
+stat = &"attack_damage"
+type = 1
+value = 0.4
+
+[sub_resource type="Resource" id="StatScaling_unbroken"]
+script = ExtResource("11_stat_scaling")
+modifier = SubResource("StatModifier_unbroken")
+input = &"self_missing_health"
+curve = ExtResource("13_unbroken_curve")
+
+[sub_resource type="Resource" id="Passive_unbroken"]
+script = ExtResource("12_passive")
+display_name = "Unbroken"
+description = "The lower your health, the harder you hit: up to +40% attack damage at 30% health or less."
+stat_scalings = Array[ExtResource("11_stat_scaling")]([SubResource("StatScaling_unbroken")])
 
 [resource]
 script = ExtResource("1_champion")
@@ -22,6 +44,7 @@ w = ExtResource("4_w")
 e = ExtResource("5_e")
 r = ExtResource("6_r")
 combo = ExtResource("7_combo")
+passive = SubResource("Passive_unbroken")
 hurt_sound = ExtResource("8_hurt_sound")
 low_health_sound = ExtResource("9_low_health_sound")
 champion_level = 1

@@ -5,6 +5,9 @@ extends Node2D
 ## exports, the loaded Knight matching the old exports exactly, another
 ## champion's data replacing every copied field, and resource type NONE
 ## removing the pool.
+## CH2: the passive framework (Passive, StatScaling, Unit.add_stat_scaling())
+## and Unbroken: the Knight's AD following his missing health both ways,
+## refreshed once after the frame's hits, and every piece removed exactly.
 ## Prints PASS/FAIL per check, then a total.
 ## Run headless and it quits with the number of failures as the exit code.
 
@@ -25,6 +28,9 @@ const NOVA: Ability = preload("res://data/abilities/test_q_nova.tres")
 const STRIKE: Ability = preload("res://data/abilities/test_q_strike.tres")
 const SLAM: Ability = preload("res://data/abilities/slime_elite_q_slam.tres")
 const DASH_SOUND: SoundEvent = preload("res://data/sounds/sound_knight_dash.tres")
+const UNBROKEN_CURVE: Curve = preload("res://data/curves/curve_knight_unbroken.tres")
+const RULE_EXECUTE: Resource = preload("res://data/reactions/reaction_test_execute.tres")
+const AUGMENT_LUNGE_STUNS: Resource = preload("res://data/augments/augment_lunge_stuns.tres")
 
 const MANA := ResourceComponent.ResourceType.MANA
 const ENERGY := ResourceComponent.ResourceType.ENERGY
@@ -36,13 +42,18 @@ var _next_x: float = 0.0
 
 
 func _ready() -> void:
-	print("\n=== Champions test (CHAMPIONS CH1) ===")
+	print("\n=== Champions test (CHAMPIONS CH1–CH2) ===")
 	_test_knight_data()
 	await _test_knight_loaded()
 	await _test_no_champion()
 	await _test_other_champion()
 	await _test_resource_none()
 	await _test_level_not_read()
+	_test_unbroken_data()
+	await _test_unbroken_follows_health()
+	await _test_unbroken_max_health()
+	await _test_passive_removed()
+	await _test_passive_pieces()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -152,7 +163,165 @@ func _test_level_not_read() -> void:
 	await _frames(1)
 
 
+func _test_unbroken_data() -> void:
+	_section("CH2: Unbroken in the Knight's .tres")
+	var p := KNIGHT.passive
+	_check("a passive: Unbroken", [p != null, p.display_name if p else ""], [true, "Unbroken"])
+	_check("its source id: passive_knight", KNIGHT.get_passive_source_id(), &"passive_knight")
+	var s: StatScaling = p.stat_scalings[0] if p and p.stat_scalings.size() == 1 else null
+	_check("one StatScaling: attack_damage PERCENT_ADD +0.40 on self_missing_health", [s != null, s.modifier.stat if s else &"", s.modifier.type if s else -1, s.modifier.value if s else 0.0, s.input if s else &""],
+		[true, &"attack_damage", StatModifier.Type.PERCENT_ADD, 0.4, &"self_missing_health"])
+	_check("its curve: curve_knight_unbroken.tres", s != null and s.curve == UNBROKEN_CURVE, true)
+	_check("AD only: no modifiers, rules, statuses or augments", [p.modifiers.size(), p.reaction_rules.size(), p.statuses.size(), p.augments.size()], [0, 0, 0, 0])
+	if s == null:
+		return
+	var fractions := []
+	for x in [0.0, 0.25, 0.5, 0.7, 0.85, 1.0]:
+		fractions.append(snappedf(s.get_fraction(x), 0.001))
+	_check("curve: 0 / 25 / 50 / 70 / 85 / 100% missing = 0 / 0.357 / 0.714 / 1 / 1 / 1", fractions, [0.0, 0.357, 0.714, 1.0, 1.0, 1.0])
+	_check("the tooltip text", p.description, "The lower your health, the harder you hit: up to +40% attack damage at 30% health or less.")
+
+
+func _test_unbroken_follows_health() -> void:
+	_section("CH2: the Knight's AD follows his missing health")
+	var k := await _spawn()
+	var ad := func() -> float: return k.stats_component.get_stat(&"attack_damage")
+	_check("full health: 64 AD", ad.call(), 64.0)
+	var mods := k.stats_component.get_modifiers_from(&"passive_knight")
+	_check("one passive_knight modifier (value 0 at full health)", [mods.size(), mods[0].value if mods.size() > 0 else -1.0], [1, 0.0])
+	var changes: Array = []
+	var on_changed := func(key: StringName, old_value: float, new_value: float) -> void:
+		if key == &"attack_damage":
+			changes.append([snappedf(old_value, 0.01), snappedf(new_value, 0.01)])
+	k.stats_component.stat_changed.connect(on_changed)
+	_set_health(k, 0.75)
+	_check("75% health, the same frame: still 64 (refreshed after the frame's hits)", ad.call(), 64.0)
+	await _frames(1)
+	_check_near("75% health: about 73 AD", ad.call(), 73.143, 0.01)
+	_check("stat_changed once: 64 -> 73.14", changes, [[64.0, 73.14]])
+	changes.clear()
+	_set_health(k, 0.6)
+	_set_health(k, 0.5)
+	await _frames(1)
+	_check_near("two health changes in one frame, then 50%: about 82 AD", ad.call(), 82.286, 0.01)
+	_check("one refresh for both: stat_changed once", changes.size(), 1)
+	_set_health(k, 0.3)
+	await _frames(1)
+	_check_near("30% health: 89.6 AD", ad.call(), 89.6, 0.01)
+	changes.clear()
+	_set_health(k, 0.1)
+	await _frames(1)
+	_check_near("10% health: 89.6 AD (flat after 70% missing)", ad.call(), 89.6, 0.01)
+	_check("no stat_changed when the value doesn't move", changes.size(), 0)
+	_set_health(k, 0.5)
+	await _frames(1)
+	_check_near("healed to 50%: back to about 82 AD", ad.call(), 82.286, 0.01)
+	_set_health(k, 1.0)
+	await _frames(1)
+	_check("healed to full: 64 AD exactly", ad.call(), 64.0)
+	_check("still one passive_knight modifier", k.stats_component.get_modifiers_from(&"passive_knight").size(), 1)
+	k.stats_component.stat_changed.disconnect(on_changed)
+	k.queue_free()
+	await _frames(1)
+
+
+func _test_unbroken_max_health() -> void:
+	_section("CH2: a max health change re-evaluates Unbroken")
+	var k := await _spawn()
+	_set_health(k, 0.5)   # 325 / 650
+	await _frames(1)
+	k.stats_component.add_modifier(StatModifier.create(&"max_health", StatModifier.Type.FLAT, 350.0, &"item_test_max_health"))
+	await _frames(1)
+	# A raised max adds the difference to current: 675 / 1000, 32.5% missing.
+	_check("675 / 1000 health", [k.health.current, k.health.max_health], [675.0, 1000.0])
+	_check_near("AD follows the new max: 64 x (1 + 0.4 x 0.325 / 0.7)", k.stats_component.get_stat(&"attack_damage"), 64.0 * (1.0 + 0.4 * 0.325 / 0.7), 0.01)
+	k.stats_component.remove_modifiers_from(&"item_test_max_health")
+	await _frames(1)
+	_check("max back to 650 clamps current to full: 64 AD", [k.health.current, k.stats_component.get_stat(&"attack_damage")], [650.0, 64.0])
+	k.queue_free()
+	await _frames(1)
+
+
+func _test_passive_removed() -> void:
+	_section("CH2: removing the passive restores every stat exactly")
+	var plain := await _spawn(true)   # no champion, so no passive
+	var k := await _spawn()
+	_set_health(plain, 0.3)
+	_set_health(k, 0.3)
+	await _frames(1)
+	_check_near("at 30% health the Knight has 89.6 AD", k.stats_component.get_stat(&"attack_damage"), 89.6, 0.01)
+	KNIGHT.passive.remove_from(k, KNIGHT.get_passive_source_id())
+	_check("removed: 64 AD at once (not deferred)", k.stats_component.get_stat(&"attack_damage"), 64.0)
+	_check("no passive_knight modifiers or scalings left", [k.stats_component.get_modifiers_from(&"passive_knight").size(), k.get_stat_scalings().size()], [0, 0])
+	_check("every live stat = a Knight without the passive at the same health", _all_values(k), _all_values(plain))
+	_set_health(k, 0.1)
+	await _frames(1)
+	_check("a later health change doesn't bring it back", k.stats_component.get_stat(&"attack_damage"), 64.0)
+	KNIGHT.passive.apply_to(k, KNIGHT.get_passive_source_id())
+	_check_near("attached again at 10% health: 89.6 AD at once", k.stats_component.get_stat(&"attack_damage"), 89.6, 0.01)
+	plain.queue_free()
+	k.queue_free()
+	await _frames(1)
+
+
+func _test_passive_pieces() -> void:
+	_section("CH2: a test passive with a modifier, a scaling, a rule, a status and an augment")
+	var p := await _spawn(true)
+	var state := StatusEffect.new()
+	state.id = &"test_passive_state"
+	state.duration = -1.0
+	state.tags = [&"buff"]
+	var passive := Passive.new()
+	passive.display_name = "Test"
+	passive.modifiers = [StatModifier.create(&"armor", StatModifier.Type.FLAT, 10.0, &"")]
+	passive.stat_scalings = [_scaling(&"move_speed", StatModifier.Type.FLAT, 100.0)]
+	passive.reaction_rules = [RULE_EXECUTE]
+	passive.statuses = [state]
+	passive.augments = [AUGMENT_LUNGE_STUNS]
+	var before := _all_values(p)
+	var source := &"passive_test"
+	passive.apply_to(p, source)
+	await _frames(1)
+	_check("modifier: +10 armor (a copy under passive_test; the original untouched)", [p.stats_component.get_stat(&"armor") - before[&"armor"], p.stats_component.get_modifiers_from(source).size() >= 1, passive.modifiers[0].source_id], [10.0, true, &""])
+	_check("scaling: attached (0 move speed at full health)", [p.get_stat_scalings().size(), p.stats_component.get_stat(&"move_speed")], [1, before[&"move_speed"]])
+	_check("rule: added under passive_test", _rule_sources(p).has(source), true)
+	_check("status: active", p.status_component.has_status(&"test_passive_state"), true)
+	_check("augment: Lunge stuns on E", p.abilities.get_augments(&"e").has(AUGMENT_LUNGE_STUNS), true)
+	await _frames(30)
+	_check("the status is still there half a second later (duration -1)", p.status_component.has_status(&"test_passive_state"), true)
+	passive.remove_from(p, source)
+	await _frames(1)
+	_check("removed: every live stat as before", _all_values(p), before)
+	_check("removed: no rule, status, augment or scaling", [_rule_sources(p).has(source), p.status_component.has_status(&"test_passive_state"), p.abilities.get_augments(&"e").has(AUGMENT_LUNGE_STUNS), p.get_stat_scalings().size()], [false, false, false, 0])
+	p.queue_free()
+	await _frames(1)
+
+
 # --- Helpers ------------------------------------------------------------------
+
+## Moves the unit's health to `fraction` of its max (HealthComponent directly:
+## no hit, no i-frames).
+func _set_health(p: Player, fraction: float) -> void:
+	var target := p.health.max_health * fraction
+	if p.health.current > target:
+		p.health.take_damage(p.health.current - target)
+	elif p.health.current < target:
+		p.health.heal(target - p.health.current)
+
+
+func _scaling(stat: StringName, type: StatModifier.Type, value: float) -> StatScaling:
+	var s := StatScaling.new()
+	s.modifier = StatModifier.create(stat, type, value, &"")
+	return s
+
+
+func _rule_sources(p: Player) -> Array:
+	return p.get_reaction_rule_entries().map(func(e: Array) -> StringName: return e[1])
+
+
+func _check_near(label: String, actual: float, expected: float, tolerance: float) -> void:
+	_report(absf(actual - expected) <= tolerance, label, "got %s, expected %s ± %s" % [actual, expected, tolerance])
+
 
 ## Checks every field _apply_champion() copies.
 func _check_loaded(p: Player, c: ChampionData, label: String) -> void:

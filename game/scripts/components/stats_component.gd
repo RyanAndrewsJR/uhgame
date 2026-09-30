@@ -168,6 +168,36 @@ func remove_modifiers_from(source_id: StringName) -> void:
 	_apply_changes(old)
 
 
+## Swaps these exact modifier instances (the ones still here) for new ones in
+## one change, so stat_changed fires once per stat whose value moved (a
+## StatScaling's refresh, CHAMPIONS CH2). new_mods may be empty (a removal).
+func replace_modifiers(old_mods: Array[StatModifier], new_mods: Array[StatModifier]) -> void:
+	var removed: Array[StatModifier] = []
+	for mod in old_mods:
+		if _modifiers.has(mod):
+			removed.append(mod)
+	var accepted: Array[StatModifier] = []
+	for mod in new_mods:
+		if _is_valid(mod):
+			accepted.append(mod)
+	if removed.is_empty() and accepted.is_empty():
+		return
+	var keys := _unscoped_keys(removed)
+	for key in _unscoped_keys(accepted):
+		if not keys.has(key):
+			keys.append(key)
+	var old := _snapshot(keys)
+	var kept: Array[StatModifier] = []
+	for mod in _modifiers:
+		if not removed.has(mod):
+			kept.append(mod)
+	kept.append_array(accepted)
+	_modifiers = kept
+	if _has_scoped(removed) or _has_scoped(accepted):
+		_param_cache.clear()
+	_apply_changes(old)
+
+
 ## Levels start at 1. Only stats with growth change.
 func set_level(n: int) -> void:
 	n = maxi(n, 1)
