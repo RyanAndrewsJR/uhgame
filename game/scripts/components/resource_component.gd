@@ -14,10 +14,12 @@ signal resource_changed(current: float, maximum: float)
 ## current reached 0 by spending.
 signal depleted
 
-enum ResourceType { MANA, ENERGY, FURY }
+## NONE is only used by ChampionData: a champion with NONE has this node
+## removed at load (CHAMPIONS.md), so a live ResourceComponent never has it.
+enum ResourceType { MANA, ENERGY, FURY, NONE }
 
-## Only a label for now. The real type per champion comes from ChampionData
-## (CHAMPIONS.md); type rules (fury decay, energy caps) come with it.
+## Only a label for now. A champion's comes from its ChampionData
+## (CHAMPIONS.md); type rules (fury decay, energy caps) come with CH3.
 @export var resource_type: ResourceType = ResourceType.MANA
 ## Used until set_stats_component() is called.
 @export var max_resource: float = 100.0

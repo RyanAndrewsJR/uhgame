@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="ChampionData" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/champion_data.gd" id="1_champion"]
+[ext_resource type="Resource" path="res://data/units/knight.tres" id="2_stats"]
+[ext_resource type="Resource" path="res://data/abilities/knight_q_cleave.tres" id="3_q"]
+[ext_resource type="Resource" path="res://data/abilities/knight_w_iron_resolve.tres" id="4_w"]
+[ext_resource type="Resource" path="res://data/abilities/knight_e_lunge.tres" id="5_e"]
+[ext_resource type="Resource" path="res://data/abilities/knight_r_judgement.tres" id="6_r"]
+[ext_resource type="Resource" path="res://data/combos/combo_knight.tres" id="7_combo"]
+[ext_resource type="Resource" path="res://data/sounds/sound_knight_hurt.tres" id="8_hurt_sound"]
+[ext_resource type="Resource" path="res://data/sounds/sound_knight_low_health.tres" id="9_low_health_sound"]
+
+[resource]
+script = ExtResource("1_champion")
+id = &"knight"
+display_name = "Knight"
+champion_class = &"bruiser"
+stats = ExtResource("2_stats")
+resource_type = 0
+q = ExtResource("3_q")
+w = ExtResource("4_w")
+e = ExtResource("5_e")
+r = ExtResource("6_r")
+combo = ExtResource("7_combo")
+hurt_sound = ExtResource("8_hurt_sound")
+low_health_sound = ExtResource("9_low_health_sound")
+champion_level = 1
+champion_xp = 0

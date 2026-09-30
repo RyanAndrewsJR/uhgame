@@ -729,6 +729,9 @@ Every step: with no cast style changes, scalings, costs, charges, recasts, augme
 14. **AB14 – Cast progress and presentation hooks** (Ryan, 2026-09-29; before CHAMPIONS CH1). Built 2026-09-29, see CHANGELOG.md.
     **Done means** (passed Ryan's play test, 2026-09-29): every cast lands its effect on the same physics frame as with the old timer (measured flag on vs off before the deletion; now checked against the timer's arithmetic from each `cast_time`, including casts started mid-frame, between frames and at another cast's end); telegraphs are exactly full at the hit; with every hook empty nothing changes on screen; filled test hooks each fire once at their moment and animations follow progress; the game plays exactly as before. The old timer path was then deleted (see CHANGELOG.md).
 
+    **AB14b – Remove the old timer's extra tick** (Ryan, 2026-09-29; its own small step after CHAMPIONS CH1). A cast time that is an exact number of ticks lands on that tick (0.2 s = 12 ticks, not 13): the countdown treats a remainder within a small epsilon of 0 as done, as the swings do. Every other cast is unchanged.
+    **Done means:** the abilities test's timing checks expect the nominal tick count (`_ab14_timer_ticks()` without the float residue) and pass; casts with 0.65 or 0.7 s land on the same frame as before; Ryan's play test: the affected casts (every cast time that is an exact number of ticks, such as Cleave's 0.2 s and Lunge's 0.05 s) feel the same or snappier.
+
 **Milestone AB-M – augment playground** (after AB13): in the sandbox, `SandboxAugments` with 4 fake items that visibly change the Knight: Lunge stuns (FLAG), Cleave becomes a projectile wave (REPLACE), a Judgement kill resets its cooldown (EVENT + ModifyCooldown), casting Cleave also casts a free Lunge-style dash (CastAbility, at Cleave's effect start). Built 2026-09-28, see CHANGELOG.md.
     **Done means** (passed Ryan's play test, 2026-09-28): keys 1–4 equip and unequip them; the tooltips show each change; unequipping restores the Knight exactly.
 
@@ -747,7 +750,7 @@ Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modi
 - The element tag list.
 - Can a recast part be dash-cancelled separately?
 - AB14: should the charge-up hold (`charge_time`) also run at cast speed? *(proposed: yes, when a champion first has a charge-up)*
-- AB14: cast progress keeps the old timer's extra tick when a cast time is an exact number of ticks (0.2 s = 13 ticks, not 12; about 17 ms late). Remove it (an epsilon, as the swings have: those casts land one tick earlier than today), or keep it? *(Proposed: remove it in its own small step after the AB14 play test, so the regression check stays a clean before/after.)*
+- ~~AB14: keep or remove the old timer's extra tick~~: answered (Ryan, 2026-09-29): remove it, as its own small step (AB14b, Build order) after CHAMPIONS CH1, so each play test checks one change.
 - Resource-type rhythms: answered, CHAMPIONS.md owns them (fury: Fury section there). Which Knight abilities ignore walls: answered in CHAMPIONS.md *(proposed: none)*.
 - Charge-up and the input buffer: a press buffered during a swing or dash whose key is already released when it fires: a tap (charge 0), or dropped? *(proposed: a tap; built that way)*
 - Forms: shared per-slot cooldowns (built in AB9) or separate cooldowns per form (Jayce)?

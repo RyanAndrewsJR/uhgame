@@ -22,6 +22,7 @@
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_hurt.tres" id="21_hurt_sound"]
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_dash.tres" id="22_dash_sound"]
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_low_health.tres" id="s1_low_health_sound"]
+[ext_resource type="Resource" path="res://data/champions/knight.tres" id="c1_champion"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_body"]
 radius = 11.0
@@ -40,6 +41,7 @@ body_center = Vector2(0, -15)
 post_hit_iframes = 0.3
 hurt_sound = ExtResource("21_hurt_sound")
 low_health_sound = ExtResource("s1_low_health_sound")
+champion = ExtResource("c1_champion")
 
 [node name="Shadow" type="Polygon2D" parent="." unique_id=27522859]
 color = Color(0, 0, 0, 0.35)

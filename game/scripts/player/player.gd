@@ -34,6 +34,12 @@ signal state_changed(from: State, to: State)
 
 const ABILITY_ACTIONS := {&"q": "ability_q", &"w": "ability_w", &"e": "ability_e", &"r": "ability_r"}
 
+## The champion this player is (CHAMPIONS.md). Its stats, slots, combo,
+## sounds and resource type replace this scene's own exports at load
+## (_apply_champion()). null = the scene's exports, exactly as before. Set it
+## before the Player enters the tree (the hub, later).
+@export var champion: ChampionData
+
 ## Set from Settings at start and whenever the player changes it in the
 ## pause menu, so an Inspector value only lasts until then.
 @export var cast_mode: CastMode = CastMode.QUICK
@@ -86,6 +92,8 @@ var _swing_tween: Tween
 
 func _ready() -> void:
 	team = Team.PLAYER
+	if champion != null:
+		_apply_champion()
 	super._ready()
 	add_to_group("player")
 	attack.swing_started.connect(_on_swing_started)
@@ -99,6 +107,31 @@ func _ready() -> void:
 	cast_mode = Settings.get_cast_mode()
 	Settings.setting_changed.connect(_on_settings_setting_changed)
 	abilities.charge_ended.connect(_on_abilities_charge_ended)
+
+
+## Copies the champion onto this unit and its nodes (CHAMPIONS.md, Loading a
+## champion). Runs before Unit._ready(), which sets up stats, health and the
+## resource pool from them. The children's _ready() has already run, but none
+## of them reads these exports there. The champion level is never read here.
+func _apply_champion() -> void:
+	stats = champion.stats
+	abilities.q = champion.q
+	abilities.w = champion.w
+	abilities.e = champion.e
+	abilities.r = champion.r
+	attack.combo = champion.combo
+	hurt_sound = champion.hurt_sound
+	death_sound = champion.death_sound
+	low_health_sound = champion.low_health_sound
+	if resource_pool == null:
+		return
+	if champion.resource_type == ResourceComponent.ResourceType.NONE:
+		# No resource: no pool node, so no costs and no resource bar.
+		remove_child(resource_pool)
+		resource_pool.queue_free()
+		resource_pool = null
+	else:
+		resource_pool.resource_type = champion.resource_type
 
 
 func _on_settings_setting_changed(key: StringName, _value: Variant) -> void:

@@ -34,13 +34,13 @@ What exists before CH1 (the rest is Data and Architecture):
 - A `ChampionData` resource ties together: identity (id, name, class), a base stats reference (`UnitStats`), a resource type and its rhythm (MANA / ENERGY / FURY / NONE), four ability slots Q / W / E / R (one clear identity per kit: three abilities and an ultimate), the default basic attack combo, a passive, the champion's sounds, and the champion level fields.
 - Slots are fixed and never remixed between champions or reassigned by the player. REPLACE augments and forms (ABILITIES.md) still change what's active in a slot; that's part of a build, not a slot choice.
 - The champion's combo is its default until weapons exist (a champion's combo will come from its equipped weapon, limited by its class; COMBAT.md, Open questions; LOOT.md).
-- `champion_class` (the Knight: `bruiser`) is the "class" the COMBAT decisions already use for dash-strike power and which weapons a champion can wield *(proposed name; Open questions)*. It isn't a role tag: role tags are ability roles (`generator`, `core`...).
+- `champion_class` (the Knight: `bruiser`) is the "class" the COMBAT decisions already use for dash-strike power and which weapons a champion can wield (name approved by Ryan, 2026-09-29). It isn't a role tag: role tags are ability roles (`generator`, `core`...).
 
 ### Champion level (MUST; a hook only)
 - Each champion has its own persistent level and progress, separate from every other champion (VISION.md, Game structure): `champion_level` (int, starts 1) and `champion_xp` (int, starts 0: the XP earned toward the next level). Level plus XP-into-level (rather than total XP) means retuning the curve later can never take a level away.
 - It only ever gates that champion's talent points (TALENTS.md). It never calls `StatsComponent.set_level()` and never touches combat stats. There is no leveling inside a run.
 - Not designed here: the leveling curve, XP sources and rates (TALENTS.md once it exists). Nothing reads the fields yet.
-- The fields hold the value while the game runs. A ChampionData .tres is design data (read-only in an exported build), so it always ships level 1 / 0 XP; saving and loading the player's values from `user://` is PROGRESSION's (or TALENTS') *(proposed; Open questions)*.
+- The fields hold the value while the game runs. A ChampionData .tres is design data (read-only in an exported build), so it always ships level 1 / 0 XP; saving and loading the player's values from `user://` is PROGRESSION's (or TALENTS') (Ryan, 2026-09-29).
 
 ### Ability ranks
 - None (decided 2026-09-29; ABILITIES.md, Ability ranks; DECISIONS.md, Game structure). In-run power comes from loot; cross-run power from the champion level and the talent tree.
@@ -175,9 +175,9 @@ Every field defaults to "change nothing"; a Player with no ChampionData keeps us
 |---|---|---|---|
 | `id` | `StringName` | `&"knight"` | new; source ids `passive_<id>`, `champion_<id>` |
 | `display_name` | `String` | "Knight" | new (`UnitStats.display_name` was deleted) |
-| `champion_class` | `StringName` | `&"bruiser"` | new *(proposed name)* |
+| `champion_class` | `StringName` | `&"bruiser"` | new |
 | `stats` | `UnitStats` | `data/units/knight.tres` | `Unit.stats` |
-| `resource_type` | `ResourceComponent.ResourceType` | FURY | `ResourceComponent.resource_type`; `NONE` is added last in the enum: the ResourceComponent node is removed at load |
+| `resource_type` | `ResourceComponent.ResourceType` | FURY (MANA in CH1–CH2, as before; CH3 switches it) | `ResourceComponent.resource_type`; `NONE` is added last in the enum: the ResourceComponent node is removed at load |
 | `resource_starts_empty` | `bool` | true | `ResourceComponent.starts_empty` (CH3) |
 | `resource_decay_per_second` | `float` | 20 | `ResourceComponent.decay_per_second` (CH3) |
 | `resource_decay_delay` | `float` | 3.0 | `ResourceComponent.decay_delay` (CH3) |
@@ -190,6 +190,8 @@ Every field defaults to "change nothing"; a Player with no ChampionData keeps us
 | `champion_xp` | `int` | 0 | new; XP toward the next level; plain storage |
 
 No `growth`: champions don't level their stats (STATS.md, Fill in). Enemies keep per-level growth through `StatsComponent.setup()` (DUNGEONS.md).
+
+Built in CH1: every field except `passive` (CH2), `modifiers` and the three `resource_*` rhythm fields (CH3: they're added with the ResourceComponent fields they map to, so no field sits unused). Export groups: Identity, Stats, Resource, Abilities, Sounds, Champion level.
 
 ### Passive (Resource, `res://scripts/data/passive.gd`; inline in the champion's .tres)
 | Field | Type | Notes |
@@ -228,7 +230,9 @@ Methods: `apply_to(unit, source_id)`, `remove_from(unit, source_id)`; virtual `_
 ## Architecture / contracts
 ### Loading a champion (CH1)
 - `Player` gets `@export var champion: ChampionData` (null = the scene's own exports, exactly as before). `player.tscn` sets it to `data/champions/knight.tres`; its old exports stay (the same values) until Ryan confirms CH1, then they can be cleared (disable before deleting).
-- `Player._ready()`, **before** `super._ready()`: `_apply_champion()` copies `stats`, the four slots, `combo`, the sounds and the resource rhythm onto the nodes (`self.stats`, `abilities.q...`, `attack.combo`, `resource_pool.resource_type` / `starts_empty` / `decay_*`). The children's `_ready()` has already run, but none of them reads these exports there (checked: AbilityComponent and AutoAttackComponent only cache their unit). For NONE, the ResourceComponent node is freed and `resource_pool` set to null before `Unit._ready()` wires it. Then `Unit._ready()` sets up stats, health and the pool from the champion's stats as usual.
+- `Player._ready()`, **before** `super._ready()`: `_apply_champion()` copies `stats`, the four slots, `combo`, the sounds and the resource rhythm onto the nodes (`self.stats`, `abilities.q...`, `attack.combo`, `resource_pool.resource_type` / `starts_empty` / `decay_*`; CH1 copies the type, CH3 adds the rest). Every field is copied as it is, null included: the champion replaces the scene's values, it doesn't merge with them. The children's `_ready()` has already run, but none of them reads these exports there (checked: AbilityComponent and AutoAttackComponent only cache their unit). For NONE, the ResourceComponent node is removed from the Player, queued for freeing and `resource_pool` set to null before `Unit._ready()` wires it. Then `Unit._ready()` sets up stats, health and the pool from the champion's stats as usual.
+- `DashComponent.dash_sound` isn't a champion field (it stays on the scene); it moves when a second champion needs its own.
+- Code that sets a Player's exports before it enters the tree must set them on the nodes (`get_node("AbilityComponent")`): the `@onready` shortcuts (`abilities`, `attack`) are null until then.
 - **After** `super._ready()` (the StatsComponent is set up): the champion's `modifiers` go to StatsComponent under `champion_<id>` (CH3), and the passive attaches (CH2). The hub (later) sets `champion` before the Player enters the tree.
 - The champion level fields are never read by the loader.
 
@@ -242,7 +246,7 @@ Methods: `apply_to(unit, source_id)`, `remove_from(unit, source_id)`; virtual `_
 - `ResourceComponent` connects to `Events.unit_hit` in `_ready()`: a hit that got through whose `source` or `target` is its unit resets `_since_combat` to 0. `_physics_process(delta)` (game time) adds delta to `_since_combat`; regen as before; then, if `decay_per_second` > 0, current > 0 and `_since_combat` ≥ `decay_delay`: current = max(current − decay × delta, 0) and `resource_changed`.
 - Costs are the existing `resource_cost` (paid at cast start, refunded on cancel or interrupt, "not enough resource" fails at once and isn't buffered).
 - The sandbox's cost demo (`SandboxAbilities.demo_costs`) is turned off in `sandbox.tscn` (its 30 / 40 / 50 / 80 would stack on the real costs and make every slot uncastable at 0 Fury). The demo code stays.
-- **HUD implications (notes only; the work belongs to UI.md or its own step):** the bar is red (fury, already); it starts empty and visibly drains out of combat; a tick mark at the Judgement threshold (60) and a glow while the Knight is at or above it would make the payoff readable; the existing blink on "not enough resource" covers Cleave; R's slot could brighten while the bonus is live.
+- **HUD implications (notes only; the work belongs to UI.md or its own step):** the bar turns red when the Knight's `resource_type` becomes FURY (the color already exists; until CH3 it's the MANA blue); it starts empty and visibly drains out of combat; a tick mark at the Judgement threshold (60) and a glow while the Knight is at or above it would make the payoff readable; the existing blink on "not enough resource" covers Cleave; R's slot could brighten while the bonus is live.
 
 ### Staggered, Cleave, Judgement (CH4)
 - All data except two script lines: `judgement.gd` reads `stun_duration` with `get_effect_param(caster, &"stun_duration", ctx, target)`, and (if approved) consumes the Fury after its hit when `get_active_bonuses(caster, ctx, target)` includes the Fury bonus and the hit landed (`resource_pool.try_spend(resource_pool.current)`).
@@ -283,11 +287,11 @@ See AUDIO.md. Champion sounds (hurt, death, low health) move onto ChampionData i
 ## Build order (one step per request)
 Every step: the Knight's abilities, enemies chasing and the HUD still work; build logs go in CHANGELOG.md (a Champions section); this doc keeps one line per built step. ABILITIES AB14 (cast progress and presentation hooks) comes first.
 
-1. **CH1 – ChampionData and the Knight's migration.** `champion_data.gd` (every field except `passive` and `modifiers`), `ResourceType.NONE`, `data/champions/knight.tres` pointing at the existing files, `Player.champion` and `_apply_champion()`, `player.tscn` set to it, the champion sounds, `champion_level` / `champion_xp`; `res://scenes/tests/champions_test.tscn` + `scripts/tests/champions_test.gd`.
+1. **CH1 – ChampionData and the Knight's migration.** `champion_data.gd` (every field except `passive`, `modifiers` and the `resource_*` rhythm fields), `ResourceType.NONE`, `data/champions/knight.tres` pointing at the existing files, `Player.champion` and `_apply_champion()`, `player.tscn` set to it, the champion sounds, `champion_level` / `champion_xp`; `res://scenes/tests/champions_test.tscn` + `scripts/tests/champions_test.gd`. Built 2026-09-29, see CHANGELOG.md.
    **Done means:** the game plays exactly as before (the same numbers, slots, combo, sounds); a Player with `champion` null uses its exports; the champions test checks the loaded values against the .tres and that NONE removes the pool; every existing test passes unchanged.
 2. **CH2 – The passive framework and Unbroken.** `passive.gd`, `stat_scaling.gd`, `ChampionData.passive`, `Unit.add_stat_scaling()` / `remove_stat_scalings_from()`, the attach after `super._ready()`, Unbroken inline in the Knight's .tres, `curve_knight_unbroken.tres`.
    **Done means:** the Knight's AD is 64 at full health, about 82 at 50%, 90 at 30% and below, following health both ways (damage and a heal); every enemy of one swing or Cleave sees the same AD; removing the passive restores every stat exactly; a test passive with a modifier, a rule, a status and an augment attaches and detaches cleanly.
-3. **CH3 – Fury.** `ResourceComponent` (`starts_empty`, decay, combat time), the scoped `resource_on_hit` read in `apply_on_hit()`, `ChampionData.modifiers` and the resource fields, `knight.tres` (max 100, regen 0), Cleave's cost 20, `demo_costs` off in `sandbox.tscn`; the stats, abilities and combat tests that pinned 300 mana read the new data instead (DECISIONS, Testing).
+3. **CH3 – Fury.** `ResourceComponent` (`starts_empty`, decay, combat time), the scoped `resource_on_hit` read in `apply_on_hit()`, `ChampionData.modifiers` and the `resource_*` rhythm fields, the Knight's ChampionData to FURY (and its rhythm), `units/knight.tres` (max 100, regen 0), Cleave's cost 20, `demo_costs` off in `sandbox.tscn`; the stats, abilities and combat tests that pinned 300 mana read the new data instead (DECISIONS, Testing).
    **Done means:** the bar starts empty; each enemy a swing hits adds 8, ability hits add nothing; 3 s after the last hit dealt or taken it drains at 20/s; Cleave below 20 Fury fails with the bar's blink; Lunge, Iron Resolve and Judgement cast from 0.
 4. **CH4 – Staggered, the combo and Judgement's payoff.** `status_staggered.tres` and its marker, Lunge's and Cleave's bonuses, Judgement's Fury bonus, its 0.75 s channel and 30 s cooldown, `judgement.gd` (`stun_duration` through `get_effect_param()`; the Fury consumption if approved).
    **Done means:** enemies Lunge cuts through show the marker for 2 s; Cleave hits them for +50% (and others normally); Judgement at 60+ Fury stuns 1.25 s and hits 30% harder (and empties the bar, if approved), below 60 it's the plain 0.75 s; tooltips list the bonus lines.
@@ -302,7 +306,7 @@ The leveling curve, XP sources and talent points (TALENTS.md); saving the champi
 
 ## Open questions
 Claude's proposals from the approved plan (written in above as *(proposed)*; Ryan can overrule any):
-1. `champion_class` as the field name for bruiser / diver / rogue... (not "role": role tags are ability roles)?
+1. ~~`champion_class` as the field name~~: answered, yes (Ryan, 2026-09-29).
 2. Unbroken: AD only (proposed), or armor too (e.g. +20 on the same curve)?
 3. Fury: +8 per enemy hit by a basic attack (proposed, through the scoped `resource_on_hit`), or once per swing that lands? Should taking damage build Fury too (proposed: no)?
 4. Does the empowered Judgement consume all Fury (proposed: yes), or only read it?
@@ -310,7 +314,7 @@ Claude's proposals from the approved plan (written in above as *(proposed)*; Rya
 6. Re-read `self_missing_health` at the effect start (proposed: yes; it changes when ABILITIES' built-in input is filled, for every ability), or keep it at cast start?
 7. Does Cleave consume Staggered (proposed: no)?
 8. Cleave Wave (the REPLACE variant): no heal and no Staggered bonus (proposed), or the same as Cleave?
-9. Champion level: stored in memory on ChampionData, saved to `user://` later by PROGRESSION (proposed)?
+9. ~~Champion level kept in memory~~: answered, yes; saving it is PROGRESSION's (Ryan, 2026-09-29).
 10. The Knight's role tags kept as they are, and no Knight ability ignores walls (both proposed)?
 
 Still open:

@@ -195,6 +195,15 @@ Combat test 450/450, stats test 172/172 (unchanged). A headless in-game check of
 
 **Passed** (Ryan's play test, 2026-09-27): audio test 62/62 on his machine; output latency 10 ms with WASAPI (15 ms requested). Merged to main.
 
+## Champions (CHAMPIONS.md)
+
+### CH1 – ChampionData and the Knight's migration: 2026-09-29, Built (awaiting play test)
+New: `ChampionData` (`scripts/data/champion_data.gd`: id, display name, `champion_class`, stats, resource type, Q/W/E/R, combo, hurt / death / low health sounds, `champion_level` 1, `champion_xp` 0), `data/champions/knight.tres` pointing at the Knight's existing files, `ResourceComponent.ResourceType.NONE` (appended last, so saved MANA / ENERGY / FURY values keep their numbers), `Player.champion` and `Player._apply_champion()` (before `Unit._ready()`), `player.tscn`'s `champion` set to the Knight. The scene's old exports stay (the same values) until the play test confirms CH1. Test: `scenes/tests/champions_test.tscn`.
+
+**Changed during the step:** the Knight's ChampionData keeps `resource_type` MANA, as the scene had, until CH3 switches it to FURY (FURY now would have turned the bar red with nothing behind it); the `resource_*` rhythm fields move to CH3 with the ResourceComponent fields they map to (DECISIONS, Champions). **Found while building:** a Player's `@onready` shortcuts (`abilities`, `attack`) are null before it enters the tree, so code that sets its exports before adding it goes through the nodes (CHAMPIONS.md, Loading a champion).
+
+Champions test 45/45: the Knight's .tres, player.tscn loading it, the loaded Knight identical to the scene's own exports (stats, slots, combo, sounds, resource type, every live stat, each slot's cost and cooldown), a Player with no champion using its exports, another champion's data replacing every field (and its Q castable), NONE removing the pool (no node, costs affordable, no resource bar on the HUD), the level fields never read or changed. Abilities 557/557, stats 179/179, audio 109/109. Combat 457/459: the two real-time hitstop checks ("a shorter one changes nothing", "heavy feel: 0.06 s hitstop") fail the same way on the last commit without CH1 (baseline run, 2 of 2), so they're this machine's timing, not CH1. `main.tscn` and `sandbox_main.tscn` run 600 frames with no errors.
+
 ## Combat (COMBAT.md)
 
 ### Cleanup pass (audit fixes): 2026-09-29, Built (awaiting play test)
