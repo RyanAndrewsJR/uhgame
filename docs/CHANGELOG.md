@@ -11,6 +11,13 @@
 
 ## Abilities (ABILITIES.md)
 
+### AB14b – the old timer's extra tick removed: 2026-09-29, Built (awaiting play test)
+`AbilityComponent.CAST_TIME_EPSILON` (0.0001 s): the cast-time countdown is done at `_cast_time_left <= CAST_TIME_EPSILON` instead of `<= 0`, the rule the swings already use (`SWING_TIME_EPSILON`). A cast time that is an exact number of ticks now takes exactly that many.
+
+Measured (abilities test, 60 Hz): Cleave 0.2 s and the test vector line: 12 ticks (was 13); Lunge 0.05 s: 3 (was 4); Judgement's channel 1.5 s: 90 (was 91); the test Charged Line 0.3 s: 18 (was 19); the test Mark Strike's recast 0.1 s: 6 (was 7); Iron Resolve (no cast time): the same frame; the elite's slam 0.65 s and the test vector wall 0.7 s: 39 and 42, unchanged (they were already on time). Which frame a cast counts from (at a frame's start, in the node pass, between frames, at another cast's end) is unchanged. The test now computes each tick count as the nominal count rounded up, independently of the component, and pins the table above in one check.
+
+Abilities 558/558 (one new check), champions 45/45, stats 179/179, audio 109/109. Combat 457/459: the same two real-time hitstop checks as in CH1 (they fail on the commit before CH1 too). `main.tscn` and `sandbox_main.tscn` run 600 frames with no errors.
+
 ### Cleanup – the old cast timer deleted: 2026-09-29, Built (awaiting play test)
 AB14 passed Ryan's play test, so the old `create_timer()` wait is deleted as approved: `AbilityComponent.use_cast_progress` and its branches in `_do_cast()`, `_physics_process()` and `_start_cast_anim()` (the old path stretched a `cast_anim` over `cast_time`). The regression checks compared the flag off vs on; with no old path left they now check each cast's effect frame against the old timer's arithmetic, computed from the ability's `cast_time` (`_ab14_timer_ticks()`: 0.2 s = 13 ticks, the effect 12 frames after a cast at a frame's start or in the node pass, 13 after one between frames; 0 s the same frame), so a tuning change never breaks them (DECISIONS, Testing). Three checks that only covered the old path are removed (the flag's default, the old path's telegraph clock and its stretched animation).
 
@@ -197,7 +204,7 @@ Combat test 450/450, stats test 172/172 (unchanged). A headless in-game check of
 
 ## Champions (CHAMPIONS.md)
 
-### CH1 – ChampionData and the Knight's migration: 2026-09-29, Built (awaiting play test)
+### CH1 – ChampionData and the Knight's migration: 2026-09-29, Passed
 New: `ChampionData` (`scripts/data/champion_data.gd`: id, display name, `champion_class`, stats, resource type, Q/W/E/R, combo, hurt / death / low health sounds, `champion_level` 1, `champion_xp` 0), `data/champions/knight.tres` pointing at the Knight's existing files, `ResourceComponent.ResourceType.NONE` (appended last, so saved MANA / ENERGY / FURY values keep their numbers), `Player.champion` and `Player._apply_champion()` (before `Unit._ready()`), `player.tscn`'s `champion` set to the Knight. The scene's old exports stay (the same values) until the play test confirms CH1. Test: `scenes/tests/champions_test.tscn`.
 
 **Changed during the step:** the Knight's ChampionData keeps `resource_type` MANA, as the scene had, until CH3 switches it to FURY (FURY now would have turned the bar red with nothing behind it); the `resource_*` rhythm fields move to CH3 with the ResourceComponent fields they map to (DECISIONS, Champions). **Found while building:** a Player's `@onready` shortcuts (`abilities`, `attack`) are null before it enters the tree, so code that sets its exports before adding it goes through the nodes (CHAMPIONS.md, Loading a champion).

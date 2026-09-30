@@ -47,8 +47,8 @@ extends Node2D
 ## Cleanup pass (2026-09-29): the enemy AI skipping a slot that fails its
 ## condition; a conditional bonus widening and lengthening a VECTOR line
 ## (get_effect_param()).
-## AB14: every cast's effect on the frame the deleted old timer gave (its
-## arithmetic, from each cast_time; a cast started at a frame's start, in the
+## AB14 / AB14b: every cast's effect on the frame its cast time's tick count
+## gives (the nominal count, no extra tick, from each cast_time; a cast started at a frame's start, in the
 ## node pass and between frames, a cast chained from another's end); cast
 ## progress and the cast speed; telegraphs following their cast; the
 ## presentation hooks empty (nothing happens) and filled (a test hook scene:
@@ -4116,27 +4116,22 @@ func _ab14_no_hitstop() -> void:
 	await _wait_until(func() -> bool: return not GameFeel.is_hitstop_active(), 120)
 
 
-## How many physics ticks the old SceneTreeTimer took for `cast_time` (its
-## float steps: seconds left - the physics step until 0 or below). Cast
-## progress takes the same steps (ABILITIES AB14); an exact number of ticks
-## keeps the timer's extra tick (0.2 s = 13).
+## How many physics ticks a cast time takes: the nominal count, rounded up
+## (AB14b: an exact number of ticks takes exactly that many, 0.2 s = 12; the
+## old timer's float residue took one more). Computed independently of
+## AbilityComponent's countdown, so the checks test it.
 func _ab14_timer_ticks(cast_time: float) -> int:
 	if cast_time <= 0.0:
 		return 0
-	var step := 1.0 / Engine.physics_ticks_per_second
-	var left := cast_time
-	var ticks := 0
-	while left > 0.0:
-		left -= step
-		ticks += 1
-	return ticks
+	return ceili(cast_time * Engine.physics_ticks_per_second - 0.001)
 
 
 ## One cast's timing check, for each phase, after `prepare` (a coroutine): the
-## effect lands on the frame the old timer's arithmetic gives. A cast started
-## in a frame (at its start or in the node pass) counts that frame, so the
-## effect comes ticks - 1 frames later; one started between frames counts from
-## the next, so ticks later; no cast time = the same frame.
+## effect lands on the frame the cast time's tick count gives (AB14b: the
+## nominal count, no extra tick). A cast started in a frame (at its start or
+## in the node pass) counts that frame, so the effect comes ticks - 1 frames
+## later; one started between frames counts from the next, so ticks later; no
+## cast time = the same frame.
 func _ab14_timer_frame(label: String, caster: Unit, prepare: Callable, start: Callable, cast_time: float, phases: Array[String] = ["physics"]) -> void:
 	var where := {"physics": "at a frame's start", "node": "in the node pass", "idle": "between frames"}
 	var ticks := _ab14_timer_ticks(cast_time)
@@ -4148,7 +4143,8 @@ func _ab14_timer_frame(label: String, caster: Unit, prepare: Callable, start: Ca
 
 
 func _test_ab14_regression() -> void:
-	_section("AB14: every cast's effect on the frame the old timer gave (kept since it was deleted)")
+	_section("AB14b: every cast's effect on the frame its tick count gives (no extra tick)")
+	_check("tick counts: 0.05 / 0.1 / 0.2 / 0.3 / 0.65 / 0.7 / 1.5 s = 3 / 6 / 12 / 18 / 39 / 42 / 90", [0.05, 0.1, 0.2, 0.3, 0.65, 0.7, 1.5].map(_ab14_timer_ticks), [3, 6, 12, 18, 39, 42, 90])
 	var ab := knight.abilities
 	var original_q := ab.q
 	var dummies: Array[Enemy] = []
@@ -4236,7 +4232,7 @@ func _test_ab14_chained_cast() -> void:
 	ab.cast_finished.disconnect(chain)
 	Events.ability_cast.disconnect(on_cast)
 	var ticks := _ab14_timer_ticks(LUNGE.cast_time)
-	_check("Lunge started in Cleave's cast_finished: its effect %d frames after (%d ticks, as with the old timer)" % [ticks, ticks],
+	_check("Lunge started in Cleave's cast_finished: its effect %d frames after (%d ticks)" % [ticks, ticks],
 		at[1] - at[0] if at[1] >= 0 else -1, ticks)
 	await _reset_knight()
 

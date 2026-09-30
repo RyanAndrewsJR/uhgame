@@ -76,6 +76,10 @@ const FAIL_CONDITION := "condition"
 ## A VECTOR start point is swept from the caster with this small core against
 ## walls (like a projectile's), so it stops at a wall's face (AB13).
 const VECTOR_WALL_RADIUS_PX := 2.0
+## A cast time counts as done within this many seconds of 0, so float residue
+## (0.2 - 12 x 1/60) doesn't add a physics frame (AB14b; the swings'
+## SWING_TIME_EPSILON). 0.2 s = 12 ticks, as written.
+const CAST_TIME_EPSILON := 0.0001
 
 @export var q: Ability
 @export var w: Ability
@@ -125,8 +129,9 @@ var _flag_errors: Dictionary = {}   # "<ability id>/<flag>" -> true (reported on
 var _aim_hint: Vector2 = Vector2.INF
 ## AB14 cast progress: the cast in progress (_cast_ctx) is in its cast time.
 ## _cast_time_left counts down like the old SceneTreeTimer did (the same
-## float steps, so the effect lands on the same physics frame); progress =
-## 1 - left / total.
+## float steps), except that it's done within CAST_TIME_EPSILON of 0, so a
+## cast time that is an exact number of ticks doesn't take one more (AB14b);
+## progress = 1 - left / total.
 var _cast_time_running: bool = false
 var _cast_time_left: float = 0.0
 var _cast_time_total: float = 0.0
@@ -1048,7 +1053,7 @@ func _advance_cast_time(delta: float) -> void:
 	if not _cast_time_running or _cast_ctx == null or not can_process():
 		return
 	_cast_time_left -= delta * _get_valid_cast_speed(_cast_ability)
-	var done := _cast_time_left <= 0.0
+	var done := _cast_time_left <= CAST_TIME_EPSILON
 	_cast_ctx.progress = 1.0 if done else clampf(1.0 - _cast_time_left / _cast_time_total, 0.0, 1.0)
 	if is_instance_valid(_cast_ctx.telegraph):
 		_cast_ctx.telegraph.set_progress(_cast_ctx.progress)
