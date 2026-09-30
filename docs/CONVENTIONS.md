@@ -53,6 +53,10 @@
 - **Surface**: a wall or solid body with `SurfaceTags`. **Hazard**: an area on the floor with tags that affects units in it (oil, fire, spikes, ice).
 - **Interactable** (F key or ability-reactive object), **Pickup** (loot on the ground).
 - **Item**, **item base**, **affix**, **rarity** (LOOT.md). **Room**, **run**, **dungeon** (DUNGEONS.md).
+- **Hub**: the home base between runs, where the player picks a champion, sets its talents and launches a run. Not "town", "lobby" or "base" (VISION.md, Game structure).
+- **Checkpoint**: a point inside a run where the player respawns after dying; the last one reached is used. Not "save point" or "bonfire" (DUNGEONS.md).
+- **Talent**: a per-champion choice set at the hub before a run that reshapes that champion's abilities (built on augments), paid for with talent points. Not "perk", "skill" or "trait" (TALENTS.md).
+- **Champion level**: a champion's persistent level, earned by playing that champion (champion XP); it gates that champion's talent points. Never shared between champions. Whether it's also the level `StatsComponent.set_level()` uses is open (VISION.md, Open questions).
 - **Swing**: one hit of the basic attack combo (windup, hit, recovery). **Combo**: the chain of swings; **finisher**: its last swing. A swing that hits nothing **whiffs**. Melee swings have a **swing step** (`lunge_px`), a **target pull** toward the **aimed enemy**, and an **aim snap** (COMBAT.md, Melee basic attacks).
 - **Telegraph**: the floor shape that warns of an enemy attack and fills up until the hit.
 - **Proc**: a hit caused by another hit (on-hit damage, reaction damage). It's tagged `proc` and never triggers on-hit.

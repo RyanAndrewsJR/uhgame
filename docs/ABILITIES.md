@@ -699,11 +699,11 @@ Not build steps. Each is data once 2+ kits use it (Data or script, above).
 - Example use: capture-and-throw abilities (Tahm Kench, Singed E style).
 
 ## Out of scope
-Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modifiers, unit reaction rules, statuses, empowers and an optional script, all under a source id like `passive_knight`, built on this toolkit); items and affix rolls (LOOT.md); enemy AI choosing abilities (ENEMIES_AI.md); ability ranks and leveling (waits for the run-structure decision, VISION.md); summons; ability slot swapping (VISION.md, open question 5); TOGGLE and SUSTAINED cast styles (not planned: Cast styles); the ultimate meter (CHAMPIONS.md).
+Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modifiers, unit reaction rules, statuses, empowers and an optional script, all under a source id like `passive_knight`, built on this toolkit); items and affix rolls (LOOT.md); enemy AI choosing abilities (ENEMIES_AI.md); ability ranks and leveling (see Open questions); talents (TALENTS.md, built on augments); summons; ability slot swapping by the player (decided no, 2026-09-29: slots are fixed, VISION.md, Build variety; REPLACE augments and forms still change what's active in a slot); TOGGLE and SUSTAINED cast styles (not planned: Cast styles); the ultimate meter (CHAMPIONS.md).
 
 ## Open questions
 - Ultimate meter details (CHAMPIONS.md).
-- Ability ranks / leveling (after run structure).
+- Ability ranks / leveling. Run structure is decided (VISION.md, Game structure: persistent champion level gates talents); whether abilities also have ranks waits on VISION.md's in-run leveling question (Open questions 3) and TALENTS.md.
 - Which Knight abilities ignore walls (CHAMPIONS.md).
 - The element tag list.
 - Can a recast part be dash-cancelled separately?

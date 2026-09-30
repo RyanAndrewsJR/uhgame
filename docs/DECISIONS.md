@@ -29,6 +29,16 @@
 | 2026-09-27 | Approved a new top-level folder `game/audio/` for audio files (`audio/sfx/`, `audio/music/`, `audio/ambience/`). SoundEvents live in `data/sounds/`. | Ryan's call. Audio files are assets like `art/`; their data follows the `data/<kind>s/` pattern. |
 | 2026-09-27 | Order of work: telegraph-on-death fix → COMBAT C11 → C12 → AUDIO A1–A3; STATS step 7 whenever. | Ryan's call. The telegraph bug misleads the player today, and A3's wind-up sound depends on the fix. |
 
+## Game structure
+| Date | Decision | Why |
+|---|---|---|
+| 2026-09-29 | Run structure: a run = entering a dungeon solo as the chosen champion. Loot drops during the run (Diablo-style). The run ends when the dungeon is cleared (rewards, then back to the hub) or when the player leaves. The talent loadout is set at the hub before the run, never mid-run. | Ryan's call (VISION.md open question 1). Keeps Diablo's loot loop inside a clear run; builds are chosen up front. |
+| 2026-09-29 | Death: Dark Souls-style checkpoints inside a run. Dying respawns the player at the last checkpoint reached; no roguelike permadeath and no return to the hub. Loot picked up and champion XP earned this run are kept on death (no drop-and-recover risk). Checkpoint placement and whether cleared enemies come back are left to DUNGEONS.md. | Ryan's call (VISION.md open question 2). Death costs time and position, not progress. |
+| 2026-09-29 | Hub: a home base between runs. The player picks a champion (any unlocked one), sets that champion's talent loadout, and launches a run from there. | Ryan's call (VISION.md open question 3). |
+| 2026-09-29 | Roster: every unlocked champion is freely selectable at the hub (League champ-select style), not one locked save-file character. Each champion has independent, persistent progress. | Ryan's call (VISION.md open question 4). |
+| 2026-09-29 | Talent progress is fully separate per champion, with no shared currency. A champion's persistent champion level (gained by playing them) gates their own talent points. Whether "up to 5" means a small total tree or a larger pool with 5 active at once stays open (VISION.md, Open questions). | Ryan's call. Progress on one champion never makes another stronger. |
+| 2026-09-29 | Ability slot swapping: no. A champion's abilities stay in their slots (Cleave is always Q). Build variety comes from talents (not built) and item augments (AB8) reshaping existing abilities, not from the player reassigning slots. Source-applied REPLACE augments and forms (ABILITIES.md) are unchanged. | Ryan's call (VISION.md open question 5). Keeps each kit's identity and muscle memory fixed. |
+
 ## Conventions
 | Date | Decision | Why |
 |---|---|---|

@@ -121,9 +121,9 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 ## Current status
 - **Now:** Waiting on Ryan's play test of the audit cleanup pass (CHANGELOG.md, 2026-09-29): the combo at `speed_scale` 1.266 again, the player Hurtbox's 0.2 s (no effect until a Hitbox exists; may go back to 0.0), Iron Resolve's aura and Lunge's afterimages now visible, the LoL input gone, `life_steal` 0. Also waiting on AB13 (VECTOR: the elite casts `test_vector_wall` on W; the sandbox `test_q` is empty (AB-M), so set it to `test_vector_line` to try the line), AUDIO A3 (ability casts, Judgement's hit and ready ping, the elite's wind-up and slam, status sounds, the shield's break, the low-health heartbeat, the room cleared and "You died" stingers; all synthesized placeholders), "a swing counts once its hit has landed" and COMBAT C12. Still open: play tests of STATS steps 5–6, COMBAT C8–C11, Feel pass F1–F4 at 144 Hz, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. Audit cleanup pass: `speed_scale` 1.266 restored (tests fixed), enemy attacks through `HitPipeline.resolve()`, scoped key validation, `get_effect_param()` migration, the enemy AI skipping failing slots, floor VFX fixed, the LoL input and approved dead code deleted, docs reconciled. Movement steps 1 and 3–7 passed.
-  2. Cleanup: Cleave's unused `knockback` export deleted (after AB-M passed).
-  3. ABILITIES milestone AB-M (passed Ryan's play test): the augment playground (`SandboxAugments`, keys 1–4).
+  1. Docs only: VISION.md's open questions resolved (run structure, death, hub, roster, talent progress, fixed slots; VISION.md, Game structure). Nothing built.
+  2. Audit cleanup pass: `speed_scale` 1.266 restored (tests fixed), enemy attacks through `HitPipeline.resolve()`, scoped key validation, `get_effect_param()` migration, the enemy AI skipping failing slots, floor VFX fixed, the LoL input and approved dead code deleted, docs reconciled. Movement steps 1 and 3–7 passed.
+  3. Cleanup: Cleave's unused `knockback` export deleted (after AB-M passed).
 - **Next:** The ABILITIES build order is done (AB13 awaits its play test). AUDIO's later steps come with their systems; real CC0 files can replace the placeholders any time (same names). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order (CHAMPIONS.md next).
 
 ## Known issues (leave for now)
@@ -137,7 +137,8 @@ All decisions, grouped by system with date and why, are in `docs/DECISIONS.md`.
 1. ~~`COMBAT.md`~~: written 2026-09-26 (see Docs index).
 2. ~~`ABILITIES.md`~~: written 2026-09-26 (see Docs index).
 3. `CHAMPIONS.md`: ChampionData, passives, one section per champion (Knight first). Passives: stat modifiers, unit reaction rules, statuses, empowers and an optional script under a source id, built on the ABILITIES.md toolkit. Also decides the Knight's resource type, role tags, and Judgement's cast time and cooldown (ABILITIES.md, Numbers). Audio hooks: see AUDIO.md.
-4. `LOOT.md`: item bases, rarities, affix pools, drop tables. Audio hooks: see AUDIO.md.
-5. `ENEMIES_AI.md`: behaviors, aggro, elites, spawning
-6. `DUNGEONS.md`: room stitching, run structure. Audio hooks: see AUDIO.md.
-7. `NPCS.md`, `UI.md`, `PROGRESSION.md` as needed. `UI.md` takes over the Esc pause menu and the player options (`Settings`), now described in MOVEMENT.md (Dash) and DECISIONS.md (General). UI audio hooks: see AUDIO.md.
+4. `TALENTS.md`: per-champion talent trees, built on ABILITIES.md's augment system. Start only after CHAMPIONS.md ships at least one real champion. Rules so far: VISION.md, Game structure.
+5. `LOOT.md`: item bases, rarities, affix pools, drop tables. Audio hooks: see AUDIO.md.
+6. `ENEMIES_AI.md`: behaviors, aggro, elites, spawning
+7. `DUNGEONS.md`: room stitching, run structure, checkpoints (placement; whether cleared enemies come back on respawn). Audio hooks: see AUDIO.md.
+8. `NPCS.md`, `UI.md`, `PROGRESSION.md` as needed. `UI.md` takes over the Esc pause menu and the player options (`Settings`), now described in MOVEMENT.md (Dash) and DECISIONS.md (General). UI audio hooks: see AUDIO.md.
