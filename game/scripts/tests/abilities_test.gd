@@ -128,6 +128,7 @@ func _ready() -> void:
 		var base := knight.stats_component.get_base_value(stat)
 		if base != 0.0:
 			knight.stats_component.add_modifier(StatModifier.create(stat, StatModifier.Type.FLAT, -base, &"test_baseline"))
+	_pool_baseline(knight)
 
 	print("\n=== Abilities test (ABILITIES AB1) ===")
 	_test_cast_styles()
@@ -559,9 +560,10 @@ func _test_costs() -> void:
 	_section("AB3: costs")
 	await _reset_knight()
 	var pool := knight.resource_pool
-	_check("every ability costs 0 by default (room_01 plays as before)",
+	_check("costs in the data: Cleave 20 fury (CHAMPIONS CH3), the others 0",
 		[CLEAVE.resource_cost, IRON_RESOLVE.resource_cost, LUNGE.resource_cost, JUDGEMENT.resource_cost, SLAM.resource_cost],
-		[0.0, 0.0, 0.0, 0.0, 0.0])
+		[20.0, 0.0, 0.0, 0.0, 0.0])
+	_check("the test baseline cancels Cleave's: it costs 0 here", knight.abilities.get_cost(CLEAVE), 0.0)
 	pool.restore(1000.0)
 	_check("the Knight has 300 mana", [pool.current, pool.max_resource], [300.0, 300.0])
 	await _wait_until(func() -> bool: return knight.abilities.can_cast(&"q"), 240)
@@ -4585,6 +4587,25 @@ func _test_ab14_anims() -> void:
 
 
 # --- Helpers ------------------------------------------------------------------
+
+## The test baseline for costs (CHAMPIONS CH3): the cost checks test the
+## machinery on a plain pool, the Knight's old placeholder: 300, 6/s regen,
+## full, no decay; Cleave's own cost (20) cancelled and no fury from swings.
+## The champions test covers the real Fury.
+func _pool_baseline(p: Player) -> void:
+	var pool := p.resource_pool
+	pool.starts_empty = false
+	pool.decay_per_second = 0.0
+	if p.champion != null:
+		p.stats_component.remove_modifiers_from(p.champion.get_champion_source_id())
+	var mods: Array[StatModifier] = [
+		StatModifier.create(&"max_resource", StatModifier.Type.FLAT, 300.0 - p.stats_component.get_base_value(&"max_resource"), &"test_baseline"),
+		StatModifier.create(&"resource_regen", StatModifier.Type.FLAT, 6.0 - p.stats_component.get_base_value(&"resource_regen"), &"test_baseline"),
+		StatModifier.create(&"resource_cost", StatModifier.Type.FLAT, -CLEAVE.resource_cost, &"test_baseline", &"ability:knight_cleave"),
+	]
+	p.stats_component.add_modifiers(mods)
+	pool.restore(1000.0)
+
 
 func _reset_knight() -> void:
 	knight.abilities.interrupt_cast()

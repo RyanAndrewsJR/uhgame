@@ -95,9 +95,8 @@ func _ready() -> void:
 	if champion != null:
 		_apply_champion()
 	super._ready()
-	if champion != null and champion.passive != null:
-		# After Unit._ready(): the StatsComponent is set up (CHAMPIONS CH2).
-		champion.passive.apply_to(self, champion.get_passive_source_id())
+	if champion != null:
+		_attach_champion()
 	add_to_group("player")
 	attack.swing_started.connect(_on_swing_started)
 	attack.swing_landed.connect(_on_swing_landed)
@@ -135,6 +134,24 @@ func _apply_champion() -> void:
 		resource_pool = null
 	else:
 		resource_pool.resource_type = champion.resource_type
+		resource_pool.starts_empty = champion.resource_starts_empty
+		resource_pool.decay_per_second = champion.resource_decay_per_second
+		resource_pool.decay_delay = champion.resource_decay_delay
+
+
+## After Unit._ready() (the StatsComponent is set up): the champion's own
+## modifiers under champion_<id> (CH3), then its passive under passive_<id> (CH2).
+func _attach_champion() -> void:
+	var copies: Array[StatModifier] = []
+	for mod in champion.modifiers:
+		if mod != null:
+			var copy: StatModifier = mod.duplicate()
+			copy.source_id = champion.get_champion_source_id()
+			copies.append(copy)
+	if not copies.is_empty():
+		stats_component.add_modifiers(copies)
+	if champion.passive != null:
+		champion.passive.apply_to(self, champion.get_passive_source_id())
 
 
 func _on_settings_setting_changed(key: StringName, _value: Variant) -> void:

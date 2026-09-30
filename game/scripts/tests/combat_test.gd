@@ -47,6 +47,7 @@ extends Node2D
 ## baseline (_zero_knight_extras()), so exact-number checks aren't random;
 ## the same baseline removes his passive (Unbroken, CHAMPIONS CH2), so his AD
 ## stays 64 after he takes damage (the champions test covers Unbroken).
+## It also cancels Cleave's 20 fury cost (CH3), since the Knight starts at 0.
 ## Combo timings are read from the data (combo_knight.tres speed_scale, 1.266):
 ## a data check pins the tuning, timing checks derive from it
 ## (_swing_frames()), and a check that changes the shared combo puts back
@@ -121,6 +122,9 @@ func _zero_knight_extras() -> void:
 			knight.stats_component.add_modifier(StatModifier.create(stat, FLAT, -base, BASELINE_SOURCE))
 	if knight.champion != null and knight.champion.passive != null:
 		knight.champion.passive.remove_from(knight, knight.champion.get_passive_source_id())
+	# Cleave's own 20 fury cost (CHAMPIONS CH3) cancelled: the Knight starts at 0.
+	if CLEAVE.resource_cost > 0.0:
+		knight.stats_component.add_modifier(StatModifier.create(&"resource_cost", FLAT, -CLEAVE.resource_cost, BASELINE_SOURCE, &"ability:knight_cleave"))
 
 
 # --- Tests --------------------------------------------------------------------

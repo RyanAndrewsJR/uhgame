@@ -59,6 +59,7 @@ player_rules = Array[ExtResource("92_rule")]([ExtResource("91_shatter")])
 
 [node name="SandboxAbilities" type="Node" parent="." unique_id=258340338]
 script = ExtResource("93_abilities")
+demo_costs = false
 test_elite_w = ExtResource("10_vector_wall")
 
 [node name="SandboxAugments" type="Node" parent="."]

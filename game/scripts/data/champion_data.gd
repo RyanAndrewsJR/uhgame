@@ -8,8 +8,8 @@ extends Resource
 ## nodes before Unit._ready(). A Player with no champion keeps its scene's
 ## own exports. Champions are data, never subclasses of Player.
 ##
-## The passive attaches after Unit._ready() under passive_<id> (CH2). CH3 adds
-## the resource rhythm and the champion's own stat modifiers.
+## The passive (CH2) and the champion's own stat modifiers (CH3) attach after
+## Unit._ready(), under passive_<id> and champion_<id>.
 
 @export_group("Identity")
 ## Lowercase id. Source ids built from it: passive_<id>, champion_<id>.
@@ -26,6 +26,19 @@ extends Resource
 @export_group("Resource")
 ## NONE removes the ResourceComponent at load (no costs, no resource bar).
 @export var resource_type: ResourceComponent.ResourceType = ResourceComponent.ResourceType.MANA
+## The rhythm (CHAMPIONS.md, Resource rhythms), copied onto the
+## ResourceComponent at load. Starts at 0 instead of full.
+@export var resource_starts_empty: bool = false
+## Out of combat, the pool drops by this much per second (0 = no decay).
+@export var resource_decay_per_second: float = 0.0
+## Seconds after the last hit dealt or taken before the decay starts.
+@export var resource_decay_delay: float = 0.0
+
+@export_group("Modifiers")
+## The champion's own stat modifiers (the Knight: +8 resource_on_hit scoped
+## hit:basic_attack), added under get_champion_source_id() at load. Copies are
+## added; these stay untouched.
+@export var modifiers: Array[StatModifier] = []
 
 @export_group("Abilities")
 ## Fixed slots: never remixed between champions or reassigned by the player.
@@ -54,6 +67,11 @@ extends Resource
 ## XP earned toward the next level (not total XP), so retuning the curve
 ## can never take a level away.
 @export var champion_xp: int = 0
+
+
+## The source id the champion's own modifiers are added under: champion_<id>.
+func get_champion_source_id() -> StringName:
+	return StringName("champion_%s" % id)
 
 
 ## The source id the passive's pieces are added under: passive_<id>.

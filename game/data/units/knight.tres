@@ -5,8 +5,8 @@
 [resource]
 script = ExtResource("1_stats")
 max_health = 650.0
-max_resource = 300.0
-resource_regen = 6.0
+max_resource = 100.0
+resource_regen = 0.0
 attack_damage = 64.0
 base_attack_speed = 0.7
 crit_chance = 0.25

@@ -85,7 +85,7 @@ Built from landing basic attacks, drained out of combat, meant to be spent fast 
 | `max_resource` | 100 (MUST: a 0–100 bar) | `knight.tres` (was 300) |
 | `resource_regen` | 0 | `knight.tres` (was 6) |
 | Starts | empty | ChampionData `resource_starts_empty` |
-| Gain | +8 per enemy hit by a basic attack (5–12), the dash-strike included; abilities build nothing | a `resource_on_hit` FLAT 8 StatModifier scoped `hit:basic_attack`, source `champion_knight` *(proposed: per enemy hit rather than once per swing; Open questions)* |
+| Gain | +8 per enemy hit by a basic attack (5–12), the dash-strike included; abilities build nothing | a `resource_on_hit` FLAT 8 StatModifier scoped `hit:basic_attack`, source `champion_knight` (per enemy hit, and taking damage builds nothing: Ryan, 2026-09-29) |
 | Decay delay | 3.0 s out of combat (2–5) | ChampionData `resource_decay_delay` |
 | Decay | 20 per second (10–40): full to empty in 5 s | ChampionData `resource_decay_per_second` |
 | Cleave cost | 20 (15–30): about one combo's worth single-target | `knight_q_cleave.tres` `resource_cost` |
@@ -177,7 +177,7 @@ Every field defaults to "change nothing"; a Player with no ChampionData keeps us
 | `display_name` | `String` | "Knight" | new (`UnitStats.display_name` was deleted) |
 | `champion_class` | `StringName` | `&"bruiser"` | new |
 | `stats` | `UnitStats` | `data/units/knight.tres` | `Unit.stats` |
-| `resource_type` | `ResourceComponent.ResourceType` | FURY (MANA in CH1–CH2, as before; CH3 switches it) | `ResourceComponent.resource_type`; `NONE` is added last in the enum: the ResourceComponent node is removed at load |
+| `resource_type` | `ResourceComponent.ResourceType` | FURY (since CH3; MANA in CH1–CH2) | `ResourceComponent.resource_type`; `NONE` is added last in the enum: the ResourceComponent node is removed at load |
 | `resource_starts_empty` | `bool` | true | `ResourceComponent.starts_empty` (CH3) |
 | `resource_decay_per_second` | `float` | 20 | `ResourceComponent.decay_per_second` (CH3) |
 | `resource_decay_delay` | `float` | 3.0 | `ResourceComponent.decay_delay` (CH3) |
@@ -243,10 +243,10 @@ Methods: `apply_to(unit, source_id)`, `remove_from(unit, source_id)`; virtual `_
 
 ### Fury (CH3)
 - `HitPipeline.apply_on_hit()` reads `resource_on_hit` with `get_scoped_stat(&"resource_on_hit", get_hit_scopes(ctx))` instead of `get_stat()`, so `hit:` / `target:` scoped modifiers reach it (the same read as `damage_increase`; nothing else changes: no unit had any `resource_on_hit`). The Knight's `champion_knight` modifier (+8, `hit:basic_attack`) makes every enemy a swing hits add 8 × the swing's `proc_coefficient` (1.0).
-- `ResourceComponent` connects to `Events.unit_hit` in `_ready()`: a hit that got through whose `source` or `target` is its unit resets `_since_combat` to 0. `_physics_process(delta)` (game time) adds delta to `_since_combat`; regen as before; then, if `decay_per_second` > 0, current > 0 and `_since_combat` ≥ `decay_delay`: current = max(current − decay × delta, 0) and `resource_changed`.
+- `ResourceComponent` connects to `Events.unit_hit` in `_ready()`: a hit that got through whose `source` or `target` is its unit resets `_since_combat` to 0. `_physics_process(delta)` (game time) adds delta to `_since_combat`; regen as before; then, if `decay_per_second` > 0, current > 0 and `_since_combat` ≥ `decay_delay`: current = max(current − decay × delta, 0) and `resource_changed`. As built: the combat clock starts at INF, so a new unit is out of combat until its first hit; a blocked hit never counts. The loader copies the three rhythm fields onto the pool before `Unit._ready()` (so `setup()` starts it empty), then adds `ChampionData.modifiers` as copies under `get_champion_source_id()` (`champion_<id>`) before the passive attaches (`Player._attach_champion()`).
 - Costs are the existing `resource_cost` (paid at cast start, refunded on cancel or interrupt, "not enough resource" fails at once and isn't buffered).
 - The sandbox's cost demo (`SandboxAbilities.demo_costs`) is turned off in `sandbox.tscn` (its 30 / 40 / 50 / 80 would stack on the real costs and make every slot uncastable at 0 Fury). The demo code stays.
-- **HUD implications (notes only; the work belongs to UI.md or its own step):** the bar turns red when the Knight's `resource_type` becomes FURY (the color already exists; until CH3 it's the MANA blue); it starts empty and visibly drains out of combat; a tick mark at the Judgement threshold (60) and a glow while the Knight is at or above it would make the payoff readable; the existing blink on "not enough resource" covers Cleave; R's slot could brighten while the bonus is live.
+- **HUD implications (notes only; the work belongs to UI.md or its own step):** the bar is red (FURY, since CH3); it starts empty and visibly drains out of combat; a tick mark at the Judgement threshold (60) and a glow while the Knight is at or above it would make the payoff readable; the existing blink on "not enough resource" covers Cleave; R's slot could brighten while the bonus is live.
 
 ### Staggered, Cleave, Judgement (CH4)
 - All data except two script lines: `judgement.gd` reads `stun_duration` with `get_effect_param(caster, &"stun_duration", ctx, target)`, and (if approved) consumes the Fury after its hit when `get_active_bonuses(caster, ctx, target)` includes the Fury bonus and the hit landed (`resource_pool.try_spend(resource_pool.current)`).
@@ -291,7 +291,7 @@ Every step: the Knight's abilities, enemies chasing and the HUD still work; buil
    **Done means:** the game plays exactly as before (the same numbers, slots, combo, sounds); a Player with `champion` null uses its exports; the champions test checks the loaded values against the .tres and that NONE removes the pool; every existing test passes unchanged.
 2. **CH2 – The passive framework and Unbroken.** `passive.gd`, `stat_scaling.gd`, `ChampionData.passive`, `Unit.add_stat_scaling()` / `remove_stat_scalings_from()`, the attach after `super._ready()`, Unbroken inline in the Knight's .tres, `curve_knight_unbroken.tres`. Built 2026-09-29, see CHANGELOG.md.
    **Done means:** the Knight's AD is 64 at full health, about 82 at 50%, 90 at 30% and below, following health both ways (damage and a heal); every enemy of one swing or Cleave sees the same AD; removing the passive restores every stat exactly; a test passive with a modifier, a rule, a status and an augment attaches and detaches cleanly.
-3. **CH3 – Fury.** `ResourceComponent` (`starts_empty`, decay, combat time), the scoped `resource_on_hit` read in `apply_on_hit()`, `ChampionData.modifiers` and the `resource_*` rhythm fields, the Knight's ChampionData to FURY (and its rhythm), `units/knight.tres` (max 100, regen 0), Cleave's cost 20, `demo_costs` off in `sandbox.tscn`; the stats, abilities and combat tests that pinned 300 mana read the new data instead (DECISIONS, Testing).
+3. **CH3 – Fury.** `ResourceComponent` (`starts_empty`, decay, combat time), the scoped `resource_on_hit` read in `apply_on_hit()`, `ChampionData.modifiers` and the `resource_*` rhythm fields, the Knight's ChampionData to FURY (and its rhythm), `units/knight.tres` (max 100, regen 0), Cleave's cost 20, `demo_costs` off in `sandbox.tscn`; the stats, abilities and combat tests that pinned 300 mana read the new data instead (DECISIONS, Testing). Built 2026-09-29, see CHANGELOG.md.
    **Done means:** the bar starts empty; each enemy a swing hits adds 8, ability hits add nothing; 3 s after the last hit dealt or taken it drains at 20/s; Cleave below 20 Fury fails with the bar's blink; Lunge, Iron Resolve and Judgement cast from 0.
 4. **CH4 – Staggered, the combo and Judgement's payoff.** `status_staggered.tres` and its marker, Lunge's and Cleave's bonuses, Judgement's Fury bonus, its 0.75 s channel and 30 s cooldown, `judgement.gd` (`stun_duration` through `get_effect_param()`; the Fury consumption if approved).
    **Done means:** enemies Lunge cuts through show the marker for 2 s; Cleave hits them for +50% (and others normally); Judgement at 60+ Fury stuns 1.25 s and hits 30% harder (and empties the bar, if approved), below 60 it's the plain 0.75 s; tooltips list the bonus lines.
@@ -308,7 +308,7 @@ The leveling curve, XP sources and talent points (TALENTS.md); saving the champi
 Claude's proposals from the approved plan (written in above as *(proposed)*; Ryan can overrule any):
 1. ~~`champion_class` as the field name~~: answered, yes (Ryan, 2026-09-29).
 2. ~~Unbroken: AD only, or armor too~~: answered, AD only (Ryan, 2026-09-29).
-3. Fury: +8 per enemy hit by a basic attack (proposed, through the scoped `resource_on_hit`), or once per swing that lands? Should taking damage build Fury too (proposed: no)?
+3. ~~Fury per enemy hit or per swing; taking damage~~: answered: +8 per enemy a basic attack hits, and taking damage builds nothing (Ryan, 2026-09-29).
 4. Does the empowered Judgement consume all Fury (proposed: yes), or only read it?
 5. Cleave's heal on overkill: the full `taken_damage` like `life_steal` (proposed), or capped at the health the target actually lost?
 6. Re-read `self_missing_health` at the effect start (proposed: yes; it changes when ABILITIES' built-in input is filled, for every ability), or keep it at cast start?

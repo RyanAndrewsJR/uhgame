@@ -8,6 +8,9 @@ extends Node2D
 ## CH2: the passive framework (Passive, StatScaling, Unit.add_stat_scaling())
 ## and Unbroken: the Knight's AD following his missing health both ways,
 ## refreshed once after the frame's hits, and every piece removed exactly.
+## CH3: Fury (the Knight's rhythm and +8 per enemy a basic attack hits in the
+## data; empty at start, built by swings only, drained 20/s after 3 s out of
+## combat; Cleave's 20 cost; the other abilities cast from 0).
 ## Prints PASS/FAIL per check, then a total.
 ## Run headless and it quits with the number of failures as the exit code.
 
@@ -31,8 +34,11 @@ const DASH_SOUND: SoundEvent = preload("res://data/sounds/sound_knight_dash.tres
 const UNBROKEN_CURVE: Curve = preload("res://data/curves/curve_knight_unbroken.tres")
 const RULE_EXECUTE: Resource = preload("res://data/reactions/reaction_test_execute.tres")
 const AUGMENT_LUNGE_STUNS: Resource = preload("res://data/augments/augment_lunge_stuns.tres")
+const SLIME_SCENE: PackedScene = preload("res://scenes/enemies/slime.tscn")
+const SANDBOX_SCENE: PackedScene = preload("res://scenes/rooms/sandbox.tscn")
 
 const MANA := ResourceComponent.ResourceType.MANA
+const FURY := ResourceComponent.ResourceType.FURY
 const ENERGY := ResourceComponent.ResourceType.ENERGY
 const NONE := ResourceComponent.ResourceType.NONE
 
@@ -42,7 +48,7 @@ var _next_x: float = 0.0
 
 
 func _ready() -> void:
-	print("\n=== Champions test (CHAMPIONS CH1–CH2) ===")
+	print("\n=== Champions test (CHAMPIONS CH1–CH3) ===")
 	_test_knight_data()
 	await _test_knight_loaded()
 	await _test_no_champion()
@@ -54,6 +60,10 @@ func _ready() -> void:
 	await _test_unbroken_max_health()
 	await _test_passive_removed()
 	await _test_passive_pieces()
+	_test_fury_data()
+	await _test_fury_loaded()
+	await _test_fury_gain_and_decay()
+	await _test_fury_costs()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -69,7 +79,7 @@ func _test_knight_data() -> void:
 	_check("slots: Cleave, Iron Resolve, Lunge, Judgement", [KNIGHT.q, KNIGHT.w, KNIGHT.e, KNIGHT.r] == [CLEAVE, IRON_RESOLVE, LUNGE, JUDGEMENT], true)
 	_check("combo: combo_knight.tres", KNIGHT.combo == COMBO_KNIGHT, true)
 	_check("sounds: knight hurt, no death, knight low health", [KNIGHT.hurt_sound == HURT_SOUND, KNIGHT.death_sound == null, KNIGHT.low_health_sound == LOW_HEALTH_SOUND], [true, true, true])
-	_check("resource type: MANA until CH3 makes it FURY", KNIGHT.resource_type, MANA)
+	_check("resource type: FURY (CH3)", KNIGHT.resource_type, FURY)
 	_check("champion level 1, 0 XP", [KNIGHT.champion_level, KNIGHT.champion_xp], [1, 0])
 	_check("NONE is appended last (the saved MANA/ENERGY/FURY values keep their numbers)", [MANA, ENERGY, ResourceComponent.ResourceType.FURY, NONE], [0, 1, 2, 3])
 
@@ -79,8 +89,8 @@ func _test_knight_loaded() -> void:
 	var knight := await _spawn()
 	_check("player.tscn's champion is the Knight's .tres", knight.champion == KNIGHT, true)
 	_check_loaded(knight, KNIGHT, "Knight")
-	_check("stats from knight.tres: 650 health, 64 AD, 300 max resource", [knight.health.max_health, knight.stats_component.get_stat(&"attack_damage"), knight.resource_pool.max_resource], [650.0, 64.0, 300.0])
-	_check("pool starts full, as before", knight.resource_pool.current, 300.0)
+	_check("stats from knight.tres: 650 health, 64 AD, 100 max resource", [knight.health.max_health, knight.stats_component.get_stat(&"attack_damage"), knight.resource_pool.max_resource], [650.0, 64.0, 100.0])
+	_check("pool starts empty (fury, CH3)", knight.resource_pool.current, 0.0)
 	_check("the DashComponent's sound isn't a champion field (unchanged)", knight.dash.dash_sound == DASH_SOUND, true)
 	# The same player as before CH1: every copied field equals the scene's
 	# own exports, which player.tscn still holds.
@@ -90,7 +100,7 @@ func _test_knight_loaded() -> void:
 	_check("the Knight loaded = the scene's exports (slots)", [knight.abilities.q, knight.abilities.w, knight.abilities.e, knight.abilities.r] == [plain.abilities.q, plain.abilities.w, plain.abilities.e, plain.abilities.r], true)
 	_check("the Knight loaded = the scene's exports (combo)", knight.attack.combo == plain.attack.combo, true)
 	_check("the Knight loaded = the scene's exports (sounds)", [knight.hurt_sound == plain.hurt_sound, knight.death_sound == plain.death_sound, knight.low_health_sound == plain.low_health_sound], [true, true, true])
-	_check("the Knight loaded = the scene's exports (resource type)", knight.resource_pool.resource_type, plain.resource_pool.resource_type)
+	_check("resource type from the champion (FURY), not the scene's MANA", [knight.resource_pool.resource_type, plain.resource_pool.resource_type], [FURY, MANA])
 	_check("the Knight loaded = the scene's exports (every live stat)", _all_values(knight), _all_values(plain))
 	_check("the Knight loaded = the scene's exports (cooldowns and costs)", _slot_numbers(knight), _slot_numbers(plain))
 	knight.queue_free()
@@ -297,7 +307,130 @@ func _test_passive_pieces() -> void:
 	await _frames(1)
 
 
+func _test_fury_data() -> void:
+	_section("CH3: Fury in the data")
+	_check("the Knight's rhythm: starts empty, decays 20/s after 3 s", [KNIGHT.resource_starts_empty, KNIGHT.resource_decay_per_second, KNIGHT.resource_decay_delay], [true, 20.0, 3.0])
+	var mod: StatModifier = KNIGHT.modifiers[0] if KNIGHT.modifiers.size() == 1 else null
+	_check("one champion modifier: resource_on_hit FLAT +8 scoped hit:basic_attack", [mod != null, mod.stat if mod else &"", mod.type if mod else -1, mod.value if mod else 0.0, mod.scope if mod else &""],
+		[true, &"resource_on_hit", StatModifier.Type.FLAT, 8.0, &"hit:basic_attack"])
+	_check("its source id: champion_knight", KNIGHT.get_champion_source_id(), &"champion_knight")
+	_check("knight.tres: max 100, no regen", [KNIGHT_STATS.max_resource, KNIGHT_STATS.resource_regen], [100.0, 0.0])
+	_check("costs: Cleave 20, Iron Resolve / Lunge / Judgement 0", [CLEAVE.resource_cost, IRON_RESOLVE.resource_cost, LUNGE.resource_cost, JUDGEMENT.resource_cost], [20.0, 0.0, 0.0, 0.0])
+	var sandbox: Node = SANDBOX_SCENE.instantiate()
+	_check("sandbox.tscn: the cost demo is off", sandbox.get_node("SandboxAbilities").get("demo_costs"), false)
+	sandbox.free()
+
+
+func _test_fury_loaded() -> void:
+	_section("CH3: the loaded Knight's Fury")
+	var k := await _spawn()
+	var pool := k.resource_pool
+	_check("empty at start: 0 / 100", [pool.current, pool.max_resource], [0.0, 100.0])
+	_check("the rhythm copied onto the pool", [pool.starts_empty, pool.decay_per_second, pool.decay_delay], [true, 20.0, 3.0])
+	_check("the +8 is under champion_knight", k.stats_component.get_modifiers_from(&"champion_knight").size(), 1)
+	var basic: Array[StringName] = [&"hit:basic_attack"]
+	var ability: Array[StringName] = [&"hit:ability"]
+	_check("resource_on_hit: 8 for a basic attack hit, 0 otherwise", [k.stats_component.get_scoped_stat(&"resource_on_hit", basic), k.stats_component.get_scoped_stat(&"resource_on_hit", ability), k.stats_component.get_stat(&"resource_on_hit")], [8.0, 0.0, 0.0])
+	_check("not in combat yet", [pool.is_in_combat(), pool.get_time_since_combat() == INF], [false, true])
+	k.stats_component.add_modifier(StatModifier.create(&"max_resource", StatModifier.Type.FLAT, 50.0, &"item_test_max_fury"))
+	_check("a raised max doesn't fill an empty-start pool: 0 / 150", [pool.current, pool.max_resource], [0.0, 150.0])
+	k.stats_component.remove_modifiers_from(&"item_test_max_fury")
+	k.queue_free()
+	await _frames(1)
+
+
+func _test_fury_gain_and_decay() -> void:
+	_section("CH3: swings build Fury, it drains out of combat")
+	var k := await _spawn()
+	var pool := k.resource_pool
+	var dummies: Array[Enemy] = []
+	for offset: Vector2 in [Vector2(30, -14), Vector2(36, 0), Vector2(30, 14)]:
+		dummies.append(_dummy(k.global_position + offset))
+	await _frames(1)
+	var landed: Array = []
+	var on_landed := func(_i: int, targets: Array[Unit]) -> void: landed.append(targets.size())
+	k.attack.swing_landed.connect(on_landed)
+	var depleted := [0]
+	pool.depleted.connect(func() -> void: depleted[0] += 1)
+	k.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return not landed.is_empty(), 60)
+	var hit_count: int = landed[0] if not landed.is_empty() else 0
+	_check("the swing hit all three dummies", hit_count, 3)
+	_check("+8 per enemy hit: 24", pool.current, 8.0 * hit_count)
+	_check("in combat right after", pool.is_in_combat(), true)
+	var after_swing := pool.current
+	await _wait_until(func() -> bool: return pool.get_time_since_combat() >= 2.8, 240)
+	_check("no decay for 3 s after the last hit (2.8 s: unchanged)", pool.current, after_swing)
+	await _wait_until(func() -> bool: return pool.get_time_since_combat() >= 3.5, 120)
+	var drained := 20.0 * (pool.get_time_since_combat() - 3.0)
+	_check_near("then 20/s: 24 - 20 x (time out of combat - 3 s)", pool.current, maxf(after_swing - drained, 0.0), 0.4)
+	_check("out of combat", pool.is_in_combat(), false)
+	await _wait_until(func() -> bool: return pool.is_empty(), 120)
+	_check("drained to 0 and stays there", pool.current, 0.0)
+	await _frames(5)
+	_check("decay isn't spending: depleted never emitted", [pool.current, depleted[0]], [0.0, 0])
+
+	pool.restore(50.0)
+	await _frames(3)
+	_check("out of combat: 50 starts draining at once", pool.current < 50.0, true)
+	var before_hit := pool.current
+	k.take_damage(1.0, dummies[0])
+	await _frames(10)
+	_check("taking a hit puts him back in combat: no decay, and no Fury gained", [pool.is_in_combat(), pool.current], [true, before_hit])
+	k.attack.swing_landed.disconnect(on_landed)
+	for d in dummies:
+		d.queue_free()
+	k.queue_free()
+	await _frames(1)
+
+
+func _test_fury_costs() -> void:
+	_section("CH3: Cleave costs 20, the rest cast from 0")
+	var k := await _spawn()
+	var pool := k.resource_pool
+	var dummy := _dummy(k.global_position + Vector2(60, 0))
+	await _frames(1)
+	var aim := dummy.global_position
+	_check("0 Fury: Iron Resolve, Lunge and Judgement can cast", [k.abilities.get_fail_reason(&"w", k.global_position, null), k.abilities.get_fail_reason(&"e", aim, null), k.abilities.get_fail_reason(&"r", aim, dummy)], ["", "", ""])
+	pool.restore(19.0)
+	_check("19 Fury: Cleave fails with 'not enough resource'", [k.abilities.can_afford(&"q"), k.abilities.get_fail_reason(&"q", aim, null)], [false, AbilityComponent.FAIL_NO_RESOURCE])
+	pool.restore(1.0)
+	_check("20 Fury: Cleave casts and pays 20 at cast start", [k.abilities.try_cast(&"q", aim), pool.current], [true, 0.0])
+	await _wait_until(func() -> bool: return not k.abilities.casting, 60)
+	_check("Cleave's hits build no Fury", pool.current, 0.0)
+	var hits := [0]
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == k and ctx.has_tag(&"ability") and not ctx.blocked:
+			hits[0] += 1
+	Events.unit_hit.connect(on_hit)
+	await _wait_until(func() -> bool: return k.abilities.can_cast(&"e"), 30)
+	k.abilities.try_cast(&"e", k.global_position + Vector2(120, 0))
+	await _wait_until(func() -> bool: return not k.abilities.casting, 60)
+	Events.unit_hit.disconnect(on_hit)
+	_check("Lunge from 0 hits the dummy and builds no Fury", [hits[0] >= 1, pool.current], [true, 0.0])
+	dummy.queue_free()
+	k.queue_free()
+	await _frames(1)
+
+
 # --- Helpers ------------------------------------------------------------------
+
+## A passive slime (a training dummy) at `pos`.
+func _dummy(pos: Vector2) -> Enemy:
+	var d: Enemy = SLIME_SCENE.instantiate()
+	d.passive = true
+	add_child(d)
+	d.global_position = pos
+	d.reset_physics_interpolation()
+	return d
+
+
+func _wait_until(condition: Callable, max_frames: int) -> void:
+	for i in max_frames:
+		if condition.call():
+			return
+		await get_tree().physics_frame
+
 
 ## Moves the unit's health to `fraction` of its max (HealthComponent directly:
 ## no hit, no i-frames).

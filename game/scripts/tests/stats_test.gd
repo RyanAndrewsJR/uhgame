@@ -180,8 +180,8 @@ func _test_base_values() -> void:
 	_check("C8 stats: incoming_damage 1, the rest 0",
 		[knight_stats.get_stat(&"incoming_damage"), knight_stats.get_stat(&"damage_increase"), knight_stats.get_stat(&"on_hit_damage"), knight_stats.get_stat(&"life_on_hit"), knight_stats.get_stat(&"resource_on_hit")],
 		[1.0, 0.0, 0.0, 0.0, 0.0])
-	_check("max_resource 300 (knight.tres)", knight_stats.get_stat(&"max_resource"), 300.0)
-	_check("resource_regen 6 (knight.tres)", knight_stats.get_stat(&"resource_regen"), 6.0)
+	_check("max_resource 100 (knight.tres: fury, CHAMPIONS CH3)", knight_stats.get_stat(&"max_resource"), 100.0)
+	_check("resource_regen 0 (knight.tres: fury decays instead)", knight_stats.get_stat(&"resource_regen"), 0.0)
 	_check("health_regen 0 (the default; knight.tres doesn't set it: zero sustain)", knight_stats.get_stat(&"health_regen"), 0.0)
 	_check("slime max_resource 0 (neutral default)", slime_stats.get_stat(&"max_resource"), 0.0)
 	_check("slime move_speed 285", slime_stats.get_stat(&"move_speed"), 285.0)
@@ -430,6 +430,11 @@ func _test_health_and_resource_pools() -> void:
 	var stats: StatsComponent = StatsComponent.new()
 	add_child(stats)
 	stats.setup(KNIGHT_STATS)
+	# The pool checks below test the mechanics on a 300 pool with 6/s regen (the
+	# Knight's old mana), not the Knight's fury tuning (100, no regen, CH3).
+	var test_pool: Array[StatModifier] = [_mod(&"max_resource", FLAT, 300.0 - KNIGHT_STATS.max_resource, &"test_pool"),
+		_mod(&"resource_regen", FLAT, 6.0 - KNIGHT_STATS.resource_regen, &"test_pool")]
+	stats.add_modifiers(test_pool)
 	var health: HealthComponent = HealthComponent.new()
 	add_child(health)
 	health.set_stats_component(stats)

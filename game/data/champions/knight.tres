@@ -14,6 +14,12 @@
 [ext_resource type="Script" path="res://scripts/data/passive.gd" id="12_passive"]
 [ext_resource type="Curve" path="res://data/curves/curve_knight_unbroken.tres" id="13_unbroken_curve"]
 
+[sub_resource type="Resource" id="StatModifier_fury_on_hit"]
+script = ExtResource("10_stat_modifier")
+stat = &"resource_on_hit"
+value = 8.0
+scope = &"hit:basic_attack"
+
 [sub_resource type="Resource" id="StatModifier_unbroken"]
 script = ExtResource("10_stat_modifier")
 stat = &"attack_damage"
@@ -38,7 +44,11 @@ id = &"knight"
 display_name = "Knight"
 champion_class = &"bruiser"
 stats = ExtResource("2_stats")
-resource_type = 0
+resource_type = 2
+resource_starts_empty = true
+resource_decay_per_second = 20.0
+resource_decay_delay = 3.0
+modifiers = Array[ExtResource("10_stat_modifier")]([SubResource("StatModifier_fury_on_hit")])
 q = ExtResource("3_q")
 w = ExtResource("4_w")
 e = ExtResource("5_e")

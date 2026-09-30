@@ -227,7 +227,8 @@ static func _prd_average(c: float) -> float:
 ##   (can't crit, no feel)
 ## - life_on_hit x proc_coefficient, plus life_steal x taken_damage on basic
 ##   attacks: heals the source (green number)
-## - resource_on_hit x proc_coefficient: restores the source's resource
+## - resource_on_hit x proc_coefficient: restores the source's resource (scoped: hit:
+##   and target: modifiers count, CHAMPIONS CH3)
 static func apply_on_hit(ctx: HitContext) -> void:
 	if ctx.blocked or not is_instance_valid(ctx.source) or ctx.source.stats_component == null:
 		return
@@ -248,7 +249,9 @@ static func apply_on_hit(ctx: HitContext) -> void:
 		heal += stats.get_stat(&"life_steal") * ctx.taken_damage
 	if heal > 0.0:
 		source.heal(heal)
-	var gain := stats.get_stat(&"resource_on_hit") * coefficient
+	# Scoped (CHAMPIONS CH3): hit: / target: modifiers reach it, like damage_increase
+	# (the Knight's fury: +8 per enemy a basic attack hits).
+	var gain := stats.get_scoped_stat(&"resource_on_hit", get_hit_scopes(ctx)) * coefficient
 	if gain > 0.0 and source.resource_pool != null:
 		source.resource_pool.restore(gain)
 
