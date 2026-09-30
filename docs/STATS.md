@@ -24,7 +24,7 @@
 - Nothing edits a value directly. All changes go through **modifiers** tagged with a `source_id`, so removing an item or ending a buff removes exactly what it added.
 
 ## Fill in
-- Leveling: [yes, max level __ / no]. If yes, champions get per-level growth.
+- Leveling: **no** (decided 2026-09-29). Champions don't level their combat stats; in-run power comes from loot, and the persistent champion level only gates talent points (VISION.md, Game structure). Per-level growth and `set_level()` stay built, unused by champions, kept for future enemy scaling (DUNGEONS.md).
 - Stat points allocated by hand: [no / yes]
 - Damage split: **attack_damage + ability_power** (AD vs AP champions). [Keep, or collapse into one stat]
 
@@ -117,7 +117,7 @@ Specified in ABILITIES.md, Augments (FLAG / EVENT / REPLACE, added and removed b
   - `base_field`: the UnitStats field holding the base (empty = same as the key; `attack_speed` reads `base_attack_speed`)
   - `max_field`: a UnitStats field used as a per-unit max (`attack_speed` → `attack_speed_cap`)
   - A stat with no UnitStats field yet (only `knockback_resistance`) uses its registry default as the base.
-- `res://scripts/components/stats_component.gd`: `StatsComponent` (child of Unit). `setup(base_stats, movement, growth)` (`movement` supplies the soft cap thresholds); `get_stat()` and `get_ability_param()` are cached, `get_scoped_stat()` isn't; adding or removing a modifier recalculates only the stats it touches. Also: `get_base_value()` (base + growth, before modifiers), `get_modifiers_from(source_id)`, `get_level()` / `set_level()` (for the overlay and tooltips), `add_modifier()`, `add_modifiers()`, `remove_modifiers_from(source_id)`, `get_cooldown(base)` (the attack interval is `AutoAttackComponent.get_attack_interval()`); signal `stat_changed(key, old, new)`, only when a value actually changes.
+- `res://scripts/components/stats_component.gd`: `StatsComponent` (child of Unit). `setup(base_stats, movement, growth)` (`movement` supplies the soft cap thresholds); `get_stat()` and `get_ability_param()` are cached, `get_scoped_stat()` isn't; adding or removing a modifier recalculates only the stats it touches. Also: `get_base_value()` (base + growth, before modifiers), `get_modifiers_from(source_id)`, `get_level()` / `set_level()` (unused by champions; kept for future enemy scaling, DUNGEONS.md), `add_modifier()`, `add_modifiers()`, `remove_modifiers_from(source_id)`, `get_cooldown(base)` (the attack interval is `AutoAttackComponent.get_attack_interval()`); signal `stat_changed(key, old, new)`, only when a value actually changes.
 - `res://scripts/components/resource_component.gd`: `ResourceComponent`, mana/energy/fury, same shape as HealthComponent: `try_spend()` (returns false on failure, CONVENTIONS), `restore()`, `can_afford()`, `is_empty()`, regen, signals `resource_changed(current, maximum)` (mirrors `health_changed`) and `depleted`. `resource_type` (MANA / ENERGY / FURY) is an export on it for now, only a label until ChampionData. On Unit it's `resource_pool` (CONVENTIONS.md, Vocabulary).
 - `HealthComponent` and `ResourceComponent` read their max from stats (`set_stats_component()`, called by `Unit._ready()`): the max going up raises current by the same amount; going down clamps it.
 - *(planned, CHAMPIONS.md)* `res://scripts/data/champion_data.gd` + `res://data/champions/<name>.tres`: `stats: UnitStats`, `growth: Dictionary[StringName, float]`, `resource_type` (MANA / ENERGY / FURY / NONE), passive, ability slots.
@@ -134,7 +134,7 @@ Specified in ABILITIES.md, Augments (FLAG / EVENT / REPLACE, added and removed b
 **Done means:** a fake item (a modifier array) changes stats and ability params, and removing it restores them exactly; the Knight and slimes behave the same as before step 4; the overlay explains every number.
 
 ## Open questions
-- Leveling, stat allocation, and the AD/AP split (see Fill in).
+- Stat allocation and the AD/AP split (see Fill in). Leveling is decided: no (Fill in).
 - Armor/MR formula: proposed `100 / (100 + armor)`; still to confirm (COMBAT.md, Open questions). Negative values are settled (core rule, above).
 - Enemy scaling by dungeon depth via modifiers (source `&"dungeon_scaling"`)? Proposed: yes.
 - Champion-specific items dropping for other champions? Proposed: no (LOOT.md).

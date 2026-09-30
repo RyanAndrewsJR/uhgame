@@ -117,7 +117,7 @@ Moved here from MOVEMENT.md unchanged (MOVEMENT.md keeps a pointer). Per ability
 - An empower is a StatusEffect tagged `empower` with `empower_*` fields: what consumes it (the next basic attack swing that hits, or the next ability cast) and, for abilities, which ones (a scope); a bonus base damage and AD ratio; statuses to apply to what it hits. HitPipeline adds the bonus into the hit itself, so it crits with the hit and applies to every enemy that swing or cast hits. It's consumed once per swing or cast; free casts never consume one (Ryan, AB10). Extra behavior rides the status's `reaction_rules`. Iron Resolve's is the first example (`empower_iron_resolve`); `add_next_attack_modifier()` stays as a thin wrapper (change policy).
 
 ### Ability ranks
-- Deferred until the run-structure decision. When they come, they're StatModifiers with source `rank` on the ability's params, so nothing needs restructuring.
+- None, in any form (decided 2026-09-29). There is no ability-rank mechanic: what would have been ranks is fully replaced by the talent tree (TALENTS.md), a deliberate, capped choice made at the hub, not an automatic per-level upgrade. In-run power comes from loot (VISION.md, Game structure).
 
 ### Data or script (the rule every ability, passive and item follows)
 - ABILITIES should express most League of Legends / Diablo 4 abilities with data plus a short script. If 2+ abilities, passives or items would use something, it's data (a toolkit piece); a one-off goes in the ability's own script, which still uses the full architecture (cooldown, cost, recasts, HUD, tooltips, augments, sounds).
@@ -699,11 +699,10 @@ Not build steps. Each is data once 2+ kits use it (Data or script, above).
 - Example use: capture-and-throw abilities (Tahm Kench, Singed E style).
 
 ## Out of scope
-Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modifiers, unit reaction rules, statuses, empowers and an optional script, all under a source id like `passive_knight`, built on this toolkit); items and affix rolls (LOOT.md); enemy AI choosing abilities (ENEMIES_AI.md); ability ranks and leveling (see Open questions); talents (TALENTS.md, built on augments); summons; ability slot swapping by the player (decided no, 2026-09-29: slots are fixed, VISION.md, Build variety; REPLACE augments and forms still change what's active in a slot); TOGGLE and SUSTAINED cast styles (not planned: Cast styles); the ultimate meter (CHAMPIONS.md).
+Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modifiers, unit reaction rules, statuses, empowers and an optional script, all under a source id like `passive_knight`, built on this toolkit); items and affix rolls (LOOT.md); enemy AI choosing abilities (ENEMIES_AI.md); ability ranks (none, replaced by talents: Ability ranks); talents (TALENTS.md, built on augments); summons; ability slot swapping by the player (decided no, 2026-09-29: slots are fixed, VISION.md, Build variety; REPLACE augments and forms still change what's active in a slot); TOGGLE and SUSTAINED cast styles (not planned: Cast styles); the ultimate meter (CHAMPIONS.md).
 
 ## Open questions
 - Ultimate meter details (CHAMPIONS.md).
-- Ability ranks. There is no leveling inside a run and the champion level only gates talents (VISION.md, Game structure, 2026-09-29), so ranks never come from levels; whether abilities have ranks at all (e.g. through talents) is TALENTS.md's call.
 - Which Knight abilities ignore walls (CHAMPIONS.md).
 - The element tag list.
 - Can a recast part be dash-cancelled separately?
