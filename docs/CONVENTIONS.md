@@ -22,17 +22,19 @@
 | Callback others call | `on_<event>` | `on_hit(ctx: HitContext)`, `on_interact()` |
 | Signal handler | `_on_<emitter>_<signal>` | `_on_hurtbox_hurt` |
 | Ids and tags | `StringName`, snake_case | `&"iron_resolve_slow"`, `&"fire"` |
-| Source id (new code) | `<kind>_<name>`, for modifier and status source ids | `&"item_4821"`, `&"status_burning"`, `&"hazard_oil"` |
+| Source id (new code) | `<kind>_<name>`, for modifier and status source ids | `&"item_4821"`, `&"status_burning"`, `&"hazard_oil"`; a champion's passive `&"passive_<champion id>"` (`passive_knight`) and its ChampionData modifiers `&"champion_<champion id>"` (CHAMPIONS.md) |
 | Move lock, speed modifier, invulnerability ids | name their owner (not `<kind>_<name>`). Existing ids don't change. | `&"dash"`, `&"iron_resolve_slow"` |
 | Constant / enum | `UPPER_SNAKE`; enum type PascalCase | `Targeting.SELF`, `Team.PLAYER` |
 | Units | pixels get a `_px` suffix; LoL units have no suffix; times are seconds (`_duration`, `_time`, `cooldown`) | `radius_px`, `cast_range` |
 
 ## Vocabulary (use these words, not synonyms)
 - **Unit**: anything using `Unit` (champions, enemies, summons). Not "entity", "actor", or "character".
-- **Champion**: a playable kit. **Enemy**: a hostile Unit (**elite**, **boss** are enemy tiers).
+- **Champion**: a playable kit, defined by a `ChampionData` (CHAMPIONS.md). **Champion class**: its archetype (`bruiser`, `diver`, `rogue`, `tank`, `marksman`, `mage`...), which sets things like dash-strike power and which weapons it wields; not a role tag (role tags are ability roles). **Enemy**: a hostile Unit (**elite**, **boss** are enemy tiers).
 - **Ability**: a castable action in a slot. **Passive**: always-on champion behavior. **Augment**: a change to an ability's behavior granted by a source (an item, a passive, a status), added and removed by source id (ABILITIES.md).
 - **Cast style**: how an ability's key works, per ability: INSTANT, CHARGE_UP, CHANNEL, VECTOR. **Cast mode**: the player's setting for INSTANT abilities: QUICK (cast on press) or QUICK_WITH_INDICATOR (hold to aim, release to cast).
 - **Vector**: a cast along a line the player places: press to drop a **start point** at the cursor, drag to aim, release to cast from the start point toward the cursor (`vector_start`, `vector_direction`, `vector_end` on the CastContext). A drag too short to aim is a **tap**: the line points from the caster through the start point. Not to be confused with Godot's `Vector2`, or with the cast's `direction` (caster → aim).
+- **Cast progress**: a cast time as progress from 0 to 1 (`CastContext.progress`); the effect starts when it reaches 1, whatever real time that took. **Cast speed**: the multiplier on how fast cast progress advances (`AbilityComponent.get_cast_speed()`, 1.0 for now). Cast speed never touches cooldowns: that's `ability_haste` (ABILITIES AB14). Swings have their own speed (`attack_speed`), not cast speed.
+- **Presentation hooks**: the empty-by-default VFX and animation fields an art pass fills with no code changes: an ability's `cast_vfx`, `impact_vfx`, `cast_anim`; a swing's `swing_vfx`, `impact_vfx`, `swing_anim` (ABILITIES AB14).
 - **Charge-up**: holding an ability's key to power a cast (range, damage) before releasing it. **Charge**: a stored cast of an ability (`max_charges`), recharging over its cooldown. Never mix the two: "charges" are stored casts, "charge-up" / `charge` on a CastContext is the hold.
 - **Channel**: a cast the caster must stand still through; moving cancels it. **Recast**: pressing an ability's slot again inside its recast window to cast its next part.
 - **Empower**: a status that makes the next basic attack or next ability stronger ("your next attack"), consumed once per swing or cast. **Form**: a status that swaps several ability slots at once (Nidalee, Jayce, Druid shapeshifts).
@@ -121,7 +123,10 @@ Example: since `StatusComponent` (COMBAT C9), `Unit.apply_stun()` and `add_speed
 | `Events` | global signal bus autoload | here |
 | `WorldQuery`, `SurfaceTags` | spatial queries, surface tags | WORLD_INTERACTION.md |
 | `Settings`, `PauseMenu` | the player's own options autoload (saved to `user://settings.cfg`) and the Esc pause menu that edits them (both exist) | MOVEMENT.md (Dash), ABILITIES.md (cast mode) until UI.md |
-| `StatsComponent`, `StatModifier`, `StatDefinition`, `StatRegistry`, `ResourceComponent`, `ChampionData` | stats (the first five exist; `ChampionData` is planned) | STATS.md |
+| `StatsComponent`, `StatModifier`, `StatDefinition`, `StatRegistry`, `ResourceComponent` | stats (all exist) | STATS.md |
+| `ChampionData`, `Passive`, `StatScaling`; `ResourceComponent.ResourceType.NONE`; `champion_level`, `champion_xp`, `champion_class`; status `staggered` (tags `staggered`, `debuff`) | champions, passives, a stat modifier that follows a 0–1 input, the champion level hook, the Knight's marker status (planned, CH1–CH4) | CHAMPIONS.md |
+| `cast_vfx`, `impact_vfx`, `cast_anim` (Ability); `swing_vfx`, `impact_vfx`, `swing_anim` (AttackSwing); `CastContext.progress`, `get_cast_progress()`, `get_cast_speed()`, `use_cast_progress`, `Telegraph.set_progress()` | presentation hooks and cast progress (planned, AB14) | ABILITIES.md |
+| `heal_on_hit_ratio` (Ability, HitContext) | an ability's kit heal on hit (planned, CHAMPIONS CH5) | CHAMPIONS.md, COMBAT.md |
 | `HitContext`, `DamageType` (enum `HitContext.DamageType`), `ImpactContext`, `HitPipeline` | the hit pipeline | COMBAT.md |
 | `AttackSwing`, `AttackCombo` | basic attack combo data | COMBAT.md |
 | `HitFeel` | hit feel per tier (hitstop, shake, flash) | COMBAT.md |

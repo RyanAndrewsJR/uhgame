@@ -78,6 +78,7 @@ The rule for every combo with `attack_style` MELEE (the default; the Knight is t
 
 ### Sustain
 - Every champion starts with zero sustain (health_regen 0). Healing comes only from build choices: abilities, passives and items (life on hit, life steal, regen).
+- A kit heal tied to one ability (`Ability.heal_on_hit_ratio`, CHAMPIONS CH5; the Knight's Cleave) doesn't break this: it's not a stat, no champion has it by default, and it's earned by landing that ability (CHAMPIONS.md, Sustain). Every heal goes through `Unit.heal()` (clamped to max health, no overheal, a green number only for what was healed).
 
 ### Damage numbers
 - Every hit shows a number above the target.
@@ -172,6 +173,7 @@ One per hit. Built by the attacker, filled in by the pipeline.
 | `feel` | `HitContext.Feel` | `NONE`, `LIGHT`, `HEAVY`; a kill upgrades it |
 | `target_tags` | `Array[StringName]` | the target's status tags just before the hit (filled in by `Unit.on_hit`; reaction rules read it) |
 | `chain_depth` | `int` | the reaction chain depth of a free cast's hits (ABILITIES.md) |
+| `heal_on_hit_ratio` | `float` | CHAMPIONS CH5: the ability's `heal_on_hit_ratio` for this hit (`from_ability()` with a cast: `get_effect_param()` for the unit hit; 0 without a cast and for every other hit). `apply_on_hit()` heals the source for it × `taken_damage` |
 | **filled in by the pipeline:** `raw_damage` (before mitigation), `taken_damage` (after mitigation and `incoming_damage`), `absorbed` (by shields), `health_lost`, `is_crit`, `blocked` (i-frames), `killed` | | read by listeners, numbers, feel and on-hit |
 
 ### AttackSwing and AttackCombo (combo data)
@@ -183,6 +185,7 @@ One per hit. Built by the attacker, filled in by the pipeline.
   - `lunge_px` (6): melee swing step along the aim; `lunge_max_px` (24): the longest target-pull step. The dash-strike swing's step is its own `lunge_px` (16).
   - `proc_coefficient` (1.0)
   - `pause_after` (0): seconds after this swing ends before the next can start (the finisher's breather)
+  - Presentation hooks (ABILITIES AB14, export group "Presentation"; empty = nothing, like an ability's `cast_vfx` / `impact_vfx` / `cast_anim`, named for swings): `swing_vfx` (`PackedScene`, at swing start next to `swing_sound`, whiffs included), `impact_vfx` (`PackedScene`, on each enemy whose hit got through in `_land_swing()`), `swing_anim` (`StringName`, on the attacker's `Body/AnimationPlayer`, its position set each tick to the swing's progress × the animation's length). Swing progress = time since the swing started ÷ (`duration` ÷ combo speed), so the hooks follow `attack_speed` (and `speed_scale`), never cast speed. The dash-strike swing has its own. A cancelled swing stops its animation.
 - `AttackCombo` (Resource, `res://scripts/data/attack_combo.gd`): `attack_style` (`AttackCombo.AttackStyle.MELEE` default / `RANGED`), `swings: Array[AttackSwing]`, `combo_reset_time`, `dash_strike: AttackSwing` (null = dash-strikes use the normal next swing), `hit_forgiveness` (0.10), `speed_scale` (default 1.0; one knob that scales every swing timing; × attack speed; the Knight's is 1.266).
   - Melee assist: `assist_range_bonus_px` (40, added to the swing's reach), `assist_angle_deg` (35), `assist_snap_deg` (20), `stop_at_reach_fraction` (0.7).
   - Recovery: `walk_cancels_recovery` (true), `recovery_move_cancel_after` (0.1 s).
@@ -257,7 +260,7 @@ The hit feel per tier, held by `GameFeel.hit_feel`: `light_hitstop` 0.03, `heavy
   5. Knockback (`movement.displace(..., dash_cancelable = true)`, even if a shield took all of it; not on an unstoppable target, and not on one the hit killed: `Ability.hit_units()` slides those itself, ABILITIES.md), then statuses (`ctx.statuses`, from `ctx.source`; not on a target the hit killed).
   6. Feel: `GameFeel.play_hit_feel(ctx)`: the hit's tier (a kill uses the kill tier) sets the hitstop and shake; feel NONE plays nothing, so abilities and enemy basic attacks keep their own.
   7. Events: `Events.unit_hit`, `Events.unit_damaged` (when `taken_damage` > 0), `Events.unit_died(self, ctx)` (when `killed`; kill credit = `ctx.source`).
-  8. On-hit (only `basic_attack` or `ability` hits, never `proc` or `dot`; a blocked hit has none): `on_hit_damage` × `proc_coefficient` as a MAGIC `proc` hit on the same target, `life_on_hit` × `proc_coefficient` plus `life_steal` × `taken_damage` (basic attacks only, proposed) heal the source with a green number (`Unit.heal()`), `resource_on_hit` × `proc_coefficient` restores its resource. It runs after the events and before post-hit i-frames start, so the i-frames a hit starts never block its own proc.
+  8. On-hit (only `basic_attack` or `ability` hits, never `proc` or `dot`; a blocked hit has none): `on_hit_damage` × `proc_coefficient` as a MAGIC `proc` hit on the same target, `life_on_hit` × `proc_coefficient` plus `life_steal` × `taken_damage` (basic attacks only, proposed) plus `heal_on_hit_ratio` × `taken_damage` (the hit's ability's kit heal, CHAMPIONS CH5) heal the source with one green number (`Unit.heal()`), `resource_on_hit` × `proc_coefficient` restores its resource. It runs after the events and before post-hit i-frames start, so the i-frames a hit starts never block its own proc.
   9. Post-hit i-frames (a living target with `post_hit_iframes` > 0; not for `dot` ticks or `proc` hits).
 - `Unit.take_damage(amount, source)` stays as a wrapper (`Unit.make_hit_context()`): a `HitContext` with `base_damage = amount`, PHYSICAL, `can_crit = false`, feel `NONE` (callers keep their own shake and hitstop), then `on_hit()` directly (the amount is already scaled). `Player`'s "got hit" 2 px shake is a `Player.on_hit` override, so pipeline hits get it too.
 - **`StatusComponent`** (`res://scripts/components/status_component.gd`), a child of every Unit (`Unit.status_component`, optional so old scenes still load; `player.tscn` and `slime.tscn` have one, so the elite and dummies too).
@@ -269,7 +272,7 @@ The hit feel per tier, held by `GameFeel.hit_feel`: `light_hitstop` 0.03, `heavy
   - DoT: a tick every `tick_interval`, the first one interval after it's applied: a hit through `HitPipeline.resolve()` from the applier (kill credit; null once freed), `base_damage` = (`tick_damage` + `tick_ad_ratio` × the applier's attack_damage when applied) × stacks, `tick_damage_type`, tags `dot` + the status's tags, can't crit, proc coefficient 0 (no on-hit), no post-hit i-frames. `damage_increase` is read live at each tick.
 - **Unit** (statuses): `is_stunned()` (a `stun`-tagged status); `is_cast_blocked()` / `is_dash_blocked()` (stunned, or a status with `blocks_cast` / `blocks_dash`; AbilityComponent's `can_cast()` and cast interruption and DashComponent's `can_dash()` use them); `get_status_tags()`. MovementComponent gets `set_status_component()`.
 - **`WorldQuery`** (`res://scripts/autoload/world_query.gd`): `has_line_of_sight(from, to, mask = 1)` (world layer 1; units don't block it) and `shape_sweep()`; the rest of its API is WORLD_INTERACTION.md's.
-- **`Telegraph`** (`res://scripts/vfx/telegraph.gd`, Node2D): `Telegraph.circle(anchor, center, radius, time, color)` draws a true circle (not squashed, so it matches the hit area) with a faint fill, an outline and a fill that grows until the hit; `finish()` flashes and frees it; `get_progress()`. `Telegraph.line(anchor, start, end, width, time, color)` (ABILITIES AB13, VECTOR casts) draws a band `width` px wide from `start` to `end` whose fill grows along its length (`line_vector`, `width_px`). It goes on the room's floor (a child of the room just before `Entities`), under every unit. `THREAT_COLOR` = orange-red (1, 0.35, 0.15). VFX only: the ability's own query decides the hit.
+- **`Telegraph`** (`res://scripts/vfx/telegraph.gd`, Node2D): `Telegraph.circle(anchor, center, radius, time, color)` draws a true circle (not squashed, so it matches the hit area) with a faint fill, an outline and a fill that grows until the hit; `finish()` flashes and frees it; `get_progress()`. `Telegraph.line(anchor, start, end, width, time, color)` (ABILITIES AB13, VECTOR casts) draws a band `width` px wide from `start` to `end` whose fill grows along its length (`line_vector`, `width_px`). It goes on the room's floor (a child of the room just before `Entities`), under every unit. `THREAT_COLOR` = orange-red (1, 0.35, 0.15). VFX only: the ability's own query decides the hit. ABILITIES AB14: `set_progress(p)`: a telegraph that belongs to a cast is filled by the cast's progress each tick (AbilityComponent calls it) and ignores its own clock; one with no cast keeps its `duration`.
 
 ### Changes to existing scripts (additive)
 - **AutoAttackComponent, combo mode** (`combo: AttackCombo`, null = LoL mode):
@@ -357,4 +360,4 @@ Items and affixes (LOOT.md); ability costs, recasts and augments (ABILITIES.md);
 - Confirm the armor formula; is penetration needed? (Negative armor is settled: a core rule, Rules, Hits.)
 - Life steal: basic attacks only *(proposed; built that way in C8)*, or every hit?
 - On-hit damage type: MAGIC *(proposed, built in C8)*, the triggering hit's type, or set per item?
-- Which Knight abilities should ignore walls: CHAMPIONS.md / ABILITIES.md.
+- Which Knight abilities should ignore walls: answered in CHAMPIONS.md *(proposed: none)*.

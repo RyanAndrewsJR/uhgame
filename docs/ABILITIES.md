@@ -31,6 +31,7 @@ Every champion's kit reads at a glance and feels instant: press, and it goes whe
 - A stun (or any status that blocks casting) applied during the cast time, a charge-up or a vector aim interrupts the cast at once (Ryan's pick). AbilityComponent listens to its unit's `StatusComponent.status_applied`; a unit without a StatusComponent (none today) still gets the old check at the end of the cast time.
 - The cast movement rules (Movement during casts, below) also govern walking while charging up or aiming a vector.
 - **The "on cast" trigger fires when the effect starts** (Ryan, AB8): `Events.ability_cast` / ABILITY_CAST come after the cast time for INSTANT and CHANNEL, after the release windup for CHARGE_UP and VECTOR, at each recast part's effect, and when a free cast runs; never for a cast cancelled or interrupted before its effect (so a "restore on cast" rule can't pay out for a cast that was refunded). `cast_started` stays at cast start for sounds and telegraphs.
+- **Cast progress** (AB14, Ryan 2026-09-29): every cast time runs on the cast's progress from 0 to 1, not on a countdown: each physics tick (game time) it grows by delta ÷ `cast_time` × the **cast speed** (`AbilityComponent.get_cast_speed()`, 1.0 for now). The effect starts on the tick progress reaches 1, whatever real time that took. This covers INSTANT and CHANNEL cast times, the release windup of CHARGE_UP and VECTOR, and enemy casts; a telegraph that belongs to a cast fills with its progress. Cast speed never touches cooldowns (`ability_haste` stays the cooldown stat). Details: Architecture, Cast progress and presentation hooks.
 - **Free casts** (`CastAbilityGameplayEffect`, `CastContext.is_free`): no cost, no cooldown started, no charge used; no cast time (the effect runs at once); they don't root the caster, don't lock the slot and don't interrupt a cast already in progress; they aim at the triggering cast's aim point and target (a hit: the unit hit), or the caster's current aim if there isn't one. A dead or cast-blocked unit refuses them. Since ABILITY_CAST fires at the effect start, a free cast it triggers runs right then; nothing is queued. Free casts are chain-limited like reaction rules (`chain_limit`, `ReactionRule.MAX_CHAIN` 5), their hits included (`HitContext.chain_depth`). They don't use up ability empowers.
 
 ### Movement during casts
@@ -77,7 +78,7 @@ Moved here from MOVEMENT.md unchanged (MOVEMENT.md keeps a pointer). Per ability
 - Scoped modifiers use them ("+20% damage to core abilities").
 
 ### Costs and resources
-- Every champion has a resource type: MANA, ENERGY, FURY or NONE (Ryan's pick: NONE is allowed, cooldowns only). The Knight's real type is decided in CHAMPIONS.md. NONE = the unit has no ResourceComponent; such a unit pays no costs.
+- Every champion has a resource type: MANA, ENERGY, FURY or NONE (Ryan's pick: NONE is allowed, cooldowns only). The Knight's is FURY (CHAMPIONS.md, which also owns the resource-type rhythms: fury starting empty and decaying out of combat). NONE = the unit has no ResourceComponent; such a unit pays no costs.
 - An ability's `resource_cost` is a scoped param (items can reduce it). A CHARGE_UP ability pays when charging starts.
 - Not enough resource: the cast fails with a clear cue; the press is not buffered.
 - Generators and spenders: `resource_on_hit` lets basic attacks build a resource that abilities spend.
@@ -88,7 +89,7 @@ Moved here from MOVEMENT.md unchanged (MOVEMENT.md keeps a pointer). Per ability
 - `recast_count` (default 0) and `recast_window`: pressing the slot again inside the window casts the next part; the cast context says which part. The cooldown starts when the last part is used or the window ends (League style, Ryan's pick). The first part costs `resource_cost`; every later part costs `recast_resource_cost` (default 0, one scoped param for all later parts; Ryan's pick).
 
 ### Ultimates
-- Per champion: the ultimate uses a cooldown (League) or a meter charged by dealing and taking damage (Hades), Ryan's pick. The Knight uses a cooldown. The meter is designed in CHAMPIONS.md; this doc only needs the slot to support "ready when the meter is full" instead of a cooldown (`ready_mode` METER, reserved here, built with the meter).
+- Per champion: the ultimate uses a cooldown (League) or a meter charged by dealing and taking damage (Hades), Ryan's pick. The Knight uses a cooldown (Judgement: 30 s, CHAMPIONS.md). The meter is designed in CHAMPIONS.md when a champion first uses one; this doc only needs the slot to support "ready when the meter is full" instead of a cooldown (`ready_mode` METER, reserved here, built with the meter).
 
 ### Projectiles
 - A shared projectile piece: speed, range, width, pierce count (0 = stops on the first hit), blocked by walls (unless `ignores_walls`), one crit roll per cast shared by every projectile of that cast, its hits through `HitPipeline.from_ability()`. Projectile count and speed are scoped params, so "+1 projectile" is an item modifier.
@@ -166,7 +167,8 @@ Targeting and indicators; cast styles; shapes (cone, line, circle, line of sight
 | Reaction rules and GameplayEffects | `Unit.add_reaction_rule(rule, source_id)`, `Reactions.add_world_rule(rule, source_id)`; trigger ABILITY_CAST; the four new effects | "when X, do Y" | `source_id` on add, removed with `remove_reaction_rules_from(source_id)` |
 | Augments | `AbilityAugment`, `AbilityComponent.add_augment(augment, source_id)` / `remove_augments_from(source_id)`; `StatusEffect.augments` | behavior changes and forms | `source_id` on add; a status's augments use `&"status_<id>"` |
 | Tooltips | `Ability.get_tooltip(caster)`, `get_tooltip_plain(caster)` | what the player reads | shows augment lines with their source's text |
-| Sounds, feel and VFX | `Ability.cast_sound` / `hit_sound` / `telegraph_sound` / `ready_sound` / `charge_sound` (AUDIO.md); `Ability.hit_shake` / `hit_hitstop` + `play_hit_feel(hits)` (once per cast, only when a hit landed); `VFX` static helpers | feedback only; never gameplay state | fields on the Ability or status the source grants |
+| Sounds, feel and VFX | `Ability.cast_sound` / `hit_sound` / `telegraph_sound` / `ready_sound` / `charge_sound` (AUDIO.md); `Ability.hit_shake` / `hit_hitstop` + `play_hit_feel(hits)` (once per cast, only when a hit landed); `VFX` static helpers; the presentation hooks `cast_vfx` / `impact_vfx` / `cast_anim` (AB14, empty = nothing) | feedback only; never gameplay state | fields on the Ability or status the source grants; an item's active ability is an Ability, so it has the same hooks |
+| Cast progress | `CastContext.progress`, `AbilityComponent.get_cast_progress()` / `get_cast_speed()` (AB14) | the cast time as 0–1 progress × cast speed; telegraphs and `cast_anim` follow it | any cast through AbilityComponent (a free cast has no cast time: progress 1 at once) |
 | Conditions | `Condition` (`res://scripts/data/condition.gd`), `Condition.is_met()`; `Ability.cast_conditions` / `recast_conditions` / `conditional_bonuses` (`ConditionalBonus`); `ReactionRule.conditions`; `Ability.can_cast_custom()` | "only when…", "bonus if…" | a condition is a pure check (`is_met(self_unit, target, cast)`), so it needs no source id itself: a passive or item puts it in the rule, augment or status it grants, which is added and removed by the source id as usual; the enemy AI calls `is_met()` directly |
 | Named scaling inputs | `CastContext.get_input()` / `set_input()`; `ChargeScaling.input`; `Ability.get_effect_param()` | "stronger the more / less…" | carried by the cast (`CastContext`), whoever granted it |
 
@@ -186,6 +188,8 @@ Cast conditions: (Condition kinds, AND; "not"; fail text) + custom check, if any
 Recast conditions: (per the next part) + custom check, if any
 Conditional bonuses: {conditions → param changes, statuses on targets, statuses on self}, checked at cast / hit
 Named scaling inputs: which params scale by which input (charge, self_missing_health, target_missing_health, target_distance, vector_drag, script-set), min fraction, curve
+Heal on hit: heal_on_hit_ratio (× damage taken by each enemy hit), its named-input scaling (input, curve) (CHAMPIONS CH5)
+Presentation hooks: cast_vfx, impact_vfx, cast_anim (AB14; empty until the art pass)
 What it does, step by step:
 Supported augment flags:
 Sounds (AUDIO.md): cast_sound, hit_sound, telegraph_sound, ready_sound, charge_sound
@@ -235,9 +239,9 @@ Extra tunables: cone_half_angle_deg 60. (The old `knockback` export was deleted 
 - VECTOR (AB13, all placeholders until a champion uses one): start range (`cast_range`) 500 u (160 px), `vector_length` 500 u (160 px), `vector_width` 75 u (24 px), `vector_min_drag_px` 8 px (4–16), release windup 0.2 s (0.1–0.3), hold limit (`overhold_time`) 2 s, walking while aiming (`cast_move_speed_multiplier`) 0.6 (0.5–0.6); a full root only through `roots_during_cast`.
 - `recast_window` 3 s (1–6).
 - Charges: recharge time = the ability's cooldown.
-- Costs (placeholder until CHAMPIONS.md): mana abilities 30–80 of a 300 pool (6/s regen); fury abilities spend what basic attacks build.
+- Costs: mana abilities 30–80 of a 300 pool (6/s regen) (a placeholder range until a mana champion exists); fury abilities spend what basic attacks build (the Knight's numbers: CHAMPIONS.md, Fury).
 - Fail cue: the resource bar flashes 0.2 s.
-- For CHAMPIONS.md: two Knight numbers sit outside these ranges today and are left as they are until then: Judgement's 1.5 s channel (ultimates ≤ 0.5 s) and its 5 s cooldown (it inherits the default; ultimates 30–60 s).
+- Judgement (CHAMPIONS.md, decided 2026-09-29): a 0.75 s channel and a 30 s cooldown, changed in CHAMPIONS CH4. Until then the data keeps 1.5 s and the 5 s default. The 0.75 s channel stays above the 0.5 s ultimate cast-time guide (Ryan's call).
 
 ## HUD feedback (minimal, inside the steps that add each feature)
 - Charge count on the slot, a recast window timer, a charge-up bar, and fail cues by reason: not ready, not enough resource (the resource bar flashes), silenced, condition. Details: Architecture, HUD.
@@ -259,7 +263,7 @@ What each piece does now (details in Data and Architecture).
 | `slime/slam.gd` (elite Q) | POINT at the player's position, a telegraph circle during the 0.65 s cast, then a circle query from its center, its own crit roll per cast and 20 px push. Tags `core`, `area`. Moves to `hit_units()` when next touched (so does `test_strike`). |
 | `HitPipeline.from_ability(caster, ability, target, cast)` | Fills tags (the ability's), damage type, `base_damage` + scaling terms, `ad_ratio` / `ap_ratio`, `proc_coefficient`, `hit_sound`; with a cast: charged and bonus params (`get_effect_param()`), empowers, `chain_depth`. |
 | `StatsComponent.get_ability_param(ability, param)` | Reads the base with `ability.get_base_param(param)` (so scaling-term ratios are params too), applies scoped modifiers, never below 0, cached. |
-| `ResourceComponent` (`Unit.resource_pool`) | `try_spend()`, `restore()`, `can_afford()`, regen, `resource_changed`, `depleted`. `ResourceType` MANA / ENERGY / FURY; NONE = no ResourceComponent. The Knight: MANA 300, 6/s. Abilities spend it (`resource_cost`); the HUD resource bar shows it. |
+| `ResourceComponent` (`Unit.resource_pool`) | `try_spend()`, `restore()`, `can_afford()`, regen, `resource_changed`, `depleted`. `ResourceType` MANA / ENERGY / FURY; NONE = no ResourceComponent. The Knight: MANA 300, 6/s until CHAMPIONS CH3 makes it FURY (CHAMPIONS.md, Fury). Abilities spend it (`resource_cost`); the HUD resource bar shows it. |
 | `AutoAttackComponent.add_next_attack_modifier(id, bonus, on_hit, duration)`, `has_next_attack_modifier(id)` | **Wrapped:** applies an empower status `empower_<id>` (Architecture, Empowers); does nothing on a unit without a StatusComponent (the old dictionary was deleted 2026-09-29; every Unit scene has one). |
 | `res://scripts/player/player.gd` | `CastMode` enum (`QUICK_WITH_INDICATOR`, `QUICK`), `@export var cast_mode` = `QUICK`, copied from Settings (Architecture, Input). `_on_ability_pressed()` / `_on_ability_released()` by cast style (hold-to-aim `aiming_slot`, CHARGE_UP press/release, recasts); `is_action_released` works for W on right mouse too. Esc cancels an aim or a charge-up (marked handled). `request_cast()` / `request_charge()` (cast now or buffer), `can_interrupt_swing()`, `cast_ability()` (target forgiveness), the indicator (`draw_vector_indicator()` for a VECTOR aim; `_drawn_vector_start` for tests), `set_aim_hint()` each physics frame. |
 | `res://scripts/ui/ability_bar.gd` | Four slots, the cooldown sweep and seconds, the aiming border, the plain tooltip from the template, fail cues, the grey and blue tints, the charge count, the recast timer, the charge-up bar (Architecture, HUD). |
@@ -305,8 +309,12 @@ Audio hooks: see AUDIO.md (`charge_sound` is added there for CHARGE_UP).
 | `cast_conditions` | `Array[Condition]` | `[]` | all must pass to start a cast (part 0). |
 | `recast_conditions` | `Array[Condition]` | `[]` | all must pass to use the next recast part. |
 | `conditional_bonuses` | `Array[ConditionalBonus]` | `[]` | checked at the effect (cast or hit); see ConditionalBonus. |
+| `cast_vfx` | `PackedScene` | null | AB14, export group "Presentation": a VFX scene played at cast start. null = nothing (Architecture, Cast progress and presentation hooks). |
+| `impact_vfx` | `PackedScene` | null | AB14: played on each unit a hit of this ability gets through to. null = nothing. |
+| `cast_anim` | `StringName` | `&""` | AB14: an animation on the caster's `Body/AnimationPlayer`, positioned by cast progress. Empty (or no such player or animation) = nothing. |
+| `heal_on_hit_ratio` | `float` | 0 | CHAMPIONS CH5, export group "Sustain": heals the caster for this × the damage taken by each unit a hit of this ability gets through to (`HitPipeline.apply_on_hit()`, `Unit.heal()`). A scoped param, and a named-input scaling may shape it (the Knight's Cleave: `self_missing_health` through a curve). A kit mechanic, not the `life_steal` stat (CHAMPIONS.md, Sustain). |
 
-Tags (`tags`, existing) carry the standard tags (placeholder roles; the real ones are CHAMPIONS.md's): Cleave `core`, `area`, `cone`; Iron Resolve `defensive`, `buff`; Lunge `mobility`, `dash`, `movement`; Judgement `ultimate`, `channel`; the slam `core`, `area`. Existing tags stay (don't rename). A style tag is written in the data and must match `cast_style` (the test checks it).
+Tags (`tags`, existing) carry the standard tags (placeholder roles until CHAMPIONS.md; CHAMPIONS.md keeps the Knight's as they are *(proposed)*): Cleave `core`, `area`, `cone`; Iron Resolve `defensive`, `buff`; Lunge `mobility`, `dash`, `movement`; Judgement `ultimate`, `channel`; the slam `core`, `area`. Existing tags stay (don't rename). A style tag is written in the data and must match `cast_style` (the test checks it).
 
 `description` (existing) is the tooltip template.
 
@@ -388,6 +396,7 @@ Methods: `is_met(self_unit, target, cast = null)` (the kind's check, then `negat
 | `vector_start` | `Vector2` | | AB13, VECTOR casts: the start point (world space, clamped). `point` = the same spot and `direction` = caster → it, their usual meanings |
 | `vector_direction` | `Vector2` | | AB13: the line's unit direction (start → the release cursor, or the tap fallback) |
 | `vector_end` | `Vector2` | | AB13: `vector_start` + `vector_direction` × `vector_length` (px) |
+| `progress` | `float` | 0.0 | AB14: the cast time's progress, 0 at cast start (at release for CHARGE_UP and VECTOR) to 1 at the effect start; 1 for a cast with no cast time and for a free cast. Scripts, telegraphs and `cast_anim` read it. |
 | `target` | (existing) | | for a non-UNIT cast, AbilityComponent fills it with the condition target when conditions or bonuses need one (Architecture, Conditions) |
 
 ### AbilityAugment (Resource, `res://scripts/data/ability_augment.gd`; files `res://data/augments/augment_<name>.tres`)
@@ -460,6 +469,7 @@ Queries:
 - Charge-up (and the VECTOR hold, which uses the same path): `is_charging()`, `get_charge()` (0–1), `get_overhold_left()`, `get_charge_ability()`, `get_locked_charge_aim()`, `has_charge_indicator()`. AB13: `get_vector_start()` (the start point while a VECTOR aim or its release windup is going; `Vector2.INF` otherwise).
 - Augments: `get_augments(slot)`, `get_disabled_augments(slot)` (`{augment, reason}`), `get_flags(ability)`, `get_augment_tooltip_lines(ability)`, `get_slots_matching(scope)`.
 - Conditions: `conditions_pass()`, `get_condition_fail_text()`, `get_aim_hint()`.
+- Cast progress (AB14): `get_cast_progress()` (the cast in progress, 0–1; 0 with none), `get_cast_speed(ability)` (1.0 for now); export `use_cast_progress` (default on; off = the old timer, kept until the play test passes).
 
 Commands:
 - `try_cast(slot, aim, target_unit)`: a recast part when the slot's window is open; fail reasons through `cast_failed(slot, reason)`: `"not ready"`, `"busy"`, `"no target"`, `"not enough resource"`, `"silenced"`, `"condition"` (constants `FAIL_NOT_READY`, `FAIL_BUSY`, `FAIL_NO_TARGET`, `FAIL_NO_RESOURCE`, `FAIL_SILENCED`, `FAIL_CONDITION`). `fail_cast(slot, reason)` emits `cast_failed` for a press the Player or the buffer refuses. The cost is paid in `_do_cast()` and refunded by `_cancel_cast()`, `interrupt_cast()` and the end-of-cast-time interrupt.
@@ -478,9 +488,9 @@ Signals: `charges_changed(slot, charges, max_charges)`, `charge_started(slot, ab
 4. Pay the cost (`resource_pool.try_spend()`).
 5. Part 0 without recasts: take a charge; if the recharge timer isn't running, start it (`get_cooldown_duration()`: scoped `cooldown`, then haste). With recasts: take the charge, but its recharge starts when the sequence ends.
 6. Locks and walking (`&"casting"`; CHANNEL = `cancel_on_move` rules).
-7. `cast_sound`, `cast_started`, `on_cast_started()` (telegraph) and its `telegraph_sound`.
+7. `cast_sound`, `cast_started`, `on_cast_started()` (telegraph) and its `telegraph_sound`; `cast_vfx` and `cast_anim` (AB14; nothing while empty).
 8. (No event here: ABILITY_CAST fires at the effect start, step 10.)
-9. The cast time. A stun (any `blocks_cast` status) applied now interrupts at once (StatusComponent's `status_applied`): `interrupt_cast()` gives the charge back and refunds the cost; no ABILITY_CAST fires. A dash or move cancel works the same way (`_cancel_cast()`).
+9. The cast time, as cast progress from 0 to 1 (AB14; Cast progress and presentation hooks, below). A stun (any `blocks_cast` status) applied now interrupts at once (StatusComponent's `status_applied`): `interrupt_cast()` gives the charge back and refunds the cost; no ABILITY_CAST fires. A dash or move cancel works the same way (`_cancel_cast()`).
 10. Effect start: consume ability empowers (`ctx.empowers`; not for a free cast; before `ability_cast`, so a rule granting the next one on cast doesn't feed this cast), apply passing bonuses' `self_statuses`, `Events.ability_cast(unit, ability, ctx)` (ABILITY_CAST rules fire now, free casts they trigger run at once), then `execute()`. Nothing is refunded from here.
 11. Cleanup; `cast_finished`. A recast ability opens (or closes) its window here.
 
@@ -517,6 +527,30 @@ Signals: `charges_changed(slot, charges, max_charges)`, `charge_started(slot, ab
 ### Charges and recasts
 - Recharge: while `charges < max_charges`, the timer counts down one cooldown (`get_cooldown_duration()` at the moment it starts); at 0, +1 charge and, if still below max, it starts again. A cast takes a charge and starts the timer only if none is running and the slot is now below max. A lower max (an item removed) leaves extra charges until they're spent, with no timer; a higher max starts recharging (like DashComponent). A slot starts full the first time it's asked. `cooldown_finished` (and the ready ping) fire only when a slot goes from 0 charges to 1. A refund gives back the one charge the cast took: back at max the timer stops, below max a running recharge keeps its progress. The HUD draws the sweep dark only at 0 charges.
 - Recasts: part 0 takes a charge; its recharge doesn't start. The sequence exists from part 0's cast start (`_recast[slot]` = next part, window time, the ability, `last_part_hit`), so `is_ready()` is true and `get_recast_part()` is 1 even during part 0's cast time (a press then is buffered and fires as part 1). When part 0's effect finishes, the window opens (`recast_window`, game time; `recast_window_started`). A press on the slot inside the window casts part 1 (no charge needed, `recast_resource_cost`; `get_slot_cost()` / `can_afford()` use the next part's cost), and so on up to `recast_count`. The window doesn't run while one of the slot's parts is being cast and restarts after each part. The sequence ends (`recast_window_finished`) when the last part finishes or the window runs out; the next physics frame the recharge starts. A refunded part 0 never starts its sequence; a refunded later part gives back its cost and keeps the window time it had. A recast ability should have `max_charges` 1; with more, the recharge timer pauses during a sequence.
+
+### Cast progress and presentation hooks (AB14)
+Ryan, 2026-09-29. Two goals: a future cast-speed stat or item plugs into one place without touching the cast flow again, and the art/VFX/animation pass is pure data (filling the hook fields), with animations that can't drift from the mechanical timer.
+
+**Cast progress**
+- One path for every cast time: the INSTANT and CHANNEL cast time (flow step 9), the release windup of CHARGE_UP and VECTOR (`cast_time` after release), each recast part's cast time, enemy casts (the slam, the vector wall). Judgement's channel (0.75 s from CHAMPIONS CH4) is the first case that matters.
+- AbilityComponent keeps the cast's progress (`_cast_ctx.progress`, `get_cast_progress()`), 0 at cast start (at release for CHARGE_UP and VECTOR). Each physics tick, in `_physics_process()`: progress += delta ÷ `cast_time` × `get_cast_speed(ability)`. Game time, so hitstop slows it and the pause menu stops it, exactly as the old game-time timer did.
+- The effect starts (flow step 10) on the tick progress reaches 1 (≥ 1 − `CAST_PROGRESS_EPSILON`, 0.0001, like the swings' `SWING_TIME_EPSILON`, so float residue never adds a frame), whatever real time that took. Progress is clamped to 1.
+- Which tick counts first (the start tick or the next one) is whatever reproduces the old timer's frame exactly: the AB14 regression check measures both paths and the progress path matches it.
+- `cast_time` 0: progress is 1 at once and the effect runs in the same call, as today. A free cast has no cast time: progress 1.
+- **Cast speed:** `get_cast_speed(ability) -> float` returns 1.0 (hardcoded). It's the only place a future cast-speed stat or cast-speed item plugs in, and it's read every tick, so a change mid-cast applies from that tick with no restart. It never touches cooldowns: `ability_haste` stays the cooldown stat (`get_cooldown_duration()`), unchanged. A cast speed of 0 or less is treated as 1.0 (`push_error` once), so a cast can never hang.
+- Cancels and interrupts don't change: a dash or move cancel, a stun or death stops the cast where it is (`_cast_serial`), refunds as before, and the progress is dropped with the cast. `cast_started` stays at cast start, ABILITY_CAST at the effect start.
+- The waiting `_do_cast()` keeps its shape: instead of awaiting a `create_timer()`, it waits until the cast's progress reaches 1 (a signal AbilityComponent emits from `_physics_process()`, also emitted by a cancel or interrupt so a waiting cast always resumes and sees its serial changed).
+- **The old path** stays behind `use_cast_progress` (export, default on; off = the old `create_timer()` wait, unchanged) until Ryan's play test passes the regression check; then it's deleted (approved 2026-09-29).
+- **Telegraphs follow the cast.** A telegraph that belongs to a cast (`CastContext.telegraph`, set in `on_cast_started()`) fills with that cast's progress: AbilityComponent calls `Telegraph.set_progress(progress)` each tick, and a driven telegraph ignores its own clock. A telegraph with no cast keeps its own clock (`duration`). `slam.gd` and `vector_wall.gd` don't change.
+- **Not on cast progress** (they aren't casts): cooldowns and recharges (they count down from a duration fixed when they start; progress-based cooldowns, so a haste change reaches a running cooldown, are an open item, DECISIONS.md, Abilities), recast windows, status durations (a future duration stat scales them when applied, like tenacity), Fury's out-of-combat delay and decay (CHAMPIONS.md), displacements (their own normalized speed curves), swings (their own speed, `attack_speed`, COMBAT.md). The charge-up hold (`charge_time`) still counts seconds; it takes cast speed when a champion first has a charge-up (Open questions).
+
+**Presentation hooks**
+- Three fields on every Ability (export group "Presentation"): `cast_vfx` (`PackedScene`, null), `impact_vfx` (`PackedScene`, null), `cast_anim` (`StringName`, empty). Empty = the dispatch call returns at once: no node, no visual, no cost. Hooks are VFX only; they never change gameplay state (CONVENTIONS).
+- `cast_vfx`: `Ability.play_cast_vfx(caster, ctx)` at cast start (flow step 7; CHARGE_UP and VECTOR at release, with `cast_sound`; each recast part; a free cast when it runs). It instances the scene next to the caster (the caster's parent, the room's `Entities`), at the caster's feet, rotated to `ctx.direction`, and calls `setup(caster, ctx)` on its root if the root has one.
+- `impact_vfx`: `Ability.play_impact_vfx(caster, target, hit)` once for each unit whose hit got through (not blocked): in `Ability.hit_units()` and in `Projectile` hits. At the target's feet, rotated caster → target; `setup(caster, hit)` if the root has one. Abilities that don't use `hit_units()` yet (the slam, `test_strike`) get it when they move to `hit_units()`.
+- `cast_anim`: at cast start AbilityComponent looks for `AnimationPlayer` under the caster's `Body` (`Body/AnimationPlayer`). No player, an empty name or a name the player doesn't have = nothing. Otherwise it plays that animation and, each tick of the cast time, sets its position to progress × the animation's length (a seek), so the animation always ends exactly at the effect start and can't drift from the mechanical timer, whatever the cast speed. A cast with no cast time plays it at normal speed × `get_cast_speed()`. A cancel or interrupt stops it.
+- Basic attack swings have the same trio, named for swings (COMBAT.md, AttackSwing): `swing_vfx`, `impact_vfx`, `swing_anim`, timed by the swing's own speed (`attack_speed`), not cast speed.
+- Items (Ryan, 2026-09-29, for LOOT.md): an item's active ability is an Ability cast through AbilityComponent, so it inherits the hooks and cast speed with no extra work. Stat-only items need only an icon. A pickup / equip VFX hook (`item_vfx`, empty by default) is LOOT.md's, later; not part of AB14 or CHAMPIONS CH1–CH5.
 
 ### Input (Player, PlayerInput)
 - `_on_ability_pressed(slot)` by the active ability's `cast_style`: INSTANT → QUICK: `request_cast()`; QUICK_WITH_INDICATOR: aim (`aiming_slot`), release casts (SELF casts at once). CHANNEL → `request_cast()` on press. CHARGE_UP and VECTOR → `request_charge(slot)` (start now, or buffer). A press while the slot's recast window is open → `request_cast()` (the next part), whatever the style, except a VECTOR ability's next part → `request_charge(slot)` (AB13: every part is aimed).
@@ -668,6 +702,10 @@ Signals: `charges_changed(slot, charges, max_charges)`, `charge_started(slot, ab
 | A REPLACE that makes the slot VECTOR mid-aim | A hold already going (charge-up or vector) keeps its own ability. A hold-to-aim INSTANT aim (QUICK_WITH_INDICATOR) whose slot became VECTOR casts the VECTOR ability on release as a tap (`try_cast()`). The next press aims a vector. |
 | A free cast (CastAbility) of a VECTOR ability | Casts at once: start = the triggering cast's aim point (a hit: the unit hit), clamped as at a press; direction = caster → that point; `vector_drag` 0. No hold, no indicator. |
 | A stun, dash, Esc or death during a vector aim or its release windup | Exactly as for a charge-up: interrupted or cancelled, refunded, and the one end path clears the start marker and the line. |
+| Hitstop or the pause menu during a cast time (AB14) | Cast progress advances in game time: hitstop slows it, the pause stops it, as the old timer did. The telegraph and `cast_anim` follow the same progress, so they stay in step. |
+| Cast speed changes mid-cast (AB14, once something changes it) | Read every tick: the rest of the cast runs at the new speed; progress already made is kept. The telegraph and `cast_anim` follow the progress, so nothing desyncs. |
+| A cast cancelled or interrupted with a `cast_anim` playing (AB14) | The animation stops with the cast (the same frame the telegraph goes). |
+| A hook scene missing or empty (AB14) | Nothing happens (null / empty name / no `Body/AnimationPlayer`). A hook never blocks or delays the cast. |
 
 ## Build order (one step per request)
 Every step: with no cast style changes, scalings, costs, charges, recasts, augments, conditions or VECTOR abilities set, the game plays exactly as before, and the Knight's abilities, enemies chasing and the HUD still work. Build logs go in `docs/CHANGELOG.md` (an Abilities section); this doc keeps one line per built step.
@@ -688,6 +726,9 @@ Every step: with no cast style changes, scalings, costs, charges, recasts, augme
 13. **AB13 – VECTOR cast style.** `Ability.CastStyle.VECTOR`, `vector_length` / `vector_width` / `vector_min_drag_px`, the start point (range and wall clamp), the tap fallback, `CastContext.vector_start` / `vector_direction` / `vector_end`, the `vector_drag` input, VECTOR through the CHARGE_UP hold/release path (`get_vector_start()`, aimed recast parts, the hold limit), `draw_vector_indicator()`, `try_cast_vector()`, `get_ai_vector()` and the Enemy hook, `Telegraph.line()`; `test_vector_line`, `test_vector_wall`, `SandboxAbilities.test_elite_w` (Data, Test and sandbox data). Built 2026-09-28, see CHANGELOG.md.
     **Done means** (awaiting play test): the test ability works with a drag and with a tap; every cancel and interrupt clears the indicator; an enemy test ability uses a vector with a telegraph; with no VECTOR ability equipped, the game plays exactly as before.
 
+14. **AB14 – Cast progress and presentation hooks** (Ryan, 2026-09-29; before CHAMPIONS CH1). Cast progress and cast speed in AbilityComponent (`get_cast_progress()`, `get_cast_speed()` = 1.0, `CastContext.progress`, `CAST_PROGRESS_EPSILON`), the old timer behind `use_cast_progress`; telegraphs that belong to a cast follow its progress (`Telegraph.set_progress()`); the hook fields and their dispatch on Ability (`cast_vfx`, `impact_vfx`, `cast_anim`: `play_cast_vfx()`, `play_impact_vfx()` in `hit_units()` and `Projectile`, the `Body/AnimationPlayer` seek) and on AttackSwing (`swing_vfx`, `impact_vfx`, `swing_anim`; COMBAT.md). No hook is filled in: that's the later art pass. Files: `ability_component.gd`, `ability.gd`, `cast_context.gd`, `projectile.gd`, `telegraph.gd`, `attack_swing.gd`, `auto_attack_component.gd`, the abilities and combat tests (plus a test-only hook scene under `scenes/tests/`).
+    **Done means:** the regression check: every cast time lands its effect on the same physics frame with `use_cast_progress` on as with it off (Cleave 0.2 s, Lunge 0.05 s, Iron Resolve 0 s, Judgement's 1.5 s channel, the test Charged Line's 0.3 s release windup, the test vector line's 0.2 s windup, the elite slam's 0.65 s cast, a recast part), measured in the abilities test; the slam's and the vector wall's telegraphs are full exactly at the hit; with every hook empty, nothing changes on screen or in any test; with the test hook scene and a test AnimationPlayer, each hook fires once at its moment (cast start, each hit that gets through, each swing and swing hit) and the animation's position equals progress × its length every tick; the game plays exactly as before. After Ryan's play test passes, the old timer path is deleted (approved).
+
 **Milestone AB-M – augment playground** (after AB13): in the sandbox, `SandboxAugments` with 4 fake items that visibly change the Knight: Lunge stuns (FLAG), Cleave becomes a projectile wave (REPLACE), a Judgement kill resets its cooldown (EVENT + ModifyCooldown), casting Cleave also casts a free Lunge-style dash (CastAbility, at Cleave's effect start). Built 2026-09-28, see CHANGELOG.md.
     **Done means** (passed Ryan's play test, 2026-09-28): keys 1–4 equip and unequip them; the tooltips show each change; unequipping restores the Knight exactly.
 
@@ -702,11 +743,11 @@ Not build steps. Each is data once 2+ kits use it (Data or script, above).
 Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modifiers, unit reaction rules, statuses, empowers and an optional script, all under a source id like `passive_knight`, built on this toolkit); items and affix rolls (LOOT.md); enemy AI choosing abilities (ENEMIES_AI.md); ability ranks (none, replaced by talents: Ability ranks); talents (TALENTS.md, built on augments); summons; ability slot swapping by the player (decided no, 2026-09-29: slots are fixed, VISION.md, Build variety; REPLACE augments and forms still change what's active in a slot); TOGGLE and SUSTAINED cast styles (not planned: Cast styles); the ultimate meter (CHAMPIONS.md).
 
 ## Open questions
-- Ultimate meter details (CHAMPIONS.md).
-- Which Knight abilities ignore walls (CHAMPIONS.md).
+- Ultimate meter details (CHAMPIONS.md, when a champion first uses one).
 - The element tag list.
 - Can a recast part be dash-cancelled separately?
-- Resource-type rhythms (energy regen rate, fury decay out of combat): here or CHAMPIONS.md?
+- AB14: should the charge-up hold (`charge_time`) also run at cast speed? *(proposed: yes, when a champion first has a charge-up)*
+- Resource-type rhythms: answered, CHAMPIONS.md owns them (fury: Fury section there). Which Knight abilities ignore walls: answered in CHAMPIONS.md *(proposed: none)*.
 - Charge-up and the input buffer: a press buffered during a swing or dash whose key is already released when it fires: a tap (charge 0), or dropped? *(proposed: a tap; built that way)*
 - Forms: shared per-slot cooldowns (built in AB9) or separate cooldowns per form (Jayce)?
 - The "on end" augment event (`ability_finished`): when something needs it.

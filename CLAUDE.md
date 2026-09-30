@@ -33,6 +33,7 @@ When a request is ambiguous, prioritize responsiveness and feel over realism.
 art/                    textures, sprites
 data/abilities/         Ability .tres (e.g. knight_q_cleave.tres)
 data/units/             UnitStats .tres per champion/monster (knight.tres, slime.tres)
+data/champions/         ChampionData .tres per champion (knight.tres, from CH1; CHAMPIONS.md)
 data/curves/            Curve .tres for displacement speed profiles (curve_dash.tres, curve_knockback.tres)
 data/combos/            AttackCombo .tres (combo_knight.tres: the Knight's basic attack)
 data/hit_feels/         HitFeel .tres (hit_feel_default.tres: hitstop/shake/flash per hit tier)
@@ -114,6 +115,7 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 | `docs/COMBAT.md` | basic attacks, hits and damage, damage types, crit and mitigation, status effects and CC, i-frames, hitstop/shake/flash, damage numbers, reaction rules, enemy attack damage and telegraphs |
 | `docs/STATS.md` | any stat, health/mana, champion base stats, modifiers from gear/buffs/levels, items changing ability numbers |
 | `docs/ABILITIES.md` | anything about abilities, casting, cast styles, charge-up, damage scalings, tooltips, ability tags, costs, cooldowns, charges, recasts, projectiles, augments, forms, empowers, conditions |
+| `docs/CHAMPIONS.md` | ChampionData, passives, a champion's resource rhythm (fury), the champion level field, the Knight's kit (Unbroken, Fury, Staggered, Cleave's heal, Judgement's payoff) |
 | `docs/AUDIO.md` | any sound, music, the mix, volume settings |
 | `docs/CHANGELOG.md` | only when asked what was built or measured |
 | `docs/_TEMPLATE.md` | writing a new doc |
@@ -121,10 +123,10 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 ## Current status
 - **Now:** Waiting on Ryan's play test of the audit cleanup pass (CHANGELOG.md, 2026-09-29): the combo at `speed_scale` 1.266 again, the player Hurtbox's 0.2 s (no effect until a Hitbox exists; may go back to 0.0), Iron Resolve's aura and Lunge's afterimages now visible, the LoL input gone, `life_steal` 0. Also waiting on AB13 (VECTOR: the elite casts `test_vector_wall` on W; the sandbox `test_q` is empty (AB-M), so set it to `test_vector_line` to try the line), AUDIO A3 (ability casts, Judgement's hit and ready ping, the elite's wind-up and slam, status sounds, the shield's break, the low-health heartbeat, the room cleared and "You died" stingers; all synthesized placeholders), "a swing counts once its hit has landed" and COMBAT C12. Still open: play tests of STATS steps 5–6, COMBAT C8–C11, Feel pass F1–F4 at 144 Hz, and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
 - **Last 3 done:**
-  1. Docs only: VISION.md's open questions resolved (run structure, death, hub, roster, talent progress, fixed slots; VISION.md, Game structure). Nothing built.
-  2. Audit cleanup pass: `speed_scale` 1.266 restored (tests fixed), enemy attacks through `HitPipeline.resolve()`, scoped key validation, `get_effect_param()` migration, the enemy AI skipping failing slots, floor VFX fixed, the LoL input and approved dead code deleted, docs reconciled. Movement steps 1 and 3–7 passed.
-  3. Cleanup: Cleave's unused `knockback` export deleted (after AB-M passed).
-- **Next:** The ABILITIES build order is done (AB13 awaits its play test). AUDIO's later steps come with their systems; real CC0 files can replace the placeholders any time (same names). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order (CHAMPIONS.md next).
+  1. Docs only: CHAMPIONS.md written (ChampionData, passives and `StatScaling`, Fury, Unbroken, Staggered, Cleave's heal on hit, Judgement's Fury payoff; build steps CH1–CH5 + CH-M) and ABILITIES AB14 specified (cast progress and cast speed; presentation hooks on abilities and swings). ACHIEVEMENTS.md added to Future docs. Nothing built. CHAMPIONS.md's *(proposed)* picks await Ryan (its Open questions 1–10).
+  2. Docs only: VISION.md's open questions resolved (run structure, death, hub, roster, talent progress, fixed slots; VISION.md, Game structure). Nothing built.
+  3. Audit cleanup pass: `speed_scale` 1.266 restored (tests fixed), enemy attacks through `HitPipeline.resolve()`, scoped key validation, `get_effect_param()` migration, the enemy AI skipping failing slots, floor VFX fixed, the LoL input and approved dead code deleted, docs reconciled. Movement steps 1 and 3–7 passed.
+- **Next:** ABILITIES AB14 (cast progress and presentation hooks), then CHAMPIONS CH1–CH5, then milestone CH-M, one step at a time. AUDIO's later steps come with their systems; real CC0 files can replace the placeholders any time (same names). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order (TALENTS.md next, after CHAMPIONS ships the Knight).
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.
@@ -136,9 +138,10 @@ All decisions, grouped by system with date and why, are in `docs/DECISIONS.md`.
 ## Future docs (write each one when you START that system)
 1. ~~`COMBAT.md`~~: written 2026-09-26 (see Docs index).
 2. ~~`ABILITIES.md`~~: written 2026-09-26 (see Docs index).
-3. `CHAMPIONS.md`: ChampionData, passives, one section per champion (Knight first). Passives: stat modifiers, unit reaction rules, statuses, empowers and an optional script under a source id, built on the ABILITIES.md toolkit. Also decides the Knight's resource type, role tags, and Judgement's cast time and cooldown (ABILITIES.md, Numbers). Audio hooks: see AUDIO.md.
+3. ~~`CHAMPIONS.md`~~: written 2026-09-29 (see Docs index).
 4. `TALENTS.md`: per-champion talent trees, built on ABILITIES.md's augment system. Start only after CHAMPIONS.md ships at least one real champion. Rules so far: VISION.md, Game structure.
 5. `LOOT.md`: item bases, rarities, affix pools, drop tables. Audio hooks: see AUDIO.md.
 6. `ENEMIES_AI.md`: behaviors, aggro, elites, spawning
 7. `DUNGEONS.md`: room stitching, run structure, checkpoints (placement; whether cleared enemies come back on respawn). Audio hooks: see AUDIO.md.
 8. `NPCS.md`, `UI.md`, `PROGRESSION.md` as needed. `UI.md` takes over the Esc pause menu and the player options (`Settings`), now described in MOVEMENT.md (Dash) and DECISIONS.md (General). UI audio hooks: see AUDIO.md.
+9. `ACHIEVEMENTS.md`: cross-system achievements and accolades. Written much later, once most other systems exist; nothing is designed or built for it now.
