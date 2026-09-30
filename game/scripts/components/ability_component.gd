@@ -409,6 +409,15 @@ func _fill_inputs(ctx: CastContext, ability: Ability) -> void:
 	ctx.set_input(&"target_distance", distance)
 
 
+## At the effect start (flow step 10; CHAMPIONS CH5, Ryan 2026-09-29):
+## self_missing_health is read again, so a hit taken during the cast time
+## counts. One value per cast: every hit of the effect reads it. The other
+## inputs keep their cast-start values.
+func _refresh_effect_inputs(ctx: CastContext) -> void:
+	var max_health := unit.health.max_health
+	ctx.set_input(&"self_missing_health", 1.0 - unit.health.current / max_health if max_health > 0.0 else 0.0)
+
+
 ## Applies the self_statuses of every conditional bonus that passes at the
 ## effect start (flow step 10).
 func _apply_bonus_self_statuses(ability: Ability, ctx: CastContext) -> void:
@@ -973,6 +982,7 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext, precharged: 
 		_finish_cast_anim()   # AB14: at its last frame as the effect starts
 		_end_charge()   # a released charge-up: the effect starts, its indicator goes
 		_executing = true
+		_refresh_effect_inputs(ctx)   # CHAMPIONS CH5: self_missing_health as the effect starts
 		_use_up_ability_empowers(ability, ctx)   # AB10: before ABILITY_CAST, so a rule can grant the next one
 		_apply_bonus_self_statuses(ability, ctx)   # AB12: passing conditional bonuses' self statuses
 		# The effect starts: ABILITY_CAST rules fire now (never for a cast

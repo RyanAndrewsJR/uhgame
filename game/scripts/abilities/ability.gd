@@ -165,6 +165,16 @@ const DAMAGE_NUMBER_STYLE_PATH := "res://data/damage_number_styles/damage_number
 ## Seconds the push takes (the target's knockback_curve shapes it).
 @export var hit_knockback_duration: float = 0.1
 
+@export_group("Sustain")
+## Heals the caster for this share of the damage taken by each unit a hit of
+## this ability gets through to (a scoped param; CHAMPIONS CH5, Cleave's heal).
+## Read at the hit through get_effect_param(), so named-input scalings (Cleave:
+## self_missing_health) and conditional bonuses shape it. It rides the hit
+## (HitContext.heal_on_hit_ratio) into HitPipeline.apply_on_hit(), next to
+## life_steal: overkill included, never for a blocked hit or a dead caster,
+## through Unit.heal(). 0 = no heal. Not the life_steal stat: a kit mechanic.
+@export var heal_on_hit_ratio: float = 0.0
+
 @export_group("Feel")
 ## Played once per cast by play_hit_feel() when at least one hit landed
 ## (ABILITIES AB11). Ability hits have no hit-feel tier of their own

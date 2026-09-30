@@ -204,7 +204,16 @@ Combat test 450/450, stats test 172/172 (unchanged). A headless in-game check of
 
 ## Champions (CHAMPIONS.md)
 
-### CH4 – Staggered, the combo and Judgement's payoff: 2026-09-29, Built (awaiting play test)
+### CH5 – Cleave's heal on hit: 2026-09-29, Built (awaiting play test)
+New: `Ability.heal_on_hit_ratio` (export group "Sustain", a scoped param), `HitContext.heal_on_hit_ratio` (set by `from_ability()` with a cast through `get_effect_param()`), `apply_on_hit()` adds ratio × `taken_damage` to the source's heal (one `Unit.heal()` per hit, with `life_on_hit` and `life_steal`), `AbilityComponent._refresh_effect_inputs()` (reads `self_missing_health` again at the effect start). Data: Cleave and Cleave Wave `heal_on_hit_ratio` 0.55 with a ChargeScaling on `self_missing_health` (min 0, `data/curves/curve_knight_cleave_heal.tres`) and a tooltip line ("Heals you for up to 55% of the damage dealt, more the lower your health").
+
+**Changed during the step:** nothing beyond the spec; the abilities test's Cleave tooltip check now includes the heal sentence. The CH6 step (functional HUD) was written into CHAMPIONS.md before the build, at Ryan's request.
+
+Measured (champions test): the heal share at 100 / 75 / 50 / 25 / 17.5 / 10 / 5 / 0% health is 0 / 3 / 8 / 15 / 35 / 55 / 55 / 55%; one Cleave at full health heals 0, at 50% 11 (8% of its damage), at 10% 78.5 (55%) into one slime; into three slimes at 10% three equal hits (Unbroken doesn't move between them), the same ratio each, the sum healed (between a quarter and 45% of max health); a killing blow on a 10-health slime heals ratio × the full taken damage; a 100% test ratio at max health heals nothing and never overheals; pressed at full health and hit to 10% during the 0.2 s cast time, the hit's ratio is 55%.
+
+Champions 154/154 (19 new), abilities 559/559, stats 179/179, audio 109/109. Combat 457/459: the same two real-time hitstop checks. `main.tscn` and `sandbox_main.tscn` run 600 frames with no errors.
+
+### CH4 – Staggered, the combo and Judgement's payoff: 2026-09-29, Passed
 New: `data/statuses/status_staggered.tres` (tags `staggered` + `debuff`, not cc, 2 s, REFRESH) with its marker (`scenes/vfx/staggered_mark.tscn`, `scripts/vfx/staggered_mark.gd`: a pale yellow cracked ring over the head). Data: Lunge's conditional bonus (no conditions, applies Staggered); Cleave's and Cleave Wave's (TARGET_HAS_STATUS staggered: base_damage and ad_ratio +50%); Judgement's (RESOURCE_AT_LEAST 60: stun_duration +0.5 s, base_damage and ad_ratio +30%), its 0.75 s channel (was 1.5) and 30 s cooldown (was the 5 s default). `judgement.gd`: `stun_duration` through `get_effect_param()`, and `consume_resource_on_bonus` (a landed hit with the Fury bonus spends the whole pool).
 
 **Changed during the step:** Cleave Wave got the Staggered bonus (Ryan's answer to Open question 8: the same as Cleave). The abilities test's 300 test pool and the combat test's swings reached 60 Fury, so their plain Judgement checks now stay below it (`_below_fury_bonus()`; the combat baseline removes the Knight's Fury from swings, and its C8 on-hit check leaves the pool empty, not full); tooltip checks compare the template line only, since the Knight's tooltips now end with their bonus lines; the AB14 progress check reads Judgement's cast time (15 of 45 frames) instead of pinning 90 (DECISIONS, Testing).

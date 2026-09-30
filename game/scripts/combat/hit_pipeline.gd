@@ -55,6 +55,8 @@ static func from_ability(caster: Unit, ability: Ability, target: Node, cast: Cas
 			+ ability.get_scaling_damage(caster, target, charge, cast)
 		ctx.ad_ratio = ability.get_effect_param(caster, &"ad_ratio", cast, target)
 		ctx.ap_ratio = ability.get_effect_param(caster, &"ap_ratio", cast, target)
+		# CHAMPIONS CH5: the heal on hit, shaped the same way (Cleave: missing health).
+		ctx.heal_on_hit_ratio = ability.get_effect_param(caster, &"heal_on_hit_ratio", cast, target)
 		for b in ability.get_active_bonuses(caster, cast, target):
 			for s in b.target_statuses:
 				if s != null:
@@ -226,7 +228,8 @@ static func _prd_average(c: float) -> float:
 ## - on_hit_damage x proc_coefficient: a MAGIC proc hit on the same target
 ##   (can't crit, no feel)
 ## - life_on_hit x proc_coefficient, plus life_steal x taken_damage on basic
-##   attacks: heals the source (green number)
+##   attacks, plus heal_on_hit_ratio x taken_damage (an ability's heal on
+##   hit, CHAMPIONS CH5): heals the source (one green number)
 ## - resource_on_hit x proc_coefficient: restores the source's resource (scoped: hit:
 ##   and target: modifiers count, CHAMPIONS CH3)
 static func apply_on_hit(ctx: HitContext) -> void:
@@ -247,6 +250,8 @@ static func apply_on_hit(ctx: HitContext) -> void:
 	var heal := stats.get_stat(&"life_on_hit") * coefficient
 	if ctx.has_tag(&"basic_attack"):
 		heal += stats.get_stat(&"life_steal") * ctx.taken_damage
+	# An ability's heal on hit (CHAMPIONS CH5): overkill included, like life_steal.
+	heal += ctx.heal_on_hit_ratio * ctx.taken_damage
 	if heal > 0.0:
 		source.heal(heal)
 	# Scoped (CHAMPIONS CH3): hit: / target: modifiers reach it, like damage_increase

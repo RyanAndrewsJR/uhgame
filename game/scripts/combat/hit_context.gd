@@ -48,6 +48,9 @@ var can_crit: bool = true
 var crit_roll: CritRoll
 ## Scales on-hit chances and effects (COMBAT C8).
 var proc_coefficient: float = 1.0
+## Heals the source for this share of taken_damage in apply_on_hit() (an
+## ability's heal_on_hit_ratio at the hit; CHAMPIONS CH5). 0 = none.
+var heal_on_hit_ratio: float = 0.0
 ## Push distance in px. 0 = no knockback. The push follows the target's
 ## MovementComponent.knockback_curve.
 var knockback_px: float = 0.0

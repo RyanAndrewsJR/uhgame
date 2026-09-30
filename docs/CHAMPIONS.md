@@ -257,7 +257,16 @@ Methods: `apply_to(unit, source_id)`, `remove_from(unit, source_id)`; virtual `_
 2. Cleave's `.tres`: `heal_on_hit_ratio` 0.55 and a `ChargeScaling` (`param` `heal_on_hit_ratio`, `input` `self_missing_health`, `min_fraction` 0, the curve). `ChargeScaling` already reads any named input (AB12), so no new scaling code.
 3. `HitPipeline.from_ability(caster, ability, target, cast)`: with a cast, `ctx.heal_on_hit_ratio = ability.get_effect_param(caster, &"heal_on_hit_ratio", cast, target)` (scoped modifiers, the named-input scaling, conditional bonuses). Without a cast it stays 0 (the old path adds nothing new; every toolkit hit passes its cast).
 4. `HitPipeline.apply_on_hit(ctx)`: `heal += ctx.heal_on_hit_ratio × ctx.taken_damage`, next to `life_on_hit` and `life_steal`, so it keeps every on-hit rule (only `basic_attack` / `ability` hits, never `proc` or `dot`, not blocked, the source alive) and goes through `Unit.heal()` with one green number per hit.
-5. `self_missing_health` is re-read at the effect start (flow step 10), so a hit taken during Cleave's 0.2 s cast time counts *(proposed; Open questions: it changes when ABILITIES' named input is filled)*. One value per cast: every enemy of one Cleave gets the same ratio.
+5. `self_missing_health` is re-read at the effect start (flow step 10), so a hit taken during Cleave's 0.2 s cast time counts (Ryan, 2026-09-29). This changes when ABILITIES' built-in input is filled, for every ability (ABILITIES.md, Named inputs). One value per cast: every enemy of one Cleave gets the same ratio.
+
+### Readable kit HUD (CH6)
+Functional only (Ryan, 2026-09-29): a tester can read their own state during CH-M without being told. No art: placeholder squares and text, as the ability bar has now. The polished HUD and icons stay with the art/VFX pass and UI.md.
+- **Already there before CH6** (kept as is): Q/W/E/R hover tooltips (the description with live numbers, cooldown, cost, charges, the conditional bonus lines), the cooldown sweep and seconds left, the red flash on "not ready", grey while a cast condition fails, blue while the cost can't be paid, the resource bar with its current number and its blink, the health number, AD in the top-left info line, the Staggered marker over enemies.
+- **The passive slot**: a square the size of an ability slot, left of Q with the same gap (a `PassiveSlot` Control, `res://scripts/ui/passive_slot.gd`, added by `hud.setup_abilities()` only when the player's champion has a passive). It shows the passive's initials in `Passive.icon_color` (a new export, default a neutral grey) and, on hover, a tooltip in the ability tooltip's style: the name, the description, and one "Now:" line per `StatScaling` with its current value from `get_value(unit)` (PERCENT types as a percent: "Now: +18% attack damage"; FLAT as a number).
+- **The resource bar's thresholds**: a tick mark at every `RESOURCE_AT_LEAST` value found in the slotted abilities' conditional bonuses and cast conditions (read from the current slot abilities each frame, so a REPLACE variant's own thresholds show), placed at value ÷ max. While the pool is at or above a threshold, the bar gets a bright outline (the "glow"). The Knight: one tick at 60.
+- **A live bonus on a slot**: a gold outline on a slot while one of its ability's conditional bonuses passes whose conditions are all about the caster (`SELF_HAS_STATUS`, `SELF_HEALTH_PERCENT`, `RESOURCE_AT_LEAST`; an empty list doesn't count, since it always passes). Bonuses with a target condition (Cleave's Staggered) can't be judged without a target and show nothing on the slot: the Staggered marker covers them. The Knight: R while at 60+ Fury.
+- Everything reads existing state every frame (no new signals); nothing here changes gameplay.
+
 
 ## Audio hooks
 See AUDIO.md. Champion sounds (hurt, death, low health) move onto ChampionData in CH1. Fury, Staggered and the heal use existing hooks (the resource bar has no sound; Staggered's apply sound, if any, is a status sound; heals have none) until AUDIO.md adds any.
@@ -270,7 +279,7 @@ See AUDIO.md. Champion sounds (hurt, death, low health) move onto ChampionData i
 | Lunge kills an enemy | No Staggered on the dead (statuses skip a target the hit killed). |
 | A free Lunge from the `cleave_casts_lunge` augment | It staggers too (the bonus is on Lunge's .tres). Cleave's own hits resolve first (the free Lunge's hits come after its dash), so that Cleave never gets the bonus from them. |
 | Unstoppable or untargetable enemy | Staggered isn't `cc`, so unstoppable doesn't refuse it; untargetable refuses it (statuses from other units, AB10). |
-| Cleave's heal on a killing blow | `apply_on_hit()` runs for killing hits, so it heals. It uses `taken_damage`, overkill included, the same as `life_steal` *(proposed; Open questions)*. |
+| Cleave's heal on a killing blow | `apply_on_hit()` runs for killing hits, so it heals. It uses `taken_damage`, overkill included, the same as `life_steal` (Ryan, 2026-09-29). |
 | Healing at max health | A no-op: `Unit.heal()` clamps at max, returns 0 and shows no "+0"; nothing becomes overheal or a shield. At full health the ratio is 0 anyway (0% missing). If the first enemy's heal fills the Knight, the rest heal nothing. Tested in CH5 (this also tests the existing "heals show no overheal"). |
 | Heal from a blocked hit, or while the Knight is dead | None (blocked hits have no on-hit; `apply_on_hit()` stops for a dead source). |
 | Heal on a shield-absorbed hit | Counts: `taken_damage` includes the absorbed part (as for life steal). |
@@ -295,14 +304,16 @@ Every step: the Knight's abilities, enemies chasing and the HUD still work; buil
    **Done means:** the bar starts empty; each enemy a swing hits adds 8, ability hits add nothing; 3 s after the last hit dealt or taken it drains at 20/s; Cleave below 20 Fury fails with the bar's blink; Lunge, Iron Resolve and Judgement cast from 0.
 4. **CH4 – Staggered, the combo and Judgement's payoff.** `status_staggered.tres` and its marker, Lunge's and Cleave's bonuses, Judgement's Fury bonus, its 0.75 s channel and 30 s cooldown, `judgement.gd` (`stun_duration` through `get_effect_param()`; the Fury consumption if approved). Built 2026-09-29, see CHANGELOG.md.
    **Done means:** enemies Lunge cuts through show the marker for 2 s; Cleave hits them for +50% (and others normally); Judgement at 60+ Fury stuns 1.25 s and hits 30% harder (and empties the bar), below 60 it's the plain 0.75 s; tooltips list the bonus lines.
-5. **CH5 – Cleave's heal on hit.** `Ability.heal_on_hit_ratio`, `HitContext.heal_on_hit_ratio`, `from_ability()` and `apply_on_hit()`, Cleave's ratio and scaling, `curve_knight_cleave_heal.tres`, the effect-start `self_missing_health` read (if approved).
+5. **CH5 – Cleave's heal on hit.** `Ability.heal_on_hit_ratio`, `HitContext.heal_on_hit_ratio`, `from_ability()` and `apply_on_hit()`, Cleave's ratio and scaling, `curve_knight_cleave_heal.tres`, the effect-start `self_missing_health` read. Built 2026-09-29, see CHANGELOG.md.
    **Done means:** at full health Cleave heals nothing; at 50% about 8% of its damage per enemy; at 10% about 55%; three enemies heal three times; a killing blow heals; at max health nothing is healed or shown; the heal works with Unbroken without order effects; no other ability heals.
+6. **CH6 – Readable kit (functional HUD).** `passive_slot.gd` and `Passive.icon_color`, the passive slot in `hud.setup_abilities()`, the resource bar's threshold ticks and glow (`resource_bar.gd`), the live-bonus outline on ability slots (`ability_bar.gd`); HUD checks in the champions test (Architecture, Readable kit HUD). Added at Ryan's request (2026-09-29) so testers can read their own state during CH-M.
+   **Done means:** hovering the passive slot shows Unbroken's name, description and its current bonus, which follows health; the Fury bar has a tick at 60 and glows at 60+; R has a gold outline at 60+ Fury and loses it below; with no champion (or no passive, or no thresholds) the HUD is exactly as before; no art.
 
-**Milestone CH-M – the Knight's kit** (after CH5): a play test in the sandbox of the whole loop: build Fury with swings, Lunge through a pack, Cleave the Staggered enemies, Judgement an elite at 60+ Fury, and survive a low-health fight on Cleave's heal.
+**Milestone CH-M – the Knight's kit** (after CH6): a play test in the sandbox of the whole loop: build Fury with swings, Lunge through a pack, Cleave the Staggered enemies, Judgement an elite at 60+ Fury, and survive a low-health fight on Cleave's heal.
 **Done means:** Ryan's play test: the kit reads at a glance and the numbers feel right (then they stop being placeholders).
 
 ## Out of scope
-The leveling curve, XP sources and talent points (TALENTS.md); saving the champion level (PROGRESSION.md); the hub and champion select (UI.md, NPCS.md); weapons and champion-specific items (LOOT.md); the ultimate meter (here, when a champion uses one); other champions; the HUD's resource-bar tick and glow (UI.md); voice lines (AUDIO.md).
+The leveling curve, XP sources and talent points (TALENTS.md); saving the champion level (PROGRESSION.md); the hub and champion select (UI.md, NPCS.md); weapons and champion-specific items (LOOT.md); the ultimate meter (here, when a champion uses one); other champions; the polished HUD and icons (UI.md and the art pass; CH6 is functional only); voice lines (AUDIO.md).
 
 ## Open questions
 Claude's proposals from the approved plan (written in above as *(proposed)*; Ryan can overrule any):
@@ -310,8 +321,8 @@ Claude's proposals from the approved plan (written in above as *(proposed)*; Rya
 2. ~~Unbroken: AD only, or armor too~~: answered, AD only (Ryan, 2026-09-29).
 3. ~~Fury per enemy hit or per swing; taking damage~~: answered: +8 per enemy a basic attack hits, and taking damage builds nothing (Ryan, 2026-09-29).
 4. ~~Does the empowered Judgement consume all Fury~~: answered, yes (Ryan, 2026-09-29).
-5. Cleave's heal on overkill: the full `taken_damage` like `life_steal` (proposed), or capped at the health the target actually lost?
-6. Re-read `self_missing_health` at the effect start (proposed: yes; it changes when ABILITIES' built-in input is filled, for every ability), or keep it at cast start?
+5. ~~Cleave's heal on overkill~~: answered, the full `taken_damage`, like `life_steal` (Ryan, 2026-09-29).
+6. ~~Re-read `self_missing_health` at the effect start~~: answered, yes (Ryan, 2026-09-29).
 7. ~~Does Cleave consume Staggered~~: answered, no (Ryan, 2026-09-29).
 8. ~~Cleave Wave: no heal and no Staggered bonus, or the same as Cleave~~: answered, the same as Cleave (Ryan, 2026-09-29).
 9. ~~Champion level kept in memory~~: answered, yes; saving it is PROGRESSION's (Ryan, 2026-09-29).

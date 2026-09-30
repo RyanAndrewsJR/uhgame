@@ -493,7 +493,7 @@ func _test_scalings() -> void:
 func _test_tooltips() -> void:
 	_section("AB2: tooltips from the description template")
 	_check("Cleave (and its 80 base, not the old 70)", _template_line(CLEAVE.get_tooltip_plain(knight)),
-		"Sweep your sword in a wide arc in front of you, dealing 125 physical damage (80 +70% AD) and knocking enemies back.")
+		"Sweep your sword in a wide arc in front of you, dealing 125 physical damage (80 +70% AD) and knocking enemies back. Heals you for up to 55% of the damage dealt, more the lower your health.")
 	_check("Iron Resolve (percents with {x%})", IRON_RESOLVE.get_tooltip_plain(knight),
 		"Gain 35% movement speed for 2s. Your next attack within 4s deals 82 (50 +50% AD) bonus damage and slows the target by 40% for 1.5s.")
 	_check("Lunge ({range})", _template_line(LUNGE.get_tooltip_plain(knight)),
