@@ -81,10 +81,6 @@ const VECTOR_WALL_RADIUS_PX := 2.0
 @export var w: Ability
 @export var e: Ability
 @export var r: Ability
-## ABILITIES AB14: cast times run on cast progress (on, the default). Off =
-## the old create_timer() wait, unchanged; kept until Ryan's play test passes
-## the "same physics frame" regression check, then deleted.
-@export var use_cast_progress: bool = true
 
 var unit: Unit
 var casting: bool = false
@@ -871,12 +867,10 @@ func _cancel_cast() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if use_cast_progress:
-		# AB14: the cast time's tick runs after every node's _physics_process
-		# this frame (deferred), where SceneTreeTimers were counted: a cast
-		# started anywhere in this frame's node pass counts this tick, exactly
-		# as the old timer did.
-		_advance_cast_time.call_deferred(delta)
+	# AB14: the cast time's tick runs after every node's _physics_process this
+	# frame (deferred), where the old SceneTreeTimer was counted: a cast
+	# started anywhere in this frame's node pass counts this tick.
+	_advance_cast_time.call_deferred(delta)
 	_update_charge(delta)
 	_update_recast_windows(delta)
 	for s in SLOTS:
@@ -948,17 +942,14 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext, precharged: 
 	_start_cast_anim(ability)   # AB14 hook: nothing while cast_anim is empty
 
 	if ability.cast_time > 0.0:
-		if use_cast_progress:
-			# AB14: cast progress, advanced by _advance_cast_time(); a cancel or
-			# interrupt also emits _cast_time_elapsed (then the serial differs).
-			_cast_time_total = ability.cast_time
-			_cast_time_left = ability.cast_time
-			_cast_time_running = true
-			if is_instance_valid(ctx.telegraph):
-				ctx.telegraph.set_progress(0.0)   # the telegraph follows the cast from now on
-			await _cast_time_elapsed
-		else:
-			await unit.get_tree().create_timer(ability.cast_time, false, true).timeout
+		# AB14: cast progress, advanced by _advance_cast_time(); a cancel or
+		# interrupt also emits _cast_time_elapsed (then the serial differs).
+		_cast_time_total = ability.cast_time
+		_cast_time_left = ability.cast_time
+		_cast_time_running = true
+		if is_instance_valid(ctx.telegraph):
+			ctx.telegraph.set_progress(0.0)   # the telegraph follows the cast from now on
+		await _cast_time_elapsed
 	if serial != _cast_serial:
 		return  # Cancelled during the cast time; try_cancel_cast() cleaned up.
 
@@ -1102,24 +1093,21 @@ func _get_cast_anim_player(anim_name: StringName) -> AnimationPlayer:
 ## The cast_anim hook at cast start. With a cast time (on cast progress) the
 ## animation doesn't run on its own clock: it's positioned to progress x its
 ## length each tick (_update_cast_anim()), so it ends exactly at the effect
-## start whatever the cast speed. With no cast time (or the old timer path)
-## it plays on its own at the cast speed (old path: stretched over cast_time).
-## Nothing while cast_anim is empty or the unit has no such animation.
+## start whatever the cast speed. With no cast time it plays on its own at the
+## cast speed. Nothing while cast_anim is empty or the unit has no such
+## animation.
 func _start_cast_anim(ability: Ability) -> void:
 	_stop_cast_anim()
 	var player := _get_cast_anim_player(ability.cast_anim)
 	if player == null:
 		return
-	if ability.cast_time > 0.0 and use_cast_progress:
+	if ability.cast_time > 0.0:
 		_cast_anim_player = player
 		_cast_anim_name = ability.cast_anim
 		player.play(ability.cast_anim, -1.0, 0.0)   # speed 0: progress positions it
 		player.seek(0.0, true)
 		return
-	var speed := _get_valid_cast_speed(ability)
-	if ability.cast_time > 0.0:
-		speed *= player.get_animation(ability.cast_anim).length / ability.cast_time
-	player.play(ability.cast_anim, -1.0, speed)
+	player.play(ability.cast_anim, -1.0, _get_valid_cast_speed(ability))
 
 
 func _update_cast_anim(progress: float) -> void:

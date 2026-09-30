@@ -11,7 +11,14 @@
 
 ## Abilities (ABILITIES.md)
 
-### AB14 – Cast progress and presentation hooks: 2026-09-29, Built (awaiting play test)
+### Cleanup – the old cast timer deleted: 2026-09-29, Built (awaiting play test)
+AB14 passed Ryan's play test, so the old `create_timer()` wait is deleted as approved: `AbilityComponent.use_cast_progress` and its branches in `_do_cast()`, `_physics_process()` and `_start_cast_anim()` (the old path stretched a `cast_anim` over `cast_time`). The regression checks compared the flag off vs on; with no old path left they now check each cast's effect frame against the old timer's arithmetic, computed from the ability's `cast_time` (`_ab14_timer_ticks()`: 0.2 s = 13 ticks, the effect 12 frames after a cast at a frame's start or in the node pass, 13 after one between frames; 0 s the same frame), so a tuning change never breaks them (DECISIONS, Testing). Three checks that only covered the old path are removed (the flag's default, the old path's telegraph clock and its stretched animation).
+
+Also checked while here (Ryan's question from the play test, items 1 and 4 on, Q): with both paths, before the deletion, the order is identical frame for frame: at Cleave's effect start the free Lunge fires (ABILITY_CAST) and starts its dash, Cleave hits the same frame at the Knight's starting spot, Cleave's hitstop holds the dash's first frames, and the free Lunge hits (and stuns) at the end of its dash, 20 frames later. Nothing since AB-M changed that path (the audit pass only made Lunge's afterimages visible).
+
+Abilities test 557/557, combat 459/459, stats 179/179, audio 109/109. `main.tscn` and `sandbox_main.tscn` run 600 frames with no errors or warnings.
+
+### AB14 – Cast progress and presentation hooks: 2026-09-29, Passed
 **Measured first** (a scratch SceneTree probe, Godot 4.7.2, 60 Hz): a SceneTreeTimer created in a node's `_physics_process()` is counted that same frame (the timers run after the nodes), and a deferred call queued from `_physics_process()` runs after every node that frame and before the timers. The timer fires one tick late whenever the cast time is an exact number of ticks (float residue): 0.05 s = 4 ticks, 0.1 = 7, 0.2 = 13, 0.3 = 19, 1.5 = 91; 0.65 = 39 and 0.7 = 42 are on time. So the spec's epsilon would have moved those casts one tick earlier; the build keeps the timer's arithmetic instead (DECISIONS.md, Abilities).
 
 **Built:**

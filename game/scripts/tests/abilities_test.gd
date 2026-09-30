@@ -47,9 +47,9 @@ extends Node2D
 ## Cleanup pass (2026-09-29): the enemy AI skipping a slot that fails its
 ## condition; a conditional bonus widening and lengthening a VECTOR line
 ## (get_effect_param()).
-## AB14: the regression check (every cast's effect on the same physics frame
-## with cast progress as with the old timer, a cast started before, inside
-## and between physics frames, a cast chained from another's end); cast
+## AB14: every cast's effect on the frame the deleted old timer gave (its
+## arithmetic, from each cast_time; a cast started at a frame's start, in the
+## node pass and between frames, a cast chained from another's end); cast
 ## progress and the cast speed; telegraphs following their cast; the
 ## presentation hooks empty (nothing happens) and filled (a test hook scene:
 ## cast, impact, projectile, free cast, swing; blocked hits skipped); cast_anim
@@ -4116,24 +4116,39 @@ func _ab14_no_hitstop() -> void:
 	await _wait_until(func() -> bool: return not GameFeel.is_hitstop_active(), 120)
 
 
-## The regression check for one cast: measured with use_cast_progress off
-## (the old timer), then on, after `prepare` (a coroutine) each time, for
-## each phase; the effect must land the same number of frames after the cast.
-func _ab14_same_frame(label: String, caster: Unit, prepare: Callable, start: Callable, phases: Array[String] = ["physics"]) -> void:
+## How many physics ticks the old SceneTreeTimer took for `cast_time` (its
+## float steps: seconds left - the physics step until 0 or below). Cast
+## progress takes the same steps (ABILITIES AB14); an exact number of ticks
+## keeps the timer's extra tick (0.2 s = 13).
+func _ab14_timer_ticks(cast_time: float) -> int:
+	if cast_time <= 0.0:
+		return 0
+	var step := 1.0 / Engine.physics_ticks_per_second
+	var left := cast_time
+	var ticks := 0
+	while left > 0.0:
+		left -= step
+		ticks += 1
+	return ticks
+
+
+## One cast's timing check, for each phase, after `prepare` (a coroutine): the
+## effect lands on the frame the old timer's arithmetic gives. A cast started
+## in a frame (at its start or in the node pass) counts that frame, so the
+## effect comes ticks - 1 frames later; one started between frames counts from
+## the next, so ticks later; no cast time = the same frame.
+func _ab14_timer_frame(label: String, caster: Unit, prepare: Callable, start: Callable, cast_time: float, phases: Array[String] = ["physics"]) -> void:
 	var where := {"physics": "at a frame's start", "node": "in the node pass", "idle": "between frames"}
+	var ticks := _ab14_timer_ticks(cast_time)
 	for phase in phases:
-		var frames: Array[int] = []
-		for on: bool in [false, true]:
-			caster.abilities.use_cast_progress = on
-			await prepare.call()
-			frames.append(await _ab14_effect_frames(start, caster, phase))
-		caster.abilities.use_cast_progress = true
-		_check("%s, cast %s: the effect %d frames later with cast progress, %d with the old timer" % [label, where[phase], frames[1], frames[0]],
-			[frames[1], frames[0] >= 0], [frames[0], true])
+		await prepare.call()
+		var frames := await _ab14_effect_frames(start, caster, phase)
+		var expected := 0 if ticks == 0 else (ticks if phase == "idle" else ticks - 1)
+		_check("%s (%s s = %d ticks), cast %s: the effect %d frames later" % [label, cast_time, ticks, where[phase], expected], frames, expected)
 
 
 func _test_ab14_regression() -> void:
-	_section("AB14: the regression check: every cast's effect on the same physics frame as with the old timer")
+	_section("AB14: every cast's effect on the frame the old timer gave (kept since it was deleted)")
 	var ab := knight.abilities
 	var original_q := ab.q
 	var dummies: Array[Enemy] = []
@@ -4151,31 +4166,31 @@ func _test_ab14_regression() -> void:
 	var in_front := func() -> Vector2: return knight.global_position + Vector2(60, 0)
 
 	var cleave := func() -> void: ab.try_cast(&"q", in_front.call())
-	await _ab14_same_frame("Cleave (0.2 s)", knight, make_ready.bind(&"q"), cleave, ["physics", "node", "idle"])
+	await _ab14_timer_frame("Cleave", knight, make_ready.bind(&"q"), cleave, CLEAVE.cast_time, ["physics", "node", "idle"])
 	var lunge := func() -> void: ab.try_cast(&"e", knight.global_position + Vector2(100, 0))
-	await _ab14_same_frame("Lunge (0.05 s)", knight, make_ready.bind(&"e"), lunge)
+	await _ab14_timer_frame("Lunge", knight, make_ready.bind(&"e"), lunge, LUNGE.cast_time)
 	var iron := func() -> void: ab.try_cast(&"w", knight.global_position)
-	await _ab14_same_frame("Iron Resolve (0 s)", knight, make_ready.bind(&"w"), iron)
+	await _ab14_timer_frame("Iron Resolve", knight, make_ready.bind(&"w"), iron, IRON_RESOLVE.cast_time)
 	var judgement := func() -> void: ab.try_cast(&"r", dummies[0].global_position, dummies[0])
-	await _ab14_same_frame("Judgement (1.5 s channel)", knight, make_ready.bind(&"r"), judgement, ["physics", "node"])
+	await _ab14_timer_frame("Judgement's channel", knight, make_ready.bind(&"r"), judgement, JUDGEMENT.cast_time, ["physics", "node"])
 
 	ab.q = CHARGED_LINE
 	var charged := func() -> void:
 		ab.try_start_charge(&"q", in_front.call())
 		ab.release_charge(in_front.call())
-	await _ab14_same_frame("the test Charged Line's release windup (0.3 s)", knight, make_ready.bind(&"q"), charged)
+	await _ab14_timer_frame("the test Charged Line's release windup", knight, make_ready.bind(&"q"), charged, CHARGED_LINE.cast_time)
 	ab.q = VECTOR_LINE
 	var vector := func() -> void:
 		ab.try_start_charge(&"q", in_front.call())
 		ab.release_charge(knight.global_position + Vector2(60, 60))
-	await _ab14_same_frame("the test vector line's release windup (0.2 s)", knight, make_ready.bind(&"q"), vector)
+	await _ab14_timer_frame("the test vector line's release windup", knight, make_ready.bind(&"q"), vector, VECTOR_LINE.cast_time)
 	ab.q = MARK_STRIKE
 	var mark_ready := func() -> void:   # part 0 marks the dummy; then part 1 is measured
 		await make_ready.call(&"q")
 		ab.try_cast(&"q", dummies[0].global_position)
 		await _wait_until(func() -> bool: return ab.get_recast_part(&"q") == 1 and not ab.casting, 60)
 	var mark := func() -> void: ab.try_cast(&"q", dummies[0].global_position)
-	await _ab14_same_frame("the test Mark Strike's recast part (0.1 s)", knight, mark_ready, mark)
+	await _ab14_timer_frame("the test Mark Strike's recast part", knight, mark_ready, mark, MARK_STRIKE.cast_time)
 	ab.q = original_q
 
 	var elite: Enemy = ELITE_SCENE.instantiate()
@@ -4188,9 +4203,9 @@ func _test_ab14_regression() -> void:
 		elite.abilities.reset_cooldown(slot)
 		await _frames(1)
 	var slam := func() -> void: elite.abilities.try_cast(&"q", knight.global_position, knight)
-	await _ab14_same_frame("the elite's slam (0.65 s)", elite, elite_ready.bind(&"q"), slam, ["physics", "node", "idle"])
+	await _ab14_timer_frame("the elite's slam", elite, elite_ready.bind(&"q"), slam, SLAM.cast_time, ["physics", "node", "idle"])
 	var wall := func() -> void: elite.abilities.try_cast_vector(&"w", knight.global_position + Vector2(0, -80), Vector2.DOWN)
-	await _ab14_same_frame("the test vector wall on the elite (0.7 s)", elite, elite_ready.bind(&"w"), wall)
+	await _ab14_timer_frame("the test vector wall on the elite", elite, elite_ready.bind(&"w"), wall, VECTOR_WALL.cast_time)
 	elite.queue_free()
 	for d in dummies:
 		if is_instance_valid(d):
@@ -4199,34 +4214,30 @@ func _test_ab14_regression() -> void:
 
 
 func _test_ab14_chained_cast() -> void:
-	_section("AB14: a cast started by another cast's end keeps its frame")
+	_section("AB14: a cast started by another cast's end counts from the next frame")
 	var ab := knight.abilities
-	var frames: Array[int] = []
-	for on: bool in [false, true]:
-		ab.use_cast_progress = on
-		await _reset_knight()
-		ab.reset_cooldown(&"q")
-		ab.reset_cooldown(&"e")
-		await _ab14_no_hitstop()
-		await _frames(1)
-		var at: Array[int] = [-1, -1]
-		var chain := func(slot: StringName, _a: Ability) -> void:
-			if slot == &"q" and at[0] < 0:
-				at[0] = Engine.get_physics_frames()
-				ab.try_cast(&"e", knight.global_position + Vector2(100, 0))   # like a buffered press firing at the cast's end
-		var on_cast := func(u: Unit, a: Ability, _c: CastContext) -> void:
-			if u == knight and a == LUNGE and at[0] >= 0 and at[1] < 0:
-				at[1] = Engine.get_physics_frames()
-		ab.cast_finished.connect(chain)
-		Events.ability_cast.connect(on_cast)
-		ab.try_cast(&"q", knight.global_position + Vector2(60, 0))
-		await _wait_until(func() -> bool: return at[1] >= 0, 120)
-		ab.cast_finished.disconnect(chain)
-		Events.ability_cast.disconnect(on_cast)
-		frames.append(at[1] - at[0] if at[1] >= 0 else -1)
-	ab.use_cast_progress = true
-	_check("Lunge started in Cleave's cast_finished: its effect %d frames after with cast progress, %d with the old timer" % [frames[1], frames[0]],
-		[frames[1], frames[0] >= 0], [frames[0], true])
+	await _reset_knight()
+	ab.reset_cooldown(&"q")
+	ab.reset_cooldown(&"e")
+	await _ab14_no_hitstop()
+	await _frames(1)
+	var at: Array[int] = [-1, -1]
+	var chain := func(slot: StringName, _a: Ability) -> void:
+		if slot == &"q" and at[0] < 0:
+			at[0] = Engine.get_physics_frames()
+			ab.try_cast(&"e", knight.global_position + Vector2(100, 0))   # like a buffered press firing at the cast's end
+	var on_cast := func(u: Unit, a: Ability, _c: CastContext) -> void:
+		if u == knight and a == LUNGE and at[0] >= 0 and at[1] < 0:
+			at[1] = Engine.get_physics_frames()
+	ab.cast_finished.connect(chain)
+	Events.ability_cast.connect(on_cast)
+	ab.try_cast(&"q", knight.global_position + Vector2(60, 0))
+	await _wait_until(func() -> bool: return at[1] >= 0, 120)
+	ab.cast_finished.disconnect(chain)
+	Events.ability_cast.disconnect(on_cast)
+	var ticks := _ab14_timer_ticks(LUNGE.cast_time)
+	_check("Lunge started in Cleave's cast_finished: its effect %d frames after (%d ticks, as with the old timer)" % [ticks, ticks],
+		at[1] - at[0] if at[1] >= 0 else -1, ticks)
 	await _reset_knight()
 
 
@@ -4234,9 +4245,6 @@ func _test_ab14_progress() -> void:
 	_section("AB14: cast progress and the cast speed")
 	await _reset_knight()
 	var ab := knight.abilities
-	var fresh := AbilityComponent.new()
-	_check("use_cast_progress is on by default", fresh.use_cast_progress, true)
-	fresh.free()
 	_check("get_cast_speed() is 1.0 (hardcoded: the slot for a future cast-speed stat)", ab.get_cast_speed(JUDGEMENT), 1.0)
 	_check("nothing casting: progress 0", ab.get_cast_progress(), 0.0)
 	ab.reset_cooldown(&"r")
@@ -4322,20 +4330,6 @@ func _test_ab14_telegraph() -> void:
 	await _wait_until(func() -> bool: return not at_hit.is_empty(), 60)
 	_check("the vector wall's line telegraph: full exactly at the hit", at_hit, [[true, 1.0]])
 
-	await _reset_knight()
-	_place(elite, knight.global_position + Vector2(60, 0))
-	elite.abilities.reset_cooldown(&"q")
-	elite.abilities.use_cast_progress = false
-	var started: Array[CastContext] = []
-	var grab := func(_s: StringName, _a: Ability, c: CastContext) -> void: started.append(c)
-	elite.abilities.cast_started.connect(grab)
-	elite.abilities.try_cast(&"q", knight.global_position, knight)
-	elite.abilities.cast_started.disconnect(grab)
-	t = started[0].telegraph if not started.is_empty() else null
-	await _frames(2)
-	_check("the old timer path: the telegraph keeps its own clock", t != null and not t.is_driven(), true)
-	await _wait_until(func() -> bool: return not elite.abilities.casting, 60)
-	elite.abilities.use_cast_progress = true
 	var loose := Telegraph.circle(knight, knight.global_position, 10.0, 0.5)
 	_check("a telegraph with no cast isn't driven", loose.is_driven(), false)
 	loose.queue_free()
@@ -4566,14 +4560,6 @@ func _test_ab14_anims() -> void:
 	_check("no cast time (Iron Resolve): it plays on its own at the cast speed",
 		[player.is_playing(), player.current_animation, player.get_playing_speed()], [true, &"test_cast", 1.0])
 	ab.w = original_w
-
-	await _reset_knight()
-	ab.use_cast_progress = false
-	ab.reset_cooldown(&"q")
-	ab.try_cast(&"q", knight.global_position + Vector2(60, 0))
-	_check("the old timer path: stretched over the cast time (1 s over 0.2 s = speed 5)", player.get_playing_speed(), 5.0)
-	await _wait_until(func() -> bool: return not ab.casting, 30)
-	ab.use_cast_progress = true
 	ab.q = original_q
 
 	await _reset_knight()
