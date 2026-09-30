@@ -95,6 +95,9 @@ The loop: **hub → pick a champion → set their talents → run a dungeon → 
 - Each champion has a persistent **champion level**, gained by playing that champion. It gates that champion's own talent points.
 - Talent progress is fully separate per champion. No currency or points are shared between champions.
 - Talents reshape the champion's existing abilities, built on the ABILITIES.md augment system (TALENTS.md). They never move abilities between slots (see Build variety).
+- The champion level **only** gates talent points. It never touches combat stats and never calls `StatsComponent.set_level()`.
+- There is no leveling inside a run. In-run power comes purely from loot.
+- `set_level()` and per-level growth stay as built, unused by champions, reserved for enemy scaling (DUNGEONS.md).
 
 ## Decision priorities (when goals conflict)
 1. **Feel and responsiveness.** Control is never taken from the player without a clear reason.
@@ -111,11 +114,10 @@ The loop: **hub → pick a champion → set their talents → run a dungeon → 
 - **Out for now (decided):** gamepad. Keyboard and mouse only for now.
 
 ## Open questions (answer these before the matching doc is written)
-The run structure, death, hub, roster, talent progress and ability slot questions were answered 2026-09-29 (Game structure and Build variety above; DECISIONS.md, Game structure). What those answers left open:
+The run structure, death, hub, roster, talent progress, ability slot and in-run leveling questions were answered 2026-09-29 (Game structure and Build variety above; DECISIONS.md, Game structure). What those answers left open:
 1. **Talent size:** does "up to 5" mean a small total tree (5 talents in all), or a larger pool with 5 active at once? Decides TALENTS.md's shape.
 2. **Gear after a run:** does gear picked up in a run stay with the champion afterwards (inventory, stash), and what does leaving a run early keep or forfeit? Affects LOOT.md and DUNGEONS.md.
-3. **In-run leveling:** is the persistent champion level the same level STATS.md's per-level growth uses (`set_level()`), or is there a separate LoL-style level inside each run? Affects STATS.md (Fill in: Leveling) and ability ranks (ABILITIES.md).
-4. **Unlocking champions:** how many at launch, and how does a champion get unlocked?
+3. **Unlocking champions:** how many at launch, and how does a champion get unlocked?
 
 ## How Claude should use this doc
 - When designing a system, check it against the pillars and priorities above, and say which pillar a choice serves.

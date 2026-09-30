@@ -703,7 +703,7 @@ Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modi
 
 ## Open questions
 - Ultimate meter details (CHAMPIONS.md).
-- Ability ranks / leveling. Run structure is decided (VISION.md, Game structure: persistent champion level gates talents); whether abilities also have ranks waits on VISION.md's in-run leveling question (Open questions 3) and TALENTS.md.
+- Ability ranks. There is no leveling inside a run and the champion level only gates talents (VISION.md, Game structure, 2026-09-29), so ranks never come from levels; whether abilities have ranks at all (e.g. through talents) is TALENTS.md's call.
 - Which Knight abilities ignore walls (CHAMPIONS.md).
 - The element tag list.
 - Can a recast part be dash-cancelled separately?
