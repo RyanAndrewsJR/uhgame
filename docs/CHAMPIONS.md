@@ -63,11 +63,11 @@ What exists before CH1 (the rest is Data and Architecture):
 A bruiser: heavy swings, dives into packs, gets stronger and harder to kill the closer he is to death. Pillars: skill expression (the Lunge → Cleave combo, low-health risk), build variety (Fury as a generator/spender rhythm), fluid combat.
 
 ### Identity
-- `id` `&"knight"`, `display_name` "Knight", `champion_class` `&"bruiser"` *(proposed name)*.
+- `id` `&"knight"`, `display_name` "Knight", `champion_class` `&"bruiser"`.
 - Stats: `data/units/knight.tres`, unchanged except the resource (Fury, below).
 - Combo: `combo_knight.tres` (COMBAT.md), dash-strike 1.5 × AD (the bruiser number COMBAT.md already has).
-- Role tags: kept as they are *(proposed)*: Cleave `core` (the spender), Iron Resolve `defensive`, Lunge `mobility`, Judgement `ultimate`. The Knight's generator is his basic attack.
-- Walls: no Knight ability ignores walls *(proposed)*.
+- Role tags: kept as they are (Ryan, 2026-09-29): Cleave `core` (the spender), Iron Resolve `defensive`, Lunge `mobility`, Judgement `ultimate`. The Knight's generator is his basic attack.
+- Walls: no Knight ability ignores walls (Ryan, 2026-09-29).
 - Ultimate: cooldown, not a meter (ABILITIES.md). The meter is designed when a champion first uses one.
 - Sounds: `hurt_sound` `sound_knight_hurt.tres`, `low_health_sound` `sound_knight_low_health.tres`, `death_sound` none (as today). Audio hooks: see AUDIO.md.
 
@@ -99,7 +99,7 @@ League's Lee Sin Q1 → Q2 pattern, built from AB12's existing pieces; no new co
 - **Lunge** applies Staggered to every enemy it hits, through a `ConditionalBonus` with no conditions (an empty list always passes) whose `target_statuses` = [`status_staggered`] and `description` "Staggers enemies hit for 2s." Data only; free Lunges (the `cleave_casts_lunge` augment) stagger too.
 - **Cleave** gets a `ConditionalBonus`: condition `TARGET_HAS_STATUS` `staggered` (min 1 stack), modifiers `base_damage` PERCENT_ADD +0.5 and `ad_ratio` PERCENT_ADD +0.5 (TARGET +30–60%), `description` "+50% damage to Staggered enemies." It's checked per enemy at its hit (`from_ability()` with the unit hit), so a Cleave through a mix hits the Staggered ones harder.
 - No larger cone against Staggered targets: indicators show plain values, so a cone that grows with a bonus would break "what you see is what you get" (ABILITIES principle 2).
-- Staggered isn't consumed by Cleave; it runs out *(proposed; Open questions)*. Cleave's 3 s cooldown already prevents a double cash-in.
+- Staggered isn't consumed by Cleave; it runs out (Ryan, 2026-09-29). Cleave's 3 s cooldown already prevents a double cash-in.
 
 ### Status: Staggered (`res://data/statuses/status_staggered.tres`)
 | Field | Value |
@@ -117,7 +117,7 @@ League's Lee Sin Q1 → Q2 pattern, built from AB12's existing pieces; no new co
 ### Judgement's Fury payoff
 - A `ConditionalBonus` on Judgement: condition `RESOURCE_AT_LEAST` 60 (on the Knight); modifiers `stun_duration` FLAT +0.5 (0.75 → 1.25 s), `base_damage` PERCENT_ADD +0.3 and `ad_ratio` PERCENT_ADD +0.3 (TARGET +20–50%); `description` "At 60+ Fury: +30% damage and +0.5s stun, and it consumes your Fury."
 - Checked at the effect (AB8 / AB12 rule): the condition reads the Fury when the hit is built, after the channel. Judgement costs nothing, so no cost is taken before the check.
-- The empowered Judgement consumes all the Knight's Fury after its hit *(proposed; Open questions)*: without it, holding 60 would be a free buff, against "spent fast rather than banked". A one-off in `judgement.gd` (it spends `resource_pool.current` when the bonus was active for the hit that landed).
+- The empowered Judgement consumes all the Knight's Fury after its hit (Ryan, 2026-09-29): without it, holding 60 would be a free buff, against "spent fast rather than banked". A one-off in `judgement.gd`: before the hit it checks whether an active bonus has a `RESOURCE_AT_LEAST` condition (the same frame and inputs as the hit's own check), and if the hit lands (not blocked) it spends `resource_pool.current`. `judgement.gd`'s `consume_resource_on_bonus` (default true) turns it off without code. A blocked Judgement consumes nothing.
 - `judgement.gd` reads `stun_duration` with `get_effect_param()` (CONVENTIONS pattern 6), so the bonus reaches it.
 - Retimed (Ryan, 2026-09-29): a **0.75 s channel** (`cast_time`, was 1.5 s; runs on cast progress, ABILITIES AB14) and a **30 s cooldown** (was the 5 s default).
 
@@ -137,7 +137,7 @@ League's Lee Sin Q1 → Q2 pattern, built from AB12's existing pieces; no new co
 
 The curve's points use linear tangents so the table's values are exact between neighbors (e.g. 17.5% health heals about 35%).
 - Example (placeholders): at 10% health (Unbroken +40%: 89.6 AD), a Cleave does 80 + 0.7 × 89.6 ≈ 143 to each unarmored enemy; into three slimes it heals 3 × 0.55 × 143 ≈ 235 (36% of 650). Against Staggered enemies (+50%) about 350. At 50% health the same Cleave heals about 11 per enemy.
-- Cleave Wave (the AB-M REPLACE variant) has no heal and no Staggered bonus: its .tres keeps the defaults *(proposed; Open questions)*.
+- Cleave Wave (the AB-M REPLACE variant) is the same as Cleave here (Ryan, 2026-09-29): the Staggered bonus (CH4, per enemy at its projectile hit) and the heal on hit (CH5) are in its .tres too.
 
 ### Knight ability sheets (targets after CH5; ABILITIES.md, Ability spec sheet)
 Only the lines that change or matter here; everything else is ABILITIES.md's example and the .tres files.
@@ -162,7 +162,7 @@ Supported augment flags: lunge_stuns (unchanged)
 Judgement / Knight / R / knight_judgement
 Cost: 0 (reads Fury)      Cooldown: 30 s      Cast time: 0.75 s CHANNEL (cast progress, AB14; moving cancels)
 Damage: 150 + 100% AD + 20% of the target's missing health, PHYSICAL; stun 0.75 s
-Conditional bonuses: RESOURCE_AT_LEAST 60 → base_damage +30%, ad_ratio +30%, stun_duration +0.5 s; then consumes all Fury (proposed)
+Conditional bonuses: RESOURCE_AT_LEAST 60 → base_damage +30%, ad_ratio +30%, stun_duration +0.5 s; then consumes all Fury
 ```
 
 ## Data (Resources)
@@ -249,7 +249,7 @@ Methods: `apply_to(unit, source_id)`, `remove_from(unit, source_id)`; virtual `_
 - **HUD implications (notes only; the work belongs to UI.md or its own step):** the bar is red (FURY, since CH3); it starts empty and visibly drains out of combat; a tick mark at the Judgement threshold (60) and a glow while the Knight is at or above it would make the payoff readable; the existing blink on "not enough resource" covers Cleave; R's slot could brighten while the bonus is live.
 
 ### Staggered, Cleave, Judgement (CH4)
-- All data except two script lines: `judgement.gd` reads `stun_duration` with `get_effect_param(caster, &"stun_duration", ctx, target)`, and (if approved) consumes the Fury after its hit when `get_active_bonuses(caster, ctx, target)` includes the Fury bonus and the hit landed (`resource_pool.try_spend(resource_pool.current)`).
+- All data except two script lines: `judgement.gd` reads `stun_duration` with `get_effect_param(caster, &"stun_duration", ctx, target)`, and consumes the Fury after its hit when `get_active_bonuses(caster, ctx, target)` includes the Fury bonus and the hit landed (`resource_pool.try_spend(resource_pool.current)`).
 - Lunge's Staggered rides the hit's statuses (`from_ability()` appends passing bonuses' `target_statuses`), so it's applied after the damage, from the Knight, never to a unit the hit killed, and refused by an untargetable unit (AB10).
 
 ### Heal on hit (CH5)
@@ -293,8 +293,8 @@ Every step: the Knight's abilities, enemies chasing and the HUD still work; buil
    **Done means:** the Knight's AD is 64 at full health, about 82 at 50%, 90 at 30% and below, following health both ways (damage and a heal); every enemy of one swing or Cleave sees the same AD; removing the passive restores every stat exactly; a test passive with a modifier, a rule, a status and an augment attaches and detaches cleanly.
 3. **CH3 – Fury.** `ResourceComponent` (`starts_empty`, decay, combat time), the scoped `resource_on_hit` read in `apply_on_hit()`, `ChampionData.modifiers` and the `resource_*` rhythm fields, the Knight's ChampionData to FURY (and its rhythm), `units/knight.tres` (max 100, regen 0), Cleave's cost 20, `demo_costs` off in `sandbox.tscn`; the stats, abilities and combat tests that pinned 300 mana read the new data instead (DECISIONS, Testing). Built 2026-09-29, see CHANGELOG.md.
    **Done means:** the bar starts empty; each enemy a swing hits adds 8, ability hits add nothing; 3 s after the last hit dealt or taken it drains at 20/s; Cleave below 20 Fury fails with the bar's blink; Lunge, Iron Resolve and Judgement cast from 0.
-4. **CH4 – Staggered, the combo and Judgement's payoff.** `status_staggered.tres` and its marker, Lunge's and Cleave's bonuses, Judgement's Fury bonus, its 0.75 s channel and 30 s cooldown, `judgement.gd` (`stun_duration` through `get_effect_param()`; the Fury consumption if approved).
-   **Done means:** enemies Lunge cuts through show the marker for 2 s; Cleave hits them for +50% (and others normally); Judgement at 60+ Fury stuns 1.25 s and hits 30% harder (and empties the bar, if approved), below 60 it's the plain 0.75 s; tooltips list the bonus lines.
+4. **CH4 – Staggered, the combo and Judgement's payoff.** `status_staggered.tres` and its marker, Lunge's and Cleave's bonuses, Judgement's Fury bonus, its 0.75 s channel and 30 s cooldown, `judgement.gd` (`stun_duration` through `get_effect_param()`; the Fury consumption if approved). Built 2026-09-29, see CHANGELOG.md.
+   **Done means:** enemies Lunge cuts through show the marker for 2 s; Cleave hits them for +50% (and others normally); Judgement at 60+ Fury stuns 1.25 s and hits 30% harder (and empties the bar), below 60 it's the plain 0.75 s; tooltips list the bonus lines.
 5. **CH5 – Cleave's heal on hit.** `Ability.heal_on_hit_ratio`, `HitContext.heal_on_hit_ratio`, `from_ability()` and `apply_on_hit()`, Cleave's ratio and scaling, `curve_knight_cleave_heal.tres`, the effect-start `self_missing_health` read (if approved).
    **Done means:** at full health Cleave heals nothing; at 50% about 8% of its damage per enemy; at 10% about 55%; three enemies heal three times; a killing blow heals; at max health nothing is healed or shown; the heal works with Unbroken without order effects; no other ability heals.
 
@@ -309,13 +309,13 @@ Claude's proposals from the approved plan (written in above as *(proposed)*; Rya
 1. ~~`champion_class` as the field name~~: answered, yes (Ryan, 2026-09-29).
 2. ~~Unbroken: AD only, or armor too~~: answered, AD only (Ryan, 2026-09-29).
 3. ~~Fury per enemy hit or per swing; taking damage~~: answered: +8 per enemy a basic attack hits, and taking damage builds nothing (Ryan, 2026-09-29).
-4. Does the empowered Judgement consume all Fury (proposed: yes), or only read it?
+4. ~~Does the empowered Judgement consume all Fury~~: answered, yes (Ryan, 2026-09-29).
 5. Cleave's heal on overkill: the full `taken_damage` like `life_steal` (proposed), or capped at the health the target actually lost?
 6. Re-read `self_missing_health` at the effect start (proposed: yes; it changes when ABILITIES' built-in input is filled, for every ability), or keep it at cast start?
-7. Does Cleave consume Staggered (proposed: no)?
-8. Cleave Wave (the REPLACE variant): no heal and no Staggered bonus (proposed), or the same as Cleave?
+7. ~~Does Cleave consume Staggered~~: answered, no (Ryan, 2026-09-29).
+8. ~~Cleave Wave: no heal and no Staggered bonus, or the same as Cleave~~: answered, the same as Cleave (Ryan, 2026-09-29).
 9. ~~Champion level kept in memory~~: answered, yes; saving it is PROGRESSION's (Ryan, 2026-09-29).
-10. The Knight's role tags kept as they are, and no Knight ability ignores walls (both proposed)?
+10. ~~The Knight's role tags kept, no Knight ability ignores walls~~: answered, yes to both (Ryan, 2026-09-29).
 
 Still open:
 - The ultimate meter (Hades-style), when a champion first uses one.

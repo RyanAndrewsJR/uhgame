@@ -3,6 +3,14 @@
 [ext_resource type="Script" uid="uid://bu056xl0usviw" path="res://scripts/abilities/knight/lunge.gd" id="1_script"]
 [ext_resource type="Curve" path="res://data/curves/curve_dash.tres" id="2_curve"]
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_lunge_cast.tres" id="s1_cast_sound"]
+[ext_resource type="Script" path="res://scripts/data/conditional_bonus.gd" id="3_bonus"]
+[ext_resource type="Script" path="res://scripts/data/status_effect.gd" id="4_status"]
+[ext_resource type="Resource" path="res://data/statuses/status_staggered.tres" id="5_staggered"]
+
+[sub_resource type="Resource" id="stagger"]
+script = ExtResource("3_bonus")
+target_statuses = Array[ExtResource("4_status")]([ExtResource("5_staggered")])
+description = "Staggers enemies hit for 2s."
 
 [resource]
 script = ExtResource("1_script")
@@ -21,3 +29,4 @@ base_damage = 50.0
 ad_ratio = 0.5
 hit_shake = 2.5
 dash_curve = ExtResource("2_curve")
+conditional_bonuses = Array[ExtResource("3_bonus")]([SubResource("stagger")])

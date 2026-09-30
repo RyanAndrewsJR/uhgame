@@ -5,12 +5,43 @@
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_judgement_cast.tres" id="s1_cast_sound"]
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_judgement_hit.tres" id="s2_hit_sound"]
 [ext_resource type="Resource" path="res://data/sounds/sound_ui_ultimate_ready.tres" id="s3_ready_sound"]
+[ext_resource type="Script" path="res://scripts/data/condition.gd" id="c1_condition"]
+[ext_resource type="Script" path="res://scripts/data/conditional_bonus.gd" id="c2_bonus"]
+[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="c3_modifier"]
 
 [sub_resource type="Resource" id="missing_health"]
 script = ExtResource("2_scaling")
 param = &"target_missing_health_ratio"
 ratio = 0.2
 of = 3
+
+[sub_resource type="Resource" id="fury_60"]
+script = ExtResource("c1_condition")
+kind = 6
+value = 60.0
+
+[sub_resource type="Resource" id="fury_stun"]
+script = ExtResource("c3_modifier")
+stat = &"stun_duration"
+value = 0.5
+
+[sub_resource type="Resource" id="fury_base_damage"]
+script = ExtResource("c3_modifier")
+stat = &"base_damage"
+type = 1
+value = 0.3
+
+[sub_resource type="Resource" id="fury_ad_ratio"]
+script = ExtResource("c3_modifier")
+stat = &"ad_ratio"
+type = 1
+value = 0.3
+
+[sub_resource type="Resource" id="fury_bonus"]
+script = ExtResource("c2_bonus")
+conditions = Array[ExtResource("c1_condition")]([SubResource("fury_60")])
+modifiers = Array[ExtResource("c3_modifier")]([SubResource("fury_stun"), SubResource("fury_base_damage"), SubResource("fury_ad_ratio")])
+description = "At 60+ Fury: +30% damage and +0.5s stun, and it consumes your Fury."
 
 [resource]
 script = ExtResource("1_script")
@@ -21,7 +52,8 @@ description = "Strike an enemy for {damage} physical damage ({base_damage} {rati
 icon_color = Color(1, 0.35, 0.3, 1)
 cast_style = 2
 targeting = 3
-cast_time = 1.5
+cooldown = 30.0
+cast_time = 0.75
 cast_range = 450.0
 cancel_on_move = true
 base_damage = 150.0
@@ -32,3 +64,4 @@ hit_hitstop = 0.09
 cast_sound = ExtResource("s1_cast_sound")
 hit_sound = ExtResource("s2_hit_sound")
 ready_sound = ExtResource("s3_ready_sound")
+conditional_bonuses = Array[ExtResource("c2_bonus")]([SubResource("fury_bonus")])

@@ -11,6 +11,9 @@ extends Node2D
 ## CH3: Fury (the Knight's rhythm and +8 per enemy a basic attack hits in the
 ## data; empty at start, built by swings only, drained 20/s after 3 s out of
 ## combat; Cleave's 20 cost; the other abilities cast from 0).
+## CH4: Staggered (Lunge applies it, its marker, 2 s), Cleave and Cleave Wave
+## +50% against it, Judgement's 60 Fury bonus consumed by its hit, its 0.75 s
+## channel and 30 s cooldown.
 ## Prints PASS/FAIL per check, then a total.
 ## Run headless and it quits with the number of failures as the exit code.
 
@@ -36,6 +39,8 @@ const RULE_EXECUTE: Resource = preload("res://data/reactions/reaction_test_execu
 const AUGMENT_LUNGE_STUNS: Resource = preload("res://data/augments/augment_lunge_stuns.tres")
 const SLIME_SCENE: PackedScene = preload("res://scenes/enemies/slime.tscn")
 const SANDBOX_SCENE: PackedScene = preload("res://scenes/rooms/sandbox.tscn")
+const STAGGERED: StatusEffect = preload("res://data/statuses/status_staggered.tres")
+const CLEAVE_WAVE: Ability = preload("res://data/abilities/knight_q_cleave_wave.tres")
 
 const MANA := ResourceComponent.ResourceType.MANA
 const FURY := ResourceComponent.ResourceType.FURY
@@ -48,7 +53,7 @@ var _next_x: float = 0.0
 
 
 func _ready() -> void:
-	print("\n=== Champions test (CHAMPIONS CH1–CH3) ===")
+	print("\n=== Champions test (CHAMPIONS CH1–CH4) ===")
 	_test_knight_data()
 	await _test_knight_loaded()
 	await _test_no_champion()
@@ -64,6 +69,10 @@ func _ready() -> void:
 	await _test_fury_loaded()
 	await _test_fury_gain_and_decay()
 	await _test_fury_costs()
+	_test_combo_data()
+	await _test_lunge_staggers()
+	await _test_cleave_on_staggered()
+	await _test_judgement_fury()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -413,7 +422,159 @@ func _test_fury_costs() -> void:
 	await _frames(1)
 
 
+func _test_combo_data() -> void:
+	_section("CH4: Staggered, the combo and Judgement's payoff in the data")
+	_check("status_staggered: id, tags staggered + debuff, not cc", [STAGGERED.id, STAGGERED.tags.has(&"staggered"), STAGGERED.tags.has(&"debuff"), STAGGERED.is_cc()], [&"staggered", true, true, false])
+	_check("2 s, REFRESH, a marker VFX", [STAGGERED.duration, STAGGERED.stack_rule, STAGGERED.vfx != null], [2.0, StatusEffect.StackRule.REFRESH, true])
+	var lunge_bonus: ConditionalBonus = LUNGE.conditional_bonuses[0] if LUNGE.conditional_bonuses.size() == 1 else null
+	_check("Lunge: one bonus, no conditions, applies Staggered", [lunge_bonus != null, lunge_bonus.conditions.size() if lunge_bonus else -1, lunge_bonus.target_statuses == [STAGGERED] if lunge_bonus else false], [true, 0, true])
+	for ability: Ability in [CLEAVE, CLEAVE_WAVE]:
+		var b: ConditionalBonus = ability.conditional_bonuses[0] if ability.conditional_bonuses.size() == 1 else null
+		var c: Condition = b.conditions[0] if b and b.conditions.size() == 1 else null
+		_check("%s: TARGET_HAS_STATUS staggered -> base_damage and ad_ratio +50%%" % ability.display_name,
+			[c != null and c.kind == Condition.Kind.TARGET_HAS_STATUS and c.status_tag == &"staggered", _bonus_mods(b)],
+			[true, [[&"base_damage", StatModifier.Type.PERCENT_ADD, 0.5], [&"ad_ratio", StatModifier.Type.PERCENT_ADD, 0.5]]])
+	var jb: ConditionalBonus = JUDGEMENT.conditional_bonuses[0] if JUDGEMENT.conditional_bonuses.size() == 1 else null
+	var jc: Condition = jb.conditions[0] if jb and jb.conditions.size() == 1 else null
+	_check("Judgement: RESOURCE_AT_LEAST 60 -> stun +0.5 s, base_damage and ad_ratio +30%",
+		[jc != null and jc.kind == Condition.Kind.RESOURCE_AT_LEAST and is_equal_approx(jc.value, 60.0), _bonus_mods(jb)],
+		[true, [[&"stun_duration", StatModifier.Type.FLAT, 0.5], [&"base_damage", StatModifier.Type.PERCENT_ADD, 0.3], [&"ad_ratio", StatModifier.Type.PERCENT_ADD, 0.3]]])
+	_check("Judgement: 0.75 s channel, 30 s cooldown, 0.75 s stun, consumes Fury", [JUDGEMENT.cast_time, JUDGEMENT.cooldown, JUDGEMENT.get("stun_duration"), JUDGEMENT.get("consume_resource_on_bonus")], [0.75, 30.0, 0.75, true])
+
+
+func _test_lunge_staggers() -> void:
+	_section("CH4: Lunge staggers every enemy it cuts through")
+	var k := await _spawn()
+	var on_path := [_dummy(k.global_position + Vector2(60, 0)), _dummy(k.global_position + Vector2(100, 4))]
+	var off_path := _dummy(k.global_position + Vector2(60, 90))
+	await _frames(1)
+	k.abilities.try_cast(&"e", k.global_position + Vector2(125, 0))
+	await _wait_until(func() -> bool: return not k.abilities.casting, 60)
+	var staggered := on_path.map(func(d: Enemy) -> bool: return d.status_component.has_status(&"staggered"))
+	_check("both enemies on the path are Staggered", staggered, [true, true])
+	_check("the one off the path isn't", off_path.status_component.has_status(&"staggered"), false)
+	_check_near("for 2 s", on_path[0].status_component.get_time_left(&"staggered"), 2.0, 0.1)
+	_check("it shows the marker", _has_child_with_script(on_path[0], "staggered_mark.gd"), true)
+	_check("from the Knight", on_path[0].status_component.get_source(&"staggered") == k, true)
+	await _wait_until(func() -> bool: return not on_path[0].status_component.has_status(&"staggered"), 150)
+	_check("it runs out, and the marker goes with it", [on_path[0].status_component.has_status(&"staggered"), _has_child_with_script(on_path[0], "staggered_mark.gd")], [false, false])
+	for d: Enemy in on_path + [off_path]:
+		d.queue_free()
+	k.queue_free()
+	await _frames(1)
+
+
+func _test_cleave_on_staggered() -> void:
+	_section("CH4: Cleave hits Staggered enemies 50% harder")
+	var k := await _spawn()
+	_no_crits(k)
+	var plain := _dummy(k.global_position + Vector2(40, -14))
+	var marked := _dummy(k.global_position + Vector2(40, 14))
+	await _frames(1)
+	marked.status_component.apply_status(STAGGERED, k)
+	var damage := {}
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == k and ctx.ability == CLEAVE and not ctx.blocked:
+			damage[ctx.target] = ctx.taken_damage
+	Events.unit_hit.connect(on_hit)
+	k.resource_pool.restore(20.0)
+	k.abilities.try_cast(&"q", k.global_position + Vector2(40, 0))
+	await _wait_until(func() -> bool: return damage.size() >= 2, 60)
+	Events.unit_hit.disconnect(on_hit)
+	var ratio: float = damage.get(marked, 0.0) / damage.get(plain, 1.0) if damage.has(plain) else 0.0
+	_check("both hit", damage.size(), 2)
+	_check_near("the Staggered one takes x1.5 (80 + 70% AD, both +50%)", ratio, 1.5, 0.001)
+	_check("Cleave doesn't consume Staggered", marked.status_component.has_status(&"staggered"), true)
+	_check("the tooltips list the bonus lines", [CLEAVE.get_tooltip_plain(k).contains("+50% damage to Staggered enemies."), LUNGE.get_tooltip_plain(k).contains("Staggers enemies hit for 2s."), JUDGEMENT.get_tooltip_plain(k).contains("At 60+ Fury: +30% damage and +0.5s stun, and it consumes your Fury.")], [true, true, true])
+	plain.queue_free()
+	marked.queue_free()
+	k.queue_free()
+	await _frames(1)
+
+
+func _test_judgement_fury() -> void:
+	_section("CH4: Judgement at 60+ Fury hits harder, stuns longer and consumes the Fury")
+	var results := []
+	for fury: float in [59.0, 70.0]:
+		var k := await _spawn()
+		_no_crits(k)
+		k.resource_pool.decay_per_second = 0.0   # hold the Fury through the channel (decay is checked below)
+		var dummy := _dummy(k.global_position + Vector2(60, 0))
+		await _frames(1)
+		k.resource_pool.restore(fury)
+		var hit := {}
+		var on_hit := func(ctx: HitContext) -> void:
+			if ctx.source == k and ctx.ability == JUDGEMENT and not ctx.blocked:
+				hit["damage"] = ctx.taken_damage
+				hit["stun"] = dummy.status_component.get_time_left(&"stun")
+		Events.unit_hit.connect(on_hit)
+		await _wait_until(func() -> bool: return not GameFeel.is_hitstop_active(), 120)   # real-time hitstop slows game time
+		var started := Engine.get_physics_frames()
+		k.abilities.try_cast(&"r", dummy.global_position, dummy)
+		await _wait_until(func() -> bool: return hit.has("damage"), 90)
+		var frames := Engine.get_physics_frames() - started
+		Events.unit_hit.disconnect(on_hit)
+		results.append([hit.get("damage", 0.0), hit.get("stun", 0.0), k.resource_pool.current, frames, k.abilities.get_cooldown_left(&"r")])
+		dummy.queue_free()
+		k.queue_free()
+		await _frames(1)
+	var low: Array = results[0]
+	var high: Array = results[1]
+	_check_near("59 Fury: the plain 0.75 s stun", low[1], 0.75, 0.05)
+	_check("59 Fury: nothing consumed", low[2], 59.0)
+	_check_near("70 Fury: a 1.25 s stun", high[1], 1.25, 0.05)
+	_check_near("70 Fury: x1.3 damage (150 + 100% AD, both +30%; the dummy at full health)", high[0] / low[0] if low[0] > 0.0 else 0.0, 1.3, 0.001)
+	_check("70 Fury: all of it consumed by the hit", high[2], 0.0)
+	_check("the 0.75 s channel (45 ticks): the hit 44 or 45 frames after the press (which one: where in the frame it lands, the AB14 checks)", low[3] == 44 or low[3] == 45, true)
+	_check_near("the 30 s cooldown started", high[4], 30.0, 1.0)
+
+	# Out of combat the Fury decays during the channel: 60 at the press is below 60 at the hit.
+	var k2 := await _spawn()
+	_no_crits(k2)
+	var d2 := _dummy(k2.global_position + Vector2(60, 0))
+	await _frames(1)
+	k2.resource_pool.restore(60.0)
+	var stun := [0.0]
+	var on_hit2 := func(ctx: HitContext) -> void:
+		if ctx.source == k2 and ctx.ability == JUDGEMENT and not ctx.blocked:
+			stun[0] = d2.status_component.get_time_left(&"stun")
+	Events.unit_hit.connect(on_hit2)
+	k2.abilities.try_cast(&"r", d2.global_position, d2)
+	await _wait_until(func() -> bool: return stun[0] > 0.0, 90)
+	Events.unit_hit.disconnect(on_hit2)
+	_check_near("60 at the press, decayed below 60 by the hit: no bonus (checked at the effect)", stun[0], 0.75, 0.05)
+	_check("and nothing consumed beyond the decay", k2.resource_pool.current > 40.0, true)
+	d2.queue_free()
+	k2.queue_free()
+	await _frames(1)
+
+
 # --- Helpers ------------------------------------------------------------------
+
+## A bonus's modifiers as [stat, type, value] (for data checks).
+func _bonus_mods(b: ConditionalBonus) -> Array:
+	var out := []
+	if b == null:
+		return out
+	for m in b.modifiers:
+		out.append([m.stat, m.type, snappedf(m.value, 0.001)])
+	return out
+
+
+## The Knight's own crit chance cancelled (exact damage checks).
+func _no_crits(p: Player) -> void:
+	var base := p.stats_component.get_base_value(&"crit_chance")
+	if base != 0.0:
+		p.stats_component.add_modifier(StatModifier.create(&"crit_chance", StatModifier.Type.FLAT, -base, &"test_baseline"))
+
+
+func _has_child_with_script(node: Node, script_file: String) -> bool:
+	for c in node.get_children():
+		var s: Script = c.get_script()
+		if s != null and s.resource_path.ends_with(script_file) and not c.is_queued_for_deletion():
+			return true
+	return false
+
 
 ## A passive slime (a training dummy) at `pos`.
 func _dummy(pos: Vector2) -> Enemy:

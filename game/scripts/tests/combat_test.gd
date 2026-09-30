@@ -122,6 +122,10 @@ func _zero_knight_extras() -> void:
 			knight.stats_component.add_modifier(StatModifier.create(stat, FLAT, -base, BASELINE_SOURCE))
 	if knight.champion != null and knight.champion.passive != null:
 		knight.champion.passive.remove_from(knight, knight.champion.get_passive_source_id())
+	# No Fury from swings (CHAMPIONS CH3), so Judgement never reaches its 60 Fury
+	# bonus (CH4) and hits as the plain checks expect.
+	if knight.champion != null:
+		knight.stats_component.remove_modifiers_from(knight.champion.get_champion_source_id())
 	# Cleave's own 20 fury cost (CHAMPIONS CH3) cancelled: the Knight starts at 0.
 	if CLEAVE.resource_cost > 0.0:
 		knight.stats_component.add_modifier(StatModifier.create(&"resource_cost", FLAT, -CLEAVE.resource_cost, BASELINE_SOURCE, &"ability:knight_cleave"))
@@ -1887,7 +1891,9 @@ func _test_c8_on_hit() -> void:
 	_check("5 resource on hit: +5 mana", knight.resource_pool.current - mana, 5.0)
 	stats.remove_modifiers_from(&"test_c8")
 	knight.health.heal(10000.0)
-	knight.resource_pool.restore(1000.0)
+	# Back to an empty pool (the Knight's Fury starts at 0, CHAMPIONS CH3), so
+	# Judgement later stays below its 60 Fury bonus (CH4).
+	knight.resource_pool.try_spend(knight.resource_pool.current)
 
 	# The player hit by an enemy with on-hit damage: the proc isn't blocked by
 	# the i-frames its own hit starts, and it starts none of its own.

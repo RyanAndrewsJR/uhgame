@@ -2,6 +2,32 @@
 
 [ext_resource type="Script" path="res://scripts/abilities/knight/cleave_wave.gd" id="1_script"]
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_cleave_cast.tres" id="s1_cast_sound"]
+[ext_resource type="Script" path="res://scripts/data/condition.gd" id="c1_condition"]
+[ext_resource type="Script" path="res://scripts/data/conditional_bonus.gd" id="c2_bonus"]
+[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="c3_modifier"]
+
+[sub_resource type="Resource" id="staggered_target"]
+script = ExtResource("c1_condition")
+kind = 1
+status_tag = &"staggered"
+
+[sub_resource type="Resource" id="staggered_base_damage"]
+script = ExtResource("c3_modifier")
+stat = &"base_damage"
+type = 1
+value = 0.5
+
+[sub_resource type="Resource" id="staggered_ad_ratio"]
+script = ExtResource("c3_modifier")
+stat = &"ad_ratio"
+type = 1
+value = 0.5
+
+[sub_resource type="Resource" id="staggered_bonus"]
+script = ExtResource("c2_bonus")
+conditions = Array[ExtResource("c1_condition")]([SubResource("staggered_target")])
+modifiers = Array[ExtResource("c3_modifier")]([SubResource("staggered_base_damage"), SubResource("staggered_ad_ratio")])
+description = "+50% damage to Staggered enemies."
 
 [resource]
 script = ExtResource("1_script")
@@ -20,3 +46,4 @@ ad_ratio = 0.7
 projectile_speed = 900.0
 projectile_width = 150.0
 projectile_pierce = 20
+conditional_bonuses = Array[ExtResource("c2_bonus")]([SubResource("staggered_bonus")])

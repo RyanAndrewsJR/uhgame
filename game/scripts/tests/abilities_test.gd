@@ -492,13 +492,13 @@ func _test_scalings() -> void:
 
 func _test_tooltips() -> void:
 	_section("AB2: tooltips from the description template")
-	_check("Cleave (and its 80 base, not the old 70)", CLEAVE.get_tooltip_plain(knight),
+	_check("Cleave (and its 80 base, not the old 70)", _template_line(CLEAVE.get_tooltip_plain(knight)),
 		"Sweep your sword in a wide arc in front of you, dealing 125 physical damage (80 +70% AD) and knocking enemies back.")
 	_check("Iron Resolve (percents with {x%})", IRON_RESOLVE.get_tooltip_plain(knight),
 		"Gain 35% movement speed for 2s. Your next attack within 4s deals 82 (50 +50% AD) bonus damage and slows the target by 40% for 1.5s.")
-	_check("Lunge ({range})", LUNGE.get_tooltip_plain(knight),
+	_check("Lunge ({range})", _template_line(LUNGE.get_tooltip_plain(knight)),
 		"Dash up to 400 units toward the target spot, passing through units and dealing 82 physical damage (50 +50% AD) to every enemy you cut through.")
-	_check("Judgement (the target term as text)", JUDGEMENT.get_tooltip_plain(knight),
+	_check("Judgement (the target term as text)", _template_line(JUDGEMENT.get_tooltip_plain(knight)),
 		"Strike an enemy for 214 physical damage (150 +100% AD +20% of the target's missing health), and stun it for 0.75s. Channel: moving cancels it. Walks into range if needed.")
 	_check("the slam, without a caster", SLAM.get_tooltip_plain(null),
 		"Marks a 72 px circle where the target stands, fills it over 0.65 s, then slams: 100 physical damage and a 20 px push to everyone inside.")
@@ -512,6 +512,7 @@ func _test_tooltips() -> void:
 	knight.stats_component.add_modifier(StatModifier.create(&"ability_haste", StatModifier.Type.FLAT, 100.0, src))
 	knight.stats_component.add_modifier(StatModifier.create(&"ad_ratio", StatModifier.Type.FLAT, 0.1, src, &"ability:knight_cleave"))
 	var probe: Ability = CLEAVE.duplicate()
+	probe.conditional_bonuses = []   # only the template (CH4 gave Cleave a bonus line)
 	probe.description = "cd {cooldown} range {range} cast {cast_time}"
 	_check("with +36 AD and +10% AD scoped: 80 + 80% of 100 = 160, the ratio shows 80%",
 		CLEAVE.get_tooltip_plain(knight).contains("dealing 160 physical damage (80 +80% AD)"), true)
@@ -575,6 +576,7 @@ func _test_costs() -> void:
 	_check("scoped costs: Cleave 40, Lunge 50, Judgement 80",
 		[knight.abilities.get_cost(CLEAVE), knight.abilities.get_cost(LUNGE), knight.abilities.get_cost(JUDGEMENT)], [40.0, 50.0, 80.0])
 	var probe: Ability = CLEAVE.duplicate()
+	probe.conditional_bonuses = []   # only the template (CH4 gave Cleave a bonus line)
 	probe.description = "costs {cost}"
 	_check("{cost} in a tooltip", probe.get_tooltip_plain(knight), "costs 40")
 
@@ -2771,6 +2773,7 @@ func _test_ab11_judgement() -> void:
 	var missing := dummy.health.max_health - dummy.health.current
 	_shakes.clear()
 	ab.reset_cooldown(&"r")
+	_below_fury_bonus()
 	ab.try_cast(&"r", dummy.global_position, dummy)
 	var saw_hitstop := await _cast_over_saw_hitstop()
 	var dsc := dummy.status_component
@@ -2788,12 +2791,14 @@ func _test_ab11_judgement() -> void:
 	_shakes.clear()
 	hits.clear()
 	ab.reset_cooldown(&"r")
+	_below_fury_bonus()
 	ab.try_cast(&"r", dummy.global_position, dummy)
 	await _frames(30)
 	dummy.add_invulnerability(&"test")
 	var blocked_hitstop := await _cast_over_saw_hitstop()
 	dummy.remove_invulnerability(&"test")
 	_check("a blocked Judgement: no stun, no shake, no hitstop", [dsc.has_status(&"stun"), _shakes, blocked_hitstop], [false, [], false])
+	knight.resource_pool.restore(1000.0)   # back to the full test pool
 
 	Events.unit_hit.disconnect(on_hit)
 	dummy.queue_free()
@@ -4065,9 +4070,22 @@ func _wall_at(pos: Vector2, size: Vector2) -> StaticBody2D:
 	return wall
 
 
+## The test pool emptied, so Judgement's 60 Fury bonus (CHAMPIONS CH4) doesn't
+## pass: these checks test the plain Judgement; the champions test covers the
+## bonus. The pool's 6/s regen can't reach 60 within a check.
+func _below_fury_bonus() -> void:
+	knight.resource_pool.try_spend(knight.resource_pool.current)
+
+
+## A tooltip's template line, without the bonus and augment lines after it.
+func _template_line(tooltip: String) -> String:
+	return tooltip.get_slice("\n", 0)
+
+
 func _with_description(ability: Ability, text: String) -> Ability:
 	var copy: Ability = ability.duplicate()
 	copy.description = text
+	copy.conditional_bonuses = []   # only the template (CH4 gave Cleave a bonus line)
 	return copy
 
 
@@ -4259,10 +4277,12 @@ func _test_ab14_progress() -> void:
 	Events.ability_cast.connect(on_cast)
 
 	await _ab14_no_hitstop()
-	ab.try_cast(&"r", dummy.global_position, dummy)   # Judgement: 1.5 s = 90 frames
+	ab.try_cast(&"r", dummy.global_position, dummy)   # Judgement: 0.75 s = 45 frames (CH4)
 	_check("Judgement's cast starts at progress 0", [ctxs.size(), ctxs[0].progress if not ctxs.is_empty() else -1.0, ab.get_cast_progress()], [1, 0.0, 0.0])
-	await _frames(45)
-	_check_near("45 of its 90 frames in: progress 0.5", ab.get_cast_progress(), 0.5, 0.001)
+	var total := _ab14_timer_ticks(JUDGEMENT.cast_time)
+	var part := total / 3
+	await _frames(part)
+	_check_near("%d of its %d frames in: progress %d / %d" % [part, total, part, total], ab.get_cast_progress(), float(part) / total, 0.001)
 	_check("the cast's context carries the same progress", not ctxs.is_empty() and ctxs[0].progress == ab.get_cast_progress(), true)
 	await _wait_until(func() -> bool: return not at_effect.is_empty(), 60)
 	_check("the effect starts at progress 1", at_effect.size() == 1 and at_effect[0] == 1.0, true)
