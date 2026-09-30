@@ -8,6 +8,8 @@ extends Node2D
 ## hit area exactly. Placed on the room's floor, under every unit. A line
 ## (ABILITIES AB13, VECTOR casts) is a band from its start whose fill grows
 ## along its length.
+## A telegraph that belongs to a cast fills with the cast's progress
+## (set_progress(), ABILITIES AB14); one without a cast uses its own clock.
 
 ## One consistent enemy-threat color (COMBAT.md, FREE which).
 const THREAT_COLOR := Color(1.0, 0.35, 0.15)
@@ -25,6 +27,11 @@ var _elapsed: float = 0.0
 var _sound_handle: int = 0
 var _finishing: bool = false
 var _flash: float = 0.0
+## ABILITIES AB14: set_progress() drives the fill (the cast's progress) and
+## the telegraph's own clock is ignored from then on.
+var _driven: bool = false
+var _driven_before: float = 0.0   # the progress one physics tick ago
+var _driven_now: float = 0.0      # the progress this physics tick
 
 
 ## A circle telegraph centered on `center` (world space) that fills over
@@ -83,8 +90,36 @@ func finish() -> void:
 	queue_redraw()
 
 
-## 0..1: how full the telegraph is.
+## Fills the telegraph to `p` (0-1), the progress of the cast it belongs to
+## (ABILITIES AB14; AbilityComponent calls it each physics tick of the cast
+## time). From the first call the telegraph's own clock (`duration`) is
+## ignored, so it stays in step with the cast whatever the cast speed. It's
+## drawn between the last two ticks (physics interpolation), so it fills
+## smoothly on any refresh rate.
+func set_progress(p: float) -> void:
+	p = clampf(p, 0.0, 1.0)
+	if not _driven:
+		_driven = true
+		_driven_before = p
+	else:
+		_driven_before = _driven_now
+	_driven_now = p
+	queue_redraw()
+
+
+## True once set_progress() drives it (it belongs to a cast).
+func is_driven() -> bool:
+	return _driven
+
+
+## 0..1: how full the telegraph is: its cast's progress when driven
+## (set_progress(); read during a physics frame it's the exact value, while
+## drawing it's interpolated between the last two ticks), else its own clock.
 func get_progress() -> float:
+	if _driven:
+		if Engine.is_in_physics_frame():
+			return _driven_now
+		return clampf(lerpf(_driven_before, _driven_now, Engine.get_physics_interpolation_fraction()), 0.0, 1.0)
 	return clampf(_elapsed / duration, 0.0, 1.0)
 
 
@@ -93,7 +128,7 @@ func _process(delta: float) -> void:
 		_flash -= delta
 		if _flash <= 0.0:
 			queue_free()
-	else:
+	elif not _driven:
 		_elapsed += delta
 	queue_redraw()
 

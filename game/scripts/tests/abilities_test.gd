@@ -47,6 +47,13 @@ extends Node2D
 ## Cleanup pass (2026-09-29): the enemy AI skipping a slot that fails its
 ## condition; a conditional bonus widening and lengthening a VECTOR line
 ## (get_effect_param()).
+## AB14: the regression check (every cast's effect on the same physics frame
+## with cast progress as with the old timer, a cast started before, inside
+## and between physics frames, a cast chained from another's end); cast
+## progress and the cast speed; telegraphs following their cast; the
+## presentation hooks empty (nothing happens) and filled (a test hook scene:
+## cast, impact, projectile, free cast, swing; blocked hits skipped); cast_anim
+## and swing_anim positioned by progress, stopped by a cancel.
 ## The Knight's own crit_chance and life_steal are held at 0 by a test
 ## baseline, so damage checks are exact.
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
@@ -82,7 +89,21 @@ const AUG_CLEAVE_WAVE: AbilityAugment = preload("res://data/augments/augment_cle
 const AUG_JUDGEMENT_RESET: AbilityAugment = preload("res://data/augments/augment_judgement_reset.tres")
 const AUG_CLEAVE_CASTS_LUNGE: AbilityAugment = preload("res://data/augments/augment_cleave_casts_lunge.tres")
 const SANDBOX_AUGMENTS: Script = preload("res://scripts/rooms/sandbox_augments.gd")
+const HOOK_PROBE: Script = preload("res://scripts/tests/hook_vfx_probe.gd")
+const COMBO_KNIGHT: AttackCombo = preload("res://data/combos/combo_knight.tres")
 const ARENA := Vector2(-2000, 0)
+
+
+## Runs `fn` once from its own _physics_process (AB14: a cast started in the
+## node pass, after the units' components have run this frame).
+class PhysicsCaller extends Node:
+	var fn: Callable
+
+	func _physics_process(_delta: float) -> void:
+		if fn.is_valid():
+			var f := fn
+			fn = Callable()
+			f.call()
 
 var knight: Player
 
@@ -186,6 +207,14 @@ func _ready() -> void:
 	await _test_abm_judgement_reset()
 	await _test_abm_cleave_casts_lunge()
 	await _test_abm_playground()
+	print("\n=== Abilities test (ABILITIES AB14) ===")
+	await _test_ab14_regression()
+	await _test_ab14_chained_cast()
+	await _test_ab14_progress()
+	await _test_ab14_telegraph()
+	await _test_ab14_hooks_empty()
+	await _test_ab14_hooks_fire()
+	await _test_ab14_anims()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).
@@ -4044,6 +4073,533 @@ func _add_costs(costs: Dictionary) -> void:
 	for id: StringName in costs:
 		knight.stats_component.add_modifier(StatModifier.create(&"resource_cost",
 			StatModifier.Type.FLAT, costs[id], COST_SOURCE, StringName("ability:" + id)))
+
+
+# --- AB14 -----------------------------------------------------------------------
+
+## How many physics frames after `start` runs its caster's next effect starts
+## (Events.ability_cast). `phase` is where in a frame `start` runs: "physics"
+## (the physics_frame signal, before every node's physics), "node" (a node's
+## _physics_process after the units' own), "idle" (between physics frames,
+## like an input event). -1 if nothing started within 240 frames.
+func _ab14_effect_frames(start: Callable, caster: Unit, phase: String) -> int:
+	var fired: Array[int] = [-1]
+	var started: Array[int] = [-1]
+	var on_cast := func(u: Unit, _a: Ability, _c: CastContext) -> void:
+		if u == caster and fired[0] < 0 and started[0] >= 0:
+			fired[0] = Engine.get_physics_frames()
+	var run := func() -> void:
+		started[0] = Engine.get_physics_frames()
+		start.call()
+	await _ab14_no_hitstop()   # a hitstop left from the last cast would slow this one (real-time, so not repeatable)
+	Events.ability_cast.connect(on_cast)
+	match phase:
+		"node":
+			var caller := PhysicsCaller.new()
+			caller.fn = run
+			add_child(caller)   # the last child: its physics runs after the units'
+			await _wait_until(func() -> bool: return started[0] >= 0, 10)
+			caller.queue_free()
+		"idle":
+			await get_tree().process_frame
+			run.call()
+		_:
+			await get_tree().physics_frame
+			run.call()
+	await _wait_until(func() -> bool: return fired[0] >= 0, 240)
+	Events.ability_cast.disconnect(on_cast)
+	return fired[0] - started[0] if fired[0] >= 0 else -1
+
+
+## Waits until no hitstop is running (GameFeel's is timed in real time).
+func _ab14_no_hitstop() -> void:
+	await _wait_until(func() -> bool: return not GameFeel.is_hitstop_active(), 120)
+
+
+## The regression check for one cast: measured with use_cast_progress off
+## (the old timer), then on, after `prepare` (a coroutine) each time, for
+## each phase; the effect must land the same number of frames after the cast.
+func _ab14_same_frame(label: String, caster: Unit, prepare: Callable, start: Callable, phases: Array[String] = ["physics"]) -> void:
+	var where := {"physics": "at a frame's start", "node": "in the node pass", "idle": "between frames"}
+	for phase in phases:
+		var frames: Array[int] = []
+		for on: bool in [false, true]:
+			caster.abilities.use_cast_progress = on
+			await prepare.call()
+			frames.append(await _ab14_effect_frames(start, caster, phase))
+		caster.abilities.use_cast_progress = true
+		_check("%s, cast %s: the effect %d frames later with cast progress, %d with the old timer" % [label, where[phase], frames[1], frames[0]],
+			[frames[1], frames[0] >= 0], [frames[0], true])
+
+
+func _test_ab14_regression() -> void:
+	_section("AB14: the regression check: every cast's effect on the same physics frame as with the old timer")
+	var ab := knight.abilities
+	var original_q := ab.q
+	var dummies: Array[Enemy] = []
+	var fresh_dummy := func() -> void:
+		for d in dummies:
+			if is_instance_valid(d):
+				d.queue_free()
+		dummies.clear()
+		dummies.append(_dummy_at(Vector2(60, 0)))
+	var make_ready := func(slot: StringName) -> void:   # the Knight back in place, the slot castable, a fresh dummy
+		await _reset_knight()
+		ab.reset_cooldown(slot)
+		fresh_dummy.call()
+		await _frames(1)
+	var in_front := func() -> Vector2: return knight.global_position + Vector2(60, 0)
+
+	var cleave := func() -> void: ab.try_cast(&"q", in_front.call())
+	await _ab14_same_frame("Cleave (0.2 s)", knight, make_ready.bind(&"q"), cleave, ["physics", "node", "idle"])
+	var lunge := func() -> void: ab.try_cast(&"e", knight.global_position + Vector2(100, 0))
+	await _ab14_same_frame("Lunge (0.05 s)", knight, make_ready.bind(&"e"), lunge)
+	var iron := func() -> void: ab.try_cast(&"w", knight.global_position)
+	await _ab14_same_frame("Iron Resolve (0 s)", knight, make_ready.bind(&"w"), iron)
+	var judgement := func() -> void: ab.try_cast(&"r", dummies[0].global_position, dummies[0])
+	await _ab14_same_frame("Judgement (1.5 s channel)", knight, make_ready.bind(&"r"), judgement, ["physics", "node"])
+
+	ab.q = CHARGED_LINE
+	var charged := func() -> void:
+		ab.try_start_charge(&"q", in_front.call())
+		ab.release_charge(in_front.call())
+	await _ab14_same_frame("the test Charged Line's release windup (0.3 s)", knight, make_ready.bind(&"q"), charged)
+	ab.q = VECTOR_LINE
+	var vector := func() -> void:
+		ab.try_start_charge(&"q", in_front.call())
+		ab.release_charge(knight.global_position + Vector2(60, 60))
+	await _ab14_same_frame("the test vector line's release windup (0.2 s)", knight, make_ready.bind(&"q"), vector)
+	ab.q = MARK_STRIKE
+	var mark_ready := func() -> void:   # part 0 marks the dummy; then part 1 is measured
+		await make_ready.call(&"q")
+		ab.try_cast(&"q", dummies[0].global_position)
+		await _wait_until(func() -> bool: return ab.get_recast_part(&"q") == 1 and not ab.casting, 60)
+	var mark := func() -> void: ab.try_cast(&"q", dummies[0].global_position)
+	await _ab14_same_frame("the test Mark Strike's recast part (0.1 s)", knight, mark_ready, mark)
+	ab.q = original_q
+
+	var elite: Enemy = ELITE_SCENE.instantiate()
+	elite.passive = true
+	add_child(elite)
+	elite.abilities.w = VECTOR_WALL
+	var elite_ready := func(slot: StringName) -> void:
+		await _reset_knight()
+		_place(elite, knight.global_position + Vector2(60, 0))
+		elite.abilities.reset_cooldown(slot)
+		await _frames(1)
+	var slam := func() -> void: elite.abilities.try_cast(&"q", knight.global_position, knight)
+	await _ab14_same_frame("the elite's slam (0.65 s)", elite, elite_ready.bind(&"q"), slam, ["physics", "node", "idle"])
+	var wall := func() -> void: elite.abilities.try_cast_vector(&"w", knight.global_position + Vector2(0, -80), Vector2.DOWN)
+	await _ab14_same_frame("the test vector wall on the elite (0.7 s)", elite, elite_ready.bind(&"w"), wall)
+	elite.queue_free()
+	for d in dummies:
+		if is_instance_valid(d):
+			d.queue_free()
+	await _reset_knight()
+
+
+func _test_ab14_chained_cast() -> void:
+	_section("AB14: a cast started by another cast's end keeps its frame")
+	var ab := knight.abilities
+	var frames: Array[int] = []
+	for on: bool in [false, true]:
+		ab.use_cast_progress = on
+		await _reset_knight()
+		ab.reset_cooldown(&"q")
+		ab.reset_cooldown(&"e")
+		await _ab14_no_hitstop()
+		await _frames(1)
+		var at: Array[int] = [-1, -1]
+		var chain := func(slot: StringName, _a: Ability) -> void:
+			if slot == &"q" and at[0] < 0:
+				at[0] = Engine.get_physics_frames()
+				ab.try_cast(&"e", knight.global_position + Vector2(100, 0))   # like a buffered press firing at the cast's end
+		var on_cast := func(u: Unit, a: Ability, _c: CastContext) -> void:
+			if u == knight and a == LUNGE and at[0] >= 0 and at[1] < 0:
+				at[1] = Engine.get_physics_frames()
+		ab.cast_finished.connect(chain)
+		Events.ability_cast.connect(on_cast)
+		ab.try_cast(&"q", knight.global_position + Vector2(60, 0))
+		await _wait_until(func() -> bool: return at[1] >= 0, 120)
+		ab.cast_finished.disconnect(chain)
+		Events.ability_cast.disconnect(on_cast)
+		frames.append(at[1] - at[0] if at[1] >= 0 else -1)
+	ab.use_cast_progress = true
+	_check("Lunge started in Cleave's cast_finished: its effect %d frames after with cast progress, %d with the old timer" % [frames[1], frames[0]],
+		[frames[1], frames[0] >= 0], [frames[0], true])
+	await _reset_knight()
+
+
+func _test_ab14_progress() -> void:
+	_section("AB14: cast progress and the cast speed")
+	await _reset_knight()
+	var ab := knight.abilities
+	var fresh := AbilityComponent.new()
+	_check("use_cast_progress is on by default", fresh.use_cast_progress, true)
+	fresh.free()
+	_check("get_cast_speed() is 1.0 (hardcoded: the slot for a future cast-speed stat)", ab.get_cast_speed(JUDGEMENT), 1.0)
+	_check("nothing casting: progress 0", ab.get_cast_progress(), 0.0)
+	ab.reset_cooldown(&"r")
+	ab.reset_cooldown(&"w")
+	var dummy := _dummy_at(Vector2(60, 0))
+	await _frames(1)
+	var ctxs: Array[CastContext] = []
+	var grab := func(_s: StringName, _a: Ability, c: CastContext) -> void: ctxs.append(c)
+	var at_effect: Array[float] = []
+	var on_cast := func(u: Unit, _a: Ability, c: CastContext) -> void:
+		if u == knight:
+			at_effect.append(c.progress)
+	ab.cast_started.connect(grab)
+	Events.ability_cast.connect(on_cast)
+
+	await _ab14_no_hitstop()
+	ab.try_cast(&"r", dummy.global_position, dummy)   # Judgement: 1.5 s = 90 frames
+	_check("Judgement's cast starts at progress 0", [ctxs.size(), ctxs[0].progress if not ctxs.is_empty() else -1.0, ab.get_cast_progress()], [1, 0.0, 0.0])
+	await _frames(45)
+	_check_near("45 of its 90 frames in: progress 0.5", ab.get_cast_progress(), 0.5, 0.001)
+	_check("the cast's context carries the same progress", not ctxs.is_empty() and ctxs[0].progress == ab.get_cast_progress(), true)
+	await _wait_until(func() -> bool: return not at_effect.is_empty(), 60)
+	_check("the effect starts at progress 1", at_effect.size() == 1 and at_effect[0] == 1.0, true)
+	await _frames(1)
+	_check("done: get_cast_progress() back to 0", ab.get_cast_progress(), 0.0)
+
+	at_effect.clear()
+	ctxs.clear()
+	ab.try_cast(&"w", knight.global_position)   # Iron Resolve: no cast time
+	_check("a cast with no cast time: progress 1 at once",
+		[ctxs.size(), ctxs[0].progress if not ctxs.is_empty() else -1.0, at_effect.size(), at_effect[0] if not at_effect.is_empty() else -1.0], [1, 1.0, 1, 1.0])
+	at_effect.clear()
+	ab.try_cast_free(LUNGE, knight.global_position + Vector2(40, 0), null, &"test_ab14")
+	_check("a free cast: progress 1", at_effect.size() == 1 and at_effect[0] == 1.0, true)
+	ab.cast_started.disconnect(grab)
+	Events.ability_cast.disconnect(on_cast)
+
+	await _reset_knight()
+	var original_q := ab.q
+	ab.q = CHARGED_LINE
+	ab.reset_cooldown(&"q")
+	ab.try_start_charge(&"q", knight.global_position + Vector2(80, 0))
+	await _frames(5)
+	_check("holding a charge-up: no cast progress yet (its cast starts at release)", [ab.is_charging(), ab.get_cast_progress()], [true, 0.0])
+	await _ab14_no_hitstop()
+	ab.release_charge(knight.global_position + Vector2(80, 0))
+	await _frames(9)
+	_check_near("its release windup: 9 of 18 frames in, progress 0.5", ab.get_cast_progress(), 0.5, 0.001)
+	ab.try_cancel_charge()
+	_check("Esc in the windup: cancelled, progress 0", [ab.casting, ab.get_cast_progress()], [false, 0.0])
+	ab.q = original_q
+	dummy.queue_free()
+	await _reset_knight()
+
+
+func _test_ab14_telegraph() -> void:
+	_section("AB14: a telegraph that belongs to a cast fills with its progress")
+	await _reset_knight()
+	var elite: Enemy = ELITE_SCENE.instantiate()
+	elite.passive = true
+	add_child(elite)
+	_place(elite, knight.global_position + Vector2(60, 0))
+	await _frames(1)
+	var at_hit: Array = []
+	var on_cast := func(u: Unit, _a: Ability, c: CastContext) -> void:
+		if u == elite:
+			at_hit.append([is_instance_valid(c.telegraph) and c.telegraph.is_driven(), c.telegraph.get_progress() if is_instance_valid(c.telegraph) else -1.0])
+	Events.ability_cast.connect(on_cast)
+
+	elite.abilities.try_cast(&"q", knight.global_position, knight)   # the slam: 0.65 s
+	var t := _find_telegraph()
+	_check("the slam's telegraph is driven by its cast from the start, empty", [t != null and t.is_driven(), t.get_progress() if t else -1.0], [true, 0.0])
+	await _frames(20)
+	_check("20 frames in: its fill is the cast's progress", t != null and t.get_progress() == elite.abilities.get_cast_progress() and t.get_progress() > 0.4, true)
+	await _wait_until(func() -> bool: return not at_hit.is_empty(), 60)
+	_check("at the hit: exactly full", at_hit, [[true, 1.0]])
+
+	await _reset_knight()
+	_place(elite, knight.global_position + Vector2(60, 0))
+	at_hit.clear()
+	elite.abilities.w = VECTOR_WALL
+	elite.abilities.try_cast_vector(&"w", knight.global_position + Vector2(0, -80), Vector2.DOWN)
+	await _wait_until(func() -> bool: return not at_hit.is_empty(), 60)
+	_check("the vector wall's line telegraph: full exactly at the hit", at_hit, [[true, 1.0]])
+
+	await _reset_knight()
+	_place(elite, knight.global_position + Vector2(60, 0))
+	elite.abilities.reset_cooldown(&"q")
+	elite.abilities.use_cast_progress = false
+	var started: Array[CastContext] = []
+	var grab := func(_s: StringName, _a: Ability, c: CastContext) -> void: started.append(c)
+	elite.abilities.cast_started.connect(grab)
+	elite.abilities.try_cast(&"q", knight.global_position, knight)
+	elite.abilities.cast_started.disconnect(grab)
+	t = started[0].telegraph if not started.is_empty() else null
+	await _frames(2)
+	_check("the old timer path: the telegraph keeps its own clock", t != null and not t.is_driven(), true)
+	await _wait_until(func() -> bool: return not elite.abilities.casting, 60)
+	elite.abilities.use_cast_progress = true
+	var loose := Telegraph.circle(knight, knight.global_position, 10.0, 0.5)
+	_check("a telegraph with no cast isn't driven", loose.is_driven(), false)
+	loose.queue_free()
+	Events.ability_cast.disconnect(on_cast)
+	elite.queue_free()
+	await _reset_knight()
+
+
+func _test_ab14_hooks_empty() -> void:
+	_section("AB14: presentation hooks empty: nothing happens")
+	var empty := true
+	for a: Ability in [CLEAVE, IRON_RESOLVE, LUNGE, JUDGEMENT, SLAM, CLEAVE_WAVE, VECTOR_WALL]:
+		empty = empty and a.cast_vfx == null and a.impact_vfx == null and a.cast_anim == &""
+	_check("no ability in the data fills a hook yet (the art pass will)", empty, true)
+	var swings: Array[AttackSwing] = []
+	swings.append_array(COMBO_KNIGHT.swings)
+	swings.append(COMBO_KNIGHT.dash_strike)
+	var swings_empty := true
+	for s in swings:
+		swings_empty = swings_empty and s.swing_vfx == null and s.impact_vfx == null and s.swing_anim == &""
+	_check("nor any swing of the Knight's combo (the dash-strike included)", swings_empty, true)
+	await _reset_knight()
+	var dummy := _dummy_at(Vector2(60, 0))
+	_check("play_cast_vfx() and play_impact_vfx() with empty hooks: nothing",
+		[CLEAVE.play_cast_vfx(knight, CastContext.new()), CLEAVE.play_impact_vfx(knight, dummy, null)], [null, null])
+	_check("VFX.spawn_scene() with no scene: nothing", VFX.spawn_scene(null, knight, Vector2.ZERO, 0.0), null)
+	dummy.queue_free()
+
+
+func _ab14_probe_scene() -> PackedScene:
+	var n := Node2D.new()
+	n.set_script(HOOK_PROBE)
+	var scene := PackedScene.new()
+	scene.pack(n)
+	n.free()
+	return scene
+
+
+## The test hook scenes spawned so far whose setup() got a `kind` second
+## argument (CastContext, HitContext, AttackSwing).
+func _ab14_probes(kind: String) -> Array[Node]:
+	var found: Array[Node] = []
+	for p in get_tree().get_nodes_in_group(HOOK_PROBE.GROUP):
+		var args := _ab14_args(p)
+		var second: Variant = args[1] if args.size() > 1 else null
+		var match_kind := (kind == "cast" and second is CastContext) or (kind == "hit" and second is HitContext) \
+			or (kind == "swing" and second is AttackSwing)
+		if match_kind:
+			found.append(p)
+	return found
+
+
+## What a test hook scene's setup() got: [caster or attacker, the context].
+func _ab14_args(p: Node) -> Array:
+	var args: Variant = p.get("args")
+	return args if args is Array else []
+
+
+func _ab14_clear_probes() -> void:
+	for p in get_tree().get_nodes_in_group(HOOK_PROBE.GROUP):
+		p.remove_from_group(HOOK_PROBE.GROUP)
+		p.queue_free()
+
+
+func _test_ab14_hooks_fire() -> void:
+	_section("AB14: presentation hooks filled (a test hook scene): each fires once at its moment")
+	await _reset_knight()
+	_ab14_clear_probes()
+	var ab := knight.abilities
+	var original_q := ab.q
+	var probe := _ab14_probe_scene()
+	var hooked: Ability = CLEAVE.duplicate()
+	hooked.cast_vfx = probe
+	hooked.impact_vfx = probe
+	ab.q = hooked
+	ab.reset_cooldown(&"q")
+	var dummies: Array[Enemy] = [_dummy_at(Vector2(60, 0)), _dummy_at(Vector2(55, 25)), _dummy_at(Vector2(60, -25))]
+	dummies[2].add_invulnerability(&"test_ab14")   # its hit is blocked
+	await _frames(1)
+	var at_start: Array[int] = []
+	var count_at_start := func(_s: StringName, _a: Ability, _c: CastContext) -> void: at_start.append(_ab14_probes("cast").size())
+	ab.cast_started.connect(count_at_start)
+	ab.try_cast(&"q", knight.global_position + Vector2(60, 0))
+	ab.cast_started.disconnect(count_at_start)
+	_check("cast_vfx: spawned at cast start, before cast_started", at_start.size() == 1 and at_start[0] == 1, true)
+	var cast_probes := _ab14_probes("cast")
+	var p0: Node2D = cast_probes[0] as Node2D if not cast_probes.is_empty() else null
+	_check("at the Knight's feet, turned to the aim, setup(caster, the cast)",
+		p0 != null and p0.global_position.is_equal_approx(knight.global_position) and is_zero_approx(p0.global_rotation) and _ab14_args(p0)[0] == knight, true)
+	_check("no impact_vfx before the effect", _ab14_probes("hit").size(), 0)
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	var hit_probes := _ab14_probes("hit")
+	var targets: Array = []
+	var turned := true
+	var from_knight := true
+	for p in hit_probes:
+		var n := p as Node2D
+		targets.append((_ab14_args(p)[1] as HitContext).target)
+		turned = turned and is_equal_approx(n.global_rotation, (n.global_position - knight.global_position).angle())
+		from_knight = from_knight and _ab14_args(p)[0] == knight
+	_check("impact_vfx: once per enemy hit, none for the blocked hit",
+		[hit_probes.size(), targets.has(dummies[0]), targets.has(dummies[1]), targets.has(dummies[2])], [2, true, true, false])
+	_check("each at its enemy, turned Knight -> enemy, setup(caster, the hit)", turned and from_knight, true)
+
+	_ab14_clear_probes()
+	ab.try_cast_free(hooked, knight.global_position + Vector2(60, 0), null, &"test_ab14")
+	cast_probes = _ab14_probes("cast")
+	_check("a free cast plays cast_vfx too", cast_probes.size() == 1 and (_ab14_args(cast_probes[0])[1] as CastContext).is_free, true)
+
+	_ab14_clear_probes()
+	for d in dummies:
+		d.queue_free()
+	await _reset_knight()
+	var bolt: Ability = BOLT.duplicate()
+	bolt.impact_vfx = probe
+	ab.q = bolt
+	ab.reset_cooldown(&"q")
+	var target := _dummy_at(Vector2(120, 0))
+	await _frames(1)
+	ab.try_cast(&"q", target.global_position)
+	await _wait_until(func() -> bool: return not _ab14_probes("hit").is_empty(), 90)
+	hit_probes = _ab14_probes("hit")
+	_check("a projectile's hit plays impact_vfx", hit_probes.size() == 1 and (_ab14_args(hit_probes[0])[1] as HitContext).target == target, true)
+	ab.q = original_q
+	target.queue_free()
+
+	_ab14_clear_probes()
+	await _reset_knight()
+	var original_combo := knight.attack.combo
+	var swing: AttackSwing = COMBO_KNIGHT.swings[0].duplicate()
+	swing.swing_vfx = probe
+	swing.impact_vfx = probe
+	knight.attack.combo = _ab14_combo_with_first(swing)
+	var front := _dummy_at(Vector2(40, 0))
+	await _wait_until(func() -> bool: return knight.attack.can_swing(), 60)
+	_check("a swing starts", knight.attack.try_swing(Vector2.RIGHT), true)
+	var swing_probes := _ab14_probes("swing")
+	_check("swing_vfx: spawned at swing start, setup(attacker, the swing)",
+		swing_probes.size() == 1 and _ab14_args(swing_probes[0])[0] == knight and _ab14_args(swing_probes[0])[1] == swing, true)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 30)
+	hit_probes = _ab14_probes("hit")
+	var swing_hit: HitContext = _ab14_args(hit_probes[0])[1] if hit_probes.size() == 1 else null
+	_check("the swing's impact_vfx: once on the enemy it hit",
+		swing_hit != null and swing_hit.target == front and swing_hit.has_tag(&"basic_attack"), true)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 30)
+	knight.attack.combo = original_combo
+	front.queue_free()
+	_ab14_clear_probes()
+	await _reset_knight()
+
+
+## A copy of the Knight's combo whose first swing is `first` (AB14 hooks).
+func _ab14_combo_with_first(first: AttackSwing) -> AttackCombo:
+	var combo: AttackCombo = COMBO_KNIGHT.duplicate()
+	var swings: Array[AttackSwing] = []
+	swings.append_array(COMBO_KNIGHT.swings)
+	swings[0] = first
+	combo.swings = swings
+	return combo
+
+
+func _test_ab14_anims() -> void:
+	_section("AB14: cast_anim and swing_anim follow progress")
+	await _reset_knight()
+	var ab := knight.abilities
+	var original_q := ab.q
+	var original_w := ab.w
+	var original_r := ab.r
+	var player := AnimationPlayer.new()
+	player.name = "AnimationPlayer"
+	var lib := AnimationLibrary.new()
+	var cast_anim := Animation.new()
+	cast_anim.length = 1.0
+	var swing_anim := Animation.new()
+	swing_anim.length = 0.5
+	lib.add_animation(&"test_cast", cast_anim)
+	lib.add_animation(&"test_swing", swing_anim)
+	player.add_animation_library(&"", lib)
+	knight.body.add_child(player)
+
+	var cleave: Ability = CLEAVE.duplicate()
+	cleave.cast_anim = &"test_cast"
+	ab.q = cleave
+	ab.reset_cooldown(&"q")
+	await _frames(1)
+	var at_effect: Array[float] = []
+	var on_cast := func(u: Unit, _a: Ability, _c: CastContext) -> void:
+		if u == knight:
+			at_effect.append(player.current_animation_position)
+	Events.ability_cast.connect(on_cast)
+	ab.try_cast(&"q", knight.global_position + Vector2(60, 0))
+	var in_step := player.assigned_animation == "test_cast" and is_zero_approx(player.current_animation_position)
+	var samples := 0
+	while at_effect.is_empty() and samples < 30:
+		await _frames(1)
+		if at_effect.is_empty():
+			var ok := player.assigned_animation == "test_cast" \
+				and is_equal_approx(player.current_animation_position, ab.get_cast_progress() * cast_anim.length)
+			if not ok:
+				print("    tick %d: %s at %s, progress %s" % [samples, player.assigned_animation, player.current_animation_position, ab.get_cast_progress()])
+			in_step = in_step and ok
+			samples += 1
+	_check("Cleave's cast_anim: its position = progress x its length every tick (%d ticks)" % samples, in_step and samples >= 10, true)
+	_check("at the effect start it's at its last frame", at_effect.size() == 1 and at_effect[0] == 1.0, true)
+	Events.ability_cast.disconnect(on_cast)
+
+	await _reset_knight()
+	var dummy := _dummy_at(Vector2(60, 0))
+	var judgement: Ability = JUDGEMENT.duplicate()
+	judgement.cast_anim = &"test_cast"
+	ab.r = judgement
+	ab.reset_cooldown(&"r")
+	await _frames(1)
+	ab.try_cast(&"r", dummy.global_position, dummy)
+	await _frames(10)
+	_check("mid-channel it's playing", [player.current_animation, player.current_animation_position > 0.0], [&"test_cast", true])
+	knight.apply_stun(0.1)
+	_check("a stun interrupts the cast: the cast_anim stops", player.is_playing(), false)
+	ab.r = original_r
+	dummy.queue_free()
+
+	await _reset_knight()
+	var iron: Ability = IRON_RESOLVE.duplicate()
+	iron.cast_anim = &"test_cast"
+	ab.w = iron
+	ab.reset_cooldown(&"w")
+	ab.try_cast(&"w", knight.global_position)
+	_check("no cast time (Iron Resolve): it plays on its own at the cast speed",
+		[player.is_playing(), player.current_animation, player.get_playing_speed()], [true, &"test_cast", 1.0])
+	ab.w = original_w
+
+	await _reset_knight()
+	ab.use_cast_progress = false
+	ab.reset_cooldown(&"q")
+	ab.try_cast(&"q", knight.global_position + Vector2(60, 0))
+	_check("the old timer path: stretched over the cast time (1 s over 0.2 s = speed 5)", player.get_playing_speed(), 5.0)
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	ab.use_cast_progress = true
+	ab.q = original_q
+
+	await _reset_knight()
+	var original_combo := knight.attack.combo
+	var swing: AttackSwing = COMBO_KNIGHT.swings[0].duplicate()
+	swing.swing_anim = &"test_swing"
+	knight.attack.combo = _ab14_combo_with_first(swing)
+	await _wait_until(func() -> bool: return knight.attack.can_swing(), 60)
+	knight.attack.try_swing(Vector2.RIGHT)
+	in_step = player.assigned_animation == "test_swing"
+	samples = 0
+	while knight.attack.is_swinging() and samples < 40:
+		await _frames(1)
+		if knight.attack.is_swinging():
+			in_step = in_step and is_equal_approx(player.current_animation_position, knight.attack.get_swing_progress() * swing_anim.length)
+			samples += 1
+	_check("the swing_anim: its position = swing progress x its length every tick (%d ticks)" % samples, in_step and samples >= 10, true)
+	_check("the swing ended: at its last frame", is_equal_approx(player.current_animation_position, swing_anim.length), true)
+	await _wait_until(func() -> bool: return knight.attack.can_swing(), 60)
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _frames(2)
+	knight.attack.cancel_swing()
+	_check("a cancelled swing stops its swing_anim", player.is_playing(), false)
+	knight.attack.combo = original_combo
+	player.queue_free()
+	await _reset_knight()
 
 
 # --- Helpers ------------------------------------------------------------------

@@ -222,6 +222,21 @@ const DAMAGE_NUMBER_STYLE_PATH := "res://data/damage_number_styles/damage_number
 ## ultimate-ready ping. A refunded cooldown doesn't ping.
 @export var ready_sound: SoundEvent
 
+@export_group("Presentation")
+## ABILITIES AB14 presentation hooks, empty until the art pass (which only
+## fills these in). VFX only: they never change gameplay state.
+## Played at cast start (at release for CHARGE_UP and VECTOR; each recast
+## part; a free cast when it runs), at the caster's feet, rotated to the
+## cast's direction (play_cast_vfx()). null = nothing.
+@export var cast_vfx: PackedScene
+## Played on each unit a hit of this ability gets through to (hit_units(),
+## Projectile), rotated caster -> target (play_impact_vfx()). null = nothing.
+@export var impact_vfx: PackedScene
+## An animation on the caster's Body/AnimationPlayer, positioned each tick to
+## the cast's progress x its length, so it ends exactly at the effect start
+## (AbilityComponent). Empty, no such player or no such animation = nothing.
+@export var cast_anim: StringName = &""
+
 static var _placeholder_regex: RegEx
 static var _base_params: Dictionary = {}   # StringName -> true (is_base_param())
 var _role_warned: bool = false
@@ -268,6 +283,7 @@ func hit_units(caster: Unit, units: Array[Unit], ctx: CastContext, statuses: Arr
 			hit.knockback_from = origin
 		hit.statuses.append_array(statuses)
 		HitPipeline.resolve(hit)
+		play_impact_vfx(caster, u, hit)   # AB14: nothing while impact_vfx is empty or the hit was blocked
 		if push > 0.0 and hit.killed and is_instance_valid(u):
 			# Unit.on_hit() doesn't push the dead; a kill still slides the body,
 			# as Cleave's own push did before AB11 (the same velocity and curve).
@@ -288,6 +304,28 @@ func play_hit_feel(hits: Array[HitContext]) -> bool:
 				GameFeel.shake(hit_shake)
 			return true
 	return false
+
+
+## The cast_vfx hook (ABILITIES AB14): at the caster's feet, rotated to the
+## cast's direction; setup(caster, ctx) on its root if it has one. Nothing
+## (null) while cast_vfx is empty.
+func play_cast_vfx(caster: Unit, ctx: CastContext) -> Node:
+	if cast_vfx == null or not is_instance_valid(caster):
+		return null
+	var angle := ctx.direction.angle() if ctx != null else 0.0
+	return VFX.spawn_scene(cast_vfx, caster, caster.global_position, angle, [caster, ctx])
+
+
+## The impact_vfx hook (ABILITIES AB14), for a hit that got through: at the
+## target's feet, rotated caster -> target (the caster may be gone: a
+## projectile's orphaned hit); setup(caster, hit) on its root if it has one.
+## Nothing (null) while impact_vfx is empty or for a blocked hit.
+func play_impact_vfx(caster: Unit, target: Node2D, hit: HitContext) -> Node:
+	if impact_vfx == null or not is_instance_valid(target) or (hit != null and hit.blocked):
+		return null
+	var from := caster.global_position if is_instance_valid(caster) else target.global_position
+	var angle := (target.global_position - from).angle() if from != target.global_position else 0.0
+	return VFX.spawn_scene(impact_vfx, target, target.global_position, angle, [caster, hit])
 
 
 ## A number of this ability (an @export param like &"cooldown",

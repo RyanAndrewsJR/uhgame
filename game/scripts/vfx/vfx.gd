@@ -7,6 +7,25 @@ class_name VFX
 const AFTERIMAGE_SORT_OFFSET := 0.02
 
 
+## A presentation hook's scene (ABILITIES AB14: cast_vfx, impact_vfx,
+## swing_vfx): instanced next to `anchor` (its parent, the room's Entities),
+## at `pos` (world space) rotated to `angle` if its root is a Node2D; then
+## setup(...setup_args) on the root if it has one. null scene or a freed
+## anchor = nothing (returns null). VFX only: never gameplay state.
+static func spawn_scene(scene: PackedScene, anchor: Node2D, pos: Vector2, angle: float, setup_args: Array = []) -> Node:
+	if scene == null or not is_instance_valid(anchor) or anchor.get_parent() == null:
+		return null
+	var node := scene.instantiate()
+	anchor.get_parent().add_child(node)
+	if node is Node2D:
+		(node as Node2D).global_position = pos
+		(node as Node2D).global_rotation = angle
+		(node as Node2D).reset_physics_interpolation()
+	if node.has_method(&"setup"):
+		node.callv(&"setup", setup_args)
+	return node
+
+
 ## Crescent slash sweeping across `half_arc` on either side of `angle`.
 static func slash(parent: Node, origin: Vector2, angle: float, inner: float, outer: float,
 		half_arc: float, color: Color = Color(1, 1, 1, 0.9), duration: float = 0.14, sweep_dir: float = 1.0) -> void:

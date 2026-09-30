@@ -43,3 +43,18 @@ extends Resource
 @export var hit_sound: SoundEvent
 ## Multiplies the pitch of both sounds (the combo pitches up: 1.00, 1.04).
 @export_range(0.5, 2.0) var sound_pitch: float = 1.0
+
+@export_group("Presentation")
+## ABILITIES AB14 presentation hooks, the swing's side of an ability's
+## cast_vfx / impact_vfx / cast_anim; empty until the art pass. VFX only.
+## Timed by the swing's own speed (attack_speed x speed_scale), never cast speed.
+## At swing start (whiffs included), at the attacker's feet, rotated to the
+## swing's aim; setup(attacker, swing) on its root if it has one. null = nothing.
+@export var swing_vfx: PackedScene
+## On each enemy whose hit got through, rotated attacker -> enemy;
+## setup(attacker, hit) on its root if it has one. null = nothing.
+@export var impact_vfx: PackedScene
+## An animation on the attacker's Body/AnimationPlayer, positioned each tick
+## to the swing's progress x its length. Empty, no such player or no such
+## animation = nothing.
+@export var swing_anim: StringName = &""

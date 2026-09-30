@@ -125,7 +125,7 @@ Example: since `StatusComponent` (COMBAT C9), `Unit.apply_stun()` and `add_speed
 | `Settings`, `PauseMenu` | the player's own options autoload (saved to `user://settings.cfg`) and the Esc pause menu that edits them (both exist) | MOVEMENT.md (Dash), ABILITIES.md (cast mode) until UI.md |
 | `StatsComponent`, `StatModifier`, `StatDefinition`, `StatRegistry`, `ResourceComponent` | stats (all exist) | STATS.md |
 | `ChampionData`, `Passive`, `StatScaling`; `ResourceComponent.ResourceType.NONE`; `champion_level`, `champion_xp`, `champion_class`; status `staggered` (tags `staggered`, `debuff`) | champions, passives, a stat modifier that follows a 0–1 input, the champion level hook, the Knight's marker status (planned, CH1–CH4) | CHAMPIONS.md |
-| `cast_vfx`, `impact_vfx`, `cast_anim` (Ability); `swing_vfx`, `impact_vfx`, `swing_anim` (AttackSwing); `CastContext.progress`, `get_cast_progress()`, `get_cast_speed()`, `use_cast_progress`, `Telegraph.set_progress()` | presentation hooks and cast progress (planned, AB14) | ABILITIES.md |
+| `cast_vfx`, `impact_vfx`, `cast_anim` (Ability); `swing_vfx`, `impact_vfx`, `swing_anim` (AttackSwing); `CastContext.progress`, `get_cast_progress()`, `get_cast_speed()`, `use_cast_progress`, `Telegraph.set_progress()` / `is_driven()`, `AutoAttackComponent.get_swing_progress()`, `VFX.spawn_scene()` | presentation hooks and cast progress (built, AB14) | ABILITIES.md |
 | `heal_on_hit_ratio` (Ability, HitContext) | an ability's kit heal on hit (planned, CHAMPIONS CH5) | CHAMPIONS.md, COMBAT.md |
 | `HitContext`, `DamageType` (enum `HitContext.DamageType`), `ImpactContext`, `HitPipeline` | the hit pipeline | COMBAT.md |
 | `AttackSwing`, `AttackCombo` | basic attack combo data | COMBAT.md |

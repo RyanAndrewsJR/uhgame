@@ -20,6 +20,9 @@ extends Node
 ##   cast_style CHANNEL or cancel_on_move)
 ## - VECTOR (AB13) through the charge-up hold/release path: the press drops a
 ##   start point, the release sets the line's direction (VECTOR flow)
+## - AB14: the cast time runs on cast progress (0 -> 1, advanced each physics
+##   tick by delta x the cast speed); the cast's telegraph and its cast_anim
+##   follow it; the presentation hooks (cast_vfx, cast_anim) fire at cast start
 
 signal cast_started(slot: StringName, ability: Ability, ctx: CastContext)
 signal cast_finished(slot: StringName, ability: Ability)
@@ -53,6 +56,10 @@ signal charge_ended(slot: StringName, ability: Ability)
 ## The augments on the slot's abilities changed (added or removed; AB8): the
 ## HUD and tooltips refresh.
 signal augments_changed(slot: StringName)
+## AB14: the cast time of the cast in progress is over: its progress reached
+## 1, or it was cancelled or interrupted (the waiting _do_cast() resumes and
+## checks its serial). Internal.
+signal _cast_time_elapsed
 
 const SLOTS: Array[StringName] = [&"q", &"w", &"e", &"r"]
 ## Source id of the move_speed modifier from Ability.cast_move_speed_multiplier.
@@ -74,6 +81,10 @@ const VECTOR_WALL_RADIUS_PX := 2.0
 @export var w: Ability
 @export var e: Ability
 @export var r: Ability
+## ABILITIES AB14: cast times run on cast progress (on, the default). Off =
+## the old create_timer() wait, unchanged; kept until Ryan's play test passes
+## the "same physics frame" regression check, then deleted.
+@export var use_cast_progress: bool = true
 
 var unit: Unit
 var casting: bool = false
@@ -116,6 +127,18 @@ var _flag_errors: Dictionary = {}   # "<ability id>/<flag>" -> true (reported on
 ## Where conditions checked outside a press look (the HUD's grey preview):
 ## the Player sets the cursor every physics frame, the enemy AI its target (AB12).
 var _aim_hint: Vector2 = Vector2.INF
+## AB14 cast progress: the cast in progress (_cast_ctx) is in its cast time.
+## _cast_time_left counts down like the old SceneTreeTimer did (the same
+## float steps, so the effect lands on the same physics frame); progress =
+## 1 - left / total.
+var _cast_time_running: bool = false
+var _cast_time_left: float = 0.0
+var _cast_time_total: float = 0.0
+var _cast_speed_warned: bool = false
+## AB14 cast_anim: the AnimationPlayer positioned by the cast's progress, and
+## the animation (null / &"" when none is playing for a cast).
+var _cast_anim_player: AnimationPlayer
+var _cast_anim_name: StringName = &""
 
 
 func _ready() -> void:
@@ -200,6 +223,24 @@ func get_cooldown_fraction(slot: StringName) -> float:
 ## (STATS.md: the one place this happens).
 func get_cooldown_duration(ability: Ability) -> float:
 	return unit.stats_component.get_cooldown(ability.get_param(unit, &"cooldown"))
+
+
+## AB14: the cast speed for `ability`: how fast its cast progress advances
+## (1.0 = its cast_time in seconds). Hardcoded 1.0 for now: the one place a
+## future cast-speed stat or cast-speed item plugs in. It's read every tick,
+## so a change mid-cast applies from that tick. It never touches cooldowns
+## (ability_haste does, in get_cooldown_duration()).
+func get_cast_speed(_ability: Ability) -> float:
+	return 1.0
+
+
+## AB14: the cast in progress's cast progress, 0 (cast start) to 1 (its
+## effect started). 0 when nothing is casting, and while a charge-up or a
+## VECTOR aim is still held (its cast starts at release).
+func get_cast_progress() -> float:
+	if not casting or _cast_ctx == null:
+		return 0.0
+	return _cast_ctx.progress
 
 
 ## True if the slot has a charge (with max_charges 1: its cooldown is done)
@@ -796,6 +837,7 @@ func interrupt_cast() -> bool:
 	_end_charge()   # a charge-up interrupted (stun, death) ends here, refunded like a cast
 	_remove_telegraph(_cast_ctx)
 	_cast_serial += 1  # The _do_cast waiting on the cast time sees this and stops.
+	_stop_cast_time()   # AB14: resumes that _do_cast now (it stops) and stops the cast_anim
 	if _cast_rooted:
 		unit.movement.remove_move_lock(&"casting")
 	unit.attack.remove_lock(&"casting")
@@ -815,6 +857,7 @@ func _cancel_cast() -> void:
 	_end_charge()   # a charge-up cancelled (Esc, overhold, dash, move) ends here
 	_remove_telegraph(_cast_ctx)
 	_cast_serial += 1  # The _do_cast waiting on the cast time sees this and stops.
+	_stop_cast_time()   # AB14: resumes that _do_cast now (it stops) and stops the cast_anim
 	if _cast_rooted:
 		unit.movement.remove_move_lock(&"casting")
 	unit.attack.remove_lock(&"casting")
@@ -828,6 +871,12 @@ func _cancel_cast() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if use_cast_progress:
+		# AB14: the cast time's tick runs after every node's _physics_process
+		# this frame (deferred), where SceneTreeTimers were counted: a cast
+		# started anywhere in this frame's node pass counts this tick, exactly
+		# as the old timer did.
+		_advance_cast_time.call_deferred(delta)
 	_update_charge(delta)
 	_update_recast_windows(delta)
 	for s in SLOTS:
@@ -889,19 +938,33 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext, precharged: 
 		_begin_cast_locks(ability, false)
 	var rooted := _cast_rooted
 	_cast_ctx = ctx
+	ctx.progress = 0.0 if ability.cast_time > 0.0 else 1.0   # AB14
 	Audio.play_on(ability.cast_sound, unit)
+	ability.play_cast_vfx(unit, ctx)   # AB14 hook: nothing while cast_vfx is empty
 	cast_started.emit(slot, ability, ctx)
 	ability.on_cast_started(unit, ctx)
 	if is_instance_valid(ctx.telegraph):
 		ctx.telegraph.play_sound(ability.telegraph_sound)   # stops with the telegraph (AUDIO.md)
+	_start_cast_anim(ability)   # AB14 hook: nothing while cast_anim is empty
 
 	if ability.cast_time > 0.0:
-		await unit.get_tree().create_timer(ability.cast_time, false, true).timeout
+		if use_cast_progress:
+			# AB14: cast progress, advanced by _advance_cast_time(); a cancel or
+			# interrupt also emits _cast_time_elapsed (then the serial differs).
+			_cast_time_total = ability.cast_time
+			_cast_time_left = ability.cast_time
+			_cast_time_running = true
+			if is_instance_valid(ctx.telegraph):
+				ctx.telegraph.set_progress(0.0)   # the telegraph follows the cast from now on
+			await _cast_time_elapsed
+		else:
+			await unit.get_tree().create_timer(ability.cast_time, false, true).timeout
 	if serial != _cast_serial:
 		return  # Cancelled during the cast time; try_cancel_cast() cleaned up.
 
 	var interrupted := not is_instance_valid(unit) or not unit.is_alive() or unit.is_cast_blocked()
 	if interrupted:
+		_stop_cast_anim()
 		_remove_telegraph(ctx)
 		_end_charge()
 		if is_instance_valid(unit) and unit.is_alive():
@@ -910,6 +973,8 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext, precharged: 
 	else:
 		_cast_cost = 0.0   # the effect starts: nothing is refunded from here
 		_cast_took_charge = false
+		ctx.progress = 1.0
+		_finish_cast_anim()   # AB14: at its last frame as the effect starts
 		_end_charge()   # a released charge-up: the effect starts, its indicator goes
 		_executing = true
 		_use_up_ability_empowers(ability, ctx)   # AB10: before ABILITY_CAST, so a rule can grant the next one
@@ -978,6 +1043,105 @@ func _notification(what: int) -> void:
 func _remove_telegraph(ctx: CastContext) -> void:
 	if ctx != null and is_instance_valid(ctx.telegraph):
 		ctx.telegraph.queue_free()
+
+
+# --- Cast progress and presentation hooks (ABILITIES AB14) -------------------------------
+
+## One physics tick of the cast time (deferred from _physics_process(), so it
+## runs after every node's physics this frame, like the old timer). The
+## seconds left go down by delta x the cast speed, the same float steps the
+## SceneTreeTimer took, so the effect lands on the same frame; progress =
+## 1 - left / total. The cast's telegraph and cast_anim follow it. At 0 left
+## the waiting _do_cast() resumes (the effect starts in this same frame).
+func _advance_cast_time(delta: float) -> void:
+	if not _cast_time_running or _cast_ctx == null or not can_process():
+		return
+	_cast_time_left -= delta * _get_valid_cast_speed(_cast_ability)
+	var done := _cast_time_left <= 0.0
+	_cast_ctx.progress = 1.0 if done else clampf(1.0 - _cast_time_left / _cast_time_total, 0.0, 1.0)
+	if is_instance_valid(_cast_ctx.telegraph):
+		_cast_ctx.telegraph.set_progress(_cast_ctx.progress)
+	_update_cast_anim(_cast_ctx.progress)
+	if done:
+		_cast_time_running = false
+		_cast_time_elapsed.emit()
+
+
+## A cancel or interrupt ends the cast time: the cast_anim stops and the
+## waiting _do_cast() resumes (its serial was already bumped, so it stops).
+## Nothing if no cast time is running.
+func _stop_cast_time() -> void:
+	_stop_cast_anim()
+	if _cast_time_running:
+		_cast_time_running = false
+		_cast_time_elapsed.emit()
+
+
+## get_cast_speed(), guarded: a speed of 0 or less would hang the cast, so it
+## counts as 1.0 (push_error once).
+func _get_valid_cast_speed(ability: Ability) -> float:
+	var speed := get_cast_speed(ability)
+	if speed > 0.0:
+		return speed
+	if not _cast_speed_warned:
+		_cast_speed_warned = true
+		push_error("AbilityComponent: cast speed %s for '%s' is not above 0; using 1.0" % [speed, ability.id if ability else &""])
+	return 1.0
+
+
+## The unit's Body/AnimationPlayer if it has `anim_name`, else null.
+func _get_cast_anim_player(anim_name: StringName) -> AnimationPlayer:
+	if anim_name == &"" or unit == null or unit.body == null:
+		return null
+	var player := unit.body.get_node_or_null(^"AnimationPlayer") as AnimationPlayer
+	if player == null or not player.has_animation(anim_name):
+		return null
+	return player
+
+
+## The cast_anim hook at cast start. With a cast time (on cast progress) the
+## animation doesn't run on its own clock: it's positioned to progress x its
+## length each tick (_update_cast_anim()), so it ends exactly at the effect
+## start whatever the cast speed. With no cast time (or the old timer path)
+## it plays on its own at the cast speed (old path: stretched over cast_time).
+## Nothing while cast_anim is empty or the unit has no such animation.
+func _start_cast_anim(ability: Ability) -> void:
+	_stop_cast_anim()
+	var player := _get_cast_anim_player(ability.cast_anim)
+	if player == null:
+		return
+	if ability.cast_time > 0.0 and use_cast_progress:
+		_cast_anim_player = player
+		_cast_anim_name = ability.cast_anim
+		player.play(ability.cast_anim, -1.0, 0.0)   # speed 0: progress positions it
+		player.seek(0.0, true)
+		return
+	var speed := _get_valid_cast_speed(ability)
+	if ability.cast_time > 0.0:
+		speed *= player.get_animation(ability.cast_anim).length / ability.cast_time
+	player.play(ability.cast_anim, -1.0, speed)
+
+
+func _update_cast_anim(progress: float) -> void:
+	if not is_instance_valid(_cast_anim_player) or _cast_anim_player.assigned_animation != _cast_anim_name:
+		return
+	_cast_anim_player.seek(progress * _cast_anim_player.get_animation(_cast_anim_name).length, true)
+
+
+## The effect starts: the cast_anim sits at its last frame (what plays next is
+## the unit's own animation logic, the art pass's).
+func _finish_cast_anim() -> void:
+	_update_cast_anim(1.0)
+	_cast_anim_player = null
+	_cast_anim_name = &""
+
+
+## A cancelled or interrupted cast stops its cast_anim.
+func _stop_cast_anim() -> void:
+	if is_instance_valid(_cast_anim_player) and _cast_anim_player.assigned_animation == _cast_anim_name:
+		_cast_anim_player.stop()
+	_cast_anim_player = null
+	_cast_anim_name = &""
 
 
 # --- Augments (ABILITIES AB8) ---------------------------------------------------------
@@ -1225,7 +1389,9 @@ func try_cast_free(ability: Ability, aim: Vector2, target: Unit, source_id: Stri
 	ctx.is_free = true
 	ctx.source_id = source_id
 	ctx.chain_depth = Reactions.get_chain_depth()   # a rule's effects run one link deeper already
+	ctx.progress = 1.0   # AB14: no cast time
 	Audio.play_on(ability.cast_sound, unit)
+	ability.play_cast_vfx(unit, ctx)   # AB14 hook (no cast_anim: a free cast runs alongside the unit's own cast)
 	_apply_bonus_self_statuses(ability, ctx)
 	_emit_ability_cast(ability, ctx)
 	ability.execute(unit, ctx)   # not awaited: it runs alongside anything else

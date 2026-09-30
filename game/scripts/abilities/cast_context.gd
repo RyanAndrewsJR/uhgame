@@ -57,6 +57,12 @@ var direction: Vector2 = Vector2.RIGHT
 ## nearest the aim within cast_range) when the ability needs one (AB12), or
 ## a free cast's given target (the unit hit, the triggering cast's target).
 var target: Unit
+## Cast progress (ABILITIES AB14): the cast time from 0 (cast start; at
+## release for CHARGE_UP and VECTOR) to 1 (the effect starts). 1 for a cast
+## with no cast time and for a free cast. AbilityComponent advances it each
+## physics tick by delta ÷ cast_time × the cast speed; scripts, the cast's
+## telegraph and its cast_anim read it.
+var progress: float = 0.0
 ## A floor warning shown during the cast time (Ability.on_cast_started()).
 ## AbilityComponent removes it if the cast is cancelled or interrupted;
 ## execute() usually calls finish() on it.

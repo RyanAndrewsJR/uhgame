@@ -140,6 +140,8 @@ func _hit(target: Unit) -> void:
 	HitPipeline.resolve(hit)
 	if not hit.blocked:
 		VFX.impact(target.get_parent(), target.global_position, Color(ability.icon_color, 0.8), 24.0, 0.15)
+		var source: Unit = caster if is_instance_valid(caster) else null
+		ability.play_impact_vfx(source, target, hit)   # AB14: nothing while impact_vfx is empty
 
 
 func _draw() -> void:
