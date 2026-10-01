@@ -78,7 +78,7 @@ The rule for every combo with `attack_style` MELEE (the default; the Knight is t
 
 ### Sustain
 - Every champion starts with zero sustain (health_regen 0). Healing comes only from build choices: abilities, passives and items (life on hit, life steal, regen).
-- A kit heal tied to one ability (`Ability.heal_on_hit_ratio`, CHAMPIONS CH5; the Knight's Cleave) doesn't break this: it's not a stat, no champion has it by default, and it's earned by landing that ability (CHAMPIONS.md, Sustain). Every heal goes through `Unit.heal()` (clamped to max health, no overheal, a green number only for what was healed).
+- A kit heal tied to one ability (`Ability.heal_on_hit_ratio`, CHAMPIONS CH5, and `Ability.heal_missing_health_ratio`, CH5b: the Knight's Cleave) doesn't break this: it's not a stat, no champion has it by default, and it's earned by landing that ability (CHAMPIONS.md, Sustain). Every heal goes through `Unit.heal()` (clamped to max health, no overheal, a green number only for what was healed).
 
 ### Damage numbers
 - Every hit shows a number above the target.
@@ -174,6 +174,8 @@ One per hit. Built by the attacker, filled in by the pipeline.
 | `target_tags` | `Array[StringName]` | the target's status tags just before the hit (filled in by `Unit.on_hit`; reaction rules read it) |
 | `chain_depth` | `int` | the reaction chain depth of a free cast's hits (ABILITIES.md) |
 | `heal_on_hit_ratio` | `float` | CHAMPIONS CH5: the ability's `heal_on_hit_ratio` for this hit (`from_ability()` with a cast: `get_effect_param()` for the unit hit; 0 without a cast and for every other hit). `apply_on_hit()` heals the source for it × `taken_damage` |
+| `heal_missing_health_ratio` | `float` | CHAMPIONS CH5b: the ability's `heal_missing_health_ratio` for this hit (`from_ability()` with a cast, like `heal_on_hit_ratio`). `apply_on_hit()` heals the source for it × its missing health, once per cast (the first hit that gets through) |
+| `cast` | `CastContext` | CHAMPIONS CH5b: the cast this hit belongs to (`from_ability()` with a cast); null for swings, Hurtbox hits, procs and DoTs. Used for once-per-cast effects (`CastContext.missing_health_healed`) |
 | **filled in by the pipeline:** `raw_damage` (before mitigation), `taken_damage` (after mitigation and `incoming_damage`), `absorbed` (by shields), `health_lost`, `is_crit`, `blocked` (i-frames), `killed` | | read by listeners, numbers, feel and on-hit |
 
 ### AttackSwing and AttackCombo (combo data)
@@ -260,7 +262,7 @@ The hit feel per tier, held by `GameFeel.hit_feel`: `light_hitstop` 0.03, `heavy
   5. Knockback (`movement.displace(..., dash_cancelable = true)`, even if a shield took all of it; not on an unstoppable target, and not on one the hit killed: `Ability.hit_units()` slides those itself, ABILITIES.md), then statuses (`ctx.statuses`, from `ctx.source`; not on a target the hit killed).
   6. Feel: `GameFeel.play_hit_feel(ctx)`: the hit's tier (a kill uses the kill tier) sets the hitstop and shake; feel NONE plays nothing, so abilities and enemy basic attacks keep their own.
   7. Events: `Events.unit_hit`, `Events.unit_damaged` (when `taken_damage` > 0), `Events.unit_died(self, ctx)` (when `killed`; kill credit = `ctx.source`).
-  8. On-hit (only `basic_attack` or `ability` hits, never `proc` or `dot`; a blocked hit has none): `on_hit_damage` × `proc_coefficient` as a MAGIC `proc` hit on the same target, `life_on_hit` × `proc_coefficient` plus `life_steal` × `taken_damage` (basic attacks only, proposed) plus `heal_on_hit_ratio` × `taken_damage` (the hit's ability's kit heal, CHAMPIONS CH5) heal the source with one green number (`Unit.heal()`), `resource_on_hit` × `proc_coefficient` restores its resource. It runs after the events and before post-hit i-frames start, so the i-frames a hit starts never block its own proc.
+  8. On-hit (only `basic_attack` or `ability` hits, never `proc` or `dot`; a blocked hit has none): `on_hit_damage` × `proc_coefficient` as a MAGIC `proc` hit on the same target, `life_on_hit` × `proc_coefficient` plus `life_steal` × `taken_damage` (basic attacks only, proposed) plus `heal_on_hit_ratio` × `taken_damage` (the hit's ability's kit heal, CHAMPIONS CH5) plus, once per cast, `heal_missing_health_ratio` × the source's missing health (CHAMPIONS CH5b; the cast's first hit that gets through) heal the source with one green number (`Unit.heal()`), `resource_on_hit` × `proc_coefficient` restores its resource. It runs after the events and before post-hit i-frames start, so the i-frames a hit starts never block its own proc.
   9. Post-hit i-frames (a living target with `post_hit_iframes` > 0; not for `dot` ticks or `proc` hits).
 - `Unit.take_damage(amount, source)` stays as a wrapper (`Unit.make_hit_context()`): a `HitContext` with `base_damage = amount`, PHYSICAL, `can_crit = false`, feel `NONE` (callers keep their own shake and hitstop), then `on_hit()` directly (the amount is already scaled). `Player`'s "got hit" 2 px shake is a `Player.on_hit` override, so pipeline hits get it too.
 - **`StatusComponent`** (`res://scripts/components/status_component.gd`), a child of every Unit (`Unit.status_component`, optional so old scenes still load; `player.tscn` and `slime.tscn` have one, so the elite and dummies too).

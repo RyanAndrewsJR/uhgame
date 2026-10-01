@@ -51,6 +51,12 @@ var proc_coefficient: float = 1.0
 ## Heals the source for this share of taken_damage in apply_on_hit() (an
 ## ability's heal_on_hit_ratio at the hit; CHAMPIONS CH5). 0 = none.
 var heal_on_hit_ratio: float = 0.0
+## Heals the source for this share of its missing health, once per cast
+## (the first hit of `cast` that gets through; CHAMPIONS CH5b). 0 = none.
+var heal_missing_health_ratio: float = 0.0
+## The cast this hit belongs to (from_ability() with a cast), for once-per-cast
+## effects. null for swings, Hurtbox hits, procs and DoTs.
+var cast: CastContext
 ## Push distance in px. 0 = no knockback. The push follows the target's
 ## MovementComponent.knockback_curve.
 var knockback_px: float = 0.0

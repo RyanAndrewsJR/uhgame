@@ -204,7 +204,16 @@ Combat test 450/450, stats test 172/172 (unchanged). A headless in-game check of
 
 ## Champions (CHAMPIONS.md)
 
-### CH6 – Readable kit (functional HUD): 2026-09-30, Built (awaiting play test)
+### CH5b – Cleave's heal from missing health: 2026-09-30, Built (awaiting play test)
+Ryan's change before CH-M: Cleave heals a share of the Knight's missing health once per Cleave that hits, not a share of the damage dealt. New: `Ability.heal_missing_health_ratio` (export group "Sustain", a scoped param), `HitContext.heal_missing_health_ratio` and `HitContext.cast` (set by `from_ability()` with a cast), `CastContext.missing_health_healed`, the once-per-cast heal in `apply_on_hit()` (ratio × missing health on the cast's first hit that gets through). Data: Cleave and Cleave Wave move their 0.55 and its `self_missing_health` scaling (the same curve) to the new field; `heal_on_hit_ratio` is back to 0 on them; their tooltips say "Each cast that hits heals you for up to 55% of your missing health, more the lower your health."
+
+**Changed during the step:** the champions test's CH5 checks were rewritten for the new rule (plus one check that the damage-based field still works on a test copy); the abilities test's Cleave tooltip text updated.
+
+Measured (champions test): one Cleave that hits heals 0 / 26.0 / 73.1 / 321.75 at 100 / 50 / 25 / 10% health; into three slimes at 10%: three hits, one heal, the same 321.75; into the air: nothing; a killing blow heals 321.75 at 10%; a blocked hit heals nothing; a 100% test ratio at max health heals nothing; pressed at full health and hit to 10% during the cast time: 55% and 321.75; `heal_on_hit_ratio` 0.5 on a test copy heals half the damage taken by both enemies.
+
+Champions 168/168, abilities 559/559, stats 179/179, audio 109/109. Combat 456/459: the two real-time hitstop checks, plus "over by 0.10 s, time back to normal", the third real-time hitstop check that also failed on the pre-CH1 baseline run. `main.tscn` and `sandbox_main.tscn` run 600 frames with no errors.
+
+### CH6 – Readable kit (functional HUD): 2026-09-30, Passed
 New: `scripts/ui/passive_slot.gd` (`PassiveSlot`: a slot left of Q with the passive's initials, a hover tooltip with the name, "[Passive]", "Always active", the description and one gold "Now:" line per stat scaling; `get_tooltip_lines()`), added by `hud.setup_abilities()` only for a champion with a passive; `Passive.icon_color` (Unbroken: a warm orange); `ResourceBar.get_thresholds()` / `is_glowing()` (a tick at every `RESOURCE_AT_LEAST` in the slotted abilities, a bright outline at or above one); `AbilityBar.has_live_bonus()` (a gold outline outside a slot while a bonus with only caster-side conditions passes). Placeholder look only.
 
 **Changed during the step:** nothing beyond the spec.

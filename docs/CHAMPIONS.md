@@ -8,7 +8,7 @@
 Same as COMBAT.md and ABILITIES.md: MUST (never change without asking Ryan), TARGET (start value and allowed range), FREE (your call; tiebreaker: VISION.md's decision priorities). Items marked *(proposed)* are Claude's picks from the approved plan that Ryan hasn't answered yet; each one is also in Open questions.
 
 ## Player experience
-You pick the Knight at the hub. He starts a fight with an empty red bar. Every swing that lands fills it; you spend it on Cleave, or save it for a Judgement that stuns longer and hits harder. Lunge through a pack and the enemies you cut through reel, Staggered; a Cleave into them hits much harder. The lower your health, the harder the Knight hits, and at the brink a Cleave that connects pulls you back: a desperate swing into three enemies can heal a third of your health. Standing back is never safe (no regen, Fury drains out of combat); diving in and landing hits is how the Knight survives.
+You pick the Knight at the hub. He starts a fight with an empty red bar. Every swing that lands fills it; you spend it on Cleave, or save it for a Judgement that stuns longer and hits harder. Lunge through a pack and the enemies you cut through reel, Staggered; a Cleave into them hits much harder. The lower your health, the harder the Knight hits, and at the brink a Cleave that connects pulls you back: at 10% health one Cleave that hits anything heals over half of what you're missing. Standing back is never safe (no regen, Fury drains out of combat); diving in and landing hits is how the Knight survives.
 
 ## References
 - League of Legends. Take: one identity per kit (passive + three abilities + an ultimate); Olaf's passive (stronger the more health is missing, smoothly, no breakpoint); Tryndamere and Renekton's fury (built by hitting, drains out of combat, empowers abilities); Lee Sin's Q1 → Q2 (mark, then cash in the mark). Don't take: per-ability ranks leveled mid-run (no ranks: ABILITIES.md, Ability ranks).
@@ -56,7 +56,7 @@ What exists before CH1 (the rest is Data and Architecture):
 - Mana and energy champions get their numbers when the first one is designed.
 
 ### Sustain (MUST)
-- Cleave's heal (`heal_on_hit_ratio`) is a kit mechanic tied to one ability, not the `life_steal` stat, and it doesn't contradict zero baseline sustain (COMBAT.md, Sustain; DECISIONS.md, Combat): no champion gets free healing by default; this one is earned by landing Cleave, and it scales hardest exactly when the player is at risk.
+- Cleave's heal (`heal_missing_health_ratio`, CH5b; CH5 built it on `heal_on_hit_ratio`) is a kit mechanic tied to one ability, not the `life_steal` stat, and it doesn't contradict zero baseline sustain (COMBAT.md, Sustain; DECISIONS.md, Combat): no champion gets free healing by default; this one is earned by landing Cleave, and it scales hardest exactly when the player is at risk.
 - Every heal goes through the one heal path, `Unit.heal()` (clamped to max health, no overheal, a green number only for what was actually healed). There's no second heal path.
 
 ## The Knight
@@ -121,23 +121,23 @@ League's Lee Sin Q1 → Q2 pattern, built from AB12's existing pieces; no new co
 - `judgement.gd` reads `stun_duration` with `get_effect_param()` (CONVENTIONS pattern 6), so the bonus reaches it.
 - Retimed (Ryan, 2026-09-29): a **0.75 s channel** (`cast_time`, was 1.5 s; runs on cast progress, ABILITIES AB14) and a **30 s cooldown** (was the 5 s default).
 
-### Cleave's heal on hit
-- A new general field on Ability, `heal_on_hit_ratio` (default 0; a scoped param, so items can raise it). Cleave's full value is **0.55**, shaped by `self_missing_health` through a curve: a `ChargeScaling` entry on Cleave with `param` `heal_on_hit_ratio`, `input` `self_missing_health`, `min_fraction` 0, curve `data/curves/curve_knight_cleave_heal.tres`.
-- The heal is that ratio × the damage taken by each enemy Cleave hits, summed over every enemy it hits (one heal per hit).
-- Anchor points (TARGET placeholders; flat through mid-health, bending sharply near death, not a straight line):
+### Cleave's heal
+- **Changed (Ryan, 2026-09-30) (CH5b):** Cleave heals a share of the Knight's **missing health**, once per Cleave that hits, not a share of the damage it deals. A single-target Cleave at low health must pull the Knight back, and Cleave isn't a big damage dealer without items. CH5's damage-based field stays built and general (`heal_on_hit_ratio`, 0 on every Knight ability).
+- A general field on Ability, `heal_missing_health_ratio` (default 0; a scoped param, so items can raise it): the first hit of a cast that gets through heals the caster for ratio × their missing health at that moment. Once per cast: one enemy or five heal the same. Cleave's full value is **0.55**, shaped by `self_missing_health` (read at the effect start) through a curve: a `ChargeScaling` entry on Cleave with `param` `heal_missing_health_ratio`, `input` `self_missing_health`, `min_fraction` 0, curve `data/curves/curve_knight_cleave_heal.tres`.
+- Anchor points (Ryan's, now as a share of missing health; TARGET placeholders, tuned after CH-M):
 
-| Knight's health | Missing (curve x) | Heal % of damage dealt | Curve y (÷ 0.55) |
-|---|---|---|---|
-| 100% | 0 | 0% | 0 |
-| 75% | 0.25 | 3% | 0.0545 |
-| 50% | 0.5 | 8% | 0.1455 |
-| 25% | 0.75 | 15% | 0.2727 |
-| 10% | 0.9 | 55% | 1.0 |
-| below 10% | 0.9–1 | 55% | 1.0 (flat) |
+| Knight's health | Missing (curve x) | Heal % of missing health | Curve y (÷ 0.55) | Healed (650 max) |
+|---|---|---|---|---|
+| 100% | 0 | 0% | 0 | 0 |
+| 75% | 0.25 | 3% | 0.0545 | 5 |
+| 50% | 0.5 | 8% | 0.1455 | 26 |
+| 25% | 0.75 | 15% | 0.2727 | 73 |
+| 10% | 0.9 | 55% | 1.0 | 322 (back to about 60%) |
+| below 10% | 0.9–1 | 55% | 1.0 (flat) | up to 358 |
 
-The curve's points use linear tangents so the table's values are exact between neighbors (e.g. 17.5% health heals about 35%).
-- Example (placeholders): at 10% health (Unbroken +40%: 89.6 AD), a Cleave does 80 + 0.7 × 89.6 ≈ 143 to each unarmored enemy; into three slimes it heals 3 × 0.55 × 143 ≈ 235 (36% of 650). Against Staggered enemies (+50%) about 350. At 50% health the same Cleave heals about 11 per enemy.
-- Cleave Wave (the AB-M REPLACE variant) is the same as Cleave here (Ryan, 2026-09-29): the Staggered bonus (CH4, per enemy at its projectile hit) and the heal on hit (CH5) are in its .tres too.
+The curve's points use linear tangents so the table's values are exact between neighbors (e.g. 17.5% health heals about 35% of missing health).
+- No hit, no heal: a Cleave into the air, or one whose every hit is blocked, heals nothing. A killing blow counts as a hit.
+- Cleave Wave (the AB-M REPLACE variant) is the same as Cleave here (Ryan, 2026-09-29): the Staggered bonus (CH4) and the heal (on its first projectile hit that gets through) are in its .tres too.
 
 ### Knight ability sheets (targets after CH5; ABILITIES.md, Ability spec sheet)
 Only the lines that change or matter here; everything else is ABILITIES.md's example and the .tres files.
@@ -147,9 +147,9 @@ Role tag / other tags: core (the Fury spender) / area, cone
 Cost: 20 Fury      Cooldown: 3 s      Cast time: 0.2 s (cast progress, AB14)
 Damage: 80 + 70% AD, PHYSICAL
 Conditional bonuses: TARGET_HAS_STATUS staggered → base_damage +50%, ad_ratio +50% (per enemy, at its hit)
-Heal on hit: heal_on_hit_ratio 0.55, scaled by self_missing_health through curve_knight_cleave_heal (min_fraction 0)
+Heal: heal_missing_health_ratio 0.55 of missing health, once per cast that hits, scaled by self_missing_health through curve_knight_cleave_heal (min_fraction 0) (CH5b)
 Presentation hooks: empty (AB14)
-Tooltip template: "Sweep your sword in a wide arc in front of you, dealing {damage} physical damage ({base_damage} {ratios}) and knocking enemies back. Heals you for up to {heal_on_hit_ratio%} of the damage dealt, more the lower your health." + the bonus line
+Tooltip template: "Sweep your sword in a wide arc in front of you, dealing {damage} physical damage ({base_damage} {ratios}) and knocking enemies back. Each cast that hits heals you for up to {heal_missing_health_ratio%} of your missing health, more the lower your health." + the bonus line
 
 Iron Resolve / Knight / W / knight_iron_resolve
 Unchanged (cost 0, cooldown 8 s, cast time 0).
@@ -221,6 +221,7 @@ Methods: `apply_to(unit, source_id)`, `remove_from(unit, source_id)`; virtual `_
 ### Ability and HitContext additions (CH5)
 - `Ability.heal_on_hit_ratio: float = 0.0` (ABILITIES.md, Data).
 - `HitContext.heal_on_hit_ratio: float = 0.0` (COMBAT.md, HitContext).
+- CH5b: `Ability.heal_missing_health_ratio: float = 0.0`; `HitContext.heal_missing_health_ratio` and `HitContext.cast` (the cast a hit belongs to); `CastContext.missing_health_healed` (set by the first hit that heals).
 
 ### Other files
 - `res://data/statuses/status_staggered.tres` (+ `res://scenes/vfx/staggered_mark.tscn`, FREE look).
@@ -258,6 +259,7 @@ Methods: `apply_to(unit, source_id)`, `remove_from(unit, source_id)`; virtual `_
 3. `HitPipeline.from_ability(caster, ability, target, cast)`: with a cast, `ctx.heal_on_hit_ratio = ability.get_effect_param(caster, &"heal_on_hit_ratio", cast, target)` (scoped modifiers, the named-input scaling, conditional bonuses). Without a cast it stays 0 (the old path adds nothing new; every toolkit hit passes its cast).
 4. `HitPipeline.apply_on_hit(ctx)`: `heal += ctx.heal_on_hit_ratio × ctx.taken_damage`, next to `life_on_hit` and `life_steal`, so it keeps every on-hit rule (only `basic_attack` / `ability` hits, never `proc` or `dot`, not blocked, the source alive) and goes through `Unit.heal()` with one green number per hit.
 5. `self_missing_health` is re-read at the effect start (flow step 10), so a hit taken during Cleave's 0.2 s cast time counts (Ryan, 2026-09-29). This changes when ABILITIES' built-in input is filled, for every ability (ABILITIES.md, Named inputs). One value per cast: every enemy of one Cleave gets the same ratio.
+- **CH5b (Ryan, 2026-09-30):** `from_ability()` with a cast also sets `ctx.heal_missing_health_ratio` (`get_effect_param()`, the same scalings) and `ctx.cast`. In `apply_on_hit()`, after the source-alive check: if the ratio > 0, the hit has a cast and `cast.missing_health_healed` is false, it sets the flag and adds ratio × (max health − current) to the same heal as `life_on_hit` / `life_steal` / `heal_on_hit_ratio` (one `Unit.heal()`, one green number). So the first hit of the cast that gets through heals, the rest of that cast don't.
 
 ### Readable kit HUD (CH6)
 Functional only (Ryan, 2026-09-29): a tester can read their own state during CH-M without being told. No art: placeholder squares and text, as the ability bar has now. The polished HUD and icons stay with the art/VFX pass and UI.md.
@@ -276,18 +278,18 @@ See AUDIO.md. Champion sounds (hurt, death, low health) move onto ChampionData i
 | Edge case | Handling |
 |---|---|
 | Staggered runs out between Lunge and Cleave | Cleave's bonus is checked at its hit (AB12), so an expired Staggered gives nothing. The window is wide: a Cleave pressed during Lunge is buffered and fires as Lunge ends, its effect 0.2 s later, leaving about 1.8 s of the 2 s. |
-| Cleave hits Staggered and non-Staggered enemies | Checked per enemy: only the Staggered ones get +50% (and their bigger damage heals more). |
+| Cleave hits Staggered and non-Staggered enemies | Checked per enemy: only the Staggered ones get +50%. (The heal doesn't depend on damage since CH5b.) |
 | Lunge kills an enemy | No Staggered on the dead (statuses skip a target the hit killed). |
 | A free Lunge from the `cleave_casts_lunge` augment | It staggers too (the bonus is on Lunge's .tres). Cleave's own hits resolve first (the free Lunge's hits come after its dash), so that Cleave never gets the bonus from them. |
 | Unstoppable or untargetable enemy | Staggered isn't `cc`, so unstoppable doesn't refuse it; untargetable refuses it (statuses from other units, AB10). |
-| Cleave's heal on a killing blow | `apply_on_hit()` runs for killing hits, so it heals. It uses `taken_damage`, overkill included, the same as `life_steal` (Ryan, 2026-09-29). |
-| Healing at max health | A no-op: `Unit.heal()` clamps at max, returns 0 and shows no "+0"; nothing becomes overheal or a shield. At full health the ratio is 0 anyway (0% missing). If the first enemy's heal fills the Knight, the rest heal nothing. Tested in CH5 (this also tests the existing "heals show no overheal"). |
-| Heal from a blocked hit, or while the Knight is dead | None (blocked hits have no on-hit; `apply_on_hit()` stops for a dead source). |
-| Heal on a shield-absorbed hit | Counts: `taken_damage` includes the absorbed part (as for life steal). |
+| Cleave's heal on a killing blow | `apply_on_hit()` runs for killing hits, so a killing blow is a hit that heals (once per cast). (Before CH5b the damage-based heal counted overkill, Ryan 2026-09-29; the damage-based field still does.) |
+| Healing at max health | A no-op: `Unit.heal()` clamps at max, returns 0 and shows no "+0"; nothing becomes overheal or a shield. At full health there's nothing missing anyway. The heal is once per cast (CH5b), so the other enemies of that Cleave never heal. Tested in CH5 and CH5b (this also tests the existing "heals show no overheal"). |
+| Heal from a blocked hit, or while the Knight is dead | None (blocked hits have no on-hit; `apply_on_hit()` stops for a dead source). A blocked first hit doesn't use up the cast's heal: the next hit of that cast that gets through heals. |
+| Heal on a shield-absorbed hit | Counts: a hit absorbed by the enemy's shield still got through, so it heals (once per cast). |
 | Fury threshold: at cast or at the effect | At the effect (AB8 / AB12): `RESOURCE_AT_LEAST` reads the Fury when Judgement's hit is built, after the channel. It costs nothing, so no cost is taken before the check. |
 | Fury drops below 60 during Judgement's channel | No bonus: decay runs only 3 s after the last hit dealt or taken, so a Judgement cast from out of combat can lose it during the channel. The HUD tick (UI.md) makes that readable. |
-| Unbroken and Cleave's heal both read missing health | They don't fight: Unbroken refreshes at most once per physics frame, after that frame's hits, so every enemy of one Cleave sees the same AD; the heal's ratio is one value per cast. A heal raises health, so Unbroken's AD drops from the next frame. At low health they compound on purpose (more AD × a higher heal ratio). |
-| Max health changes (an item) | `health_changed` fires, so Unbroken re-evaluates; the heal ratio uses the new max at the next cast. |
+| Unbroken and Cleave's heal both read missing health | They don't fight: Unbroken refreshes at most once per physics frame, after that frame's hits, so every enemy of one Cleave sees the same AD; the heal's ratio is one value per cast and it heals once. A heal raises health, so Unbroken's AD drops from the next frame. At low health they compound on purpose (more AD and a bigger heal). |
+| Max health changes (an item) | `health_changed` fires, so Unbroken re-evaluates; the heal reads the missing health (and its ratio the missing share) from the new max at the next cast. |
 | Cleave pressed without 20 Fury | "Not enough resource": the bar blinks, nothing spent, not buffered (AB3). |
 | Fury at max | `restore()` does nothing past 100. |
 | The passive removed (tests; later a form or talent swap) | `remove_from()` removes every piece by `passive_knight`: AD back exactly. |
@@ -307,6 +309,8 @@ Every step: the Knight's abilities, enemies chasing and the HUD still work; buil
    **Done means:** enemies Lunge cuts through show the marker for 2 s; Cleave hits them for +50% (and others normally); Judgement at 60+ Fury stuns 1.25 s and hits 30% harder (and empties the bar), below 60 it's the plain 0.75 s; tooltips list the bonus lines.
 5. **CH5 – Cleave's heal on hit.** `Ability.heal_on_hit_ratio`, `HitContext.heal_on_hit_ratio`, `from_ability()` and `apply_on_hit()`, Cleave's ratio and scaling, `curve_knight_cleave_heal.tres`, the effect-start `self_missing_health` read. Built 2026-09-29, see CHANGELOG.md.
    **Done means:** at full health Cleave heals nothing; at 50% about 8% of its damage per enemy; at 10% about 55%; three enemies heal three times; a killing blow heals; at max health nothing is healed or shown; the heal works with Unbroken without order effects; no other ability heals.
+   **CH5b – Cleave's heal from missing health** (Ryan, 2026-09-30). `Ability.heal_missing_health_ratio`, `HitContext.heal_missing_health_ratio` and `.cast`, `CastContext.missing_health_healed`, the once-per-cast heal in `apply_on_hit()`; Cleave and Cleave Wave move their 0.55 and its scaling to the new field (the curve unchanged), their tooltips say "of your missing health". Built 2026-09-30, see CHANGELOG.md.
+   **Done means:** one Cleave that hits heals 0 / 26 / 73 / 322 at 100 / 50 / 25 / 10% health, the same into one enemy or three; nothing into the air, through a blocked hit or at max health; a killing blow heals; a hit taken during the cast time counts; the damage-based field still works on a test copy.
 6. **CH6 – Readable kit (functional HUD).** `passive_slot.gd` and `Passive.icon_color`, the passive slot in `hud.setup_abilities()`, the resource bar's threshold ticks and glow (`resource_bar.gd`), the live-bonus outline on ability slots (`ability_bar.gd`); HUD checks in the champions test (Architecture, Readable kit HUD). Added at Ryan's request (2026-09-29) so testers can read their own state during CH-M. Built 2026-09-30, see CHANGELOG.md.
    **Done means:** hovering the passive slot shows Unbroken's name, description and its current bonus, which follows health; the Fury bar has a tick at 60 and glows at 60+; R has a gold outline at 60+ Fury and loses it below; with no champion (or no passive, or no thresholds) the HUD is exactly as before; no art.
 

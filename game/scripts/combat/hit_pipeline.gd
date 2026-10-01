@@ -57,6 +57,9 @@ static func from_ability(caster: Unit, ability: Ability, target: Node, cast: Cas
 		ctx.ap_ratio = ability.get_effect_param(caster, &"ap_ratio", cast, target)
 		# CHAMPIONS CH5: the heal on hit, shaped the same way (Cleave: missing health).
 		ctx.heal_on_hit_ratio = ability.get_effect_param(caster, &"heal_on_hit_ratio", cast, target)
+		# CH5b: the once-per-cast heal from missing health (Cleave), and the cast it belongs to.
+		ctx.heal_missing_health_ratio = ability.get_effect_param(caster, &"heal_missing_health_ratio", cast, target)
+		ctx.cast = cast
 		for b in ability.get_active_bonuses(caster, cast, target):
 			for s in b.target_statuses:
 				if s != null:
@@ -229,7 +232,9 @@ static func _prd_average(c: float) -> float:
 ##   (can't crit, no feel)
 ## - life_on_hit x proc_coefficient, plus life_steal x taken_damage on basic
 ##   attacks, plus heal_on_hit_ratio x taken_damage (an ability's heal on
-##   hit, CHAMPIONS CH5): heals the source (one green number)
+##   hit, CHAMPIONS CH5), plus once per cast heal_missing_health_ratio x the
+##   source's missing health (CH5b, on the cast's first hit that gets through):
+##   heals the source (one green number)
 ## - resource_on_hit x proc_coefficient: restores the source's resource (scoped: hit:
 ##   and target: modifiers count, CHAMPIONS CH3)
 static func apply_on_hit(ctx: HitContext) -> void:
@@ -252,6 +257,11 @@ static func apply_on_hit(ctx: HitContext) -> void:
 		heal += stats.get_stat(&"life_steal") * ctx.taken_damage
 	# An ability's heal on hit (CHAMPIONS CH5): overkill included, like life_steal.
 	heal += ctx.heal_on_hit_ratio * ctx.taken_damage
+	# Once per cast (CHAMPIONS CH5b): the first hit of the cast that gets through
+	# heals the source for the ratio x its missing health now.
+	if ctx.heal_missing_health_ratio > 0.0 and ctx.cast != null and not ctx.cast.missing_health_healed:
+		ctx.cast.missing_health_healed = true
+		heal += ctx.heal_missing_health_ratio * maxf(source.health.max_health - source.health.current, 0.0)
 	if heal > 0.0:
 		source.heal(heal)
 	# Scoped (CHAMPIONS CH3): hit: / target: modifiers reach it, like damage_increase

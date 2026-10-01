@@ -188,7 +188,7 @@ Cast conditions: (Condition kinds, AND; "not"; fail text) + custom check, if any
 Recast conditions: (per the next part) + custom check, if any
 Conditional bonuses: {conditions → param changes, statuses on targets, statuses on self}, checked at cast / hit
 Named scaling inputs: which params scale by which input (charge, self_missing_health, target_missing_health, target_distance, vector_drag, script-set), min fraction, curve
-Heal on hit: heal_on_hit_ratio (× damage taken by each enemy hit), its named-input scaling (input, curve) (CHAMPIONS CH5)
+Heal on hit: heal_on_hit_ratio (× damage taken by each enemy hit, CHAMPIONS CH5) or heal_missing_health_ratio (× the caster's missing health, once per cast, CH5b), its named-input scaling (input, curve)
 Presentation hooks: cast_vfx, impact_vfx, cast_anim (AB14; empty until the art pass)
 What it does, step by step:
 Supported augment flags:
@@ -313,6 +313,7 @@ Audio hooks: see AUDIO.md (`charge_sound` is added there for CHARGE_UP).
 | `impact_vfx` | `PackedScene` | null | AB14: played on each unit a hit of this ability gets through to. null = nothing. |
 | `cast_anim` | `StringName` | `&""` | AB14: an animation on the caster's `Body/AnimationPlayer`, positioned by cast progress. Empty (or no such player or animation) = nothing. |
 | `heal_on_hit_ratio` | `float` | 0 | CHAMPIONS CH5, export group "Sustain": heals the caster for this × the damage taken by each unit a hit of this ability gets through to (`HitPipeline.apply_on_hit()`, `Unit.heal()`). A scoped param, and a named-input scaling may shape it (the Knight's Cleave: `self_missing_health` through a curve). A kit mechanic, not the `life_steal` stat (CHAMPIONS.md, Sustain). |
+| `heal_missing_health_ratio` | `float` | 0 | CHAMPIONS CH5b, export group "Sustain": heals the caster for this × their missing health, once per cast, on the cast's first hit that gets through (`HitPipeline.apply_on_hit()`, `Unit.heal()`; `HitContext.cast`, `CastContext.missing_health_healed`). A scoped param, shaped like `heal_on_hit_ratio`. The Knight's Cleave uses this one (0.55 through a curve on `self_missing_health`); its `heal_on_hit_ratio` is 0. |
 
 Tags (`tags`, existing) carry the standard tags (placeholder roles until CHAMPIONS.md; CHAMPIONS.md keeps the Knight's as they are *(proposed)*): Cleave `core`, `area`, `cone`; Iron Resolve `defensive`, `buff`; Lunge `mobility`, `dash`, `movement`; Judgement `ultimate`, `channel`; the slam `core`, `area`. Existing tags stay (don't rename). A style tag is written in the data and must match `cast_style` (the test checks it).
 

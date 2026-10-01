@@ -126,7 +126,8 @@ Example: since `StatusComponent` (COMBAT C9), `Unit.apply_stun()` and `add_speed
 | `StatsComponent`, `StatModifier`, `StatDefinition`, `StatRegistry`, `ResourceComponent` | stats (all exist) | STATS.md |
 | `ChampionData`, `Passive`, `StatScaling`; `ResourceComponent.ResourceType.NONE`; `champion_level`, `champion_xp`, `champion_class`; status `staggered` (tags `staggered`, `debuff`) | champions, passives, a stat modifier that follows a 0–1 input, the champion level hook, the Knight's marker status (planned, CH1–CH4) | CHAMPIONS.md |
 | `cast_vfx`, `impact_vfx`, `cast_anim` (Ability); `swing_vfx`, `impact_vfx`, `swing_anim` (AttackSwing); `CastContext.progress`, `get_cast_progress()`, `get_cast_speed()`, `Telegraph.set_progress()` / `is_driven()`, `AutoAttackComponent.get_swing_progress()`, `VFX.spawn_scene()` | presentation hooks and cast progress (built, AB14) | ABILITIES.md |
-| `heal_on_hit_ratio` (Ability, HitContext) | an ability's kit heal on hit (planned, CHAMPIONS CH5) | CHAMPIONS.md, COMBAT.md |
+| `heal_on_hit_ratio` (Ability, HitContext) | an ability's kit heal from the damage it deals (CHAMPIONS CH5) | CHAMPIONS.md, COMBAT.md |
+| `heal_missing_health_ratio` (Ability, HitContext), `HitContext.cast`, `CastContext.missing_health_healed` | an ability's kit heal from the caster's missing health, once per cast (CHAMPIONS CH5b) | CHAMPIONS.md, COMBAT.md |
 | `HitContext`, `DamageType` (enum `HitContext.DamageType`), `ImpactContext`, `HitPipeline` | the hit pipeline | COMBAT.md |
 | `AttackSwing`, `AttackCombo` | basic attack combo data | COMBAT.md |
 | `HitFeel` | hit feel per tier (hitstop, shake, flash) | COMBAT.md |

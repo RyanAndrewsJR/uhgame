@@ -67,6 +67,9 @@ var progress: float = 0.0
 ## AbilityComponent removes it if the cast is cancelled or interrupted;
 ## execute() usually calls finish() on it.
 var telegraph: Telegraph
+## Set by the first hit of this cast that healed the caster from missing
+## health (Ability.heal_missing_health_ratio, once per cast; CHAMPIONS CH5b).
+var missing_health_healed: bool = false
 
 
 ## A named input (0-1), or `default` if it isn't set (ABILITIES AB12).

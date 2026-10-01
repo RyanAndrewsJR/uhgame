@@ -14,9 +14,11 @@ extends Node2D
 ## CH4: Staggered (Lunge applies it, its marker, 2 s), Cleave and Cleave Wave
 ## +50% against it, Judgement's 60 Fury bonus consumed by its hit, its 0.75 s
 ## channel and 30 s cooldown.
-## CH5: Cleave's heal on hit (0.55 shaped by missing health through the curve, per
-## hit, overkill included, nothing at max health, missing health read at the
-## effect start), the same on Cleave Wave, no other ability heals.
+## CH5 / CH5b: Cleave's heal (Ryan 2026-09-30: a share of the missing health, once
+## per cast that hits; 0.55 shaped by missing health through the curve; kills
+## count, blocked hits and max health heal nothing, missing health read at the
+## effect start), the same on Cleave Wave, no other ability heals; the
+## damage-based heal_on_hit_ratio still works on a test copy.
 ## CH6: the readable kit HUD (the passive slot and its live tooltip line, the
 ## Fury bar's tick at 60 and glow, R's live-bonus outline; nothing for a
 ## champion without a passive or thresholds).
@@ -561,39 +563,43 @@ func _test_judgement_fury() -> void:
 
 
 func _test_heal_data() -> void:
-	_section("CH5: Cleave's heal on hit in the data")
+	_section("CH5b: Cleave's heal from missing health in the data")
 	for ability: Ability in [CLEAVE, CLEAVE_WAVE]:
 		var s: ChargeScaling = null
 		for cs in ability.charge_scalings:
-			if cs != null and cs.param == &"heal_on_hit_ratio":
+			if cs != null and cs.param == &"heal_missing_health_ratio":
 				s = cs
-		_check("%s: ratio 0.55, scaled by self_missing_health (min 0) through curve_knight_cleave_heal" % ability.display_name,
-			[ability.heal_on_hit_ratio, s != null, s.input if s else &"", s.min_fraction if s else -1.0, s != null and s.curve == CLEAVE_HEAL_CURVE], [0.55, true, &"self_missing_health", 0.0, true])
-	_check("no other Knight ability heals", [IRON_RESOLVE.heal_on_hit_ratio, LUNGE.heal_on_hit_ratio, JUDGEMENT.heal_on_hit_ratio, Ability.new().heal_on_hit_ratio], [0.0, 0.0, 0.0, 0.0])
+		_check("%s: 0.55 of missing health (no damage-based heal), scaled by self_missing_health (min 0) through curve_knight_cleave_heal" % ability.display_name,
+			[ability.heal_missing_health_ratio, ability.heal_on_hit_ratio, s != null, s.input if s else &"", s.min_fraction if s else -1.0, s != null and s.curve == CLEAVE_HEAL_CURVE], [0.55, 0.0, true, &"self_missing_health", 0.0, true])
+	_check("no other Knight ability heals; both heal fields default to 0",
+		[IRON_RESOLVE.heal_missing_health_ratio, LUNGE.heal_missing_health_ratio, JUDGEMENT.heal_missing_health_ratio, IRON_RESOLVE.heal_on_hit_ratio, LUNGE.heal_on_hit_ratio, JUDGEMENT.heal_on_hit_ratio, Ability.new().heal_missing_health_ratio, Ability.new().heal_on_hit_ratio],
+		[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 	var shares := []
 	for missing: float in [0.0, 0.25, 0.5, 0.75, 0.825, 0.9, 0.95, 1.0]:
 		shares.append(roundi(100.0 * 0.55 * clampf(CLEAVE_HEAL_CURVE.sample(missing), 0.0, 1.0)))   # whole percents
-	_check("heal share at 100 / 75 / 50 / 25 / 17.5 / 10 / 5 / 0% health: 0 / 3 / 8 / 15 / 35 / 55 / 55 / 55%", shares, [0, 3, 8, 15, 35, 55, 55, 55])
-	_check("the tooltip says up to 55%", CLEAVE.get_tooltip_plain(null).contains("Heals you for up to 55% of the damage dealt"), true)
+	_check("share of missing health at 100 / 75 / 50 / 25 / 17.5 / 10 / 5 / 0% health: 0 / 3 / 8 / 15 / 35 / 55 / 55 / 55%", shares, [0, 3, 8, 15, 35, 55, 55, 55])
+	_check("the tooltip says up to 55% of your missing health", CLEAVE.get_tooltip_plain(null).contains("Each cast that hits heals you for up to 55% of your missing health"), true)
 
 
 func _test_cleave_heals() -> void:
-	_section("CH5: Cleave heals by the damage it deals, more the lower the Knight's health")
-	for health_share: float in [1.0, 0.5, 0.1]:
+	_section("CH5b: a Cleave that hits heals a share of the missing health, once")
+	for health_share: float in [1.0, 0.5, 0.25, 0.1]:
 		var r := await _cleave_heal_run(health_share, 1)
-		var expected_ratio := 0.55 * clampf(CLEAVE_HEAL_CURVE.sample(1.0 - health_share), 0.0, 1.0)
-		_check_near("%d%% health: the hit's ratio %.3f" % [roundi(health_share * 100.0), expected_ratio], r.ratios[0] if not r.ratios.is_empty() else -1.0, expected_ratio, 0.0005)
-		_check_near("%d%% health: healed ratio x damage taken (%.1f)" % [roundi(health_share * 100.0), r.expected], r.healed, r.expected, 0.01)
+		var missing := 650.0 * (1.0 - health_share)
+		var expected := 0.55 * clampf(CLEAVE_HEAL_CURVE.sample(1.0 - health_share), 0.0, 1.0) * missing
+		_check_near("%d%% health (%d missing): heals %.1f" % [roundi(health_share * 100.0), roundi(missing), expected], r.healed, expected, 0.05)
+	var one := await _cleave_heal_run(0.1, 1)
 	var three := await _cleave_heal_run(0.1, 3)
-	_check("three enemies: three hits, the same ratio for each (one value per cast)", [three.ratios.size(), three.ratios.all(func(x: float) -> bool: return is_equal_approx(x, three.ratios[0]))], [3, true])
-	_check("and the same damage on each: Unbroken doesn't move between the hits of one Cleave", three.taken.all(func(x: float) -> bool: return is_equal_approx(x, three.taken[0])), true)
-	_check_near("three enemies heal three times: the sum", three.healed, three.expected, 0.01)
-	_check("at 10% health into three slimes: about a third of max health back", three.healed > 0.25 * 650.0 and three.healed < 0.45 * 650.0, true)
+	_check("10% health into three slimes: three hits, one heal", [three.ratios.size(), three.heals], [3, 1])
+	_check_near("the same amount as into one slime (55% of 585 = 321.75)", three.healed, one.healed, 0.05)
+	_check_near("which is 321.75", one.healed, 321.75, 0.05)
+	var air := await _cleave_heal_run(0.1, 0)
+	_check("a Cleave that hits nothing heals nothing", air.healed, 0.0)
 
 
 func _test_heal_edges() -> void:
-	_section("CH5: killing blows, max health, missing health read at the effect")
-	# A killing blow heals from the full taken damage (overkill included, like life_steal).
+	_section("CH5b: killing blows, blocked hits, max health, missing health read at the effect")
+	# A killing blow is a hit: it heals.
 	var k := await _spawn()
 	_no_crits(k)
 	var victim := _dummy(k.global_position + Vector2(40, 0))
@@ -601,37 +607,44 @@ func _test_heal_edges() -> void:
 	victim.health.take_damage(victim.health.max_health - 10.0)
 	_set_health(k, 0.1)
 	await _frames(1)
-	var hit := {}
-	var on_hit := func(ctx: HitContext) -> void:
-		if ctx.source == k and ctx.ability == CLEAVE and not ctx.blocked:
-			hit["ctx"] = ctx
-	Events.unit_hit.connect(on_hit)
 	var before := k.health.current
 	k.resource_pool.restore(20.0)
 	k.abilities.try_cast(&"q", victim.global_position)
-	await _wait_until(func() -> bool: return hit.has("ctx"), 60)
-	Events.unit_hit.disconnect(on_hit)
-	var ctx: HitContext = hit.get("ctx")
-	_check("the victim died, and far more damage than its 10 health was taken", [ctx != null and ctx.killed, ctx != null and ctx.taken_damage > 50.0], [true, true])
-	_check_near("the heal counts the overkill: ratio x full taken damage", k.health.current - before, ctx.heal_on_hit_ratio * ctx.taken_damage if ctx else -1.0, 0.01)
+	await _wait_until(func() -> bool: return not victim.is_alive(), 60)
+	await _frames(1)
+	_check_near("a killing blow heals: 55% of 585", k.health.current - before, 321.75, 0.05)
 	k.queue_free()
 	await _frames(1)
 
-	# At max health nothing is healed (a flat test ratio, so the curve isn't what stops it).
+	# A blocked hit (an invulnerable enemy) heals nothing.
+	var kb := await _spawn()
+	var shielded := _dummy(kb.global_position + Vector2(40, 0))
+	await _frames(1)
+	shielded.add_invulnerability(&"test")
+	_set_health(kb, 0.1)
+	await _frames(1)
+	var before_b := kb.health.current
+	kb.resource_pool.restore(20.0)
+	kb.abilities.try_cast(&"q", shielded.global_position)
+	await _wait_until(func() -> bool: return not kb.abilities.casting, 60)
+	await _frames(1)
+	_check("a blocked hit heals nothing", kb.health.current, before_b)
+	shielded.queue_free()
+	kb.queue_free()
+	await _frames(1)
+
+	# At max health nothing is healed (a flat 100% test ratio, so the curve isn't what stops it).
 	var k2 := await _spawn()
 	var flat: Ability = CLEAVE.duplicate()
 	flat.charge_scalings = []
-	flat.heal_on_hit_ratio = 1.0
+	flat.heal_missing_health_ratio = 1.0
 	flat.resource_cost = 0.0
 	k2.abilities.q = flat
 	var d2 := _dummy(k2.global_position + Vector2(40, 0))
 	await _frames(1)
-	var healed := [0.0]
-	var on_health := func(_c: float, _m: float) -> void: healed[0] = maxf(healed[0], k2.health.current - k2.health.max_health)
-	k2.health.health_changed.connect(on_health)
 	k2.abilities.try_cast(&"q", d2.global_position)
 	await _wait_until(func() -> bool: return not k2.abilities.casting, 60)
-	_check("at max health with a 100% heal: still exactly max health, no overheal", [k2.health.current, healed[0]], [k2.health.max_health, 0.0])
+	_check("at max health with a 100% ratio: still exactly max health", k2.health.current, k2.health.max_health)
 	d2.queue_free()
 	k2.queue_free()
 	await _frames(1)
@@ -644,23 +657,55 @@ func _test_heal_edges() -> void:
 	var ratio := [-1.0]
 	var on_hit3 := func(c: HitContext) -> void:
 		if c.source == k3 and c.ability == CLEAVE and not c.blocked:
-			ratio[0] = c.heal_on_hit_ratio
+			ratio[0] = c.heal_missing_health_ratio
 	Events.unit_hit.connect(on_hit3)
 	k3.resource_pool.restore(20.0)
 	k3.abilities.try_cast(&"q", d3.global_position)
 	await _frames(3)
 	_set_health(k3, 0.1)   # at full health when pressed, 10% by the effect
+	var before3 := k3.health.current
 	await _wait_until(func() -> bool: return ratio[0] >= 0.0, 60)
+	await _frames(1)
 	Events.unit_hit.disconnect(on_hit3)
 	_check_near("pressed at full health, hit to 10% in the cast time: the 55% ratio", ratio[0], 0.55, 0.0005)
+	_check_near("and it heals 55% of 585", k3.health.current - before3, 321.75, 0.05)
 	d3.queue_free()
 	k3.queue_free()
 	await _frames(1)
 
+	# The damage-based heal (CH5's general heal_on_hit_ratio) still works for any ability.
+	var k4 := await _spawn()
+	_no_crits(k4)
+	var by_damage: Ability = CLEAVE.duplicate()
+	by_damage.charge_scalings = []
+	by_damage.heal_missing_health_ratio = 0.0
+	by_damage.heal_on_hit_ratio = 0.5
+	by_damage.resource_cost = 0.0
+	k4.abilities.q = by_damage
+	var pair := [_dummy(k4.global_position + Vector2(40, -14)), _dummy(k4.global_position + Vector2(40, 14))]
+	await _frames(1)
+	_set_health(k4, 0.5)
+	await _frames(1)
+	var taken := [0.0]
+	var on_hit4 := func(c: HitContext) -> void:
+		if c.source == k4 and c.ability == by_damage and not c.blocked:
+			taken[0] += c.taken_damage
+	Events.unit_hit.connect(on_hit4)
+	var before4 := k4.health.current
+	k4.abilities.try_cast(&"q", k4.global_position + Vector2(40, 0))
+	await _wait_until(func() -> bool: return not k4.abilities.casting, 60)
+	await _frames(1)
+	Events.unit_hit.disconnect(on_hit4)
+	_check_near("heal_on_hit_ratio 0.5 on a test copy: half the damage taken by both enemies", k4.health.current - before4, 0.5 * taken[0], 0.05)
+	for d in pair:
+		d.queue_free()
+	k4.queue_free()
+	await _frames(1)
+
 
 ## One Cleave by a fresh Knight at `health_share` of max health into `count`
-## dummies: the hits' ratios and damage taken, the health healed, and the
-## expected heal (sum of ratio x damage taken, capped by the health missing).
+## dummies (0 = into the air): the hits' missing-health ratios, how many
+## times the Knight was healed, and how much.
 func _cleave_heal_run(health_share: float, count: int) -> Dictionary:
 	var k := await _spawn()
 	_no_crits(k)
@@ -671,23 +716,24 @@ func _cleave_heal_run(health_share: float, count: int) -> Dictionary:
 	_set_health(k, health_share)
 	await _frames(1)   # Unbroken settles for this health
 	var ratios: Array[float] = []
-	var taken: Array[float] = []
 	var on_hit := func(ctx: HitContext) -> void:
 		if ctx.source == k and ctx.ability == CLEAVE and not ctx.blocked:
-			ratios.append(ctx.heal_on_hit_ratio)
-			taken.append(ctx.taken_damage)
+			ratios.append(ctx.heal_missing_health_ratio)
 	Events.unit_hit.connect(on_hit)
+	var heals := [0]
+	var last := [k.health.current]
+	var on_health := func(current: float, _m: float) -> void:
+		if current > last[0] + 0.001:
+			heals[0] += 1
+		last[0] = current
+	k.health.health_changed.connect(on_health)
 	var before := k.health.current
 	k.resource_pool.restore(20.0)
 	k.abilities.try_cast(&"q", k.global_position + Vector2(40, 0))
-	await _wait_until(func() -> bool: return ratios.size() >= count, 60)
+	await _wait_until(func() -> bool: return not k.abilities.casting, 60)
 	await _frames(1)
 	Events.unit_hit.disconnect(on_hit)
-	var expected := 0.0
-	for i in ratios.size():
-		expected += ratios[i] * taken[i]
-	expected = minf(expected, k.health.max_health - before)
-	var result := {"ratios": ratios, "taken": taken, "healed": k.health.current - before, "expected": expected}
+	var result := {"ratios": ratios, "heals": heals[0], "healed": k.health.current - before}
 	for d in dummies:
 		d.queue_free()
 	k.queue_free()

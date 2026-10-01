@@ -174,6 +174,12 @@ const DAMAGE_NUMBER_STYLE_PATH := "res://data/damage_number_styles/damage_number
 ## life_steal: overkill included, never for a blocked hit or a dead caster,
 ## through Unit.heal(). 0 = no heal. Not the life_steal stat: a kit mechanic.
 @export var heal_on_hit_ratio: float = 0.0
+## Heals the caster for this share of their own missing health, once per cast:
+## on the first hit of the cast that gets through (a scoped param; CHAMPIONS
+## CH5b, Cleave's heal, Ryan 2026-09-30). Shaped like heal_on_hit_ratio
+## (get_effect_param() at the hit: named-input scalings, bonuses); applied in
+## HitPipeline.apply_on_hit() through Unit.heal(). 0 = no heal.
+@export var heal_missing_health_ratio: float = 0.0
 
 @export_group("Feel")
 ## Played once per cast by play_hit_feel() when at least one hit landed
