@@ -46,8 +46,12 @@ func is_hovered() -> bool:
 	return _hover
 
 
-## The tooltip's text lines before wrapping: the name, the description, then
-## one "Now:" line per stat scaling (tests read it).
+## The tooltip's text lines before wrapping: the name, the description, one
+## "Now:" line per stat scaling the passive has attached (one a talent replaces
+## shows none), then per active PASSIVE talent (TALENTS T1): its name, a
+## "Replaces <passive>'s <stat>" line per replaced stat, and a "Now:" line per
+## scaling it adds. So the slot never shows a bonus the champion doesn't have.
+## Tests read it.
 func get_tooltip_lines() -> PackedStringArray:
 	var out := PackedStringArray()
 	var passive := get_passive()
@@ -55,21 +59,36 @@ func get_tooltip_lines() -> PackedStringArray:
 		return out
 	out.append(passive.display_name)
 	out.append(passive.description)
+	var left_out := player.get_left_out_passive_stats()
 	for s in passive.stat_scalings:
-		if s != null and s.modifier != null:
+		if s != null and s.modifier != null and not left_out.has(s.modifier.stat):
 			out.append("Now: %s" % _scaling_text(s))
+	for talent in player.get_active_talents():
+		if talent.group != Talent.Group.PASSIVE:
+			continue
+		out.append("%s (talent)" % talent.display_name)
+		for stat in talent.replaces_passive_stats:
+			out.append("Replaces %s's %s" % [passive.display_name, _stat_name(stat)])
+		for s in talent.stat_scalings:
+			if s != null and s.modifier != null:
+				out.append("Now: %s" % _scaling_text(s))
 	return out
 
 
 func _scaling_text(s: StatScaling) -> String:
 	var value := s.get_value(player)
-	var stat_name := String(s.modifier.stat)
-	var def := player.stats_component.registry.get_definition(s.modifier.stat) if player.stats_component else null
-	if def != null and def.display_name != "":
-		stat_name = def.display_name.to_lower()
+	var stat_name := _stat_name(s.modifier.stat)
 	if s.modifier.type == StatModifier.Type.FLAT:
 		return "%+d %s" % [roundi(value), stat_name]
 	return "%+d%% %s" % [roundi(value * 100.0), stat_name]
+
+
+## The registry's display name in lower case ("attack damage"), else the id.
+func _stat_name(stat: StringName) -> String:
+	var def := player.stats_component.registry.get_definition(stat) if player.stats_component else null
+	if def != null and def.display_name != "":
+		return def.display_name.to_lower()
+	return String(stat)
 
 
 func _process(_delta: float) -> void:
@@ -109,7 +128,9 @@ func _draw_tooltip(passive: Passive) -> void:
 		draw_string(_font, rect.position + Vector2(6, y), line, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(1, 1, 1, 0.9))
 		y += 10.0
 	for line in now_lines:
-		draw_string(_font, rect.position + Vector2(6, y), line, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(1, 0.85, 0.4))
+		# "Now:" lines gold; a talent's name and its "Replaces" lines pale blue.
+		var color := Color(1, 0.85, 0.4) if line.begins_with("Now:") else Color(0.6, 0.8, 1.0)
+		draw_string(_font, rect.position + Vector2(6, y), line, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, color)
 		y += 10.0
 
 

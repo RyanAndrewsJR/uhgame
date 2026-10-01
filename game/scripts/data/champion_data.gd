@@ -54,6 +54,11 @@ extends Resource
 ## null = no passive.
 @export var passive: Passive
 
+@export_group("Talents")
+## Every talent this champion has (TALENTS.md): the pool the loadout picks
+## from. Each is attached under talent_<id> when it's in the loadout.
+@export var talents: Array[Talent] = []
+
 @export_group("Sounds")
 @export var hurt_sound: SoundEvent
 @export var death_sound: SoundEvent
@@ -77,3 +82,11 @@ func get_champion_source_id() -> StringName:
 ## The source id the passive's pieces are added under: passive_<id>.
 func get_passive_source_id() -> StringName:
 	return StringName("passive_%s" % id)
+
+
+## The talent with this id in `talents`, or null.
+func get_talent(talent_id: StringName) -> Talent:
+	for t in talents:
+		if t != null and t.id == talent_id:
+			return t
+	return null

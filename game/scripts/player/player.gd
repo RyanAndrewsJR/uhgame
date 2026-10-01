@@ -39,6 +39,10 @@ const ABILITY_ACTIONS := {&"q": "ability_q", &"w": "ability_w", &"e": "ability_e
 ## (_apply_champion()). null = the scene's exports, exactly as before. Set it
 ## before the Player enters the tree (the hub, later).
 @export var champion: ChampionData
+## The talents attached at load, by id from champion.talents (TALENTS.md).
+## A stand-in until TALENTS T4, when the loadout comes from the champion's
+## progress record (Progress); empty = no talents, exactly as before.
+@export var talent_loadout: Array[StringName] = []
 
 ## Set from Settings at start and whenever the player changes it in the
 ## pause menu, so an Inspector value only lasts until then.
@@ -86,6 +90,8 @@ var _walk_time: float = 0.0
 var _cast_face_point: Vector2 = Vector2.INF
 var _blink_time: float = 0.0
 var _low_health_handle: int = 0
+## The talents attached now, in the order added (TALENTS.md).
+var _active_talents: Array[Talent] = []
 ## The sword pull-back tween of the current swing's windup.
 var _swing_tween: Tween
 
@@ -140,7 +146,9 @@ func _apply_champion() -> void:
 
 
 ## After Unit._ready() (the StatsComponent is set up): the champion's own
-## modifiers under champion_<id> (CH3), then its passive under passive_<id> (CH2).
+## modifiers under champion_<id> (CH3), then its passive under passive_<id> (CH2),
+## then the loadout's talents under talent_<id> (TALENTS T1). The passive
+## attaches without the stats its talents replace (TALENTS.md, Replace and add).
 func _attach_champion() -> void:
 	var copies: Array[StatModifier] = []
 	for mod in champion.modifiers:
@@ -150,8 +158,74 @@ func _attach_champion() -> void:
 			copies.append(copy)
 	if not copies.is_empty():
 		stats_component.add_modifiers(copies)
+	for talent_id in talent_loadout:
+		var talent := champion.get_talent(talent_id)
+		if talent == null:
+			push_warning("Talent '%s' isn't one of %s's talents; dropped from the loadout" % [talent_id, champion.id])
+		elif _is_attachable(talent) and not _active_talents.has(talent):
+			_active_talents.append(talent)
 	if champion.passive != null:
-		champion.passive.apply_to(self, champion.get_passive_source_id())
+		champion.passive.apply_to(self, champion.get_passive_source_id(), get_left_out_passive_stats())
+	for talent in _active_talents:
+		talent.apply_to(self, talent.get_source_id())
+
+
+## The talents attached now (TALENTS.md), in the order added.
+func get_active_talents() -> Array[Talent]:
+	return _active_talents.duplicate()
+
+
+## The stats the active PASSIVE talents replace: the passive's own modifiers
+## and StatScalings on them aren't attached.
+func get_left_out_passive_stats() -> Array[StringName]:
+	var out: Array[StringName] = []
+	for talent in _active_talents:
+		if talent.group == Talent.Group.PASSIVE:
+			for stat in talent.replaces_passive_stats:
+				if not out.has(stat):
+					out.append(stat)
+	return out
+
+
+## Attaches one of the champion's talents now (the sandbox toggle and tests;
+## a real loadout attaches at load). Ignores locks, points and the tier rule;
+## refuses a talent that fails validation or is already on. A talent that
+## replaces passive stats re-attaches the passive without them.
+func add_talent(talent: Talent) -> bool:
+	if champion == null or talent == null or _active_talents.has(talent) or not _is_attachable(talent):
+		return false
+	_active_talents.append(talent)
+	if not talent.replaces_passive_stats.is_empty():
+		_reattach_passive()
+	talent.apply_to(self, talent.get_source_id())
+	return true
+
+
+## Removes an attached talent by its source id (the unit is restored exactly).
+func remove_talent(talent: Talent) -> bool:
+	if talent == null or not _active_talents.has(talent):
+		return false
+	talent.remove_from(self, talent.get_source_id())
+	_active_talents.erase(talent)
+	if not talent.replaces_passive_stats.is_empty():
+		_reattach_passive()
+	return true
+
+
+func _is_attachable(talent: Talent) -> bool:
+	var errors := talent.get_validation_errors(champion)
+	if errors.is_empty():
+		return true
+	push_error("Talent '%s' skipped: %s" % [talent.id, "; ".join(errors)])
+	return false
+
+
+func _reattach_passive() -> void:
+	if champion.passive == null:
+		return
+	var source := champion.get_passive_source_id()
+	champion.passive.remove_from(self, source)
+	champion.passive.apply_to(self, source, get_left_out_passive_stats())
 
 
 func _on_settings_setting_changed(key: StringName, _value: Variant) -> void:

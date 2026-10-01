@@ -15,6 +15,7 @@
 [ext_resource type="Resource" path="res://data/augments/augment_cleave_wave.tres" id="97_cleave_wave"]
 [ext_resource type="Resource" path="res://data/augments/augment_judgement_reset.tres" id="98_judgement_reset"]
 [ext_resource type="Resource" path="res://data/augments/augment_cleave_casts_lunge.tres" id="99_cleave_casts_lunge"]
+[ext_resource type="Script" path="res://scripts/rooms/sandbox_talents.gd" id="100_talents"]
 
 [node name="Sandbox" type="Node2D" unique_id=1476142640]
 script = ExtResource("1_room")
@@ -65,3 +66,6 @@ test_elite_w = ExtResource("10_vector_wall")
 [node name="SandboxAugments" type="Node" parent="."]
 script = ExtResource("94_augments")
 items = Array[ExtResource("95_augment")]([ExtResource("96_lunge_stuns"), ExtResource("97_cleave_wave"), ExtResource("98_judgement_reset"), ExtResource("99_cleave_casts_lunge")])
+
+[node name="SandboxTalents" type="Node" parent="."]
+script = ExtResource("100_talents")
