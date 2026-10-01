@@ -1,12 +1,14 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" format=3 uid="uid://b46uglcydylt1"]
 
-[ext_resource type="Script" path="res://scripts/abilities/knight/cleave_wave.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://bb2qyelou27yv" path="res://scripts/abilities/knight/cleave_wave.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://b03uhk6wyab30" path="res://scripts/data/status_effect.gd" id="7_nsmss"]
+[ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="8_3g44i"]
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="c1_condition"]
+[ext_resource type="Script" uid="uid://effvdqcl7tjf" path="res://scripts/data/conditional_bonus.gd" id="c2_bonus"]
+[ext_resource type="Script" uid="uid://cvwv2nrsbyrah" path="res://scripts/data/stat_modifier.gd" id="c3_modifier"]
+[ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="h1_scaling"]
+[ext_resource type="Curve" uid="uid://o3atmc4faada" path="res://data/curves/curve_knight_cleave_heal.tres" id="h2_heal_curve"]
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_cleave_cast.tres" id="s1_cast_sound"]
-[ext_resource type="Script" path="res://scripts/data/condition.gd" id="c1_condition"]
-[ext_resource type="Script" path="res://scripts/data/conditional_bonus.gd" id="c2_bonus"]
-[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="c3_modifier"]
-[ext_resource type="Script" path="res://scripts/data/charge_scaling.gd" id="h1_scaling"]
-[ext_resource type="Curve" path="res://data/curves/curve_knight_cleave_heal.tres" id="h2_heal_curve"]
 
 [sub_resource type="Resource" id="heal_by_missing_health"]
 script = ExtResource("h1_scaling")
@@ -40,7 +42,6 @@ description = "+50% damage to Staggered enemies."
 
 [resource]
 script = ExtResource("1_script")
-cast_sound = ExtResource("s1_cast_sound")
 id = &"knight_cleave_wave"
 tags = Array[StringName]([&"core", &"projectile"])
 display_name = "Cleave Wave"
@@ -48,13 +49,14 @@ variant_of = &"knight_cleave"
 description = "Send a wave of force up to {range} units ahead, dealing {damage} physical damage ({base_damage} {ratios}) to every enemy it passes through. Each cast that hits heals you for up to {heal_missing_health_ratio%} of your missing health, more the lower your health."
 icon_color = Color(0.85, 0.9, 1, 1)
 cooldown = 3.0
+charge_scalings = Array[ExtResource("h1_scaling")]([SubResource("heal_by_missing_health")])
 cast_time = 0.2
 cast_range = 700.0
 base_damage = 80.0
 ad_ratio = 0.7
+heal_missing_health_ratio = 0.55
+conditional_bonuses = Array[ExtResource("c2_bonus")]([SubResource("staggered_bonus")])
 projectile_speed = 900.0
 projectile_width = 150.0
 projectile_pierce = 20
-heal_missing_health_ratio = 0.55
-charge_scalings = Array[ExtResource("h1_scaling")]([SubResource("heal_by_missing_health")])
-conditional_bonuses = Array[ExtResource("c2_bonus")]([SubResource("staggered_bonus")])
+cast_sound = ExtResource("s1_cast_sound")

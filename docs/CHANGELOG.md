@@ -204,7 +204,10 @@ Combat test 450/450, stats test 172/172 (unchanged). A headless in-game check of
 
 ## Champions (CHAMPIONS.md)
 
-### CH5b – Cleave's heal from missing health: 2026-09-30, Built (awaiting play test)
+### Milestone CH-M – the Knight's kit: 2026-09-30, Passed
+Ryan's play test in the sandbox of the whole loop (Fury from swings, Lunge → Staggered → Cleave, Judgement at 60+ Fury, a low-health fight on Cleave's missing-health heal) passed, together with CH5b. The Knight's numbers stop being placeholders (CHAMPIONS.md); later tuning is data edits.
+
+### CH5b – Cleave's heal from missing health: 2026-09-30, Passed
 Ryan's change before CH-M: Cleave heals a share of the Knight's missing health once per Cleave that hits, not a share of the damage dealt. New: `Ability.heal_missing_health_ratio` (export group "Sustain", a scoped param), `HitContext.heal_missing_health_ratio` and `HitContext.cast` (set by `from_ability()` with a cast), `CastContext.missing_health_healed`, the once-per-cast heal in `apply_on_hit()` (ratio × missing health on the cast's first hit that gets through). Data: Cleave and Cleave Wave move their 0.55 and its `self_missing_health` scaling (the same curve) to the new field; `heal_on_hit_ratio` is back to 0 on them; their tooltips say "Each cast that hits heals you for up to 55% of your missing health, more the lower your health."
 
 **Changed during the step:** the champions test's CH5 checks were rewritten for the new rule (plus one check that the damage-based field still works on a test copy); the abilities test's Cleave tooltip text updated.

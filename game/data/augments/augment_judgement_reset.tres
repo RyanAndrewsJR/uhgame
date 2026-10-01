@@ -1,9 +1,10 @@
-[gd_resource type="Resource" script_class="AbilityAugment" format=3]
+[gd_resource type="Resource" script_class="AbilityAugment" format=3 uid="uid://deg03h2mono4e"]
 
-[ext_resource type="Script" path="res://scripts/data/ability_augment.gd" id="1_augment"]
-[ext_resource type="Script" path="res://scripts/data/reaction_rule.gd" id="2_rule"]
-[ext_resource type="Script" path="res://scripts/data/modify_cooldown_gameplay_effect.gd" id="3_cooldown"]
-[ext_resource type="Script" path="res://scripts/data/gameplay_effect.gd" id="4_effect"]
+[ext_resource type="Script" uid="uid://wnhx8l8oou7k" path="res://scripts/data/ability_augment.gd" id="1_augment"]
+[ext_resource type="Script" uid="uid://4jx6fbr85xri" path="res://scripts/data/reaction_rule.gd" id="2_rule"]
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="2_y477i"]
+[ext_resource type="Script" uid="uid://b0k28t7navdri" path="res://scripts/data/modify_cooldown_gameplay_effect.gd" id="3_cooldown"]
+[ext_resource type="Script" uid="uid://bnt28s0u3qkaw" path="res://scripts/data/gameplay_effect.gd" id="4_effect"]
 
 [sub_resource type="Resource" id="reset"]
 script = ExtResource("3_cooldown")

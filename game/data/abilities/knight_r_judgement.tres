@@ -2,18 +2,14 @@
 
 [ext_resource type="Script" uid="uid://bak88ay0ax4ie" path="res://scripts/abilities/knight/judgement.gd" id="1_script"]
 [ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="2_scaling"]
+[ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="3_ln7e1"]
+[ext_resource type="Script" uid="uid://b03uhk6wyab30" path="res://scripts/data/status_effect.gd" id="6_rwmyx"]
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="c1_condition"]
+[ext_resource type="Script" uid="uid://effvdqcl7tjf" path="res://scripts/data/conditional_bonus.gd" id="c2_bonus"]
+[ext_resource type="Script" uid="uid://cvwv2nrsbyrah" path="res://scripts/data/stat_modifier.gd" id="c3_modifier"]
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_judgement_cast.tres" id="s1_cast_sound"]
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_judgement_hit.tres" id="s2_hit_sound"]
 [ext_resource type="Resource" path="res://data/sounds/sound_ui_ultimate_ready.tres" id="s3_ready_sound"]
-[ext_resource type="Script" path="res://scripts/data/condition.gd" id="c1_condition"]
-[ext_resource type="Script" path="res://scripts/data/conditional_bonus.gd" id="c2_bonus"]
-[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="c3_modifier"]
-
-[sub_resource type="Resource" id="missing_health"]
-script = ExtResource("2_scaling")
-param = &"target_missing_health_ratio"
-ratio = 0.2
-of = 3
 
 [sub_resource type="Resource" id="fury_60"]
 script = ExtResource("c1_condition")
@@ -43,6 +39,12 @@ conditions = Array[ExtResource("c1_condition")]([SubResource("fury_60")])
 modifiers = Array[ExtResource("c3_modifier")]([SubResource("fury_stun"), SubResource("fury_base_damage"), SubResource("fury_ad_ratio")])
 description = "At 60+ Fury: +30% damage and +0.5s stun, and it consumes your Fury."
 
+[sub_resource type="Resource" id="missing_health"]
+script = ExtResource("2_scaling")
+param = &"target_missing_health_ratio"
+ratio = 0.2
+of = 3
+
 [resource]
 script = ExtResource("1_script")
 id = &"knight_judgement"
@@ -61,7 +63,7 @@ ad_ratio = 1.0
 scalings = Array[ExtResource("2_scaling")]([SubResource("missing_health")])
 hit_shake = 6.0
 hit_hitstop = 0.09
+conditional_bonuses = Array[ExtResource("c2_bonus")]([SubResource("fury_bonus")])
 cast_sound = ExtResource("s1_cast_sound")
 hit_sound = ExtResource("s2_hit_sound")
 ready_sound = ExtResource("s3_ready_sound")
-conditional_bonuses = Array[ExtResource("c2_bonus")]([SubResource("fury_bonus")])

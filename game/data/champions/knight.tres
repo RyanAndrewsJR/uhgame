@@ -1,17 +1,17 @@
-[gd_resource type="Resource" script_class="ChampionData" format=3]
+[gd_resource type="Resource" script_class="ChampionData" format=3 uid="uid://oaoex5p7fm1j"]
 
-[ext_resource type="Script" path="res://scripts/data/champion_data.gd" id="1_champion"]
-[ext_resource type="Resource" path="res://data/units/knight.tres" id="2_stats"]
-[ext_resource type="Resource" path="res://data/abilities/knight_q_cleave.tres" id="3_q"]
+[ext_resource type="Script" uid="uid://b8guk2etqvw6k" path="res://scripts/data/champion_data.gd" id="1_champion"]
+[ext_resource type="Resource" uid="uid://brsmqdalkxsgt" path="res://data/units/knight.tres" id="2_stats"]
+[ext_resource type="Resource" uid="uid://b1uvvfn1s1dgo" path="res://data/abilities/knight_q_cleave.tres" id="3_q"]
 [ext_resource type="Resource" path="res://data/abilities/knight_w_iron_resolve.tres" id="4_w"]
-[ext_resource type="Resource" path="res://data/abilities/knight_e_lunge.tres" id="5_e"]
-[ext_resource type="Resource" path="res://data/abilities/knight_r_judgement.tres" id="6_r"]
-[ext_resource type="Resource" path="res://data/combos/combo_knight.tres" id="7_combo"]
+[ext_resource type="Resource" uid="uid://cyup43vj2m6v1" path="res://data/abilities/knight_e_lunge.tres" id="5_e"]
+[ext_resource type="Resource" uid="uid://dlwftnjvwcsk0" path="res://data/abilities/knight_r_judgement.tres" id="6_r"]
+[ext_resource type="Resource" uid="uid://8yscfc0ykjmg" path="res://data/combos/combo_knight.tres" id="7_combo"]
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_hurt.tres" id="8_hurt_sound"]
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_low_health.tres" id="9_low_health_sound"]
-[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="10_stat_modifier"]
-[ext_resource type="Script" path="res://scripts/data/stat_scaling.gd" id="11_stat_scaling"]
-[ext_resource type="Script" path="res://scripts/data/passive.gd" id="12_passive"]
+[ext_resource type="Script" uid="uid://cvwv2nrsbyrah" path="res://scripts/data/stat_modifier.gd" id="10_stat_modifier"]
+[ext_resource type="Script" uid="uid://4f7eiawforfq" path="res://scripts/data/stat_scaling.gd" id="11_stat_scaling"]
+[ext_resource type="Script" uid="uid://m2al7vs8lnnp" path="res://scripts/data/passive.gd" id="12_passive"]
 [ext_resource type="Curve" path="res://data/curves/curve_knight_unbroken.tres" id="13_unbroken_curve"]
 
 [sub_resource type="Resource" id="StatModifier_fury_on_hit"]
@@ -29,14 +29,13 @@ value = 0.4
 [sub_resource type="Resource" id="StatScaling_unbroken"]
 script = ExtResource("11_stat_scaling")
 modifier = SubResource("StatModifier_unbroken")
-input = &"self_missing_health"
 curve = ExtResource("13_unbroken_curve")
 
 [sub_resource type="Resource" id="Passive_unbroken"]
 script = ExtResource("12_passive")
 display_name = "Unbroken"
-icon_color = Color(0.95, 0.5, 0.35, 1)
 description = "The lower your health, the harder you hit: up to +40% attack damage at 30% health or less."
+icon_color = Color(0.95, 0.5, 0.35, 1)
 stat_scalings = Array[ExtResource("11_stat_scaling")]([SubResource("StatScaling_unbroken")])
 
 [resource]
@@ -58,5 +57,3 @@ combo = ExtResource("7_combo")
 passive = SubResource("Passive_unbroken")
 hurt_sound = ExtResource("8_hurt_sound")
 low_health_sound = ExtResource("9_low_health_sound")
-champion_level = 1
-champion_xp = 0

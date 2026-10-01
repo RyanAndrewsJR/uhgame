@@ -314,7 +314,7 @@ Every step: the Knight's abilities, enemies chasing and the HUD still work; buil
 6. **CH6 – Readable kit (functional HUD).** `passive_slot.gd` and `Passive.icon_color`, the passive slot in `hud.setup_abilities()`, the resource bar's threshold ticks and glow (`resource_bar.gd`), the live-bonus outline on ability slots (`ability_bar.gd`); HUD checks in the champions test (Architecture, Readable kit HUD). Added at Ryan's request (2026-09-29) so testers can read their own state during CH-M. Built 2026-09-30, see CHANGELOG.md.
    **Done means:** hovering the passive slot shows Unbroken's name, description and its current bonus, which follows health; the Fury bar has a tick at 60 and glows at 60+; R has a gold outline at 60+ Fury and loses it below; with no champion (or no passive, or no thresholds) the HUD is exactly as before; no art.
 
-**Milestone CH-M – the Knight's kit** (after CH6): a play test in the sandbox of the whole loop: build Fury with swings, Lunge through a pack, Cleave the Staggered enemies, Judgement an elite at 60+ Fury, and survive a low-health fight on Cleave's heal.
+**Milestone CH-M – the Knight's kit** (after CH6): Passed 2026-09-30 (Ryan's play test; CHANGELOG.md). a play test in the sandbox of the whole loop: build Fury with swings, Lunge through a pack, Cleave the Staggered enemies, Judgement an elite at 60+ Fury, and survive a low-health fight on Cleave's heal.
 **Done means:** Ryan's play test: the kit reads at a glance and the numbers feel right (then they stop being placeholders).
 
 ## Out of scope
