@@ -48,6 +48,7 @@ of = 3
 [resource]
 script = ExtResource("1_script")
 id = &"knight_judgement"
+supported_flags = Array[StringName]([&"judgement_shockwave"])
 tags = Array[StringName]([&"ultimate", &"channel"])
 display_name = "Judgement"
 description = "Strike an enemy for {damage} physical damage ({base_damage} {ratios}), and stun it for {stun_duration}s. Channel: moving cancels it. Walks into range if needed."

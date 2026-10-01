@@ -283,9 +283,16 @@ func can_reach_through_walls(from: Vector2, target: Unit) -> bool:
 ## bonus can change it) away from where the caster stands now, `statuses`
 ## applied to each unit the hit gets through to (after the damage, from the
 ## caster), then resolve(). Returns every hit, blocked ones included.
-func hit_units(caster: Unit, units: Array[Unit], ctx: CastContext, statuses: Array[StatusEffect] = []) -> Array[HitContext]:
+## TALENTS T3 (Ryan, 2026-09-30), both optional, every older call unchanged:
+## `damage_ratio` scales each hit's damage terms (base_damage, ad_ratio,
+## ap_ratio: a share of the cast's damage, e.g. Shockwave's 50% splash);
+## `crit_roll` shares a roll another call of the same cast already made (a
+## second wave of hits still crits with the first), null = a new one.
+func hit_units(caster: Unit, units: Array[Unit], ctx: CastContext, statuses: Array[StatusEffect] = [],
+		damage_ratio: float = 1.0, crit_roll: HitContext.CritRoll = null) -> Array[HitContext]:
 	var hits: Array[HitContext] = []
-	var crit_roll := HitContext.CritRoll.new()
+	if crit_roll == null:
+		crit_roll = HitContext.CritRoll.new()
 	var origin := caster.global_position
 	for u in units:
 		if not is_instance_valid(u):
@@ -293,6 +300,10 @@ func hit_units(caster: Unit, units: Array[Unit], ctx: CastContext, statuses: Arr
 		var push := get_effect_param(caster, &"hit_knockback_px", ctx, u)
 		var hit := HitPipeline.from_ability(caster, self, u, ctx)
 		hit.crit_roll = crit_roll
+		if damage_ratio != 1.0:
+			hit.base_damage *= damage_ratio
+			hit.ad_ratio *= damage_ratio
+			hit.ap_ratio *= damage_ratio
 		if push > 0.0:
 			hit.knockback_px = push
 			hit.knockback_duration = hit_knockback_duration

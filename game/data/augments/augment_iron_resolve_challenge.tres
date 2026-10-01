@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="AbilityAugment" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ability_augment.gd" id="1_augment"]
+
+[resource]
+script = ExtResource("1_augment")
+id = &"iron_resolve_challenge"
+scope = &"ability:knight_iron_resolve"
+display_name = "Challenge"
+description = "Staggers every enemy within 96 px instead of the haste."

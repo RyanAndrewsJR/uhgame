@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="AbilityAugment" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ability_augment.gd" id="1_augment"]
+
+[resource]
+script = ExtResource("1_augment")
+id = &"cleave_rend"
+scope = &"ability:knight_cleave"
+display_name = "Rending Cleave"
+description = "A narrow cut (25°) with 40% more reach and 35% more damage."

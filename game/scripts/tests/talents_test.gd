@@ -4,6 +4,10 @@ extends Node2D
 ## as in TALENTS.md, siblings never sharing a stat), each number talent's
 ## param, Battle Cry's Fury, Twin Lunge's charges, Executioner's stun and
 ## reset, and Unbroken's four talents at low and full health.
+## T3: the six FLAG talents: every REPLACE variant supporting its base's talent
+## FLAGs, Whirling and Rending Cleave (who they hit, reach, damage, knockback)
+## and their Cleave Wave takes, Challenge and Bulwark, Tackle, Shockwave (the
+## splash's share, stuns, the Fury payoff).
 ## T1: the talent framework. ToolkitBundle (the bundle moved out of Passive,
 ## Unbroken unchanged), Talent and TalentRequirement data, each piece kind
 ## (modifier, StatScaling, rule, FLAG, EVENT) attaching and detaching exactly
@@ -42,7 +46,7 @@ var _next_x: float = 0.0
 
 
 func _ready() -> void:
-	print("\n=== Talents test (TALENTS T1–T2) ===")
+	print("\n=== Talents test (TALENTS T1–T3) ===")
 	await _test_bundle_refactor()
 	_test_talent_data()
 	await _test_piece_kinds()
@@ -57,6 +61,16 @@ func _ready() -> void:
 	await _test_twin_lunge()
 	await _test_executioner()
 	await _test_unbroken_talents()
+	_test_variant_flags()
+	await _test_whirling_cleave()
+	await _test_rending_cleave()
+	await _test_cleave_wave_flags()
+	await _test_challenge_and_bulwark()
+	await _test_tackle()
+	await _test_shockwave()
+	# The last check ends on a Judgement hit sound; stop it so nothing plays at exit.
+	Audio.stop_all()
+	await _frames(2)
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -338,18 +352,24 @@ func _test_sandbox_talents() -> void:
 # --- T2: the Knight's set, part 1 -----------------------------------------------
 
 ## id -> [group, tier, champion level, requirement kind, amount] (TALENTS.md,
-## The Knight's talents). T3 adds the six FLAG talents.
+## The Knight's talents): all 20 since T3.
 const KNIGHT_T2 := {
 	&"knight_thrifty_edge": [Q, 1, 2, TalentRequirement.Kind.ABILITY_USES, 200],
 	&"knight_long_reach": [Q, 1, 2, TalentRequirement.Kind.ABILITY_USES, 200],
+	&"knight_whirling_cleave": [Q, 2, 6, TalentRequirement.Kind.ABILITY_USES, 1800],
+	&"knight_rending_cleave": [Q, 2, 6, TalentRequirement.Kind.ABILITY_USES, 1800],
 	&"knight_quick_recovery": [Talent.Group.W, 1, 2, TalentRequirement.Kind.ABILITY_USES, 75],
 	&"knight_battle_cry": [Talent.Group.W, 1, 2, TalentRequirement.Kind.ABILITY_USES, 75],
+	&"knight_challenge": [Talent.Group.W, 2, 6, TalentRequirement.Kind.ABILITY_USES, 750],
+	&"knight_bulwark": [Talent.Group.W, 2, 6, TalentRequirement.Kind.ABILITY_USES, 750],
 	&"knight_long_lunge": [E, 1, 2, TalentRequirement.Kind.ABILITY_USES, 90],
 	&"knight_quick_footing": [E, 1, 2, TalentRequirement.Kind.ABILITY_USES, 90],
+	&"knight_tackle": [E, 2, 6, TalentRequirement.Kind.ABILITY_USES, 900],
 	&"knight_twin_lunge": [E, 2, 6, TalentRequirement.Kind.ABILITY_USES, 900],
 	&"knight_swift_verdict": [R, 1, 2, TalentRequirement.Kind.ABILITY_USES, 20],
 	&"knight_long_arm": [R, 1, 2, TalentRequirement.Kind.ABILITY_USES, 20],
 	&"knight_executioner": [R, 2, 6, TalentRequirement.Kind.ABILITY_USES, 180],
+	&"knight_shockwave": [R, 2, 6, TalentRequirement.Kind.ABILITY_USES, 180],
 	&"knight_bloodrage": [PASSIVE, 1, 2, TalentRequirement.Kind.KILLS, 150],
 	&"knight_thick_skin": [PASSIVE, 1, 2, TalentRequirement.Kind.KILLS, 150],
 	&"knight_battle_trance": [PASSIVE, 2, 6, TalentRequirement.Kind.KILLS, 1500],
@@ -358,8 +378,8 @@ const KNIGHT_T2 := {
 
 
 func _test_knight_set_data() -> void:
-	_section("T2: the Knight's talents in the data")
-	_check("knight.tres lists the 14 part-1 talents", KNIGHT.talents.size(), KNIGHT_T2.size())
+	_section("T2–T3: the Knight's 20 talents in the data")
+	_check("knight.tres lists all 20 talents", KNIGHT.talents.size(), KNIGHT_T2.size())
 	var ids := []
 	for t in KNIGHT.talents:
 		ids.append(t.id)
@@ -379,17 +399,35 @@ func _test_knight_set_data() -> void:
 			[row[0], row[1], true, 2, TalentRequirement.Kind.CHAMPION_LEVEL, row[2], row[3], row[4]])
 		_check("%s: valid, named, described, file talent_%s.tres" % [t.id, t.id], [Array(t.get_validation_errors(KNIGHT)), t.display_name != "", t.description != "", t.resource_path.get_file()],
 			[[], true, true, "talent_%s.tres" % t.id])
-	# No tier holds more than two (a pick of one of two), and the siblings differ in kind:
-	# they never change the same stat (the authoring rule).
+	# Every tier is a pick of one of two, and the siblings differ in kind: two
+	# number-only siblings never change the same stat (the authoring rule). A
+	# sibling with an augment or a passive replacement is a shape change; its
+	# numbers may overlap (Whirling and Rending Cleave both retune the reach).
 	for t in KNIGHT.talents:
 		var siblings := KNIGHT.talents.filter(func(o: Talent) -> bool: return t.is_sibling_of(o))
-		# Twin Lunge's and Executioner's siblings (Tackle, Shockwave) are FLAGs: T3.
-		var expected_siblings := 0 if t.id in [&"knight_twin_lunge", &"knight_executioner"] else 1
-		_check("%s: %d sibling(s) so far" % [t.id, expected_siblings], siblings.size(), expected_siblings)
-		if siblings.size() == 1:
+		_check("%s: one sibling" % t.id, siblings.size(), 1)
+		if siblings.size() == 1 and _numbers_only(t) and _numbers_only(siblings[0]):
 			var mine := t.get_stats()
 			var theirs: Array[StringName] = siblings[0].get_stats()
-			_check("%s: no stat in common with its sibling" % t.id, mine.filter(func(s: StringName) -> bool: return theirs.has(s)), [])
+			_check("%s: no stat in common with its number-only sibling" % t.id, mine.filter(func(s: StringName) -> bool: return theirs.has(s)), [])
+	# Every tier 2 changes what the ability does, not only its numbers.
+	for t in KNIGHT.talents:
+		if t.tier == 2:
+			_check("%s (tier 2): a FLAG, an EVENT, a rule, a passive replacement or a trade-off modifier" % t.id, not _numbers_only(t) or _has_trade_off(t), true)
+
+
+## A talent made only of stat modifiers and scalings (no augment, rule or
+## passive replacement).
+func _numbers_only(t: Talent) -> bool:
+	return t.augments.is_empty() and t.reaction_rules.is_empty() and t.replaces_passive_stats.is_empty()
+
+
+## A number-only talent with a cost: one of its modifiers lowers something.
+func _has_trade_off(t: Talent) -> bool:
+	for m in t.modifiers:
+		if m != null and m.value < 0.0:
+			return true
+	return false
 
 
 func _test_knight_numbers() -> void:
@@ -468,6 +506,7 @@ func _test_executioner() -> void:
 	for fury: float in [0.0, 70.0]:
 		var k := await _spawn(KNIGHT)
 		k.resource_pool.decay_per_second = 0.0
+		_no_crits(k)   # a crit would kill the 280-health dummy (no stun on the dead)
 		k.add_talent(talent)
 		var dummy := _dummy(k.global_position + Vector2(60, 0))
 		await _frames(1)
@@ -534,6 +573,228 @@ func _test_unbroken_talents() -> void:
 	_check_all("Battle Trance + Bloodrage (tier 1 carries): +15% AD, +50% attack speed", [k.stats_component.get_stat(&"attack_damage"), k.stats_component.get_stat(&"attack_speed")], [73.6, base_as * 1.5])
 	_set_health(k, 1.0)
 	await _free(k)
+
+
+# --- T3: the six FLAG talents ---------------------------------------------------
+
+func _test_variant_flags() -> void:
+	_section("T3: every REPLACE variant supports its base's talent FLAGs")
+	var checked := 0
+	for file in DirAccess.get_files_at("res://data/abilities"):
+		if not file.ends_with(".tres"):
+			continue
+		var variant := load("res://data/abilities/" + file) as Ability
+		if variant == null or variant.variant_of == &"":
+			continue
+		var wanted: Array[StringName] = []
+		for t in KNIGHT.talents:
+			var base := t.get_group_ability(KNIGHT)
+			if base == null or base.id != variant.variant_of:
+				continue
+			for aug_res in t.augments:
+				var aug := aug_res as AbilityAugment
+				if aug != null and aug.kind == AbilityAugment.Kind.FLAG:
+					wanted.append(aug.id)
+		var missing := wanted.filter(func(f: StringName) -> bool: return not variant.supported_flags.has(f))
+		_check("%s (variant of %s) supports %s" % [variant.id, variant.variant_of, wanted], missing, [])
+		checked += 1
+	_check("at least one variant checked (Cleave Wave)", checked >= 1, true)
+
+
+func _test_whirling_cleave() -> void:
+	_section("T3: Whirling Cleave: all around, 72 px, 85% damage, no knockback")
+	var base := await _cleave_run(null, [Vector2(50, 0), Vector2(-50, 0), Vector2(125, 0)])
+	var whirl := await _cleave_run(KNIGHT.get_talent(&"knight_whirling_cleave"), [Vector2(50, 0), Vector2(-50, 0), Vector2(125, 0)])
+	_check("without it: the one in front (the 96 px cone counts the slime's 17.6 px radius), not behind, not at 125 px", base.hit, [true, false, false])
+	_check("with it: in front and behind, not the one at 125 px", whirl.hit, [true, true, false])
+	_check("reach 300 -> 225 u (72 px)", whirl.reach, 225.0)
+	_check_near("85% of the damage", whirl.damage[0] / base.damage[0] if base.damage[0] > 0.0 else 0.0, 0.85, 0.001)
+	_check("no knockback: the front dummy didn't move (the plain Cleave's did)", [whirl.moved[0], base.moved[0]], [false, true])
+
+
+func _test_rending_cleave() -> void:
+	_section("T3: Rending Cleave: 25°, 40% more reach, 35% more damage")
+	var points := [Vector2(50, 0), Vector2.from_angle(deg_to_rad(55)) * 70.0, Vector2(140, 0)]
+	var base := await _cleave_run(null, points)
+	var rend := await _cleave_run(KNIGHT.get_talent(&"knight_rending_cleave"), points)
+	_check("without it: in front and 55° off the aim, not at 140 px", base.hit, [true, true, false])
+	_check("with it: in front and at 140 px, not 55° off the aim", rend.hit, [true, false, true])
+	_check("reach 300 -> 420 u (134 px)", rend.reach, 420.0)
+	_check_near("x1.35 damage", rend.damage[0] / base.damage[0] if base.damage[0] > 0.0 else 0.0, 1.35, 0.001)
+	var k := await _spawn(KNIGHT)
+	k.add_talent(KNIGHT.get_talent(&"knight_rending_cleave"))
+	k.add_talent(KNIGHT.get_talent(&"knight_long_reach"))
+	_check("with Long Reach (tier 1 carries): 300 x 1.25 x 1.4 = 525 u", CLEAVE.get_param(k, &"cast_range"), 525.0)
+	_check("the flag is on Cleave", k.abilities.get_flags(CLEAVE), [&"cleave_rend"])
+	await _free(k)
+
+
+func _test_cleave_wave_flags() -> void:
+	_section("T3: with an item's Cleave Wave: Whirling Wave and Rending Wave")
+	var k := await _spawn(KNIGHT)
+	k.abilities.add_augment(AUGMENT_CLEAVE_WAVE, &"item_test_cleave_wave")
+	k.add_talent(KNIGHT.get_talent(&"knight_whirling_cleave"))
+	_check("Whirling: the wave has the flag, 8 waves 45° apart, range 525 u", [k.abilities.get_flags(CLEAVE_WAVE), CLEAVE_WAVE.get_param(k, &"projectile_count"), CLEAVE_WAVE.get_param(k, &"projectile_spread_deg"), CLEAVE_WAVE.get_param(k, &"cast_range")],
+		[[&"cleave_whirl"], 8.0, 45.0, 525.0])
+	_no_crits(k)
+	k.resource_pool.decay_per_second = 0.0
+	k.resource_pool.restore(100.0)
+	var behind := _dummy(k.global_position + Vector2(-100, 0))
+	await _frames(1)
+	var hits := await _cast_hits(k, &"q", k.global_position + Vector2(100, 0), null, 60)
+	_check("a dummy 100 px behind the Knight is hit by a wave", hits.has(behind), true)
+	behind.queue_free()
+	k.remove_talent(KNIGHT.get_talent(&"knight_whirling_cleave"))
+	k.add_talent(KNIGHT.get_talent(&"knight_rending_cleave"))
+	_check("Rending: the wave has the flag", k.abilities.get_flags(CLEAVE_WAVE), [&"cleave_rend"])
+	_check_all("Rending: one wave, 60 u wide, range 980 u", [CLEAVE_WAVE.get_param(k, &"projectile_count"), CLEAVE_WAVE.get_param(k, &"projectile_width"), CLEAVE_WAVE.get_param(k, &"cast_range")], [1.0, 60.0, 980.0])
+	await _free(k)
+
+
+func _test_challenge_and_bulwark() -> void:
+	_section("T3: Challenge (Staggers around, no haste) and Bulwark (a shield, no empower)")
+	var empower_id := AutoAttackComponent.get_empower_status_id(&"iron_resolve")
+	var k := await _spawn(KNIGHT)
+	k.add_talent(KNIGHT.get_talent(&"knight_challenge"))
+	var near := _dummy(k.global_position + Vector2(60, 0))
+	var far := _dummy(k.global_position + Vector2(150, 0))
+	await _frames(1)
+	k.abilities.try_cast(&"w", k.global_position, null)
+	await _frames(3)
+	_check("Challenge: the dummy at 60 px is Staggered, the one at 150 px isn't", [near.status_component.has_tag(&"staggered"), far.status_component.has_tag(&"staggered")], [true, false])
+	_check("Challenge: no haste, the empowered swing kept", [k.status_component.has_status(&"iron_resolve"), k.status_component.has_status(empower_id)], [false, true])
+	near.queue_free()
+	far.queue_free()
+	await _free(k)
+	var k2 := await _spawn(KNIGHT)
+	k2.add_talent(KNIGHT.get_talent(&"knight_bulwark"))
+	k2.abilities.try_cast(&"w", k2.global_position, null)
+	await _frames(3)
+	_check("Bulwark: a 120 shield, the haste kept, no empowered swing", [k2.status_component.get_shield(&"shield"), k2.status_component.has_status(&"iron_resolve"), k2.status_component.has_status(empower_id)], [120.0, true, false])
+	await _free(k2)
+
+
+func _test_tackle() -> void:
+	_section("T3: Tackle: stops at the first enemy, hits only it, stuns it 0.75 s")
+	var k := await _spawn(KNIGHT)
+	k.add_talent(KNIGHT.get_talent(&"knight_tackle"))
+	var first := _dummy(k.global_position + Vector2(60, 0))
+	var second := _dummy(k.global_position + Vector2(110, 0))
+	await _frames(1)
+	var start_x := k.global_position.x
+	var stun := {}
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == k and not ctx.blocked and ctx.target is Unit:
+			stun[ctx.target] = (ctx.target as Unit).status_component.get_time_left(&"stun")
+	Events.unit_hit.connect(on_hit)
+	k.abilities.try_cast(&"e", k.global_position + Vector2(200, 0), null)
+	await _frames(30)
+	Events.unit_hit.disconnect(on_hit)
+	_check("only the first enemy is hit", [stun.has(first), stun.has(second)], [true, false])
+	_check_near("its stun: 0.75 s", stun.get(first, 0.0), 0.75, 0.02)
+	_check("still Staggered (Lunge's own bonus)", first.status_component.has_tag(&"staggered"), true)
+	_check("the Knight stopped short of it (its edge, not past it)", [k.global_position.x < first.global_position.x, k.global_position.x - start_x > 10.0], [true, true])
+	first.queue_free()
+	second.queue_free()
+	await _free(k)
+	var k2 := await _spawn(KNIGHT)
+	k2.add_talent(KNIGHT.get_talent(&"knight_tackle"))
+	var from := k2.global_position
+	k2.abilities.try_cast(&"e", from + Vector2(300, 0), null)
+	await _frames(30)
+	_check_near("nobody in the path: the full Lunge (400 u = 128 px)", k2.global_position.x - from.x, 128.0, 2.0)
+	await _free(k2)
+
+
+func _test_shockwave() -> void:
+	_section("T3: Shockwave: 50% damage and a 0.5 s stun around the target, no missing-health damage")
+	var results := []
+	for fury: float in [0.0, 70.0]:
+		var k := await _spawn(KNIGHT)
+		_no_crits(k)
+		k.resource_pool.decay_per_second = 0.0
+		k.add_talent(KNIGHT.get_talent(&"knight_shockwave"))
+		var target := _dummy(k.global_position + Vector2(60, 0))
+		var splash := _dummy(k.global_position + Vector2(60, 45))
+		var far := _dummy(k.global_position + Vector2(60, 130))
+		await _frames(1)
+		if fury == 0.0:
+			target.health.take_damage(target.health.max_health * 0.1)   # 28 missing: a plain Judgement would add 20% of it
+		k.resource_pool.restore(fury)
+		var seen := {}
+		var on_hit := func(ctx: HitContext) -> void:
+			if ctx.source == k and ctx.ability == JUDGEMENT and not ctx.blocked and ctx.target is Unit:
+				seen[ctx.target] = [ctx.taken_damage, (ctx.target as Unit).status_component.get_time_left(&"stun")]
+		Events.unit_hit.connect(on_hit)
+		await _wait_until(func() -> bool: return not GameFeel.is_hitstop_active(), 120)
+		k.abilities.try_cast(&"r", target.global_position, target)
+		await _wait_until(func() -> bool: return seen.has(target), 90)
+		await _frames(1)
+		Events.unit_hit.disconnect(on_hit)
+		results.append([seen.get(target, [0.0, 0.0]), seen.get(splash, [0.0, 0.0]), seen.has(far), k.resource_pool.current])
+		for d in [target, splash, far]:
+			d.queue_free()
+		await _free(k)
+	var plain: Array = results[0]
+	var fury_run: Array = results[1]
+	_check("the target is hit; the dummy 45 px from it too; the one 130 px away isn't", [plain[0][0] > 0.0, plain[1][0] > 0.0, plain[2]], [true, true, false])
+	_check_near("the splash: 50% of the target's damage", plain[1][0] / plain[0][0] if plain[0][0] > 0.0 else 0.0, 0.5, 0.001)
+	_check_near("no missing-health damage: the target at 90% health takes 150 + 100% AD = 214 (a plain Judgement: 219.6)", plain[0][0], 214.0, 0.5)
+	_check_near("the target's stun: 0.75 s", plain[0][1], 0.75, 0.02)
+	_check_near("the splash's stun: 0.5 s", plain[1][1], 0.5, 0.02)
+	_check_near("at 70 Fury: the target's stun 1.25 s", fury_run[0][1], 1.25, 0.02)
+	_check_near("at 70 Fury: the splash's stun 1.0 s (the bonus's +0.5 s too)", fury_run[1][1], 1.0, 0.02)
+	_check_near("at 70 Fury: the splash still 50%, both +30%", fury_run[1][0] / fury_run[0][0] if fury_run[0][0] > 0.0 else 0.0, 0.5, 0.001)
+	_check("at 70 Fury: the Fury consumed once (0 left)", fury_run[3], 0.0)
+
+
+## One plain or talented Cleave from a fresh Knight, aimed right, at dummies
+## placed at `points` (relative to the Knight). Returns which were hit, the
+## damage each took, whether each moved, and Cleave's reach param.
+func _cleave_run(talent: Talent, points: Array) -> Dictionary:
+	var k := await _spawn(KNIGHT)
+	_no_crits(k)
+	k.resource_pool.decay_per_second = 0.0
+	k.resource_pool.restore(100.0)
+	if talent != null:
+		k.add_talent(talent)
+	var dummies: Array[Enemy] = []
+	for p: Vector2 in points:
+		dummies.append(_dummy(k.global_position + p))
+	await _frames(1)
+	var starts := dummies.map(func(d: Enemy) -> Vector2: return d.global_position)
+	var hits := await _cast_hits(k, &"q", k.global_position + Vector2(100, 0), null, 30)
+	var out := {
+		"hit": dummies.map(func(d: Enemy) -> bool: return hits.has(d)),
+		"damage": dummies.map(func(d: Enemy) -> float: return hits[d].taken_damage if hits.has(d) else 0.0),
+		"moved": [],
+		"reach": CLEAVE.get_param(k, &"cast_range"),
+	}
+	for i in dummies.size():
+		out["moved"].append(dummies[i].global_position.distance_to(starts[i]) > 1.0)
+		dummies[i].queue_free()
+	await _free(k)
+	return out
+
+
+## Casts `slot` and collects every hit from the caster that got through, by unit.
+func _cast_hits(k: Player, slot: StringName, aim: Vector2, target: Unit, frames: int) -> Dictionary:
+	var hits := {}
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == k and not ctx.blocked and ctx.target is Unit:
+			hits[ctx.target] = ctx
+	Events.unit_hit.connect(on_hit)
+	k.abilities.try_cast(slot, aim, target)
+	await _frames(frames)
+	Events.unit_hit.disconnect(on_hit)
+	return hits
+
+
+## The Knight's own crit chance cancelled (exact damage checks).
+func _no_crits(p: Player) -> void:
+	var base := p.stats_component.get_base_value(&"crit_chance")
+	if base != 0.0:
+		p.stats_component.add_modifier(StatModifier.create(&"crit_chance", StatModifier.Type.FLAT, -base, &"test_baseline"))
 
 
 # --- Helpers ------------------------------------------------------------------

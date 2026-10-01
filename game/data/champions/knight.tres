@@ -27,6 +27,12 @@
 [ext_resource type="Resource" path="res://data/talents/talent_knight_thick_skin.tres" id="31_thick_skin"]
 [ext_resource type="Resource" path="res://data/talents/talent_knight_battle_trance.tres" id="32_battle_trance"]
 [ext_resource type="Resource" path="res://data/talents/talent_knight_stalwart.tres" id="33_stalwart"]
+[ext_resource type="Resource" path="res://data/talents/talent_knight_whirling_cleave.tres" id="34_whirling_cleave"]
+[ext_resource type="Resource" path="res://data/talents/talent_knight_rending_cleave.tres" id="35_rending_cleave"]
+[ext_resource type="Resource" path="res://data/talents/talent_knight_challenge.tres" id="36_challenge"]
+[ext_resource type="Resource" path="res://data/talents/talent_knight_bulwark.tres" id="37_bulwark"]
+[ext_resource type="Resource" path="res://data/talents/talent_knight_tackle.tres" id="38_tackle"]
+[ext_resource type="Resource" path="res://data/talents/talent_knight_shockwave.tres" id="39_shockwave"]
 [ext_resource type="Script" path="res://scripts/data/talent.gd" id="40_talent"]
 
 [sub_resource type="Resource" id="StatModifier_fury_on_hit"]
@@ -70,6 +76,6 @@ e = ExtResource("5_e")
 r = ExtResource("6_r")
 combo = ExtResource("7_combo")
 passive = SubResource("Passive_unbroken")
-talents = Array[ExtResource("40_talent")]([ExtResource("20_thrifty_edge"), ExtResource("21_long_reach"), ExtResource("22_quick_recovery"), ExtResource("23_battle_cry"), ExtResource("24_long_lunge"), ExtResource("25_quick_footing"), ExtResource("26_twin_lunge"), ExtResource("27_swift_verdict"), ExtResource("28_long_arm"), ExtResource("29_executioner"), ExtResource("30_bloodrage"), ExtResource("31_thick_skin"), ExtResource("32_battle_trance"), ExtResource("33_stalwart")])
+talents = Array[ExtResource("40_talent")]([ExtResource("20_thrifty_edge"), ExtResource("21_long_reach"), ExtResource("34_whirling_cleave"), ExtResource("35_rending_cleave"), ExtResource("22_quick_recovery"), ExtResource("23_battle_cry"), ExtResource("36_challenge"), ExtResource("37_bulwark"), ExtResource("24_long_lunge"), ExtResource("25_quick_footing"), ExtResource("38_tackle"), ExtResource("26_twin_lunge"), ExtResource("27_swift_verdict"), ExtResource("28_long_arm"), ExtResource("29_executioner"), ExtResource("39_shockwave"), ExtResource("30_bloodrage"), ExtResource("31_thick_skin"), ExtResource("32_battle_trance"), ExtResource("33_stalwart")])
 hurt_sound = ExtResource("8_hurt_sound")
 low_health_sound = ExtResource("9_low_health_sound")

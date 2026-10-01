@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="Talent" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/talent.gd" id="1_talent"]
+[ext_resource type="Script" path="res://scripts/data/talent_requirement.gd" id="2_req"]
+[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="3_mod"]
+[ext_resource type="Resource" path="res://data/augments/augment_iron_resolve_bulwark.tres" id="7_aug"]
+[sub_resource type="Resource" id="req_level"]
+script = ExtResource("2_req")
+amount = 6
+
+[sub_resource type="Resource" id="req_use"]
+script = ExtResource("2_req")
+kind = 1
+amount = 750
+
+[resource]
+script = ExtResource("1_talent")
+display_name = "Bulwark"
+description = "Iron Resolve gives a 120 shield for 3 s instead of empowering your next swing."
+augments = Array[Resource]([ExtResource("7_aug")])
+id = &"knight_bulwark"
+group = 1
+tier = 2
+requirements = Array[ExtResource("2_req")]([SubResource("req_level"), SubResource("req_use")])

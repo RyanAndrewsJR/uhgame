@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="AbilityAugment" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ability_augment.gd" id="1_augment"]
+
+[resource]
+script = ExtResource("1_augment")
+id = &"cleave_whirl"
+scope = &"ability:knight_cleave"
+display_name = "Whirling Cleave"
+description = "Hits all around you, at 75% reach and 85% damage, with no knockback."

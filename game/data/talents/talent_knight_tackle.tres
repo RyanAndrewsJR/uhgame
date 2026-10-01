@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="Talent" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/talent.gd" id="1_talent"]
+[ext_resource type="Script" path="res://scripts/data/talent_requirement.gd" id="2_req"]
+[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="3_mod"]
+[ext_resource type="Resource" path="res://data/augments/augment_lunge_tackle.tres" id="7_aug"]
+[sub_resource type="Resource" id="req_level"]
+script = ExtResource("2_req")
+amount = 6
+
+[sub_resource type="Resource" id="req_use"]
+script = ExtResource("2_req")
+kind = 1
+amount = 900
+
+[resource]
+script = ExtResource("1_talent")
+display_name = "Tackle"
+description = "Lunge stops at the first enemy in its path, hits only it, and stuns it for 0.75 s."
+augments = Array[Resource]([ExtResource("7_aug")])
+id = &"knight_tackle"
+group = 2
+tier = 2
+requirements = Array[ExtResource("2_req")]([SubResource("req_level"), SubResource("req_use")])

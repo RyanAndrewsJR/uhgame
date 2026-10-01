@@ -7,6 +7,13 @@ extends Ability
 ## blocked by walls, passes through projectile_pierce enemies, its hits
 ## through from_ability()). The slash and the crescent drawn on the wave are
 ## its own VFX.
+## TALENTS T3: it supports Cleave's two talent FLAGs (every variant supports
+## its base's talent FLAGs), and its take on each is pure data, in the talents'
+## scoped modifiers, which reach it through variant_of: Whirling Cleave adds
+## projectile_count +7 and projectile_spread_deg +30 (8 waves 45 degrees apart,
+## all around the Knight) at 75% range and 85% damage; Rending Cleave narrows
+## projectile_width to 40% at 140% range and +35% damage. So the flags need no
+## code here: Projectile.fire() reads every one of those params.
 
 ## The crescent's half-angle, degrees (visual only).
 @export var crescent_half_angle_deg: float = 55.0
