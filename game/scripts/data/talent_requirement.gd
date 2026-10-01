@@ -5,8 +5,8 @@ extends Resource
 ## unlocked. Reads a champion's lifetime counters, never fight state: it is
 ## not a Condition, and the two never mix. Inline in the talent's .tres.
 ##
-## TALENTS T1 builds the data and its labels; the counters it reads (and
-## get_current() / is_met()) come with ChampionProgress in T4.
+## Built in TALENTS T1 (the data, its labels, validation); get_current() and
+## is_met() read a ChampionProgress (T4).
 
 enum Kind {
 	## The champion level is at least `amount`.
@@ -24,6 +24,26 @@ enum Kind {
 @export var amount: int = 1
 ## KILLS only: count only enemies with this kill tag (empty = every kill).
 @export var enemy_tag: StringName = &""
+
+
+## The counter this requirement reads, now: the champion level, the group
+## ability's uses (0 in PASSIVE) or the kills (by tag if set).
+func get_current(progress: ChampionProgress, talent: Talent, champion: ChampionData) -> int:
+	if progress == null:
+		return 0
+	match kind:
+		Kind.CHAMPION_LEVEL:
+			return progress.level
+		Kind.ABILITY_USES:
+			var ability := talent.get_group_ability(champion) if talent != null else null
+			return progress.get_ability_uses(ability.id) if ability != null else 0
+		Kind.KILLS:
+			return progress.get_kills(enemy_tag)
+	return 0
+
+
+func is_met(progress: ChampionProgress, talent: Talent, champion: ChampionData) -> bool:
+	return get_current(progress, talent, champion) >= amount
 
 
 ## What the hub shows before the counts ("Cleave casts", "Champion level").

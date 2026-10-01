@@ -124,6 +124,9 @@ var _cast_cost: float = 0.0      # what the cast in progress paid (refunded if i
 ## from several sources counts once.
 var _augments: Array = []
 var _flag_errors: Dictionary = {}   # "<ability id>/<flag>" -> true (reported once)
+## Tooltip templates that replace an ability's description while their
+## source is on (TALENTS T3b): [ability id, template, source_id], in the order added.
+var _description_overrides: Array = []
 ## Where conditions checked outside a press look (the HUD's grey preview):
 ## the Player sets the cursor every physics frame, the enemy AI its target (AB12).
 var _aim_hint: Vector2 = Vector2.INF
@@ -1185,6 +1188,57 @@ func remove_augments_from(source_id: StringName) -> void:
 	_after_augments_changed(before)
 
 
+## Replaces the tooltip template of the ability with id `ability_id` (that
+## exact id: a REPLACE variant keeps its own) while `source_id` has it
+## (TALENTS T3b: a talent that reshapes the ability rewrites what it says).
+## The template uses the same {placeholders} as Ability.description.
+func set_description_override(ability_id: StringName, template: String, source_id: StringName) -> void:
+	_description_overrides.append([ability_id, template, source_id])
+	for slot in SLOTS:
+		augments_changed.emit(slot)
+
+
+## Takes back every description override added under `source_id`.
+func remove_description_overrides_from(source_id: StringName) -> void:
+	var before := _description_overrides.size()
+	_description_overrides = _description_overrides.filter(func(e: Array) -> bool: return e[2] != source_id)
+	if _description_overrides.size() != before:
+		for slot in SLOTS:
+			augments_changed.emit(slot)
+
+
+## The template replacing `ability`'s description now ("" = none). The last
+## one added wins.
+func get_description_override(ability: Ability) -> String:
+	if ability == null:
+		return ""
+	for i in range(_description_overrides.size() - 1, -1, -1):
+		var e: Array = _description_overrides[i]
+		if e[0] == ability.id:
+			return e[1]
+	return ""
+
+
+## The sources whose description override is on `ability` now.
+func _description_override_sources(ability: Ability) -> Array[StringName]:
+	var out: Array[StringName] = []
+	for e: Array in _description_overrides:
+		if ability != null and e[0] == ability.id:
+			out.append(e[2])
+	return out
+
+
+## True when every source granting augment `augment_id` has rewritten the
+## ability's description: its tooltip line would only repeat it.
+func _is_line_muted(augment_id: StringName, muting: Array[StringName]) -> bool:
+	if muting.is_empty():
+		return false
+	for e: Array in _augments:
+		if (e[0] as AbilityAugment).id == augment_id and not muting.has(e[1]):
+			return false
+	return true
+
+
 ## The augments active on the slot's ability (what a press would cast): its
 ## FLAGs and EVENTs (by scope) and the REPLACE that made it the slot's
 ## ability. Each id once.
@@ -1239,13 +1293,15 @@ func get_augment_tooltip_lines(ability: Ability) -> PackedStringArray:
 	if ability == null or _augments.is_empty():
 		return lines
 	var replaced_id := ability.variant_of if ability.variant_of != &"" else ability.id
+	# A source that rewrote the description already says what its augments do.
+	var muting := _description_override_sources(ability)
 	for augment in _get_unique_augments():
 		match augment.kind:
 			AbilityAugment.Kind.FLAG:
-				if _scope_matches(augment, ability) and ability.supported_flags.has(augment.id):
+				if _scope_matches(augment, ability) and ability.supported_flags.has(augment.id) and not _is_line_muted(augment.id, muting):
 					lines.append(augment.get_tooltip_line())
 			AbilityAugment.Kind.EVENT:
-				if _scope_matches(augment, ability):
+				if _scope_matches(augment, ability) and not _is_line_muted(augment.id, muting):
 					lines.append(augment.get_tooltip_line())
 			AbilityAugment.Kind.REPLACE:
 				if augment.replacement == ability:

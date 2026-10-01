@@ -48,6 +48,69 @@ func set_info(text: String) -> void:
 
 func _ready() -> void:
 	message.visible = false
+	Progress.champion_leveled_up.connect(_on_progress_champion_leveled_up)
+	Progress.talent_unlocked.connect(_on_progress_talent_unlocked)
+
+
+## How long a progress line stays (seconds), then it fades.
+const PROGRESS_LINE_TIME := 2.0
+
+var _progress_line: Label
+var _progress_tween: Tween
+
+
+## A short line under the top bar (TALENTS T4: a level gained, a talent
+## unlocked), shown for PROGRESS_LINE_TIME s. Functional only (UI.md later).
+func show_progress_line(text: String) -> void:
+	if _progress_line == null:
+		_progress_line = Label.new()
+		_progress_line.name = "ProgressLine"
+		_progress_line.add_theme_font_size_override("font_size", 9)
+		_progress_line.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+		_progress_line.add_theme_color_override("font_outline_color", Color.BLACK)
+		_progress_line.add_theme_constant_override("outline_size", 3)
+		_progress_line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_progress_line.anchor_left = 0.0
+		_progress_line.anchor_right = 1.0
+		_progress_line.offset_top = 22.0
+		add_child(_progress_line)
+	# A second line while one shows: the new one goes underneath.
+	if _progress_line.visible and _progress_line.modulate.a > 0.0 and _progress_line.text != "":
+		_progress_line.text += "\n" + text
+	else:
+		_progress_line.text = text
+	_progress_line.visible = true
+	_progress_line.modulate.a = 1.0
+	if _progress_tween != null:
+		_progress_tween.kill()
+	_progress_tween = create_tween()
+	_progress_tween.tween_interval(PROGRESS_LINE_TIME)
+	_progress_tween.tween_property(_progress_line, "modulate:a", 0.0, 0.3)
+	_progress_tween.tween_callback(func() -> void: _progress_line.text = "")
+
+
+## The progress line's text now ("" = none; tests read it).
+func get_progress_line() -> String:
+	return _progress_line.text if _progress_line != null else ""
+
+
+func _on_progress_champion_leveled_up(champion_id: StringName, level: int) -> void:
+	var champion := Progress.get_champion(champion_id)
+	if champion == null:
+		return
+	var leveling := champion.get_leveling()
+	var points := leveling.get_talent_points(level) - leveling.get_talent_points(level - 1)
+	var text := "%s reached level %d" % [champion.display_name, level]
+	if points > 0:
+		text += ": +%d talent point%s" % [points, "" if points == 1 else "s"]
+	show_progress_line(text)
+
+
+func _on_progress_talent_unlocked(champion_id: StringName, talent_id: StringName) -> void:
+	var champion := Progress.get_champion(champion_id)
+	var talent := champion.get_talent(talent_id) if champion != null else null
+	if talent != null:
+		show_progress_line("Talent unlocked: %s" % talent.display_name)
 
 
 func set_health(current: float, maximum: float) -> void:

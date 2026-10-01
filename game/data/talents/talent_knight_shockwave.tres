@@ -23,6 +23,7 @@ scope = &"ability:knight_judgement"
 script = ExtResource("1_talent")
 display_name = "Shockwave"
 description = "Judgement also hits every enemy within 80 px of its target for 50% damage and stuns them 0.5 s, but deals no missing-health damage."
+ability_description = "Strike an enemy for {damage} physical damage ({base_damage} {ratios}) and stun it for {stun_duration}s. Every other enemy within {flag_shockwave_radius} units of it takes {flag_shockwave_damage_ratio%} of that and is stunned for {flag_shockwave_stun_duration}s. Channel: moving cancels it. Walks into range if needed."
 modifiers = Array[ExtResource("3_mod")]([SubResource("m_missing")])
 augments = Array[Resource]([ExtResource("7_aug")])
 id = &"knight_shockwave"

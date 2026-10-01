@@ -17,6 +17,7 @@ amount = 750
 script = ExtResource("1_talent")
 display_name = "Challenge"
 description = "Iron Resolve Staggers every enemy within 96 px instead of hasting you, so your next Cleave hits them harder."
+ability_description = "Stagger every enemy within {flag_challenge_radius} units. Your next attack within {empower_window}s deals {damage} ({base_damage} {ratios}) bonus damage and slows the target by {slow_amount%} for {slow_duration}s."
 augments = Array[Resource]([ExtResource("7_aug")])
 id = &"knight_challenge"
 group = 1

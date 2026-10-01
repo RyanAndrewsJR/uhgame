@@ -29,6 +29,7 @@ scope = &"ability:knight_judgement"
 script = ExtResource("1_talent")
 display_name = "Executioner"
 description = "Judgement deals 40% of the target's missing health (was 20%) and a kill resets its cooldown, but it no longer stuns (0.5 s at 60+ Fury)."
+ability_description = "Strike an enemy for {damage} physical damage ({base_damage} {ratios}). A kill resets the cooldown. Channel: moving cancels it. Walks into range if needed."
 modifiers = Array[ExtResource("3_mod")]([SubResource("m_missing"), SubResource("m_stun")])
 augments = Array[Resource]([ExtResource("6_reset")])
 id = &"knight_executioner"

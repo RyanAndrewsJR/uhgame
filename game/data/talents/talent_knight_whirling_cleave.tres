@@ -53,6 +53,7 @@ scope = &"ability:knight_cleave"
 script = ExtResource("1_talent")
 display_name = "Whirling Cleave"
 description = "Cleave hits all around you instead of in front: 75% reach, 85% damage, no knockback. With Cleave Wave: 8 waves all around you."
+ability_description = "Spin your sword all around you, dealing {damage} physical damage ({base_damage} {ratios}) to every enemy within {range} units. Each cast that hits heals you for up to {heal_missing_health_ratio%} of your missing health, more the lower your health."
 modifiers = Array[ExtResource("3_mod")]([SubResource("m_range"), SubResource("m_base"), SubResource("m_ad"), SubResource("m_push"), SubResource("m_count"), SubResource("m_spread")])
 augments = Array[Resource]([ExtResource("7_aug")])
 id = &"knight_whirling_cleave"

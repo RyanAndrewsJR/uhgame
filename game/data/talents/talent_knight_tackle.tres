@@ -17,6 +17,7 @@ amount = 900
 script = ExtResource("1_talent")
 display_name = "Tackle"
 description = "Lunge stops at the first enemy in its path, hits only it, and stuns it for 0.75 s."
+ability_description = "Dash up to {range} units toward the target spot, stopping at the first enemy in your path: it takes {damage} physical damage ({base_damage} {ratios}) and is stunned for {flag_tackle_stun_duration}s."
 augments = Array[Resource]([ExtResource("7_aug")])
 id = &"knight_tackle"
 group = 2

@@ -70,7 +70,7 @@ Moved here from MOVEMENT.md unchanged (MOVEMENT.md keeps a pointer). Per ability
 - Scalings are scoped params, so items can raise a ratio.
 
 ### Tooltips from data
-- Each ability's description is a template with placeholders (`{damage}`, `{cooldown}`, `{cost}`, `{range}`, `{charges}`, each scaling term, charge-up min–max) filled from `get_param()` with haste, modifiers and augments applied, damage colored by type (League style). It's a function other code can call; where the HUD shows it is UI.md.
+- Each ability's description is a template with placeholders (`{damage}`, `{cooldown}`, `{cost}`, `{range}`, `{charges}`, each scaling term, charge-up min–max) filled from `get_param()` with haste, modifiers and augments applied, damage colored by type (League style). It's a function other code can call; where the HUD shows it is UI.md. A talent that reshapes the ability can replace the whole template while it's on (TALENTS T3b: `Talent.ability_description`, `AbilityComponent.get_description_override()`); a scaling term at 0 is left out of `{ratios}`.
 
 ### Standard tags (listed in CONVENTIONS.md)
 - Exactly one role tag per ability, following Diablo 4's categories: `generator`, `core`, `defensive`, `mobility`, `ultimate` (Diablo's "basic" is `generator` here, so it can't be confused with the basic attack).

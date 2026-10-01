@@ -30,6 +30,28 @@ const GROUP_SLOTS := {Group.Q: &"q", Group.W: &"w", Group.E: &"e", Group.R: &"r"
 ## passive attaches without its own modifiers and StatScalings on these stats.
 ## The talent's own pieces always attach. Empty = add only.
 @export var replaces_passive_stats: Array[StringName] = []
+## Q / W / E / R only (TALENTS T3b): while this talent is active, its group's
+## ability shows this tooltip template instead of its own description (the
+## same {placeholders}), and this talent's own augment lines are left out (the
+## text already says it). For talents that change what the ability does, so
+## the tooltip never describes a part the talent traded away. Empty = the
+## ability's own text.
+@export_multiline var ability_description: String = ""
+
+
+## Puts ability_description on the group's ability (the slot's own ability:
+## a REPLACE variant keeps its text).
+func _on_added(unit: Unit, source_id: StringName) -> void:
+	if ability_description == "" or group == Group.PASSIVE or unit.abilities == null:
+		return
+	var ability := unit.abilities.get_base_ability(get_group_slot())
+	if ability != null:
+		unit.abilities.set_description_override(ability.id, ability_description, source_id)
+
+
+func _on_removed(unit: Unit, source_id: StringName) -> void:
+	if unit.abilities != null:
+		unit.abilities.remove_description_overrides_from(source_id)
 
 
 ## The source id its pieces go under: talent_<id>.
@@ -141,6 +163,8 @@ func _validate_passive(champion: ChampionData, errors: PackedStringArray) -> voi
 			errors.append("reaction rule '%s' is scoped to '%s' (a PASSIVE talent can't reach into Q/W/E/R)" % [rule.id, rule.required_ability_scope])
 	if not augments.is_empty():
 		errors.append("augments in a PASSIVE talent (augments change abilities)")
+	if ability_description != "":
+		errors.append("ability_description in a PASSIVE talent (the passive's text is its own)")
 	var passive_stats := champion.passive.get_stats()
 	for stat in replaces_passive_stats:
 		if not passive_stats.has(stat):

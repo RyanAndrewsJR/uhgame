@@ -41,6 +41,7 @@ scope = &"ability:knight_cleave"
 script = ExtResource("1_talent")
 display_name = "Rending Cleave"
 description = "Cleave becomes a narrow cut (25°) with 40% more reach and 35% more damage. With Cleave Wave: one narrow, long, heavy wave."
+ability_description = "Cut a narrow arc in front of you, reaching {range} units, dealing {damage} physical damage ({base_damage} {ratios}) and knocking enemies back. Each cast that hits heals you for up to {heal_missing_health_ratio%} of your missing health, more the lower your health."
 modifiers = Array[ExtResource("3_mod")]([SubResource("m_range"), SubResource("m_base"), SubResource("m_ad"), SubResource("m_width")])
 augments = Array[Resource]([ExtResource("7_aug")])
 id = &"knight_rending_cleave"

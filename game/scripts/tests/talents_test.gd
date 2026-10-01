@@ -8,6 +8,12 @@ extends Node2D
 ## FLAGs, Whirling and Rending Cleave (who they hit, reach, damage, knockback)
 ## and their Cleave Wave takes, Challenge and Bulwark, Tackle, Shockwave (the
 ## splash's share, stuns, the Fury payoff).
+## T3b: rewritten ability tooltips (Talent.ability_description).
+## T4: ChampionLeveling, ChampionProgress (XP, levels, unlocks, the loadout
+## rules, sanitizing, the save round trip), the Progress autoload (the
+## test-scene save guard, counting casts and kills live), the HUD lines, the
+## Player reading its loadout from the record. Runs last: it changes the
+## Knight's in-memory record (reset at the end).
 ## T1: the talent framework. ToolkitBundle (the bundle moved out of Passive,
 ## Unbroken unchanged), Talent and TalentRequirement data, each piece kind
 ## (modifier, StatScaling, rule, FLAG, EVENT) attaching and detaching exactly
@@ -46,7 +52,7 @@ var _next_x: float = 0.0
 
 
 func _ready() -> void:
-	print("\n=== Talents test (TALENTS T1–T3) ===")
+	print("\n=== Talents test (TALENTS T1–T4) ===")
 	await _test_bundle_refactor()
 	_test_talent_data()
 	await _test_piece_kinds()
@@ -68,6 +74,17 @@ func _ready() -> void:
 	await _test_challenge_and_bulwark()
 	await _test_tackle()
 	await _test_shockwave()
+	await _test_description_overrides()
+	# T4 last: it changes the Knight's in-memory progress record.
+	_test_leveling_data()
+	_test_record_xp_and_unlocks()
+	_test_record_loadout_rules()
+	_test_record_sanitize_and_save()
+	await _test_progress_saving_guard()
+	await _test_counting_live()
+	await _test_level_and_unlock_lines()
+	await _test_loadout_from_record()
+	Progress.reset(KNIGHT)
 	# The last check ends on a Judgement hit sound; stop it so nothing plays at exit.
 	Audio.stop_all()
 	await _frames(2)
@@ -746,6 +763,311 @@ func _test_shockwave() -> void:
 	_check_near("at 70 Fury: the splash's stun 1.0 s (the bonus's +0.5 s too)", fury_run[1][1], 1.0, 0.02)
 	_check_near("at 70 Fury: the splash still 50%, both +30%", fury_run[1][0] / fury_run[0][0] if fury_run[0][0] > 0.0 else 0.0, 0.5, 0.001)
 	_check("at 70 Fury: the Fury consumed once (0 left)", fury_run[3], 0.0)
+
+
+func _test_description_overrides() -> void:
+	_section("T3b: a talent that reshapes its ability rewrites the ability's tooltip")
+	var k := await _spawn(KNIGHT)
+	var plain_w := IRON_RESOLVE.get_tooltip_plain(k)
+	k.add_talent(KNIGHT.get_talent(&"knight_bulwark"))
+	var bulwark_w := IRON_RESOLVE.get_tooltip_plain(k)
+	_check("Bulwark: the empowered-swing text is gone, the shield and the haste are there",
+		[plain_w.contains("Your next attack"), bulwark_w.contains("next attack"), bulwark_w.contains("120 shield"), bulwark_w.contains("35% movement speed")], [true, false, true, true])
+	_check("Bulwark: its augment line isn't repeated under the new text", bulwark_w.contains("instead of the empowered swing"), false)
+	k.remove_talent(KNIGHT.get_talent(&"knight_bulwark"))
+	_check("removed: Iron Resolve's own text back", IRON_RESOLVE.get_tooltip_plain(k), plain_w)
+	k.add_talent(KNIGHT.get_talent(&"knight_shockwave"))
+	var r := JUDGEMENT.get_tooltip_plain(k)
+	_check("Shockwave: the splash in the text, no '+0% of the target's missing health'", [r.contains("250 units"), r.contains("50% of that"), r.contains("missing health")], [true, true, false])
+	k.remove_talent(KNIGHT.get_talent(&"knight_shockwave"))
+	_check("without it: Judgement's missing-health term shown", JUDGEMENT.get_tooltip_plain(k).contains("missing health"), true)
+	# Every rewritten text resolves all its placeholders.
+	for t in KNIGHT.talents:
+		if t.ability_description == "":
+			continue
+		k.add_talent(t)
+		var text := k.abilities.get_base_ability(t.get_group_slot()).get_tooltip_plain(k)
+		k.remove_talent(t)
+		_check("%s: the rewritten tooltip has no unresolved placeholder" % t.id, text.contains("{"), false)
+	_check("the seven talents that change what their ability does carry a text", KNIGHT.talents.filter(func(t: Talent) -> bool: return t.ability_description != "").map(func(t: Talent) -> StringName: return t.id),
+		[&"knight_whirling_cleave", &"knight_rending_cleave", &"knight_challenge", &"knight_bulwark", &"knight_tackle", &"knight_executioner", &"knight_shockwave"])
+	# A REPLACE variant keeps its own text; the talent's line explains the change there.
+	k.abilities.add_augment(AUGMENT_CLEAVE_WAVE, &"item_test_cleave_wave")
+	k.add_talent(KNIGHT.get_talent(&"knight_whirling_cleave"))
+	var wave_text := CLEAVE_WAVE.get_tooltip_plain(k)
+	_check("Whirling Cleave with Cleave Wave: the wave's own text, plus the talent's line", [wave_text.begins_with("Send a wave"), wave_text.contains("Hits all around you")], [true, true])
+	_check("…and Cleave itself shows the rewritten text", CLEAVE.get_tooltip_plain(k).begins_with("Spin your sword"), true)
+	var bad := _talent(&"t_desc_p", PASSIVE, 1)
+	bad.ability_description = "x"
+	_expect_error("ability_description in PASSIVE", bad, KNIGHT, "ability_description")
+	await _free(k)
+
+
+# --- T4: progress (counters, XP, levels, unlocks, the loadout rules, saving) -----
+
+const LEVELING: ChampionLeveling = preload("res://data/champion_levelings/champion_leveling_default.tres")
+const ELITE_SCENE: PackedScene = preload("res://scenes/enemies/slime_elite.tscn")
+
+
+func _test_leveling_data() -> void:
+	_section("T4: the default leveling (TALENTS.md, the curve)")
+	_check("XP to next: 600 + 400 x (level - 1), 11 steps; max level 12", [_plain(LEVELING.xp_to_next), LEVELING.get_max_level()],
+		[[600, 1000, 1400, 1800, 2200, 2600, 3000, 3400, 3800, 4200, 4600], 12])
+	var total := 0
+	for x in LEVELING.xp_to_next:
+		total += x
+	_check("28600 XP to the max level (about 29 runs of 1000)", total, 28600)
+	_check("points at levels 1 / 3 / 6 / 9 / 12: 1 / 2 / 3 / 4 / 5", [1, 3, 6, 9, 12].map(func(l: int) -> int: return LEVELING.get_talent_points(l)), [1, 2, 3, 4, 5])
+	_check("points never drop between levels", range(1, 13).all(func(l: int) -> bool: return LEVELING.get_talent_points(l + 1) >= LEVELING.get_talent_points(l)), true)
+	_check("XP to next at the max level: 0", LEVELING.get_xp_to_next(12), 0)
+	_check("the Knight uses the default (no leveling of his own)", [KNIGHT.leveling == null, KNIGHT.get_leveling() == LEVELING], [true, true])
+
+
+func _test_record_xp_and_unlocks() -> void:
+	_section("T4: ChampionProgress: XP, levels and unlocks")
+	var p := ChampionProgress.create(KNIGHT)
+	_check("a fresh record: level 1, 0 XP, nothing counted, nothing unlocked", [p.level, p.xp, p.kills, p.unlocked.size(), p.loadout.size()], [1, 0, 0, 0, 0])
+	_check("599 XP: still level 1", [p.add_xp(599, LEVELING), p.level, p.xp], [0, 1, 599])
+	_check("+1: level 2, 0 into it", [p.add_xp(1, LEVELING), p.level, p.xp], [1, 2, 0])
+	_check("one big gain: several levels at once (1000 + 1400 + 50 -> level 4, 50 in)", [p.add_xp(2450, LEVELING), p.level, p.xp], [2, 4, 50])
+	p.add_xp(100000, LEVELING)
+	_check("at the max level XP keeps adding up and grants nothing", [p.level, p.xp > 0, p.add_xp(10, LEVELING)], [12, true, 0])
+
+	var q := ChampionProgress.create(KNIGHT)
+	q.level = 2
+	for i in 199:
+		q.add_ability_use(&"knight_cleave")
+	_check("level 2, 199 Cleave casts: nothing unlocks", q.refresh_unlocks(KNIGHT), [])
+	q.add_ability_use(&"knight_cleave")
+	var fresh := q.refresh_unlocks(KNIGHT)
+	fresh.sort()
+	_check("the 200th: Long Reach and Thrifty Edge unlock (siblings share requirements)", fresh, [&"knight_long_reach", &"knight_thrifty_edge"])
+	_check("…and nothing else", q.unlocked.size(), 2)
+	for i in 150:
+		q.add_kill([])
+	_check("150 kills at level 2: Bloodrage and Thick Skin", q.refresh_unlocks(KNIGHT).size(), 2)
+	_check("the requirement's own reading: Cleave casts 200, kills 150, level 2",
+		[_req_current(q, &"knight_thrifty_edge", 1), _req_current(q, &"knight_bloodrage", 1), _req_current(q, &"knight_thrifty_edge", 0)], [200, 150, 2])
+	# Unlocks are kept: a retune that raises a requirement doesn't relock.
+	var retuned: ChampionData = KNIGHT.duplicate()
+	var harder: Talent = KNIGHT.get_talent(&"knight_thrifty_edge").duplicate(true)
+	harder.requirements[1].amount = 5000
+	var pool: Array[Talent] = []
+	for t in KNIGHT.talents:
+		pool.append(harder if t.id == &"knight_thrifty_edge" else t)
+	retuned.talents = pool
+	q.refresh_unlocks(retuned)
+	_check("a retune to 5000 casts: Thrifty Edge stays unlocked", q.is_unlocked(&"knight_thrifty_edge"), true)
+	var fresh_q := ChampionProgress.create(retuned)
+	fresh_q.level = 2
+	fresh_q.ability_uses = {&"knight_cleave": 200}
+	fresh_q.refresh_unlocks(retuned)
+	_check("…while a new record needs the 5000", fresh_q.is_unlocked(&"knight_thrifty_edge"), false)
+	_check("kills by tag counted (none used by the Knight yet)", [q.get_kills(&"elite"), _with_tagged_kill(q)], [0, 1])
+
+
+func _test_record_loadout_rules() -> void:
+	_section("T4: the loadout rules (points, siblings, the tier rule, respec)")
+	var p := ChampionProgress.create(KNIGHT)
+	for t in KNIGHT.talents:
+		p.unlocked.append(t.id)
+	var thrifty := KNIGHT.get_talent(&"knight_thrifty_edge")
+	var reach := KNIGHT.get_talent(&"knight_long_reach")
+	var whirl := KNIGHT.get_talent(&"knight_whirling_cleave")
+	var rend := KNIGHT.get_talent(&"knight_rending_cleave")
+	var footing := KNIGHT.get_talent(&"knight_quick_footing")
+	_check("level 1: 1 point; Thrifty Edge goes in", [p.get_talent_points(LEVELING), p.add_to_loadout(thrifty, KNIGHT, LEVELING)], [1, true])
+	_check("a second talent: no points", p.get_loadout_fail_reason(footing, KNIGHT, LEVELING), "no points")
+	_check("its sibling swaps it out, even with no point free", [p.add_to_loadout(reach, KNIGHT, LEVELING), _plain(p.loadout)], [true, [&"knight_long_reach"]])
+	p.level = 6
+	_check("level 6: 3 points; a tier 2 with its tier 1 in", [p.get_talent_points(LEVELING), p.add_to_loadout(whirl, KNIGHT, LEVELING)], [3, true])
+	_check("its tier 2 sibling swaps it", [p.add_to_loadout(rend, KNIGHT, LEVELING), _plain(p.loadout)], [true, [&"knight_long_reach", &"knight_rending_cleave"]])
+	_check("a tier 2 without its group's tier 1: needs tier 1", p.get_loadout_fail_reason(KNIGHT.get_talent(&"knight_tackle"), KNIGHT, LEVELING), "needs tier 1")
+	p.remove_from_loadout(&"knight_long_reach", KNIGHT)
+	_check("taking the tier 1 out takes the tier 2 with it", _plain(p.loadout), [])
+	var q := ChampionProgress.create(KNIGHT)
+	_check("a locked talent: locked", q.get_loadout_fail_reason(thrifty, KNIGHT, LEVELING), "locked")
+	p.add_to_loadout(reach, KNIGHT, LEVELING)
+	p.add_to_loadout(footing, KNIGHT, LEVELING)
+	p.clear_loadout()
+	_check("respec: clear empties it", p.get_points_used(), 0)
+
+
+func _test_record_sanitize_and_save() -> void:
+	_section("T4: a saved loadout the data no longer allows, and the save round trip")
+	var p := ChampionProgress.create(KNIGHT)
+	p.level = 3   # 2 points
+	for t in KNIGHT.talents:
+		if t.id != &"knight_stalwart":
+			p.unlocked.append(t.id)
+	# unknown, locked, kept, a sibling of the kept one, a tier 2 with no tier 1 of
+	# its group anywhere, kept, kept (over the 2 points), a sibling of a kept one
+	p.loadout = [&"knight_gone", &"knight_stalwart", &"knight_thrifty_edge", &"knight_long_reach", &"knight_tackle", &"knight_swift_verdict", &"knight_bloodrage", &"knight_long_arm"]
+	var warnings := p.sanitize_loadout(KNIGHT, LEVELING)
+	_check("unknown, locked, two second siblings, the orphan tier 2, then the tail over 2 points dropped",
+		_plain(p.loadout), [&"knight_thrifty_edge", &"knight_swift_verdict"])
+	_check("one warning per change (6)", warnings.size(), 6)
+	var q := ChampionProgress.create(KNIGHT)
+	q.level = 6
+	for t in KNIGHT.talents:
+		q.unlocked.append(t.id)
+	q.loadout = [&"knight_tackle", &"knight_long_lunge"]
+	_check("a tier 2 listed before its tier 1 is fine (the rule is about the loadout, not the order)", [q.sanitize_loadout(KNIGHT, LEVELING).size(), _plain(q.loadout)], [0, [&"knight_tackle", &"knight_long_lunge"]])
+
+	var r := ChampionProgress.create(KNIGHT)
+	r.level = 7
+	r.xp = 123
+	r.ability_uses = {&"knight_cleave": 42, &"knight_lunge": 7}
+	r.kills = 99
+	r.kills_by_tag = {&"elite": 3}
+	r.unlocked = [&"knight_thrifty_edge", &"knight_long_reach"]
+	r.loadout = [&"knight_thrifty_edge"]
+	var cfg := ConfigFile.new()
+	r.write_to(cfg)
+	var path := "user://talents_test_progress.cfg"
+	cfg.save(path)
+	var cfg2 := ConfigFile.new()
+	cfg2.load(path)
+	var back := ChampionProgress.read_from(cfg2, KNIGHT)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	_check("a save and reload keeps everything", [back.level, back.xp, back.ability_uses, back.kills, back.kills_by_tag, _plain(back.unlocked), _plain(back.loadout)],
+		[7, 123, {&"knight_cleave": 42, &"knight_lunge": 7}, 99, {&"elite": 3}, [&"knight_thrifty_edge", &"knight_long_reach"], [&"knight_thrifty_edge"]])
+	_check("no section for a champion: null (a fresh record is made)", ChampionProgress.read_from(ConfigFile.new(), KNIGHT) == null, true)
+
+
+func _test_progress_saving_guard() -> void:
+	_section("T4: test scenes never read or write the real save")
+	await _frames(1)
+	Progress.get_progress(KNIGHT)
+	_check("in a scene under res://scenes/tests/: saving is off", [Progress.is_test_scene(), Progress.saving_enabled], [true, false])
+	var path := "user://talents_test_guard.cfg"
+	var old_path := Progress.save_path
+	Progress.save_path = path
+	Progress.save()
+	_check("save() with saving off writes nothing", FileAccess.file_exists(path), false)
+	Progress.saving_enabled = true
+	Progress.save()
+	var written := FileAccess.file_exists(path)
+	Progress.saving_enabled = false
+	Progress.save_path = old_path
+	if written:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	_check("with saving on (a test path) it writes", written, true)
+	_check("the real path stays user://progress.cfg", Progress.save_path, "user://progress.cfg")
+
+
+func _test_counting_live() -> void:
+	_section("T4: counting from Events: casts, free casts, variants, kills, XP")
+	Progress.reset(KNIGHT)
+	var rec := Progress.get_progress(KNIGHT)
+	var k := await _spawn(KNIGHT)
+	_check("the Player tracks itself", Progress.get_tracked_player() == k, true)
+	k.resource_pool.decay_per_second = 0.0
+	k.resource_pool.restore(100.0)
+	k.abilities.try_cast(&"q", k.global_position + Vector2(50, 0), null)
+	await _frames(20)
+	_check("a Cleave cast: 1 Cleave use", rec.get_ability_uses(&"knight_cleave"), 1)
+	k.abilities.try_cast_free(LUNGE, k.global_position + Vector2(40, 0), null, &"item_test")
+	await _frames(20)
+	_check("a free Lunge: no Lunge use", rec.get_ability_uses(&"knight_lunge"), 0)
+	k.abilities.try_cast(&"r", k.global_position + Vector2(200, 0), null)
+	await _frames(2)
+	k.abilities.interrupt_cast()
+	await _frames(2)
+	_check("an interrupted cast: no use", rec.get_ability_uses(&"knight_judgement"), 0)
+	k.abilities.add_augment(AUGMENT_CLEAVE_WAVE, &"item_test_cleave_wave")
+	await _wait_until(func() -> bool: return k.abilities.is_ready(&"q"), 300)
+	k.abilities.try_cast(&"q", k.global_position + Vector2(50, 0), null)
+	await _frames(20)
+	_check("a Cleave Wave cast counts as Cleave (2)", [rec.get_ability_uses(&"knight_cleave"), rec.get_ability_uses(&"knight_cleave_wave")], [2, 0])
+	var kill := DealDamageGameplayEffect.new()
+	kill.base_damage = 100000.0
+	var slime: Enemy = SLIME_SCENE.instantiate()
+	add_child(slime)
+	slime.global_position = k.global_position + Vector2(300, 0)
+	var elite: Enemy = ELITE_SCENE.instantiate()
+	add_child(elite)
+	elite.global_position = k.global_position + Vector2(300, 80)
+	var dummy := _dummy(k.global_position + Vector2(-300, 0))
+	var stray: Enemy = SLIME_SCENE.instantiate()
+	add_child(stray)
+	stray.global_position = k.global_position + Vector2(-300, 80)
+	await _frames(1)
+	var xp_before := rec.xp
+	kill.apply(slime, k, null)
+	_check("a slime kill: 1 kill, 5 XP", [rec.kills, rec.xp - xp_before], [1, 5])
+	kill.apply(elite, k, null)
+	_check("an elite kill: 2 kills, +40 XP", [rec.kills, rec.xp - xp_before], [2, 45])
+	kill.apply(dummy, k, null)
+	_check("a training dummy (passive): no kill, no XP", [rec.kills, rec.xp - xp_before], [2, 45])
+	kill.apply(stray, null, null)
+	_check("a kill with no source: nothing", [rec.kills, rec.xp - xp_before], [2, 45])
+	await _free(k)
+	_check("the Player left the tree: untracked", Progress.get_tracked_player() == null, true)
+
+
+func _test_level_and_unlock_lines() -> void:
+	_section("T4: level-ups and unlocks: the signals and the HUD lines")
+	Progress.reset(KNIGHT)
+	var k := await _spawn(KNIGHT)
+	var hud: CanvasLayer = HUD_SCENE.instantiate()
+	add_child(hud)
+	hud.setup_abilities(k)
+	var levels := []
+	var record_level := func(_id: StringName, level: int) -> void: levels.append(level)
+	Progress.champion_leveled_up.connect(record_level)
+	Progress.add_xp(KNIGHT, 1600)
+	Progress.champion_leveled_up.disconnect(record_level)
+	_check("1600 XP from level 1: two signals, levels 2 and 3", levels, [2, 3])
+	_check("the HUD line: level 2 (no new point), then level 3 (+1 talent point)", hud.call("get_progress_line"), "Knight reached level 2\nKnight reached level 3: +1 talent point")
+	await _wait_until(func() -> bool: return hud.call("get_progress_line") == "", 200)
+	_check("the line clears after 2 s", hud.call("get_progress_line"), "")
+	var rec := Progress.get_progress(KNIGHT)
+	for i in 199:
+		rec.add_ability_use(&"knight_cleave")
+	var unlocked := []
+	var record_unlock := func(_id: StringName, talent_id: StringName) -> void: unlocked.append(talent_id)
+	Progress.talent_unlocked.connect(record_unlock)
+	k.resource_pool.decay_per_second = 0.0
+	k.resource_pool.restore(100.0)
+	k.abilities.try_cast(&"q", k.global_position + Vector2(50, 0), null)
+	await _frames(20)
+	Progress.talent_unlocked.disconnect(record_unlock)
+	unlocked.sort()
+	_check("the 200th Cleave mid-run unlocks Cleave's tier 1 (signals)", unlocked, [&"knight_long_reach", &"knight_thrifty_edge"])
+	_check("…and the HUD says so", hud.call("get_progress_line").contains("Talent unlocked: "), true)
+	hud.queue_free()
+	await _free(k)
+
+
+func _test_loadout_from_record() -> void:
+	_section("T4: the Player reads its loadout from the record")
+	Progress.reset(KNIGHT)
+	var rec := Progress.get_progress(KNIGHT)
+	rec.unlocked.append(&"knight_thrifty_edge")
+	rec.unlocked.append(&"knight_quick_footing")
+	_check("Progress.add_to_loadout: within the rules", [Progress.add_to_loadout(KNIGHT, KNIGHT.get_talent(&"knight_thrifty_edge")), Progress.add_to_loadout(KNIGHT, KNIGHT.get_talent(&"knight_quick_footing"))], [true, false])
+	var k := await _spawn(KNIGHT)
+	_check("player.tscn (no override): the record's loadout attached; Cleave costs 15", [k.get_active_talents().map(func(t: Talent) -> StringName: return t.id), k.abilities.get_slot_cost(&"q")], [[&"knight_thrifty_edge"], 15.0])
+	await _free(k)
+	var k2 := await _spawn(KNIGHT, [&"knight_long_reach"])
+	_check("a Player's own talent_loadout replaces it (tests)", k2.get_active_talents().map(func(t: Talent) -> StringName: return t.id), [&"knight_long_reach"])
+	await _free(k2)
+	Progress.clear_loadout(KNIGHT)
+	var k3 := await _spawn(KNIGHT)
+	_check("respec: an empty record loadout, no talents", k3.get_active_talents().size(), 0)
+	await _free(k3)
+
+
+func _req_current(p: ChampionProgress, talent_id: StringName, index: int) -> int:
+	var t := KNIGHT.get_talent(talent_id)
+	return t.requirements[index].get_current(p, t, KNIGHT)
+
+
+func _with_tagged_kill(p: ChampionProgress) -> int:
+	var tags: Array[StringName] = [&"elite"]
+	p.add_kill(tags)
+	return p.get_kills(&"elite")
 
 
 ## One plain or talented Cleave from a fresh Knight, aimed right, at dummies

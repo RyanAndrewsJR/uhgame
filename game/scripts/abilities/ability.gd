@@ -607,13 +607,20 @@ func get_tooltip_plain(caster: Unit) -> String:
 func _fill_template(caster: Unit, bbcode: bool) -> String:
 	if _placeholder_regex == null:
 		_placeholder_regex = RegEx.create_from_string("\\{([a-z_]+)(%?)\\}")
+	# A talent that reshapes this ability may replace its template while it's
+	# active (TALENTS T3b: AbilityComponent.get_description_override()).
+	var template := description
+	if is_instance_valid(caster) and caster.abilities != null:
+		var override := caster.abilities.get_description_override(self)
+		if override != "":
+			template = override
 	var out := ""
 	var last := 0
-	for m in _placeholder_regex.search_all(description):
-		out += description.substr(last, m.get_start() - last)
+	for m in _placeholder_regex.search_all(template):
+		out += template.substr(last, m.get_start() - last)
 		out += _placeholder_text(caster, m.get_string(1), m.get_string(2) == "%", m.get_string(), bbcode)
 		last = m.get_end()
-	out += description.substr(last)
+	out += template.substr(last)
 	# One line per conditional bonus, always (AB12; "only while active" is an
 	# open question).
 	for b in conditional_bonuses:
@@ -675,7 +682,9 @@ func _ratios_text(caster: Unit) -> String:
 		parts.append("+%s AP" % _number_text(ap, true))
 	for term in scalings:
 		if term != null:
-			parts.append("+%s %s" % [_number_text(get_param(caster, term.param), true), term.get_label()])
+			var ratio := get_param(caster, term.param)
+			if ratio != 0.0:
+				parts.append("+%s %s" % [_number_text(ratio, true), term.get_label()])
 	return " ".join(parts)
 
 

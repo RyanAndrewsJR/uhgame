@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ChampionLeveling" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/champion_leveling.gd" id="1_leveling"]
+
+[resource]
+script = ExtResource("1_leveling")
+xp_to_next = Array[int]([600, 1000, 1400, 1800, 2200, 2600, 3000, 3400, 3800, 4200, 4600])
+talent_points = Array[int]([1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5])
+xp_by_unit = Dictionary[StringName, int]({
+&"slime": 5,
+&"slime_elite": 40
+})

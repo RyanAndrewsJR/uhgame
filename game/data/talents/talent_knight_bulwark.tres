@@ -17,6 +17,7 @@ amount = 750
 script = ExtResource("1_talent")
 display_name = "Bulwark"
 description = "Iron Resolve gives a 120 shield for 3 s instead of empowering your next swing."
+ability_description = "Gain {move_speed_bonus%} movement speed for {move_speed_duration}s and a {flag_shield_amount} shield for 3s."
 augments = Array[Resource]([ExtResource("7_aug")])
 id = &"knight_bulwark"
 group = 1

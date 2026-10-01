@@ -58,6 +58,8 @@ extends Resource
 ## Every talent this champion has (TALENTS.md): the pool the loadout picks
 ## from. Each is attached under talent_<id> when it's in the loadout.
 @export var talents: Array[Talent] = []
+## The level curve and talent points (TALENTS T4). null = the shared default.
+@export var leveling: ChampionLeveling
 
 @export_group("Sounds")
 @export var hurt_sound: SoundEvent
@@ -66,8 +68,10 @@ extends Resource
 
 @export_group("Champion level")
 ## The champion's own persistent level (VISION.md, Game structure). Only ever
-## gates talent points (TALENTS.md); never touches combat stats. Kept in
-## memory while the game runs; saving it is PROGRESSION's. Nothing reads it yet.
+## gates talent points (TALENTS.md); never touches combat stats. Since TALENTS
+## T4 this is a new progress record's starting value: the live level and XP
+## live in the champion's ChampionProgress (the Progress autoload), saved in
+## user://progress.cfg.
 @export var champion_level: int = 1
 ## XP earned toward the next level (not total XP), so retuning the curve
 ## can never take a level away.
@@ -82,6 +86,14 @@ func get_champion_source_id() -> StringName:
 ## The source id the passive's pieces are added under: passive_<id>.
 func get_passive_source_id() -> StringName:
 	return StringName("passive_%s" % id)
+
+
+const DEFAULT_LEVELING_PATH := "res://data/champion_levelings/champion_leveling_default.tres"
+
+
+## `leveling`, or the shared default when it's null.
+func get_leveling() -> ChampionLeveling:
+	return leveling if leveling != null else load(DEFAULT_LEVELING_PATH)
 
 
 ## The talent with this id in `talents`, or null.

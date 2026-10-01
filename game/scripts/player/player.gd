@@ -39,9 +39,9 @@ const ABILITY_ACTIONS := {&"q": "ability_q", &"w": "ability_w", &"e": "ability_e
 ## (_apply_champion()). null = the scene's exports, exactly as before. Set it
 ## before the Player enters the tree (the hub, later).
 @export var champion: ChampionData
-## The talents attached at load, by id from champion.talents (TALENTS.md).
-## A stand-in until TALENTS T4, when the loadout comes from the champion's
-## progress record (Progress); empty = no talents, exactly as before.
+## Since TALENTS T4 the loadout comes from the champion's progress record
+## (Progress). Non-empty, this list replaces it for this Player only (tests;
+## never saved). Empty (player.tscn) = the record's loadout.
 @export var talent_loadout: Array[StringName] = []
 
 ## Set from Settings at start and whenever the player changes it in the
@@ -158,7 +158,11 @@ func _attach_champion() -> void:
 			copies.append(copy)
 	if not copies.is_empty():
 		stats_component.add_modifiers(copies)
-	for talent_id in talent_loadout:
+	# Count this champion's casts and kills (TALENTS T4); its saved loadout
+	# unless this Player names its own.
+	var record := Progress.track(self, champion)
+	var loadout: Array[StringName] = talent_loadout if not talent_loadout.is_empty() else record.loadout
+	for talent_id in loadout:
 		var talent := champion.get_talent(talent_id)
 		if talent == null:
 			push_warning("Talent '%s' isn't one of %s's talents; dropped from the loadout" % [talent_id, champion.id])
