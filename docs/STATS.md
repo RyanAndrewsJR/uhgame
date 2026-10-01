@@ -5,7 +5,7 @@
 **Used by:** MOVEMENT (move_speed, dash_charges), COMBAT.md (damage stats, attack_speed as combo speed), ABILITIES, LOOT, CHAMPIONS, ENEMIES.
 
 ## Current code
-- `UnitStats` (`res://scripts/data/unit_stats.gd`): one .tres per unit in `res://data/units/`. A field for every stat in the Stat list except `knockback_resistance` (proposed), plus the identity fields.
+- `UnitStats` (`res://scripts/data/unit_stats.gd`): one .tres per unit in `res://data/units/`. A field for every stat in the Stat list except `knockback_resistance` (approved 2026-09-30, added with the knockback work), plus the identity fields.
 - `StatModifier`, `StatDefinition`, `StatRegistry` (`stat_registry.tres`, 26 stats) and `StatsComponent`, tested by `res://scenes/tests/stats_test.tscn`. `player.tscn` and `slime.tscn` have a `StatsComponent` node; `Unit.stats_component` points to it (a required child, like HealthComponent) and `Unit._ready()` calls `setup(stats, movement)`.
 - On `Unit`, `stats` stays the base `UnitStats` export and `stats_component` is the live StatsComponent. Gameplay reads go through `stats_component.get_stat(&"x")`. Only `attack_windup`, `gameplay_radius` and `pathing_radius` are still read from `unit.stats` (identity fields, not stats).
 - Every Ability has `id` (`knight_cleave`, `knight_iron_resolve`, `knight_lunge`, `knight_judgement`, `slime_elite_slam`...) and `tags` (ABILITIES.md). Ability params go through `StatsComponent.get_ability_param()` / `Ability.get_param()`: every param ABILITIES.md lists as a scoped param (`cooldown`, then ability haste in `AbilityComponent.get_cooldown_duration()`; `cast_range` in range checks, the POINT clamp, the enemy cast check, Cleave's reach and the indicator; `base_damage`, `ad_ratio`, `ap_ratio` and scaling-term ratios in `HitPipeline.from_ability()`; costs, charges, the recast window, charge-up times, projectile params, `hit_knockback_px`), plus any param an ability script reads with `get_param()` / `get_effect_param()` (Judgement's `stun_duration`, Lunge's `flag_stun_duration`; the reads that named inputs and conditional bonuses can change use `get_effect_param()`, ABILITIES.md, Conditions). Others (Cleave's cone angle, the slam radius...) are still read directly; each gets routed when an item first needs it.
@@ -52,7 +52,7 @@ Existing `UnitStats` fields keep their names. New ones get added to `UnitStats`.
 | `attack_range` | 175 | - / - | LoL units edge-to-edge |
 | `life_steal` | 0 | 0 / 1 | × damage taken by the target; basic attacks only *(proposed; built that way in COMBAT C8)*. 0 for every unit (zero sustain; the Knight's 0.01 of 2026-09-28 was reverted 2026-09-29) |
 | `tenacity` | 0 | 0 / 0.8 | crowd control duration × (1 − tenacity) for statuses tagged `cc` |
-| `knockback_resistance` | 0 | 0 / 1 | *(proposed)* displacement distance × (1 − value); bosses 1 (WORLD_INTERACTION.md). Registry entry only; **not on UnitStats** until the knockback work |
+| `knockback_resistance` | 0 | 0 / 1 | displacement distance × (1 − value); bosses 1 (WORLD_INTERACTION.md). Approved 2026-09-30 (WORLD_INTERACTION.md, Knockback). Registry entry only; **not on UnitStats** until the knockback work |
 | `pickup_radius` | 0 | - / - | LoL units. The planned value is 200 (64 px); set per unit when pickups exist (LOOT.md) |
 | `magic_find` | 0 | 0 / - | LOOT.md |
 | `gold_find` | 0 | 0 / - | |

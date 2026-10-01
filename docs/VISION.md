@@ -115,7 +115,7 @@ The loop: **hub → pick a champion → set their talents → run a dungeon → 
 
 ## Open questions (answer these before the matching doc is written)
 The run structure, death, hub, roster, talent progress, ability slot and in-run leveling questions were answered 2026-09-29 (Game structure and Build variety above; DECISIONS.md, Game structure). What those answers left open:
-1. **Talent size:** does "up to 5" mean a small total tree (5 talents in all), or a larger pool with 5 active at once? Decides TALENTS.md's shape.
+1. ~~**Talent size:** does "up to 5" mean a small total tree (5 talents in all), or a larger pool with 5 active at once?~~ Answered 2026-09-30: a larger pool (about 15–20 per champion) with about 5 active at once, swapped at the hub (TALENTS.md; DECISIONS.md, Talents).
 2. **Gear after a run:** does gear picked up in a run stay with the champion afterwards (inventory, stash), and what does leaving a run early keep or forfeit? Affects LOOT.md and DUNGEONS.md.
 3. **Unlocking champions:** how many at launch, and how does a champion get unlocked?
 

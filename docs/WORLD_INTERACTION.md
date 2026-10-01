@@ -23,13 +23,13 @@ Example: an Akshan-style swing is an ability that asks `WorldQuery` for a grappl
 | 3 | enemies | enemy bodies | exists |
 | 4 | player_attack | player hitboxes and projectiles | exists |
 | 5 | enemy_attack | enemy hitboxes and projectiles | exists |
-| 6 | pit | chasms (`Pits` TileMapLayer): block walking, not dashing or projectiles | planned |
+| 6 | pit | chasms (`Pits` TileMapLayer): block walking only, not dashes, other displacements (knockback, blink, pull, swing) or projectiles | planned |
 | 7 | low_obstacle | fences, rubble: block walking, not projectiles | planned |
 | 8 | interactable | chests, doors, shrines, NPC talk zones | planned |
 | 9 | pickup | dropped loot, gold, potions | planned |
 | 10 | hazard | traps, damaging floors | planned |
 
-Planned: walking masks world, pit, low_obstacle, and the other team's bodies. As it is today: the player's and the slimes' bodies both mask 7 (world, player, enemies), so units also collide with their own team (pit and low_obstacle don't exist yet). A ghosted `dash()` (the dash, Lunge) masks world only while it runs (`collision_mask & 1`), which is correct: pits and units are ignored during a dash; `displace()` keeps the unit's own mask.
+Planned: walking masks world, pit, low_obstacle, and the other team's bodies. As it is today: the player's and the slimes' bodies both mask 7 (world, player, enemies), so units also collide with their own team (pit and low_obstacle don't exist yet). A ghosted `dash()` (the dash, Lunge) masks world only while it runs (`collision_mask & 1`), which is correct: pits and units are ignored during a dash; `displace()` keeps the unit's own mask (minus the pit layer once pits exist: Pits and movement types).
 
 ## Surface tags
 - **Tiles:** add TileSet **custom data layers** to `dungeon_tileset.tres` with bools `grappleable`, `destructible`, `bounce`, `wall_slam`, and set them per tile.
@@ -46,7 +46,7 @@ Built:
 Planned:
 - `raycast_terrain(from, dir, max_dist_px) -> Dictionary {position, normal, collider, tags}` (empty if nothing hit)
 - `find_grapple_point(from, dir, max_dist_px)`: the first world hit must be `grappleable`, otherwise empty
-- `resolve_valid_position(target, from)`: if an endpoint is in a wall or pit, returns the nearest valid floor point on the caster's side
+- `resolve_valid_position(target, from)`: if an endpoint is in a wall, returns the nearest valid floor point on the caster's side (pits are valid endpoints: a displacement that ends over one follows the pit rule, Pits and movement types)
 - `get_units_in_radius(center, r, team_filter)`
 
 ## Ability movement (MovementComponent methods)
@@ -57,7 +57,7 @@ To add when the first ability needs them:
 - `tether(anchor, max_length)`: free movement clamped to a radius around the anchor
 - `orbit(anchor, radius, angular_speed, dir_sign, max_angle)`: the swing
 
-*(proposed, not built)* Movement methods will emit `Events.unit_impacted(ImpactContext)` when a displacement hits a wall or a unit; neither the signal nor `ImpactContext` exists yet (DECISIONS.md, World Interaction, 2026-09-25). Wall-slam stuns will be `ReactionRule`s (trigger `IMPACT`, surface tag `wall_slam`), as in the CONVENTIONS.md worked example. Whether `bounce` is movement or an effect is an open question.
+*(approved by Ryan 2026-09-30, not built)* Movement methods will emit `Events.unit_impacted(ImpactContext)` when a displacement hits a wall or a unit; neither the signal nor `ImpactContext` exists yet (DECISIONS.md, World Interaction, 2026-09-25). Wall-slam stuns will be `ReactionRule`s (trigger `IMPACT`, surface tag `wall_slam`), as in the CONVENTIONS.md worked example. Whether `bounce` is movement or an effect is an open question.
 `dash()` and `displace()` move with `move_and_slide()`, so a dash or knockback into a wall slides along it (like walking) instead of stopping; only a near-head-on hit stops.
 Each movement method defines how it starts, what ends it, and what happens on hitting a wall or a unit. A stun doesn't end a displacement that's already running (knockback still moves a stunned unit; DECISIONS.md, Movement); it only stops the unit from starting new ones. They emit the existing `displacement_finished` signal.
 
@@ -69,15 +69,16 @@ Scripts go in `res://scripts/interactables/`, scenes in `res://scenes/interactab
 
 Abilities check tags; they never check class names.
 
-## Pits and movement types *(proposed; not scheduled: Movement step 8 was removed 2026-09-25)*
+## Pits and movement types (approved by Ryan 2026-09-30; ready to build, not yet in a build order: Movement step 8 was removed 2026-09-25)
 - `Unit` gets a movement type enum, `enum MovementType { GROUND, FLYING }` with `@export var movement_type`. FLYING ignores the pit layer and never falls.
 - One rule for all units: any displacement (dash, knockback, blink, swing) that ends with the unit's feet **8 px or more** inside a pit makes it fall. Less than 8 px snaps it back to the edge.
+- **Every displacement ignores the pit layer while it runs**, the exemption a ghosted `dash()` already has: `displace()` (knockback, swing steps), `blink()`, `pull_to()` and `orbit()` take layer 6 out of the unit's `collision_mask` when they start and put it back when they end (any way they end), keeping every other bit (so knockback still slides along walls and stops on units). Otherwise a pit edge would stop the unit like a wall and no push could ever carry it the 8 px the rule needs. `blink()`'s endpoint check (`resolve_valid_position`) resolves walls only and leaves pits to the 8 px rule, for the same reason. Walking keeps the pit layer: a unit never walks into a pit.
 - **The player falls:** takes 5% of max health (can't drop below 1 health), then respawns on the last safe tile (the last floor tile the player stood fully on).
 - **An enemy falls:** it dies, the kill goes to whoever caused the displacement (Kill credit), and its drops land on the nearest floor tile. **Bosses never fall;** they snap to the edge.
 - Pit tiles have no navigation polygon, so enemies never path into them. (Today `Room._bake_navigation()` only carves colliders on layer 1 from the `navigation_source` group, so whatever builds pits has to add them to that bake.)
 - Pits get their own TileMapLayer, `Pits`, with physics on layer 6. Floor and walls stay on `Tiles`.
 
-## Hazards *(proposed)*
+## Hazards (approved by Ryan 2026-09-30)
 A `Hazard` is an Area2D scene on layer 10 with:
 - `tags` (e.g. `&"oil"`, `&"fire"`)
 - `source`: the Unit that made it, or null = the environment
@@ -88,27 +89,27 @@ A `Hazard` is an Area2D scene on layer 10 with:
 
 Entering applies its status; re-entering refreshes it instead of stacking. It emits `hazard_entered` / `hazard_exited`. Timed traps are Hazards with an on/off cycle.
 
-## Knockback *(proposed)*
+## Knockback (approved by Ryan 2026-09-30)
 - New stat `knockback_resistance`, 0–1, scales displacement distance by (1 − value). Bosses have 1. (Row in STATS.md.)
 - A displaced unit that hits another unit emits `unit_impacted` with that unit as the collider, so rules can make chain hits.
 - `ImpactContext` carries the impact speed, so rules can set thresholds.
 - Two knockbacks at once: the stronger wins (COMBAT.md; built in COMBAT C4): `displace()` is dropped (returns false) when the running displacement has more distance left than the new one's whole distance.
 
 ## Reaction triggers *(specified in COMBAT.md, ReactionRule)*
-`ReactionRule.Trigger` has 8: `IMPACT`, `HIT`, `HAZARD_ENTERED`, `HAZARD_EXITED`, `STATUS_APPLIED`, `UNIT_DIED`, `HAZARD_OVERLAP` (hazard meets hazard, e.g. fire + oil), `ABILITY_CAST` (ABILITIES.md). 4 are built (`HIT`, `UNIT_DIED`, `STATUS_APPLIED`, `ABILITY_CAST`); the 4 world ones (`IMPACT` and the three hazard triggers) are *(proposed)* with impacts and Hazards here. The same list is in CONVENTIONS.md, Extension pattern 1.
+`ReactionRule.Trigger` has 8: `IMPACT`, `HIT`, `HAZARD_ENTERED`, `HAZARD_EXITED`, `STATUS_APPLIED`, `UNIT_DIED`, `HAZARD_OVERLAP` (hazard meets hazard, e.g. fire + oil), `ABILITY_CAST` (ABILITIES.md). 4 are built (`HIT`, `UNIT_DIED`, `STATUS_APPLIED`, `ABILITY_CAST`); the 4 world ones (`IMPACT` and the three hazard triggers) are approved (Ryan, 2026-09-30) and get built with impacts and Hazards here. The same list is in CONVENTIONS.md, Extension pattern 1.
 
-## Destructibles *(proposed)*
+## Destructibles (approved by Ryan 2026-09-30)
 - `hits_to_break` (default 1). Any `HitContext` counts.
 - Drops come from a loot table (LOOT.md).
 - Navigation updates in their area when they break.
-- A grapple hooked to one detaches when it breaks.
+- A grapple hooked to one detaches when it breaks, with the same tangent dash as a manual detach (300 u / 96 px over 0.15 s; the Grapple Swing example below), not a dead stop: the swing's momentum carries on, the player stays in control, and a break reads the same as letting go. A detach dash that ends over a pit follows the pit rule, as a manual one does.
 
-## Kill credit *(proposed)*
+## Kill credit (approved by Ryan 2026-09-30)
 - `HitContext`, `ImpactContext` and `Hazard` all carry a source Unit.
 - When the environment kills something (pit, wall slam, hazard), credit goes to whoever caused the displacement or owns the hazard; null = the environment.
 - On-kill effects and drops use this.
 
-## 3/4 depth *(proposed)*
+## 3/4 depth (approved by Ryan 2026-09-30)
 - The `Entities` node is y-sorted (already true in `sandbox.tscn`, and `room.gd` expects it).
 - Colliders sit at the feet (the player's already does).
 - Units behind tall walls get a silhouette (later).
@@ -142,4 +143,4 @@ Detach: dash along the tangent, 300 u (96 px) over 0.15 s
 - **Bounce:** is `bounce` a movement behavior (MovementComponent reflects the displacement) or a GameplayEffect?
 - **Readability (art):** how grappleable, `wall_slam` and destructible surfaces look different from plain walls. Every hazard and trap shows a telegraph during its `arm_time`.
 - **Doors, room locking and room transitions** belong in DUNGEONS.md.
-- The *(proposed)* sections above (Pits and movement types, Hazards, Knockback, Reaction triggers, Destructibles, Kill credit, 3/4 depth) await Ryan's OK.
+- ~~The *(proposed)* sections above await Ryan's OK~~: approved 2026-09-30 (Pits and movement types with the pit-layer exemption for every displacement; Hazards, Knockback, Reaction triggers, Destructibles with the tangent-dash detach, Kill credit, 3/4 depth). Pits still need a place in a build order.

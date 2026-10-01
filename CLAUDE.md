@@ -117,17 +117,18 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 | `docs/ABILITIES.md` | anything about abilities, casting, cast styles, charge-up, damage scalings, tooltips, ability tags, costs, cooldowns, charges, recasts, projectiles, augments, forms, empowers, conditions |
 | `docs/CHAMPIONS.md` | ChampionData, passives, a champion's resource rhythm (fury), the champion level field, the Knight's kit (Unbroken, Fury, Staggered, Cleave's heal, Judgement's payoff), the kit's functional HUD (CH6: passive slot, Fury threshold tick, live-bonus outline) |
 | `docs/AUDIO.md` | any sound, music, the mix, volume settings |
+| `docs/TALENTS.md` | talents, unlock requirements (`TalentRequirement`), the loadout and talent points, ability-use and kill counters, the champion level XP curve, the hub's talent screen, writing talent content (the kind-not-magnitude rule), the Knight's talent set |
 | `docs/CHANGELOG.md` | only when asked what was built or measured |
 | `docs/_TEMPLATE.md` | writing a new doc |
 
 ## Current status
-- **Now:** CHAMPIONS is done: CH1–CH6, CH5b and milestone CH-M passed (2026-09-30); the Knight ships. Next is TALENTS.md (Future docs 4), waiting on Ryan to start it. `player.tscn`'s old exports can be cleared when Ryan OKs it (CHAMPIONS.md, Loading a champion). Play tests closed 2026-09-30: the audit cleanup pass, Feel pass F1–F4 at 144 Hz, AUDIO A3, AB13, "a swing counts once its hit has landed", COMBAT C9–C12, STATS steps 5–6. Still open: the play test of COMBAT C8 (crits and on-hit; not in the 2026-09-30 round), and the *(proposed)* items from the docs cleanup (pits (unscheduled), hazards, knockback, triggers, destructibles, kill credit, 3/4 depth, corner forgiveness).
+- **Now:** CHAMPIONS is done: CH1–CH6, CH5b and milestone CH-M passed (2026-09-30); the Knight ships. TALENTS.md is written (2026-09-30): the model, requirements, curve, hub screen, the kind-not-magnitude authoring rule and the Knight's 20 talents are decided; Ryan answered its proposals 2026-09-30; only four names stay *(proposed)* (Open question 13). Next: T1. `player.tscn`'s old exports can be cleared when Ryan OKs it (CHAMPIONS.md, Loading a champion). Play tests closed 2026-09-30: the audit cleanup pass, Feel pass F1–F4 at 144 Hz, AUDIO A3, AB13, "a swing counts once its hit has landed", COMBAT C9–C12, STATS steps 5–6. Still open: the play test of COMBAT C8 (crits and on-hit; not in the 2026-09-30 round), and corner forgiveness (MOVEMENT.md, proposed). The docs-cleanup world items (pits, hazards, knockback, triggers, destructibles, kill credit, 3/4 depth) were approved 2026-09-30; pits still need a place in a build order.
 - **Open judgment call (revisit with ENEMIES_AI.md, not before):** whether the Knight's low-health rewards stacking (Unbroken's attack damage, Cleave's heal, Judgement's easier payoff) feel like real risk or too safe. Ryan's read after CH-M: a mix, depending on the fight; the sandbox's enemies (two slimes, one telegraphed elite) can't stress it. Don't tune it until real enemy content exists.
 - **Last 3 done:**
   1. CHAMPIONS milestone CH-M passed: the Knight's whole kit in the sandbox; its numbers are no longer placeholders.
   2. CHAMPIONS CH5b (passed): Cleave's heal from missing health, once per cast (`Ability.heal_missing_health_ratio`); the damage-based `heal_on_hit_ratio` stays as a general field.
   3. CHAMPIONS CH6 (passed): `PassiveSlot` with the live "Now:" bonus, the Fury tick at 60 and glow, the live-bonus outline on R.
-- **Next:** TALENTS.md (plan it, then write it, as with CHAMPIONS.md). AUDIO's later steps come with their systems; real CC0 files can replace the placeholders any time (same names). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order (TALENTS.md next, after CHAMPIONS ships the Knight).
+- **Next:** TALENTS T1–T5 and milestone T-M (TALENTS.md, Build order), starting with T1. AUDIO's later steps come with their systems; real CC0 files can replace the placeholders any time (same names). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order (LOOT.md next).
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.
@@ -140,7 +141,7 @@ All decisions, grouped by system with date and why, are in `docs/DECISIONS.md`.
 1. ~~`COMBAT.md`~~: written 2026-09-26 (see Docs index).
 2. ~~`ABILITIES.md`~~: written 2026-09-26 (see Docs index).
 3. ~~`CHAMPIONS.md`~~: written 2026-09-29 (see Docs index).
-4. `TALENTS.md`: per-champion talent trees, built on ABILITIES.md's augment system. Start only after CHAMPIONS.md ships at least one real champion. Rules so far: VISION.md, Game structure.
+4. ~~`TALENTS.md`~~: written 2026-09-30 (see Docs index); the Knight's set and the proposals are approved (four names still proposed); next is T1.
 5. `LOOT.md`: item bases, rarities, affix pools, drop tables. Audio hooks: see AUDIO.md.
 6. `ENEMIES_AI.md`: behaviors, aggro, elites, spawning. Once harder enemies exist, revisit the Knight's low-health reward stacking (Current status, Open judgment call).
 7. `DUNGEONS.md`: room stitching, run structure, checkpoints (placement; whether cleared enemies come back on respawn). Audio hooks: see AUDIO.md.

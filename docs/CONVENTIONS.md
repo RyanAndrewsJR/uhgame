@@ -22,7 +22,7 @@
 | Callback others call | `on_<event>` | `on_hit(ctx: HitContext)`, `on_interact()` |
 | Signal handler | `_on_<emitter>_<signal>` | `_on_hurtbox_hurt` |
 | Ids and tags | `StringName`, snake_case | `&"iron_resolve_slow"`, `&"fire"` |
-| Source id (new code) | `<kind>_<name>`, for modifier and status source ids | `&"item_4821"`, `&"status_burning"`, `&"hazard_oil"`; a champion's passive `&"passive_<champion id>"` (`passive_knight`) and its ChampionData modifiers `&"champion_<champion id>"` (CHAMPIONS.md) |
+| Source id (new code) | `<kind>_<name>`, for modifier and status source ids | `&"item_4821"`, `&"status_burning"`, `&"hazard_oil"`; a champion's passive `&"passive_<champion id>"` (`passive_knight`) and its ChampionData modifiers `&"champion_<champion id>"` (CHAMPIONS.md); a talent `&"talent_<talent id>"` (`talent_knight_long_reach`, TALENTS.md) |
 | Move lock, speed modifier, invulnerability ids | name their owner (not `<kind>_<name>`). Existing ids don't change. | `&"dash"`, `&"iron_resolve_slow"` |
 | Constant / enum | `UPPER_SNAKE`; enum type PascalCase | `Targeting.SELF`, `Team.PLAYER` |
 | Units | pixels get a `_px` suffix; LoL units have no suffix; times are seconds (`_duration`, `_time`, `cooldown`) | `radius_px`, `cast_range` |
@@ -59,6 +59,7 @@
 - **Checkpoint**: a point inside a run where the player respawns after dying; the last one reached is used. Not "save point" or "bonfire" (DUNGEONS.md).
 - **Talent**: a per-champion choice set at the hub before a run that reshapes that champion's abilities (built on augments), paid for with talent points. Not "perk", "skill" or "trait" (TALENTS.md).
 - **Champion level**: a champion's persistent level, earned by playing that champion (champion XP); it gates that champion's talent points. Never shared between champions, and never the level `StatsComponent.set_level()` uses (that one is for enemy scaling; VISION.md, Game structure).
+- **Loadout**: the talents a champion has active (at most its talent points), set at the hub. **Unlocked**: a talent whose requirements were met once; it stays unlocked. **Tier** / **siblings**: a talent's depth in its group (Q, W, E, R or PASSIVE) and the other talents at the same depth, which it usually excludes (TALENTS.md). Not "build" (that means the whole setup: talents plus gear).
 - **Swing**: one hit of the basic attack combo (windup, hit, recovery). **Combo**: the chain of swings; **finisher**: its last swing. A swing that hits nothing **whiffs**. Melee swings have a **swing step** (`lunge_px`), a **target pull** toward the **aimed enemy**, and an **aim snap** (COMBAT.md, Melee basic attacks).
 - **Telegraph**: the floor shape that warns of an enemy attack and fills up until the hit.
 - **Proc**: a hit caused by another hit (on-hit damage, reaction damage). It's tagged `proc` and never triggers on-hit.
@@ -125,6 +126,7 @@ Example: since `StatusComponent` (COMBAT C9), `Unit.apply_stun()` and `add_speed
 | `Settings`, `PauseMenu` | the player's own options autoload (saved to `user://settings.cfg`) and the Esc pause menu that edits them (both exist) | MOVEMENT.md (Dash), ABILITIES.md (cast mode) until UI.md |
 | `StatsComponent`, `StatModifier`, `StatDefinition`, `StatRegistry`, `ResourceComponent` | stats (all exist) | STATS.md |
 | `ChampionData`, `Passive`, `StatScaling`; `ResourceComponent.ResourceType.NONE`; `champion_level`, `champion_xp`, `champion_class`; status `staggered` (tags `staggered`, `debuff`) | champions, passives, a stat modifier that follows a 0–1 input, the champion level hook, the Knight's marker status (planned, CH1–CH4) | CHAMPIONS.md |
+| `Talent` (enum `Talent.Group`: `Q`, `W`, `E`, `R`, `PASSIVE`), `TalentRequirement` (enum `TalentRequirement.Kind`: `CHAMPION_LEVEL`, `ABILITY_USES`, `KILLS`); files `data/talents/talent_<champion>_<name>.tres`, ids `<champion>_<name>` | talents and their unlock requirements (planned, TALENTS T1); `Progress` (autoload: counters, XP, saving `user://progress.cfg`) and `ChampionProgress` (one champion's live record) (planned, TALENTS T4). TALENTS' other new names are still *(proposed)* there | TALENTS.md |
 | `cast_vfx`, `impact_vfx`, `cast_anim` (Ability); `swing_vfx`, `impact_vfx`, `swing_anim` (AttackSwing); `CastContext.progress`, `get_cast_progress()`, `get_cast_speed()`, `Telegraph.set_progress()` / `is_driven()`, `AutoAttackComponent.get_swing_progress()`, `VFX.spawn_scene()` | presentation hooks and cast progress (built, AB14) | ABILITIES.md |
 | `heal_on_hit_ratio` (Ability, HitContext) | an ability's kit heal from the damage it deals (CHAMPIONS CH5) | CHAMPIONS.md, COMBAT.md |
 | `heal_missing_health_ratio` (Ability, HitContext), `HitContext.cast`, `CastContext.missing_health_healed` | an ability's kit heal from the caster's missing health, once per cast (CHAMPIONS CH5b) | CHAMPIONS.md, COMBAT.md |

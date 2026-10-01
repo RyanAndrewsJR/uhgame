@@ -40,7 +40,7 @@ What exists before CH1 (the rest is Data and Architecture):
 - Each champion has its own persistent level and progress, separate from every other champion (VISION.md, Game structure): `champion_level` (int, starts 1) and `champion_xp` (int, starts 0: the XP earned toward the next level). Level plus XP-into-level (rather than total XP) means retuning the curve later can never take a level away.
 - It only ever gates that champion's talent points (TALENTS.md). It never calls `StatsComponent.set_level()` and never touches combat stats. There is no leveling inside a run.
 - Not designed here: the leveling curve, XP sources and rates (TALENTS.md once it exists). Nothing reads the fields yet.
-- The fields hold the value while the game runs. A ChampionData .tres is design data (read-only in an exported build), so it always ships level 1 / 0 XP; saving and loading the player's values from `user://` is PROGRESSION's (or TALENTS') (Ryan, 2026-09-29).
+- ~~The fields hold the value while the game runs.~~ Changed 2026-09-30 (Ryan): the fields are a new progress record's starting values; the live level and XP live in TALENTS' `ChampionProgress`, saved to `user://progress.cfg` until PROGRESSION.md (TALENTS.md, Saving). A ChampionData .tres is design data (read-only in an exported build), so it always ships level 1 / 0 XP; saving and loading the player's values from `user://` is PROGRESSION's (or TALENTS') (Ryan, 2026-09-29).
 
 ### Ability ranks
 - None (decided 2026-09-29; ABILITIES.md, Ability ranks; DECISIONS.md, Game structure). In-run power comes from loot; cross-run power from the champion level and the talent tree.
@@ -194,6 +194,7 @@ No `growth`: champions don't level their stats (STATS.md, Fill in). Enemies keep
 Built in CH1: every field except `passive` (CH2), `modifiers` and the three `resource_*` rhythm fields (CH3: they're added with the ResourceComponent fields they map to, so no field sits unused). Export groups: Identity, Stats, Resource, Abilities, Sounds, Champion level.
 
 ### Passive (Resource, `res://scripts/data/passive.gd`; inline in the champion's .tres)
+From TALENTS T1 (Ryan, 2026-09-30) these fields and methods move to a shared base, `ToolkitBundle` (`res://scripts/data/toolkit_bundle.gd`), that `Passive` and `Talent` both extend; the names below and every .tres stay as they are (TALENTS.md, Data).
 | Field | Type | Notes |
 |---|---|---|
 | `display_name`, `description` | `String` | the tooltip (where it shows is UI.md's) |

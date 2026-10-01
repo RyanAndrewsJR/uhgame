@@ -238,7 +238,7 @@ The hit feel per tier, held by `GameFeel.hit_feel`: `light_hitstop` 0.03, `heavy
   - `HealGameplayEffect`: `amount` + `max_health_ratio` × max health (`Unit.heal()`, green number).
   - ABILITIES.md adds `ModifyCooldownGameplayEffect`, `RestoreResourceGameplayEffect`, `CastAbilityGameplayEffect` and `RemoveStatusesByTagGameplayEffect`.
 - There's no "play sound" GameplayEffect: a rule makes a sound only through the status it applies or the proc hit it causes (AUDIO.md).
-- Built triggers (4 of the 8): `HIT`, `UNIT_DIED`, `STATUS_APPLIED` (C11), `ABILITY_CAST` (ABILITIES AB8). The other 4, `IMPACT`, `HAZARD_ENTERED`, `HAZARD_EXITED` and `HAZARD_OVERLAP`, come with WORLD_INTERACTION's impacts and Hazards (proposed there). Effects hit one unit; area effects ("explode on death") come later.
+- Built triggers (4 of the 8): `HIT`, `UNIT_DIED`, `STATUS_APPLIED` (C11), `ABILITY_CAST` (ABILITIES AB8). The other 4, `IMPACT`, `HAZARD_ENTERED`, `HAZARD_EXITED` and `HAZARD_OVERLAP`, come with WORLD_INTERACTION's impacts and Hazards (approved there by Ryan, 2026-09-30). Effects hit one unit; area effects ("explode on death") come later.
 - Demo (sandbox only): `res://data/reactions/reaction_shatter.tres` (HIT on a `stun`-tagged target → a 30 MAGIC proc tagged `shatter`, the attacker's rule, chain_limit 1), given to the player by the `SandboxReactions` node in `sandbox.tscn` (`res://scripts/rooms/sandbox_reactions.gd`, source `&"sandbox_demo"`). room_01 has none.
 
 ### Stats
