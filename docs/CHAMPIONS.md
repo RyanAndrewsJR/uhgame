@@ -124,18 +124,18 @@ League's Lee Sin Q1 → Q2 pattern, built from AB12's existing pieces; no new co
 ### Cleave's heal
 - **Changed (Ryan, 2026-09-30) (CH5b):** Cleave heals a share of the Knight's **missing health**, once per Cleave that hits, not a share of the damage it deals. A single-target Cleave at low health must pull the Knight back, and Cleave isn't a big damage dealer without items. CH5's damage-based field stays built and general (`heal_on_hit_ratio`, 0 on every Knight ability).
 - A general field on Ability, `heal_missing_health_ratio` (default 0; a scoped param, so items can raise it): the first hit of a cast that gets through heals the caster for ratio × their missing health at that moment. Once per cast: one enemy or five heal the same. Cleave's full value is **0.55**, shaped by `self_missing_health` (read at the effect start) through a curve: a `ChargeScaling` entry on Cleave with `param` `heal_missing_health_ratio`, `input` `self_missing_health`, `min_fraction` 0, curve `data/curves/curve_knight_cleave_heal.tres`.
-- Anchor points (Ryan's, now as a share of missing health; TARGET placeholders, tuned after CH-M):
+- The curve as Ryan tuned it after CH-M (2026-09-30, in the editor; the first CH5b anchors were 0 / 3 / 8 / 15 / 55% at 100 / 75 / 50 / 25 / 10% health):
 
 | Knight's health | Missing (curve x) | Heal % of missing health | Curve y (÷ 0.55) | Healed (650 max) |
 |---|---|---|---|---|
 | 100% | 0 | 0% | 0 | 0 |
-| 75% | 0.25 | 3% | 0.0545 | 5 |
-| 50% | 0.5 | 8% | 0.1455 | 26 |
-| 25% | 0.75 | 15% | 0.2727 | 73 |
+| about 75% | 0.252 | 5.6% | 0.101 | 9 |
+| about 53% | 0.473 | 17.9% | 0.326 | 55 |
+| 32% | 0.680 | 27.2% | 0.494 | 120 |
 | 10% | 0.9 | 55% | 1.0 | 322 (back to about 60%) |
 | below 10% | 0.9–1 | 55% | 1.0 (flat) | up to 358 |
 
-The curve's points use linear tangents so the table's values are exact between neighbors (e.g. 17.5% health heals about 35% of missing health).
+Measured with this curve (champions test): 62 at 50% health, 176 at 25%, 322 at 10%. Most points use linear tangents; the one at about 75% health has a free right tangent, so the stretch from 75% to 53% health bends slightly. The champions test reads the ratio and the curve from the data, so tuning them never breaks it (it checks the shape: 0 at full health, within 0–1, never lower as more health is missing).
 - No hit, no heal: a Cleave into the air, or one whose every hit is blocked, heals nothing. A killing blow counts as a hit.
 - Cleave Wave (the AB-M REPLACE variant) is the same as Cleave here (Ryan, 2026-09-29): the Staggered bonus (CH4) and the heal (on its first projectile hit that gets through) are in its .tres too.
 
@@ -310,7 +310,7 @@ Every step: the Knight's abilities, enemies chasing and the HUD still work; buil
 5. **CH5 – Cleave's heal on hit.** `Ability.heal_on_hit_ratio`, `HitContext.heal_on_hit_ratio`, `from_ability()` and `apply_on_hit()`, Cleave's ratio and scaling, `curve_knight_cleave_heal.tres`, the effect-start `self_missing_health` read. Built 2026-09-29, see CHANGELOG.md.
    **Done means:** at full health Cleave heals nothing; at 50% about 8% of its damage per enemy; at 10% about 55%; three enemies heal three times; a killing blow heals; at max health nothing is healed or shown; the heal works with Unbroken without order effects; no other ability heals.
    **CH5b – Cleave's heal from missing health** (Ryan, 2026-09-30). `Ability.heal_missing_health_ratio`, `HitContext.heal_missing_health_ratio` and `.cast`, `CastContext.missing_health_healed`, the once-per-cast heal in `apply_on_hit()`; Cleave and Cleave Wave move their 0.55 and its scaling to the new field (the curve unchanged), their tooltips say "of your missing health". Built 2026-09-30, see CHANGELOG.md.
-   **Done means:** one Cleave that hits heals 0 / 26 / 73 / 322 at 100 / 50 / 25 / 10% health, the same into one enemy or three; nothing into the air, through a blocked hit or at max health; a killing blow heals; a hit taken during the cast time counts; the damage-based field still works on a test copy.
+   **Done means:** one Cleave that hits heals what the curve gives (at first 0 / 26 / 73 / 322 at 100 / 50 / 25 / 10% health), the same into one enemy or three; nothing into the air, through a blocked hit or at max health; a killing blow heals; a hit taken during the cast time counts; the damage-based field still works on a test copy.
 6. **CH6 – Readable kit (functional HUD).** `passive_slot.gd` and `Passive.icon_color`, the passive slot in `hud.setup_abilities()`, the resource bar's threshold ticks and glow (`resource_bar.gd`), the live-bonus outline on ability slots (`ability_bar.gd`); HUD checks in the champions test (Architecture, Readable kit HUD). Added at Ryan's request (2026-09-29) so testers can read their own state during CH-M. Built 2026-09-30, see CHANGELOG.md.
    **Done means:** hovering the passive slot shows Unbroken's name, description and its current bonus, which follows health; the Fury bar has a tick at 60 and glows at 60+; R has a gold outline at 60+ Fury and loses it below; with no champion (or no passive, or no thresholds) the HUD is exactly as before; no art.
 

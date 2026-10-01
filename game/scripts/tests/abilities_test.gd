@@ -493,7 +493,7 @@ func _test_scalings() -> void:
 func _test_tooltips() -> void:
 	_section("AB2: tooltips from the description template")
 	_check("Cleave (and its 80 base, not the old 70)", _template_line(CLEAVE.get_tooltip_plain(knight)),
-		"Sweep your sword in a wide arc in front of you, dealing 125 physical damage (80 +70% AD) and knocking enemies back. Each cast that hits heals you for up to 55% of your missing health, more the lower your health.")
+		"Sweep your sword in a wide arc in front of you, dealing 125 physical damage (80 +70%% AD) and knocking enemies back. Each cast that hits heals you for up to %d%% of your missing health, more the lower your health." % roundi(CLEAVE.heal_missing_health_ratio * 100.0))   # the heal read from the data (CHAMPIONS CH5b)
 	_check("Iron Resolve (percents with {x%})", IRON_RESOLVE.get_tooltip_plain(knight),
 		"Gain 35% movement speed for 2s. Your next attack within 4s deals 82 (50 +50% AD) bonus damage and slows the target by 40% for 1.5s.")
 	_check("Lunge ({range})", _template_line(LUNGE.get_tooltip_plain(knight)),
