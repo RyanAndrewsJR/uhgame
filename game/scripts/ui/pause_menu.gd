@@ -7,14 +7,19 @@ extends CanvasLayer
 ## (process_mode = Always in pause_menu.tscn).
 ## Options: the dash direction, the cast mode (ABILITIES.md), and one volume
 ## slider per audio bus (Settings.VOLUME_BUSES, built in code under %Volumes;
-## AUDIO.md).
+## AUDIO.md). Back to hub (TALENTS T5) leaves the run for the hub; progress is
+## saved (Progress saves when the player leaves the tree, and here first).
 
 ## Font size of the volume rows (matches the buttons).
 const VOLUME_FONT_SIZE := 10
 
+## Where Back to hub goes.
+@export_file("*.tscn") var hub_scene: String = "res://scenes/ui/hub.tscn"
+
 @onready var _dash_button: Button = %DashButton
 @onready var _cast_mode_button: Button = %CastModeButton
 @onready var _resume_button: Button = %ResumeButton
+@onready var _hub_button: Button = %HubButton
 @onready var _volumes: VBoxContainer = %Volumes
 
 var _volume_sliders: Dictionary = {}   # bus -> HSlider
@@ -26,6 +31,7 @@ func _ready() -> void:
 	_dash_button.pressed.connect(_on_dash_button_pressed)
 	_cast_mode_button.pressed.connect(_on_cast_mode_button_pressed)
 	_resume_button.pressed.connect(close)
+	_hub_button.pressed.connect(back_to_hub)
 	_build_volume_rows()
 	Settings.setting_changed.connect(_on_settings_setting_changed)
 	_refresh()
@@ -51,6 +57,13 @@ func close() -> void:
 	# Don't leave a hidden button focused: Space (dash) is also ui_accept.
 	get_viewport().gui_release_focus()
 	get_tree().paused = false
+
+
+## Leaves the run for the hub: unpauses, saves the progress, changes scene.
+func back_to_hub() -> void:
+	close()
+	Progress.save()
+	get_tree().change_scene_to_file(hub_scene)
 
 
 func _unhandled_input(event: InputEvent) -> void:

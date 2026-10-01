@@ -135,6 +135,33 @@ func add_xp(champion: ChampionData, amount: int) -> int:
 	return gained
 
 
+## Debug (the hub's debug tools, T5): `amount` uses of each of the champion's
+## four abilities, then unlocks and a save.
+func debug_add_ability_uses(champion: ChampionData, amount: int) -> void:
+	var record := get_progress(champion)
+	for ability in [champion.q, champion.w, champion.e, champion.r]:
+		if ability != null:
+			record.ability_uses[ability.id] = record.get_ability_uses(ability.id) + amount
+	_refresh_unlocks(champion)
+	save()
+
+
+## Debug: `amount` kills (no XP, no tags), then unlocks and a save.
+func debug_add_kills(champion: ChampionData, amount: int) -> void:
+	get_progress(champion).kills += amount
+	_refresh_unlocks(champion)
+	save()
+
+
+## Debug: every talent of the champion unlocked.
+func debug_unlock_all(champion: ChampionData) -> void:
+	var record := get_progress(champion)
+	for t in champion.talents:
+		if t != null and not record.is_unlocked(t.id):
+			record.unlocked.append(t.id)
+	save()
+
+
 ## The tags a kill of `unit` counts toward (kills by tag). None until
 ## ENEMIES_AI.md decides where an enemy's tags live (Ryan, 2026-09-30).
 func get_kill_tags(_unit: Unit) -> Array[StringName]:

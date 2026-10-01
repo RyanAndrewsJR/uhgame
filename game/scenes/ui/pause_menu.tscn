@@ -69,6 +69,12 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 10
 text = "Resume"
 
+[node name="HubButton" type="Button" parent="Center/Panel/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Back to hub"
+
 [node name="Hint" type="Label" parent="Center/Panel/Margin/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 0.6)

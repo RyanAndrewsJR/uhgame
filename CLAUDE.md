@@ -44,6 +44,7 @@ audio/                  audio files: sfx/ (WAV), music/ and ambience/ (OGG), LIC
 default_bus_layout.tres the audio buses: Master, Music, SFX, UI, Ambience, Voice
 scenes/player|enemies|rooms|ui/
 scenes/sandbox_main.tscn  test run: main + rooms/sandbox.tscn (open it, press F6)
+scenes/ui/hub.tscn      the hub: the main scene (F5) since TALENTS T5; Start run / Sandbox / talents
 scenes/tests/           script-level test scenes (stats_test.tscn, combat_test.tscn, audio_test.tscn, abilities_test.tscn; F6; scripts in scripts/tests/)
 data/stats/             stat_registry.tres (every stat's limits and format)
 scripts/abilities/      ability.gd (base), cast_context.gd, ability_util.gd
@@ -123,13 +124,13 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 | `docs/_TEMPLATE.md` | writing a new doc |
 
 ## Current status
-- **Now:** CHAMPIONS is done: CH1–CH6, CH5b and milestone CH-M passed (2026-09-30); the Knight ships. TALENTS.md is written (2026-09-30): the model, requirements, curve, hub screen, the kind-not-magnitude authoring rule and the Knight's 20 talents are decided; Ryan answered its proposals 2026-09-30; every proposal and name is approved. T1–T3 passed; T3b (rewritten tooltips) and T4 (Progress: counters, XP, levels, unlocks, loadout rules, saving) built, awaiting play test; next T5 (the hub). `player.tscn`'s old exports can be cleared when Ryan OKs it (CHAMPIONS.md, Loading a champion). Play tests closed 2026-09-30: the audit cleanup pass, Feel pass F1–F4 at 144 Hz, AUDIO A3, AB13, "a swing counts once its hit has landed", COMBAT C9–C12, STATS steps 5–6. Still open: the play test of COMBAT C8 (crits and on-hit; not in the 2026-09-30 round), and corner forgiveness (MOVEMENT.md, proposed). The docs-cleanup world items (pits, hazards, knockback, triggers, destructibles, kill credit, 3/4 depth) were approved 2026-09-30; pits still need a place in a build order.
+- **Now:** CHAMPIONS is done: CH1–CH6, CH5b and milestone CH-M passed (2026-09-30); the Knight ships. TALENTS.md is written (2026-09-30): the model, requirements, curve, hub screen, the kind-not-magnitude authoring rule and the Knight's 20 talents are decided; Ryan answered its proposals 2026-09-30; every proposal and name is approved. T1–T4 passed (with T3b); T5 (the hub, now the main scene) built, awaiting play test; next the milestone T-M (a Knight's talent career, Ryan's play test). `player.tscn`'s old exports can be cleared when Ryan OKs it (CHAMPIONS.md, Loading a champion). Play tests closed 2026-09-30: the audit cleanup pass, Feel pass F1–F4 at 144 Hz, AUDIO A3, AB13, "a swing counts once its hit has landed", COMBAT C9–C12, STATS steps 5–6. Still open: the play test of COMBAT C8 (crits and on-hit; not in the 2026-09-30 round), and corner forgiveness (MOVEMENT.md, proposed). The docs-cleanup world items (pits, hazards, knockback, triggers, destructibles, kill credit, 3/4 depth) were approved 2026-09-30; pits still need a place in a build order.
 - **Open judgment call (revisit with ENEMIES_AI.md, not before):** whether the Knight's low-health rewards stacking (Unbroken's attack damage, Cleave's heal, Judgement's easier payoff) feel like real risk or too safe. Ryan's read after CH-M: a mix, depending on the fight; the sandbox's enemies (two slimes, one telegraphed elite) can't stress it. Don't tune it until real enemy content exists.
 - **Last 3 done:**
-  1. TALENTS T4 (built, awaiting play test): the `Progress` autoload, `ChampionProgress`, `ChampionLeveling`; counting casts and kills, XP and levels, unlocks, the loadout rules, `user://progress.cfg` (test scenes never touch it); HUD lines. Talents test 285/285.
-  2. TALENTS T3b (built, awaiting play test): a talent that changes its ability rewrites its tooltip (`Talent.ability_description`).
-  3. TALENTS T3 (passed): the six FLAG talents; `hit_units()` gained `damage_ratio` and `crit_roll`.
-- **Next:** TALENTS T1–T5 and milestone T-M (TALENTS.md, Build order), T1–T3 passed, T3b and T4 built; next T5 (the hub). AUDIO's later steps come with their systems; real CC0 files can replace the placeholders any time (same names). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order (LOOT.md next).
+  1. TALENTS T5 (built, awaiting play test): the hub (`scenes/ui/hub.tscn`, F5): header, `TalentScreen` (20 talents, states, live requirement lines, click to equip), Start run / Sandbox / Clear, debug row; Back to hub in the pause menu. Talents test 308/308.
+  2. TALENTS T4 (passed): the `Progress` autoload, `ChampionProgress`, `ChampionLeveling`; counting casts and kills, XP and levels, unlocks, the loadout rules, `user://progress.cfg` (test scenes never touch it); HUD lines. Talents test 285/285.
+  3. TALENTS T3b (passed): a talent that changes its ability rewrites its tooltip.
+- **Next:** TALENTS T1–T5 and milestone T-M (TALENTS.md, Build order), T1–T4 passed, T5 built; next milestone T-M. AUDIO's later steps come with their systems; real CC0 files can replace the placeholders any time (same names). STATS step 7 (F3 overlay) whenever. Then the Future docs in their listed order (LOOT.md next).
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.
@@ -142,7 +143,7 @@ All decisions, grouped by system with date and why, are in `docs/DECISIONS.md`.
 1. ~~`COMBAT.md`~~: written 2026-09-26 (see Docs index).
 2. ~~`ABILITIES.md`~~: written 2026-09-26 (see Docs index).
 3. ~~`CHAMPIONS.md`~~: written 2026-09-29 (see Docs index).
-4. ~~`TALENTS.md`~~: written 2026-09-30 (see Docs index); the Knight's set and the proposals are approved T1–T3 passed, T3b and T4 built 2026-09-30.
+4. ~~`TALENTS.md`~~: written 2026-09-30 (see Docs index); the Knight's set and the proposals are approved T1–T4 passed, T5 built 2026-09-30.
 5. `LOOT.md`: item bases, rarities, affix pools, drop tables. Audio hooks: see AUDIO.md.
 6. `ENEMIES_AI.md`: behaviors, aggro, elites, spawning. Once harder enemies exist, revisit the Knight's low-health reward stacking (Current status, Open judgment call).
 7. `DUNGEONS.md`: room stitching, run structure, checkpoints (placement; whether cleared enemies come back on respawn). Audio hooks: see AUDIO.md.

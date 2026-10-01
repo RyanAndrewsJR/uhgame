@@ -52,7 +52,7 @@ var _next_x: float = 0.0
 
 
 func _ready() -> void:
-	print("\n=== Talents test (TALENTS T1–T4) ===")
+	print("\n=== Talents test (TALENTS T1–T5) ===")
 	await _test_bundle_refactor()
 	_test_talent_data()
 	await _test_piece_kinds()
@@ -84,6 +84,7 @@ func _ready() -> void:
 	await _test_counting_live()
 	await _test_level_and_unlock_lines()
 	await _test_loadout_from_record()
+	await _test_hub()
 	Progress.reset(KNIGHT)
 	# The last check ends on a Judgement hit sound; stop it so nothing plays at exit.
 	Audio.stop_all()
@@ -1057,6 +1058,70 @@ func _test_loadout_from_record() -> void:
 	var k3 := await _spawn(KNIGHT)
 	_check("respec: an empty record loadout, no talents", k3.get_active_talents().size(), 0)
 	await _free(k3)
+
+
+# --- T5: the hub (functional) -----------------------------------------------------
+
+const HUB_SCENE: PackedScene = preload("res://scenes/ui/hub.tscn")
+const PAUSE_MENU_SCENE: PackedScene = preload("res://scenes/ui/pause_menu.tscn")
+
+
+func _test_hub() -> void:
+	_section("T5: the hub: header, talent states and lines, clicks, respec, debug tools")
+	_check("the main scene (F5) is the hub", ProjectSettings.get_setting("application/run/main_scene"), "res://scenes/ui/hub.tscn")
+	var menu: PauseMenu = PAUSE_MENU_SCENE.instantiate()
+	_check("the pause menu has Back to hub, going to the hub", [menu.get_node_or_null("%HubButton") != null, menu.hub_scene], [true, "res://scenes/ui/hub.tscn"])
+	menu.free()
+	Progress.reset(KNIGHT)
+	var hub: Hub = HUB_SCENE.instantiate()
+	add_child(hub)
+	await _frames(1)
+	var screen := hub.talent_screen
+	_check("Start run and Sandbox go to scenes that exist", [ResourceLoader.exists(hub.run_scene), ResourceLoader.exists(hub.sandbox_scene)], [true, true])
+	_check("debug tools on in hub.tscn", hub.find_child("DebugTools", true, false) != null, true)
+	_check("header at a fresh start", hub.get_header_text(), "Knight   Level 1: 0 / 600 XP   Talents 0 / 1")
+	_check("all 20 talents shown, all locked", KNIGHT.talents.map(func(t: Talent) -> String: return screen.get_state(t.id)).count("locked"), 20)
+	_check("a locked talent lists each requirement with its live count",
+		screen.get_lines(&"knight_thrifty_edge"), PackedStringArray(["Thrifty Edge  [LOCKED]", "Champion level 1 / 2", "Cleave casts 0 / 200"]))
+	_check("clicking a locked talent does nothing", screen.press(&"knight_thrifty_edge"), false)
+
+	hub.debug_add_level()
+	_check("+1 level: level 2", hub.get_header_text(), "Knight   Level 2: 0 / 1000 XP   Talents 0 / 1")
+	_check("a met requirement is marked", screen.get_lines(&"knight_thrifty_edge")[1], "Champion level 2 / 2 — met")
+	Progress.debug_add_ability_uses(KNIGHT, 200)
+	hub.refresh()
+	_check("+200 uses: Cleave's tier 1 available, its tier 2 still locked", [screen.get_state(&"knight_thrifty_edge"), screen.get_state(&"knight_long_reach"), screen.get_state(&"knight_whirling_cleave")], ["available", "available", "locked"])
+	_check("click: in the loadout, the header counts it", [screen.press(&"knight_thrifty_edge"), screen.get_state(&"knight_thrifty_edge"), hub.get_header_text().ends_with("Talents 1 / 1")], [true, "active", true])
+	_check("another group's tier 1 with no point left: blocked, and why", screen.get_lines(&"knight_quick_footing"), PackedStringArray(["Quick Footing  [BLOCKED]", "No talent points left"]))
+	_check("its sibling still swaps in", [screen.press(&"knight_long_reach"), screen.get_state(&"knight_long_reach"), screen.get_state(&"knight_thrifty_edge")], [true, "active", "available"])
+	_check("the record saw it (the run will attach it)", _plain(Progress.get_progress(KNIGHT).loadout), [&"knight_long_reach"])
+
+	Progress.debug_unlock_all(KNIGHT)
+	for i in 4:
+		hub.debug_add_level()
+	_check("unlock all, level 6: 3 points", hub.get_header_text(), "Knight   Level 6: 0 / 2600 XP   Talents 1 / 3")
+	_check("a tier 2 with its tier 1 in: available; one without: blocked, and why",
+		[screen.get_state(&"knight_whirling_cleave"), screen.get_lines(&"knight_tackle")], ["available", PackedStringArray(["Tackle  [BLOCKED]", "Needs a tier 1 Lunge talent"])])
+	screen.press(&"knight_whirling_cleave")
+	screen.press(&"knight_long_reach")
+	_check("taking the tier 1 out takes its tier 2 too", [screen.get_state(&"knight_long_reach"), screen.get_state(&"knight_whirling_cleave")], ["available", "blocked"])
+	screen.press(&"knight_long_lunge")
+	screen.press(&"knight_bloodrage")
+	hub.clear_loadout()
+	_check("Clear talents: nothing active", KNIGHT.talents.filter(func(t: Talent) -> bool: return screen.get_state(t.id) == "active").size(), 0)
+	screen.talent_hovered.emit(KNIGHT.get_talent(&"knight_bulwark"))
+	_check("hovering a talent shows its description", hub._detail.text, "Bulwark: " + KNIGHT.get_talent(&"knight_bulwark").description)
+	Progress.debug_add_kills(KNIGHT, 100)
+	_check("+100 kills", Progress.get_progress(KNIGHT).kills, 100)
+	for i in 8:
+		hub.debug_add_level()
+	_check("at the top: Level 12 (max), 5 points", hub.get_header_text(), "Knight   Level 12 (max)   Talents 0 / 5")
+	hub.find_child("DebugTools", true, false)
+	Progress.reset(KNIGHT)
+	hub.refresh()
+	_check("Reset: back to a fresh record", hub.get_header_text(), "Knight   Level 1: 0 / 600 XP   Talents 0 / 1")
+	hub.queue_free()
+	await _frames(1)
 
 
 func _req_current(p: ChampionProgress, talent_id: StringName, index: int) -> int:
