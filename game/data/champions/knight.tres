@@ -13,6 +13,21 @@
 [ext_resource type="Script" uid="uid://4f7eiawforfq" path="res://scripts/data/stat_scaling.gd" id="11_stat_scaling"]
 [ext_resource type="Script" uid="uid://m2al7vs8lnnp" path="res://scripts/data/passive.gd" id="12_passive"]
 [ext_resource type="Curve" path="res://data/curves/curve_knight_unbroken.tres" id="13_unbroken_curve"]
+[ext_resource type="Resource" path="res://data/talents/talent_knight_thrifty_edge.tres" id="20_thrifty_edge"]
+[ext_resource type="Resource" path="res://data/talents/talent_knight_long_reach.tres" id="21_long_reach"]
+[ext_resource type="Resource" path="res://data/talents/talent_knight_quick_recovery.tres" id="22_quick_recovery"]
+[ext_resource type="Resource" path="res://data/talents/talent_knight_battle_cry.tres" id="23_battle_cry"]
+[ext_resource type="Resource" path="res://data/talents/talent_knight_long_lunge.tres" id="24_long_lunge"]
+[ext_resource type="Resource" path="res://data/talents/talent_knight_quick_footing.tres" id="25_quick_footing"]
+[ext_resource type="Resource" path="res://data/talents/talent_knight_twin_lunge.tres" id="26_twin_lunge"]
+[ext_resource type="Resource" path="res://data/talents/talent_knight_swift_verdict.tres" id="27_swift_verdict"]
+[ext_resource type="Resource" path="res://data/talents/talent_knight_long_arm.tres" id="28_long_arm"]
+[ext_resource type="Resource" path="res://data/talents/talent_knight_executioner.tres" id="29_executioner"]
+[ext_resource type="Resource" path="res://data/talents/talent_knight_bloodrage.tres" id="30_bloodrage"]
+[ext_resource type="Resource" path="res://data/talents/talent_knight_thick_skin.tres" id="31_thick_skin"]
+[ext_resource type="Resource" path="res://data/talents/talent_knight_battle_trance.tres" id="32_battle_trance"]
+[ext_resource type="Resource" path="res://data/talents/talent_knight_stalwart.tres" id="33_stalwart"]
+[ext_resource type="Script" path="res://scripts/data/talent.gd" id="40_talent"]
 
 [sub_resource type="Resource" id="StatModifier_fury_on_hit"]
 script = ExtResource("10_stat_modifier")
@@ -55,5 +70,6 @@ e = ExtResource("5_e")
 r = ExtResource("6_r")
 combo = ExtResource("7_combo")
 passive = SubResource("Passive_unbroken")
+talents = Array[ExtResource("40_talent")]([ExtResource("20_thrifty_edge"), ExtResource("21_long_reach"), ExtResource("22_quick_recovery"), ExtResource("23_battle_cry"), ExtResource("24_long_lunge"), ExtResource("25_quick_footing"), ExtResource("26_twin_lunge"), ExtResource("27_swift_verdict"), ExtResource("28_long_arm"), ExtResource("29_executioner"), ExtResource("30_bloodrage"), ExtResource("31_thick_skin"), ExtResource("32_battle_trance"), ExtResource("33_stalwart")])
 hurt_sound = ExtResource("8_hurt_sound")
 low_health_sound = ExtResource("9_low_health_sound")

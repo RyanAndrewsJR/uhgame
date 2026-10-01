@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="Talent" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/talent.gd" id="1_talent"]
+[ext_resource type="Script" path="res://scripts/data/talent_requirement.gd" id="2_req"]
+[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="3_mod"]
+[sub_resource type="Resource" id="req_level"]
+script = ExtResource("2_req")
+amount = 2
+
+[sub_resource type="Resource" id="req_use"]
+script = ExtResource("2_req")
+kind = 1
+amount = 90
+
+[sub_resource type="Resource" id="m_cd"]
+script = ExtResource("3_mod")
+stat = &"cooldown"
+type = 0
+value = -2.0
+scope = &"ability:knight_lunge"
+[resource]
+script = ExtResource("1_talent")
+display_name = "Quick Footing"
+description = "Lunge's cooldown is 2 s shorter (6 s)."
+modifiers = Array[ExtResource("3_mod")]([SubResource("m_cd")])
+id = &"knight_quick_footing"
+group = 2
+tier = 1
+requirements = Array[ExtResource("2_req")]([SubResource("req_level"), SubResource("req_use")])

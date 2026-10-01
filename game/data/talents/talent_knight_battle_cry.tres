@@ -1,0 +1,47 @@
+[gd_resource type="Resource" script_class="Talent" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/talent.gd" id="1_talent"]
+[ext_resource type="Script" path="res://scripts/data/talent_requirement.gd" id="2_req"]
+[ext_resource type="Script" path="res://scripts/data/ability_augment.gd" id="3_augment"]
+[ext_resource type="Script" path="res://scripts/data/reaction_rule.gd" id="4_rule"]
+[ext_resource type="Script" path="res://scripts/data/restore_resource_gameplay_effect.gd" id="5_restore"]
+[ext_resource type="Script" path="res://scripts/data/gameplay_effect.gd" id="6_effect"]
+
+[sub_resource type="Resource" id="req_level"]
+script = ExtResource("2_req")
+amount = 2
+
+[sub_resource type="Resource" id="req_use"]
+script = ExtResource("2_req")
+kind = 1
+amount = 75
+
+[sub_resource type="Resource" id="restore"]
+script = ExtResource("5_restore")
+amount = 15.0
+
+[sub_resource type="Resource" id="on_cast"]
+script = ExtResource("4_rule")
+id = &"knight_battle_cry"
+trigger = 7
+effects = Array[ExtResource("6_effect")]([SubResource("restore")])
+effect_target = 1
+
+[sub_resource type="Resource" id="augment"]
+script = ExtResource("3_augment")
+id = &"knight_battle_cry"
+kind = 1
+scope = &"ability:knight_iron_resolve"
+rules = Array[ExtResource("4_rule")]([SubResource("on_cast")])
+display_name = "Battle Cry"
+description = "Restores 15 Fury on cast."
+
+[resource]
+script = ExtResource("1_talent")
+display_name = "Battle Cry"
+description = "Iron Resolve restores 15 Fury on cast."
+augments = Array[Resource]([SubResource("augment")])
+id = &"knight_battle_cry"
+group = 1
+tier = 1
+requirements = Array[ExtResource("2_req")]([SubResource("req_level"), SubResource("req_use")])

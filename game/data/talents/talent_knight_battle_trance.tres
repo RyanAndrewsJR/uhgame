@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="Talent" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/talent.gd" id="1_talent"]
+[ext_resource type="Script" path="res://scripts/data/talent_requirement.gd" id="2_req"]
+[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="3_mod"]
+[ext_resource type="Script" path="res://scripts/data/stat_scaling.gd" id="4_scaling"]
+[ext_resource type="Curve" path="res://data/curves/curve_knight_unbroken.tres" id="5_curve"]
+[sub_resource type="Resource" id="req_level"]
+script = ExtResource("2_req")
+amount = 6
+
+[sub_resource type="Resource" id="req_use"]
+script = ExtResource("2_req")
+kind = 2
+amount = 1500
+
+[sub_resource type="Resource" id="s_as_mod"]
+script = ExtResource("3_mod")
+stat = &"attack_speed"
+type = 1
+value = 0.5
+
+[sub_resource type="Resource" id="s_as"]
+script = ExtResource("4_scaling")
+modifier = SubResource("s_as_mod")
+curve = ExtResource("5_curve")
+[resource]
+script = ExtResource("1_talent")
+display_name = "Battle Trance"
+description = "Unbroken gives up to +50% attack speed instead of its attack damage: faster swings, more Fury, lighter hits."
+stat_scalings = Array[ExtResource("4_scaling")]([SubResource("s_as")])
+replaces_passive_stats = Array[StringName]([&"attack_damage"])
+id = &"knight_battle_trance"
+group = 4
+tier = 2
+requirements = Array[ExtResource("2_req")]([SubResource("req_level"), SubResource("req_use")])

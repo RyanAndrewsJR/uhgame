@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="Talent" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/talent.gd" id="1_talent"]
+[ext_resource type="Script" path="res://scripts/data/talent_requirement.gd" id="2_req"]
+[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="3_mod"]
+[ext_resource type="Resource" path="res://data/augments/augment_judgement_reset.tres" id="6_reset"]
+[sub_resource type="Resource" id="req_level"]
+script = ExtResource("2_req")
+amount = 6
+
+[sub_resource type="Resource" id="req_use"]
+script = ExtResource("2_req")
+kind = 1
+amount = 180
+
+[sub_resource type="Resource" id="m_missing"]
+script = ExtResource("3_mod")
+stat = &"target_missing_health_ratio"
+type = 0
+value = 0.2
+scope = &"ability:knight_judgement"
+[sub_resource type="Resource" id="m_stun"]
+script = ExtResource("3_mod")
+stat = &"stun_duration"
+type = 2
+value = -1.0
+scope = &"ability:knight_judgement"
+[resource]
+script = ExtResource("1_talent")
+display_name = "Executioner"
+description = "Judgement deals 40% of the target's missing health (was 20%) and a kill resets its cooldown, but it no longer stuns (0.5 s at 60+ Fury)."
+modifiers = Array[ExtResource("3_mod")]([SubResource("m_missing"), SubResource("m_stun")])
+augments = Array[Resource]([ExtResource("6_reset")])
+id = &"knight_executioner"
+group = 3
+tier = 2
+requirements = Array[ExtResource("2_req")]([SubResource("req_level"), SubResource("req_use")])

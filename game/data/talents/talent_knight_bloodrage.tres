@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="Talent" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/talent.gd" id="1_talent"]
+[ext_resource type="Script" path="res://scripts/data/talent_requirement.gd" id="2_req"]
+[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="3_mod"]
+[ext_resource type="Script" path="res://scripts/data/stat_scaling.gd" id="4_scaling"]
+[ext_resource type="Curve" path="res://data/curves/curve_knight_unbroken.tres" id="5_curve"]
+[sub_resource type="Resource" id="req_level"]
+script = ExtResource("2_req")
+amount = 2
+
+[sub_resource type="Resource" id="req_use"]
+script = ExtResource("2_req")
+kind = 2
+amount = 150
+
+[sub_resource type="Resource" id="s_ad_mod"]
+script = ExtResource("3_mod")
+stat = &"attack_damage"
+type = 1
+value = 0.15
+
+[sub_resource type="Resource" id="s_ad"]
+script = ExtResource("4_scaling")
+modifier = SubResource("s_ad_mod")
+curve = ExtResource("5_curve")
+[resource]
+script = ExtResource("1_talent")
+display_name = "Bloodrage"
+description = "Unbroken goes up to +15% more attack damage (+55% in all)."
+stat_scalings = Array[ExtResource("4_scaling")]([SubResource("s_ad")])
+id = &"knight_bloodrage"
+group = 4
+tier = 1
+requirements = Array[ExtResource("2_req")]([SubResource("req_level"), SubResource("req_use")])

@@ -39,7 +39,10 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 	# Checked with the same inputs as the hit's own bonus check (same frame, before it).
 	var resource_bonus := _has_resource_bonus(caster, ctx, target)
 	var targets: Array[Unit] = [target]
-	var statuses: Array[StatusEffect] = [stun]
+	var statuses: Array[StatusEffect] = []
+	# A 0 s stun is no stun (TALENTS T2: Executioner multiplies it by 0).
+	if stun.duration > 0.0:
+		statuses.append(stun)
 	var landed := play_hit_feel(hit_units(caster, targets, ctx, statuses))
 	if landed and resource_bonus and consume_resource_on_bonus and caster.resource_pool != null:
 		caster.resource_pool.try_spend(caster.resource_pool.current)

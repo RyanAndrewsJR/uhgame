@@ -1,5 +1,9 @@
 extends Node2D
 ## TALENTS.md test: open res://scenes/tests/talents_test.tscn and press F6.
+## T2: the Knight's first 14 talents: their data (groups, tiers, requirements
+## as in TALENTS.md, siblings never sharing a stat), each number talent's
+## param, Battle Cry's Fury, Twin Lunge's charges, Executioner's stun and
+## reset, and Unbroken's four talents at low and full health.
 ## T1: the talent framework. ToolkitBundle (the bundle moved out of Passive,
 ## Unbroken unchanged), Talent and TalentRequirement data, each piece kind
 ## (modifier, StatScaling, rule, FLAG, EVENT) attaching and detaching exactly
@@ -21,6 +25,10 @@ const AUGMENT_LUNGE_STUNS: AbilityAugment = preload("res://data/augments/augment
 const AUGMENT_JUDGEMENT_RESET: AbilityAugment = preload("res://data/augments/augment_judgement_reset.tres")
 const AUGMENT_CLEAVE_WAVE: AbilityAugment = preload("res://data/augments/augment_cleave_wave.tres")
 const STATUS_HASTE: StatusEffect = preload("res://data/statuses/status_haste.tres")
+const IRON_RESOLVE: Ability = preload("res://data/abilities/knight_w_iron_resolve.tres")
+const JUDGEMENT: Ability = preload("res://data/abilities/knight_r_judgement.tres")
+const CLEAVE_WAVE: Ability = preload("res://data/abilities/knight_q_cleave_wave.tres")
+const SLIME_SCENE: PackedScene = preload("res://scenes/enemies/slime.tscn")
 
 const Q := Talent.Group.Q
 const E := Talent.Group.E
@@ -34,7 +42,7 @@ var _next_x: float = 0.0
 
 
 func _ready() -> void:
-	print("\n=== Talents test (TALENTS T1) ===")
+	print("\n=== Talents test (TALENTS T1–T2) ===")
 	await _test_bundle_refactor()
 	_test_talent_data()
 	await _test_piece_kinds()
@@ -43,6 +51,12 @@ func _ready() -> void:
 	await _test_loadout_at_load()
 	await _test_empty_loadout()
 	await _test_sandbox_talents()
+	_test_knight_set_data()
+	await _test_knight_numbers()
+	await _test_battle_cry()
+	await _test_twin_lunge()
+	await _test_executioner()
+	await _test_unbroken_talents()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -278,7 +292,6 @@ func _test_loadout_at_load() -> void:
 
 func _test_empty_loadout() -> void:
 	_section("An empty loadout changes nothing")
-	_check("the Knight's ChampionData has no talents yet (T2 adds them)", KNIGHT.talents.size(), 0)
 	var k := await _spawn(KNIGHT)
 	_check("player.tscn: an empty talent_loadout, no active talents, nothing left out", [k.talent_loadout.size(), k.get_active_talents().size(), k.get_left_out_passive_stats().size()], [0, 0, 0])
 	_check("the passive's scaling attached as before", k.get_stat_scalings().size(), 1)
@@ -320,6 +333,207 @@ func _test_sandbox_talents() -> void:
 	_check("the cursor wraps", st._cursor, 0)
 	room.queue_free()
 	await _frames(1)
+
+
+# --- T2: the Knight's set, part 1 -----------------------------------------------
+
+## id -> [group, tier, champion level, requirement kind, amount] (TALENTS.md,
+## The Knight's talents). T3 adds the six FLAG talents.
+const KNIGHT_T2 := {
+	&"knight_thrifty_edge": [Q, 1, 2, TalentRequirement.Kind.ABILITY_USES, 200],
+	&"knight_long_reach": [Q, 1, 2, TalentRequirement.Kind.ABILITY_USES, 200],
+	&"knight_quick_recovery": [Talent.Group.W, 1, 2, TalentRequirement.Kind.ABILITY_USES, 75],
+	&"knight_battle_cry": [Talent.Group.W, 1, 2, TalentRequirement.Kind.ABILITY_USES, 75],
+	&"knight_long_lunge": [E, 1, 2, TalentRequirement.Kind.ABILITY_USES, 90],
+	&"knight_quick_footing": [E, 1, 2, TalentRequirement.Kind.ABILITY_USES, 90],
+	&"knight_twin_lunge": [E, 2, 6, TalentRequirement.Kind.ABILITY_USES, 900],
+	&"knight_swift_verdict": [R, 1, 2, TalentRequirement.Kind.ABILITY_USES, 20],
+	&"knight_long_arm": [R, 1, 2, TalentRequirement.Kind.ABILITY_USES, 20],
+	&"knight_executioner": [R, 2, 6, TalentRequirement.Kind.ABILITY_USES, 180],
+	&"knight_bloodrage": [PASSIVE, 1, 2, TalentRequirement.Kind.KILLS, 150],
+	&"knight_thick_skin": [PASSIVE, 1, 2, TalentRequirement.Kind.KILLS, 150],
+	&"knight_battle_trance": [PASSIVE, 2, 6, TalentRequirement.Kind.KILLS, 1500],
+	&"knight_stalwart": [PASSIVE, 2, 6, TalentRequirement.Kind.KILLS, 1500],
+}
+
+
+func _test_knight_set_data() -> void:
+	_section("T2: the Knight's talents in the data")
+	_check("knight.tres lists the 14 part-1 talents", KNIGHT.talents.size(), KNIGHT_T2.size())
+	var ids := []
+	for t in KNIGHT.talents:
+		ids.append(t.id)
+	ids.sort()
+	var expected_ids := KNIGHT_T2.keys()
+	expected_ids.sort()
+	_check("their ids", ids, expected_ids)
+	for t in KNIGHT.talents:
+		var row: Array = KNIGHT_T2.get(t.id, [])
+		if row.is_empty():
+			continue
+		var reqs := t.requirements
+		var shape := [t.group, t.tier, t.exclusive, reqs.size(),
+			reqs[0].kind if reqs.size() > 0 else -1, reqs[0].amount if reqs.size() > 0 else -1,
+			reqs[1].kind if reqs.size() > 1 else -1, reqs[1].amount if reqs.size() > 1 else -1]
+		_check("%s: group, tier, exclusive, level %d + %d" % [t.id, row[2], row[4]], shape,
+			[row[0], row[1], true, 2, TalentRequirement.Kind.CHAMPION_LEVEL, row[2], row[3], row[4]])
+		_check("%s: valid, named, described, file talent_%s.tres" % [t.id, t.id], [Array(t.get_validation_errors(KNIGHT)), t.display_name != "", t.description != "", t.resource_path.get_file()],
+			[[], true, true, "talent_%s.tres" % t.id])
+	# No tier holds more than two (a pick of one of two), and the siblings differ in kind:
+	# they never change the same stat (the authoring rule).
+	for t in KNIGHT.talents:
+		var siblings := KNIGHT.talents.filter(func(o: Talent) -> bool: return t.is_sibling_of(o))
+		# Twin Lunge's and Executioner's siblings (Tackle, Shockwave) are FLAGs: T3.
+		var expected_siblings := 0 if t.id in [&"knight_twin_lunge", &"knight_executioner"] else 1
+		_check("%s: %d sibling(s) so far" % [t.id, expected_siblings], siblings.size(), expected_siblings)
+		if siblings.size() == 1:
+			var mine := t.get_stats()
+			var theirs: Array[StringName] = siblings[0].get_stats()
+			_check("%s: no stat in common with its sibling" % t.id, mine.filter(func(s: StringName) -> bool: return theirs.has(s)), [])
+
+
+func _test_knight_numbers() -> void:
+	_section("T2: each number talent does what its row says")
+	# [id, slot, param, expected value, or a multiplier of the current value when the last entry is true]
+	var cases := [
+		[&"knight_thrifty_edge", &"q", &"resource_cost", 15.0, false],
+		[&"knight_long_reach", &"q", &"cast_range", 375.0, false],
+		[&"knight_quick_recovery", &"w", &"cooldown", 6.5, false],
+		[&"knight_long_lunge", &"e", &"cast_range", 1.25, true],
+		[&"knight_quick_footing", &"e", &"cooldown", 6.0, false],
+		[&"knight_swift_verdict", &"r", &"cooldown", 24.0, false],
+		[&"knight_long_arm", &"r", &"cast_range", 1.3, true],
+	]
+	var k := await _spawn(KNIGHT)
+	for c: Array in cases:
+		var talent := KNIGHT.get_talent(c[0])
+		var ability := k.abilities.get_ability(c[1])
+		var before := ability.get_param(k, c[2])
+		k.add_talent(talent)
+		var after := ability.get_param(k, c[2])
+		k.remove_talent(talent)
+		var expected: float = before * c[3] if c[4] else c[3]
+		_check("%s: %s %s %s -> %s, back after removal" % [c[0], ability.id, c[2], before, expected], [after, ability.get_param(k, c[2])], [expected, before])
+	k.add_talent(KNIGHT.get_talent(&"knight_thrifty_edge"))
+	_check("Thrifty Edge: the slot costs 15 Fury", k.abilities.get_slot_cost(&"q"), 15.0)
+	k.remove_talent(KNIGHT.get_talent(&"knight_thrifty_edge"))
+	k.add_talent(KNIGHT.get_talent(&"knight_long_reach"))
+	_check("Long Reach reaches an item's Cleave Wave too (700 -> 875)", CLEAVE_WAVE.get_param(k, &"cast_range"), 875.0)
+	k.remove_talent(KNIGHT.get_talent(&"knight_long_reach"))
+	await _free(k)
+
+
+func _test_battle_cry() -> void:
+	_section("T2: Battle Cry: Iron Resolve restores 15 Fury")
+	var k := await _spawn(KNIGHT)
+	k.resource_pool.decay_per_second = 0.0
+	k.add_talent(KNIGHT.get_talent(&"knight_battle_cry"))
+	_check("its line in Iron Resolve's tooltip", IRON_RESOLVE.get_tooltip_plain(k).contains("Restores 15 Fury on cast."), true)
+	k.abilities.try_cast(&"w", k.global_position, null)
+	await _frames(3)
+	_check("cast from 0 Fury: 15", k.resource_pool.current, 15.0)
+	k.remove_talent(KNIGHT.get_talent(&"knight_battle_cry"))
+	await _wait_until(func() -> bool: return k.abilities.is_ready(&"w"), 600)
+	k.abilities.try_cast(&"w", k.global_position, null)
+	await _frames(3)
+	_check("removed: the next cast restores nothing", k.resource_pool.current, 15.0)
+	await _free(k)
+
+
+func _test_twin_lunge() -> void:
+	_section("T2: Twin Lunge: 2 charges, each 35% shorter")
+	var k := await _spawn(KNIGHT)
+	var base_range := LUNGE.get_param(k, &"cast_range")
+	_check("without it: 1 charge (the sandbox's charge demo is off too)", k.abilities.get_max_charges(&"e"), 1)
+	k.add_talent(KNIGHT.get_talent(&"knight_twin_lunge"))
+	await _frames(1)
+	_check("2 charges, range x 0.65", [k.abilities.get_max_charges(&"e"), LUNGE.get_param(k, &"cast_range")], [2, base_range * 0.65])
+	k.add_talent(KNIGHT.get_talent(&"knight_long_lunge"))
+	_check("with Long Lunge (tier 1 carries): range x 1.25 x 0.65", LUNGE.get_param(k, &"cast_range"), base_range * 1.25 * 0.65)
+	k.abilities.try_cast(&"e", k.global_position + Vector2(40, 0), null)
+	await _frames(20)
+	k.abilities.try_cast(&"e", k.global_position + Vector2(-40, 0), null)
+	await _frames(2)
+	_check("two Lunges back to back: both charges used", k.abilities.get_charges(&"e"), 0)
+	var sandbox: Node = SANDBOX_SCENE.instantiate()
+	_check("sandbox.tscn: SandboxAbilities' charge demo is off", sandbox.get_node("SandboxAbilities").get("demo_charges"), false)
+	sandbox.free()
+	await _free(k)
+
+
+func _test_executioner() -> void:
+	_section("T2: Executioner: 40% missing health, a kill resets, no stun (0.5 s at 60+ Fury)")
+	var talent := KNIGHT.get_talent(&"knight_executioner")
+	var results := []
+	for fury: float in [0.0, 70.0]:
+		var k := await _spawn(KNIGHT)
+		k.resource_pool.decay_per_second = 0.0
+		k.add_talent(talent)
+		var dummy := _dummy(k.global_position + Vector2(60, 0))
+		await _frames(1)
+		k.resource_pool.restore(fury)
+		var hit := {}
+		var on_hit := func(ctx: HitContext) -> void:
+			if ctx.source == k and ctx.ability == JUDGEMENT and not ctx.blocked:
+				hit["stun"] = dummy.status_component.get_time_left(&"stun")
+		Events.unit_hit.connect(on_hit)
+		await _wait_until(func() -> bool: return not GameFeel.is_hitstop_active(), 120)
+		k.abilities.try_cast(&"r", dummy.global_position, dummy)
+		await _wait_until(func() -> bool: return hit.has("stun"), 90)
+		Events.unit_hit.disconnect(on_hit)
+		results.append([hit.get("stun", -1.0), JUDGEMENT.get_param(k, &"target_missing_health_ratio"), k.abilities.get_augments(&"r").has(AUGMENT_JUDGEMENT_RESET)])
+		dummy.queue_free()
+		await _free(k)
+	_check("the ratio 0.4 and the reset augment on R", [results[0][1], results[0][2]], [0.4, true])
+	_check_near("below 60 Fury: no stun", results[0][0], 0.0, 0.001)
+	_check_near("at 70 Fury: the bonus's 0.5 s stun", results[1][0], 0.5, 0.05)
+
+	# A kill resets the cooldown (the existing judgement_reset augment).
+	var k2 := await _spawn(KNIGHT)
+	k2.add_talent(talent)
+	var weak := _dummy(k2.global_position + Vector2(60, 0))
+	await _frames(1)
+	weak.health.take_damage(weak.health.current - 1.0)
+	k2.abilities.try_cast(&"r", weak.global_position, weak)
+	await _wait_until(func() -> bool: return not weak.is_alive(), 90)
+	await _frames(1)
+	_check("a Judgement kill: R ready again", [weak.is_alive(), k2.abilities.is_ready(&"r")], [false, true])
+	await _free(k2)
+
+
+func _test_unbroken_talents() -> void:
+	_section("T2: Unbroken's talents at 20% health (full value) and full health (none)")
+	var k := await _spawn(KNIGHT)
+	var base_as := k.stats_component.get_stat(&"attack_speed")
+	var base_armor := k.stats_component.get_stat(&"armor")
+	var base_ten := k.stats_component.get_stat(&"tenacity")
+	# id -> [AD, attack speed, armor, tenacity] at 20% health
+	var cases := {
+		&"knight_bloodrage": [99.2, base_as, base_armor, base_ten],
+		&"knight_thick_skin": [89.6, base_as, base_armor + 30.0, base_ten],
+		&"knight_battle_trance": [64.0, base_as * 1.5, base_armor, base_ten],
+		&"knight_stalwart": [64.0, base_as, base_armor + 60.0, base_ten + 0.3],
+	}
+	for id: StringName in cases:
+		var talent := KNIGHT.get_talent(id)
+		k.add_talent(talent)
+		_set_health(k, 0.2)
+		await _frames(2)
+		var low := [k.stats_component.get_stat(&"attack_damage"), k.stats_component.get_stat(&"attack_speed"), k.stats_component.get_stat(&"armor"), k.stats_component.get_stat(&"tenacity")]
+		_set_health(k, 1.0)
+		await _frames(2)
+		var full := [k.stats_component.get_stat(&"attack_damage"), k.stats_component.get_stat(&"attack_speed"), k.stats_component.get_stat(&"armor"), k.stats_component.get_stat(&"tenacity")]
+		k.remove_talent(talent)
+		await _frames(1)
+		_check_all("%s at 20%%: AD, attack speed, armor, tenacity" % id, low, cases[id])
+		_check_all("%s at full health: nothing" % id, full, [64.0, base_as, base_armor, base_ten])
+	k.add_talent(KNIGHT.get_talent(&"knight_bloodrage"))
+	k.add_talent(KNIGHT.get_talent(&"knight_battle_trance"))
+	_set_health(k, 0.2)
+	await _frames(2)
+	_check_all("Battle Trance + Bloodrage (tier 1 carries): +15% AD, +50% attack speed", [k.stats_component.get_stat(&"attack_damage"), k.stats_component.get_stat(&"attack_speed")], [73.6, base_as * 1.5])
+	_set_health(k, 1.0)
+	await _free(k)
 
 
 # --- Helpers ------------------------------------------------------------------
@@ -373,6 +587,31 @@ func _spawn(champion: ChampionData, loadout: Array[StringName] = []) -> Player:
 	_place(p)
 	await _frames(1)
 	return p
+
+
+## A passive slime (a training dummy) at `pos`.
+func _dummy(pos: Vector2) -> Enemy:
+	var d: Enemy = SLIME_SCENE.instantiate()
+	d.passive = true
+	add_child(d)
+	d.global_position = pos
+	d.reset_physics_interpolation()
+	return d
+
+
+func _wait_until(condition: Callable, max_frames: int) -> void:
+	for i in max_frames:
+		if condition.call():
+			return
+		await get_tree().physics_frame
+
+
+## Element-wise approximate check of two float lists.
+func _check_all(label: String, actual: Array, expected: Array) -> void:
+	var ok := actual.size() == expected.size()
+	for i in mini(actual.size(), expected.size()):
+		ok = ok and is_equal_approx(float(actual[i]), float(expected[i]))
+	_report(ok, label, "got %s, expected %s" % [actual, expected])
 
 
 func _free(node: Node) -> void:

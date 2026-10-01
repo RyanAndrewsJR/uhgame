@@ -186,7 +186,7 @@ Bloodrage carries into both tier 2s: they leave out Unbroken's own +40%, not Blo
 ## Data (Resources)
 Names checked against CONVENTIONS.md (reserved names, vocabulary).
 
-### ToolkitBundle (Resource, `res://scripts/data/toolkit_bundle.gd`) *(name proposed; the shared base approved by Ryan 2026-09-30)*
+### ToolkitBundle (Resource, `res://scripts/data/toolkit_bundle.gd`) (the shared base and its name approved by Ryan 2026-09-30)
 The bundle of toolkit pieces attached under one source id, pulled out of `Passive` so `Passive` and `Talent` both extend it (Ryan's pick over `Talent extends Passive`: a talent isn't a passive). Its approval covers the change policy for this refactor of `passive.gd`: the code moves, behavior doesn't.
 - Fields (moved from `Passive`, same names and defaults): `display_name`, `description`, `icon_color`, `modifiers`, `stat_scalings`, `reaction_rules`, `statuses`, `augments`.
 - Methods (moved): `apply_to(unit, source_id, left_out_stats: Array[StringName] = [])`, `remove_from(unit, source_id)`, virtual `_on_added()` / `_on_removed()`. New: `left_out_stats` (the default changes nothing): modifiers and StatScalings whose stat is listed aren't added (the replace half of Replace and add).
@@ -212,7 +212,7 @@ Methods: `get_source_id()`, `get_group_ability(champion) -> Ability` (null for P
 | `enemy_tag` | `StringName` | `&""` | `KILLS` only: count only enemies with this kill tag (empty = every kill) |
 Methods: `get_validation_error(talent)` (T1), `get_current(progress, talent, champion) -> int` (the counter it reads; T4, with the record), `is_met(...)` (T4), `get_label(talent, champion) -> String` ("Cleave casts", "Champion level", "Kills").
 
-### ChampionLeveling (Resource, `res://scripts/data/champion_leveling.gd`; `res://data/champion_levelings/champion_leveling_default.tres`) *(proposed name)*
+### ChampionLeveling (Resource, `res://scripts/data/champion_leveling.gd`; `res://data/champion_levelings/champion_leveling_default.tres`) (name approved 2026-09-30)
 | Field | Type | Notes |
 |---|---|---|
 | `xp_to_next` | `Array[int]` | index 0 = level 1 → 2: `[600, 1000, 1400, 1800, 2200, 2600, 3000, 3400, 3800, 4200, 4600]`. Its size + 1 = the max level (12) |
@@ -264,7 +264,7 @@ Bare and functional, in CH6's spirit: placeholder text and squares, no art.
 - A level-up mid-run shows a short HUD line ("Knight reached level 3: +1 talent point", 2 s); a talent unlocked mid-run shows "Talent unlocked: Long Reach". No sound until AUDIO.md adds hooks.
 
 ### The sandbox
-- `SandboxTalents` node in `sandbox.tscn` *(proposed name)* (`res://scripts/rooms/sandbox_talents.gd`), like `SandboxAugments`: lists the champion's talents and toggles them on the live Knight with keys (test only; it ignores locks, points and the tier rule, and never changes the saved loadout). So the Knight's set can be play-tested before the hub exists. As built (T1): a list at the bottom left ("> Q1  Long Reach  ON"); **G** moves the cursor down (Shift+G up), **T** toggles the highlighted talent (raw keys in this sandbox-only script, like SandboxAugments' 1–4; G and T are unbound elsewhere). It reads `champion.talents`, so it shows "none" until T2 fills the Knight's.
+- `SandboxTalents` node in `sandbox.tscn` (`res://scripts/rooms/sandbox_talents.gd`), like `SandboxAugments`: lists the champion's talents and toggles them on the live Knight with keys (test only; it ignores locks, points and the tier rule, and never changes the saved loadout). So the Knight's set can be play-tested before the hub exists. As built (T1): a list at the bottom left ("> Q1  Long Reach  ON"); **G** moves the cursor down (Shift+G up), **T** toggles the highlighted talent (raw keys in this sandbox-only script, like SandboxAugments' 1–4; G and T are unbound elsewhere). It reads `champion.talents`, so it shows "none" until T2 fills the Knight's.
 
 ## Audio hooks
 None built. For later (AUDIO.md adds them when wanted): level up, talent unlocked, a hub click when a talent goes in or out. The shape-changing FLAGs (Whirling and Rending Cleave, Challenge, Shockwave) may want their own cast or hit sounds; until then they use the ability's own.
@@ -302,7 +302,7 @@ Every step: the Knight's abilities, enemies chasing and the HUD still work; with
 
 1. **T1 – Talent framework.** `toolkit_bundle.gd` (the bundle moved out of `passive.gd`, which now extends it; `apply_to()`'s `left_out_stats`), `talent.gd` (extends ToolkitBundle; group, tier, exclusive, requirements, `replaces_passive_stats`, validation), `talent_requirement.gd` (the class; nothing reads counters yet), `ChampionData.talents`, attaching a loadout in `_attach_champion()` (from a test export until T4), the passive slot's talent lines, `SandboxTalents`; `res://scenes/tests/talents_test.tscn` + `scripts/tests/talents_test.gd`. Built 2026-09-30, see CHANGELOG.md.
    **Done means:** a test talent of each piece kind (modifier, StatScaling, rule, FLAG, EVENT) attaches and detaches exactly by its source id; validation catches each broken rule (unscoped modifier, another ability's scope, any REPLACE, ABILITY_USES or an augment in PASSIVE, `replaces_passive_stats` outside PASSIVE or naming a stat the passive lacks); a test PASSIVE talent that replaces, one that adds, and one that does both each leave the passive as they say and the slot shows it; Unbroken and the champions test behave exactly as before the refactor; an empty loadout changes nothing; every existing test passes.
-2. **T2 – The Knight's set, part 1: tier 1 and the data-only tier 2s.** The 10 tier 1 talents; Twin Lunge, Executioner (and `judgement.gd`'s 0 s stun skip), Battle Trance, Stalwart; the list in `knight.tres` (ChampionData).
+2. **T2 – The Knight's set, part 1: tier 1 and the data-only tier 2s.** The 10 tier 1 talents; Twin Lunge, Executioner (and `judgement.gd`'s 0 s stun skip), Battle Trance, Stalwart; the list in `knight.tres` (ChampionData); `SandboxAbilities.demo_charges` off in `sandbox.tscn` (its +1 Lunge charge would hide Twin Lunge's). Built 2026-09-30, see CHANGELOG.md.
    **Done means:** each talent does what its row says (a check per talent in the talents test); all pass validation; Ryan's play test with `SandboxTalents`: each one is felt, and the tooltips and the passive slot show it.
 3. **T3 – The Knight's set, part 2: the six FLAGs.** Whirling and Rending Cleave (with the indicator) and their wave versions in `cleave_wave.gd`, Challenge, Bulwark, Tackle, Shockwave; the six FLAG augment .tres; the talents test's variant check.
    **Done means:** each FLAG plays as its row says and keeps the kit's shared pieces (Cleave's Staggered bonus and heal, Judgement's Fury payoff); Cleave's indicator matches its flag; with Cleave Wave equipped, Whirling Wave and Rending Wave play as their lines say; Ryan's play test: each tier 2 pair feels like two ways to play the ability, not a bigger and a smaller one.
@@ -325,14 +325,14 @@ Answered in the planning interview (Ryan, 2026-09-30):
 4. ~~The authoring rule~~: kind, not magnitude (Rules, Authoring rule).
 5. ~~The Knight's set~~: approved as written, with three changes: talents never REPLACE (Cleave's tier 2 and Judgement's area pick became FLAGs: Whirling / Rending Cleave, Shockwave); Iron Resolve's tier 2 gets an offensive pick (Challenge, replacing Stand Firm); Unbroken's tier 2 trades via the new "instead of" hook (Battle Trance, Stalwart).
 
-Claude's proposals (written in above as *(proposed)*; Ryan can overrule any):
+Claude's proposals (all answered by Ryan, 2026-09-30):
 6. ~~A talent FLAG on an item's variant~~: answered (Ryan, 2026-09-30): every variant supports every talent FLAG of the ability it replaces, with its own take (Whirling Wave, Rending Wave); ABILITIES' FLAG rule is unchanged.
 7. ~~The "instead of" hook's shape~~: answered (Ryan, 2026-09-30): by stat (`replaces_passive_stats`), modular: replace and add are independent and combine (Rules, Replace and add).
 8. ~~The working rules~~: approved (Ryan, 2026-09-30): both are rules.
 9. ~~Free casts and recast parts~~: approved (Ryan, 2026-09-30): free casts don't count as uses; a recast sequence is one use.
 10. ~~Points per talent~~: approved (Ryan, 2026-09-30): each talent costs 1 point.
-11. ~~`Talent extends Passive`~~: answered (Ryan, 2026-09-30): a shared base class both extend (`ToolkitBundle`, name proposed; Data, ToolkitBundle).
+11. ~~`Talent extends Passive`~~: answered (Ryan, 2026-09-30): a shared base class both extend (`ToolkitBundle`; Data, ToolkitBundle).
 12. ~~Saving~~: approved (Ryan, 2026-09-30): TALENTS saves `user://progress.cfg` until PROGRESSION.md; `ChampionData.champion_level` / `champion_xp` become a new record's starting values (CHAMPIONS.md updated).
-13. Names: `Progress` (autoload) and `ChampionProgress` approved (Ryan, 2026-09-30). Still *(proposed)*: `ChampionLeveling`, `SandboxTalents`, `TalentScreen`, `ToolkitBundle`.
+13. ~~Names~~: approved (Ryan, 2026-09-30): `Progress` (autoload), `ChampionProgress`, `ChampionLeveling`, `SandboxTalents`, `TalentScreen`, `ToolkitBundle`.
 14. ~~`UnitStats.xp_reward` and `Enemy.kill_tags`~~: answered (Ryan, 2026-09-30): wait for ENEMIES_AI.md; until then a temporary `xp_by_unit` table in the leveling .tres, and no kill tags.
 15. ~~The hub flow~~: approved (Ryan, 2026-09-30): the hub is the main scene; the pause menu gets Back to hub.
