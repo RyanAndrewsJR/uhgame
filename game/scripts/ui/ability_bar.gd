@@ -10,6 +10,12 @@ const SLOT := 30.0
 const GAP := 4.0
 ## Seconds a "not ready" / "silenced" flash lasts on a slot.
 const FAIL_FLASH_TIME := 0.2
+## Condition kinds about the caster alone: a bonus made only of these can be
+## shown as live on the slot (CHAMPIONS CH6).
+const SELF_CONDITION_KINDS: Array[Condition.Kind] = [Condition.Kind.SELF_HAS_STATUS,
+	Condition.Kind.SELF_HEALTH_PERCENT, Condition.Kind.RESOURCE_AT_LEAST]
+## The live-bonus outline (CHAMPIONS CH6).
+const LIVE_BONUS_COLOR := Color(1, 0.8, 0.25)
 
 var abilities: AbilityComponent
 var player: Player
@@ -44,6 +50,29 @@ func _ready() -> void:
 func is_condition_greyed(slot: StringName) -> bool:
 	return abilities != null and is_instance_valid(abilities) \
 		and abilities.get_fail_reason(slot) == AbilityComponent.FAIL_CONDITION
+
+
+## True while one of the slot ability's conditional bonuses passes whose
+## conditions are all about the caster (SELF_HAS_STATUS, SELF_HEALTH_PERCENT,
+## RESOURCE_AT_LEAST; an empty list doesn't count, it always passes). The slot
+## gets a gold outline (CHAMPIONS CH6: the Knight's R at 60+ Fury). Bonuses with
+## a target condition can't be judged without a target and never show.
+func has_live_bonus(slot: StringName) -> bool:
+	if abilities == null or not is_instance_valid(abilities):
+		return false
+	var ability := abilities.get_ability(slot)
+	if ability == null:
+		return false
+	for b in ability.conditional_bonuses:
+		if b == null or b.conditions.is_empty():
+			continue
+		var self_only := true
+		for c in b.conditions:
+			if c != null and not SELF_CONDITION_KINDS.has(c.kind):
+				self_only = false
+		if self_only and b.is_active(abilities.unit, null, null):
+			return true
+	return false
 
 
 ## True while `slot` shows a fail flash (for tests).
@@ -148,6 +177,9 @@ func _draw() -> void:
 		elif recast_part > 0:
 			border = Color(1, 0.85, 0.3, 0.9)   # press again for the next part
 		draw_rect(rect, border, false, 1.0)
+		if has_live_bonus(slot):
+			# A bonus about the caster is live (CHAMPIONS CH6): a gold outline outside the slot.
+			draw_rect(rect.grow(2), LIVE_BONUS_COLOR, false, 2.0)
 
 		# Key label.
 		draw_string(_font, rect.position + Vector2(2, 9), String(slot).to_upper(),

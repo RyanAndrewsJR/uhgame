@@ -12,6 +12,10 @@ const TYPE_COLORS := {
 	ResourceComponent.ResourceType.FURY: Color(0.95, 0.3, 0.25),
 }
 
+## Threshold ticks and the glow (CHAMPIONS CH6).
+const TICK_COLOR := Color(1, 1, 1, 0.85)
+const GLOW_COLOR := Color(1, 0.85, 0.45)
+
 ## Seconds the bar flashes on a "not enough resource" cast (ABILITIES.md, Numbers).
 @export var flash_time: float = 0.2
 
@@ -37,6 +41,41 @@ func _ready() -> void:
 	offset_bottom = -2.0
 	if abilities != null:
 		abilities.cast_failed.connect(_on_abilities_cast_failed)
+
+
+## Every RESOURCE_AT_LEAST value in the current slot abilities' conditional
+## bonuses and cast / recast conditions, sorted, without repeats (CHAMPIONS
+## CH6: a tick on the bar at each; the Knight: 60). Read every frame, so a
+## REPLACE variant's own thresholds show.
+func get_thresholds() -> Array[float]:
+	var out: Array[float] = []
+	if abilities == null or not is_instance_valid(abilities):
+		return out
+	for slot in AbilityComponent.SLOTS:
+		var ability := abilities.get_ability(slot)
+		if ability == null:
+			continue
+		var conditions: Array[Condition] = []
+		conditions.append_array(ability.cast_conditions)
+		conditions.append_array(ability.recast_conditions)
+		for b in ability.conditional_bonuses:
+			if b != null:
+				conditions.append_array(b.conditions)
+		for c in conditions:
+			if c != null and c.kind == Condition.Kind.RESOURCE_AT_LEAST and not c.negate and not out.has(c.value):
+				out.append(c.value)
+	out.sort()
+	return out
+
+
+## True while the pool is at or above one of the thresholds: the bar glows.
+func is_glowing() -> bool:
+	if pool == null or not is_instance_valid(pool):
+		return false
+	for t in get_thresholds():
+		if pool.current >= t:
+			return true
+	return false
 
 
 func is_flashing() -> bool:
@@ -67,5 +106,12 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size).grow(1), Color(0, 0, 0, 0.8))
 	draw_rect(Rect2(Vector2.ZERO, size), back)
 	draw_rect(Rect2(Vector2.ZERO, Vector2(size.x * fraction, size.y)), color)
+	# CHAMPIONS CH6: a tick at each threshold, and a bright outline while at or above one.
+	for t in get_thresholds():
+		if t > 0.0 and t < pool.max_resource:
+			var x := roundf(size.x * t / pool.max_resource)
+			draw_line(Vector2(x, -2), Vector2(x, size.y + 2), TICK_COLOR, 1.0)
+	if is_glowing():
+		draw_rect(Rect2(Vector2.ZERO, size).grow(1), GLOW_COLOR, false, 1.0)
 	draw_string(_font, Vector2(size.x + 4, size.y + 1), "%d" % floori(pool.current),
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 7, Color(color, 0.95))

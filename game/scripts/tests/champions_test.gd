@@ -17,6 +17,9 @@ extends Node2D
 ## CH5: Cleave's heal on hit (0.55 shaped by missing health through the curve, per
 ## hit, overkill included, nothing at max health, missing health read at the
 ## effect start), the same on Cleave Wave, no other ability heals.
+## CH6: the readable kit HUD (the passive slot and its live tooltip line, the
+## Fury bar's tick at 60 and glow, R's live-bonus outline; nothing for a
+## champion without a passive or thresholds).
 ## Prints PASS/FAIL per check, then a total.
 ## Run headless and it quits with the number of failures as the exit code.
 
@@ -57,7 +60,7 @@ var _next_x: float = 0.0
 
 
 func _ready() -> void:
-	print("\n=== Champions test (CHAMPIONS CH1–CH5) ===")
+	print("\n=== Champions test (CHAMPIONS CH1–CH6) ===")
 	_test_knight_data()
 	await _test_knight_loaded()
 	await _test_no_champion()
@@ -80,6 +83,7 @@ func _ready() -> void:
 	_test_heal_data()
 	await _test_cleave_heals()
 	await _test_heal_edges()
+	await _test_readable_hud()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -689,6 +693,74 @@ func _cleave_heal_run(health_share: float, count: int) -> Dictionary:
 	k.queue_free()
 	await _frames(1)
 	return result
+
+
+func _test_readable_hud() -> void:
+	_section("CH6: the readable kit HUD (passive slot, Fury tick, live bonus)")
+	var k := await _spawn()
+	var hud: CanvasLayer = HUD_SCENE.instantiate()
+	add_child(hud)
+	hud.setup_abilities(k)
+	await _frames(2)
+	var slot: Control = hud.get_node_or_null("PassiveSlot")
+	var bar: Control = hud.get_node_or_null("AbilityBar")
+	var res: Control = hud.get_node_or_null("ResourceBar")
+	_check("a passive slot for the Knight", slot != null, true)
+	if slot == null or bar == null or res == null:
+		hud.queue_free()
+		k.queue_free()
+		return
+	var slot_rect := slot.get_global_rect()
+	var bar_rect := bar.get_global_rect()
+	_check("left of Q, one gap away, the same size and row", [is_equal_approx(slot_rect.end.x + 4.0, bar_rect.position.x), is_equal_approx(slot_rect.position.y, bar_rect.position.y), slot_rect.size], [true, true, Vector2(30, 30)])
+	_check("Unbroken's color", KNIGHT.passive.icon_color, Color(0.95, 0.5, 0.35, 1))
+	var lines: PackedStringArray = slot.call("get_tooltip_lines")
+	_check("tooltip: the name, the description, the live bonus at full health", lines,
+		PackedStringArray(["Unbroken", KNIGHT.passive.description, "Now: +0% attack damage"]))
+	_set_health(k, 0.5)
+	await _frames(1)
+	_check("at 50% health: Now: +29% attack damage", slot.call("get_tooltip_lines")[2], "Now: +29% attack damage")
+	_set_health(k, 0.2)
+	await _frames(1)
+	_check("at 20% health: Now: +40% attack damage", slot.call("get_tooltip_lines")[2], "Now: +40% attack damage")
+	_set_health(k, 1.0)
+
+	var pool := k.resource_pool
+	_check("the Fury bar's thresholds: 60 (Judgement's bonus)", _plain(res.call("get_thresholds")), [60.0])
+	_check("0 Fury: no glow, no live bonus on R", [res.call("is_glowing"), bar.call("has_live_bonus", &"r")], [false, false])
+	pool.restore(60.0)
+	_check("60 Fury: the bar glows and R has the gold outline", [res.call("is_glowing"), bar.call("has_live_bonus", &"r")], [true, true])
+	_check("Q (a target condition) and E (no conditions) never show a live bonus", [bar.call("has_live_bonus", &"q"), bar.call("has_live_bonus", &"e"), bar.call("has_live_bonus", &"w")], [false, false, false])
+	pool.try_spend(1.0)
+	_check("59 Fury: both off again", [res.call("is_glowing"), bar.call("has_live_bonus", &"r")], [false, false])
+	hud.queue_free()
+	k.queue_free()
+	await _frames(1)
+
+	# A champion without a passive or thresholds: the HUD as before.
+	var other := _make_champion(&"test_plain", ENERGY)
+	var p := await _spawn(false, other)
+	var hud2: CanvasLayer = HUD_SCENE.instantiate()
+	add_child(hud2)
+	hud2.setup_abilities(p)
+	await _frames(1)
+	var res2: Control = hud2.get_node_or_null("ResourceBar")
+	var bar2: Control = hud2.get_node_or_null("AbilityBar")
+	p.resource_pool.restore(1000.0)
+	_check("no passive: no passive slot", hud2.get_node_or_null("PassiveSlot") == null, true)
+	_check("no RESOURCE_AT_LEAST anywhere: no ticks, no glow even when full", [_plain(res2.call("get_thresholds")), res2.call("is_glowing")], [[], false])
+	_check("no live bonus on any slot", [&"q", &"w", &"e", &"r"].map(func(s: StringName) -> bool: return bar2.call("has_live_bonus", s)), [false, false, false, false])
+	hud2.queue_free()
+	p.queue_free()
+	await _frames(1)
+
+
+## A typed array as a plain one (typed and untyped arrays never compare equal).
+func _plain(a: Array) -> Array:
+	var out := []
+	for x in a:
+		out.append(x)
+	return out
 
 
 # --- Helpers ------------------------------------------------------------------

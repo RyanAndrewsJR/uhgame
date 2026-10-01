@@ -11,6 +11,8 @@ extends Resource
 ## The tooltip (where it shows is UI.md's).
 @export var display_name: String = ""
 @export_multiline var description: String = ""
+## The HUD's placeholder slot color (CHAMPIONS CH6; the art pass gives it an icon).
+@export var icon_color: Color = Color(0.6, 0.6, 0.65)
 ## Added under the passive's source id (copies; the originals are untouched).
 @export var modifiers: Array[StatModifier] = []
 ## Stat modifiers that follow an input (Unit.add_stat_scaling()).

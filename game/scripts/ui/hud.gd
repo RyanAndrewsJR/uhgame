@@ -14,10 +14,12 @@ const HEART_FULL := Color(0.9, 0.2, 0.25)
 
 const AbilityBar := preload("res://scripts/ui/ability_bar.gd")
 const ResourceBar := preload("res://scripts/ui/resource_bar.gd")
+const PassiveSlot := preload("res://scripts/ui/passive_slot.gd")
 
 
-## The ability bar, and under it the resource bar if the player has a
-## resource pool (ABILITIES.md, HUD feedback).
+## The ability bar, under it the resource bar if the player has a resource
+## pool (ABILITIES.md, HUD feedback), and left of it the passive slot if the
+## player's champion has a passive (CHAMPIONS CH6).
 func setup_abilities(player: Player) -> void:
 	var bar := Control.new()
 	bar.set_script(AbilityBar)
@@ -32,6 +34,12 @@ func setup_abilities(player: Player) -> void:
 		resource_bar.set("pool", player.resource_pool)
 		resource_bar.set("abilities", player.abilities)
 		add_child(resource_bar)
+	if player.champion != null and player.champion.passive != null:
+		var passive_slot := Control.new()
+		passive_slot.set_script(PassiveSlot)
+		passive_slot.name = "PassiveSlot"
+		passive_slot.set("player", player)
+		add_child(passive_slot)
 
 
 func set_info(text: String) -> void:

@@ -204,7 +204,16 @@ Combat test 450/450, stats test 172/172 (unchanged). A headless in-game check of
 
 ## Champions (CHAMPIONS.md)
 
-### CH5 – Cleave's heal on hit: 2026-09-29, Built (awaiting play test)
+### CH6 – Readable kit (functional HUD): 2026-09-30, Built (awaiting play test)
+New: `scripts/ui/passive_slot.gd` (`PassiveSlot`: a slot left of Q with the passive's initials, a hover tooltip with the name, "[Passive]", "Always active", the description and one gold "Now:" line per stat scaling; `get_tooltip_lines()`), added by `hud.setup_abilities()` only for a champion with a passive; `Passive.icon_color` (Unbroken: a warm orange); `ResourceBar.get_thresholds()` / `is_glowing()` (a tick at every `RESOURCE_AT_LEAST` in the slotted abilities, a bright outline at or above one); `AbilityBar.has_live_bonus()` (a gold outline outside a slot while a bonus with only caster-side conditions passes). Placeholder look only.
+
+**Changed during the step:** nothing beyond the spec.
+
+Measured (champions test): the passive slot sits left of Q, one 4 px gap away, 30 × 30, in the same row; its tooltip reads "Unbroken", the description and "Now: +0% attack damage" at full health, "+29%" at 50%, "+40%" at 20%; the Fury bar's thresholds are [60], no glow and no live bonus on R at 0 Fury, both on at 60, both off at 59; Q (a target condition), W and E never show a live bonus; a champion without a passive or thresholds gets no passive slot, no ticks, no glow and no outlines. Not checked by a test: the look and the mouse hover itself (headless runs have no mouse); Ryan's play test covers them.
+
+Champions 168/168 (14 new), abilities 559/559, stats 179/179, audio 109/109. Combat 457/459: the same two real-time hitstop checks. `main.tscn` and `sandbox_main.tscn` run 600 frames with no errors.
+
+### CH5 – Cleave's heal on hit: 2026-09-29, Passed
 New: `Ability.heal_on_hit_ratio` (export group "Sustain", a scoped param), `HitContext.heal_on_hit_ratio` (set by `from_ability()` with a cast through `get_effect_param()`), `apply_on_hit()` adds ratio × `taken_damage` to the source's heal (one `Unit.heal()` per hit, with `life_on_hit` and `life_steal`), `AbilityComponent._refresh_effect_inputs()` (reads `self_missing_health` again at the effect start). Data: Cleave and Cleave Wave `heal_on_hit_ratio` 0.55 with a ChargeScaling on `self_missing_health` (min 0, `data/curves/curve_knight_cleave_heal.tres`) and a tooltip line ("Heals you for up to 55% of the damage dealt, more the lower your health").
 
 **Changed during the step:** nothing beyond the spec; the abilities test's Cleave tooltip check now includes the heal sentence. The CH6 step (functional HUD) was written into CHAMPIONS.md before the build, at Ryan's request.
