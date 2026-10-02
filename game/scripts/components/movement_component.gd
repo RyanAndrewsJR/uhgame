@@ -268,7 +268,7 @@ func dash(velocity: Vector2, duration: float, ghosted: bool = true, curve: Curve
 	_start_displacement(velocity, duration, curve)
 	if ghosted:
 		_ghost_saved_mask = body.collision_mask
-		body.collision_mask = body.collision_mask & 1  # walls only
+		body.collision_mask = body.collision_mask & (1 | 1024)  # walls and ledges (P0a spike: ledges on layer 11)
 
 
 func _end_ghost() -> void:
