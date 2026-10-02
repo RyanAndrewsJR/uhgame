@@ -112,11 +112,16 @@ var _failed: int = 0
 var _shakes: Array[float] = []   # GameFeel.shake() amounts seen by _spy_camera() (AB11)
 var _finished: int = 0
 var _cancelled: int = 0
+## The settings as the suite started, before any section changes them (AB1).
+var _start_cast_mode: Player.CastMode
+var _start_dash_direction: int
 
 
 func _ready() -> void:
 	knight = PLAYER_SCENE.instantiate()
 	add_child(knight)
+	_start_cast_mode = Settings.get_cast_mode()
+	_start_dash_direction = Settings.get_dash_direction()
 	_place(knight, ARENA)
 	knight.abilities.cast_finished.connect(func(_s: StringName, _a: Ability) -> void: _finished += 1)
 	knight.abilities.cast_cancelled.connect(func(_s: StringName, _a: Ability) -> void: _cancelled += 1)
@@ -371,7 +376,20 @@ func _test_channel_cancel_on_move() -> void:
 func _test_cast_mode() -> void:
 	_section("AB1: the cast mode setting")
 	await _reset_knight()
+	# A test scene never reads or writes the player's user://settings.cfg
+	# (like Progress): its settings start at the defaults, whatever the file says.
+	_check("in a scene under res://scenes/tests/: Settings saving is off",
+		[Settings.is_test_scene(), Settings.saving_enabled], [true, false])
+	_check("the suite started at the defaults (QUICK, dash toward the cursor), not the saved file",
+		[_start_cast_mode, _start_dash_direction], [Player.CastMode.QUICK, Settings.DashDirection.CURSOR])
 	var original := Settings.get_cast_mode()
+	Settings.set_cast_mode(Player.CastMode.QUICK)   # a known start: both sets below change it
+	# The save format, on a scratch file.
+	var path := "user://abilities_test_settings.cfg"
+	Settings.save_path = path
+	Settings.save_settings()
+	_check("save_settings() with saving off writes nothing", FileAccess.file_exists(path), false)
+	Settings.saving_enabled = true
 	var keys := []
 	var on_changed := func(key: StringName, _value: Variant) -> void: keys.append(key)
 	Settings.setting_changed.connect(on_changed)
@@ -381,14 +399,19 @@ func _test_cast_mode() -> void:
 	_check("emitted as cast_mode", keys, [Settings.CAST_MODE, Settings.CAST_MODE])
 	_check("the Player follows it", knight.cast_mode, Player.CastMode.QUICK)
 	var cfg := ConfigFile.new()
-	cfg.load(Settings.SAVE_PATH)
+	cfg.load(Settings.save_path)
 	_check("saved as a word in [controls]", cfg.get_value("controls", "cast_mode", ""), "quick")
 	Settings.set_cast_mode(Player.CastMode.QUICK_WITH_INDICATOR)
-	cfg.load(Settings.SAVE_PATH)
+	cfg.load(Settings.save_path)
 	_check("hold to aim saved", cfg.get_value("controls", "cast_mode", ""), "quick_with_indicator")
 	Settings.load_settings()
 	_check("loads back", [Settings.get_cast_mode(), knight.cast_mode],
 		[Player.CastMode.QUICK_WITH_INDICATOR, Player.CastMode.QUICK_WITH_INDICATOR])
+	Settings.saving_enabled = false
+	Settings.save_path = Settings.SAVE_PATH
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	_check("the real path stays user://settings.cfg", Settings.save_path, "user://settings.cfg")
 
 	# Hold to aim: an INSTANT ability aims on press and casts on release.
 	knight._unhandled_input(_action(&"ability_e", true))

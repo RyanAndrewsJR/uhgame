@@ -339,6 +339,13 @@ func _test_pause() -> void:
 
 func _test_volumes() -> void:
 	_section("Volumes (Settings, saved to user://settings.cfg)")
+	# A test scene never reads or writes the player's user://settings.cfg; the
+	# save format is checked on a scratch file.
+	_check("in a scene under res://scenes/tests/: Settings saving is off",
+		[Settings.is_test_scene(), Settings.saving_enabled], [true, false])
+	var path := "user://audio_test_settings.cfg"
+	Settings.save_path = path
+	Settings.saving_enabled = true
 	var sfx := AudioServer.get_bus_index(&"SFX")
 	var base := Audio.get_bus_base_db(&"SFX")
 	var keys := []
@@ -348,8 +355,12 @@ func _test_volumes() -> void:
 	_check("50% = the bus level - 6 dB", snappedf(AudioServer.get_bus_volume_db(sfx) - base, 0.01), -6.02)
 	_check("emitted as volume_sfx", keys, [&"volume_sfx"])
 	var cfg := ConfigFile.new()
-	cfg.load(Settings.SAVE_PATH)
+	cfg.load(Settings.save_path)
 	_check("saved as a whole percent in [audio]", cfg.get_value("audio", "volume_sfx", -1), 50)
+	Settings.saving_enabled = false
+	Settings.save_path = Settings.SAVE_PATH
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	Settings.set_volume(&"SFX", 0.0)
 	_check("0 mutes the bus", AudioServer.is_bus_mute(sfx), true)
 	Settings.set_volume(&"SFX", 1.0)

@@ -660,13 +660,31 @@ func _test_longest_hitstop() -> void:
 	GameFeel.hitstop(0.03)
 	_check("a hitstop slows time to 0.05", Engine.time_scale, 0.05)
 	GameFeel.hitstop(0.08)
+	var t0 := Time.get_ticks_usec()
 	_check_near("a longer one extends it to 0.08 s", GameFeel.get_hitstop_left(), 0.08, 0.005)
 	GameFeel.hitstop(0.02)
 	_check_near("a shorter one changes nothing", GameFeel.get_hitstop_left(), 0.08, 0.005)
-	await get_tree().create_timer(0.05, true, false, true).timeout
-	_check("still frozen at 0.05 s (the first would have ended)", GameFeel.is_hitstop_active(), true)
-	await get_tree().create_timer(0.05, true, false, true).timeout
-	_check("over by 0.10 s, time back to normal", [GameFeel.is_hitstop_active(), Engine.time_scale], [false, 1.0])
+	# Real time from here. A frame can run long on a busy machine, so the
+	# checks use the time that actually passed, sampled every frame, and a
+	# hitstop can only end on a frame boundary (its tolerance is in frames).
+	var longest := 0.0   # the longest frame seen, real seconds
+	var last := t0
+	var left_at := -1.0   # time left at the first frame 0.04 s or more in
+	var elapsed_at := 0.0
+	while Time.get_ticks_usec() - t0 < 500000 and GameFeel.is_hitstop_active():
+		await get_tree().process_frame
+		var now := Time.get_ticks_usec()
+		longest = maxf(longest, (now - last) / 1000000.0)
+		last = now
+		if left_at < 0.0 and now - t0 >= 40000:
+			elapsed_at = (now - t0) / 1000000.0
+			left_at = GameFeel.get_hitstop_left()
+	var ended := (last - t0) / 1000000.0
+	_check_near("%.3f s in: time left follows the 0.08 s end" % elapsed_at, left_at, maxf(0.08 - elapsed_at, 0.0), 0.005)
+	_check("still frozen after the first (0.03 s) would have ended: it ended at %.3f s, not before 0.08 s" % ended,
+		ended >= 0.075, true)
+	_check("over within 3 frames of 0.08 s (the longest %.3f s), time back to normal" % longest,
+		[ended <= 0.085 + 3.0 * longest, GameFeel.is_hitstop_active(), Engine.time_scale], [true, false, 1.0])
 
 
 func _test_swing_feel_tiers() -> void:
@@ -2600,14 +2618,21 @@ func _test_c12_data_and_hit() -> void:
 	var dummy := _tough_dummy_at(Vector2(60, 0))
 	await _frames(1)
 	var landed_before := _landed.size()
+	# The hitstop is read as the swing lands (the hit's own frame), like C3:
+	# read later, the real frames since the hit would be subtracted from it.
+	_hitstop_at_hit = -1.0
+	var read_hitstop := func(_index: int, _targets: Array[Unit]) -> void:
+		_hitstop_at_hit = GameFeel.get_hitstop_left()
+	knight.attack.swing_landed.connect(read_hitstop)
 	var hits := await _record_hits(func() -> void:
 		knight.attack.try_swing(Vector2.RIGHT, true)
 		await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20))
+	knight.attack.swing_landed.disconnect(read_hitstop)
 	_check("it hits for 64 x 1.5 = 96, tagged basic_attack + dash_strike, heavy feel",
 		hits.map(func(h: HitContext) -> Array: return [h.taken_damage, h.has_tag(&"basic_attack"), h.has_tag(&"dash_strike"), h.feel]),
 		[[96.0, true, true, HitContext.Feel.HEAVY]])
 	_check("swing_landed reports index -1", _landed.size() > landed_before and _landed[-1][1] == -1, true)
-	_check_near("heavy feel: 0.06 s hitstop", GameFeel.get_hitstop_left(), 0.06, 0.02)
+	_check_near("heavy feel: 0.06 s hitstop (read as the swing lands)", _hitstop_at_hit, 0.06, 0.005)
 	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
 	var normal := await _record_hits(func() -> void:
 		await _reset_knight_in_place()
