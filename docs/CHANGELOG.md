@@ -565,7 +565,7 @@ Add StatsComponent to player.tscn and slime.tscn. `Unit._ready()` wires it up. *
 
 ## Talents (TALENTS.md)
 
-### T5 – The hub (functional): 2026-09-30, Built (awaiting play test)
+### T5 – The hub (functional): 2026-09-30, Passed
 - **Hub** (`scenes/ui/hub.tscn`, `scripts/ui/hub.gd`, built in code): the header ("Knight   Level 2: 30 / 1000 XP   Talents 1 / 1"; "Level 12 (max)" at the top), the talent screen, a detail line (the hovered talent's description), Start run (`main.tscn`), Sandbox (`sandbox_main.tscn`), Clear talents, and the debug row (+1 level, +100 uses, +100 kills, Unlock all, Reset; `debug_tools` on in `hub.tscn`). `project.godot`'s main scene is the hub (F5).
 - **TalentScreen** (`scripts/ui/talent_screen.gd`): five columns (Q Cleave, W Iron Resolve, E Lunge, R Judgement, PASSIVE Unbroken), tiers top to bottom with "Tier n — pick one", every talent a button: [ON] gold, available white, [LOCKED] grey with each requirement's live count ("— met" when met), [BLOCKED] rust with the reason ("No talent points left", "Needs a tier 1 Lunge talent"). Clicks go through `Progress` (the record's rules, then a save).
 - **Pause menu**: Back to hub (under Resume): closes the menu, saves, changes scene (`PauseMenu.hub_scene`).
@@ -573,6 +573,8 @@ Add StatsComponent to player.tscn and slime.tscn. `Unit._ready()` wires it up. *
 - **Changed from the plan to fit 640×360** (checked in a rendered frame, `--write-movie`): siblings stacked, not side by side; descriptions in the detail line on hover, not in each box; "— met" instead of a ✓ (Open Sans has none).
 - **Measured** (talents test): a fresh record: 20 talents all locked, "Thrifty Edge  [LOCKED] / Champion level 1 / 2 / Cleave casts 0 / 200", a locked click does nothing; +1 level → "Level 2: 0 / 1000 XP", the level line marked met; +200 uses → Cleave's tier 1 available, tier 2 locked; a click puts Thrifty Edge in (Talents 1 / 1); Quick Footing then blocked ("No talent points left"); Long Reach swaps Thrifty Edge out; the record holds it. Unlock all + 4 levels → "Level 6: 0 / 2600 XP   Talents 1 / 3"; Whirling available, Tackle blocked ("Needs a tier 1 Lunge talent"); taking Long Reach out drops Whirling; Clear empties; hover shows the description; at 12: "Level 12 (max)   Talents 0 / 5"; Reset back to level 1. The main scene is the hub; the pause menu has Back to hub.
 - Talents 308/308 (23 new). Stats 179/179, audio 109/109, champions 168/168. Abilities 558/559: "emitted as cast_mode" fails because Ryan's real `user://settings.cfg` holds `cast_mode="quick_with_indicator"` (set in a play test), so the test's first change is a no-op; the test reads real settings (an existing fragility, not T5). Combat 456/459 (the real-time hitstop family). The hub, `sandbox_main.tscn`, `main.tscn` and F5 run headless with no errors or warnings; no suite touched the real progress save.
+
+**Passed** (Ryan, 2026-10-01).
 
 ### T4 – Progress: counters, XP, levels, unlocks, the loadout rules, saving: 2026-09-30, Passed
 - **ChampionLeveling** (`scripts/data/champion_leveling.gd`, `data/champion_levelings/champion_leveling_default.tres`): `xp_to_next` [600 … 4600] (max level 12), `talent_points` [1,1,2,2,2,3,3,3,4,4,4,5], `xp_by_unit` {slime 5, slime_elite 40} (temporary, until ENEMIES_AI.md). `ChampionData.leveling` (null = the default) and `get_leveling()`.

@@ -1,0 +1,390 @@
+# LOOT.md: Items, Rarities, Affixes, Procs, the Inventory, Drops and Pickups
+
+**Read when:** the task involves items, item bases, affixes, rarities, procs, the Knight's legendaries and artifact, equipping and unequipping, the inventory and its save, the materials bucket, drop tables, dungeon depth and magic find, pickups, or the sandbox loot list.
+**Depends on:** CLAUDE.md, VISION.md (pillar 6, Game structure), CONVENTIONS.md, STATS.md (StatModifier, scoped modifiers, `magic_find`, `pickup_radius`), ABILITIES.md (Augments: FLAG / EVENT / REPLACE; ReactionRule, GameplayEffects, recasts), COMBAT.md (HitContext, procs, `Events.unit_died`), CHAMPIONS.md (ChampionData, the Knight's kit), TALENTS.md (talent FLAGs on item variants, `Progress`, the save pattern), WORLD_INTERACTION.md (collision layer 9 `pickup`, Kill credit), AUDIO.md (hooks).
+**Used by:** UI (the real inventory and equip screen, item tooltips), DUNGEONS (depth, run rewards, where drops land after a pit fall), ENEMIES_AI (which drop table an enemy uses), WORLD_INTERACTION (destructibles drop from a drop table), PROGRESSION (one save for everything), ACHIEVEMENTS (much later).
+
+## How to read this doc
+Same as TALENTS.md: MUST (never change without asking Ryan), TARGET (start value and allowed range), FREE (your call; tiebreaker: VISION.md's decision priorities). Ryan's spec of 2026-10-01 is MUST. Items marked *(proposed)* are Claude's picks that Ryan hasn't answered yet; each one is also in Open questions. All numbers are TARGET placeholders until the play tests.
+
+## Player experience
+A slime dies and something pops out of it: a grey square, a green one, now and then a blue one. A moment later it's yours, without breaking stride, the way Hades hands you obols: no key, no menu, no stopping. Most drops are numbers: a helm with more health, a ring with crit. Further up the ladder a purple or teal item carries a proc ("lightning strikes", "a burst of speed on a kill"). Then, every few runs, an orange beam: a Knight-only legendary that changes an ability. Cleave becomes a wave, Lunge gets a way back, Judgement drags its target to you. One gold beam is the chase: an artifact that turns Judgement into a leap. Everything you pick up is kept, for that champion, forever, and you can put it on whenever you like, mid-fight included.
+
+## References
+- Diablo 2 / 4. Take: item bases, rarities, affixes rolled in ranges, "increased" vs "more", magic find raising the odds of better rarities with less effect on the top tiers (D2's diminishing returns), deeper = better drops, legendaries that change a skill (D4 aspects), named items with fixed affixes and rolled values (D4 uniques). Don't take: click-to-loot, inventory Tetris, an inventory cap, town portals.
+- Hades. Take: currency pickups (Darkness, obols) collected on proximity, instantly, never interrupting movement. Don't take: a reward per room chosen from doors (that's DUNGEONS' call).
+- World of Warcraft. Take: the rarity ladder topped by Artifact, and rarity colors players already read.
+- League of Legends. Take: an item's passive that doesn't stack with itself ("UNIQUE"), the same rule our augments already follow.
+
+## Principles
+1. **Numbers below, behavior on top.** Common–Rare change numbers. Unique and Exotic add one proc (reacting to something that happens). Legendary and Artifact add one ability augment (changing what an ability does). Each rung adds exactly one kind of thing (pillar 2, build variety; pillar 6, looting).
+2. **Built from what exists.** Stats are `StatModifier`s and STATS.md's scoped modifiers; procs are EVENT augments holding one `ReactionRule`; legendaries are FLAG or REPLACE augments. No new stat architecture, no new GameplayEffect kind, no new reaction trigger (Ryan, 2026-10-01).
+3. **Champion-specific only at the top.** Common–Exotic items fit any champion. Legendary and Artifact items belong to one champion and only drop for that champion *(proposed: follows from "champion-specific"; answers STATS.md's open question)*.
+4. **Hades pickup, Diablo rules.** Getting loot never costs movement (pillar 3); what the loot is follows Diablo (VISION.md, What we take).
+5. **Never lost.** An item picked up is saved at once, kept through death and leaving a run (VISION.md, Death).
+6. **Swap any time, never a free heal.** Gear changes whenever the player wants, mid-run included; a swap can't be used to heal *(proposed)*.
+7. **Tuning is data.** Rarity weights, depth growth, magic find, affix ranges and drop chances live in .tres files (CLAUDE.md, Conventions).
+
+## Current code
+- Stats: `magic_find` (0, min 0) and `pickup_radius` (0, LoL units) are registered and are UnitStats fields; nothing reads them. `gold_find` too (no gold yet). STATS.md plans `pickup_radius` 200 u (64 px) for the player "when pickups exist".
+- Augments (ABILITIES AB8): `AbilityComponent.add_augment(augment, source_id)` / `remove_augments_from(source_id)`. The same augment id from several sources counts once. EVENT augments add their rules as unit rules under `augment_<id>`; a rule with an empty `required_ability_scope` takes the augment's `scope` (an empty scope leaves it empty: the rule fires for every matching event, and no ability tooltip lists it). REPLACE: the first active one per ability wins. FLAG: the ability lists it in `supported_flags`.
+- `StatsComponent.add_modifiers()` / `remove_modifiers_from(source_id)`; source ids for items are `item_<number>` (CONVENTIONS.md).
+- `SandboxAugments` (sandbox only): four fake items (`item_test_<augment id>`) toggled with keys 1–4: `lunge_stuns`, `cleave_wave` (REPLACE → `knight_q_cleave_wave.tres`, which supports both Cleave talent FLAGs), `judgement_reset`, `cleave_casts_lunge`.
+- `Progress` (TALENTS T4): the pattern to copy: records per champion, a `ConfigFile` at `user://progress.cfg` with one section per champion id, saving off by itself in a scene under `res://scenes/tests/`. `Progress.get_tracked_player()` is the Player whose casts and kills count.
+- `Events.unit_died(unit, ctx)`: `ctx.source` is the killing hit's source. `Enemy.passive` marks a training dummy (no XP, no kill).
+- `HealthComponent.set_max_health()`: a raised max adds the difference to current; a lowered max clamps. (So unequipping and re-equipping a health item would heal; see Equipping.)
+- `Room` (`room.gd`): no depth. Rooms put units under a y-sorted `Entities` node.
+- Collision layer 9 is reserved as `pickup` (WORLD_INTERACTION.md) but not named in `project.godot` (only 1–5 are).
+- CONVENTIONS reserves `Events.item_equipped(unit, item)` and `item_unequipped(unit, item)`; `events.gd` doesn't declare them yet.
+- Nothing about items, inventories, drops or pickups exists.
+
+## Rules
+### Rarities (MUST: the ladder and what each has, Ryan 2026-10-01; counts and bands TARGET; colors FREE)
+In order, lowest first:
+
+| Rarity | Has | Affixes | Roll band | Color |
+|---|---|---|---|---|
+| Common | stats | 1 random | 0.00–0.35 | light grey `#c8c8c8` |
+| Uncommon | stats | 2 random | 0.10–0.50 | green `#4cd04c` |
+| Rare | stats | 3 random | 0.25–0.65 | blue `#4d8cff` |
+| Unique | stats + 1 proc | 3 random | 0.35–0.75 | purple `#b44dff` |
+| Exotic | stats + 1 proc | 4 random | 0.45–0.85 | teal `#26d9c4` |
+| Legendary | stats + 1 ability augment (FLAG or REPLACE), one champion's | 3 fixed | 0.55–0.95 | orange `#ff8c1a` |
+| Artifact | stats + 1 ability augment (FLAG or REPLACE), one champion's | 4 fixed | 0.65–1.00 | pale gold `#f0d890` |
+
+- **Roll band**: each affix rolls a 0–1 roll, then its value is placed inside the rarity's band of the affix's range: `value = lerp(affix.min, affix.max, lerp(band_min, band_max, roll))`. So higher rarities roll more affixes *and* higher values (Ryan's spec): a Rare's best roll only matches an Exotic's average.
+- **Unique vs Exotic** *(proposed)*: the same kind (stats + one proc from the same pool); an Exotic has one more affix and a higher band. A proc isn't stronger on an Exotic.
+- **Legendary vs Artifact** *(proposed)*: the same kind (a named item with one ability augment); an Artifact has one more fixed affix, a higher band, and carries the champion's biggest reshape. Each champion has a few legendaries and one artifact.
+
+### Stats: affixes and implicits (MUST: stat-only, StatModifier-based, Ryan 2026-10-01)
+- An **affix** is one `StatModifier` (stat, type FLAT / PERCENT_ADD / PERCENT_MULT, scope) with a value range. STATS.md's math and limits apply unchanged; the item's modifiers go in under its source id like any other source.
+- Scopes: plain stats, `hit:<tag>` / `target:<tag>` damage scopes, and `tag:<tag>` ability-param scopes ("increased core ability damage", "mobility cooldowns −10%"; VISION.md: scoped modifiers reward focusing on a tag). **Random affixes never use an `ability:<id>` scope** *(proposed)*: that would make a Common champion-specific. Named items may (their own ability only).
+- An affix lists the **item slots** it can roll on (`Affix.slots`; move speed only on boots). An item never rolls the same affix twice.
+- An **implicit** is a fixed modifier every item of a base has, whatever the rarity (a sword's attack damage). Not rolled.
+- Values round to the affix's `step` (1 for flat health or armor, 0.01 for percents) at roll time, so the tooltip number is the real number.
+- **The roll is saved, not the value** *(proposed)*: an item stores each affix's 0–1 roll; the value is recomputed from the current data. A retune of an affix range or a band reaches every item already owned (the same reason TALENTS stores level + XP-into-level).
+- **No sustain affixes in the first pool** *(proposed)*: COMBAT.md allows life on hit, life steal and regen from items, but the Knight's low-health judgment call (CLAUDE.md) isn't settled; they join the pool with ENEMIES_AI.md's enemies. No ability power affix until a champion uses AP (it would roll dead on the Knight).
+
+### Procs: Unique and Exotic (MUST shape, Ryan 2026-10-01)
+- Exactly one proc per Unique or Exotic item, picked from the proc pool at roll time. Start with three (The proc pool, below); the pool stays at 2–4 until Ryan asks for more.
+- A proc **is an EVENT `AbilityAugment` holding one `ReactionRule`** (HIT, UNIT_DIED or STATUS_APPLIED, the triggers that are built), added with `add_augment(augment, item source id)`. Its rule goes on the unit under `augment_<proc id>`, exactly as an EVENT augment's always has.
+- A proc **reacts to something happening; it never changes how an ability casts or behaves**. So a proc never uses a FLAG or a REPLACE, and it's champion-agnostic: its augment's `scope` is empty (any matching event) or a `tag:` scope, never `ability:<id>` *(proposed)*.
+- The same proc from two items counts once (the augment rule). Two Storm Strike rings are one Storm Strike.
+- Proc damage goes through `DealDamageGameplayEffect` (a `proc` hit: can't crit, proc coefficient 0), so a proc never triggers a HIT rule or on-hit, and can't chain into itself.
+
+### Ability augments: Legendary and Artifact (MUST shape, Ryan 2026-10-01)
+- Exactly one augment per named item, **FLAG or REPLACE** (never EVENT: that's a proc), scoped `ability:<id>` to one of its champion's four abilities. Unique and Exotic never touch an ability directly; Legendary and Artifact are the only tiers that do.
+- Champion-specific: a named item names its champion. It drops only for that champion and only that champion can equip it.
+- The Knight: 4 legendaries + 1 artifact, every ability with at least one (The Knight's named items).
+- **A REPLACE variant from an item supports every talent FLAG of the ability it replaces**, with its own take (TALENTS.md's rule, unchanged); the talents test already checks every variant .tres.
+- **A champion's named items for the same ability share one item slot** *(proposed)*: then two of them can never be equipped together, so two REPLACEs (or a FLAG and a REPLACE that would need to know about each other) never fight over one ability. The Knight's two Judgement items are both Gloves.
+- **A named item can be equipped once** *(proposed)*: a second copy (another drop) can't go in the other ring slot at the same time. Moot for the Knight (no named rings), built anyway.
+- Fixed affixes: a named item lists which affixes it has; their values roll in its rarity's band. It may also carry fixed modifiers scoped to its own ability (Chains of Judgement's range).
+
+### Item slots (MUST, Ryan 2026-10-01)
+Weapon, Helm, Chest, Gloves, Boots, Ring (two equipment slots), Amulet: eight equipment slots, seven item kinds. A ring goes to the first empty ring slot, else replaces ring 1 (FREE).
+- **Weapons don't change the combo in this build** *(proposed)*: the Weapon slot is a stat-and-augment slot like the others, and the champion's combo stays ChampionData's. "A champion's combo comes from its weapon, limited by its class" stays COMBAT.md's open question; every weapon base fits every class until it's answered.
+
+### Inventory and saving (MUST shape, Ryan 2026-10-01)
+- **One pool per champion**, unlimited, persistent. Not a run bag and a stash: the same list mid-run and at the hub. Never shared between champions (VISION.md, Roster).
+- Items **can be equipped, unequipped and swapped any time, mid-run included** (unlike talents, fixed for the run).
+- **Saved like TALENTS' progress**: a `ConfigFile` at `user://inventory.cfg` *(proposed: its own file, so a corrupt or huge inventory never touches talent progress)*, one section per champion id: `next_uid`, `items` (one Dictionary each: `uid`, `base`, `rarity` as a word, `affixes` as [affix id, roll] pairs, `proc` id, `named` id), `equipped` (equipment slot → uid), `materials`. Never a .tres (it can carry scripts).
+- **The materials bucket** (Ryan, 2026-10-01): `materials: Dictionary[StringName, int]` (material id → count), in the record and the save, always empty. Reserved for LOOT v2's crafting currencies; nothing reads or writes it yet.
+- Saved when an item is added, equipped or unequipped, when the tracked player leaves the tree and when the window closes. A scene under `res://scenes/tests/` never reads or writes it (the `Progress` guard, reused).
+- **A saved item the data no longer knows** (its base or named item deleted) is skipped at load with a warning, and its raw entry is written back unchanged, so a data fix brings it back *(proposed)*. An unknown affix id drops that line only (warning).
+- No discard, sell or salvage in this build (LOOT v2). Leaving a room with drops still on the floor loses those drops; picked-up items are never lost.
+
+### Equipping (MUST: the hooks, Ryan 2026-10-01)
+- `EquipmentComponent.equip(item, slot)` applies the item through the hooks already in use, under the item's source id `item_<uid>`: its implicits and affixes as copies through `StatsComponent.add_modifiers()`, its proc or named augment through `AbilityComponent.add_augment(augment, source_id)`. `unequip(slot)` calls `remove_modifiers_from(source_id)` and `remove_augments_from(source_id)`: the unit is restored exactly.
+- Equipping into a filled slot unequips the old item first (a swap). It fires `Events.item_equipped(unit, item)` / `item_unequipped(unit, item)` (reserved in CONVENTIONS).
+- `can_equip(item, slot) -> String` (`""` = yes): wrong slot kind, another champion's named item, that named item already equipped.
+- **A live swap never heals or refills** *(proposed)*: today a raised `max_health` adds the difference to current health, so taking a +80 health helm off and on at 300 / 730 would heal 80. During a live equip or unequip, current health and resource keep their value (clamped to the new max). At load (the Player spawning with its saved gear) the old rule applies, so a champion still starts full.
+- Augments are read at cast start (ABILITIES.md): a swap mid-cast doesn't change that cast; a REPLACE's slot keeps its cooldown and charges; a status a cast already applied (Undying) runs out on its own.
+- Mid-run equipping has no screen yet: the function is the contract, and `SandboxLoot` is the hand-driven entry point until UI.md builds the inventory screen (hub and pause menu).
+
+### Drops (MUST shape, Ryan 2026-10-01; numbers TARGET)
+- **Kill credit, for now**: a kill's drop goes to whoever landed the last hit, `Events.unit_died`'s `ctx.source`. When WORLD_INTERACTION's Kill credit is built (pits, wall slams, hazards crediting whoever caused them), drops move to it. Only the tracked player's kills drop anything (single player); a kill with no source drops nothing; a training dummy (`Enemy.passive`) drops nothing.
+- **Which table**: a `DropTable` per kind of enemy. Until ENEMIES_AI.md decides where enemy data lives, a temporary `LootTable.drop_table_by_unit` maps the dead unit's UnitStats file name to its table (slime → regular, slime_elite → elite), the same stand-in TALENTS used for XP. A non-passive enemy not in it uses the regular table.
+- **Depth**: until DUNGEONS.md defines runs, the depth is the `depth` export on the Room the kill happened in (default 1) *(proposed)*.
+- **The roll**, per kill: chance = `min(1, item_chance × (1 + chance_per_depth × (depth − 1)))`; on a hit, `item_count` items, each with its own rarity roll. Rarity weight = `rarity_weights[r] × (1 + rarity_growth[r] × (depth − 1)) × (1 + magic_find × magic_find_effect[r])`, where `magic_find` is the killer's stat (0.5 = +50%). Magic find changes only the rarity weights (Ryan's spec), never the drop chance.
+- Then: Common–Exotic pick a base (weighted), their affixes (weighted among those the slot allows) and, for Unique / Exotic, a proc. Legendary / Artifact pick one of the killer's champion's named items of that rarity (weighted); a champion with none of that rarity gets an Exotic instead.
+
+| Number | Regular (slime) | Elite | Notes |
+|---|---|---|---|
+| `item_chance` | 0.10 (0.05–0.2) | 1.0 | |
+| `chance_per_depth` | 0.05 | 0 | |
+| `item_count` | 1 | 1 (1–2) | |
+| Weights at depth 1: C / U / R / Un / Ex / L / A | 59.5 / 26 / 11 / 2 / 0.8 / 0.6 / 0.1 | 0 / 36 / 40 / 10 / 7 / 6 / 1 | each sums to 100 |
+| `rarity_growth` per depth (both) | 0 / 0.05 / 0.1 / 0.15 / 0.2 / 0.2 / 0.25 | same | |
+| `magic_find_effect` (LootTable, per rarity) | 0 / 1 / 1 / 1 / 1 / 0.5 / 0.5 | | Diablo 2's smaller effect on the top tiers |
+
+Against TALENTS' assumed run (96 regular kills, 4 elites) at depth 1 with no magic find, that's about 13.6 items a run: 5.7 Common, 3.9 Uncommon, 2.7 Rare, 0.6 Unique, 0.36 Exotic, 0.3 Legendary (the first in about 3 runs; all four in about 28, close to the talents' 29) and 0.05 Artifact (about 20 runs). Deeper is faster. Re-measured when DUNGEONS.md defines a run.
+
+### Pickups (MUST: layer 9, proximity, instant, Ryan 2026-10-01; numbers TARGET)
+- A dropped item is a small `Pickup` scene: an `Area2D` on collision layer 9 (`pickup`), masking nothing. It holds one rolled item.
+- The player collects on proximity: a `PickupComponent` (an `Area2D` on the Player masking layer 9) whose circle radius follows the `pickup_radius` stat (the Knight: 200 u, 64 px, STATS.md's planned value; TARGET 100–250 u). Overlap = collected at once: no key, no prompt, no pause in movement (Hades' currency pickups).
+- **It pops first** *(proposed)*: the pickup hops from the corpse to a spot 12–28 px away (a random direction, kept off walls with `WorldQuery.has_line_of_sight()`; up to four tries, else the corpse's spot) over 0.3 s, and becomes collectable when it lands. Without it a melee kill inside the 64 px radius would vanish its drop the same frame, and the player would never see what dropped. The arc is VFX; the spot is decided at once.
+- Collecting: the item joins the champion's inventory (saved), the pickup is freed, the HUD shows a line in the rarity's color ("Rare: Iron Helm", "Legendary: Tidebreaker") for 2 s, and a pickup sound plays. Flying toward the player is a later feel pass (Ryan, 2026-10-01).
+- Look (placeholder): a 6 × 6 px square in the rarity color with a dark outline and a slow bob; Legendary and Artifact also get a thin vertical beam (about 40 px) in their color so they read across a room. The landing plays the rarity's drop sound (none for Common).
+- Drops stay on the floor until collected or the scene changes. Respawning at a checkpoint doesn't remove them (DUNGEONS.md may change that).
+
+### The sandbox equip entry point (MUST: exists in this build, Ryan 2026-10-01)
+- `SandboxLoot` in `sandbox.tscn`, the same posture as `SandboxAugments` and `SandboxTalents`: a list on screen, raw keys read in that sandbox-only script (no input action).
+- Unlike `SandboxTalents`, it **changes the real save** *(proposed)*: it's the only equip screen until UI.md, so gear set there must carry into Start run.
+
+## The proc pool (Unique and Exotic; numbers TARGET)
+| Proc (id) | Item name suffix | What it does | Built from |
+|---|---|---|---|
+| Storm Strike (`proc_storm_strike`) | "of Storms" | Hits have a 15% chance (× the hit's proc coefficient) to call lightning on the target: 30 + 40% AD magic damage | HIT, owner SOURCE, effect target AFFECTED, `chance` 0.15 → `DealDamageGameplayEffect` 30, `ad_ratio` 0.4, MAGIC, tag `lightning` |
+| Bloodrush (`proc_bloodrush`) | "of the Hunt" | A kill gives +30% move speed for 2 s (refreshes) | UNIT_DIED, owner SOURCE, effect target OTHER → `ApplyStatusGameplayEffect` `status_bloodrush` (its own id, so it never overwrites Iron Resolve's haste) |
+| Expose (`proc_expose`) | "of Ruin" | Crowd control you apply also Exposes the enemy for 3 s: +15% damage taken | STATUS_APPLIED, `required_status_tags` [`cc`], owner SOURCE, effect target AFFECTED → `status_exposed` (`incoming_damage` PERCENT_MULT +0.15; tags `exposed`, `debuff`, never `cc`, so it can't trigger itself) |
+
+Each is one `data/augments/augment_proc_<name>.tres` (EVENT, empty scope). The Knight triggers all three: every hit (Storm Strike), kills (Bloodrush), Judgement's stun, Iron Resolve's slow and Tackle's stun (Expose; Staggered isn't `cc`, so Lunge alone doesn't).
+
+## The Knight's named items (names placeholder; numbers TARGET)
+Five items, one per ability plus the artifact. Each changes how its ability is used, not just its numbers. All keep the kit's shared pieces (Staggered, Cleave's heal, the Fury payoff), and each works with every Knight talent.
+
+| Item (id) | Rarity, slot | Ability | Augment | What it does | Fixed affixes |
+|---|---|---|---|---|---|
+| Tidebreaker (`knight_tidebreaker`) | Legendary, Weapon | Q Cleave | REPLACE `cleave_wave` (exists) | Cleave becomes a piercing wave of force (AB-M's Cleave Wave): reach instead of the wide sweep. Whirling and Rending Cleave already have their wave takes | attack damage, core damage, crit chance |
+| Oathbound Plate (`knight_oathbound_plate`) | Legendary, Chest | W Iron Resolve | FLAG `iron_resolve_undying` | Iron Resolve also makes the Knight **Undying** for 1.5 s (1–2.5): his health can't drop below 1. Iron Resolve becomes the button you save for the hit that would kill you | max health, armor, tenacity |
+| Homeward Greaves (`knight_homeward_greaves`) | Legendary, Boots | E Lunge | REPLACE `lunge_return` | Lunge as before, then **recast within 2.5 s** to dash straight back to where it started (passes through units, hits nothing). In, Cleave, out. The trade: the cooldown starts only after the return or when the window ends | move speed, mobility cooldown, armor |
+| Chains of Judgement (`knight_chains_of_judgement`) | Legendary, Gloves | R Judgement | FLAG `judgement_drag` + `cast_range` PERCENT_ADD +0.5 (`ability:knight_judgement`; 450 → 675 u, 144 → 216 px) | After the channel, the target is **dragged to the Knight** (0.15 s), then struck. Pull an elite out of its pack | attack damage, attack speed, crit damage |
+| The Last Verdict (`knight_last_verdict`) | **Artifact**, Gloves | R Judgement | REPLACE `judgement_leap` | Judgement becomes a **leap**: target a point within 500 u (160 px), crouch 0.2 s, leap there (0.3 s, passing through units), and every enemy within 220 u (70 px) of the landing, in sight, takes Judgement's damage (150 + 100% AD + 20% of its missing health) and the 0.75 s stun. Trades the rooted channel on one target for a pack-wide execute that moves you | attack damage, crit chance, crit damage, ability haste |
+
+The two Gloves are the same choice from opposite ends: bring the target to the Knight, or the Knight to the targets.
+
+### With the Knight's talents
+| Item | Talent | Result |
+|---|---|---|
+| Tidebreaker | all Cleave talents | As TALENTS.md, Cleave (Whirling Wave, Rending Wave; Thrifty Edge and Long Reach reach the wave). Wave casts count as Cleave casts |
+| Oathbound Plate | Challenge / Bulwark | Undying is added on top of either (Challenge: Stagger + empower + Undying; Bulwark: haste + shield + Undying). Quick Recovery: Undying more often |
+| Homeward Greaves | Tackle | Part 1 tackles the first enemy (stun), part 2 returns. Free from a lock-on to get back out |
+| Homeward Greaves | Twin Lunge | Two charges, each with its return (shorter hops). ABILITIES' rule: with more than one charge, the recharge pauses during a sequence |
+| Homeward Greaves | Long Lunge / Quick Footing | Reach both ways / cooldown, through `variant_of` |
+| Chains of Judgement | Shockwave | The splash hits around the target where it lands: next to the Knight |
+| Chains of Judgement | Executioner, Long Arm, Swift Verdict | Unchanged; Long Arm's +30% adds to the item's +50% (PERCENT_ADD: +80%) |
+| The Last Verdict | Shockwave | Its take: a second ring out to 370 u (118 px) at 50% damage with a 0.5 s stun; the talent's data zeroes the missing-health term on every hit (Shockwave's trade) |
+| The Last Verdict | Executioner | Data: 40% of missing health, no stun (the Fury bonus still adds 0.5 s), and `augment_judgement_reset` reaches the leap through `variant_of`: a kill on landing resets the cooldown (chain leaps) |
+| The Last Verdict | Long Arm / Swift Verdict | Leap range / cooldown |
+
+- **Fury payoff** on both Judgement items: The Last Verdict's .tres has Judgement's conditional bonus (RESOURCE_AT_LEAST 60: +30% damage, +0.5 s stun) and consumes the Fury once if any landing hit gets through, as `judgement.gd` does.
+- **Undying and the low-health judgment call**: Oathbound Plate deepens the Knight's low-health rewards (CLAUDE.md, Open judgment call). It's an item a player chooses, and the numbers wait for ENEMIES_AI.md like the rest; Ryan may prefer a different W legendary (Open questions).
+- **New content the set needs**: 5 named item .tres; augments `iron_resolve_undying` (FLAG), `lunge_return` (REPLACE), `judgement_drag` (FLAG), `judgement_leap` (REPLACE); variants `knight_e_lunge_return.tres` (script `lunge.gd`, `variant_of` `knight_lunge`, `recast_count` 1, `recast_window` 2.5, `supported_flags` `lunge_stuns` + `lunge_tackle`) and `knight_r_judgement_leap.tres` (script `judgement_leap.gd`, `variant_of` `knight_judgement`, POINT, cast time 0.2 s, tags `ultimate` `area` `dash`, `supported_flags` `judgement_shockwave`); `status_undying.tres` (tags `undying`, `buff`); code: the `undying` rule in `Unit.on_hit()`, Iron Resolve's flag, Lunge's return part, Judgement's drag, `judgement_leap.gd`, and `CastContext.sequence` (below).
+
+## Item bases and the affix pool (numbers TARGET; names FREE)
+| Base (id) | Slot | Implicit |
+|---|---|---|
+| Longsword (`item_base_longsword`) | Weapon | +6 attack damage |
+| Iron Helm (`item_base_iron_helm`) | Helm | +40 max health |
+| Mail Hauberk (`item_base_mail_hauberk`) | Chest | +10 armor |
+| Leather Gloves (`item_base_leather_gloves`) | Gloves | +5% attack speed |
+| Leather Boots (`item_base_leather_boots`) | Boots | +3% move speed |
+| Band (`item_base_band`) | Ring | none |
+| Pendant (`item_base_pendant`) | Amulet | none |
+
+One base per slot to start; more bases per slot are content, not code.
+
+| Affix (id) | Modifier | Range (roll 0 → 1) | Slots |
+|---|---|---|---|
+| `affix_max_health` | `max_health` FLAT | 20 → 100 | helm, chest, boots, ring, amulet |
+| `affix_attack_damage` | `attack_damage` FLAT | 2 → 10 | weapon, gloves, ring, amulet |
+| `affix_attack_speed` | `attack_speed` PERCENT_ADD | 0.03 → 0.15 | weapon, gloves, ring |
+| `affix_crit_chance` | `crit_chance` FLAT | 0.02 → 0.08 | weapon, gloves, ring, amulet |
+| `affix_crit_damage` | `crit_damage` FLAT | 0.08 → 0.35 | weapon, amulet |
+| `affix_armor` | `armor` FLAT | 4 → 20 | helm, chest, gloves, boots |
+| `affix_magic_resist` | `magic_resist` FLAT | 4 → 20 | helm, chest, boots, amulet |
+| `affix_move_speed` | `move_speed` PERCENT_ADD | 0.02 → 0.08 | boots |
+| `affix_ability_haste` | `ability_haste` FLAT | 3 → 15 | helm, ring, amulet |
+| `affix_tenacity` | `tenacity` FLAT | 0.04 → 0.15 | helm, boots |
+| `affix_damage` | `damage_increase` FLAT | 0.03 → 0.12 | weapon, ring, amulet |
+| `affix_core_damage` | `damage_increase` FLAT, scope `hit:core` | 0.06 → 0.25 | weapon, gloves, amulet |
+| `affix_basic_attack_damage` | `damage_increase` FLAT, scope `hit:basic_attack` | 0.06 → 0.25 | weapon, gloves, ring |
+| `affix_mobility_cooldown` | `cooldown` PERCENT_ADD, scope `tag:mobility` | −0.04 → −0.15 | boots |
+| `affix_magic_find` | `magic_find` FLAT | 0.05 → 0.25 | helm, ring, amulet |
+
+## Data (Resources)
+Names checked against CONVENTIONS.md (reserved names, vocabulary); every new name is *(proposed)* until Ryan approves it (Open questions). Resource scripts in `res://scripts/data/`.
+
+### ItemRarity (Resource, `item_rarity.gd`; inline in the LootTable)
+| Field | Type | Notes |
+|---|---|---|
+| `rarity` | `Item.Rarity` | `COMMON`, `UNCOMMON`, `RARE`, `UNIQUE`, `EXOTIC`, `LEGENDARY`, `ARTIFACT` |
+| `display_name`, `color` | `String`, `Color` | the table above |
+| `affix_count` | `int` | random affixes (Common–Exotic); 0 for named rarities (their list is fixed) |
+| `roll_min`, `roll_max` | `float` | the band |
+| `has_proc` | `bool` | Unique, Exotic |
+| `is_named` | `bool` | Legendary, Artifact: rolled as one of the champion's named items |
+| `magic_find_effect` | `float` | × magic find on this rarity's weight |
+| `drop_sound` | `SoundEvent` | played when a pickup of this rarity lands; null = silent (Common) |
+
+### LootTable (Resource, `loot_table.gd`; `res://data/loot_tables/loot_table_default.tres`)
+The global rules, held by `Loot.table`.
+| Field | Type | Notes |
+|---|---|---|
+| `rarities` | `Array[ItemRarity]` | 7, in `Item.Rarity` order (validated) |
+| `item_bases` | `Array[ItemBase]` | the 7 bases |
+| `affixes` | `Array[Affix]` | the random affix pool |
+| `procs` | `Array[AbilityAugment]` | the proc pool (3 EVENT augments) |
+| `drop_table_by_unit` | `Dictionary` (StringName → DropTable) | **temporary, until ENEMIES_AI.md**: `{&"slime": regular, &"slime_elite": elite}` |
+| `default_drop_table` | `DropTable` | a non-passive enemy not in the map |
+| `pickup_sound` | `SoundEvent` | on collect |
+Methods: `get_rarity(r) -> ItemRarity`, `get_base(id)`, `get_affix(id)`, `get_proc(id)`, `get_drop_table(unit)`, `get_validation_errors()`.
+
+### ItemBase (Resource, `item_base.gd`; `res://data/item_bases/item_base_<name>.tres`)
+`id` (`&"item_base_longsword"`), `display_name`, `slot: Item.Slot` (`WEAPON`, `HELM`, `CHEST`, `GLOVES`, `BOOTS`, `RING`, `AMULET`), `implicits: Array[StatModifier]`, `drop_weight: float` (1).
+
+### Affix (Resource, `affix.gd`; `res://data/affixes/affix_<name>.tres`)
+| Field | Type | Notes |
+|---|---|---|
+| `id` | `StringName` | `&"affix_attack_damage"` |
+| `stat`, `type`, `scope` | as `StatModifier` | the modifier it makes; `scope` never `ability:` (validated) |
+| `min_value`, `max_value` | `float` | the range at roll 0 and roll 1 (min may be above max: −0.04 → −0.15) |
+| `step` | `float` | rounding step of the value (1, 0.01) |
+| `slots` | `Array[Item.Slot]` | where it can roll |
+| `weight` | `float` | 1 |
+| `text` | `String` | tooltip template with `{value}` / `{value%}` ("+{value%} core ability damage"); empty = built from the stat registry's name and format |
+Methods: `get_value(band_min, band_max, roll) -> float`, `make_modifier(value, source_id) -> StatModifier`, `get_line(value) -> String`, `get_validation_error() -> String`.
+
+### NamedItem (Resource, `named_item.gd`; `res://data/items/item_<champion>_<name>.tres`, as CONVENTIONS' example `item_grapplers_gauntlet.tres`)
+| Field | Type | Notes |
+|---|---|---|
+| `id` | `StringName` | `<champion>_<name>` (`&"knight_tidebreaker"`) |
+| `display_name`, `flavor` | `String` | |
+| `rarity` | `Item.Rarity` | LEGENDARY or ARTIFACT |
+| `champion_id` | `StringName` | `&"knight"` |
+| `base` | `ItemBase` | the slot and the implicit |
+| `affixes` | `Array[Affix]` | fixed list, rolled in the rarity's band |
+| `modifiers` | `Array[StatModifier]` | fixed, not rolled; may be scoped `ability:<its ability>` |
+| `augment` | `AbilityAugment` | exactly one, FLAG or REPLACE, `ability:<id>` of one of its champion's abilities |
+| `drop_weight` | `float` | 1 |
+Methods: `get_validation_errors(champion) -> PackedStringArray`: the augment rules above, the champion's abilities, a FLAG listed in `supported_flags`, a REPLACE variant's `variant_of` and its support for every talent FLAG of its base, `ability:` modifiers only on its own ability, the shared-slot rule among the champion's named items.
+
+### DropTable (Resource, `drop_table.gd`; `res://data/drop_tables/drop_table_<name>.tres`: `drop_table_regular.tres`, `drop_table_elite.tres`)
+`item_chance`, `chance_per_depth`, `item_count`, `rarity_weights: Array[float]` (7), `rarity_growth: Array[float]` (7). Methods: `get_chance(depth)`, `get_weights(depth, magic_find, table) -> Array[float]`. Destructibles (WORLD_INTERACTION.md) will use the same resource.
+
+### Additions to existing data
+- `ChampionData.named_items: Array[NamedItem]` (export group "Loot"); the Knight lists his five. `get_named_item(id)`.
+- `Room.depth: int` (1) *(proposed; DUNGEONS.md takes it over)*.
+- `knight.tres`: `pickup_radius` 200 (STATS.md's planned value).
+- Statuses: `status_undying.tres`, `status_bloodrush.tres` (move_speed PERCENT_ADD +0.3, 2 s, REFRESH, tags `buff`), `status_exposed.tres` (3 s, REFRESH, tags `exposed`, `debuff`).
+
+### Runtime classes (`res://scripts/loot/`)
+- **`Item`** (RefCounted, `item.gd`): one rolled item. `uid: int`, `rarity: Item.Rarity`, `base: ItemBase`, `affix_rolls: Array` ([Affix, roll] pairs), `proc: AbilityAugment` (Unique / Exotic), `named: NamedItem` (Legendary / Artifact). Enums `Item.Slot`, `Item.Rarity`. Methods: `get_source_id()` (`&"item_<uid>"`), `get_slot()`, `get_display_name()` (the named item's name; else the base's, plus " of <suffix>" with a proc), `get_color(table)`, `get_modifiers(table) -> Array[StatModifier]` (implicits + affix values + a named item's fixed modifiers, source id set), `get_augment() -> AbilityAugment` (the proc or the named augment, or null), `get_champion_id()` (`&""` = any), `get_tooltip_lines(table) -> PackedStringArray`, `to_dict()`, `static from_dict(d, table, champion) -> Item` (null if its base or named item is unknown).
+- **`ItemRoller`** (static functions, `item_roller.gd`): `roll_rarity(drop_table, depth, magic_find, rng) -> Item.Rarity`, `roll_item(rarity, champion, table, rng, slot = any) -> Item` (uid 0 until added), `roll_drop(drop_table, depth, magic_find, champion, table, rng) -> Array[Item]`. Every random choice takes the `RandomNumberGenerator`, so tests seed it.
+- **`ChampionInventory`** (RefCounted, `champion_inventory.gd`): `champion_id`, `next_uid`, `items: Array[Item]`, `equipped: Dictionary` (equipment slot → uid), `materials: Dictionary[StringName, int]` (reserved, empty), the raw entries it couldn't read. `add(item) -> int` (gives the uid), `get_item(uid)`, `get_equipped_item(slot)`, `set_equipped(slot, uid)`, `clear_equipped(slot)`, `write_to(cfg)`, `static read_from(cfg, champion, table)`, `static create(champion)`.
+
+## Architecture / contracts
+### Loot (autoload, `res://scripts/autoload/loot.gd`) *(proposed name)*
+- Registered after `Progress`, before `Audio` (which stays last).
+- Holds a `ChampionInventory` per champion id, read lazily from `user://inventory.cfg` at the first `get_inventory(champion)` (a fresh one when none is saved); `saving_enabled` off in a test scene (`Progress.is_test_scene()`); `save()`, `save_path`.
+- `table: LootTable` (the default .tres), `rng: RandomNumberGenerator`.
+- `add_item(champion, item) -> int` (into the record, then a save), `get_depth(node) -> int` (the nearest Room ancestor's `depth`, else 1).
+- Listens to `Events.unit_died`: kill credit = `ctx.source` (the last hit) and it must be `Progress.get_tracked_player()`; not a passive enemy, not the player's team; then `ItemRoller.roll_drop()` with the unit's drop table, the depth and the killer's `magic_find`, and one `Pickup` per item at the corpse, under the corpse's parent (the room's y-sorted `Entities`).
+- Listens to `Events.item_equipped` / `item_unequipped` for the tracked player: updates the record's `equipped`, saves.
+- `collect(pickup, collector)`: the item into the collector's champion's record, a save, `item_picked_up` (its own signal, like `Progress`'s: `item_picked_up(champion_id, item)`), the HUD line, the pickup sound, the pickup freed.
+- Debug: `debug_grant_named_items(champion)` (one of each, into the record), `reset(champion)` (an empty record; tests and a later hub button).
+
+### EquipmentComponent (`res://scripts/components/equipment_component.gd`, a child of `player.tscn`)
+- Equipment slots `&"weapon"`, `&"helm"`, `&"chest"`, `&"gloves"`, `&"boots"`, `&"ring_1"`, `&"ring_2"`, `&"amulet"`.
+- `can_equip(item, slot = &"") -> String`, `equip(item, slot = &"", keep_current = true) -> bool` (slot `&""` = the item's own, the first empty ring slot for a ring), `unequip(slot, keep_current = true) -> Item`, `get_item(slot)`, `get_slot_of(item) -> StringName`, `get_equipped() -> Dictionary`.
+- Applies and removes through `StatsComponent.add_modifiers()` / `remove_modifiers_from()` and `AbilityComponent.add_augment()` / `remove_augments_from()` under `item.get_source_id()`; emits `Events.item_equipped` / `item_unequipped`.
+- `keep_current`: around the change, the unit's HealthComponent and ResourceComponent don't add a raised max to current (new: `HealthComponent.set_gain_on_max_raise(on)` and the same on ResourceComponent; default on, so every other caller behaves as before). The Player's load passes false.
+- `Player._attach_champion()`, after the talents: equips each item in the record's `equipped` (`keep_current` false). An equipped uid with no item, or an item `can_equip()` refuses, is cleared from `equipped` with a warning.
+
+### Events (additions, reserved in CONVENTIONS)
+`item_equipped(unit: Unit, item: Item)`, `item_unequipped(unit: Unit, item: Item)`.
+
+### Pickup (`res://scripts/loot/pickup.gd` + `res://scenes/loot/pickup.tscn`, `class_name Pickup`, Area2D)
+Layer 9, mask 0, a 6 px circle, `monitorable` off until it lands. `item: Item`, `pop_time` 0.3, `pop_distance_min_px` 12, `pop_distance_max_px` 28, `beam_height_px` 40, `debug_draw` (the landing spot and the collect circle). `land_at(point)` starts the hop. Draws itself (placeholder; VFX only).
+
+### PickupComponent (`res://scripts/components/pickup_component.gd`, Area2D on `player.tscn`)
+On no layer, mask 9; a circle whose radius is `Units.to_px(pickup_radius)`, updated on `stat_changed`. On `area_entered` with a `Pickup` → `Loot.collect(pickup, unit)` (a pickup that becomes collectable while already inside is reported by the physics server on the next step). `debug_draw` (the radius).
+
+### Abilities and the toolkit
+- `CastContext.sequence: Dictionary` *(proposed)*: shared by every part of one recast sequence (AbilityComponent keeps it with the sequence), so part 0 can leave something for later parts. Lunge's return reads the start point from it; any "go back" recast (Zed, LeBlanc) needs the same.
+- `lunge.gd`: part 0 writes the start point; part 1 (only on a variant with `recast_count` 1) dashes back to it, ghosted, with no hits.
+- `iron_resolve.gd`: FLAG `iron_resolve_undying` applies `status_undying` (a copy with `flag_undying_duration`) to the Knight.
+- `Unit.on_hit()`: a unit with a status tagged `undying` never loses its last 1 health to a hit (the damage taken is capped at current − 1, the number shows what was taken, `killed` stays false). DoT ticks too. The pit fall's own "can't drop below 1" is unchanged.
+- `judgement.gd`: FLAG `judgement_drag`: at the effect, before the hit, the target is displaced toward the Knight until `flag_drag_gap_px` (8) from his edge over `flag_drag_time` (0.15 s); the hit lands when it arrives. An unstoppable target isn't moved (the hit still lands where it stands).
+- `judgement_leap.gd` (extends `judgement.gd`, reusing its hit, Fury and Shockwave code): POINT, `MovementComponent.dash()` (ghosted) to the point, then `hit_units()` on every enemy in the landing circle (in sight from the landing point), each with its own missing-health term; `flag_shockwave_ring_radius` 370 u for the Shockwave take; the indicator draws the landing circle.
+
+### HUD and SandboxLoot
+- `hud.gd`: `show_loot_line(text, color)` (2 s, stacks under a line still showing, like `show_progress_line()`), fed by `Loot.item_picked_up`.
+- `SandboxLoot` (`res://scripts/rooms/sandbox_loot.gd`, in `sandbox.tscn`) *(keys proposed; FREE)*: a list on the right ("Inventory 23   Depth 1   MF +0%", then items as "> [Gloves] The Last Verdict  Artifact  ON" in rarity colors, scrolling around the cursor) and the highlighted item's tooltip lines under it. **J** moves the cursor down (Shift+J up), **U** equips or unequips the highlighted item, **K** rolls one drop from the elite table at the current depth and the Knight's magic find (straight into the inventory until drops exist, then as a pickup at the Knight's feet, the real path), **P** grants one of each of the champion's named items, **[** / **]** lower / raise the room's depth. All unbound elsewhere.
+
+## Audio hooks
+Built with drops and pickups (L7), with synthesized placeholders like AUDIO.md's: `ItemRarity.drop_sound` (`sound_loot_drop` for Uncommon–Exotic, a brighter `sound_loot_drop_legendary` for Legendary and Artifact; SFX at the pickup) and `LootTable.pickup_sound` (`sound_loot_pickup`, SFX, centered). Later (UI.md): equip and unequip clicks. Undying's status sounds (apply, expire) and the leap's cast and landing sounds use the existing status and ability hooks; until then they're silent.
+
+## How each edge case is handled
+| Edge case | Handling |
+|---|---|
+| Two items with the same proc | One proc (the augment id counts once); unequipping either keeps it while the other is on. Their stats both apply |
+| Storm Strike proc hits | `proc` hits: can't crit, coefficient 0, so no HIT rule (Storm Strike included) and no on-hit fires from them |
+| Expose on a status that isn't cc (Staggered) | Doesn't fire (`required_status_tags` [`cc`]). Exposed isn't cc, so it can't loop |
+| Bloodrush with Iron Resolve's haste | Different status ids; both PERCENT_ADD move speed, summed (STATS.md) |
+| Swap a health item mid-fight | Current health kept (clamped): no heal from a swap. At spawn the champion starts full |
+| Swap during a cast | The cast keeps the augments it read at its start; the next cast uses the new ones |
+| Unequip Oathbound Plate while Undying | The status runs out on its own (it came from a cast, not the item) |
+| Undying and a killing blow | Health stops at 1; the number shows the damage taken; no death, no `unit_died` |
+| Lunge Return's window runs out | No return; the cooldown starts (ABILITIES.md, recasts) |
+| Lunge Return with a wall in the way back | The ghosted dash masks walls only and slides along them (`move_and_slide()`), as any dash |
+| The Last Verdict aimed into a wall | The dash slides and stops where it can; the landing hits around wherever the Knight lands |
+| Chains of Judgement on an unstoppable target | No drag; the hit still lands (as knockback on an unstoppable target) |
+| A named item for another champion (data changed) | `can_equip()` refuses; it stays in the inventory |
+| Two copies of one named item | Allowed in the inventory; only one equipped at a time |
+| A champion with no named item of the rolled rarity | That drop rolls as an Exotic |
+| Magic find on Common | `magic_find_effect` 0: more magic find only lowers Common's share |
+| A kill with no source, or by something other than the tracked player | No drop (until WORLD_INTERACTION's Kill credit) |
+| A training dummy | No drop |
+| A drop next to a wall | Its landing spot is checked with line of sight from the corpse; four tries, then the corpse's spot |
+| A drop inside the pickup radius | Collected when it lands, 0.3 s later |
+| Leaving the scene with drops on the floor | Lost; nothing on the floor is saved |
+| Death and checkpoint respawn | The inventory and the equipped gear are kept (saved on pickup and equip) |
+| A saved item whose base or named item was deleted | Skipped at load with a warning, its raw entry written back unchanged |
+| A saved item with an unknown affix id | That affix dropped (warning); the rest of the item loads |
+| An equipped uid that no longer exists | Cleared from `equipped` at load, with a warning |
+| Tests | `Loot.saving_enabled` off in a test scene; tests seed `Loot.rng`; the real inventory is never touched |
+
+## Build order (one or a few steps per session)
+Every step: the Knight's abilities, talents, enemies chasing and the HUD still work; with nothing equipped the game plays exactly as before. Build logs go in CHANGELOG.md (a Loot section); this doc keeps one line per built step. **SandboxLoot comes third, not last** *(proposed)*: the procs and named items (L4–L6) need a way to equip them by hand for their play tests.
+
+1. **L1 – Items: data and rolling.** `Item` (enums, modifiers, tooltip lines, `to_dict()` / `from_dict()`), `ItemRarity`, `LootTable` + `loot_table_default.tres` (the 7 rarities), `ItemBase` + the 7 bases, `Affix` + the 15 affixes, `DropTable` + regular and elite, `ItemRoller` (rarity with depth and magic find, base, affixes, rolls), validation; `res://scenes/tests/loot_test.tscn` + `scripts/tests/loot_test.gd`. Unique and Exotic roll without a proc until L4; no named items until L5 (a Legendary or Artifact roll falls back to Exotic). Docs: CONVENTIONS (approved names, vocabulary), STATS (open question answered), VISION (open question 2 answered).
+   **Done means:** over 100,000 seeded rolls each rarity lands within 1% of its weight, and depth and magic find shift them as the formula says; every affix value sits inside its rarity's band and range and is rounded to its step; no item rolls an affix twice or one its slot forbids; an item's modifiers and its `to_dict()` round trip match; validation catches each broken rule; every existing test passes.
+2. **L2 – Equipping, the inventory and the save.** `EquipmentComponent` on `player.tscn`, `Events.item_equipped` / `item_unequipped`, the keep-current hold on HealthComponent and ResourceComponent, `ChampionInventory`, the `Loot` autoload (records, `user://inventory.cfg`, the test guard, the equip listener), the Player equipping the saved gear at load.
+   **Done means:** an equipped item changes exactly its stats under `item_<uid>` and unequipping restores them exactly; a swap replaces; rings fill both slots; a swap at partial health doesn't heal and a spawn with gear starts full; a save and reload keeps items, uids, the equipped set and the empty materials bucket; an unreadable entry survives a save; tests never write the real file; with nothing equipped every suite is unchanged.
+3. **L3 – SandboxLoot: equipping by hand.** The list, J / Shift+J, U, K (into the inventory), P (a no-op until L5), [ / ], the tooltip lines; `Room.depth`.
+   **Done means:** Ryan rolls a few items in the sandbox, equips and swaps them and feels the stats (crit, attack speed, move speed); the list shows what's on; quitting and relaunching keeps it; Start run plays with that gear.
+4. **L4 – Procs.** The three proc augments, `status_bloodrush`, `status_exposed`, Unique and Exotic rolling a proc, the " of <suffix>" names, the proc lines in tooltips.
+   **Done means:** each proc does what its row says (a check each), never from a proc hit; the same proc from two items is one; unequipping removes it; Ryan's play test: each one is felt in the sandbox.
+5. **L5 – Named items, part 1: the framework and the FLAGs.** `NamedItem` + validation, `ChampionData.named_items`, Legendary and Artifact rolls from the champion's list (Exotic fallback), the one-copy and shared-slot rules; Tidebreaker (the existing Cleave Wave), Oathbound Plate (`iron_resolve_undying`, `status_undying`, the `undying` rule in `Unit.on_hit()`), Chains of Judgement (`judgement_drag`); SandboxLoot's P.
+   **Done means:** each item validates and does what its row says with every Knight talent in its group; Undying keeps the Knight at 1 health through a killing blow and ends on time; the drag brings the target to the Knight before the hit and skips an unstoppable one; Ryan's play test: each feels like a different way to use its ability.
+6. **L6 – Named items, part 2: the REPLACE variants.** `CastContext.sequence`; Homeward Greaves (`knight_e_lunge_return.tres`, `lunge.gd`'s return part); The Last Verdict (`judgement_leap.gd`, `knight_r_judgement_leap.tres`, its Shockwave take, the Fury payoff, the indicator).
+   **Done means:** the return goes back to the exact start, inside the window only, with Tackle and Twin Lunge as the table says; the leap lands where aimed (or where a wall stops it), hits and stuns everything in its circle in sight, consumes the Fury once, resets on a kill with Executioner; the talents test's variant check passes for both new variants; Ryan's play test.
+7. **L7 – Drops and pickups.** Layer 9 named `pickup` (editor steps), `Pickup` + `pickup.tscn`, `PickupComponent` on `player.tscn`, `knight.tres` `pickup_radius` 200, `Loot` on `Events.unit_died` (last-hit credit, the drop table by unit, depth, magic find), the pop and collect delay, the HUD loot line, the drop and pickup sounds; SandboxLoot's K switches to spawning a pickup.
+   **Done means:** slimes and the elite drop at about the table's rates (measured in the test with a seeded rng); a drop pops, lands off walls, and is collected on proximity without a key or a stop; it's in the inventory (and the save) at once and the HUD names it in its color; dummies drop nothing; Ryan's play test in the sandbox and in Start run.
+
+**Milestone L-M – A looting session** (after L7): Ryan plays a few real sessions from an empty inventory (the debug keys for the long tail): drops read (rarity colors, beams, the HUD line), pickups never break movement, a few swaps change how the Knight feels, and each legendary changes how its ability is used.
+**Done means:** Ryan's play test: the ladder reads (numbers → a proc → an ability change) and gear changes how the Knight plays, not just his numbers.
+
+## Out of scope (deferred to LOOT v2, its own interview later; Ryan, 2026-10-01)
+Sockets and gems; crafting and reforging (the materials bucket is reserved for its currencies); the gold economy and vendors (`gold_find` stays unused); trading; item power, item level and level requirements; League-style item recipes and item actives. Also not here: the real inventory and equip screen (UI.md), weapons changing the combo (COMBAT.md's open question), what a run and its depth are (DUNGEONS.md), where enemy drop data lives (ENEMIES_AI.md), the fly-to-player pickup (a feel pass), discard or salvage, sustain and AP affixes (Open questions).
+
+## Open questions
+Claude's proposals (each marked *(proposed)* above):
+1. **Unique vs Exotic, Legendary vs Artifact**: the same kind within each pair; the higher one has one more affix and a higher band, and the Artifact carries the champion's biggest reshape. Procs aren't stronger on Exotics.
+2. **The Knight's five items** (names placeholder): Tidebreaker (Cleave Wave), Oathbound Plate (Undying on Iron Resolve), Homeward Greaves (Lunge's return), Chains of Judgement (the drag), The Last Verdict (the artifact: the leap). Is Undying the W legendary you want, given the low-health judgment call? (Alternative: Iron Resolve fills the Fury bar instead of the haste, which overlaps Battle Cry.)
+3. **Named items for the same ability share an item slot** (the two Judgement items are Gloves), and a named item can be equipped once.
+4. **Random affixes never `ability:`-scoped; procs never `ability:`-scoped** (empty or `tag:` only), so Common–Exotic stay champion-agnostic. An EVENT augment with an empty scope is new usage (the code already handles it).
+5. **A live swap never heals or refills** (`keep_current`), and the HealthComponent / ResourceComponent hook it needs.
+6. **Weapons don't change the combo** in this build; COMBAT.md's weapon question stays open.
+7. **No sustain affixes and no AP affix** in the first pool.
+8. **The roll is saved, not the value** (retunes reach owned items); unreadable saved items are kept raw.
+9. **`user://inventory.cfg`**, a file of its own, rather than a section in `progress.cfg`.
+10. **Depth** from `Room.depth` until DUNGEONS.md; **drop tables by unit** from `LootTable.drop_table_by_unit` until ENEMIES_AI.md.
+11. **Drop rates and weights** as tabled (about 14 items a run; the four legendaries in about 28 runs, the artifact in about 20, at depth 1).
+12. **The pop**: drops hop out for 0.3 s before they can be collected; `pickup_radius` 200 u (64 px) on the Knight.
+13. **SandboxLoot changes the real save**, and comes at L3 rather than last.
+14. **`CastContext.sequence`** for Lunge's return.
+15. **Names**: `Loot` (autoload), `Item`, `ItemBase`, `Affix`, `ItemRarity`, `LootTable`, `DropTable`, `NamedItem`, `ItemRoller`, `ChampionInventory`, `EquipmentComponent`, `PickupComponent`, `Pickup`, `SandboxLoot`; status tags `undying`, `exposed`; proc ids `proc_<name>`; vocabulary to add to CONVENTIONS: **proc** (already "a hit caused by another hit") widened to "an item's EVENT augment" or a new word for the item kind (e.g. **item proc**), and **named item** (a hand-written Legendary or Artifact).
+16. Kept from VISION.md / STATS.md, answered by Ryan's spec: gear picked up stays with the champion and leaving a run early keeps it (VISION.md open question 2); champion-specific items never drop for other champions (STATS.md's open question). The two docs get their pointer edits in L1.
