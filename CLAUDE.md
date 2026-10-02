@@ -120,7 +120,7 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 | `docs/CHAMPIONS.md` | ChampionData, passives, a champion's resource rhythm (fury), the champion level field, the Knight's kit (Unbroken, Fury, Staggered, Cleave's heal, Judgement's payoff), the kit's functional HUD (CH6: passive slot, Fury threshold tick, live-bonus outline) |
 | `docs/AUDIO.md` | any sound, music, the mix, volume settings |
 | `docs/TALENTS.md` | talents, unlock requirements (`TalentRequirement`), the loadout and talent points, ability-use and kill counters, the champion level XP curve, the hub's talent screen, writing talent content (the kind-not-magnitude rule), the Knight's talent set |
-| `docs/LOOT.md` | items, item bases, affixes, rarities, procs on Unique/Exotic items, the Knight's legendaries and artifact, equipping (`EquipmentComponent`), the inventory and its save (and the reserved materials bucket), drop tables, depth and magic find, pickups (layer 9), the sandbox loot list |
+| `docs/LOOT.md` | items, item bases, affixes, rarities, sigils (the Unique/Exotic effects), the Knight's legendaries and artifact, equipping (`EquipmentComponent`), the inventory and its save (and the reserved materials bucket), drop tables, depth and magic find, pickups (layer 9), the sandbox loot list |
 | `docs/CHANGELOG.md` | only when asked what was built or measured |
 | `docs/_TEMPLATE.md` | writing a new doc |
 
@@ -131,7 +131,7 @@ The game in `game/` is the **reference build**. It works, and changes build on i
   1. TALENTS T5 (passed 2026-10-01): the hub (`scenes/ui/hub.tscn`, F5): header, `TalentScreen` (20 talents, states, live requirement lines, click to equip), Start run / Sandbox / Clear, debug row; Back to hub in the pause menu. Talents test 308/308.
   2. TALENTS T4 (passed): the `Progress` autoload, `ChampionProgress`, `ChampionLeveling`; counting casts and kills, XP and levels, unlocks, the loadout rules, `user://progress.cfg` (test scenes never touch it); HUD lines. Talents test 285/285.
   3. TALENTS T3b (passed): a talent that changes its ability rewrites its tooltip.
-- **Next:** TALENTS T1–T5 and milestone T-M (TALENTS.md, Build order), T1–T5 passed; next milestone T-M. AUDIO's later steps come with their systems; real CC0 files can replace the placeholders any time (same names). STATS step 7 (F3 overlay) whenever. LOOT.md is written (2026-10-01); L1 starts after Ryan answers its proposals and OKs the plan. Then the Future docs in their listed order (ENEMIES_AI.md next).
+- **Next:** TALENTS T1–T5 and milestone T-M (TALENTS.md, Build order), T1–T5 passed; next milestone T-M. AUDIO's later steps come with their systems; real CC0 files can replace the placeholders any time (same names). STATS step 7 (F3 overlay) whenever. LOOT.md is written and its proposals answered (2026-10-01); L1 (items: data and rolling) starts on Ryan's OK. Then the Future docs in their listed order (ENEMIES_AI.md next).
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.
@@ -145,7 +145,7 @@ All decisions, grouped by system with date and why, are in `docs/DECISIONS.md`.
 2. ~~`ABILITIES.md`~~: written 2026-09-26 (see Docs index).
 3. ~~`CHAMPIONS.md`~~: written 2026-09-29 (see Docs index).
 4. ~~`TALENTS.md`~~: written 2026-09-30 (see Docs index); the Knight's set and the proposals are approved; T1–T5 passed (T5 2026-10-01).
-5. ~~`LOOT.md`~~: written 2026-10-01 (see Docs index) from Ryan's spec; Claude's proposals await Ryan's answers (LOOT.md, Open questions); build steps L1–L7 and milestone L-M planned, not started.
+5. ~~`LOOT.md`~~: written 2026-10-01 (see Docs index) from Ryan's spec; every proposal answered by Ryan 2026-10-01 (Exotic = a second sigil, Artifact affixes always at max, the word "sigil"); build steps L1–L7 and milestone L-M approved, not started.
 6. `ENEMIES_AI.md`: behaviors, aggro, elites, spawning. Once harder enemies exist, revisit the Knight's low-health reward stacking (Current status, Open judgment call).
 7. `DUNGEONS.md`: room stitching, run structure, checkpoints (placement; whether cleared enemies come back on respawn). Audio hooks: see AUDIO.md.
 8. `NPCS.md`, `UI.md`, `PROGRESSION.md` as needed. `UI.md` takes over the Esc pause menu and the player options (`Settings`), now described in MOVEMENT.md (Dash) and DECISIONS.md (General). UI audio hooks: see AUDIO.md.
