@@ -445,6 +445,17 @@
 | 2026-09-24 | Training dummies are an Enemy with `passive = true` (no wander, aggro, or attacks), not a subclass. | Additive, default behavior unchanged, and it keeps the Unit → Player / Enemy hierarchy flat. |
 | 2026-09-24 | Slimes keep the LoL soft cap thresholds (220 / 415 / 490) as overrides in `slime.tscn`. | Keeps enemy speed unchanged (the scaled low cap would lift 285 to 321). Enemy speeds get retuned in ENEMIES_AI.md. |
 
+## 3D view
+The pivot's givens, the A1 choice and the interview answers get their rows in P1 (3D_PIVOT.md, Build order).
+
+| Date | Decision | Why |
+|---|---|---|
+| 2026-10-01 | P0a is a GO: A1 (the 2D sim stays, hidden, and a 3D view follows it) works. Its spike stays on branch `spike/3d-p0a`, never merged. | Ryan's call after his eye check. All six criteria hold for the view; the one over budget (50 extra enemies) is over budget in today's 2D game too (CHANGELOG.md, P0a). |
+| 2026-10-01 | The floor pick uses a view-only trimesh of the floor mesh (`Mesh.create_trimesh_shape()`), not a `HeightMapShape3D`, and casts two rays a hair apart, keeping the nearer hit. | Measured in P0a: the trimesh is exact; the 1 m heightmap was off by up to 3.7 px at stairs and 30 px at cliffs. A single ray through a vertex shared by several triangles went wrong 6–12 times in 20; two rays never did. |
+| 2026-10-01 | Floor drawings (telegraphs; later indicators and hover rings) come from a SubViewport that shares the sim's World2D, sampled by the terrain's own shader at each surface point's x/z. Not a Decal, a flat quad or per-shape meshes. | Measured in P0a: the shader matches the true edge as closely as an exact-by-construction mesh and updates live. A Decal refuses a ViewportTexture in 4.7.2 (a per-frame copy costs 3.2 ms); a flat quad was 11–13 px off on a slope; meshes need code per shape and break at cliffs. |
+| 2026-10-01 | Ryan's screen refreshes at 180 Hz (measured in P0a), so the frame budget is 5.6 ms. Earlier "144 Hz" notes (F1, the pivot plan) are what was tested then. | DisplayServer reported 180 Hz; the frame times follow it. |
+| 2026-10-01 | The 50-enemy frame cost belongs to the enemy sim (ENEMIES_AI.md), not the pivot. | P0a: 50 extra slimes take 10–12 ms of physics step in today's 2D game as well; the 3D view adds 0.2–0.9 ms a frame. |
+
 ## Testing
 | Date | Decision | Why |
 |---|---|---|
