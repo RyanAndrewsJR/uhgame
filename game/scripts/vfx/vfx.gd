@@ -5,6 +5,14 @@ class_name VFX
 ## afterimage() sorts this far above the unit's feet (px), so y-sorting draws
 ## it just behind the unit (MovementVFXComponent uses the same offset).
 const AFTERIMAGE_SORT_OFFSET := 0.02
+## How much the 2D game squashes a floor circle north-south for its 3/4 look.
+const FLOOR_SQUASH_2D := 0.55
+
+## Floor circles drawn by 2D nodes (ring(), the hover ring) are squashed
+## north-south by this: FLOOR_SQUASH_2D in the 2D game; 1 (true circles)
+## while the 3D view shows the game, whose camera foreshortens the floor
+## itself (WorldView sets it and puts it back; 3D.md, Floor drawings).
+static var floor_squash: float = FLOOR_SQUASH_2D
 
 
 ## A presentation hook's scene (ABILITIES AB14: cast_vfx, impact_vfx,
@@ -12,15 +20,27 @@ const AFTERIMAGE_SORT_OFFSET := 0.02
 ## at `pos` (world space) rotated to `angle` if its root is a Node2D; then
 ## setup(...setup_args) on the root if it has one. null scene or a freed
 ## anchor = nothing (returns null). VFX only: never gameplay state.
+## A scene whose root is a Node3D (3D.md, P7) goes into the 3D view instead
+## (WorldView.add_scene_at(): on the floor at `pos`, its +Z along `angle`);
+## without a view (the 2D game, every test) it isn't spawned (returns null).
+## A Node2D root on canvas visibility layer 3 is a floor drawing: it shows on
+## the 3D floor too.
 static func spawn_scene(scene: PackedScene, anchor: Node2D, pos: Vector2, angle: float, setup_args: Array = []) -> Node:
 	if scene == null or not is_instance_valid(anchor) or anchor.get_parent() == null:
 		return null
 	var node := scene.instantiate()
-	anchor.get_parent().add_child(node)
-	if node is Node2D:
-		(node as Node2D).global_position = pos
-		(node as Node2D).global_rotation = angle
-		(node as Node2D).reset_physics_interpolation()
+	if node is Node3D:
+		var view := WorldView.of(anchor)
+		if view == null:
+			node.free()
+			return null
+		view.add_scene_at(node as Node3D, pos, angle)
+	else:
+		anchor.get_parent().add_child(node)
+		if node is Node2D:
+			(node as Node2D).global_position = pos
+			(node as Node2D).global_rotation = angle
+			(node as Node2D).reset_physics_interpolation()
 	if node.has_method(&"setup"):
 		node.callv(&"setup", setup_args)
 	return node
@@ -42,6 +62,7 @@ static func slash(parent: Node, origin: Vector2, angle: float, inner: float, out
 	poly.polygon = pts
 	poly.position = origin
 	poly.rotation = angle - (half_arc - width) * sweep_dir
+	poly.visibility_layer |= FloorOverlay.DRAWING_VISIBILITY_BIT   # a floor drawing in 3D (3D.md)
 	parent.add_child(poly)
 	var tw := poly.create_tween()
 	tw.tween_property(poly, "rotation", angle + (half_arc - width) * sweep_dir, duration)
@@ -49,7 +70,7 @@ static func slash(parent: Node, origin: Vector2, angle: float, inner: float, out
 	tw.tween_callback(poly.queue_free)
 
 
-## Expanding ring, squashed to lie on the floor.
+## Expanding ring, squashed to lie on the floor (floor_squash).
 static func ring(parent: Node, pos: Vector2, from_radius: float, to_radius: float,
 		color: Color, duration: float = 0.3, width: float = 2.0) -> void:
 	var line := Line2D.new()
@@ -57,10 +78,11 @@ static func ring(parent: Node, pos: Vector2, from_radius: float, to_radius: floa
 	line.default_color = color
 	line.z_index = 19
 	line.closed = true
+	line.visibility_layer |= FloorOverlay.DRAWING_VISIBILITY_BIT   # a floor drawing in 3D (3D.md)
 	var pts := PackedVector2Array()
 	for i in 32:
 		var a := TAU * i / 32.0
-		pts.append(Vector2(cos(a), sin(a) * 0.55))
+		pts.append(Vector2(cos(a), sin(a) * floor_squash))
 	line.points = pts
 	line.position = pos
 	line.scale = Vector2.ONE * from_radius

@@ -26,6 +26,15 @@ extends Node3D
 ## placeholder model (hidden gear, 1.8 m, every clip the view and the data
 ## name); the projectile's bolt and slab, the aura's ring, the stun stars and
 ## the staggered mark over the model, each gone with its sim node.
+## P7: the floor drawings (FloorOverlay: its settings, the window at the
+## default look and its texel size, kept in the room and on whole texels, a
+## sim point landing on the texel the floor's shader reads, following the
+## camera; what draws into it: telegraphs, rings, slashes, a unit's own
+## drawing, and not its body; true circles under the view), WorldView's setup
+## of both overlays, the screen overlay (a unit's health bar over its model,
+## fed by its health, hidden with its 2D bar, gone with it; a damage number
+## over the model that stays where it appeared, and the 2D path without a
+## view), and VFX.spawn_scene() with a Node3D root.
 ## Prints PASS/FAIL per check and a total; run headless, it quits with the
 ## number of failures as the exit code.
 
@@ -59,6 +68,10 @@ func _ready() -> void:
 	await _test_views()
 	await _test_room_floor_pick()
 	await _test_floor_pick()
+	_test_floor_overlay()
+	_test_floor_drawings_layers()
+	await _test_overlays_in_setup()
+	_test_spawn_scene_3d()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -836,6 +849,297 @@ func _single_ray(screen: Vector2) -> Vector3:
 	var to := from + _camera.project_ray_normal(screen) * _camera.far
 	var hit := get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(from, to, WorldView.FLOOR_LAYER))
 	return hit["position"] if not hit.is_empty() else Vector3.INF
+
+
+# --- P7: floor drawings, the screen overlay, 3D hook scenes ---------------------------------------
+
+func _test_floor_overlay() -> void:
+	_section("FloorOverlay (P7: the floor drawings' window and its mapping)")
+	_check("floor drawings are canvas visibility layer 3 (its bit: 4)", FloorOverlay.DRAWING_VISIBILITY_BIT, 4)
+	var probe := FloorOverlay.new()
+	_check("a transparent target, no 3D, redrawn every frame",
+		probe.transparent_bg and probe.disable_3d and probe.render_target_update_mode == SubViewport.UPDATE_ALWAYS, true)
+	_check("it draws layers 2 ('sim': the room's root and Entities, which draw nothing) and 3 only", probe.canvas_cull_mask, 2 | 4)
+	_check("it moves its window after GameCamera3D has moved", probe.process_priority > GameCamera3D.PROCESS_PRIORITY, true)
+	_check_near("2 texels per sim px: 64 per meter", probe.get_texels_per_m(), 64.0, 0.0)
+	probe.free()
+
+	# The game's 640x360 canvas (16:9). The headless test window is square, so
+	# the camera gets a viewport of its own.
+	var screen := SubViewport.new()
+	screen.size = Vector2i(640, 360)
+	screen.disable_3d = true   # projections only; nothing is drawn
+	add_child(screen)
+	var view := WorldView.new()
+	screen.add_child(view)
+	var cam := _aim_camera(view, FOCUS)
+	var seen := FloorOverlay.seen_floor_around_focus_m(cam)
+	var half := Vector2(320.0, 180.0)
+	var bottom := cam.screen_to_floor(Vector2(half.x, half.y)) - cam.screen_to_floor(Vector2(-half.x, half.y))
+	_check_near("the default look sees 22.9 m of floor across at the screen's bottom edge", bottom.x, 22.9, 0.05)
+	_check_near("36.1 m across at its top edge (the widest)", seen.size.x, 36.1, 0.05)
+	_check_near("from 8.4 m in front of the focus (south)", seen.end.y, 8.4, 0.05)
+	_check_near("to 13.3 m beyond it (north): 21.7 m deep", -seen.position.y, 13.3, 0.05)
+	_check_near("centered across the focus", seen.get_center().x, 0.0, 0.001)
+	var with_margin := seen.grow(2.0).size
+	_check_exact("with the 2 m margin (40.1 x 25.7 m): 2624 x 1664 texels, multiples of 64",
+		FloorOverlay.window_size_texels(with_margin, 64.0, Rect2()), Vector2i(2624, 1664))
+	_check_exact("in a 30 x 20 m room (smaller than the window): the room, 1920 x 1280",
+		FloorOverlay.window_size_texels(with_margin, 64.0, Rect2(0.0, 0.0, 30.0, 20.0)), Vector2i(1920, 1280))
+
+	var big := Rect2(0.0, 0.0, 100.0, 80.0)
+	var size_m := Vector2(2624.0, 1664.0) / 64.0   # 41 x 26 m
+	_check_exact("in a big room the window's corner goes where it's asked, on a whole texel (1/64 m)",
+		FloorOverlay.window_origin_m(Vector2(20.013, 30.3), size_m, big, 64.0), Vector2(1281.0, 1939.0) / 64.0)
+	_check_exact("past the room's west and north edges it stops on them",
+		FloorOverlay.window_origin_m(Vector2(-5.0, -3.0), size_m, big, 64.0), Vector2.ZERO)
+	_check_exact("past its east and south edges, the window's far side stops on them",
+		FloorOverlay.window_origin_m(Vector2(90.0, 70.0), size_m, big, 64.0), Vector2(59.0, 54.0))
+	_check_exact("a room smaller than the window: the room's corner, wherever the camera is",
+		FloorOverlay.window_origin_m(Vector2(7.0, 9.0), Vector2(30.0, 20.0), Rect2(2.0, 3.0, 30.0, 20.0), 64.0), Vector2(2.0, 3.0))
+
+	# The mapping: the canvas transform draws a sim point on the texel that the
+	# floor's shader reads at that point's x/z (uv = (x/z - origin) / size).
+	var corner := Vector2(12.5, 7.25)
+	var xf := FloorOverlay.window_canvas_transform(corner, 2.0)
+	var texels := Vector2(2624.0, 1664.0)
+	var mapped_ok := true
+	for p: Vector2 in [Vector2(400.0, 232.0), Vector2(1000.0, 700.0), Vector2(417.3, 251.9), Vector2(1500.0, 1000.0)]:
+		var v := Units.to_view(p)
+		var uv := (Vector2(v.x, v.z) - corner) / (texels / 64.0)
+		mapped_ok = mapped_ok and (xf * p).is_equal_approx(uv * texels)
+	_check("a sim point lands on the texel the floor's shader reads at its x/z (4 points): a drawing lies on its sim shape", mapped_ok, true)
+	_check_exact("the window's corner, (12.5, 7.25) m = (400, 232) px, is texel (0, 0)", xf * Vector2(400.0, 232.0), Vector2.ZERO)
+	_check_near("the elite slam's 40 px radius is 80 texels: 1.25 m on the floor, as in the sim", (xf * Vector2(440.0, 232.0)).x / 64.0, 1.25, 0.000001)
+
+	# Live, on the camera.
+	var overlay := FloorOverlay.new()
+	overlay.world_2d = get_viewport().world_2d
+	view.add_child(overlay)
+	overlay.setup(cam, Rect2())
+	_check_exact("set up on the camera: the texture is the window's size", overlay.size, Vector2i(2624, 1664))
+	var material := ShaderMaterial.new()
+	material.shader = RoomView.FLOOR_SHADER
+	overlay.add_floor_material(material)
+	_check("a floor material shows its texture, its corner and its size",
+		material.get_shader_parameter(&"drawings") == overlay.get_texture()
+		and (material.get_shader_parameter(&"drawings_origin_m") as Vector2).is_equal_approx(overlay.origin_m)
+		and (material.get_shader_parameter(&"drawings_size_m") as Vector2).is_equal_approx(Vector2(41.0, 26.0)), true)
+	var focus_xz := Vector2(FOCUS.x, FOCUS.z)
+	_check("the window holds all the floor the camera sees",
+		Rect2(overlay.origin_m, overlay.get_size_m()).encloses(Rect2(focus_xz + seen.position, seen.size)), true)
+	var before := overlay.origin_m
+	cam.target.global_position = FOCUS + Vector3(3.3, 0.0, -1.7)
+	cam.snap_to_target()
+	overlay.update_window()
+	var moved := overlay.origin_m - before
+	_check("the camera moved 3.3 m east, 1.7 m north: the window follows (to the texel)",
+		absf(moved.x - 3.3) <= 0.5 / 64.0 + 0.00001 and absf(moved.y + 1.7) <= 0.5 / 64.0 + 0.00001, true)
+	_check("still on whole texels", (overlay.origin_m * 64.0).is_equal_approx((overlay.origin_m * 64.0).round()), true)
+	_check("its canvas transform and the floor's material moved with it",
+		overlay.canvas_transform.is_equal_approx(FloorOverlay.window_canvas_transform(overlay.origin_m, 2.0))
+		and (material.get_shader_parameter(&"drawings_origin_m") as Vector2).is_equal_approx(overlay.origin_m), true)
+	_check_exact("the texture keeps its size (only the screen's shape changes it)", overlay.size, Vector2i(2624, 1664))
+	var room_overlay := FloorOverlay.new()
+	view.add_child(room_overlay)
+	room_overlay.setup(cam, Rect2(0.0, 0.0, 30.0, 20.0))
+	_check("in a 30 x 20 m room: the room's size, at its corner",
+		room_overlay.size == Vector2i(1920, 1280) and room_overlay.origin_m == Vector2.ZERO, true)
+	screen.free()
+
+
+func _test_floor_drawings_layers() -> void:
+	_section("What draws on the floor (P7: layer 3; true circles under the view)")
+	var slime_scene: PackedScene = load("res://scenes/enemies/slime.tscn")
+	var main := _fixture_room()
+	var room: Node2D = main.get_node("FixtureRoom")
+	var entities: Node2D = room.get_node("Entities")
+	var view := WorldView.new()
+	add_child(view)
+	view.hide_sim(main, room)
+	var probe := FloorOverlay.new()
+	var mask := probe.canvas_cull_mask
+	probe.free()
+	var slime := slime_scene.instantiate() as Unit
+	slime.position = Vector2(112.0, 80.0)
+	entities.add_child(slime)
+
+	var tele := Telegraph.circle(slime, slime.global_position, 40.0, 0.75)
+	_check("a telegraph is a floor drawing (layers 1 and 3: still drawn in 2D)", tele.visibility_layer, 1 | 4)
+	_check("on the room's floor, under the room's root (layer 2: drawn by the overlay, hidden from the screen)",
+		tele.get_parent() == room and (room.visibility_layer & mask) != 0 and (room.visibility_layer & get_viewport().canvas_cull_mask) == 0, true)
+	_check("every ancestor of a floor drawing passes the overlay's mask (Main, the room, Entities)",
+		(main.visibility_layer & mask) != 0 and (entities.visibility_layer & mask) != 0, true)
+	VFX.ring(entities, Vector2(112.0, 80.0), 4.0, 10.0, Color.WHITE)
+	VFX.slash(entities, Vector2(112.0, 80.0), 0.0, 8.0, 30.0, 1.0)
+	var ring := entities.find_children("*", "Line2D", false, false)
+	var slash := entities.find_children("*", "Polygon2D", false, false)
+	_check("VFX.ring() and VFX.slash() draw on the floor too (layers 1 and 3)",
+		ring.size() == 1 and slash.size() == 1 and (ring[0] as CanvasItem).visibility_layer == 1 | 4 and (slash[0] as CanvasItem).visibility_layer == 1 | 4, true)
+	_check("a unit's own drawing (its hover ring, the player's indicators) is a floor drawing", slime.visibility_layer, 1 | 4)
+	_check("its 2D body and health bar aren't: the overlay culls them",
+		(slime.body.visibility_layer & mask) == 0 and ((slime.get_node("HealthBar") as CanvasItem).visibility_layer & mask) == 0, true)
+
+	_check_near("without the view, floor circles are squashed 0.55 (the 2D game's 3/4 look)", VFX.floor_squash, 0.55, 0.0)
+	_check_near("so is a ring's outline", _ring_height(entities), 0.55, 0.0001)
+	view.flatten_floor_drawings()
+	_check_near("with it, true circles: the camera foreshortens the floor itself", VFX.floor_squash, 1.0, 0.0)
+	_check_near("a ring's outline is round", _ring_height(entities), 1.0, 0.0001)
+	view.free()
+	_check_near("the view gone: the 2D squash is back", VFX.floor_squash, 0.55, 0.0)
+
+	var rv := RoomView.new()
+	add_child(rv)
+	rv.build(main.get_node("FixtureRoom/Tiles") as TileMapLayer)
+	_check("the room's floor lays the drawings on it (floor_drawings.gdshader, roughness 0.95 as before)",
+		rv.floor_mesh.material_override == rv.floor_material and rv.floor_material.shader == RoomView.FLOOR_SHADER
+		and is_equal_approx(float(rv.floor_material.get_shader_parameter(&"roughness")), 0.95), true)
+	rv.free()
+	main.free()
+
+
+## A new VFX.ring()'s outline: its north-south extent over its east-west one.
+func _ring_height(parent: Node) -> float:
+	VFX.ring(parent, Vector2.ZERO, 1.0, 2.0, Color.WHITE)
+	var line := parent.get_child(parent.get_child_count() - 1) as Line2D
+	var top := 0.0
+	var right := 0.0
+	for p in line.points:
+		top = maxf(top, absf(p.y))
+		right = maxf(right, absf(p.x))
+	return top / right
+
+
+func _test_overlays_in_setup() -> void:
+	_section("The overlays in WorldView.setup(), the screen overlay (P7)")
+	var slime_scene: PackedScene = load("res://scenes/enemies/slime.tscn")
+	var world_2d := Node2D.new()
+	add_child(world_2d)
+	var lone := slime_scene.instantiate() as Unit
+	world_2d.add_child(lone)
+	lone.show_heal_number(7.0)
+	var labels := world_2d.find_children("*", "Label", false, false)
+	_check("without a WorldView (WorldView.of(): null) a number takes the 2D path: next to its unit",
+		WorldView.of(lone) == null and labels.size() == 1 and (labels[0] as Label).text == "+7", true)
+	world_2d.free()
+
+	var main := _fixture_room()
+	var room: Node2D = main.get_node("FixtureRoom")
+	var entities: Node2D = room.get_node("Entities")
+	var slime := slime_scene.instantiate() as Unit
+	slime.position = Vector2(112.0, 80.0)   # a floor cell
+	entities.add_child(slime)
+	var view := WorldView.new()
+	main.add_child(view)
+	view.setup(main, room, null, null)
+	var cam := view.camera
+	var screen := view.screen_overlay
+	_check("WorldView.of() finds it from any sim node (the group world_view)", WorldView.of(slime) == view, true)
+	_check("setup made the floor overlay, sharing the sim's World2D",
+		view.floor_overlay != null and view.floor_overlay.get_parent() == view and view.floor_overlay.world_2d == get_viewport().world_2d, true)
+	_check("the room's floor shows its drawings", view.room_view.floor_material.get_shader_parameter(&"drawings") == view.floor_overlay.get_texture(), true)
+	_check("and the screen overlay, under the HUD (CanvasLayer 1), placed after the camera has moved",
+		screen != null and screen.layer < 1 and screen.process_priority > GameCamera3D.PROCESS_PRIORITY, true)
+	_check_near("floor circles are true circles while it shows the game", VFX.floor_squash, 1.0, 0.0)
+
+	# The health bar.
+	var bar := screen.bar_of(slime)
+	var source := slime.get_node("HealthBar") as Node2D
+	_check("a unit there at setup got its health bar: a copy of its 2D HealthBar (its width, its color)",
+		bar != null and is_equal_approx(float(bar.get(&"width")), float(source.get(&"width"))) and bar.get(&"fill_color") == source.get(&"fill_color"), true)
+	if bar == null:
+		main.free()
+		return
+	slime.health.take_damage(5.0)
+	_check_near("fed by the unit's HealthComponent", float(bar.get(&"_current")), slime.health.current, 0.0001)
+	screen._process(0.0)
+	var head := screen.point_over(slime, 1.0)
+	_check_near("the head: the model's 1.32 m over its feet", head.y, 1.32, 0.0001)
+	_check_near("the bar's bottom sits 3 px over the head on screen (px off)",
+		bar.position.distance_to(cam.unproject_position(head) - Vector2(0.0, 3.0 + float(bar.get(&"height")))), 0.0, 0.001)
+	source.visible = false
+	screen._process(0.0)
+	_check("the 2D bar hidden (a death): the copy hides", bar.visible, false)
+	source.visible = true
+	screen._process(0.0)
+	_check("shown again with it", bar.visible, true)
+	var late := slime_scene.instantiate() as Unit
+	late.position = Vector2(144.0, 80.0)
+	entities.add_child(late)
+	_check("a unit added later gets its bar with its view", screen.bar_of(late) != null, true)
+	var late_bar := screen.bar_of(late)
+	late.free()
+	await get_tree().process_frame
+	_check("a unit gone: its bar goes", is_instance_valid(late_bar), false)
+
+	# A damage number.
+	var entity_labels := entities.find_children("*", "Label", true, false).size()
+	slime.show_heal_number(12.0)
+	var holder := screen.get_node_or_null(^"Number") as Node2D
+	var label: Label = holder.get_child(0) as Label if holder and holder.get_child_count() > 0 else null
+	_check("under the view a number goes on the screen overlay", label != null and label.text == "+12", true)
+	_check("not into the 2D world", entities.find_children("*", "Label", true, false).size(), entity_labels)
+	if label == null:
+		main.free()
+		return
+	var point := screen.point_over(slime, 0.8)
+	_check_near("it appears over the unit, at 0.8 of its model's height (px off)", holder.position.distance_to(cam.unproject_position(point)), 0.0, 0.001)
+	var target := Node3D.new()
+	target.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	view.add_child(target)
+	target.global_position = cam.get_focus() + Vector3(2.0, 0.0, 1.0)
+	cam.target = target
+	cam.snap_to_target()
+	var on_screen_before := holder.position
+	screen._process(0.0)
+	_check("the camera moved: the number stays at its spot in the world (it moved on screen, onto that spot)",
+		holder.position.distance_to(on_screen_before) > 10.0 and holder.position.distance_to(cam.unproject_position(point)) < 0.001, true)
+	label.free()
+	screen._process(0.0)
+	await get_tree().process_frame
+	_check("the number gone: its holder goes", is_instance_valid(holder), false)
+
+	main.free()
+	_check_near("the view gone: the 2D squash is back", VFX.floor_squash, 0.55, 0.0)
+
+
+func _test_spawn_scene_3d() -> void:
+	_section("VFX.spawn_scene() with a Node3D root (P7)")
+	var script := GDScript.new()
+	script.source_code = "extends Node3D\nvar got: Array = []\nfunc setup(a, b) -> void:\n\tgot = [a, b]\n"
+	script.reload()
+	var root_3d := Node3D.new()
+	root_3d.set_script(script)
+	var scene_3d := PackedScene.new()
+	scene_3d.pack(root_3d)
+	root_3d.free()
+	var root_2d := Node2D.new()
+	var scene_2d := PackedScene.new()
+	scene_2d.pack(root_2d)
+	root_2d.free()
+
+	var holder := Node2D.new()
+	add_child(holder)
+	var anchor := Node2D.new()
+	holder.add_child(anchor)
+	_check("without a WorldView: not spawned (null, nothing added)",
+		VFX.spawn_scene(scene_3d, anchor, Vector2(64.0, 96.0), 0.0, [1, 2]) == null and holder.get_child_count() == 1, true)
+	var view := WorldView.new()
+	add_child(view)
+	var node := VFX.spawn_scene(scene_3d, anchor, Vector2(64.0, 96.0), 0.0, [1, 2]) as Node3D
+	_check("with one: under the WorldView", node != null and node.get_parent() == view, true)
+	if node:
+		_check_near_v3("on the floor at its sim point: (2, 0, 3) m", node.global_position, Vector3(2.0, 0.0, 3.0), 0.0001)
+		_check_near_v3("its +Z along the 2D angle (0: east, +x)", node.global_basis.z, Vector3.RIGHT, 0.0001)
+		_check("setup() got its arguments", node.get(&"got") == [1, 2], true)
+	var south := VFX.spawn_scene(scene_3d, anchor, Vector2.ZERO, PI * 0.5, [3, 4]) as Node3D
+	if south:
+		_check_near_v3("at 90° (south in the sim): its +Z along +z", south.global_basis.z, Vector3.BACK, 0.0001)
+	var flat := VFX.spawn_scene(scene_2d, anchor, Vector2(10.0, 20.0), 0.5) as Node2D
+	_check("a Node2D root still goes next to its anchor, at its point, turned",
+		flat != null and flat.get_parent() == holder and flat.global_position.is_equal_approx(Vector2(10.0, 20.0)) and is_equal_approx(flat.global_rotation, 0.5), true)
+	view.free()
+	holder.free()
 
 
 # --- Helpers ------------------------------------------------------------------------------

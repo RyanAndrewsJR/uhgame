@@ -11,7 +11,62 @@
 
 ## 3D pivot (3D_PIVOT.md)
 
-### P6 – views: 2026-10-03, Built (awaiting Ryan's check)
+### P7 – floor drawings and the screen overlay: 2026-10-03, Built (awaiting Ryan's check)
+Built from 3D.md. Played from `scenes/sandbox_main_3d.tscn`.
+- **`FloorOverlay`** (`scripts/view/floor_overlay.gd`, new):
+  - A SubViewport sharing the sim's World2D. It draws canvas visibility layers 2 and 3, on a transparent target, with no 3D, at 2 texels per sim px.
+  - Its window is the floor the camera sees around its focus plus 2 m, rounded up to 64 texels, kept in the room and snapped to whole texels. The seen floor comes from the screen's four corners through `GameCamera3D.screen_to_floor()`, shake aside.
+  - It's resized only when the screen's shape changes. At the default look: 2624 × 1664 texels. In the 30 × 20 m sandbox it's the room's size (1920 × 1280) and doesn't move.
+- **The floor's shader** (`scripts/view/floor_drawings.gdshader`, new):
+  - RoomView's floor keeps P3's look (its vertex colors, roughness 0.95) and samples the overlay at each point's x/z.
+  - The drawings are unlit: un-premultiplied, converted to linear, and added as emission over the floor, which they cover by their alpha. So a telegraph reads the same in a shadow.
+- **What draws on the floor:** canvas visibility layer 3 (`FloorOverlay.DRAWING_VISIBILITY_BIT`). The 2D game draws every layer, so nothing changes there.
+  - `Telegraph` (in `_init()`), `VFX.ring()` and `VFX.slash()`.
+  - A unit's own drawing (in `Unit._ready()`): the hover ring and the Player's ability indicators. The unit's children (its 2D body, its bar) stay off the overlay.
+- **True circles under the view:** `VFX.floor_squash` is 0.55 in 2D and 1 while a WorldView shows the game. The hover ring and `VFX.ring()` read it; it goes back to 0.55 when the view leaves.
+- **`ScreenOverlay`** (`scripts/view/screen_overlay.gd`, new; CanvasLayer 0, under the HUD):
+  - Health bars: a copy of each unit's 2D HealthBar, 3 px over its model's head, fed by its HealthComponent (`HealthBar.health`, new, additive). The copy hides with the 2D bar and goes with the unit.
+  - Damage numbers: they appear at 0.8 of the model's height and stay where they appeared in the world.
+  - Exports: `bar_gap_px` 3, `number_height_share` 0.8, `number_scale` 1 (the 2D size).
+- **`Unit._add_number()`:** under a view, the number goes to the ScreenOverlay. The 2D path is unchanged.
+- **`VFX.spawn_scene()`:**
+  - A scene with a Node3D root goes into the view through `WorldView.add_scene_at()`: on the floor at its point, its +Z along the angle, the root's own transform kept.
+  - Without a view it isn't spawned. Node2D roots are unchanged.
+- **`WorldView`:**
+  - `setup()` makes both overlays. The screen overlay comes before the views, so every unit's bar comes with its view.
+  - `WorldView.of(node)` (the group `world_view`) is how sim code reaches the view.
+  - `flatten_floor_drawings()`.
+- **Tests:** view_test 233 (66 new).
+  - **The window:** the overlay's settings; the default look at 16:9 (22.9 m across the bottom edge, 36.1 m across the top, 8.4 m in front of the focus, 13.3 m beyond it; with the margin, 2624 × 1664 texels); a 30 × 20 m room's 1920 × 1280; the corner kept in the room and on whole texels.
+  - **The mapping and following:** a sim point lands on the texel the floor's shader reads at its x/z; the slam's 40 px radius is 1.25 m; the window follows the camera and updates the floor's material.
+  - **What draws:** telegraphs, rings, slashes and a unit's own drawing are on layer 3; its body and bar aren't; every ancestor passes the mask; true circles under the view, and 0.55 back after it.
+  - **Setup:** `WorldView.of()`; setup's overlays; the room floor's material.
+  - **The screen overlay:** a unit's bar (a copy, fed by its health, 3 px over the head, hidden with the 2D bar, made for a unit added later, gone with the unit); a number on the overlay at 0.8 height that stays at its world spot as the camera moves, then goes; the 2D path without a view.
+  - **`spawn_scene()` with a Node3D root:** none without a view; with one, its place, its turn and `setup()`; a Node2D root as before.
+- **Measured** (windowed scratch harnesses, saving off; RTX 4070 SUPER, D3D12, 180 Hz):
+  - **The overlay's own cost per frame** (P6's timeline, 1,379 frames): GPU median 0.014 ms, 95th percentile 0.024 ms, max 0.04 ms; CPU (render) median 0.051 ms.
+    - Turning its updates on and off in four blocks of 120 frames changed neither the frame time (median 5.56 vs 5.55 ms) nor the root's GPU time (noise, 0.37–0.45 ms either way).
+    - The estimate in 3D.md was "well under 0.1 ms".
+  - **The slam's circle:** a 40 px (1.25 m) telegraph on open floor, its outline found on screen along 24 rays (bilinear samples).
+    - It lies on the sim circle within 0.41 window px, mean −0.16 px. At about 48.5 px per meter there, that's under 1 cm on the floor.
+    - A first try placed the circle partly over wall cells (no floor there) and under the sandbox's talent list: only 15 of 24 rays found it.
+  - **Frame times on P6's timeline** (no screenshots): median 5.56 ms, 95th percentile 6.59–6.63 ms; the first dash 10.4–10.9 ms; the first stun 12.6–13.2 ms. The same as P6.
+  - **Screenshots:**
+    - the slam circle;
+    - the hover ring, a true circle on the floor;
+    - the swing arc and Cleave's cone indicator on the floor, the cone where the cursor points;
+    - green and red bars over the models, the trail chunk after a hit;
+    - Judgement's "214" over the dummy, with its ring and stars;
+    - with the view off, the 2D game as before.
+- **Found while building:**
+  - The headless test window is 640 × 640, not the game's 640 × 360. The check of the default look's window puts its camera in a 640 × 360 SubViewport.
+  - On this machine, each `print()` into a pipe took about 15 ms on 2026-10-03, and combat_test's hitstop check ("a shorter one changes nothing") failed on the committed HEAD too. With the output to a file, every suite is green. A harness issue, not the game's.
+- **Not shown in 3D yet** (2D-only looks):
+  - `VFX.impact()`'s vertical pillars (Judgement, Iron Resolve, Lunge, projectile hits).
+  - Swing arcs (`VFX.slash()`) are centered where their callers pass `get_center()`, the 2D body's center: 0.3–0.5 m north of the feet on the floor.
+- **Tests:** stats 179, combat 460, abilities 565, audio 110, champions 168, talents 308, view 233: **2,023/2,023**. `settings.cfg` and `progress.cfg` were unchanged by every run (hashed at the step's start).
+
+### P6 – views: 2026-10-03, Passed (Ryan's check, 2026-10-03)
 Built from 3D.md, with Ryan's answer at the start: the Knight's clip hooks name his model's clips (DECISIONS.md, 3D view). Played from `scenes/sandbox_main_3d.tscn`.
 - **The Knight's placeholder model** (approved P1):
   - `art/models/placeholder/kaykit_knight/`: `Knight.glb`, its texture and `LICENSE.txt`, copied from branch `spike/3d-p0b` (no new download).

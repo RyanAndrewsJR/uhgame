@@ -7,6 +7,11 @@ extends Node2D
 @export var fill_color: Color = Color(0.85, 0.2, 0.2)
 @export var hp_per_tick: float = 100.0
 
+## The HealthComponent it shows; null = its parent's (a bar on its unit). Set
+## before it enters the tree for a bar elsewhere: the 3D view's copy on its
+## ScreenOverlay (3D.md).
+var health: HealthComponent
+
 var _current: float = 1.0
 var _maximum: float = 1.0
 var _trail: float = 1.0
@@ -14,7 +19,8 @@ var _trail: float = 1.0
 
 func _ready() -> void:
 	z_index = 90
-	var health := get_parent().get_node_or_null("HealthComponent") as HealthComponent
+	if health == null:
+		health = get_parent().get_node_or_null("HealthComponent") as HealthComponent
 	if health:
 		health.health_changed.connect(_on_health_changed)
 		_maximum = health.max_health

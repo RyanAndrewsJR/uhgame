@@ -88,10 +88,10 @@ The rule for every combo with `attack_style` MELEE (the default; the Knight is t
 - DoT ticks use a smaller style and are merged per target over a short window so they don't flood the screen.
 - Size grows with the amount, in a few discrete pixel-font steps on a log scale, so late-game numbers don't all hit max size.
 - Colors: by damage type (FREE, but readable); damage the player takes is red; healing is green; damage a shield absorbed is its own silver-blue number.
-- **In 3D (3D.md, P7):** numbers and health bars draw on the screen overlay (`ScreenOverlay`), placed above the unit's model with `unproject_position()`; their sizes are screen sizes, as today. `Unit._add_number()` gets the overlay path while the 2D path stays.
+- **In 3D (3D.md, P7; built 2026-10-03):** numbers and health bars draw on the screen overlay (`ScreenOverlay`), placed above the unit's model with `unproject_position()`; their sizes are screen sizes, as today. `Unit._add_number()` gets the overlay path while the 2D path stays.
 
 ### In the 3D view (3D.md; the view never changes gameplay state)
-- **Telegraphs** stay exact circles and bands on the floor: `FloorOverlay` draws them, and the floor's shader shows them on slopes. Seen through the tilted camera a circle looks like an ellipse, but it covers exactly the hit area (P0a: within the measurement's resolution on a ramp).
+- **Telegraphs** stay exact circles and bands on the floor: `FloorOverlay` draws them (built in P7: a slam's outline lies on its sim circle within 0.4 screen px), and the floor's shader shows them on slopes. Seen through the tilted camera a circle looks like an ellipse, but it covers exactly the hit area (P0a: within the measurement's resolution on a ramp).
 - **Hit flash:** the model's material flashes white for `flash_time` instead of the Body's modulate.
 - **Shake:** `GameFeel.shake()` keeps its numbers (screen px); `GameCamera3D` turns them into a camera offset.
 

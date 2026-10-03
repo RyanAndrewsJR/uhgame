@@ -14,6 +14,11 @@ extends Node3D
 ## view_source gets its view (get_view_scene(), an EntityView) under this
 ## node, synced each physics tick after the sim; P3's stand-in capsules are
 ## gone (UnitView shows the units).
+## P7: the floor drawings (FloorOverlay: telegraphs, ability indicators, the
+## hover ring, swing arcs and rings, drawn on the floor's shader), damage
+## numbers and health bars (ScreenOverlay), presentation-hook scenes with a
+## Node3D root (add_scene_at(), from VFX.spawn_scene()). Sim code finds the
+## view through WorldView.of() (the group world_view).
 
 ## Runs after every sim node (they're all at the default 0), so the views copy
 ## positions the sim has already moved this tick (3D.md, Core rules).
@@ -56,8 +61,13 @@ const PROCESS_PRIORITY := 20
 var room_view: RoomView
 var camera: GameCamera3D
 var player: Player
+## The floor drawings (P7).
+var floor_overlay: FloorOverlay
+## Damage numbers and health bars (P7).
+var screen_overlay: ScreenOverlay
 
 var _sim_hidden := false
+var _flat_floor_drawings := false
 var _cull_mask_before: int = 0
 ## Sim node -> its EntityView. Keys can be freed nodes: read them untyped and
 ## check is_instance_valid() first (3D.md, Core rules).
@@ -72,6 +82,16 @@ func _init() -> void:
 	name = "WorldView"
 	process_physics_priority = PHYSICS_PRIORITY
 	process_priority = PROCESS_PRIORITY
+	add_to_group(&"world_view")
+
+
+## The WorldView showing the game `node` is in, or null (the 2D game, and
+## every test that doesn't build one): how sim code reaches the view (a
+## damage number, a 3D presentation-hook scene).
+static func of(node: Node) -> WorldView:
+	if node == null or not node.is_inside_tree():
+		return null
+	return node.get_tree().get_first_node_in_group(&"world_view") as WorldView
 
 
 ## Main calls this once, right after adding the WorldView: hides the 2D world,
@@ -90,6 +110,10 @@ func setup(main: CanvasItem, room: Node2D, p_player: Player, camera_2d: GameCame
 		add_child(room_view)
 		room_view.build(tiles)
 	_collect_fading()
+	# Before the views, so each unit's health bar comes with its view (P7).
+	screen_overlay = ScreenOverlay.new()
+	screen_overlay.world_view = self
+	add_child(screen_overlay)
 	watch_sim()
 
 	camera = GameCamera3D.new()
@@ -101,14 +125,37 @@ func setup(main: CanvasItem, room: Node2D, p_player: Player, camera_2d: GameCame
 	add_child(camera)
 	camera.make_current()
 	camera.snap_to_target()
+	screen_overlay.camera = camera
+
+	# The floor drawings (P7): the sim's World2D, drawn into a window around
+	# the camera and laid on the room's floor.
+	floor_overlay = FloorOverlay.new()
+	floor_overlay.world_2d = get_viewport().world_2d
+	add_child(floor_overlay)
+	floor_overlay.setup(camera, camera.bounds_m)
+	if room_view and room_view.floor_material:
+		floor_overlay.add_floor_material(room_view.floor_material)
+	flatten_floor_drawings()
 
 
 func _exit_tree() -> void:
 	if _sim_hidden:
 		get_viewport().canvas_cull_mask = _cull_mask_before
 		_sim_hidden = false
+	if _flat_floor_drawings:
+		VFX.floor_squash = VFX.FLOOR_SQUASH_2D
+		_flat_floor_drawings = false
 	if get_tree().node_added.is_connected(_on_node_added):
 		get_tree().node_added.disconnect(_on_node_added)
+
+
+## Floor circles drawn by 2D nodes (the hover ring, VFX.ring()) become true
+## circles while this view shows the game: the 2D game squashes them for its
+## 3/4 look, and here the camera foreshortens the floor itself
+## (VFX.floor_squash). Undone when the WorldView leaves the tree.
+func flatten_floor_drawings() -> void:
+	VFX.floor_squash = 1.0
+	_flat_floor_drawings = true
 
 
 ## Hides the 2D world from the screen, not from physics (3D.md, The room's
@@ -356,6 +403,21 @@ func _add_view(node: Node) -> void:
 	_views[sim] = view
 	view.setup(sim, self)
 	sim.tree_exiting.connect(_on_sim_exiting.bind(sim), CONNECT_ONE_SHOT)
+	if view is UnitView and screen_overlay:
+		screen_overlay.add_bar(sim as Unit)
+
+
+## A presentation-hook scene whose root is a Node3D (VFX.spawn_scene(), P7):
+## under this view, its origin on the floor at `pos_px`, turned so its +Z
+## points along the 2D `angle` (the way a model faces its facing: the yaw
+## atan2(x, y)). The root's own transform in its scene is kept, relative to
+## that. The floor is flat until P9.
+func add_scene_at(node: Node3D, pos_px: Vector2, angle: float) -> void:
+	var local := node.transform
+	add_child(node)
+	var dir := Vector2.from_angle(angle)
+	node.global_transform = Transform3D(Basis(Vector3.UP, atan2(dir.x, dir.y)), Units.to_view(pos_px)) * local
+	node.reset_physics_interpolation()
 
 
 func _on_sim_exiting(sim: Node) -> void:

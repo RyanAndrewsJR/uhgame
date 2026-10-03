@@ -7,8 +7,10 @@ extends Node3D
 ## reads; `walkable`, with its trimesh for the floor pick since P5), a box per
 ## wall cell (each in the `fades` group), the environment, and the key light
 ## with its shadows. View only: the sim never reads it.
+## P7: the floor's shader lays the floor drawings on it (FloorOverlay).
 
 const FADE_SHADER := preload("res://scripts/view/fade_dither.gdshader")
+const FLOOR_SHADER := preload("res://scripts/view/floor_drawings.gdshader")
 
 ## How tall the wall boxes are, in meters (Ryan's 2.2 m after P0b). In rooms
 ## built in 3D, walls are assets with their own heights (P8).
@@ -33,6 +35,9 @@ const FADE_SHADER := preload("res://scripts/view/fade_dither.gdshader")
 ## Filled by build().
 var walls: Array[MeshInstance3D] = []
 var floor_mesh: MeshInstance3D
+## The floor's material (floor_drawings.gdshader: its checker colors plus the
+## floor drawings, P7).
+var floor_material: ShaderMaterial
 ## The floor pick's body (P5): the floor mesh's trimesh on 3D layer 1.
 var floor_body: StaticBody3D
 var floor_cell_count: int = 0
@@ -86,9 +91,11 @@ func build(tiles: TileMapLayer) -> void:
 			floor_cell_count += 1
 
 	if floor_cell_count > 0:
-		var floor_material := StandardMaterial3D.new()
-		floor_material.vertex_color_use_as_albedo = true
-		floor_material.roughness = 0.95
+		# P3's plain StandardMaterial3D (vertex colors, roughness 0.95) became
+		# this shader in P7: the same look, plus the floor drawings.
+		floor_material = ShaderMaterial.new()
+		floor_material.shader = FLOOR_SHADER
+		floor_material.set_shader_parameter(&"roughness", 0.95)
 		floor_mesh = MeshInstance3D.new()
 		floor_mesh.name = "Floor"
 		floor_mesh.mesh = st.commit()

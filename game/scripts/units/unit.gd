@@ -84,6 +84,10 @@ var _stat_scalings_dirty: bool = false
 func _ready() -> void:
 	add_to_group("units")
 	add_to_group(&"view_source")   # its 3D look (3D.md); nothing happens without a WorldView
+	# Its own drawing (the hover ring, the player's ability indicators) is a
+	# floor drawing: under the 3D view it shows on the floor (FloorOverlay);
+	# its children (the 2D body, the bar) don't. Nothing changes in 2D.
+	visibility_layer |= FloorOverlay.DRAWING_VISIBILITY_BIT
 	assert(stats != null, "%s has no UnitStats assigned" % name)
 	stats_component.setup(stats, movement)
 	health.set_stats_component(stats_component)
@@ -485,6 +489,12 @@ func _make_number(amount: float, style: DamageNumberStyle) -> Label:
 
 
 func _add_number(n: Label) -> void:
+	# Under the 3D view the number goes on its screen overlay, over the model
+	# (3D.md, ScreenOverlay); the path below is the 2D game's.
+	var view := WorldView.of(self)
+	if view != null and view.screen_overlay != null:
+		view.screen_overlay.add_number(n, self)
+		return
 	var parent := get_parent() as Node2D
 	var spread: float = (n.style as DamageNumberStyle).spread_px
 	n.position = parent.to_local(get_center() + Vector2(randf_range(-spread, spread), -get_gameplay_radius_px() * 0.8))
@@ -531,5 +541,5 @@ func _draw() -> void:
 		return
 	var r := get_gameplay_radius_px()
 	var col := Color(1, 0.25, 0.2, 0.9) if team == Team.ENEMY else Color(0.3, 1, 0.4, 0.9)
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, 0.55))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, VFX.floor_squash))   # 0.55; a true circle in 3D
 	draw_arc(Vector2.ZERO, r, 0.0, TAU, 32, col, 1.5)

@@ -34,6 +34,12 @@ var _driven_before: float = 0.0   # the progress one physics tick ago
 var _driven_now: float = 0.0      # the progress this physics tick
 
 
+## A floor drawing: under the 3D view it shows on the floor (canvas
+## visibility layer 3, FloorOverlay; 3D.md). Nothing changes in 2D.
+func _init() -> void:
+	visibility_layer |= FloorOverlay.DRAWING_VISIBILITY_BIT
+
+
 ## A circle telegraph centered on `center` (world space) that fills over
 ## `duration` seconds. `anchor` is any node in the world (usually the
 ## caster): the telegraph goes on the room's floor next to it.
