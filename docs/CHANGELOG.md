@@ -11,6 +11,32 @@
 
 ## 3D pivot (3D_PIVOT.md)
 
+### P2 – scaffolding: 2026-10-02, Passed (Ryan's check)
+No visible change. Built from 3D.md.
+- **`scripts/core/units.gd`** (additive): `PX_PER_METER` (32.0), `px_to_m()`, `m_to_px()`, `to_view(p, height_m)` (sim x → view x, sim y → view z) and `to_sim(p)` (the height dropped).
+- **`scripts/view/world_view.gd`** (new, `class_name WorldView`, Node3D):
+  - empty, with `process_physics_priority` 100;
+  - constants `FLOOR_LAYER` (3D physics layer 1) and `SECOND_RAY_OFFSET` (0.013, 0.007);
+  - the floor pick: `static func pick_floor(camera, screen_pos, mask)`, two rays with the nearer hit winning, `Vector3.INF` on a miss.
+- **`scripts/main.gd`** (additive): `@export var use_3d_view: bool = false`, plus `world_view`. With the switch on, `_ready()` adds a `WorldView`, still empty, as Main's child.
+- **`view_test`** (new, `scenes/tests/view_test.tscn`, `scripts/tests/view_test.gd`): 28 checks.
+  - The mapping: the scale, both directions, round trips.
+  - `WorldView`'s priority.
+  - The switch: off by default, and neither `main.tscn` nor `sandbox_main.tscn` turns it on.
+  - The floor pick on a fixed camera at the default look (perspective, 30°, 50°, 28 m), over a 24 × 18 m floor of 1 m quads with a 3 × 3 m plateau 1.5 m tall:
+    - the screen center lands on the focus;
+    - 12 flat points project back within 0.05 px (worst 0.0148);
+    - 3 points on the plateau top pick the top;
+    - 13 exact shared vertices inside a surface are exact (a single ray: 3 wrong);
+    - 7 vertices on the plateau's outline land on the top or the floor right behind it;
+    - a box on layer 2 is ignored;
+    - misses return `Vector3.INF`;
+    - sim px → view → screen → pick → sim px within 0.1 px.
+- **Found while building:** the first run checked all 20 exact vertices for an exact hit and got 16. The 4 misses were on the plateau's east edge, its outline from this camera: both rays grazed past it to the floor right behind. That's a point between two surfaces, not P0a's slip-through. The check was split, and the rule went into 3D.md (The floor pick and aim).
+- **Tests:** stats 179, combat 460, abilities 563, audio 110, champions 168, talents 308, view 28: **1,816/1,816**, all seven suites in parallel. `settings.cfg` and `progress.cfg` were unchanged by the test runs.
+- **Smoke runs** of `sandbox_main.tscn` headless for 300 frames: no errors with the switch off, and none with it on (set temporarily in the scene, then restored byte for byte). Both save files were backed up first and compared after: unchanged.
+- **Folders:** `scripts/view/` exists now. `scenes/view/`, `art/models/placeholder/` and `data/camera_looks/` come with their first files (P3, P6, P4), since git can't hold an empty folder.
+
 ### P1 – decisions and docs: 2026-10-02, 3D.md approved; doc edits awaiting Ryan's review
 Docs only; no code or tests changed.
 - **`docs/3D.md` written:** the lasting spec. Ryan approved it the same day with additions:

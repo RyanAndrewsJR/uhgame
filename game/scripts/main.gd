@@ -8,6 +8,10 @@ extends Node2D
 ## Stingers (AUDIO.md): with "Room cleared!" and "You died". null = silent.
 @export var room_cleared_sound: SoundEvent
 @export var player_died_sound: SoundEvent
+## The 3D view (docs/3D.md), off until the 3D pivot's milestone. Off, the game
+## is exactly the 2D game. On, Main adds a WorldView (P2: still empty, so
+## nothing on screen changes).
+@export var use_3d_view: bool = false
 
 @onready var hud: CanvasLayer = $HUD
 @onready var camera: Camera2D = $Camera
@@ -15,6 +19,8 @@ extends Node2D
 var room: Room
 var player: Player
 var pause_menu: PauseMenu
+## The 3D view, or null while use_3d_view is off.
+var world_view: WorldView
 var _game_over := false
 
 
@@ -40,6 +46,10 @@ func _ready() -> void:
 	hud.set_enemies_left(get_tree().get_nodes_in_group("enemies").size())
 
 	_setup_camera()
+
+	if use_3d_view:
+		world_view = WorldView.new()
+		add_child(world_view)
 
 	pause_menu = pause_menu_scene.instantiate()
 	add_child(pause_menu)
