@@ -975,6 +975,7 @@ Docs only; no code or tests changed.
   - ALLIES.md: difficulty tiers with party scaling, wing recommendations for pairs.
   - CHAMPIONS.md: Dungeon content per champion (one quest line per wing, the lens, recommendations reading the kit).
   - CLAUDE.md: the Docs index, Future docs (DUNGEONS written; ENEMIES_AI, NARRATIVE, PROGRESSION and UI queue notes), Current status.
+- **Follow-up (2026-10-03, after the commit):** ALLIES.md added to CLAUDE.md's Docs index (it was missing since ALLIES.md was written), and WORLD_INTERACTION's row widened. WORLD_INTERACTION.md: a Used by line, the layer table's DUNGEONS uses, Puzzle elements under Interactables, pit-drops vs pits, theme hazards, secrets behind destructibles, the proposed `INTERACTED` trigger, the doors question answered, the unscheduled world pieces as an open question. STATS.md: the enemy-scaling question now carries DUNGEONS' proposal (difficulty tier modifiers; depth for loot only), `set_level()` still reserved. DUNGEONS.md: `on_interact(player)` matches WORLD_INTERACTION; its For other docs marked applied.
 
 ## Movement (MOVEMENT.md)
 

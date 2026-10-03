@@ -2,7 +2,7 @@
 
 **Read when:** the task involves any stat, health or mana, champion base stats, or anything that changes stats (gear, buffs, passives, levels), including items that change an ability's numbers.
 **Depends on:** CLAUDE.md.
-**Used by:** MOVEMENT (move_speed, dash_charges), COMBAT.md (damage stats, attack_speed as combo speed), ABILITIES, LOOT, CHAMPIONS, ENEMIES.
+**Used by:** MOVEMENT (move_speed, dash_charges), COMBAT.md (damage stats, attack_speed as combo speed), ABILITIES, LOOT, CHAMPIONS, ENEMIES, DUNGEONS (enemy scaling by difficulty tier), ALLIES (party scaling).
 
 ## Current code
 - `UnitStats` (`res://scripts/data/unit_stats.gd`): one .tres per unit in `res://data/units/`. A field for every stat in the Stat list except `knockback_resistance` (approved 2026-09-30, added with the knockback work), plus the identity fields.
@@ -24,7 +24,7 @@
 - Nothing edits a value directly. All changes go through **modifiers** tagged with a `source_id`, so removing an item or ending a buff removes exactly what it added.
 
 ## Fill in
-- Leveling: **no** (decided 2026-09-29). Champions don't level their combat stats; in-run power comes from loot, and the persistent champion level only gates talent points (VISION.md, Game structure). Per-level growth and `set_level()` stay built, unused by champions, kept for future enemy scaling (DUNGEONS.md).
+- Leveling: **no** (decided 2026-09-29). Champions don't level their combat stats; in-run power comes from loot, and the persistent champion level only gates talent points (VISION.md, Game structure). Per-level growth and `set_level()` stay built, unused by champions, kept for future enemy scaling (DUNGEONS.md). DUNGEONS.md (2026-10-03) *(proposed there)* scales enemies with modifiers instead (Open questions, enemy scaling), so `set_level()` stays reserved and unused for now.
 - Stat points allocated by hand: [no / yes]
 - Damage split: **attack_damage + ability_power** (AD vs AP champions). [Keep, or collapse into one stat]
 
@@ -136,5 +136,5 @@ Specified in ABILITIES.md, Augments (FLAG / EVENT / REPLACE, added and removed b
 ## Open questions
 - Stat allocation and the AD/AP split (see Fill in). Leveling is decided: no (Fill in).
 - Armor/MR formula: proposed `100 / (100 + armor)`; still to confirm (COMBAT.md, Open questions). Negative values are settled (core rule, above).
-- Enemy scaling by dungeon depth via modifiers (source `&"dungeon_scaling"`)? Proposed: yes.
+- Enemy scaling by dungeon depth via modifiers (source `&"dungeon_scaling"`)? ~~Proposed: yes.~~ Proposed since DUNGEONS.md (2026-10-03): **no depth scaling of enemy stats.** Enemies scale by **difficulty tier** (Ryan, 2026-10-03: five per wing, each raising enemy health and damage): PERCENT_MULT `max_health` and `outgoing_damage` modifiers under `&"difficulty_tier"`, applied at spawn next to ALLIES.md's `&"party_scaling"` (different sources, so the two multiply). Depth inside a wing changes loot only (LOOT.md). `&"dungeon_scaling"` and `set_level()` stay unused unless Ryan wants depth to scale enemies too. Note: `outgoing_damage` is ALLIES.md's proposed stat (a "more" multiplier on a unit's hit damage), not in the registry yet; it joins the Stat list when Ryan approves it.
 - Champion-specific items dropping for other champions? Proposed: no (LOOT.md).

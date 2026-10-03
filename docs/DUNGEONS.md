@@ -343,7 +343,7 @@ One payload, shared by collectibles, quests and fixed chests: `kind` (`CODEX`, `
 - `RoomLayout.build_sim()` gains a hook: a `ContentSlot` asks the run for its pick, and a marker the run lists dead is skipped.
 
 ### Puzzle pieces
-- The interactable base (WORLD_INTERACTION's; *proposed* class `Interactable`, `res://scripts/interactables/interactable.gd`): `interaction_tags`, `state`, `rules`; `on_hit(ctx)`, `on_interact(unit)` and, when impacts and hazards exist, their events, each passed to the matcher `Reactions` already runs, opened up for one element's rules. Effects aimed at Units go to the event's other unit.
+- The interactable base (WORLD_INTERACTION's; *proposed* class `Interactable`, `res://scripts/interactables/interactable.gd`): `interaction_tags`, `state`, `rules`; `on_hit(ctx)`, `on_interact(player)` (WORLD_INTERACTION's signature) and, when impacts and hazards exist, their events, each passed to the matcher `Reactions` already runs, opened up for one element's rules. Effects aimed at Units go to the event's other unit.
 - `SetWorldStateGameplayEffect.apply()` calls `Dungeons.set_state()`. Without a run (the sandbox) it uses a local table, so sandbox puzzles work.
 - `Door`, `FloorLink`, content slots, quest steps and codex entries check their Conditions on `world_state_changed`, never every frame.
 
@@ -463,6 +463,6 @@ Procedural geometry (VISION.md, Scope); seamless streaming between floors (v1); 
 - **NARRATIVE.md / NPCS.md:** the codex's content and its per-champion lens; quest writing (wing, dungeon and champion lines); NPC dialogue with per-champion variants; the scenes that change per champion; voice scope; lore puzzles' answers.
 - **PROGRESSION.md:** `user://dungeons.cfg` folds into the one save; clears and difficulty tiers (I1); the codex as an account collection; the statistics pages; the run in progress (I2).
 - **UI.md:** the hub's wing pick, the map and minimap, the quest list, the codex screen, the "Recommended for" display (I5), the fade.
-- **WORLD_INTERACTION.md:** interactables gain element rules and a state; plates are Hazard-style areas; pit-drop links next to the pit rule; and a build slot for interactables, Hazards, impacts, destructibles, `SurfaceTags` and pits before D1.
-- **STATS.md:** its open question (enemy scaling by depth through `&"dungeon_scaling"`) is answered here by `&"difficulty_tier"` modifiers *(proposed)*; depth changes loot only.
+- **WORLD_INTERACTION.md** (applied 2026-10-03): interactables gain element rules and a state (Interactables, Puzzle elements); plates and signature hazards are Hazards; pit-drop links next to the pit rule; secrets behind destructibles; its doors question answered here; a build slot for interactables, Hazards, impacts, destructibles, `SurfaceTags` and pits before D1 (open, Ryan's call).
+- **STATS.md** (applied 2026-10-03): its open question (enemy scaling by depth through `&"dungeon_scaling"`) now carries this doc's proposal: `&"difficulty_tier"` modifiers, depth changing loot only.
 - **TALENTS.md, LOOT.md, COMPANIONS.md:** the per-run pacing numbers re-measured against a wing.

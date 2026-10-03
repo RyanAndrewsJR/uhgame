@@ -1,12 +1,13 @@
 # WORLD_INTERACTION.md: Abilities vs. the World
 
-**Read when:** abilities touch the world (grapples, blinks, dashes into walls, knockback into terrain), or the task involves collision layers, tile tags, or interactables.
+**Read when:** abilities touch the world (grapples, blinks, dashes into walls, knockback into terrain), or the task involves collision layers, tile tags, interactables (puzzle elements included), hazards, pits, destructibles or kill credit.
 **Depends on:** CLAUDE.md, MOVEMENT.md.
+**Used by:** DUNGEONS (puzzle elements as interactables with element rules, plates and signature hazards as Hazards, breakable walls as destructibles, doors, pits and pit-drops), 3D.md (footprints on these layers), COMBAT (reaction triggers), LOOT (pickups on layer 9, destructibles' drops).
 
 ## Current code
 - Rooms are `res://scenes/rooms/room_XX.tscn`, each with a `Tiles` TileMapLayer (`dungeon_tileset.tres`, 32 px, physics layer 0 → collision layer 1 "world"), an `Entities` node, and a `PlayerSpawn` marker.
 - **Built in 3D pivot P8 (3D.md, Rooms):** new rooms are built in 3D as layouts. Each blocking asset carries a `Footprint` (wall, low obstacle, pit or ledge), and at load the layout makes the same kind of 2D `Room` the game plays in: colliders on these layers, `Entities` from sim markers, the navigation bake (walls, pits, low obstacles and ledges carved). Footprints get `SurfaceTags` when that exists (Surface tags; not built). Everything below applies to both kinds of room. Tile rooms stay for the test fixtures.
-- Levels are hand-made rooms stitched together (DUNGEONS.md, when it exists).
+- Levels are hand-made rooms stitched together. DUNGEONS.md (written 2026-10-03): a dungeon's wings are runs of hand-built spaces over floors, each floor its own sim room (or rooms) joined by stairs, ladders, lifts or pit-drops with a fade; doors, arenas and floor links live there.
 - `Hitbox` and `Hurtbox` Areas already exist. Hitboxes sit on the owner's attack layer and carry `damage` and `knockback`. No scene uses a Hitbox yet; hits go through the hit pipeline (COMBAT.md).
 
 ## Core principle: three layers, one job each
@@ -26,9 +27,9 @@ Example: an Akshan-style swing is an ability that asks `WorldQuery` for a grappl
 | 5 | enemy_attack | enemy hitboxes and projectiles | exists |
 | 6 | pit | chasms (`Pits` TileMapLayer): block walking only, not dashes, other displacements (knockback, blink, pull, swing) or projectiles | planned; a layout's pit footprints are on it since P8 and carved from the navigation, but nothing masks it until the pit step (Ryan, 2026-10-03) |
 | 7 | low_obstacle | fences, rubble: block walking, not projectiles | exists (3D pivot P8: a layout's low-obstacle footprints; the fence in the room kit) |
-| 8 | interactable | chests, doors, shrines, NPC talk zones | planned |
-| 9 | pickup | dropped loot, gold, potions | planned |
-| 10 | hazard | traps, damaging floors | planned |
+| 8 | interactable | chests, doors, shrines, NPC talk zones; with DUNGEONS: checkpoints, levers, braziers, statues, collectibles opened like chests | planned |
+| 9 | pickup | dropped loot, gold, potions; with DUNGEONS: collectibles picked up like loot | planned |
+| 10 | hazard | traps, damaging floors; with DUNGEONS: pressure plates, each theme's signature hazards, "dark rooms" *(proposed there)* | planned |
 | 11 | ledge | cliff edges, derived from the walkable ground at room load (3D.md, Terrain and height): block walking and dashes, not projectiles or line of sight | exists (3D pivot P9: `RoomLayout.derive_ledges()`, one `Ledges` body per room built in 3D; Ryan, 2026-10-01) |
 
 Planned: walking masks world, pit, low_obstacle, ledge, and the other team's bodies. As it is today: the player's and the slimes' bodies both mask 1095 (world, player, enemies, low_obstacle since P8, ledge since P9; Ryan 2026-10-03: fences block walking now, pits wait for their step), so units also collide with their own team (the pit layer isn't masked yet). A low obstacle or a ledge also stops `displace()` (knockback, swing steps), which keeps the unit's mask, unless the unit is knocked up (Knocked up, below). **A ghosted `dash()` (the dash, Lunge) masks world and ledges while it runs** (`MovementComponent.GHOST_KEEP_MASK`, `1 | 1024`; built in P9, the approved one-line replace of `collision_mask & 1`): cliffs stop it; pits, fences and units don't. `displace()` keeps the unit's own mask (minus the pit layer once pits exist: Pits and movement types).
@@ -72,7 +73,19 @@ Scripts go in `res://scripts/interactables/`, scenes in `res://scenes/interactab
 
 Abilities check tags; they never check class names.
 
-## Pits and movement types (approved by Ryan 2026-09-30; ready to build, not yet in a build order: Movement step 8 was removed 2026-09-25)
+### Puzzle elements (DUNGEONS.md, Puzzles and secrets; Ryan 2026-10-03: one framework on tags, ReactionRules and Events, no parallel system; the shape *(proposed there)*)
+A puzzle element (a brazier, a lever, a plate, a cracked wall, a collapsing bridge, a statue, a locked door) is an interactable as above, with two additions:
+- **a state** (`StringName`: `&"off"`, `&"lit"`, `&"broken"`...), shown by its view;
+- **element rules:** `ReactionRule`s the element holds, matched against its own events by the matcher `Reactions` already runs for world and unit rules (a third kind of rule): `HIT` with `required_hit_tags` (a `fire` hit lights a brazier), `IMPACT` with `min_impact_speed_px` (a knocked body slams a switch), `HAZARD_ENTERED` / `HAZARD_EXITED` (a plate), and a new ninth trigger, `INTERACTED` (`on_interact()`: F on the element; the other unit is the player who pressed). Their effects are the existing GameplayEffects plus one new kind, `SetWorldStateGameplayEffect`, which sets a world state of the run that doors, bridges, quests and the codex read through a new `Condition.Kind.WORLD_STATE`.
+- *(proposed there)* The base class is `Interactable` (`res://scripts/interactables/interactable.gd`), holding `interaction_tags`, `state` and `rules`.
+- **What the four puzzle kinds need from this doc:**
+  - **pressure plates** are Hazard-style areas (Hazards: a tag such as `plate` and the "while inside" option, no status needed); `required_unit_tags` on the rule can ask for a knocked enemy (`displaced`);
+  - **breakable walls** hiding secrets are destructibles (`hits_to_break`, navigation updated when they break), each with a clue in sight (DUNGEONS.md);
+  - **collapsing bridges** need pits: the bridge's floor gives way under its pit footprint after a delay, so they wait for the pit step;
+  - **doors** shut until their conditions pass: a body on layer 1 while shut, the navigation updated as a destructible's.
+- **Never kit-locked** (DUNGEONS.md): a combat-linked puzzle on the main path always has a way every champion can do (a torch to carry fire from, a lever beside the plate).
+
+## Pits and movement types (approved by Ryan 2026-09-30; ready to build, not yet in a build order: Movement step 8 was removed 2026-09-25. DUNGEONS.md lists the pit step before its D1: every wing has pits)
 - `Unit` gets a movement type enum, `enum MovementType { GROUND, FLYING }` with `@export var movement_type`. FLYING ignores the pit layer and never falls.
 - One rule for all units: any displacement (dash, knockback, blink, swing) that ends with the unit's feet **8 px or more** inside a pit makes it fall. Less than 8 px snaps it back to the edge.
 - **Every displacement ignores the pit layer while it runs**, the exemption a ghosted `dash()` already has: `displace()` (knockback, swing steps), `blink()`, `pull_to()` and `orbit()` take layer 6 out of the unit's `collision_mask` when they start and put it back when they end (any way they end), keeping every other bit (so knockback still slides along walls and stops on units). Otherwise a pit edge would stop the unit like a wall and no push could ever carry it the 8 px the rule needs. `blink()`'s endpoint check (`resolve_valid_position`) resolves walls only and leaves pits to the 8 px rule, for the same reason. Walking keeps the pit layer: a unit never walks into a pit.
@@ -80,6 +93,7 @@ Abilities check tags; they never check class names.
 - **An enemy falls:** it dies, the kill goes to whoever caused the displacement (Kill credit), and its drops land on the nearest floor tile. **Bosses never fall;** they snap to the edge.
 - Pit tiles have no navigation polygon, so enemies never path into them. (Today `Room._bake_navigation()` only carves colliders on layer 1 from the `navigation_source` group, so whatever builds pits has to add them to that bake.)
 - Pits get their own TileMapLayer, `Pits`, with physics on layer 6. Floor and walls stay on `Tiles`. **In a layout** (3D.md, Rooms) a pit is an asset (a hole in the floor) whose `Footprint` is kind PIT (layer 6); the bake leaves it out the same way.
+- **Pit-drops are not pits** *(proposed in DUNGEONS.md)*: a pit-drop that leads to a wing's lower floor is a `FloorLink` (kind `DROP`), not a pit footprint. The party goes down with a fade and takes no damage; an enemy knocked into one falls as into a pit (it dies, kill credit as above). Every other pit keeps the rules above.
 - **Knocked up** (3D.md, Terrain and height 1a): an airborne, displaced unit also drops the low-obstacle and ledge layers (7, 11), so a knock-up can carry an enemy over a fence, off a cliff or into a pit (the pit rule applies where it lands). Inside a low obstacle or a ledge's footprint, `resolve_valid_position()` puts it on the nearest floor on the side it came from; a body only overlapping one (its center clear) stays on the ground its center is over (the P9 fix). No fall damage for now (Ryan, 2026-10-01).
 
 ## Hazards (approved by Ryan 2026-09-30)
@@ -92,6 +106,7 @@ A `Hazard` is an Area2D scene on layer 10 with:
 - `arm_time`: a telegraph before it activates. Default 0.5 s for enemy- and trap-made hazards, 0 for player-made ones.
 
 Entering applies its status; re-entering refreshes it instead of stacking. It emits `hazard_entered` / `hazard_exited`. Timed traps are Hazards with an on/off cycle.
+- **Themes** (DUNGEONS.md, Themes; Ryan 2026-10-03): each wing theme has 2–3 signature hazards (blood pools that heal enemies, sunlight shafts, glyph traps...) plus the shared basics (fire, oil, pits). A signature hazard is data on this Hazard (its tags, its status, its reaction rules), never code per wing, and shows its telegraph during `arm_time` like every hazard. Darkness or weather that changes play is a Hazard with a status too; the view only shows it.
 - **"While inside" option** (for perches, 3D.md, Terrain and height 2): the status lasts while the unit stays inside and is removed when it leaves, instead of running its own duration. A perch is a Hazard-style area giving `status_elevated` this way. In a layout, hazards and perches are placed with sim markers; their look comes through the view mechanism. **Built for perches in 3D pivot P9** (`Perch`, `scripts/world/perch.gd`, `scenes/world/perch.tscn`): standing inside means the unit's feet (its position) are inside, so a unit pressed against the cliff below never counts; the Hazard itself isn't built.
 
 ## Knockback (approved by Ryan 2026-09-30)
@@ -101,12 +116,13 @@ Entering applies its status; re-entering refreshes it instead of stacking. It em
 - Two knockbacks at once: the stronger wins (COMBAT.md; built in COMBAT C4): `displace()` is dropped (returns false) when the running displacement has more distance left than the new one's whole distance.
 
 ## Reaction triggers *(specified in COMBAT.md, ReactionRule)*
-`ReactionRule.Trigger` has 8: `IMPACT`, `HIT`, `HAZARD_ENTERED`, `HAZARD_EXITED`, `STATUS_APPLIED`, `UNIT_DIED`, `HAZARD_OVERLAP` (hazard meets hazard, e.g. fire + oil), `ABILITY_CAST` (ABILITIES.md). 4 are built (`HIT`, `UNIT_DIED`, `STATUS_APPLIED`, `ABILITY_CAST`); the 4 world ones (`IMPACT` and the three hazard triggers) are approved (Ryan, 2026-09-30) and get built with impacts and Hazards here. The same list is in CONVENTIONS.md, Extension pattern 1.
+`ReactionRule.Trigger` has 8: `IMPACT`, `HIT`, `HAZARD_ENTERED`, `HAZARD_EXITED`, `STATUS_APPLIED`, `UNIT_DIED`, `HAZARD_OVERLAP` (hazard meets hazard, e.g. fire + oil), `ABILITY_CAST` (ABILITIES.md). 4 are built (`HIT`, `UNIT_DIED`, `STATUS_APPLIED`, `ABILITY_CAST`); the 4 world ones (`IMPACT` and the three hazard triggers) are approved (Ryan, 2026-09-30) and get built with impacts and Hazards here. The same list is in CONVENTIONS.md, Extension pattern 1. *(proposed in DUNGEONS.md)* A ninth, `INTERACTED` (F on an interactable), comes with the puzzle elements (Interactables, Puzzle elements); it joins this list and CONVENTIONS' when Ryan approves the name.
 
 ## Destructibles (approved by Ryan 2026-09-30)
 - `hits_to_break` (default 1). Any `HitContext` counts.
 - Drops come from a loot table (LOOT.md).
 - Navigation updates in their area when they break.
+- **Secrets** (DUNGEONS.md): a breakable wall hiding a secret is a destructible with an element rule; its break sets a world state (a found secret, saved). It always has a small clue in sight first (a crack, a draft, a stain, a note).
 - A grapple hooked to one detaches when it breaks, with the same tangent dash as a manual detach (300 u / 96 px over 0.15 s; the Grapple Swing example below), not a dead stop: the swing's momentum carries on, the player stays in control, and a break reads the same as letting go. A detach dash that ends over a pit follows the pit rule, as a manual one does.
 
 ## Kill credit (approved by Ryan 2026-09-30)
@@ -154,5 +170,6 @@ Detach: dash along the tangent, 300 u (96 px) over 0.15 s
 ## Open questions
 - **Bounce:** is `bounce` a movement behavior (MovementComponent reflects the displacement) or a GameplayEffect?
 - **Readability (art):** how grappleable, `wall_slam` and destructible surfaces look different from plain walls. Every hazard and trap shows a telegraph during its `arm_time`.
-- **Doors, room locking and room transitions** belong in DUNGEONS.md.
+- ~~**Doors, room locking and room transitions** belong in DUNGEONS.md.~~ Answered in DUNGEONS.md (2026-10-03): doors that open on conditions (`Door`), arenas that seal their doors until cleared (`Arena`), and floor links between a wing's floors with a fade (`FloorLink`: stairs, ladders, lifts, pit-drops). Its shapes and names are *(proposed)* there.
 - ~~The *(proposed)* sections above await Ryan's OK~~: approved 2026-09-30 (Pits and movement types with the pit-layer exemption for every displacement; Hazards, Knockback, Reaction triggers, Destructibles with the tangent-dash detach, Kill credit, 3/4 depth). Pits still need a place in a build order.
+- **A build slot for the world pieces** (DUNGEONS.md, Build order, Before D1): its D1 needs interactables (layer 8), Hazards (layer 10 and the three hazard triggers), `IMPACT` and `ImpactContext`, destructibles, `SurfaceTags` on footprints, and the pit step. None has a place in a build order yet; where they go, and in what order, is Ryan's call.
