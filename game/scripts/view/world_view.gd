@@ -7,10 +7,13 @@ extends Node3D
 ## P2: its place in the tree, its physics priority and the floor pick.
 ## P3: hides the 2D world from the screen, shows a tile room's look
 ## (RoomView) and fades `fades` assets between the camera and the player.
-## P4: the camera is GameCamera3D (P3's plain stand-in camera is gone). Until
-## P6 it also holds stand-ins (throwaway): a capsule per unit.
+## P4: the camera is GameCamera3D (P3's plain stand-in camera is gone).
 ## P5: the aim. The player reads the floor under the cursor and the enemy
 ## under it (picked on screen by its model) from here (Player.world_view).
+## P6: the generic view mechanism (3D.md): every sim node in the group
+## view_source gets its view (get_view_scene(), an EntityView) under this
+## node, synced each physics tick after the sim; P3's stand-in capsules are
+## gone (UnitView shows the units).
 
 ## Runs after every sim node (they're all at the default 0), so the views copy
 ## positions the sim has already moved this tick (3D.md, Core rules).
@@ -30,13 +33,17 @@ const TELEPORT_PX := 64.0
 ## The fade looks from the camera to the player's feet, chest and head
 ## (m above the floor; the Knight is 1.8 m tall).
 const FADE_SIGHT_HEIGHTS_M := [0.0, 0.9, 1.8]
-
-## Stand-ins (P3 only, until P6's UnitView): capsules as wide as the unit's
-## body collision circle, so they touch walls exactly when the body does.
-const STAND_IN_PLAYER_HEIGHT_M := 1.8
-const STAND_IN_ENEMY_HEIGHT_M := 1.0
-const STAND_IN_PLAYER_COLOR := Color(0.25, 0.5, 1.0)
-const STAND_IN_ENEMY_COLOR := Color(0.9, 0.25, 0.2)
+## The default view scenes, loaded once when the view starts, so the first
+## stun, aura or projectile of a fight doesn't load one from disk on that
+## frame (P6: 19–24 ms each). Loaded with load(), not preload(): their
+## scripts name WorldView, and a preload here would be a cycle.
+const DEFAULT_VIEW_SCENES := [
+	"res://scenes/view/unit_view.tscn",
+	"res://scenes/view/projectile_view.tscn",
+	"res://scenes/view/aura_view.tscn",
+	"res://scenes/view/stun_stars_view.tscn",
+	"res://scenes/view/staggered_mark_view.tscn",
+]
 
 ## The camera's look (field of view, pitch, width) and the fade's numbers.
 @export var look: CameraLook = preload("res://data/camera_looks/camera_look_default.tres")
@@ -52,11 +59,13 @@ var player: Player
 
 var _sim_hidden := false
 var _cull_mask_before: int = 0
-## Unit -> {"root": Node3D, "last_px": Vector2}. Keys can be freed units:
-## read them untyped and check is_instance_valid() first (3D.md, Core rules).
-var _stand_ins: Dictionary = {}
+## Sim node -> its EntityView. Keys can be freed nodes: read them untyped and
+## check is_instance_valid() first (3D.md, Core rules).
+var _views: Dictionary = {}
 ## The fading assets: {"geos": Array[GeometryInstance3D], "box": AABB, "fade": float}
 var _fading: Array[Dictionary] = []
+## Holds the default view scenes loaded (DEFAULT_VIEW_SCENES).
+var _loaded_view_scenes: Array[PackedScene] = []
 
 
 func _init() -> void:
@@ -66,7 +75,7 @@ func _init() -> void:
 
 
 ## Main calls this once, right after adding the WorldView: hides the 2D world,
-## builds the room's look, the stand-ins and the camera, and gives the player
+## builds the room's look, every view and the camera, and gives the player
 ## its aim through this view. `camera_2d` is Main's GameCamera: the 3D camera
 ## uses its lock, lean, shake, pan settings and room bounds (null: no lean,
 ## shake or bounds).
@@ -81,17 +90,14 @@ func setup(main: CanvasItem, room: Node2D, p_player: Player, camera_2d: GameCame
 		add_child(room_view)
 		room_view.build(tiles)
 	_collect_fading()
-	for unit in get_tree().get_nodes_in_group(&"units"):
-		_add_stand_in(unit as Unit)
-	get_tree().node_added.connect(_on_node_added)
+	watch_sim()
 
 	camera = GameCamera3D.new()
 	camera.look = look
 	camera.source = camera_2d
 	if camera_2d:
 		camera.bounds_m = Rect2(camera_2d.bounds.position / Units.PX_PER_METER, camera_2d.bounds.size / Units.PX_PER_METER)
-	if _stand_ins.has(player):
-		camera.target = _stand_ins[player]["root"]
+	camera.target = view_of(player)
 	add_child(camera)
 	camera.make_current()
 	camera.snap_to_target()
@@ -126,18 +132,9 @@ func hide_sim(main: CanvasItem, room: CanvasItem) -> void:
 
 
 func _physics_process(_delta: float) -> void:
-	for key: Variant in _stand_ins.keys():
-		var entry: Dictionary = _stand_ins[key]
-		var root: Node3D = entry["root"]
-		if not is_instance_valid(key):
-			root.queue_free()
-			_stand_ins.erase(key)
-			continue
-		var px: Vector2 = (key as Node2D).global_position
-		root.position = Units.to_view(px)
-		if px.distance_to(entry["last_px"]) > TELEPORT_PX:
-			root.reset_physics_interpolation()
-		entry["last_px"] = px
+	for view: Variant in _views.values():
+		if is_instance_valid(view):
+			(view as EntityView).sync()
 
 
 func _process(delta: float) -> void:
@@ -242,13 +239,13 @@ func unit_at_screen_point(screen_pos: Vector2, accept: Callable) -> Unit:
 		return null
 	var best: Unit = null
 	var best_d := INF
-	for key: Variant in _stand_ins.keys():
-		if not is_instance_valid(key):
+	for key: Variant in _views.keys():
+		if not is_instance_valid(key) or not is_instance_valid(_views[key]):
 			continue
 		var unit := key as Unit
 		if unit == null or not accept.call(unit):
 			continue
-		var rect := screen_rect_of(camera, _stand_ins[key]["root"])
+		var rect := screen_rect_of(camera, _views[key])
 		if rect.has_area() and rect.has_point(screen_pos):
 			var d := rect.get_center().distance_to(screen_pos)
 			if d < best_d:
@@ -308,56 +305,70 @@ func _collect_fading() -> void:
 			_fading.append({"geos": geos, "box": box, "fade": 1.0})
 
 
-# --- Stand-ins (P3 only) ------------------------------------------------------------
+# --- The generic view mechanism (P6) ------------------------------------------------------
+
+## Views every sim node already in the group view_source, and from now on
+## each one added (once it's ready: nodes join the group in their _ready()).
+func watch_sim() -> void:
+	if _loaded_view_scenes.is_empty():
+		for path: String in DEFAULT_VIEW_SCENES:
+			_loaded_view_scenes.append(load(path))
+	for node in get_tree().get_nodes_in_group(&"view_source"):
+		_add_view(node)
+	if not get_tree().node_added.is_connected(_on_node_added):
+		get_tree().node_added.connect(_on_node_added)
+
+
+## The view of a sim node, or null (none, or it's gone).
+func view_of(node: Node) -> EntityView:
+	if node == null or not _views.has(node):
+		return null
+	var view: Variant = _views[node]
+	return view as EntityView if is_instance_valid(view) else null
+
+
+## How tall a unit's model stands (m), for what sits over its head; 1.5 m if
+## it has no UnitView.
+func unit_height_m(node: Node) -> float:
+	var view := view_of(node) as UnitView
+	return view.model_height_m if view else 1.5
+
 
 func _on_node_added(node: Node) -> void:
-	var unit := node as Unit
-	if unit == null:
+	if not (node is Node2D) or not node.has_method(&"get_view_scene"):
 		return
-	if unit.is_node_ready():
-		_add_stand_in(unit)
+	if node.is_node_ready():
+		_add_view(node)
 	else:
-		unit.ready.connect(_add_stand_in.bind(unit), CONNECT_ONE_SHOT)
+		node.ready.connect(_add_view.bind(node), CONNECT_ONE_SHOT)
 
 
-func _add_stand_in(unit: Unit) -> void:
-	if unit == null or _stand_ins.has(unit):
+func _add_view(node: Node) -> void:
+	var sim := node as Node2D
+	if sim == null or _views.has(sim) or not sim.is_inside_tree() or not sim.is_in_group(&"view_source"):
 		return
-	var radius_px := unit.get_pathing_radius_px()
-	var body := unit.get_node_or_null("CollisionShape2D") as CollisionShape2D
-	if body and body.shape is CircleShape2D:
-		radius_px = (body.shape as CircleShape2D).radius
-	var radius := Units.px_to_m(radius_px)
-	var height := maxf(STAND_IN_PLAYER_HEIGHT_M if unit is Player else STAND_IN_ENEMY_HEIGHT_M, radius * 2.0)
-	var capsule := CapsuleMesh.new()
-	capsule.radius = radius
-	capsule.height = height
-	var material := StandardMaterial3D.new()
-	material.albedo_color = STAND_IN_PLAYER_COLOR if unit is Player else STAND_IN_ENEMY_COLOR
-	capsule.material = material
-	var mesh := MeshInstance3D.new()
-	mesh.mesh = capsule
-	mesh.position.y = height * 0.5
-	var root := Node3D.new()   # at the unit's feet
-	root.name = "StandIn_%s" % unit.name
-	root.add_child(mesh)
-	add_child(root)
-	root.position = Units.to_view(unit.global_position)
-	root.reset_physics_interpolation()
-	_stand_ins[unit] = {"root": root, "last_px": unit.global_position}
-	unit.tree_exiting.connect(_remove_stand_in.bind(unit), CONNECT_ONE_SHOT)
-
-
-func _remove_stand_in(unit: Unit) -> void:
-	if not _stand_ins.has(unit):
+	var scene: PackedScene = sim.call(&"get_view_scene")
+	var view := scene.instantiate() as EntityView if scene else null
+	if view == null:
+		push_warning("WorldView: %s's view scene has no EntityView root; no view" % sim.name)
 		return
-	(_stand_ins[unit]["root"] as Node3D).queue_free()
-	_stand_ins.erase(unit)
+	add_child(view)
+	_views[sim] = view
+	view.setup(sim, self)
+	sim.tree_exiting.connect(_on_sim_exiting.bind(sim), CONNECT_ONE_SHOT)
+
+
+func _on_sim_exiting(sim: Node) -> void:
+	var view: Variant = _views.get(sim)
+	_views.erase(sim)
+	if is_instance_valid(view):
+		(view as EntityView).on_sim_exited()
 
 
 ## The player's feet in the view, interpolated (Vector3.INF once the player
 ## is gone: the camera holds where it was).
 func _player_feet() -> Vector3:
-	if not is_instance_valid(player) or not _stand_ins.has(player):
+	var view := view_of(player)
+	if view == null or not is_instance_valid(player):
 		return Vector3.INF
-	return (_stand_ins[player]["root"] as Node3D).get_global_transform_interpolated().origin
+	return view.get_global_transform_interpolated().origin

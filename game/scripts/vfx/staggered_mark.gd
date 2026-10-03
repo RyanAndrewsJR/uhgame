@@ -5,10 +5,20 @@ extends Node2D
 
 const COLOR := Color(1.0, 0.92, 0.55, 0.9)
 
+## Its 3D look (3D.md, The generic view mechanism; it's in the group
+## view_source): the cracked ring over the unit's model. null = the default.
+var view_scene: PackedScene
+
 var _time: float = 0.0
 
 
+## The scene of its 3D view. Loaded only when a WorldView asks.
+func get_view_scene() -> PackedScene:
+	return view_scene if view_scene != null else load("res://scenes/view/staggered_mark_view.tscn")
+
+
 func _ready() -> void:
+	add_to_group(&"view_source")   # nothing happens without a WorldView
 	z_index = 95
 	var unit := get_parent() as Unit
 	if unit:

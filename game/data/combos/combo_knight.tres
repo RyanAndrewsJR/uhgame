@@ -7,6 +7,7 @@
 
 [sub_resource type="Resource" id="dash_strike"]
 script = ExtResource("2_swing")
+swing_anim = &"1H_Melee_Attack_Stab"
 duration = 0.35
 ad_ratio = 1.5
 reach_multiplier = 1.15
@@ -20,15 +21,18 @@ sound_pitch = 1.1
 
 [sub_resource type="Resource" id="swing_1"]
 script = ExtResource("2_swing")
+swing_anim = &"1H_Melee_Attack_Slice_Diagonal"
 swing_sound = ExtResource("3_swing_sound")
 
 [sub_resource type="Resource" id="swing_2"]
 script = ExtResource("2_swing")
+swing_anim = &"1H_Melee_Attack_Slice_Horizontal"
 swing_sound = ExtResource("3_swing_sound")
 sound_pitch = 1.04
 
 [sub_resource type="Resource" id="swing_3"]
 script = ExtResource("2_swing")
+swing_anim = &"1H_Melee_Attack_Chop"
 duration = 0.4
 ad_ratio = 1.6
 arc_deg = 140.0

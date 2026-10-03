@@ -20,6 +20,12 @@ extends Node3D
 ## the unit under a screen point (by its model, nearest box wins, the accept
 ## filter), and a tile room's floor pick (its walkable trimesh on layer 1, the
 ## plane through a wall cell's gap and past the room).
+## P6: the views: nothing without a WorldView; a unit's UnitView (where, the
+## placeholder capsule, the hit flash, the physics-tick follow, the facing
+## rule, the swing clip's timing, a death outliving its unit); the Knight's
+## placeholder model (hidden gear, 1.8 m, every clip the view and the data
+## name); the projectile's bolt and slab, the aura's ring, the stun stars and
+## the staggered mark over the model, each gone with its sim node.
 ## Prints PASS/FAIL per check and a total; run headless, it quits with the
 ## number of failures as the exit code.
 
@@ -50,6 +56,7 @@ func _ready() -> void:
 	_test_hide_sim()
 	_test_game_camera_3d()
 	_test_aim_on_screen()
+	await _test_views()
 	await _test_room_floor_pick()
 	await _test_floor_pick()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
@@ -443,8 +450,8 @@ func _test_aim_on_screen() -> void:
 		cam.unproject_position(WorldView.pick_plane(cam, center + Vector2(130.0, -90.0), 0.0)).distance_to(center + Vector2(130.0, -90.0)), 0.0, 0.05)
 
 	# Three slimes: A at the focus, C 0.3 m north of it (their boxes overlap on
-	# screen), B 2 m north. Their stand-ins: capsules as wide as their bodies
-	# (0.44 m radius), 1 m tall.
+	# screen), B 2 m north. Their views (UnitView, P6): placeholder capsules from
+	# their gameplay radius (0.55 m), 1.32 m tall, with a facing nub.
 	var slime_scene: PackedScene = load("res://scenes/enemies/slime.tscn")
 	var a := slime_scene.instantiate() as Unit
 	var b := slime_scene.instantiate() as Unit
@@ -453,19 +460,19 @@ func _test_aim_on_screen() -> void:
 		var u: Unit = pair[0]
 		add_child(u)
 		u.global_position = Units.to_sim(pair[1])
-		view._add_stand_in(u)
-	var root_a: Node3D = view._stand_ins[a]["root"]
+		view._add_view(u)
+	var root_a: Node3D = view.view_of(a)
 	var rect_a := WorldView.screen_rect_of(cam, root_a)
 	var k := GameCamera3D.meters_per_screen_px(cam.look, center.x * 2.0)
 	_check("A's box on screen holds its feet and its head",
 		rect_a.grow(0.01).has_point(cam.unproject_position(FOCUS)) and rect_a.grow(0.01).has_point(cam.unproject_position(FOCUS + Vector3(0.0, 1.0, 0.0))), true)
-	_check("about as wide as the capsule (0.88 m = %.1f px; a bit more for its depth): %.1f px" % [0.88 / k, rect_a.size.x],
-		rect_a.size.x >= 0.88 / k - 0.5 and rect_a.size.x <= 0.88 / k + 3.0, true)
+	_check("about as wide as the capsule (1.1 m = %.1f px; a bit more for its depth): %.1f px" % [1.1 / k, rect_a.size.x],
+		rect_a.size.x >= 1.1 / k - 0.5 and rect_a.size.x <= 1.1 / k + 3.0, true)
 	var any := func(_u: Unit) -> bool: return true
 	var mid_a := cam.unproject_position(FOCUS + Vector3(0.0, 0.5, 0.0))
 	_check("the cursor on A's body (half way up, above its feet on screen): A", view.unit_at_screen_point(mid_a, any) == a, true)
 	_check("the cursor at A's box's center, where C's box overlaps: A (the nearest box center)", view.unit_at_screen_point(rect_a.get_center(), any) == a, true)
-	var rect_c := WorldView.screen_rect_of(cam, view._stand_ins[c]["root"])
+	var rect_c := WorldView.screen_rect_of(cam, view.view_of(c))
 	_check("at C's box's center: C", view.unit_at_screen_point(rect_c.get_center(), any) == c, true)
 	_check("on B's body: B", view.unit_at_screen_point(cam.unproject_position(FOCUS + Vector3(0.0, 0.5, -2.0)), any) == b, true)
 	_check("5 m above A (above B's box too): nobody", view.unit_at_screen_point(cam.unproject_position(FOCUS + Vector3(0.0, 5.0, 0.0)), any) == null, true)
@@ -476,6 +483,173 @@ func _test_aim_on_screen() -> void:
 	bare.free()
 	for u: Unit in [a, b, c]:
 		u.free()
+	view.free()
+
+
+# --- P6: the views ------------------------------------------------------------------------------
+
+func _test_views() -> void:
+	_section("Views (P6: the mechanism, UnitView, the Knight's model, projectile, aura, status VFX)")
+	var slime_scene: PackedScene = load("res://scenes/enemies/slime.tscn")
+
+	var lone := slime_scene.instantiate() as Unit
+	add_child(lone)
+	_check("a unit is a view source (the group view_source, get_view_scene())", lone.is_in_group(&"view_source") and lone.has_method(&"get_view_scene"), true)
+	_check("without a WorldView no view is built", find_children("View_*", "", true, false).is_empty(), true)
+	lone.free()
+
+	var view := WorldView.new()
+	add_child(view)
+	view.camera = _aim_camera(view, FOCUS)
+	view.watch_sim()
+
+	# A unit's UnitView.
+	var s := slime_scene.instantiate() as Unit
+	s.position = Units.to_sim(FOCUS + Vector3(1.0, 0.0, 0.0))
+	add_child(s)
+	var sv := view.view_of(s) as UnitView
+	_check("a unit added while the WorldView watches gets a UnitView, under it, named after it",
+		sv != null and sv.get_parent() == view and String(sv.name) == "View_" + s.name, true)
+	if sv == null:
+		view.free()
+		s.free()
+		return
+	_check_near_v3("at the unit's feet, in meters", sv.position, FOCUS + Vector3(1.0, 0.0, 0.0), 0.0001)
+	var capsule := sv.find_child("Capsule", true, false) as MeshInstance3D
+	_check("no model_scene: a placeholder capsule as wide as its gameplay radius (55 u = 0.55 m)",
+		capsule != null and is_equal_approx((capsule.mesh as CapsuleMesh).radius, 0.55), true)
+	_check_near("1.32 m tall (2.4 x the radius): its model height", sv.model_height_m, 1.32, 0.0001)
+	var overlays_ok := true
+	for geo in sv.find_children("*", "GeometryInstance3D", true, false):
+		var overlay := (geo as GeometryInstance3D).material_overlay as ShaderMaterial
+		overlays_ok = overlays_ok and overlay != null and overlay.shader == UnitView.FLASH_SHADER
+	_check("every mesh carries the hit-flash overlay", overlays_ok, true)
+	s.damaged.emit(5.0, null)
+	_check_near("a hit lights the flash (its instance value)", float(capsule.get_instance_shader_parameter(&"flash")), sv.flash_strength, 0.0001)
+	s.global_position += Vector2(64.0, 32.0)
+	view._physics_process(1.0 / 60.0)
+	_check_near_v3("the physics tick moves the view after its unit (2 m east, 1 m south)", sv.position, FOCUS + Vector3(3.0, 0.0, 1.0), 0.0001)
+	_check_near_v3("a glTF model faces +z: the yaw atan2(x, y) turns +z to a facing (east here)",
+		Basis(Vector3.UP, atan2(1.0, 0.0)) * Vector3.BACK, Vector3.RIGHT, 0.0001)
+	_check_near("a swing clip at progress 0 stands at its start (0.18 of it)", UnitView.action_clip_share(0.0, 0.27, 0.18, 0.42, 0.85), 0.18, 0.0001)
+	_check_near("half way to the hit, half way to the strike", UnitView.action_clip_share(0.135, 0.27, 0.18, 0.42, 0.85), 0.30, 0.0001)
+	_check_near("at the hit (the windup's share of the swing): the strike frame", UnitView.action_clip_share(0.27, 0.27, 0.18, 0.42, 0.85), 0.42, 0.0001)
+	_check_near("at the swing's end: the clip's end (0.85)", UnitView.action_clip_share(1.0, 0.27, 0.18, 0.42, 0.85), 0.85, 0.0001)
+
+	# A death outlives its unit; a unit just removed takes its view along.
+	sv.death_linger = 0.1
+	s.died.emit(s)
+	s.free()
+	_check("a dead unit freed: its view stays for its death", is_instance_valid(sv) and sv.is_sim_gone(), true)
+	await get_tree().create_timer(0.25).timeout
+	_check("then goes (death_linger)", is_instance_valid(sv), false)
+	var s2 := slime_scene.instantiate() as Unit
+	s2.position = Units.to_sim(FOCUS)
+	add_child(s2)
+	var gone := view.view_of(s2)
+	remove_child(s2)
+	s2.free()
+	await get_tree().process_frame
+	_check("a living unit removed: its view goes at once", is_instance_valid(gone), false)
+
+	# The Knight's placeholder model (3D.md, Data, Models).
+	var knight_data: ChampionData = load("res://data/champions/knight.tres")
+	_check("the Knight's ChampionData points at the placeholder model",
+		knight_data.model_scene != null and knight_data.model_scene.resource_path == "res://art/models/placeholder/kaykit_knight/kaykit_knight.tscn", true)
+	var model := knight_data.model_scene.instantiate() as Node3D
+	add_child(model)
+	var hidden_ok := true
+	for gear: String in ["1H_Sword_Offhand", "Rectangle_Shield", "Round_Shield", "Spike_Shield", "2H_Sword"]:
+		var n := model.find_child(gear, true, false) as Node3D
+		hidden_ok = hidden_ok and n != null and not n.visible
+	_check("its spare weapons and three of four shields are hidden", hidden_ok, true)
+	_check("it keeps its sword and its badge shield",
+		(model.find_child("1H_Sword", true, false) as Node3D).visible and (model.find_child("Badge_Shield", true, false) as Node3D).visible, true)
+	var anim := model.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	anim.play(&"Idle")
+	anim.seek(0.0, true)
+	await get_tree().process_frame
+	var helmet := model.find_child("Knight_Helmet", true, false) as MeshInstance3D
+	_check_near("it's 1.8 m tall (its helmet's top, standing idle)", (helmet.global_transform * helmet.get_aabb()).end.y, 1.8, 0.02)
+	var defaults := UnitView.new()
+	var role_clips: Array[StringName] = [defaults.idle_clip, defaults.run_clip, defaults.dash_clip, defaults.hit_clip, defaults.stun_clip, defaults.death_clip]
+	defaults.free()
+	var data_clips: Array[StringName] = []
+	for a: String in ["knight_q_cleave", "knight_q_cleave_wave", "knight_w_iron_resolve", "knight_e_lunge", "knight_r_judgement"]:
+		data_clips.append((load("res://data/abilities/%s.tres" % a) as Ability).cast_anim)
+	var combo: AttackCombo = load("res://data/combos/combo_knight.tres")
+	for swing in combo.swings:
+		data_clips.append(swing.swing_anim)
+	data_clips.append(combo.dash_strike.swing_anim)
+	var missing: Array[StringName] = []
+	for clip in role_clips + data_clips:
+		if not anim.has_animation(clip):
+			missing.append(clip)
+	_check("it has every clip UnitView's roles and the Knight's hooks name (missing: %s)" % [missing], missing.is_empty(), true)
+	model.free()
+
+	# A projectile's bolt.
+	var lunge: Ability = load("res://data/abilities/knight_e_lunge.tres")
+	var bolt := Projectile.new()
+	bolt.ability = lunge
+	bolt.direction = Vector2.RIGHT
+	bolt.half_width_px = 4.0
+	bolt.process_mode = Node.PROCESS_MODE_DISABLED   # no caster: it only has to be seen
+	bolt.position = Units.to_sim(FOCUS)
+	add_child(bolt)
+	var bv := view.view_of(bolt)
+	_check("a projectile gets its bolt", bv != null and bv.find_child("Bolt", true, false) != null, true)
+	if bv:
+		_check_near("at chest height (0.9 m)", bv.position.y, 0.9, 0.0001)
+		_check_near("turned along its flight (east: yaw 90°)", rad_to_deg(bv.rotation.y), 90.0, 0.01)
+		var bolt_mesh := bv.find_child("Bolt", true, false) as MeshInstance3D
+		_check("tinted by its ability's icon_color", (bolt_mesh.material_override as StandardMaterial3D).albedo_color.is_equal_approx(lunge.icon_color), true)
+	var wave := Projectile.new()
+	wave.ability = lunge
+	wave.direction = Vector2.DOWN
+	wave.half_width_px = 32.0
+	wave.process_mode = Node.PROCESS_MODE_DISABLED
+	add_child(wave)
+	var wv := view.view_of(wave)
+	var slab := wv.find_child("Bolt", true, false) as MeshInstance3D if wv else null
+	_check("a wide one (a wave, 1 m half width) is a slab 2 m across its path",
+		slab != null and slab.mesh is BoxMesh and is_equal_approx((slab.mesh as BoxMesh).size.x, 2.0), true)
+	bolt.free()
+	_check("a projectile gone: its view stays for the impact flash", is_instance_valid(bv), true)
+	wave.free()
+
+	# An aura and the status VFX, on a unit with a view.
+	var host := slime_scene.instantiate() as Unit
+	host.position = Units.to_sim(FOCUS)
+	add_child(host)
+	var host_view := view.view_of(host) as UnitView
+	VFX.aura(host, Color(1.0, 0.78, 0.3), func() -> bool: return true, 10.0)
+	var aura := host.get_child(host.get_child_count() - 1)
+	var av := view.view_of(aura)
+	_check("an aura gets its ring", av != null and av.find_child("Ring", true, false) != null, true)
+	if av:
+		var torus := (av.find_child("Ring", true, false) as MeshInstance3D).mesh as TorusMesh
+		_check_near("as wide as the 2D ring (0.8 x the gameplay radius: 0.44 m)", (torus.inner_radius + torus.outer_radius) * 0.5, 0.44, 0.0001)
+		_check_near_v3("on the floor under the unit", av.position, FOCUS, 0.0001)
+	await get_tree().process_frame   # the aura moves itself behind the body, deferred
+	aura.free()
+	await get_tree().process_frame
+	_check("the aura gone: its ring goes", is_instance_valid(av), false)
+
+	host.status_component.apply_status(load("res://data/statuses/status_stun.tres"), null, 5.0)
+	var stars_node := host.find_child("StunStars", true, false)
+	var stars := view.view_of(stars_node)
+	_check("a stun's stars get their view", stars != null, true)
+	if stars:
+		_check_near("over the unit's model (its 1.32 m, + 0.2 m)", stars.position.y, host_view.model_height_m + 0.2, 0.0001)
+		_check_near("above its feet, not where the 2D stars are drawn (north of it)", Vector2(stars.position.x, stars.position.z).distance_to(Vector2(FOCUS.x, FOCUS.z)), 0.0, 0.0001)
+	host.status_component.apply_status(load("res://data/statuses/status_staggered.tres"), null, 5.0)
+	var mark := view.view_of(host.find_child("StaggeredMark", true, false))
+	_check("Staggered's mark gets its view, over the model (+ 0.3 m)", mark != null and is_equal_approx(mark.position.y, host_view.model_height_m + 0.3), true)
+	host.status_component.clear()
+	await get_tree().process_frame
+	_check("the statuses gone: their views go", is_instance_valid(stars) or is_instance_valid(mark), false)
+	host.free()
 	view.free()
 
 

@@ -5,6 +5,7 @@
 
 [resource]
 script = ExtResource("1_script")
+cast_anim = &"Block"
 cast_sound = ExtResource("s1_cast_sound")
 id = &"knight_iron_resolve"
 supported_flags = Array[StringName]([&"iron_resolve_challenge", &"iron_resolve_bulwark"])

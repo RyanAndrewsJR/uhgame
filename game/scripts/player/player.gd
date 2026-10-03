@@ -136,6 +136,7 @@ func _apply_champion() -> void:
 	hurt_sound = champion.hurt_sound
 	death_sound = champion.death_sound
 	low_health_sound = champion.low_health_sound
+	model_scene = champion.model_scene   # the 3D view's model (3D.md)
 	if resource_pool == null:
 		return
 	if champion.resource_type == ResourceComponent.ResourceType.NONE:

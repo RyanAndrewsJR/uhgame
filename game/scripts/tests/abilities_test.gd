@@ -4381,17 +4381,28 @@ func _test_ab14_telegraph() -> void:
 
 func _test_ab14_hooks_empty() -> void:
 	_section("AB14: presentation hooks empty: nothing happens")
+	# Since 3D pivot P6 (Ryan, 2026-10-03) the Knight's clip hooks name his
+	# placeholder model's clips (KayKit's; 3D.md, Animation). The 2D units have
+	# no AnimationPlayer, so the 2D game plays nothing for them. The VFX hooks
+	# stay empty until the art pass.
 	var empty := true
 	for a: Ability in [CLEAVE, IRON_RESOLVE, LUNGE, JUDGEMENT, SLAM, CLEAVE_WAVE, VECTOR_WALL]:
-		empty = empty and a.cast_vfx == null and a.impact_vfx == null and a.cast_anim == &""
-	_check("no ability in the data fills a hook yet (the art pass will)", empty, true)
+		empty = empty and a.cast_vfx == null and a.impact_vfx == null
+	_check("no ability in the data fills a VFX hook yet (the art pass will)", empty, true)
+	_check("the Knight's cast_anims name his placeholder model's clips; the slam's and the vector wall's stay empty",
+		[CLEAVE.cast_anim, IRON_RESOLVE.cast_anim, LUNGE.cast_anim, JUDGEMENT.cast_anim, CLEAVE_WAVE.cast_anim, SLAM.cast_anim, VECTOR_WALL.cast_anim],
+		[&"1H_Melee_Attack_Slice_Horizontal", &"Block", &"1H_Melee_Attack_Stab", &"1H_Melee_Attack_Chop", &"1H_Melee_Attack_Slice_Horizontal", &"", &""])
 	var swings: Array[AttackSwing] = []
 	swings.append_array(COMBO_KNIGHT.swings)
 	swings.append(COMBO_KNIGHT.dash_strike)
 	var swings_empty := true
+	var swing_anims: Array[StringName] = []
 	for s in swings:
-		swings_empty = swings_empty and s.swing_vfx == null and s.impact_vfx == null and s.swing_anim == &""
-	_check("nor any swing of the Knight's combo (the dash-strike included)", swings_empty, true)
+		swings_empty = swings_empty and s.swing_vfx == null and s.impact_vfx == null
+		swing_anims.append(s.swing_anim)
+	_check("nor any VFX hook of the Knight's combo (the dash-strike included)", swings_empty, true)
+	_check("its swing_anims name the placeholder's clips (swings 1-3, the dash-strike)", swing_anims,
+		[&"1H_Melee_Attack_Slice_Diagonal", &"1H_Melee_Attack_Slice_Horizontal", &"1H_Melee_Attack_Chop", &"1H_Melee_Attack_Stab"] as Array[StringName])
 	await _reset_knight()
 	var dummy := _dummy_at(Vector2(60, 0))
 	_check("play_cast_vfx() and play_impact_vfx() with empty hooks: nothing",

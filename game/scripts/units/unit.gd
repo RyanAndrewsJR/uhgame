@@ -39,6 +39,16 @@ const HIT_IFRAMES_ID := &"hit_iframes"
 ## When this unit dies (per enemy scene). Enemy deaths can merge into a pack burst.
 @export var death_sound: SoundEvent
 
+@export_group("View")
+## The rigged 3D model the view shows (3D.md, Data, Models). null = a
+## placeholder capsule sized from gameplay_radius. The Player takes its
+## champion's at load (ChampionData.model_scene).
+@export var model_scene: PackedScene
+## The 3D view WorldView builds for this unit (3D.md, The generic view
+## mechanism: the unit is in the group view_source). null = UnitView's scene.
+## Nothing is built without a WorldView (the 2D game, every test).
+@export var view_scene: PackedScene
+
 @onready var stats_component: StatsComponent = $StatsComponent
 @onready var health: HealthComponent = $HealthComponent
 @onready var attack: AutoAttackComponent = $AutoAttackComponent
@@ -73,6 +83,7 @@ var _stat_scalings_dirty: bool = false
 
 func _ready() -> void:
 	add_to_group("units")
+	add_to_group(&"view_source")   # its 3D look (3D.md); nothing happens without a WorldView
 	assert(stats != null, "%s has no UnitStats assigned" % name)
 	stats_component.setup(stats, movement)
 	health.set_stats_component(stats_component)
@@ -92,6 +103,12 @@ func _ready() -> void:
 
 func is_alive() -> bool:
 	return _alive
+
+
+## The scene of this unit's 3D view (view_scene, or UnitView's). Loaded only
+## when a WorldView asks, so the 2D game and the tests never load views.
+func get_view_scene() -> PackedScene:
+	return view_scene if view_scene != null else load("res://scenes/view/unit_view.tscn")
 
 
 ## While any invulnerability id is held, every hit is blocked (on_hit():

@@ -108,7 +108,12 @@ The loop: **hub → pick a champion → set their talents → run a dungeon → 
 
 ## Meta-progression (account level)
 What the player earns across all champions, beyond each champion's own progress. Its job: make players want to take every champion through the dungeons (Open questions, 4).
-- **The rule (Ryan, 2026-10-02):** no power is shared between champions. Account-level rewards never make any champion stronger in combat; this is the same rule as "progress on one champion never makes another stronger" (Game structure).
+- **The rule (Ryan, 2026-10-02):** no power is shared between champions. Account-level rewards never make any champion stronger in combat; this is the same rule as "progress on one champion never makes another stronger" (Game structure). It has exactly one exception, companions (below).
+- **The one exception: companions** (Ryan, 2026-10-02; COMPANIONS.md; DECISIONS.md, Game structure). Companions are account-wide collectibles, and the companion a champion takes along gives that champion its passives, quirks and command, whichever champion it is. The exception is narrow:
+  - the power comes only from the one companion taken along on a run, through its own passives, quirks and command; owning more companions, the size of the collection and spare companion materials give none;
+  - companion materials are account-wide but spent only on companions, never on gear or anything a champion owns;
+  - a companion never changes a champion's abilities or passive;
+  - **no other account-level reward may grant combat power** (achievements, mastery, collections, hub growth, difficulty unlocks, anything PROGRESSION.md picks).
 - **Allowed rewards:** cosmetic, informational, convenience, story and difficulty.
 - **Candidates** (none decided; PROGRESSION.md picks):
   - statistics pages, per champion and for the account;

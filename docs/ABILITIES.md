@@ -197,7 +197,7 @@ Recast conditions: (per the next part) + custom check, if any
 Conditional bonuses: {conditions → param changes, statuses on targets, statuses on self}, checked at cast / hit
 Named scaling inputs: which params scale by which input (charge, self_missing_health, target_missing_health, target_distance, vector_drag, script-set), min fraction, curve
 Heal on hit: heal_on_hit_ratio (× damage taken by each enemy hit, CHAMPIONS CH5) or heal_missing_health_ratio (× the caster's missing health, once per cast, CH5b), its named-input scaling (input, curve)
-Presentation hooks: cast_vfx, impact_vfx, cast_anim (AB14; empty until the art pass)
+Presentation hooks: cast_vfx, impact_vfx, cast_anim (AB14; the VFX hooks empty until the art pass; since 3D pivot P6 the Knight's cast_anim names his placeholder model's clips, 3D.md, Animation)
 What it does, step by step:
 Supported augment flags:
 Sounds (AUDIO.md): cast_sound, hit_sound, telegraph_sound, ready_sound, charge_sound

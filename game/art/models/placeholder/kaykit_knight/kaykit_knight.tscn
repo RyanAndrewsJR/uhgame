@@ -1,0 +1,21 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" uid="uid://bfqxctvedlk1n" path="res://art/models/placeholder/kaykit_knight/Knight.glb" id="1_knight"]
+
+[node name="KaykitKnight" instance=ExtResource("1_knight")]
+transform = Transform3D(0.7338, 0, 0, 0, 0.7338, 0, 0, 0, 0.7338, 0, 0, 0)
+
+[node name="1H_Sword_Offhand" parent="Rig/Skeleton3D/handslot_l" index="0"]
+visible = false
+
+[node name="Rectangle_Shield" parent="Rig/Skeleton3D/handslot_l" index="2"]
+visible = false
+
+[node name="Round_Shield" parent="Rig/Skeleton3D/handslot_l" index="3"]
+visible = false
+
+[node name="Spike_Shield" parent="Rig/Skeleton3D/handslot_l" index="4"]
+visible = false
+
+[node name="2H_Sword" parent="Rig/Skeleton3D/handslot_r" index="1"]
+visible = false

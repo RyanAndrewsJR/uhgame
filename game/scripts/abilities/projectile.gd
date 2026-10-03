@@ -22,6 +22,10 @@ const WALL_RADIUS_PX := 2.0
 const DRAW_HEIGHT_PX := 10.0
 
 @export var debug_draw: bool = false
+## Its 3D look (3D.md, The generic view mechanism; the projectile is in the
+## group view_source). null = the default bolt, tinted by the ability's
+## icon_color.
+@export var view_scene: PackedScene
 
 var caster: Unit
 var ability: Ability
@@ -78,6 +82,16 @@ func _setup(p_caster: Unit, p_ability: Ability, p_cast: CastContext, origin: Vec
 	position = origin
 	_last_from = origin
 	_last_to = origin
+
+
+func _ready() -> void:
+	add_to_group(&"view_source")   # its 3D look (3D.md); nothing happens without a WorldView
+
+
+## The scene of its 3D view (view_scene, or the default bolt). Loaded only when
+## a WorldView asks.
+func get_view_scene() -> PackedScene:
+	return view_scene if view_scene != null else load("res://scenes/view/projectile_view.tscn")
 
 
 func _physics_process(delta: float) -> void:

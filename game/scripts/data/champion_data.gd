@@ -66,6 +66,11 @@ extends Resource
 @export var death_sound: SoundEvent
 @export var low_health_sound: SoundEvent
 
+@export_group("View")
+## The champion's rigged 3D model (3D.md, Data, Models); the Player takes it
+## at load (Unit.model_scene). null = a placeholder capsule.
+@export var model_scene: PackedScene
+
 @export_group("Champion level")
 ## The champion's own persistent level (VISION.md, Game structure). Only ever
 ## gates talent points (TALENTS.md); never touches combat stats. Since TALENTS

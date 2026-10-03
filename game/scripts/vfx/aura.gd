@@ -9,14 +9,29 @@ var is_active: Callable
 var max_time: float = 10.0
 var radius: float = 16.0
 
+## Its 3D look (3D.md, The generic view mechanism; the aura is in the group
+## view_source): a pulsing ring on the floor. null = the default.
+var view_scene: PackedScene
+
 var _t: float = 0.0
 
 
 func _ready() -> void:
+	add_to_group(&"view_source")   # nothing happens without a WorldView
 	var unit := get_parent() as Unit
 	if unit:
 		radius = unit.get_gameplay_radius_px() * 0.8
 		unit.move_child.call_deferred(self, 0)   # behind the Body, above the floor
+
+
+## The scene of its 3D view. Loaded only when a WorldView asks.
+func get_view_scene() -> PackedScene:
+	return view_scene if view_scene != null else load("res://scenes/view/aura_view.tscn")
+
+
+## Its age in seconds, for the 3D view's pulse.
+func get_age() -> float:
+	return _t
 
 
 func _process(delta: float) -> void:

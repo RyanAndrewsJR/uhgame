@@ -11,7 +11,80 @@
 
 ## 3D pivot (3D_PIVOT.md)
 
-### P5 – aim: 2026-10-02, Built (awaiting Ryan's check)
+### P6 – views: 2026-10-03, Built (awaiting Ryan's check)
+Built from 3D.md, with Ryan's answer at the start: the Knight's clip hooks name his model's clips (DECISIONS.md, 3D view). Played from `scenes/sandbox_main_3d.tscn`.
+- **The Knight's placeholder model** (approved P1):
+  - `art/models/placeholder/kaykit_knight/`: `Knight.glb`, its texture and `LICENSE.txt`, copied from branch `spike/3d-p0b` (no new download).
+  - `kaykit_knight.tscn`: an inherited scene scaled 0.7338, so the helmet's top in Idle is at 1.8 m (2.453 model units, measured). The spare weapons and three of the four shields are hidden; the sword and the badge shield stay, as in P0b.
+  - New `res://CREDITS.md`: KayKit's CC0 entry, and the note that placeholders won't match the hand-painted style.
+- **Sim side** (additive):
+  - `Unit`: `model_scene`, `view_scene` (export group View), the group `view_source` in `_ready()`, `get_view_scene()`.
+  - `ChampionData.model_scene`; `Player._apply_champion()` copies it. `data/champions/knight.tres` points at `kaykit_knight.tscn`.
+  - `Projectile`, `aura.gd`, `stun_stars.gd`, `staggered_mark.gd`: `view_scene`, the group, `get_view_scene()`; `aura.gd` also `get_age()`.
+  - Each loads its default view scene only when asked.
+- **Data (presentation only):**
+  - `combo_knight.tres` swings 1–3 and the dash strike: `swing_anim` = `1H_Melee_Attack_Slice_Diagonal` / `_Slice_Horizontal` / `_Chop` / `_Stab`.
+  - `cast_anim`: Cleave and Cleave Wave `_Slice_Horizontal`, Iron Resolve `Block`, Lunge `_Stab`, Judgement `_Chop`.
+- **View side** (new):
+  - `EntityView` (`scripts/view/entity_view.gd`): `setup()`, `sync()` with the teleport snap, `get_height_m()`, `on_sim_exited()`, `_sim_position_px()`.
+  - `UnitView` (`unit_view.gd`, `scenes/view/unit_view.tscn`):
+    - the model or a placeholder capsule;
+    - turning at 20/s;
+    - the base clips by role;
+    - swing and cast clips by interpolated progress;
+    - the flash overlay (`flash_overlay.gdshader`);
+    - death outliving the unit (`death_linger` 1.6 s);
+    - the i-frame blink;
+    - pooled dash afterimages;
+    - placeholder squash and stretch.
+  - The projectile view (a bolt at 0.9 m tinted by `icon_color`; a slab for waves 0.5 m+ wide; an impact flash), the aura view (a floor ring), the stun stars view and the staggered mark view, each with its scene in `scenes/view/`.
+- **`scripts/view/world_view.gd`:**
+  - The generic mechanism replaces P3's stand-in capsules: `watch_sim()`, `view_of()`, `unit_height_m()`, `_add_view()`.
+  - Views sync in its physics tick.
+  - The camera follows the player's UnitView, and the fade and the on-screen pick use the views.
+  - The default view scenes are loaded at start.
+- **Tests:**
+  - **abilities_test** (approved): the two "hooks empty" checks became four (VFX hooks empty; the clip hooks name the clips above): 565.
+  - **view_test**: 167 checks (37 new), and the P5 on-screen checks now run on UnitViews.
+    - Nothing without a WorldView.
+    - A unit's view: where it is, the 0.55 m by 1.32 m capsule, the flash overlay and value, the physics-tick follow, the facing rule, the swing-clip timing (start, half way, strike at the windup's share, end).
+    - A dead unit's view outlives it then goes; a removed one goes at once.
+    - The Knight's model: the data points at it, gear hidden and kept, 1.8 m tall, every role and hook clip exists.
+    - The bolt: height, yaw, tint; a wave's slab; it stays for its impact.
+    - The aura's ring: size, place, gone with it. The stars and the mark over the model, gone with the statuses.
+- **Found while building:**
+  - The five `cast_anim` lines first read empty: inserted before the `.tres`'s `script =` line, they landed on a plain Resource and were dropped silently. Into 3D.md, Engine facts.
+  - Baking the skinned Knight's pose for each afterimage cost up to 40 ms a dash (and fails headless), so afterimages use pooled model copies posed by their own AnimationPlayer.
+  - Each new view scene's first load cost 19–24 ms on the frame its first stun, aura or mark appeared, so WorldView loads them at start.
+  - A `--script` harness must not use project class names as types: it compiles before the autoloads exist.
+- **Measured** (windowed, from scratch harnesses with saving off; real time between frames, no screenshots, since a screenshot alone stalls a frame by about 45 ms). Timeline: idle, run, the 3-swing combo, a dash, Judgement on a dummy, Iron Resolve, Lunge, Cleave, a second dash, a dummy Staggered.
+
+  | | 3D view | 2D game, same timeline |
+  |---|---|---|
+  | Median frame | 5.5–5.6 ms (180 Hz) | 5.5 ms |
+  | 95th percentile | 6.5–6.7 ms | 6.2–6.3 ms |
+  | First dash | 10.4 ms | 10.1–10.4 ms |
+  | Second dash | at most 7.1–7.5 ms | |
+  | Judgement's stun (first stars) | 12.5–13 ms | 8.3 ms |
+  | Iron Resolve (first aura) | 8–8.7 ms | 7.2–7.4 ms |
+
+  - So the view adds about 4–5 ms only to the first stun's frame (its first stars) and about 1 ms to the first aura. Before loading the view scenes at start, those were 24 and 22 ms. Before the afterimage pool, a dash's frames reached 27–47 ms.
+  - The scripted walk: every unit identical in 2D and 3D until the dash (frame 644).
+  - Screenshots:
+    - the Knight idle, running and mid-swing (the strike poses);
+    - the blue afterimages in the dodge pose;
+    - Iron Resolve's ring at his feet;
+    - Judgement: the walk into range, then the white hit flash and the stars over the dummy;
+    - the cracked ring over a Staggered dummy;
+    - green slimes with facing nubs, the purple elite.
+- **Tests:** stats 179, combat 460, abilities 565, audio 110, champions 168, talents 308, view 167: **1,957/1,957**, all seven suites in parallel. `settings.cfg` and `progress.cfg` were unchanged by every run (hashed again after Ryan's P5 play, which saved progress at 23:49).
+- **Not in P6:**
+  - the floor drawings, damage numbers, health bars and the hover ring (P7);
+  - `VFX.spawn_scene()` for 3D scenes (P7);
+  - the VECTOR test wall's line and the 2D VFX polygons (dust puffs, swing arcs: P7 or the art pass);
+  - height (P9).
+
+### P5 – aim: 2026-10-02, Passed (Ryan's check)
 Built from 3D.md. Played from `scenes/sandbox_main_3d.tscn`.
 - **`scripts/player/player.gd`** (the approved replace, 2026-10-01): the 10 direct `get_global_mouse_position()` calls now call `get_aim_point()`. `get_aim_point()` and `_enemy_under_mouse()` get a view branch; with no view they're exactly as before.
   - New `var world_view: WorldView`, set by `WorldView.setup()`; null in the 2D game and every test.

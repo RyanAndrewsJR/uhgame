@@ -18,6 +18,7 @@ description = "Staggers enemies hit for 2s."
 
 [resource]
 script = ExtResource("1_script")
+cast_anim = &"1H_Melee_Attack_Stab"
 dash_curve = ExtResource("2_curve")
 id = &"knight_lunge"
 tags = Array[StringName]([&"movement", &"mobility", &"dash"])
