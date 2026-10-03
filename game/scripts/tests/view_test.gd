@@ -54,7 +54,9 @@ extends Node3D
 ## collider; ledges stop walking and the dash, not projectiles or sight; a
 ## path to the top of a plateau with no way up ends below it (Judgement's
 ## walk into range); a knock-up carries a unit over a fence and a ledge,
-## walls still stop it, and it lands back out of a fence; the perch gives
+## walls still stop it, and it lands back out of a fence; on the 3D sandbox's
+## stairs and ramp, a landing off their middle is nudged onto them, not sent
+## back along its push (the P9 fix); the perch gives
 ## elevated by the unit's feet; under the view, the ground's height under the
 ## floor, the top and the ramp, a unit's view standing on the plateau, the
 ## knock-up's arc, the floor drawings' window covering lower floor; the 3D
@@ -105,6 +107,7 @@ func _ready() -> void:
 	_test_airborne_status()
 	await _test_ledges()
 	await _test_airborne_moves()
+	await _test_landing_off_center()
 	await _test_perch()
 	await _test_terrain_in_view()
 	_test_terrain_sandbox()
@@ -1763,14 +1766,25 @@ func _test_ledges() -> void:
 	holder.free()
 
 	# Judgement's walk into range (ABILITIES, UNIT targeting): it follows a path,
-	# and a plateau with no way up is an island of the navmesh.
+	# and a plateau with no way up is an island of the navmesh. On a map of its
+	# own: maps sync asynchronously, so under load the shared map can still hold
+	# the last fixture's region (its ramp leads up) for a few frames.
 	var island := await _terrain_room(_terrain_layout(false))
 	var island_room := island.get_child(0) as Room
-	await get_tree().physics_frame
-	var path := NavigationServer2D.map_get_path(island_room.nav_region.get_navigation_map(), _px(1.0, 3.5), _px(3.5, 3.5), true)
-	_check("a path to the top of a plateau with no way up ends at its foot, within 2 m, not on the island (what Judgement's walk into range follows)",
-		path.size() > 0 and not Rect2(2.0, 2.0, 3.0, 3.0).has_point(Vector2(Units.px_to_m(path[path.size() - 1].x), Units.px_to_m(path[path.size() - 1].y))) and Units.px_to_m(path[path.size() - 1].distance_to(_px(3.5, 3.5))) < 2.0, true)
+	var map := NavigationServer2D.map_create()
+	NavigationServer2D.map_set_cell_size(map, island_room.nav_region.navigation_polygon.cell_size)
+	NavigationServer2D.map_set_active(map, true)
+	island_room.nav_region.set_navigation_map(map)
+	for i in 120:
+		await get_tree().physics_frame
+		if NavigationServer2D.map_get_iteration_id(map) > 0:
+			break
+	var path := NavigationServer2D.map_get_path(map, _px(1.0, 3.5), _px(3.5, 3.5), true)
+	var path_end := Vector2(Units.px_to_m(path[path.size() - 1].x), Units.px_to_m(path[path.size() - 1].y)) if path.size() > 0 else Vector2.INF
+	_check("a path to the top of a plateau with no way up ends at its foot, within 2 m, not on the island (what Judgement's walk into range follows), at %s" % path_end,
+		path.size() > 0 and not Rect2(2.0, 2.0, 3.0, 3.0).has_point(path_end) and path_end.distance_to(Vector2(3.5, 3.5)) < 2.0, true)
 	island.free()
+	NavigationServer2D.free_rid(map)
 
 
 func _test_airborne_moves() -> void:
@@ -1803,6 +1817,52 @@ func _test_airborne_moves() -> void:
 	var landed: Vector2 = await push.call(_px(2.5, 7.3), Vector2(0.0, -28.0), true)
 	_check("a knock-up that would land inside the fence lands back out of it, on the side it came from",
 		WorldQuery.is_point_free(landed, 11.0, 64) and Units.px_to_m(landed.y) > 6.6, true)
+	holder.free()
+
+
+## Ryan's P9 check (2026-10-03): a unit knocked onto the stairs or the ramp
+## was sent back to where its push started. Their side ledges leave a 14 px
+## slime's center a band 0.6 m wide; a landing outside it went back along the
+## whole push line. Now the shortest move out (WorldQuery.push_out()).
+func _test_landing_off_center() -> void:
+	_section("A knock-up landing on stairs and a ramp (P9 fix; 3D.md, Airborne)")
+	var sandbox := (load("res://scenes/rooms/sandbox_3d.tscn") as PackedScene).instantiate() as RoomLayout
+	sandbox.get_node("Markers").free()   # the terrain alone: no units, no perch
+	for helper in ["SandboxReactions", "SandboxAbilities", "SandboxAugments", "SandboxTalents"]:
+		sandbox.get_node(helper).free()
+	var holder := await _terrain_room(sandbox)
+	var room := holder.get_child(0) as Room
+	var slime := (load("res://scenes/enemies/slime.tscn") as PackedScene).instantiate() as Unit
+	slime.set(&"passive", true)
+	room.get_node("Entities").add_child(slime)
+	var knock := func(at_m: Vector2, by_m: Vector2) -> Vector2:
+		slime.status_component.remove_status(&"airborne")
+		_place(slime, _px(at_m.x, at_m.y))
+		await get_tree().physics_frame
+		slime.status_component.apply_status(AIRBORNE_STATUS, null, 1.0)
+		slime.movement.displace(_px(by_m.x, by_m.y) / 0.25, 0.25)
+		for i in 25:
+			await get_tree().physics_frame
+		return Vector2(Units.px_to_m(slime.global_position.x), Units.px_to_m(slime.global_position.y))
+	var free_there := func(at_m: Vector2) -> bool:
+		return WorldQuery.is_point_free(_px(at_m.x, at_m.y), 14.0, MovementComponent.LANDING_BLOCKING_MASK)
+	var stairs: Vector2 = await knock.call(Vector2(12.75, 4.5), Vector2(-0.33, 1.97))
+	_check("knocked off the plateau onto the stairs a little west of their middle: it stays on the stairs, nudged sideways off their side's ledge (was: back up near its start), at %s" % stairs,
+		stairs.y > 6.4 and stairs.x > 12.6 and stairs.x < 12.8 and free_there.call(stairs), true)
+	var ramp: Vector2 = await knock.call(Vector2(15.8, 2.65), Vector2(2.0, 0.0))
+	_check("onto the ramp a little north of its middle: on the ramp, moved a few px (was: back to its start), at %s" % ramp,
+		ramp.x > 17.6 and ramp.y > 2.65 and ramp.y < 2.8 and free_there.call(ramp), true)
+	var strip: Vector2 = await knock.call(Vector2(12.75, 4.5), Vector2(-0.6, 1.91))
+	_check("its center inside the stairs' side ledge: it comes out onto the stairs, the side it came from, at %s" % strip,
+		strip.y > 6.3 and strip.x > 12.65 and strip.x < 12.8 and free_there.call(strip), true)
+	var rim_top: Vector2 = await knock.call(Vector2(15.0, 2.9), Vector2(0.0, 2.0))
+	_check("pushed from the plateau's middle to its rim (center in the ledge): back on top, just inside it, at %s" % rim_top,
+		rim_top.y > 4.0 and rim_top.y < 4.75 and free_there.call(rim_top), true)
+	var rim_below: Vector2 = await knock.call(Vector2(15.0, 6.9), Vector2(0.0, -2.0))
+	_check("pushed from below to the same rim: back below, at %s" % rim_below,
+		rim_below.y > 5.0 and rim_below.y < 6.0 and free_there.call(rim_below), true)
+	var off: Vector2 = await knock.call(Vector2(15.0, 4.3), Vector2(0.0, 2.0))
+	_check_near("from the plateau's edge it still goes off the cliff, the full 2 m", off.y, 6.3, 0.02)
 	holder.free()
 
 

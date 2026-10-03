@@ -3,7 +3,7 @@
 
 **Read when:** the task involves the AI ally (a second champion fighting beside the player), the controller abstraction (player input, an enemy brain or an ally brain driving a Unit), teams and targeting a teammate, how enemies pick between two champions (stickiness, threat, taunt, stealth), downed and revive, party scaling, the ally's gear, talents and XP, an ability's AI (`get_ai_plan()`), stances, the ally's HUD, or picking an ally at the hub.
 **Depends on:** CLAUDE.md, VISION.md (Game structure, Meta-progression, Player fantasy), CONVENTIONS.md, STATS.md (StatModifier, scopes), ABILITIES.md (AbilityComponent, the cast flow, `get_ai_vector()`, untargetable, augments), COMBAT.md (`Unit.on_hit()`, statuses, invulnerability, damage numbers), CHAMPIONS.md (ChampionData, loading a champion), TALENTS.md (`Progress`, `ChampionProgress`, `ChampionLeveling`, the loadout rules, counters), LOOT.md (inventories, `EquipmentComponent`, drops, named items), MOVEMENT.md (the input map, PlayerInput, the dash), 3D.md (views, the screen pick, floor drawings), COMPANIONS.md (companions don't count for party scaling), ENEMIES_AI.md (Tier B: shared perception, movement and target picks; not written yet).
-**Used by:** ENEMIES_AI (the target-pick rules with two champions, the controller contract, party scaling at spawn), DUNGEONS (checkpoints revive everyone, a wipe, room changes), UI (the hub's two-champion pick, the ally HUD, lending gear), NARRATIVE (pair banter), PROGRESSION (one save), every later champion (ally-aware kits, an AI method per ability), AUDIO (hooks).
+**Used by:** ENEMIES_AI (the target-pick rules with two champions, the controller contract, party scaling at spawn), DUNGEONS (checkpoints revive everyone, a wipe, floor changes, party scaling with difficulty tiers, pair recommendations), UI (the hub's two-champion pick, the ally HUD, lending gear), NARRATIVE (pair banter), PROGRESSION (one save), every later champion (ally-aware kits, an AI method per ability), AUDIO (hooks).
 **Status:** interview done 2026-10-03. Ryan's idea and his decisions (2026-10-03) and his interview answers (the same day) are MUST. Items marked *(proposed)* are Claude's picks Ryan hasn't answered; each is also in Open questions. Nothing is built. **Order of work:** Ryan builds one more champion (ranged/support, mana, a heal or shield on another unit; the ally-target pieces come with it) → ENEMIES_AI Tier B → ALLIES AL1–AL7 → milestone AL-M → an optimization and cleanup pass over all AI. Companions are a separate system, later.
 
 ## How to read this doc
@@ -114,6 +114,12 @@ Enemies **target the nearest party member unless something overrides it**. With 
 - Per extra champion: regular enemies `max_health` PERCENT_MULT +0.6, elites and bosses +0.8, every enemy `outgoing_damage` PERCENT_MULT +0.15, all under the source `&"party_scaling"`. They're applied when the enemy spawns, so they never heal or refill anything mid-fight.
 - **Party size is the number of champions who started the run** *(proposed)*: a downed ally still counts. Companions never count (Ryan).
 - Which enemies are elites or bosses: their tier from ENEMIES_AI.md. Depth scaling (STATS.md's proposed `dungeon_scaling`) stacks with it.
+- **With difficulty tiers** (DUNGEONS.md, Ryan 2026-10-03: "enemy scaling already accounts for party size; companions do not count"): a wing's difficulty tier scales enemies too, and both apply at spawn, as separate sources (`&"party_scaling"` and `&"difficulty_tier"`), so their PERCENT_MULT modifiers multiply (STATS.md). *(proposed, DUNGEONS.md)* The hook: `DifficultyTier.apply_to(enemy)` runs right after `PartyScaling.apply_to(enemy, party_size)`, and a tier may carry its own `PartyScaling` (null = this table's), so a top tier can scale harder per extra champion without touching the others. In DUNGEONS' proposal, depth changes loot only, so `dungeon_scaling` isn't used.
+
+### Wing recommendations for pairs (DUNGEONS.md; MUST: real design, never required, Ryan 2026-10-03)
+- A wing's "Recommended for" names champions **or champion + ally combos**: its enemies, hazards and puzzles favor some kits (dark rooms reward a light-based champion; long corridors favor ranged). It's never required, solo or in a pair.
+- *(proposed, DUNGEONS.md)* A wing declares its favors as data (`WingData.favors`, a list of `KitFavor`s: a class or ability tag, a reason, a weight). A pair matches a favor when either champion does, so an ally can bring what a wing favors (a ranged support beside the Knight in a wing of long corridors).
+- **Shown and derived** (Ryan, DUNGEONS.md I5, 2026-10-03): the wing's card at the hub lists its favors with their reasons and marks which champions and which champion + ally pairs match. Pairs are derived from the tags; no wing names a specific pair, so a new champion needs no update to any wing.
 - **The ally's power:** the ally deals 20% less damage (`outgoing_damage` PERCENT_MULT −0.2, source `&"ally_power"`), and takes normal damage. It's a list of modifiers in data, so its shape can change without code.
 
 ### Following and catch-up (MUST: teleport past a range, Ryan 2026-10-03; numbers *(proposed)*)
@@ -181,7 +187,7 @@ The global ally rules, held by `Allies.table` (the pattern of `LootTable` and `C
 `id` (`&"aggressive"`), `display_name`, `stay_within_px`, `prefers` (`AllyStance.Prefers`: `ITS_OWN_PICK`, `THREATS_TO_TEAMMATE`, `TEAMMATE_TARGET`; a list in order), `intent_weights: Dictionary` (intent → float; a missing intent counts 1).
 
 ### PartyScaling (`party_scaling.gd`; inline)
-`health_per_extra` 0.6, `elite_health_per_extra` 0.8, `damage_per_extra` 0.15. Method `apply_to(enemy: Unit, party_size: int)`: the modifiers under `&"party_scaling"` (none at party size 1). DUNGEONS.md may later give a dungeon its own.
+`health_per_extra` 0.6, `elite_health_per_extra` 0.8, `damage_per_extra` 0.15. Method `apply_to(enemy: Unit, party_size: int)`: the modifiers under `&"party_scaling"` (none at party size 1). DUNGEONS.md may later give a dungeon its own. *(proposed, DUNGEONS.md 2026-10-03)* A `DifficultyTier` may hold its own `PartyScaling` (null = this one); see Party scaling, With difficulty tiers.
 
 ### Additions to existing data
 | Where | Addition | Default | Notes |
@@ -324,7 +330,7 @@ Claude's proposals still open (written in above as *(proposed)*; Ryan can overru
 
 For other docs (nothing proposed beyond the above):
 - **ENEMIES_AI.md (Tier B):** the target pick with candidates from the party, stickiness, threat, taunt and stealth; aggro on any party member; dropping a downed target; adopting the controller contract; an enemy's AI asking its abilities' `get_ai_plan()`; the tier that party scaling reads; telegraphs the ally's perception can read.
-- **DUNGEONS.md:** checkpoints revive everyone; a wipe; a downed ally across a room change; party scaling per dungeon.
+- **DUNGEONS.md** (written 2026-10-03): checkpoints revive everyone, and a wipe respawns the party at the last checkpoint (adopted there); a downed ally across a floor change (proposed there: it comes along, still downed); party scaling with difficulty tiers (Party scaling, With difficulty tiers); wing recommendations for pairs (Wing recommendations for pairs).
 - **UI.md:** the polished two-champion pick, the ally HUD, the lending screen.
 - **NARRATIVE.md:** pair banter (Hades-style reactive lines, BG3-style banter between champions).
 - **PROGRESSION.md:** `ally_id`, `ally_stance`, `ally_loadout` and `ally_gear` fold into the one save.

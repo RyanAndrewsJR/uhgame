@@ -45,13 +45,18 @@ Attacks feel weighty and immediate: hitstop, screen shake, knockback, clear feed
 ### 5. Dungeon crawling
 Runs through dungeons built from hand-made rooms stitched together.
 - Rooms are designed spaces with walls, pits, and hazards to use tactically, not empty arenas.
-- A run is one dungeon, played by a solo player as one champion, with an optional AI ally: another champion of the roster fighting beside them (see Game structure; ALLIES.md).
+- **A dungeon has 1–3 wings, and a wing is a run** (Ryan, 2026-10-03; DUNGEONS.md). Each wing has its own theme, quests, codex entries and boss. A wing is dense and hand-built: about 40–60 distinct spaces and 45–90 minutes of play, with floors up and down, caverns, pits, elevated sections, secrets, puzzles and collectibles. Its scale comes from height, long sightlines and backdrops, not from area.
+- **Fixed layouts, shuffled contents:** the spaces are the same every run; which packs, elites, mini-bosses and optional events stand in them, the elites' modifiers, where chests stand and what they roll change each run, and higher difficulty tiers widen what can appear.
+- ~~A run is one dungeon~~ (superseded 2026-10-03: a run is one wing). A run is played by a solo player as one champion, with an optional AI ally: another champion of the roster fighting beside them (see Game structure; ALLIES.md).
+- Most of a wing is roaming packs that notice you as you come close (Diablo); a few set-piece arenas seal until cleared (Hades), bosses among them. Checkpoints are found in the wing and double as fast travel.
 - each dungeon has its own deep story line and lore
   - Told through a codex, hub NPC dialogue, voiced scenes and environmental storytelling (the art itself).
-  - The story can change with the champion played: shared core beats plus a champion lens, so content cost stays bounded.
+  - The story can change with the champion played: shared core beats plus a champion lens, so content cost stays bounded. The same layout, enemies and main quests for everyone; codex entries, NPC dialogue and some scenes change per champion, and each champion has one short quest line of its own per wing (DUNGEONS.md).
   - How deep each story goes and how much of it is voiced: NARRATIVE.md (not written yet).
-- Difficulty and rewards increase with depth. *(assumed)*
-- (Details: DUNGEONS.md, not written yet.)
+  - Codex entries unlock on find, for the whole account (a champion's own variant when that champion finds it), and no story beat ever blocks the main path (Ryan, 2026-10-03; DUNGEONS.md).
+- ~~Difficulty and rewards increase with depth. *(assumed)*~~ Superseded 2026-10-03: each wing has **difficulty tiers**, unlocked by clears, raising enemy health and damage, adding elite modifiers and attack patterns and improving loot, with wing-wide modifiers at the top (DUNGEONS.md). *(proposed there)* Loot also improves deeper into a wing.
+- A wing **recommends** some kits with real content (dark rooms reward a light-based champion), but it's never required: every champion can clear every wing.
+- (Details: DUNGEONS.md, written 2026-10-03.)
 
 ### 6. Looting
 Diablo-style randomized gear: item bases, rarities, affixes.
@@ -72,16 +77,16 @@ The environment is both a **weapon** and a **traversal tool**.
 |---|---|---|
 | **League of Legends** | champion identity (passive + abilities + ultimate), ability design vocabulary, stat names and units, ability haste, AD/AP split; adaptive damage and Tahm Kench's devour (companions, COMPANIONS.md) | point-and-click movement, lanes, PvP, the MOBA map, last-hitting |
 | **Hades** | movement and combat feel, dash with i-frames, input buffering, readable enemy attacks, rooms as combat spaces; reactive dialogue (characters remark on what you just did and who you're playing), the reference for how the story is delivered (Pillar 5); a companion at your side on its own button (Hades II's familiars, Hades' companions; COMPANIONS.md) | roguelite permadeath and resetting your power every run |
-| **Dark Souls** | checkpoints inside a run: death sends you back to the last one reached | dropping currency on death and having to recover it |
-| **Diablo** | randomized loot, rarities and affixes, "increased" vs "more" modifiers, dungeon depth scaling, magic find | slow click-to-attack combat, stat-check fights |
+| **Dark Souls** | checkpoints inside a run: death sends you back to the last one reached; checkpoints that are also fast travel, resting that brings ordinary enemies back while bosses stay dead, shortcuts, dense places that look down on where you've been (DUNGEONS.md) | dropping currency on death and having to recover it |
+| **Diablo** | randomized loot, rarities and affixes, "increased" vs "more" modifiers, dungeon depth scaling, magic find; roaming packs, elites with rolled modifiers, difficulty tiers with dungeon-wide modifiers at the top, an auto-map (DUNGEONS.md) | slow click-to-attack combat, stat-check fights, procedural layouts |
 | **Baldur's Gate 3** | environment and immersion: places that feel lived in and tell their own story (Pillar 5); companions with personality (Scratch, the owlbear cub) and a familiar that falls and comes back (COMPANIONS.md) | turn-based combat |
 | **Pokemon** | companions (COMPANIONS.md): species with abilities of their own, eggs that hatch by playing, branching evolutions, a bond that grows by playing together, copies kept as individuals | a team of six, catching mid-fight, the pet fighting as a unit |
 
 ## Game structure (decided 2026-09-29)
-The loop: **hub → pick a champion → set their talents → run a dungeon → back to the hub.**
+The loop: **hub → pick a champion → set their talents → run a wing of a dungeon → back to the hub.** (A wing is a run since 2026-10-03; DUNGEONS.md. A different champion can be picked for the next wing.)
 
 ### Hub
-- A home base between runs. There the player picks a champion, sets that champion's talent loadout, chooses a companion to take along (COMPANIONS.md; fixed for the run, none allowed), and launches a run.
+- A home base between runs. There the player picks a champion, sets that champion's talent loadout, chooses a companion to take along (COMPANIONS.md; fixed for the run, none allowed), and launches a run: a dungeon, one of its open wings and an unlocked difficulty tier (DUNGEONS.md).
 - Gear lives in each champion's own inventory: one unlimited list, the same at the hub and mid-run, with no separate stash (LOOT.md). Other hub features (NPCs, shops) aren't decided yet (NPCS.md, LOOT.md).
 
 ### Roster
@@ -89,15 +94,16 @@ The loop: **hub → pick a champion → set their talents → run a dungeon → 
 - Each champion has its own persistent progress, independent of the others.
 
 ### Runs
-- A run = entering a dungeon as the chosen champion: a solo player, with an optional AI ally (another champion of the roster, picked at the hub; ALLIES.md).
+- ~~A run = entering a dungeon~~ (superseded 2026-10-03). **A run = entering one wing of a dungeon** as the chosen champion (DUNGEONS.md): a solo player, with an optional AI ally (another champion of the roster, picked at the hub; ALLIES.md).
+- A dungeon's first wing starts it; once cleared, its other wings open in any order, and the final wing's boss waits until the others are cleared.
 - Loot drops during the run (Diablo-style).
-- A run ends when the dungeon is cleared (rewards, then back to the hub) or when the player leaves.
-- The talent loadout is set at the hub before the run and can't change mid-run.
+- A run ends when the wing is cleared (its boss; rewards, then back to the hub) or when the player leaves.
+- The talent loadout is set at the hub before the run and can't change mid-run. A different champion can be picked for the next wing.
 
 ### Death
 - Checkpoints inside a run (Dark Souls-style). Dying respawns the player at the last checkpoint reached. It's not roguelike permadeath, and it doesn't send the player back to the hub.
 - Nothing is lost on death: loot already picked up and champion XP already earned this run are kept. There is no drop-and-recover risk.
-- Checkpoint placement, and whether cleared enemies between the checkpoint and the death point come back, are decided in DUNGEONS.md.
+- ~~Checkpoint placement, and whether cleared enemies between the checkpoint and the death point come back, are decided in DUNGEONS.md.~~ Decided 2026-10-03 (DUNGEONS.md, Checkpoints): checkpoints are found in the wing and are also fast-travel points. Bosses, elites and anything tied to a quest or puzzle stay dead. Ordinary enemies come back when you **rest** at a checkpoint, not when you die and retry. **Dying never undoes progress.** A checkpoint comes about every 8–12 minutes, at each floor's start and right outside every boss; resting is free and refills you; dying to a boss resets the boss, nothing else (Ryan, 2026-10-03, DUNGEONS.md's interview).
 
 ### Champion progression and talents
 - Each champion has a persistent **champion level**, gained by playing that champion. It gates that champion's own talent points.
@@ -122,7 +128,7 @@ What the player earns across all champions, beyond each champion's own progress.
   - a codex and bestiary, and lore collections;
   - champion mastery cosmetics;
   - a story that rewards playing every champion (an epilogue or a true ending);
-  - difficulty tiers unlocked by clears;
+  - difficulty tiers unlocked by clears (decided 2026-10-03, DUNGEONS.md: five per wing, each champion climbing them itself; wing clears, which open a dungeon's wings, are per account);
   - daily seeded challenges with leaderboards;
   - collections: every legendary and artifact found, a cosmetic armory;
   - hub growth (the hub changes as the account progresses).
@@ -141,7 +147,7 @@ What the player earns across all champions, beyond each champion's own progress.
 ## Scope
 - **In:** single-player, hand-painted stylized 3D at native resolution (League-style); UI and window designed for 1920×1080 and scaling to the player's monitor; multiple champions (Knight first), hand-made rooms stitched into dungeons, gear with affixes and augments.
 - **Camera and world (3D_PIVOT.md, Givens):** a fixed-angle camera that follows the player and never rotates; no jumping; real terrain height (stairs, ramps, hills, plateaus) on a gameplay floor that stays flat; knock-ups; floors that overlap are separate rooms, joined by stairs or doors.
-- **Out for now:** multiplayer/co-op, PvP, open world, procedural room geometry. *(assumed)*
+- **Out for now:** multiplayer/co-op, PvP, open world, procedural room geometry. *(assumed)* Shuffled contents in fixed, hand-made layouts are in (DUNGEONS.md): what stands in a space changes each run, the space never does. A wing's scale is dense, hand-built spaces, not an open world.
 - **Out for now (decided):** gamepad. Keyboard and mouse only for now.
 
 ## Open questions (answer these before the matching doc is written)
@@ -149,10 +155,10 @@ The run structure, death, hub, roster, talent progress, ability slot and in-run 
 1. ~~**Talent size:** does "up to 5" mean a small total tree (5 talents in all), or a larger pool with 5 active at once?~~ Answered 2026-09-30: a larger pool (about 15–20 per champion) with about 5 active at once, swapped at the hub (TALENTS.md; DECISIONS.md, Talents).
 2. ~~**Gear after a run:** does gear picked up in a run stay with the champion afterwards (inventory, stash), and what does leaving a run early keep or forfeit?~~ Answered by LOOT.md (2026-10-01): items are never lost; they're kept through death and through leaving a run, in one unlimited inventory per champion (DECISIONS.md, Loot).
 3. **Unlocking champions:** how many at launch, and how does a champion get unlocked?
-4. **Replayability across champions:** how do we make players want to take every champion through the dungeons? The rule and the candidate rewards are in Meta-progression above; which ones get built is PROGRESSION.md's (the story side, NARRATIVE.md's).
+4. ~~**Replayability across champions:** how do we make players want to take every champion through the dungeons? The rule and the candidate rewards are in Meta-progression above; which ones get built is PROGRESSION.md's (the story side, NARRATIVE.md's).~~ Answered 2026-10-03 (DUNGEONS.md): **difficulty tiers** per wing, unlocked by clears; **the champion lens** (codex entries, dialogue and scenes that change per champion, and one quest line per champion per wing with its own named reward); **guaranteed named gear** hand-placed at the end of hard secrets; and **companion hunting** (parts and clues found in wings, signature companions per dungeon). The other candidates in Meta-progression stay PROGRESSION.md's to pick.
 5. **Story depth and voice scope:** how deep does each dungeon's story go, and how much of it is voiced (scenes, lines per champion)? NARRATIVE.md.
 6. **Localization:** will the game ship in more than one language? It decides whether player-facing text goes through string tables from the start (CONVENTIONS.md) and how much voice gets recorded.
-7. **Big fights vs "methodical":** the 3D interview set about 30 enemies in a big fight and 50 at the peak (3D_PIVOT.md, Q14), which pulls against readable, decision-heavy combat (Pillar 1). Are big fights mostly fodder plus a few tactical elites? ENEMIES_AI.md and DUNGEONS.md.
+7. **Big fights vs "methodical":** the 3D interview set about 30 enemies in a big fight and 50 at the peak (3D_PIVOT.md, Q14), which pulls against readable, decision-heavy combat (Pillar 1). Are big fights mostly fodder plus a few tactical elites? ENEMIES_AI.md and DUNGEONS.md. (DUNGEONS.md, 2026-10-03: most of a wing is roaming packs you can take one at a time; big fights are a few set-piece arenas and bosses. The make-up of a big fight stays ENEMIES_AI.md's.)
 
 ## How Claude should use this doc
 - When designing a system, check it against the pillars and priorities above, and say which pillar a choice serves.

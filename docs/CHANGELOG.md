@@ -11,7 +11,33 @@
 
 ## 3D pivot (3D_PIVOT.md)
 
-### P9 – terrain and airborne: 2026-10-03, Built (awaiting Ryan's check)
+### P9 fix – a knock-up's landing on stairs and ramps: 2026-10-03, Built (awaiting Ryan's check)
+Ryan, at his P9 check: a unit knocked up onto the stairs or the ramp (from the plateau or elsewhere) teleported back to where it was knocked from.
+- **Reproduced** in the 3D sandbox (scratch harness, saving off). The PerchDummy (radius 14 px) was knocked 2 m with the Uppercut:
+  - from the plateau onto the stairs, a little west of their middle: it landed at (12.42, 6.47) and was put back on the plateau at (12.69, 4.87), 12 px from its start;
+  - onto the ramp, a little north of its middle: it landed at (17.80, 2.65) and was put back exactly at its start;
+  - knocked straight down their middle, it stayed.
+- **Cause:** the ramp and stairs are 2 m wide, and each side carries a 0.25 m ledge strip (`derive_ledges()`: the top side's cell). A 14 px body has a free band only 0.6 m wide for its center. `resolve_valid_position()` stepped a landing outside it back along the push line, and a push running along the stairs or ramp touches a strip almost all the way back.
+- **Fix** (`world_query.gd`): new `WorldQuery.push_out(point, from, radius, mask)` and `PUSH_OUT_DIRECTIONS` (16).
+  - It finds the shortest move that frees the body: rings 1 px apart out to twice the radius, the center crossing nothing on the way.
+  - If the center itself is inside something, the move never goes farther along the push.
+  - `resolve_valid_position()` tries it before its old step back along the line, which stays as the fallback. `movement_component.gd` is unchanged.
+- **Measured** with the fix (the same harness, 10 cases):
+  - stairs west of middle: nudged 9 px sideways, onto the stairs;
+  - diagonal onto the stairs: 13 px;
+  - center inside the stairs' side strip: 18 px inward, onto the stairs;
+  - the ramp: 2 px;
+  - floor onto the stairs from the side: 7 px onto them;
+  - plateau middle to the south rim (center in its strip): back on top, just inside it;
+  - from the edge: off the cliff, the full 2 m;
+  - from below to the rim: back below;
+  - from below over the rim onto the top: unchanged (P9's design).
+  - `push_out()` costs about 0.4 ms when the body overlaps something (about 170 shape queries), once per landing.
+- **Tests:** view_test 354 (6 new, `_test_landing_off_center()` on the 3D sandbox's terrain without its units). Three of the checks fail on the old code, as the bug does.
+  - **A flaky P9 check fixed:** "a path to the top of a plateau with no way up ends at its foot" failed in 4 of 5 parallel runs. Maps sync asynchronously, so under load the shared map can still hold the previous fixture's region, whose ramp leads up. It now uses a navigation map of its own and waits for its first sync: 8 of 8 parallel runs pass.
+- All seven suites: **2,160/2,160** (stats 179, combat 476, abilities 565, audio 110, champions 168, talents 308, view 354). Saves unchanged.
+
+### P9 – terrain and airborne: 2026-10-03, Passed (Ryan's check 2026-10-03; one fix after it, above)
 Built from 3D.md and 3D_PIVOT.md's plan (its P8), with Ryan's answers at the start (DECISIONS.md, 3D view):
 - pits stay their own step;
 - a passive dummy goes on the perch;
@@ -911,6 +937,22 @@ combat test 109/109 (59 new C2 checks: hit 5 frames after the click, swing 18 fr
 `combat_test.tscn` 50/50; stats test 143/143; a headless in-game check in the sandbox 11/11 (Cleave 124.8, Lunge 82, Judgement's damage and stun, Iron Resolve's haste, a slime chasing and hitting for 22 through `Events.unit_hit`, i-frames, the HUD); room_01 runs with no errors.
 
 **Passed** (Ryan, 2026-09-27: covered by the M1 play test of 2026-09-26).
+
+## Dungeons (DUNGEONS.md)
+
+### Doc written and interview done: 2026-10-03, docs only
+Docs only; no code or tests changed.
+- **The interview:** Ryan answered I1–I10 in five rounds (DUNGEONS.md, Open questions; DECISIONS.md, Dungeons), written into DUNGEONS.md, DECISIONS.md, VISION.md, ALLIES.md and CLAUDE.md.
+- **`docs/DUNGEONS.md` written** from Ryan's decisions (his interview with the advisor, 2026-10-03): wings as runs, floors, scale by spaces, time and measured cost, fixed layouts with shuffled contents in content slots, packs and arenas, bosses, a roster per dungeon, checkpoints with the hybrid respawn rule, navigation, quests, the puzzle framework, difficulty tiers, "recommended for", the champion lens and quest lines, rewards, scope. Claude's proposals are marked *(proposed)*.
+- **`docs/DECISIONS.md`:** a new Dungeons section (Ryan's decisions); Game structure (a wing is a run; the 2026-09-29 run row struck for that part only; the death and meta-progression rows pointed to Dungeons); 3D view (Wing scale, the P-spike, backdrops).
+- **Doc edits applied:**
+  - VISION.md: Pillar 5, Game structure (the loop, the hub, Runs, Death), Meta-progression (difficulty tiers), Scope (shuffled contents in fixed layouts), open question 4 answered, a pointer on open question 7, the Dark Souls and Diablo references. There was no "1–3 square km" anywhere to remove.
+  - 3D.md: a Wing scale section (spaces, the sim's Room(s), what grows with a wing, sleeping, backdrops) and P-spike as build step 10.
+  - LOOT.md: From the dungeon (hand-placed named gear, chest tables per content slot, difficulty tier loot quality, floor drops), depth in a wing, run pacing.
+  - COMPANIONS.md: crafting parts and clues as collectibles, a clear as the counted run, signature companions, kindling caches.
+  - ALLIES.md: difficulty tiers with party scaling, wing recommendations for pairs.
+  - CHAMPIONS.md: Dungeon content per champion (one quest line per wing, the lens, recommendations reading the kit).
+  - CLAUDE.md: the Docs index, Future docs (DUNGEONS written; ENEMIES_AI, NARRATIVE, PROGRESSION and UI queue notes), Current status.
 
 ## Movement (MOVEMENT.md)
 

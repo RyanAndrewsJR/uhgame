@@ -49,7 +49,7 @@ Built:
 Planned:
 - `raycast_terrain(from, dir, max_dist_px) -> Dictionary {position, normal, collider, tags}` (empty if nothing hit)
 - `find_grapple_point(from, dir, max_dist_px)`: the first world hit must be `grappleable`, otherwise empty
-- `resolve_valid_position(target, from, radius, mask)`: if a circle of `radius` at `target` overlaps something on `mask`, steps back toward `from` until it doesn't (built minimal in 3D pivot P9, for a knock-up's landing; with `is_point_free()`). A blink's use (walls only; pits are valid endpoints: a displacement that ends over one follows the pit rule, Pits and movement types) comes with the blink.
+- `resolve_valid_position(target, from, radius, mask)`: if a circle of `radius` at `target` overlaps something on `mask`, moves it the shortest way out with `push_out(point, from, radius, mask)`. Its center never crosses anything, and with the center inside, the move never goes farther from `from`. Failing that, it steps back toward `from` until it doesn't overlap. Built minimal in 3D pivot P9 for a knock-up's landing, with `is_point_free()`; `push_out()` is the fix after P9's check (3D.md, Built in P9, Landing). A blink's use (walls only; pits are valid endpoints: a displacement that ends over one follows the pit rule, Pits and movement types) comes with the blink.
 - `get_units_in_radius(center, r, team_filter)`
 
 ## Ability movement (MovementComponent methods)
@@ -80,7 +80,7 @@ Abilities check tags; they never check class names.
 - **An enemy falls:** it dies, the kill goes to whoever caused the displacement (Kill credit), and its drops land on the nearest floor tile. **Bosses never fall;** they snap to the edge.
 - Pit tiles have no navigation polygon, so enemies never path into them. (Today `Room._bake_navigation()` only carves colliders on layer 1 from the `navigation_source` group, so whatever builds pits has to add them to that bake.)
 - Pits get their own TileMapLayer, `Pits`, with physics on layer 6. Floor and walls stay on `Tiles`. **In a layout** (3D.md, Rooms) a pit is an asset (a hole in the floor) whose `Footprint` is kind PIT (layer 6); the bake leaves it out the same way.
-- **Knocked up** (3D.md, Terrain and height 1a): an airborne, displaced unit also drops the low-obstacle and ledge layers (7, 11), so a knock-up can carry an enemy over a fence, off a cliff or into a pit (the pit rule applies where it lands). Inside a low obstacle or a ledge's footprint, `resolve_valid_position()` puts it on the nearest floor on the side it came from. No fall damage for now (Ryan, 2026-10-01).
+- **Knocked up** (3D.md, Terrain and height 1a): an airborne, displaced unit also drops the low-obstacle and ledge layers (7, 11), so a knock-up can carry an enemy over a fence, off a cliff or into a pit (the pit rule applies where it lands). Inside a low obstacle or a ledge's footprint, `resolve_valid_position()` puts it on the nearest floor on the side it came from; a body only overlapping one (its center clear) stays on the ground its center is over (the P9 fix). No fall damage for now (Ryan, 2026-10-01).
 
 ## Hazards (approved by Ryan 2026-09-30)
 A `Hazard` is an Area2D scene on layer 10 with:

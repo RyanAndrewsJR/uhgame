@@ -2,7 +2,7 @@
 
 **Read when:** the task involves a champion's data (ChampionData), a passive, a champion's resource type and how it fills and drains (fury, energy, mana), a champion's level/progress field, or any part of the Knight's kit (Unbroken, Fury, Staggered, Cleave's heal, Judgement's Fury payoff).
 **Depends on:** CLAUDE.md, VISION.md (Game structure: champion level, fixed slots), CONVENTIONS.md, STATS.md (StatsComponent, ResourceComponent, scoped modifiers), COMBAT.md (HitPipeline, statuses, Sustain), ABILITIES.md (the toolkit: conditions, conditional bonuses, named inputs, AB14's cast progress), AUDIO.md (hooks).
-**Used by:** TALENTS (per-champion trees gated by the champion level), LOOT (champion-specific items, weapons by class), UI (the hub's champion pick, the passive tooltip, the resource bar), PROGRESSION (saving the champion level), DUNGEONS (respawn rules for the resource).
+**Used by:** TALENTS (per-champion trees gated by the champion level), LOOT (champion-specific items, weapons by class), UI (the hub's champion pick, the passive tooltip, the resource bar), PROGRESSION (saving the champion level), DUNGEONS (respawn rules for the resource; one champion quest line per wing; a champion's class and ability tags matched against a wing's recommendations).
 
 ## How to read this doc
 Same as COMBAT.md and ABILITIES.md: MUST (never change without asking Ryan), TARGET (start value and allowed range), FREE (your call; tiebreaker: VISION.md's decision priorities). Items marked *(proposed)* are Claude's picks from the approved plan that Ryan hasn't answered yet; each one is also in Open questions.
@@ -58,6 +58,12 @@ What exists before CH1 (the rest is Data and Architecture):
 ### Sustain (MUST)
 - Cleave's heal (`heal_missing_health_ratio`, CH5b; CH5 built it on `heal_on_hit_ratio`) is a kit mechanic tied to one ability, not the `life_steal` stat, and it doesn't contradict zero baseline sustain (COMBAT.md, Sustain; DECISIONS.md, Combat): no champion gets free healing by default; this one is earned by landing Cleave, and it scales hardest exactly when the player is at risk.
 - Every heal goes through the one heal path, `Unit.heal()` (clamped to max health, no overheal, a green number only for what was actually healed). There's no second heal path.
+
+### Dungeon content per champion (DUNGEONS.md; MUST, Ryan 2026-10-03)
+- **One champion quest line per wing.** Every champion has one quest line of its own in every wing: "medium-small", about 10–15 minutes, reusing the wing's space (an existing room, a hidden door, a special encounter or a small puzzle; at most a small new alcove), paying out a unique named reward plus codex entries.
+- **A champion ships with its lines.** Quest lines are written only for champions that exist; a champion added later adds one line per existing wing, as an update. The cost per champion: 2–3 lines at the first release (one dungeon of 2–3 wings), about 24 at 8 dungeons of 3 wings; the cap and what one line contains are in DUNGEONS.md (The champion lens).
+- **The lens:** the layout, enemies and main quests are the same for every champion; codex entries, NPC dialogue and some scenes have per-champion variants (NARRATIVE.md writes them).
+- **Recommendations read the kit:** a wing's "Recommended for" matches a champion's `champion_class` and its four abilities' tags (DUNGEONS.md, Recommended for). *(proposed, DUNGEONS.md)* If a wing ever favors something no class or ability tag says, `ChampionData` gets a `kit_tags` list then. Every champion can clear every wing either way.
 
 ## The Knight
 A bruiser: heavy swings, dives into packs, gets stronger and harder to kill the closer he is to death. Pillars: skill expression (the Lunge → Cleave combo, low-health risk), build variety (Fury as a generator/spender rhythm), fluid combat.
@@ -337,7 +343,7 @@ Claude's proposals from the approved plan (written in above as *(proposed)*; Rya
 
 Still open:
 - The ultimate meter (Hades-style), when a champion first uses one.
-- Fury on checkpoint respawn (DUNGEONS.md; proposed: reset to 0).
+- Fury on checkpoint respawn (DUNGEONS.md; proposed: reset to 0). DUNGEONS.md (2026-10-03) carries the same proposal for a respawn and for a rest at a checkpoint.
 - Other resource types' rhythms (energy, mana) with their first champion.
 - Unbroken's final name.
 
@@ -345,4 +351,5 @@ Raised by VISION.md's 2026-10-02 update (nothing proposed yet):
 - **Champion unlocking:** how many champions at launch, and how a champion gets unlocked (VISION.md, Open question 3). The hub shows only the Knight today.
 - **Bio:** where a champion's background and lore live (ChampionData, the codex) and where the player reads it (the hub's champion pick, the codex). With NARRATIVE.md.
 - **Voice lines:** which events get one, how often, and whether a champion has lines in story scenes; out of scope here today (AUDIO.md, NARRATIVE.md).
-- **The story lens:** each dungeon's story has shared core beats plus a champion lens (VISION.md, Pillar 5). What a champion's lens needs from its data (lines, codex entries, scene variants) is set by NARRATIVE.md.
+- **The story lens:** each dungeon's story has shared core beats plus a champion lens (VISION.md, Pillar 5). What a champion's lens needs from its data (lines, codex entries, scene variants) is set by NARRATIVE.md. DUNGEONS.md (2026-10-03) fixes its scope: the same layout, enemies and main quests for all; per-champion codex entries, NPC dialogue and some scenes; one quest line per champion per wing (Dungeon content per champion).
+- **The champion quest line's "unique named reward"** (DUNGEONS.md, Also open): one of this champion's named items, or a named cosmetic or title?
