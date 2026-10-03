@@ -30,7 +30,7 @@
 | 2026-09-27 | Order of work: telegraph-on-death fix → COMBAT C11 → C12 → AUDIO A1–A3; STATS step 7 whenever. | Ryan's call. The telegraph bug misleads the player today, and A3's wind-up sound depends on the fix. |
 | 2026-09-29 | Order of work: ABILITIES AB14 (cast progress and presentation hooks) → CHAMPIONS CH1–CH5 → milestone CH-M, one step at a time. | Ryan's call. AB14 changes the cast flow every champion ability uses, so it goes first. |
 | 2026-09-29 | `ACHIEVEMENTS.md` (cross-system achievements and accolades) joins CLAUDE.md's Future docs, last, written much later once most other systems exist. Nothing is designed or built for it now. | Ryan's call. |
-
+| 2026-10-02 | "Tactical and methodical" (VISION.md, One sentence) means readable and decision-heavy combat: reading telegraphs, spacing, choosing when to spend a cooldown and where to stand. It never means slower movement: fast movement and the dash stay (pillars 3 and 4). Written into VISION.md, Pillar 1 and Decision priorities. | Ryan's definition. The decisions come from reading the fight (Clarity, Skill expression), not from taking speed away, which would cost feel (decision priority 1). |
 ## Game structure
 | Date | Decision | Why |
 |---|---|---|
@@ -42,6 +42,12 @@
 | 2026-09-29 | Ability slot swapping: no. A champion's abilities stay in their slots (Cleave is always Q). Build variety comes from talents (not built) and item augments (AB8) reshaping existing abilities, not from the player reassigning slots. Source-applied REPLACE augments and forms (ABILITIES.md) are unchanged. | Ryan's call (VISION.md open question 5). Keeps each kit's identity and muscle memory fixed. |
 | 2026-09-29 | The persistent champion level only gates talent points: it never calls `StatsComponent.set_level()` and never touches combat stats. There is no leveling inside a run; in-run power comes purely from loot. `set_level()` and per-level growth stay as built, unused by champions, reserved for DUNGEONS.md's enemy scaling. | Ryan's call (closes VISION.md's in-run leveling question). A permanent stat bonus from levels would be grinding stats, against pillar 1; `set_level()` is a neutral hook on every Unit, so it fits scaling enemies with depth. |
 | 2026-09-29 | No ability-rank mechanic in any form. What would have been ranks is fully replaced by the talent tree: a deliberate, capped choice made at the hub, not an automatic per-level upgrade. STATS.md, Fill in: Leveling = no (champions don't level their combat stats). | Ryan's call. Power growth stays a build choice (talents) or loot, never automatic, so it serves build variety and skill expression over stat checks. |
+| 2026-10-02 | Meta-progression (account level): no power is shared between champions. Account-level rewards are cosmetic, informational, convenience, story or difficulty, never combat power. The candidates (statistics pages, achievements with titles and banners, codex and bestiary, mastery cosmetics, a story that rewards playing every champion, difficulty tiers unlocked by clears, daily seeded challenges with leaderboards, collections, hub growth) are listed in VISION.md, Meta-progression; none is decided, PROGRESSION.md picks. | Ryan's call. It extends "progress on one champion never makes another stronger" (2026-09-29) to the account, while giving players a reason to take every champion through the dungeons (VISION.md, Open question 4). |
+
+## Narrative
+| Date | Decision | Why |
+|---|---|---|
+| 2026-10-02 | Each dungeon has its own deep story and lore, told through a codex, hub NPC dialogue, voiced scenes and environmental storytelling. The story can change with the champion played: shared core beats plus a champion lens. Story depth and voice scope are NARRATIVE.md's. References: Hades' reactive dialogue (how the story is delivered); Baldur's Gate 3 (environment and immersion; not its turn-based combat). | Ryan's call (VISION.md, Pillar 5). Shared core beats with a per-champion lens keep the content cost bounded while still rewarding playing every champion. |
 
 ## Conventions
 | Date | Decision | Why |
@@ -455,6 +461,7 @@ The pivot's givens, the A1 choice and the interview answers get their rows in P1
 | 2026-10-01 | Floor drawings (telegraphs; later indicators and hover rings) come from a SubViewport that shares the sim's World2D, sampled by the terrain's own shader at each surface point's x/z. Not a Decal, a flat quad or per-shape meshes. | Measured in P0a: the shader matches the true edge as closely as an exact-by-construction mesh and updates live. A Decal refuses a ViewportTexture in 4.7.2 (a per-frame copy costs 3.2 ms); a flat quad was 11–13 px off on a slope; meshes need code per shape and break at cliffs. |
 | 2026-10-01 | Ryan's screen refreshes at 180 Hz (measured in P0a), so the frame budget is 5.6 ms. Earlier "144 Hz" notes (F1, the pivot plan) are what was tested then. | DisplayServer reported 180 Hz; the frame times follow it. |
 | 2026-10-01 | The 50-enemy frame cost belongs to the enemy sim (ENEMIES_AI.md), not the pivot. | P0a: 50 extra slimes take 10–12 ms of physics step in today's 2D game as well; the 3D view adds 0.2–0.9 ms a frame. |
+| 2026-10-02 | Art direction: hand-painted stylized 3D at native resolution, League-style (the shading painted into the textures). The UI and window are designed for 1920×1080 and scale to the player's monitor (League renders at the player's chosen resolution, up to 4K, with a HUD scale setting). Replaces the interview's first Q4 answer, the advisor default (b), low-res 3D at 640×360. P0b drops its low-res toggle and compares a fully lit PBR material with a light-ramp, lightly lit one instead (3D_PIVOT.md). | Ryan's art direction. The (b) answer was the advisor default, given before the art direction was set. |
 
 ## Testing
 | Date | Decision | Why |

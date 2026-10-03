@@ -5,7 +5,7 @@
 Items marked *(assumed)* are my best reading of the goals. Ryan should confirm or correct them.
 
 ## One sentence
-A 2D pixel-art action looter where you pick a champion with a League-style kit, move and fight with Hades-level precision, and dive through Diablo-style dungeons collecting gear that changes *how your abilities play*, not just how big the numbers are.
+A 3d stylized top down action looter where you pick a champion with a League-style kit, move and fight with Hades-level precision, and dive through Diablo-style dungeons collecting gear that changes *how your abilities play*, not just how big the numbers are. Gameplay requires tactical and methodical decision making in combat.
 
 ## Player fantasy
 "I'm a skilled fighter with a distinct kit. I win through execution: dodging, aiming, comboing, and using the room itself as a weapon. Every run my gear pushes that kit in a new direction."
@@ -20,7 +20,8 @@ The outcome depends on **player execution**, not just stats.
 - Abilities combine with each other and with the world (knock an enemy into a wall, pull one into a hazard).
 - Enemies telegraph attacks clearly, so a good player can read and avoid them.
 - The skill ceiling comes from mastering a kit, not from grinding stats.
-- (Details: ABILITIES.md, COMBAT.md, not written yet.)
+- **"Tactical and methodical"** (One sentence; Ryan, 2026-10-02) means readable and decision-heavy: reading telegraphs, managing spacing, choosing when to spend a cooldown and where to stand. It does **not** mean slower movement: fast movement and the dash stay (pillars 3 and 4).
+- (Details: ABILITIES.md, COMBAT.md.)
 
 ### 2. Build variety
 The same champion should play very differently from build to build.
@@ -39,12 +40,16 @@ Hades-level responsiveness is the foundation. If movement feels bad, nothing els
 Attacks feel weighty and immediate: hitstop, screen shake, knockback, clear feedback.
 - Attacks and abilities flow into each other, and dash cancels keep the player in control.
 - CC (stun, slow, knockback) is a tool the player uses, and a threat they avoid.
-- (Details: COMBAT.md, not written yet.)
+- (Details: COMBAT.md.)
 
 ### 5. Dungeon crawling
 Runs through dungeons built from hand-made rooms stitched together.
 - Rooms are designed spaces with walls, pits, and hazards to use tactically, not empty arenas.
 - A run is one dungeon, played solo as one champion (see Game structure).
+- each dungeon has its own deep story line and lore
+  - Told through a codex, hub NPC dialogue, voiced scenes and environmental storytelling (the art itself).
+  - The story can change with the champion played: shared core beats plus a champion lens, so content cost stays bounded.
+  - How deep each story goes and how much of it is voiced: NARRATIVE.md (not written yet).
 - Difficulty and rewards increase with depth. *(assumed)*
 - (Details: DUNGEONS.md, not written yet.)
 
@@ -53,7 +58,7 @@ Diablo-style randomized gear: item bases, rarities, affixes.
 - Drops should be exciting because they can change how you play (augments), not only your numbers.
 - Some items are champion-specific and modify that champion's abilities.
 - Loot drops during a run, and loot picked up is never lost on death (see Game structure).
-- (Details: LOOT.md, not written yet.)
+- (Details: LOOT.md.)
 
 ### Cross-cutting: world interactivity
 The environment is both a **weapon** and a **traversal tool**.
@@ -65,16 +70,17 @@ The environment is both a **weapon** and a **traversal tool**.
 | Game | Take | Don't take |
 |---|---|---|
 | **League of Legends** | champion identity (passive + abilities + ultimate), ability design vocabulary, stat names and units, ability haste, AD/AP split | point-and-click movement, lanes, PvP, the MOBA map, last-hitting |
-| **Hades** | movement and combat feel, dash with i-frames, input buffering, readable enemy attacks, rooms as combat spaces | roguelite permadeath and resetting your power every run |
+| **Hades** | movement and combat feel, dash with i-frames, input buffering, readable enemy attacks, rooms as combat spaces; reactive dialogue (characters remark on what you just did and who you're playing), the reference for how the story is delivered (Pillar 5) | roguelite permadeath and resetting your power every run |
 | **Dark Souls** | checkpoints inside a run: death sends you back to the last one reached | dropping currency on death and having to recover it |
 | **Diablo** | randomized loot, rarities and affixes, "increased" vs "more" modifiers, dungeon depth scaling, magic find | slow click-to-attack combat, stat-check fights |
+| **Baldur's Gate 3** | environment and immersion: places that feel lived in and tell their own story (Pillar 5) | turn-based combat |
 
 ## Game structure (decided 2026-09-29)
 The loop: **hub → pick a champion → set their talents → run a dungeon → back to the hub.**
 
 ### Hub
 - A home base between runs. There the player picks a champion, sets that champion's talent loadout, and launches a run.
-- Other hub features (NPCs, shops, stash) aren't decided yet (NPCS.md, LOOT.md).
+- Gear lives in each champion's own inventory: one unlimited list, the same at the hub and mid-run, with no separate stash (LOOT.md). Other hub features (NPCs, shops) aren't decided yet (NPCS.md, LOOT.md).
 
 ### Roster
 - Every unlocked champion can be picked freely at the hub (League champ-select style). There is no single locked save-file character.
@@ -99,6 +105,21 @@ The loop: **hub → pick a champion → set their talents → run a dungeon → 
 - There is no leveling inside a run. In-run power comes purely from loot.
 - `set_level()` and per-level growth stay as built, unused by champions, reserved for enemy scaling (DUNGEONS.md).
 
+## Meta-progression (account level)
+What the player earns across all champions, beyond each champion's own progress. Its job: make players want to take every champion through the dungeons (Open questions, 4).
+- **The rule (Ryan, 2026-10-02):** no power is shared between champions. Account-level rewards never make any champion stronger in combat; this is the same rule as "progress on one champion never makes another stronger" (Game structure).
+- **Allowed rewards:** cosmetic, informational, convenience, story and difficulty.
+- **Candidates** (none decided; PROGRESSION.md picks):
+  - statistics pages, per champion and for the account;
+  - achievements with titles and banners (ACHIEVEMENTS.md, later);
+  - a codex and bestiary, and lore collections;
+  - champion mastery cosmetics;
+  - a story that rewards playing every champion (an epilogue or a true ending);
+  - difficulty tiers unlocked by clears;
+  - daily seeded challenges with leaderboards;
+  - collections: every legendary and artifact found, a cosmetic armory;
+  - hub growth (the hub changes as the account progresses).
+
 ## Decision priorities (when goals conflict)
 1. **Feel and responsiveness.** Control is never taken from the player without a clear reason.
 2. **Clarity.** The player can read what's happening (telegraphs, feedback, tooltips that show real numbers).
@@ -108,16 +129,23 @@ The loop: **hub → pick a champion → set their talents → run a dungeon → 
 6. Realism comes last.
 *(Order assumed from our planning. Ryan can reorder it.)*
 
+"Tactical and methodical" (One sentence; Pillar 1) lives in Clarity (2) and Skill expression (3): the decisions come from reading the fight, never from slowing the player down (1).
+
 ## Scope
-- **In:** single-player, 2D pixel art at 640×360, multiple champions (Knight first), hand-made rooms stitched into dungeons, gear with affixes and augments.
+- **In:** single-player, hand-painted stylized 3D at native resolution (League-style); UI and window designed for 1920×1080 and scaling to the player's monitor; multiple champions (Knight first), hand-made rooms stitched into dungeons, gear with affixes and augments.
+- **Camera and world (3D_PIVOT.md, Givens):** a fixed-angle camera that follows the player and never rotates; no jumping; real terrain height (stairs, ramps, hills, plateaus) on a gameplay floor that stays flat; knock-ups; floors that overlap are separate rooms, joined by stairs or doors.
 - **Out for now:** multiplayer/co-op, PvP, open world, procedural room geometry. *(assumed)*
 - **Out for now (decided):** gamepad. Keyboard and mouse only for now.
 
 ## Open questions (answer these before the matching doc is written)
 The run structure, death, hub, roster, talent progress, ability slot and in-run leveling questions were answered 2026-09-29 (Game structure and Build variety above; DECISIONS.md, Game structure). What those answers left open:
 1. ~~**Talent size:** does "up to 5" mean a small total tree (5 talents in all), or a larger pool with 5 active at once?~~ Answered 2026-09-30: a larger pool (about 15–20 per champion) with about 5 active at once, swapped at the hub (TALENTS.md; DECISIONS.md, Talents).
-2. **Gear after a run:** does gear picked up in a run stay with the champion afterwards (inventory, stash), and what does leaving a run early keep or forfeit? Affects LOOT.md and DUNGEONS.md.
+2. ~~**Gear after a run:** does gear picked up in a run stay with the champion afterwards (inventory, stash), and what does leaving a run early keep or forfeit?~~ Answered by LOOT.md (2026-10-01): items are never lost; they're kept through death and through leaving a run, in one unlimited inventory per champion (DECISIONS.md, Loot).
 3. **Unlocking champions:** how many at launch, and how does a champion get unlocked?
+4. **Replayability across champions:** how do we make players want to take every champion through the dungeons? The rule and the candidate rewards are in Meta-progression above; which ones get built is PROGRESSION.md's (the story side, NARRATIVE.md's).
+5. **Story depth and voice scope:** how deep does each dungeon's story go, and how much of it is voiced (scenes, lines per champion)? NARRATIVE.md.
+6. **Localization:** will the game ship in more than one language? It decides whether player-facing text goes through string tables from the start (CONVENTIONS.md) and how much voice gets recorded.
+7. **Big fights vs "methodical":** the 3D interview set about 30 enemies in a big fight and 50 at the peak (3D_PIVOT.md, Q14), which pulls against readable, decision-heavy combat (Pillar 1). Are big fights mostly fodder plus a few tactical elites? ENEMIES_AI.md and DUNGEONS.md.
 
 ## How Claude should use this doc
 - When designing a system, check it against the pillars and priorities above, and say which pillar a choice serves.

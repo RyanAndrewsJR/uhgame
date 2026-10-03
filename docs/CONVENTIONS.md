@@ -171,3 +171,4 @@ The prompt would be: *"Read CONVENTIONS.md and COMBAT.md. Add wall-slam stun and
 
 ## Open questions
 - Reaction triggers: specified in COMBAT.md (ReactionRule); 4 of the 8 are built (`HIT`, `UNIT_DIED`, `STATUS_APPLIED`, `ABILITY_CAST`); `IMPACT` and the hazard triggers wait for WORLD_INTERACTION's impacts and Hazards.
+- **Localization / string tables** (VISION.md, Open question 6; 2026-10-02): if the game ships in more than one language, player-facing text (ability, talent and passive descriptions, item names and flavor, codex entries, dialogue) needs to come from string tables (Godot's translation system: `tr()` with CSV or PO files), with a key naming rule here. Today that text is plain `String` exports in .tres files. Nothing changes until Ryan answers.

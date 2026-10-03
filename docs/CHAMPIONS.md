@@ -339,3 +339,9 @@ Still open:
 - Fury on checkpoint respawn (DUNGEONS.md; proposed: reset to 0).
 - Other resource types' rhythms (energy, mana) with their first champion.
 - Unbroken's final name.
+
+Raised by VISION.md's 2026-10-02 update (nothing proposed yet):
+- **Champion unlocking:** how many champions at launch, and how a champion gets unlocked (VISION.md, Open question 3). The hub shows only the Knight today.
+- **Bio:** where a champion's background and lore live (ChampionData, the codex) and where the player reads it (the hub's champion pick, the codex). With NARRATIVE.md.
+- **Voice lines:** which events get one, how often, and whether a champion has lines in story scenes; out of scope here today (AUDIO.md, NARRATIVE.md).
+- **The story lens:** each dungeon's story has shared core beats plus a champion lens (VISION.md, Pillar 5). What a champion's lens needs from its data (lines, codex entries, scene variants) is set by NARRATIVE.md.

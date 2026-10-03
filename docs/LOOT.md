@@ -375,7 +375,10 @@ Every step: the Knight's abilities, talents, enemies chasing and the HUD still w
 Sockets and gems; crafting and reforging (the materials bucket is reserved for its currencies); the gold economy and vendors (`gold_find` stays unused); trading; item power, item level and level requirements; League-style item recipes and item actives. Also not here: the real inventory and equip screen (UI.md), weapons changing the combo (COMBAT.md's open question), what a run and its depth are (DUNGEONS.md), where enemy drop data lives (ENEMIES_AI.md), the fly-to-player pickup (a feel pass), discard or salvage, sustain and AP affixes.
 
 ## Open questions
-None open. Answered by Ryan, 2026-10-01 (Claude's proposals in the first draft):
+Raised by VISION.md's 2026-10-02 update (nothing proposed yet):
+- **Lore on legendaries and artifacts:** each dungeon has its own story (VISION.md, Pillar 5). Should a named item's `flavor` text (`NamedItem.flavor`, already in the data) carry dungeon or champion lore, and does finding one add an entry to the codex? With NARRATIVE.md; the "every legendary and artifact found" collection is a meta-progression candidate (VISION.md, Meta-progression; PROGRESSION.md).
+
+Answered by Ryan, 2026-10-01 (Claude's proposals in the first draft):
 1. ~~Unique vs Exotic, Legendary vs Artifact~~: changed by Ryan: an Exotic gets a second, different sigil instead of better rolls (two distinct effects, not bigger numbers; Exotic's stats equal Unique's). An Artifact carries the biggest ability change, has one more fixed affix, and its affixes are always at their maximum (no RNG); a Legendary still rolls a range.
 2. ~~The word for the Unique / Exotic effect~~: never "proc", including "item proc" (Ryan). Claude's pick: **sigil** (`sigil_<name>`, `augment_sigil_<name>.tres`, `LootTable.sigils`, `Item.sigils`). "Proc" keeps only COMBAT.md's meaning.
 3. ~~The Knight's five items~~: approved, Undying as Oathbound Plate's Iron Resolve effect included.

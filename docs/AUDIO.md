@@ -284,6 +284,8 @@ The music system (adaptive layers), voice lines, footsteps, final audio assets. 
 - Should hitstop also briefly duck or low-pass the mix? (FREE to try.)
 - Heartbeat as an option the player can turn off?
 - Voice lines: how often, and which events (CHAMPIONS.md).
+- **Voice-over for story scenes** (VISION.md, Pillar 5; 2026-10-02): how much is voiced is NARRATIVE.md's. Here: dialogue on the Voice bus; whether dialogue ducks Music, SFX and Ambience while it plays, and by how much; what happens when a line and combat overlap (and whether a line pauses with the tree like the rest of Voice).
+- **Per-dungeon music** (2026-10-02): does each dungeon get its own music (its story's theme), on top of the explore and combat layers? (DUNGEONS.md, NARRATIVE.md.)
 - The champion sounds (hurt, death, low health) move onto ChampionData in CHAMPIONS CH1 (`hurt_sound`, `death_sound`, `low_health_sound`, copied onto Unit and Player at load). Until then they're exports on Unit and Player, set in `player.tscn`.
 - A sound for a hit the dash dodged? Blocked hits emit no event today.
 - A missed slam is silent after its wind-up: `Ability.hit_sound` plays only when the cast lands on someone. An impact sound on every `execute()` (the slam hitting the ground) would need a new hook (ABILITIES.md).
