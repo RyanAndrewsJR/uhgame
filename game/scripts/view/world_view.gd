@@ -9,6 +9,8 @@ extends Node3D
 ## (RoomView) and fades `fades` assets between the camera and the player.
 ## P4: the camera is GameCamera3D (P3's plain stand-in camera is gone). Until
 ## P6 it also holds stand-ins (throwaway): a capsule per unit.
+## P5: the aim. The player reads the floor under the cursor and the enemy
+## under it (picked on screen by its model) from here (Player.world_view).
 
 ## Runs after every sim node (they're all at the default 0), so the views copy
 ## positions the sim has already moved this tick (3D.md, Core rules).
@@ -64,11 +66,14 @@ func _init() -> void:
 
 
 ## Main calls this once, right after adding the WorldView: hides the 2D world,
-## builds the room's look, the stand-ins and the camera. `camera_2d` is Main's
-## GameCamera: the 3D camera uses its lock, lean, shake, pan settings and room
-## bounds (null: no lean, shake or bounds).
+## builds the room's look, the stand-ins and the camera, and gives the player
+## its aim through this view. `camera_2d` is Main's GameCamera: the 3D camera
+## uses its lock, lean, shake, pan settings and room bounds (null: no lean,
+## shake or bounds).
 func setup(main: CanvasItem, room: Node2D, p_player: Player, camera_2d: GameCamera = null) -> void:
 	player = p_player
+	if player:
+		player.world_view = self
 	hide_sim(main, room)
 	var tiles := room.get_node_or_null("Tiles") as TileMapLayer
 	if tiles:
@@ -189,6 +194,94 @@ static func pick_floor(p_camera: Camera3D, screen_pos: Vector2, mask: int = FLOO
 			best = p
 			best_d = d
 	return best
+
+
+## Where a ray under `screen_pos` meets the flat plane at `height_m`.
+## Vector3.INF if it never does (the ray points level or up).
+static func pick_plane(p_camera: Camera3D, screen_pos: Vector2, height_m: float) -> Vector3:
+	var origin := p_camera.project_ray_origin(screen_pos)
+	var normal := p_camera.project_ray_normal(screen_pos)
+	if normal.y > -0.0001:
+		return Vector3.INF
+	return origin + normal * ((height_m - origin.y) / normal.y)
+
+
+# --- The aim (P5) -------------------------------------------------------------------
+
+## The floor under the cursor, in sim px (3D.md, The floor pick and aim).
+## Vector2.INF without a camera.
+func floor_under_cursor_px() -> Vector2:
+	return floor_at_screen_px(get_viewport().get_mouse_position())
+
+
+## The floor under a screen point (canvas px), in sim px: the walkable
+## ground's pick, or past it (the void beyond a room's floor, a wall cell's
+## gap) the plane at the camera focus's height, so an aim there still points
+## the right way. Vector2.INF without a camera.
+func floor_at_screen_px(screen_pos: Vector2) -> Vector2:
+	if camera == null:
+		return Vector2.INF
+	var hit := pick_floor(camera, screen_pos)
+	if hit == Vector3.INF:
+		hit = pick_plane(camera, screen_pos, camera.get_focus().y)
+	return Units.to_sim(hit) if hit != Vector3.INF else Vector2.INF
+
+
+## The unit under the cursor among those `accept` lets through, picked on
+## screen (unit_at_screen_point()).
+func unit_under_cursor(accept: Callable) -> Unit:
+	return unit_at_screen_point(get_viewport().get_mouse_position(), accept)
+
+
+## The unit whose view covers `screen_pos` (canvas px): its meshes' bounds,
+## projected, so the model's height and width count, not just its feet.
+## Among those `accept` lets through, the one whose box's center is nearest
+## the point wins; null if none.
+func unit_at_screen_point(screen_pos: Vector2, accept: Callable) -> Unit:
+	if camera == null:
+		return null
+	var best: Unit = null
+	var best_d := INF
+	for key: Variant in _stand_ins.keys():
+		if not is_instance_valid(key):
+			continue
+		var unit := key as Unit
+		if unit == null or not accept.call(unit):
+			continue
+		var rect := screen_rect_of(camera, _stand_ins[key]["root"])
+		if rect.has_area() and rect.has_point(screen_pos):
+			var d := rect.get_center().distance_to(screen_pos)
+			if d < best_d:
+				best = unit
+				best_d = d
+	return best
+
+
+## A view's box on screen (canvas px): the bounds of every mesh under `root`,
+## where it's drawn this frame (interpolated), projected through `p_camera`.
+## An empty Rect2 if nothing is in front of the camera.
+static func screen_rect_of(p_camera: Camera3D, root: Node3D) -> Rect2:
+	var to_drawn := root.get_global_transform_interpolated() * root.global_transform.affine_inverse()
+	var rect := Rect2()
+	var first := true
+	var geos: Array = [root]
+	geos.append_array(root.find_children("*", "GeometryInstance3D", true, false))
+	for n: Node in geos:
+		var geo := n as GeometryInstance3D
+		if geo == null:
+			continue
+		var box: AABB = (to_drawn * geo.global_transform) * geo.get_aabb()
+		for i in 8:
+			var corner := box.get_endpoint(i)
+			if p_camera.is_position_behind(corner):
+				continue
+			var s := p_camera.unproject_position(corner)
+			if first:
+				rect = Rect2(s, Vector2.ZERO)
+				first = false
+			else:
+				rect = rect.expand(s)
+	return rect
 
 
 # --- Fading ---------------------------------------------------------------------

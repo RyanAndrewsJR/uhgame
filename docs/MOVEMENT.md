@@ -92,7 +92,7 @@ The LoL actions `move` / `stop` / `attack_move` (were right mouse / S / A) and `
   5. **Walking:** the move direction.
   6. **Standing still:** keeps the last facing.
 - `Player.get_aim_point()` = `get_global_mouse_position()`. `Player.get_aim_direction()` is the unit vector from the player's feet (where abilities cast from) to it, or `facing` when the cursor is on the player.
-- **With the 3D view (3D.md, P5):** `get_aim_point()` returns the floor pick (the walkable ground under the cursor), or an enemy's feet when the cursor is over its model; without a view (every test) it stays the mouse. The 10 direct mouse calls in `player.gd` go through it (approved 2026-10-01).
+- **With the 3D view (3D.md, P5):** `get_aim_point()` returns the floor pick (the walkable ground under the cursor), or an enemy's feet when the cursor is over its model; without a view (every test) it stays the mouse. The 10 direct mouse calls in `player.gd` go through it (approved 2026-10-01). Built in P5 (2026-10-02, see CHANGELOG.md); past the walkable ground (the void, a wall cell) the aim is the ray's point on the floor plane, so it still points the cursor's way.
 - UNIT abilities also accept the enemy nearest the cursor within `target_forgiveness` (`Player.cast_ability()`). Clicking an enemy still works.
 
 ## Dash

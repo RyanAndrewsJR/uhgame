@@ -83,6 +83,11 @@ var state: State = State.IDLE
 ## Which way the player looks (unit vector). Units don't rotate; the
 ## animation layer will pick one of 8 sprites from this (MOVEMENT.md).
 var facing: Vector2 = Vector2.RIGHT
+## The 3D view showing this player (3D.md, The floor pick and aim), set by
+## WorldView; null without one (the 2D game, every test). With it, the aim is
+## the floor under the cursor, and the enemy under the cursor is picked on
+## screen by its model.
+var world_view: WorldView
 
 var _hovered_enemy: Unit
 var _walk_time: float = 0.0
@@ -308,7 +313,7 @@ func _on_ability_released(slot: StringName) -> void:
 func request_charge(slot: StringName) -> void:
 	if abilities.is_ready(slot) and not is_cast_blocked() and not abilities.can_afford(slot):
 		abilities.fail_cast(slot, AbilityComponent.FAIL_NO_RESOURCE)
-	elif abilities.is_ready(slot) and not is_cast_blocked() and not abilities.conditions_pass(slot, get_global_mouse_position()):
+	elif abilities.is_ready(slot) and not is_cast_blocked() and not abilities.conditions_pass(slot, get_aim_point()):
 		abilities.fail_cast(slot, AbilityComponent.FAIL_CONDITION)   # AB12: not buffered
 	elif abilities.can_cast(slot) and not dash.is_dashing() and can_interrupt_swing(slot):
 		_start_charge(slot)
@@ -334,7 +339,7 @@ func start_buffered_ability(slot: StringName) -> void:
 
 
 func _start_charge(slot: StringName) -> bool:
-	if not abilities.try_start_charge(slot, get_global_mouse_position()):
+	if not abilities.try_start_charge(slot, get_aim_point()):
 		return false
 	_charge_from_input = true
 	queue_redraw()
@@ -344,7 +349,7 @@ func _start_charge(slot: StringName) -> bool:
 ## Releases the hold at `aim` (INF = the cursor).
 func _release_charge(aim: Vector2 = Vector2.INF) -> void:
 	_charge_from_input = false
-	abilities.release_charge(aim if aim != Vector2.INF else get_global_mouse_position())
+	abilities.release_charge(aim if aim != Vector2.INF else get_aim_point())
 	queue_redraw()
 
 
@@ -363,7 +368,7 @@ func get_indicator_slot() -> StringName:
 ## release windup), otherwise the cursor.
 func get_indicator_aim() -> Vector2:
 	var locked := abilities.get_locked_charge_aim()
-	return locked if locked != Vector2.INF else get_global_mouse_position()
+	return locked if locked != Vector2.INF else get_aim_point()
 
 
 ## Any way a charge-up ends (AbilityComponent's one end-charge path): the
@@ -383,7 +388,7 @@ func _on_abilities_charge_ended(_slot: StringName, _ability: Ability) -> void:
 func request_cast(slot: StringName) -> void:
 	if abilities.is_ready(slot) and not is_cast_blocked() and not abilities.can_afford(slot):
 		abilities.fail_cast(slot, AbilityComponent.FAIL_NO_RESOURCE)
-	elif abilities.is_ready(slot) and not is_cast_blocked() and not abilities.conditions_pass(slot, get_global_mouse_position(), _condition_target_for(slot)):
+	elif abilities.is_ready(slot) and not is_cast_blocked() and not abilities.conditions_pass(slot, get_aim_point(), _condition_target_for(slot)):
 		abilities.fail_cast(slot, AbilityComponent.FAIL_CONDITION)   # AB12: fails at once, not buffered
 	elif abilities.can_cast(slot) and not dash.is_dashing() and can_interrupt_swing(slot):
 		cast_ability(slot)
@@ -414,7 +419,7 @@ func _condition_target_for(slot: StringName) -> Unit:
 	var ability := abilities.get_ability(slot)
 	if ability == null or ability.targeting != Ability.Targeting.UNIT:
 		return null
-	var aim := get_global_mouse_position()
+	var aim := get_aim_point()
 	var target := _enemy_under_point(aim)
 	return target if target != null else AbilityUtil.nearest_enemy_to(self, aim, target_forgiveness)
 
@@ -422,15 +427,19 @@ func _condition_target_for(slot: StringName) -> Unit:
 ## Cast an ability at the cursor (also used by tests).
 func cast_ability(slot: StringName, aim: Vector2 = Vector2.INF) -> bool:
 	if aim == Vector2.INF:
-		aim = get_global_mouse_position()
+		aim = get_aim_point()
 	var target := _enemy_under_point(aim)
 	if target == null:
 		target = AbilityUtil.nearest_enemy_to(self, aim, target_forgiveness)
 	return abilities.try_cast(slot, aim, target)
 
 
+## The enemy under the cursor: with the 3D view, picked on screen by its
+## model's projected height and width; without it, at the mouse's point.
 func _enemy_under_mouse() -> Unit:
-	return _enemy_under_point(get_global_mouse_position())
+	if world_view != null:
+		return world_view.unit_under_cursor(func(u: Unit) -> bool: return u.is_targetable() and is_enemy_of(u))
+	return _enemy_under_point(get_aim_point())
 
 
 func _enemy_under_point(point: Vector2) -> Unit:
@@ -453,7 +462,7 @@ func _enemy_under_point(point: Vector2) -> Unit:
 func _physics_process(_delta: float) -> void:
 	if not is_alive():
 		return
-	abilities.set_aim_hint(get_global_mouse_position())   # conditions checked outside a press (AB12)
+	abilities.set_aim_hint(get_aim_point())   # conditions checked outside a press (AB12)
 	_update_charge_input()
 	_update_facing()
 	_update_state()
@@ -467,7 +476,7 @@ func _update_charge_input() -> void:
 	if not abilities.is_charging():
 		_charge_from_input = false
 		return
-	abilities.set_charge_aim(get_global_mouse_position())
+	abilities.set_charge_aim(get_aim_point())
 	if _charge_from_input and not Input.is_action_pressed(ABILITY_ACTIONS[abilities.casting_slot]):
 		_release_charge()
 
@@ -584,8 +593,18 @@ func _update_state() -> void:
 
 # --- Facing and aim ---------------------------------------------------------------
 
-## Where the player is aiming, in world space (the mouse).
+## Where the player is aiming, in world space: the mouse. With the 3D view
+## (3D.md, The floor pick and aim): over an enemy, that enemy's feet;
+## otherwise the floor under the cursor (the plane at floor height past the
+## room's floor). Every aim in this script reads it (approved 2026-10-01).
 func get_aim_point() -> Vector2:
+	if world_view != null:
+		var enemy := _enemy_under_mouse()
+		if enemy != null:
+			return enemy.global_position
+		var on_floor := world_view.floor_under_cursor_px()
+		if on_floor != Vector2.INF:
+			return on_floor
 	return get_global_mouse_position()
 
 

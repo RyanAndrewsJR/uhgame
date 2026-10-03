@@ -16,6 +16,10 @@ extends Node3D
 ## P4: GameCamera3D (GameCamera's lean, centering, pan and shake as the same
 ## share of the screen, bounds, the follow pace) and the listener (it follows
 ## the focus; Audio's reach and panning scale with the view, and go back).
+## P5: the aim's view side: the plane past the floor, a model's box on screen,
+## the unit under a screen point (by its model, nearest box wins, the accept
+## filter), and a tile room's floor pick (its walkable trimesh on layer 1, the
+## plane through a wall cell's gap and past the room).
 ## Prints PASS/FAIL per check and a total; run headless, it quits with the
 ## number of failures as the exit code.
 
@@ -45,6 +49,8 @@ func _ready() -> void:
 	_test_fade()
 	_test_hide_sim()
 	_test_game_camera_3d()
+	_test_aim_on_screen()
+	await _test_room_floor_pick()
 	await _test_floor_pick()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
@@ -402,6 +408,110 @@ func _test_game_camera_3d() -> void:
 	cam.free()
 	cam2d.free()
 	target.free()
+
+
+# --- P5: the aim's view side ----------------------------------------------------------------
+
+## A GameCamera3D (no 2D source: locked, no lean) looking at a target placed
+## at `focus`, under `parent` (the camera's `target`).
+func _aim_camera(parent: Node, focus: Vector3) -> GameCamera3D:
+	var target := Node3D.new()
+	target.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	parent.add_child(target)
+	target.global_position = focus
+	var cam := GameCamera3D.new()
+	cam.target = target
+	parent.add_child(cam)
+	cam.make_current()
+	cam.snap_to_target()
+	return cam
+
+
+func _test_aim_on_screen() -> void:
+	_section("The aim on screen (P5: the plane, a model's box, the unit under a point)")
+	var view := WorldView.new()
+	add_child(view)
+	view.camera = _aim_camera(view, FOCUS)
+	var cam := view.camera
+	var center := get_viewport().get_visible_rect().size * 0.5
+
+	_check_near_v3("the plane: the screen's center meets it at the focus", WorldView.pick_plane(cam, center, 0.0), FOCUS, 0.001)
+	var corner_hit := WorldView.pick_plane(cam, Vector2(1.0, 1.0), 0.0)
+	_check("the screen's top corner meets it too (still 35° down there), north of the focus",
+		corner_hit != Vector3.INF and corner_hit.z < FOCUS.z, true)
+	_check_near("a plane point projects back onto its screen point (px off)",
+		cam.unproject_position(WorldView.pick_plane(cam, center + Vector2(130.0, -90.0), 0.0)).distance_to(center + Vector2(130.0, -90.0)), 0.0, 0.05)
+
+	# Three slimes: A at the focus, C 0.3 m north of it (their boxes overlap on
+	# screen), B 2 m north. Their stand-ins: capsules as wide as their bodies
+	# (0.44 m radius), 1 m tall.
+	var slime_scene: PackedScene = load("res://scenes/enemies/slime.tscn")
+	var a := slime_scene.instantiate() as Unit
+	var b := slime_scene.instantiate() as Unit
+	var c := slime_scene.instantiate() as Unit
+	for pair: Array in [[a, FOCUS], [b, FOCUS + Vector3(0.0, 0.0, -2.0)], [c, FOCUS + Vector3(0.0, 0.0, -0.3)]]:
+		var u: Unit = pair[0]
+		add_child(u)
+		u.global_position = Units.to_sim(pair[1])
+		view._add_stand_in(u)
+	var root_a: Node3D = view._stand_ins[a]["root"]
+	var rect_a := WorldView.screen_rect_of(cam, root_a)
+	var k := GameCamera3D.meters_per_screen_px(cam.look, center.x * 2.0)
+	_check("A's box on screen holds its feet and its head",
+		rect_a.grow(0.01).has_point(cam.unproject_position(FOCUS)) and rect_a.grow(0.01).has_point(cam.unproject_position(FOCUS + Vector3(0.0, 1.0, 0.0))), true)
+	_check("about as wide as the capsule (0.88 m = %.1f px; a bit more for its depth): %.1f px" % [0.88 / k, rect_a.size.x],
+		rect_a.size.x >= 0.88 / k - 0.5 and rect_a.size.x <= 0.88 / k + 3.0, true)
+	var any := func(_u: Unit) -> bool: return true
+	var mid_a := cam.unproject_position(FOCUS + Vector3(0.0, 0.5, 0.0))
+	_check("the cursor on A's body (half way up, above its feet on screen): A", view.unit_at_screen_point(mid_a, any) == a, true)
+	_check("the cursor at A's box's center, where C's box overlaps: A (the nearest box center)", view.unit_at_screen_point(rect_a.get_center(), any) == a, true)
+	var rect_c := WorldView.screen_rect_of(cam, view._stand_ins[c]["root"])
+	_check("at C's box's center: C", view.unit_at_screen_point(rect_c.get_center(), any) == c, true)
+	_check("on B's body: B", view.unit_at_screen_point(cam.unproject_position(FOCUS + Vector3(0.0, 0.5, -2.0)), any) == b, true)
+	_check("5 m above A (above B's box too): nobody", view.unit_at_screen_point(cam.unproject_position(FOCUS + Vector3(0.0, 5.0, 0.0)), any) == null, true)
+	var not_a_or_c := func(u: Unit) -> bool: return u != a and u != c
+	_check("on A's body, with A and C refused (dead, a friend): nobody (B is 2 m away)", view.unit_at_screen_point(mid_a, not_a_or_c) == null, true)
+	var bare := WorldView.new()
+	_check("without a camera: nobody", bare.unit_at_screen_point(mid_a, any) == null, true)
+	bare.free()
+	for u: Unit in [a, b, c]:
+		u.free()
+	view.free()
+
+
+func _test_room_floor_pick() -> void:
+	_section("A tile room's floor pick (P5: RoomView's walkable trimesh, the plane past it)")
+	var main := _fixture_room()
+	var room_view := RoomView.new()
+	add_child(room_view)
+	room_view.build(main.get_node("FixtureRoom/Tiles") as TileMapLayer)
+	_check("the floor is walkable", room_view.floor_mesh.is_in_group(&"walkable"), true)
+	_check("its pick body is on 3D layer 1 only, and collides with nothing",
+		room_view.floor_body != null and room_view.floor_body.collision_layer == WorldView.FLOOR_LAYER and room_view.floor_body.collision_mask == 0, true)
+	var view := WorldView.new()
+	add_child(view)
+	var room_center := Vector3(5.0, 0.0, 3.5)
+	view.camera = _aim_camera(view, room_center)
+	var cam := view.camera
+	# Bodies join the physics space on the next physics step.
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+
+	var on_floor := Vector3(3.3, 0.0, 2.6)
+	_check_near_v3("a floor cell under the cursor: the pick lands on it", WorldView.pick_floor(cam, cam.unproject_position(on_floor)), on_floor, 0.01)
+	_check_near("in sim px too (px off)", view.floor_at_screen_px(cam.unproject_position(on_floor)).distance_to(Units.to_sim(on_floor)), 0.0, 0.5)
+	var in_wall := Vector3(4.5, 0.0, 3.5)
+	_check_exact("the inner wall's cell has no floor: the trimesh misses there", WorldView.pick_floor(cam, cam.unproject_position(in_wall)), Vector3.INF)
+	_check_near("so the aim takes the plane: the wall cell's middle (px off)", view.floor_at_screen_px(cam.unproject_position(in_wall)).distance_to(Units.to_sim(in_wall)), 0.0, 0.5)
+	var past_room := Vector3(17.0, 0.0, 3.5)
+	_check_exact("past the room: the trimesh misses", WorldView.pick_floor(cam, cam.unproject_position(past_room)), Vector3.INF)
+	_check_near("the aim still points there, on the plane (px off)", view.floor_at_screen_px(cam.unproject_position(past_room)).distance_to(Units.to_sim(past_room)), 0.0, 0.5)
+	var bare := WorldView.new()
+	_check_exact("without a camera: INF", bare.floor_at_screen_px(Vector2.ZERO), Vector2.INF)
+	bare.free()
+	view.free()
+	room_view.free()
+	main.free()
 
 
 # --- Floor pick -------------------------------------------------------------------------------

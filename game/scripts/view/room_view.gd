@@ -4,8 +4,9 @@ extends Node3D
 ## 3D pivot P3, minimal scaffolding, not polished. Rooms built in 3D
 ## (RoomLayout, P8) are their own look; this one is generated from a tile
 ## room's Tiles: a flat floor (a quad per floor cell, in a checker so movement
-## reads), a box per wall cell (each in the `fades` group), the environment,
-## and the key light with its shadows. View only: the sim never reads it.
+## reads; `walkable`, with its trimesh for the floor pick since P5), a box per
+## wall cell (each in the `fades` group), the environment, and the key light
+## with its shadows. View only: the sim never reads it.
 
 const FADE_SHADER := preload("res://scripts/view/fade_dither.gdshader")
 
@@ -32,6 +33,8 @@ const FADE_SHADER := preload("res://scripts/view/fade_dither.gdshader")
 ## Filled by build().
 var walls: Array[MeshInstance3D] = []
 var floor_mesh: MeshInstance3D
+## The floor pick's body (P5): the floor mesh's trimesh on 3D layer 1.
+var floor_body: StaticBody3D
 var floor_cell_count: int = 0
 var environment: WorldEnvironment
 var key_light: DirectionalLight3D
@@ -90,7 +93,26 @@ func build(tiles: TileMapLayer) -> void:
 		floor_mesh.name = "Floor"
 		floor_mesh.mesh = st.commit()
 		floor_mesh.material_override = floor_material
+		floor_mesh.add_to_group(&"walkable")
 		add_child(floor_mesh)
+		_build_floor_pick()
+
+
+## The walkable ground for the floor pick (P5): a view-only trimesh of the
+## floor mesh on 3D physics layer 1 (WorldView.FLOOR_LAYER). Wall cells have
+## no floor, so a ray through a wall box goes on to the floor behind it, or
+## to the plane past the room (WorldView.floor_at_screen_px()).
+func _build_floor_pick() -> void:
+	var shape := floor_mesh.mesh.create_trimesh_shape()
+	shape.backface_collision = true
+	var col := CollisionShape3D.new()
+	col.shape = shape
+	floor_body = StaticBody3D.new()
+	floor_body.name = "FloorPick"
+	floor_body.collision_layer = WorldView.FLOOR_LAYER
+	floor_body.collision_mask = 0
+	floor_body.add_child(col)
+	add_child(floor_body)
 
 
 func _add_floor_quad(st: SurfaceTool, corners: Array[Vector3], color: Color) -> void:

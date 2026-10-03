@@ -11,7 +11,42 @@
 
 ## 3D pivot (3D_PIVOT.md)
 
-### P4 – camera and listener: 2026-10-02, Built (awaiting Ryan's check)
+### P5 – aim: 2026-10-02, Built (awaiting Ryan's check)
+Built from 3D.md. Played from `scenes/sandbox_main_3d.tscn`.
+- **`scripts/player/player.gd`** (the approved replace, 2026-10-01): the 10 direct `get_global_mouse_position()` calls now call `get_aim_point()`. `get_aim_point()` and `_enemy_under_mouse()` get a view branch; with no view they're exactly as before.
+  - New `var world_view: WorldView`, set by `WorldView.setup()`; null in the 2D game and every test.
+  - `get_aim_point()` with a view:
+    - over an enemy (picked on screen), that enemy's feet (`global_position`);
+    - otherwise the floor under the cursor;
+    - the mouse, if the view can't answer (no camera).
+  - `_enemy_under_mouse()` with a view: `WorldView.unit_under_cursor()` with Player's filter (targetable enemies). Without one: `_enemy_under_point()` at the aim, which is the mouse.
+- **`scripts/view/world_view.gd`** (additive):
+  - `floor_under_cursor_px()` / `floor_at_screen_px(screen_pos)`: `pick_floor()` on the walkable ground. Where it misses, `pick_plane()` at the camera focus's height. In sim px; `Vector2.INF` without a camera.
+  - `unit_under_cursor(accept)` / `unit_at_screen_point(screen_pos, accept)`: the unit whose view's box on screen holds the point. Overlapping boxes: the nearest box center wins.
+  - `static screen_rect_of(camera, root)`: every mesh's bounds under a view's root, at its interpolated transform, projected.
+  - `static pick_plane(camera, screen_pos, height_m)`.
+  - `setup()` sets `player.world_view`.
+- **`scripts/view/room_view.gd`** (additive): the floor mesh joins `walkable`, and a `FloorPick` StaticBody3D holds its trimesh (`backface_collision` on) on 3D layer 1, mask 0. Wall cells have no floor quad.
+- **view_test**: 130 checks (21 new).
+  - On screen:
+    - the plane at the screen's center and top corner, and its round trip;
+    - a capsule's box holds its feet and head and is about its width;
+    - three real slimes' stand-ins: the body, the nearest box center where boxes overlap, the box farther north, nobody above, the accept filter, no camera.
+  - A tile room's floor pick:
+    - `walkable`, the body on layer 1 only;
+    - a floor cell picked exactly;
+    - the inner wall's cell and a point past the room miss the trimesh, and the aim takes the plane there (within 0.5 px);
+    - no camera.
+- **Measured** in the real 3D sandbox, from a headless scratch harness with saving off. The harness fed mouse motion through `Input.parse_input_event()`: headless, the viewport reads the mouse from Input, while a windowed `warp_mouse()` did nothing without window focus.
+  1. The floor aim: 0.9 px from the floor point under the cursor. That's the lean easing over the 4 frames between pointing and reading (MOVEMENT.md's accepted aim drift).
+  2. Over Dummy1's body: it's the enemy under the cursor, and the aim is exactly its feet.
+  3. Lunge (`cast_ability(&"e")` at the cursor): 128 px, 0.6° off the cursor's direction.
+  4. The dash toward the cursor: 128 px, 0.1° off.
+  5. Right below the sandbox's north wall (the room's edge), the cursor on the wall: the aim is north of the Knight, and the dash pushes into the wall, 0.00 px south. P3's check had it going the opposite way: the 2D camera stopped at the room's bounds while the 3D camera kept the Knight centered.
+- **Tests:** stats 179, combat 460, abilities 563, audio 110, champions 168, talents 308, view 130: **1,918/1,918**, all seven suites in parallel. `settings.cfg` and `progress.cfg` were unchanged by every run (hashed again after Ryan's P4 play, which saved progress at 23:26).
+- **Not in P5** (with the switch on): models (the cursor picks the capsules' boxes until P6); the floor drawings, aim indicators and hover ring (P7); the crosshair over an enemy now comes from the on-screen pick, which can't be seen headless (Ryan's check).
+
+### P4 – camera and listener: 2026-10-02, Passed (Ryan's check)
 Built from 3D.md, with Ryan's two answers at the start (DECISIONS.md, 3D view): bounds keep the focus on the room's floor, and sounds scale with the view. Played from `scenes/sandbox_main_3d.tscn`.
 - **`scripts/camera/game_camera_3d.gd`** (new, `class_name GameCamera3D`, Camera3D):
   - The look from `CameraLook`, placed every frame with physics interpolation off. It follows its target (the player's capsule until P6) through the target's interpolated transform.
