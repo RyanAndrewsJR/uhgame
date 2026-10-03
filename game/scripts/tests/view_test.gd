@@ -2,8 +2,9 @@ extends Node3D
 ## 3D pivot P2 test (docs/3D.md, Build order): open
 ## res://scenes/tests/view_test.tscn and press F6.
 ## Checks the 3D view's logic without drawing anything: the px <-> m mapping
-## (Units), WorldView's physics priority, Main's use_3d_view switch (off by
-## default and in both main scenes, on in the 3D sandbox scene), and the floor
+## (Units), WorldView's physics priority, Main's use_3d_view switch (on by
+## default since P-M, left on by both main scenes; the hub's run plays
+## room_01's layout), and the floor
 ## pick on a fixed camera at the default look (perspective, 30° field of
 ## view, 50° pitch, 28 m wide) over a 1 m floor grid with a raised plateau:
 ## the screen center, round trips, the plateau top, the exact shared vertices
@@ -165,15 +166,24 @@ func _test_world_view() -> void:
 func _test_main_switch() -> void:
 	_section("Main.use_3d_view")
 	var script: Script = load("res://scripts/main.gd")
-	_check("the export exists and is off by default", script.get_property_default_value(&"use_3d_view"), false)
+	_check("the export exists and is on by default (the milestone, P-M)", script.get_property_default_value(&"use_3d_view"), true)
 	for path in ["res://scenes/main.tscn", "res://scenes/sandbox_main.tscn"]:
 		var state := (load(path) as PackedScene).get_state()
-		var turned_on := false
+		var turned_off := false
 		for i in state.get_node_property_count(0):
-			if state.get_node_property_name(0, i) == &"use_3d_view" and state.get_node_property_value(0, i) == true:
-				turned_on = true
-		_check("%s doesn't turn it on" % path.get_file(), turned_on, false)
+			if state.get_node_property_name(0, i) == &"use_3d_view" and state.get_node_property_value(0, i) == false:
+				turned_off = true
+		_check("%s doesn't turn it off, so it plays in 3D" % path.get_file(), turned_off, false)
 	_check("sandbox_main_3d.tscn (the 3D sandbox to play, P3) turns it on", _turns_3d_on("res://scenes/sandbox_main_3d.tscn"), true)
+	var hub_script: Script = load("res://scripts/ui/hub.gd")
+	_check("the hub's Start run plays room_01's layout, its Sandbox the tile sandbox (Ryan, P-M)",
+		[hub_script.get_property_default_value(&"run_scene"), hub_script.get_property_default_value(&"sandbox_scene")],
+		["res://scenes/main_layout.tscn", "res://scenes/sandbox_main.tscn"])
+	var hub_state := (load("res://scenes/ui/hub.tscn") as PackedScene).get_state()
+	var hub_overrides := false
+	for i in hub_state.get_node_property_count(0):
+		hub_overrides = hub_overrides or hub_state.get_node_property_name(0, i) in [&"run_scene", &"sandbox_scene"]
+	_check("and hub.tscn doesn't override them", hub_overrides, false)
 
 
 func _turns_3d_on(path: String) -> bool:

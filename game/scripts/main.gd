@@ -8,12 +8,11 @@ extends Node2D
 ## Stingers (AUDIO.md): with "Room cleared!" and "You died". null = silent.
 @export var room_cleared_sound: SoundEvent
 @export var player_died_sound: SoundEvent
-## The 3D view (docs/3D.md), off until the 3D pivot's milestone. Off, the game
-## is exactly the 2D game. On, Main adds a WorldView: the 2D world is hidden
-## from the screen and the room shows in 3D through GameCamera3D. To play it:
-## open scenes/sandbox_main_3d.tscn (the tile sandbox) or
-## scenes/sandbox_main_layout.tscn (the sandbox built in 3D, P8), press F6.
-@export var use_3d_view: bool = false
+## The 3D view (docs/3D.md), on by default since the 3D pivot's milestone
+## (P-M): Main adds a WorldView, the 2D world is hidden from the screen and the
+## room shows in 3D through GameCamera3D. Off is the rollback: exactly the 2D
+## game (a room built in 3D then shows only its flat 2D shapes).
+@export var use_3d_view: bool = true
 
 @onready var hud: CanvasLayer = $HUD
 @onready var camera: Camera2D = $Camera

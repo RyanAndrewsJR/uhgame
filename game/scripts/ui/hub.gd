@@ -8,8 +8,9 @@ extends Control
 
 ## The champion whose talents this hub shows.
 @export var champion: ChampionData = preload("res://data/champions/knight.tres")
-## Where Start run and Sandbox go.
-@export_file("*.tscn") var run_scene: String = "res://scenes/main.tscn"
+## Where Start run and Sandbox go. A run plays room_01's layout since the 3D
+## pivot's milestone (Ryan, P-M); main.tscn keeps the tile room_01.
+@export_file("*.tscn") var run_scene: String = "res://scenes/main_layout.tscn"
 @export_file("*.tscn") var sandbox_scene: String = "res://scenes/sandbox_main.tscn"
 ## Debug buttons (+1 level, +100 uses, +100 kills, unlock all, reset), so play
 ## tests don't need dozens of runs. On in hub.tscn for now.

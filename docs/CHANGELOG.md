@@ -11,7 +11,26 @@
 
 ## 3D pivot (3D_PIVOT.md)
 
-### P7's 2D-only looks – swing arcs from the feet, impact pillars in 3D: 2026-10-03, Built (awaiting Ryan's check)
+### P-M – the milestone: the view on by default: 2026-10-03, Built (awaiting Ryan's feel play test)
+Built from 3D.md's Build order, with Ryan's answers at the start (DECISIONS.md, 3D view): a run plays room_01's layout; the hub's Sandbox stays the tile sandbox, in 3D.
+- **The switch:** `main.gd`: `use_3d_view` defaults to `true` (its comment now names off as the rollback). `main.tscn` and `sandbox_main.tscn` set nothing, so both play in 3D. `main_layout.tscn`, `sandbox_main_layout.tscn` and `sandbox_main_3d.tscn` still set it explicitly (harmless, kept until the cleanup).
+- **The hub:** `hub.gd`'s `run_scene` default is `res://scenes/main_layout.tscn` (was `main.tscn`); `sandbox_scene` is unchanged; `hub.tscn` overrides neither.
+- **Before the answers**, screenshots of both room_01s in 3D (spawn, after walking north-east, west): the same room, the layout's kit walls where the tile room's boxes were, the camera's framing a few pixels apart (its bounds come from the tiles or the walkable floor).
+- **Played** (windowed harness, saving off; both save files unchanged): hub → Start run (room_01's layout: view, layout, 6 enemies) → the dash, W, E, R → Back to hub → Sandbox (the tile sandbox: view, RoomView) → the same → Back to hub → Start run again.
+  - Every time back at the hub, what the view changes is restored: the root's canvas cull mask (4294967295), `VFX.floor_squash` 0.55, `drawings_at_feet` false, no WorldView.
+  - The dash is 128 px (4 m) in both rooms.
+  - Q (Cleave) is refused at a run's start: it costs 20 Fury and the Knight starts at 0, as in 2D (its icon shows dimmed).
+- **Frame times** (no screenshots):
+  - the run 5.5 ms median, p95 6.7–7.0, max 12.3 ms after its first frame;
+  - the 3D sandbox 5.56 / 6.85 / 9.44;
+  - the tile room_01 in 3D 5.56 / 6.78 / 9.99;
+  - the tile room_01 in 2D (the rollback) 5.55 / 6.31 / 8.47.
+  - **Loading:** the first frame after Start run takes 100–160 ms (`build_sim()`, the bake, the view's setup, first draws), Sandbox 55 ms. It's a one-time pause on the scene change, within DUNGEONS' 0.5 s for a floor change.
+- **Still 2D-only under the view:** the dust puffs (`MovementVFXComponent`) and the VECTOR test wall's line (the art pass).
+- **Docs:** 3D.md (status, Current code, Core rules' switch, P8's room_01 line, P-M built and its rollback), TALENTS.md and DUNGEONS.md (the hub's Start run scene), DECISIONS.md, CLAUDE.md.
+- **Tests:** view_test 371 (+2 net): the export is on by default; `main.tscn` and `sandbox_main.tscn` don't turn it off; the hub's run and sandbox scenes, and `hub.tscn` doesn't override them. All seven suites: **2,177/2,177** (stats 179, combat 476, abilities 565, audio 110, champions 168, talents 308, view 371).
+
+### P7's 2D-only looks – swing arcs from the feet, impact pillars in 3D: 2026-10-03, Passed (Ryan's check 2026-10-03)
 The small step Ryan put before P-M (DECISIONS.md, P8's answers), from 3D.md's Build order.
 - **Swing arcs:**
   - New `VFX.drawing_origin(unit)` and `VFX.drawings_at_feet`: the body's center in the 2D game, the feet while a WorldView shows it. `WorldView.flatten_floor_drawings()` sets it and `_exit_tree()` puts it back, with `floor_squash`.

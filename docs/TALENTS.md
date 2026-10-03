@@ -256,7 +256,7 @@ Methods: `add_xp(amount, leveling) -> int` (levels gained), `get_talent_points(l
 
 ### The hub (functional; decided 2026-09-30: everything visible, live counters)
 Bare and functional, in CH6's spirit: placeholder text and squares, no art.
-- `res://scenes/ui/hub.tscn` + `res://scripts/ui/hub.gd`: the champion's name, level and XP ("Level 4: 1200 / 1800 XP"), points ("Talents 2 / 2"), then the talent screen, then buttons: **Start run** (`main.tscn`), **Sandbox** (`sandbox_main.tscn`), **Clear** (respec).
+- `res://scenes/ui/hub.tscn` + `res://scripts/ui/hub.gd`: the champion's name, level and XP ("Level 4: 1200 / 1800 XP"), points ("Talents 2 / 2"), then the talent screen, then buttons: **Start run** (`main.tscn`; since the 3D pivot's P-M `main_layout.tscn`, room_01 built in 3D), **Sandbox** (`sandbox_main.tscn`), **Clear** (respec).
 - The talent screen (`res://scripts/ui/talent_screen.gd`, `TalentScreen`): five columns (Q, W, E, R, Passive, each headed by the ability's or the passive's name), each listing its tiers top to bottom, siblings side by side. Every talent is shown, locked or not. Each one: name, description, and its state:
   - **Active** (highlighted): in the loadout.
   - **Available**: unlocked, can be added (click).
