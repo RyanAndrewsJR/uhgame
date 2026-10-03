@@ -11,6 +11,54 @@
 
 ## 3D pivot (3D_PIVOT.md)
 
+### P0b – feel spike: 2026-10-02, Passed (Ryan's answers)
+Throwaway spike on branch `spike/3d-p0b` (8386604), fresh from `main`, never merged, built in one session of its two; no code from P0a. `scenes/spike/p0b_spike.tscn` runs the real `sandbox_main.tscn` as the hidden 2D sim and builds a 3D view over it:
+- **The room**, from its tiles: a flagstone floor that darkens where it meets a wall; walls at the cutaway height.
+- **Three tall things** standing on existing wall cells, so the sim is untouched: a 3.9 m pillar at cell (9, 6), a 2 m plateau at x 19–20, y 7–9 (not walkable), and a timber-framed house at x 22–24, y 7–9 (gable roof, door, lit window).
+- **Lights:** four braziers with flickering point lights and shadows, and a key light from the north-west.
+- **Unit views** synced on the physics tick (priority 100):
+  - KayKit's Knight (CC0, approved and downloaded 2026-10-02, `art/models/kaykit_knight/`). It runs, idles, swings (each combo swing's strike timed to land on the hit), casts (Cleave, Lunge, Judgement, Iron Resolve), dodges on the dash, dies and flashes when hit, all from the existing signals.
+  - Procedural slimes with squash and stretch.
+  - Projectiles as glowing spheres.
+- **Floor drawings** through the shared-World2D SubViewport: the slam telegraph, swing arcs and the ability indicator (the Player node on the sim layer).
+- **Overlays and camera:** enemy health bars, damage numbers and a hover ring. The camera follows the Knight's interpolated position plus `GameCamera`'s screen-space lean; Y lock, C center, edge pan and shake carry over.
+- **One branch-only change:** `player.gd` routes its 11 mouse reads through a hook, as in P0a.
+
+Toggles (a panel; Backspace keeps them):
+
+| Key | Toggle |
+|---|---|
+| 5 | projection |
+| N | field of view (20, 30 or 40°) |
+| 6 | pitch (50, 60 or 70°) |
+| 7 | visible width (20, 24 or 28 m) |
+| 8 | walls (0.6, 1.2 or 2.4 m) |
+| 9 | tall things: solid, fade (dithered) or a cut-out circle |
+| 0 | smooth vs 8-direction turning |
+| M | material: a light-ramp "painted" shader vs fully lit PBR, both procedural with no texture files |
+| L | torches |
+| B | Knight height (1.4, 1.8 or 2.2 m) |
+
+`--p0b-shots=<dir>` saves 24 screenshots of the looks and measures each.
+
+1. **Frame time,** vsync off, 1280×720 window, every look: median 1.8–2.9 ms, p99 at most 4.8 ms, GPU 0.3–0.85 ms. The painted material took about 0.4 ms of GPU time and PBR 0.6–0.8 ms. Everything is under the 5.6 ms budget at 180 Hz.
+2. **Above the horizon at 50°** (P0a's open question): it doesn't happen. With a 30° field of view the screen's top edge still looks 35° down (30° with 40°), so the plain floor pick never misses.
+3. **Found while building:**
+   - `unproject_position()` works in the 640×360 canvas space under `canvas_items` stretch, the same space as the mouse and CanvasLayers.
+   - A dithered fade, skipped in the shadow pass, keeps a faded thing opaque and its shadow whole.
+   - The glTF Knight faces +Z, and its looping clips need `loop_mode` set.
+   - `Input.action_press()` sends no input event, so scripted ability presses need `Input.parse_input_event()`.
+4. **A bug Ryan hit in play,** fixed the same day: after an enemy died, the game stopped with "Trying to assign invalid previously freed instance" in `_aim_point`. A view outlives its unit by its death animation, and the view list's entry was copied into a typed variable before the validity check. A shot that kills every enemy and runs 3 s reproduces it with the old line and runs clean with the fix.
+5. **A side effect on Ryan's save:** the first screenshot runs played the real sandbox, and `Progress` saved `user://progress.cfg` when they quit. The only possible change is one Cleave use from a scripted Q press (most likely 204 → 205). The harness now sets `Progress.saving_enabled = false`; a run with a scripted Q cast left the file byte-identical.
+
+Tests on the spike branch: stats 179, combat 460, abilities 563, audio 110, champions 168, talents 308: 1,788/1,788 (the baseline). The real `settings.cfg` was unchanged.
+
+**Ryan's answers (2026-10-02):**
+- perspective with a 30° field of view, 50° pitch, 28 m wide;
+- tall things fade; smooth turning; the Knight 1.8 m tall;
+- walls are 3D assets of variable height, some fading, 2.2 m for now (a conflict with Q7, for P1);
+- material: PBR looked better to him, but it's left open until the art pass with real textures, and Q4 stands.
+
 ### P0a – go/no-go spike: 2026-10-01, Passed (GO)
 Throwaway spike on branch `spike/3d-p0a` (61e5637), never merged, built in one session of its two. `scenes/spike/p0a_spike.tscn` runs the real `sandbox_main.tscn` as the hidden 2D sim and builds a 3D view over it: the room raised from its tiles (walls cut to 1.2 m), a terrain patch (a 1.5 m plateau at cells x 5–8, y 10–12; a ramp from the west; 6 stairs from the south; 19 ledge colliders on layer 11 derived from height steps over 0.3 m; a fence on layer 7), a capsule per unit synced on the physics tick (`process_physics_priority` 100), a Camera3D at 60° pitch and about 23 m wide (perspective, 30° field of view, or orthographic), the floor pick driving the Knight's aim, and the sim's floor drawings through a SubViewport sharing the root's World2D. Two throwaway changes on the branch only: the ghosted dash masks walls and ledges (`& (1 | 1024)`), and `player.gd` routes its 11 mouse reads through a hook. Measured headless and in a window on Ryan's PC (Godot 4.7.2, Forward+, D3D12, RTX 4070 SUPER; **the screen refreshes at 180 Hz**, not 144).
 
