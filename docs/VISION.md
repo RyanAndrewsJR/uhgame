@@ -70,17 +70,18 @@ The environment is both a **weapon** and a **traversal tool**.
 ## What we take from each reference
 | Game | Take | Don't take |
 |---|---|---|
-| **League of Legends** | champion identity (passive + abilities + ultimate), ability design vocabulary, stat names and units, ability haste, AD/AP split | point-and-click movement, lanes, PvP, the MOBA map, last-hitting |
-| **Hades** | movement and combat feel, dash with i-frames, input buffering, readable enemy attacks, rooms as combat spaces; reactive dialogue (characters remark on what you just did and who you're playing), the reference for how the story is delivered (Pillar 5) | roguelite permadeath and resetting your power every run |
+| **League of Legends** | champion identity (passive + abilities + ultimate), ability design vocabulary, stat names and units, ability haste, AD/AP split; adaptive damage and Tahm Kench's devour (companions, COMPANIONS.md) | point-and-click movement, lanes, PvP, the MOBA map, last-hitting |
+| **Hades** | movement and combat feel, dash with i-frames, input buffering, readable enemy attacks, rooms as combat spaces; reactive dialogue (characters remark on what you just did and who you're playing), the reference for how the story is delivered (Pillar 5); a companion at your side on its own button (Hades II's familiars, Hades' companions; COMPANIONS.md) | roguelite permadeath and resetting your power every run |
 | **Dark Souls** | checkpoints inside a run: death sends you back to the last one reached | dropping currency on death and having to recover it |
 | **Diablo** | randomized loot, rarities and affixes, "increased" vs "more" modifiers, dungeon depth scaling, magic find | slow click-to-attack combat, stat-check fights |
-| **Baldur's Gate 3** | environment and immersion: places that feel lived in and tell their own story (Pillar 5) | turn-based combat |
+| **Baldur's Gate 3** | environment and immersion: places that feel lived in and tell their own story (Pillar 5); companions with personality (Scratch, the owlbear cub) and a familiar that falls and comes back (COMPANIONS.md) | turn-based combat |
+| **Pokemon** | companions (COMPANIONS.md): species with abilities of their own, eggs that hatch by playing, branching evolutions, a bond that grows by playing together, copies kept as individuals | a team of six, catching mid-fight, the pet fighting as a unit |
 
 ## Game structure (decided 2026-09-29)
 The loop: **hub → pick a champion → set their talents → run a dungeon → back to the hub.**
 
 ### Hub
-- A home base between runs. There the player picks a champion, sets that champion's talent loadout, and launches a run.
+- A home base between runs. There the player picks a champion, sets that champion's talent loadout, chooses a companion to take along (COMPANIONS.md; fixed for the run, none allowed), and launches a run.
 - Gear lives in each champion's own inventory: one unlimited list, the same at the hub and mid-run, with no separate stash (LOOT.md). Other hub features (NPCs, shops) aren't decided yet (NPCS.md, LOOT.md).
 
 ### Roster
@@ -100,7 +101,7 @@ The loop: **hub → pick a champion → set their talents → run a dungeon → 
 
 ### Champion progression and talents
 - Each champion has a persistent **champion level**, gained by playing that champion. It gates that champion's own talent points.
-- Talent progress is fully separate per champion. No currency or points are shared between champions.
+- Talent progress is fully separate per champion. No currency or points are shared between champions. (Companion materials are account-wide but buy only companions: Meta-progression, the companion exception.)
 - Talents reshape the champion's existing abilities, built on the ABILITIES.md augment system (TALENTS.md). They never move abilities between slots (see Build variety).
 - The champion level **only** gates talent points. It never touches combat stats and never calls `StatsComponent.set_level()`.
 - There is no leveling inside a run. In-run power comes purely from loot.

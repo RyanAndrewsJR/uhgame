@@ -4,7 +4,7 @@
 **Read when:** the task involves companions: what one is, its passives, quirks and rarity, bond and evolutions, its command on Tab, abilities that consume the companion and the imprint, how companions are found, hatched or rekindled, kindling (companion materials), the companion screen at the hub, the companion save, or a companion's 3D look.
 **Depends on:** CLAUDE.md, VISION.md (Meta-progression: the companion exception), CONVENTIONS.md, STATS.md (StatModifier, scopes), ABILITIES.md (AbilityComponent, the cast flow, conditions, DamageScaling, augments), CHAMPIONS.md (`ToolkitBundle` through Passive, the Knight's kit), TALENTS.md (`Progress`, its save pattern and test guard, kill credit, `xp_by_unit`), LOOT.md (the rarity ladder, `Affix`, roll bands, `ItemRoller`, `DropTable`, `Pickup`, the keep-current hold), 3D.md (views, teleports, the floor pick), MOVEMENT.md (the input map, the buffer), AUDIO.md (hooks).
 **Used by:** DUNGEONS (each dungeon's signature companions, what a clear is, checkpoints), NARRATIVE (the lore, the codex, secrets and lore puzzles, the champion-linked companion), UI (the polished companion screen, the menagerie, a 3D preview), NPCS (the trainer), PROGRESSION (one save), ENEMIES_AI (which enemies drop companions), future champions (abilities that consume the companion), ACHIEVEMENTS (much later).
-**Status:** interview done 2026-10-03. Ryan's idea (2026-10-02) and his answers (2026-10-03) are MUST. Items marked *(proposed)* are Claude's picks that Ryan hasn't answered; each one is also in Open questions. Nothing is built.
+**Status:** interview done 2026-10-03. Ryan's idea (2026-10-02) and his answers (2026-10-03) are MUST, and so are Claude's five readings he confirmed the same day (quirk counts, quirks as stat lines, what "Tab can't be modified at the hub" means, the adaptive details, "imprint") and the conflict fixes he had applied across the docs (the names below, the `companion` role tag, the fifth slot). Items still marked *(proposed)* are Claude's picks that Ryan hasn't answered; each one is also in Open questions. Nothing is built.
 
 ## How to read this doc
 Same as LOOT.md: MUST (never change without asking Ryan), TARGET (start value and allowed range), FREE (your call; tiebreaker: VISION.md's decision priorities). Every number is a TARGET placeholder until the play tests. Species named in examples (the Ember Fox) are illustrations, not launch content: the launch companions are picked with the content (Ryan, 2026-10-03).
@@ -37,7 +37,7 @@ An elite slime bursts, and among the loot sits a cocoon, glowing blue. It's dorm
 - The toolkit pieces the consume needs exist: conditions (`SELF_HAS_STATUS` … `LAST_PART_HIT`), `ConditionalBonus.self_statuses`, `HealGameplayEffect`, `status_shield.tres`, `status_haste.tres`.
 - `Progress` (`res://scripts/autoload/progress.gd`): `user://progress.cfg`, read lazily; `is_test_scene()` turns saving off under `res://scenes/tests/`; `get_tracked_player()`; kill XP from `ChampionLeveling.get_kill_xp()` (the temporary `xp_by_unit`: slime 5, elite 40).
 - The hub (`hub.tscn`, `hub.gd`, `TalentScreen`): functional, 640×360; its buttons take no focus.
-- 3D view: `WorldView` snaps a view whose sim node moved more than 64 px in one tick (`TELEPORT_PX`); `unit_at_screen_point()` picks enemies only (P5). The generic view mechanism (`view_source`, `EntityView`) is P6, not built.
+- 3D view: `WorldView` snaps a view whose sim node moved more than 64 px in one tick (`TELEPORT_PX`); `unit_at_screen_point()` picks enemies only (P5). P6 (built 2026-10-03, awaiting Ryan's check) built the generic view mechanism: a sim node joins `view_source` in its `_ready()` and answers `get_view_scene()` (an export `view_scene`; null = its default, loaded with `load()` only when a WorldView asks, since a sim script never preloads a view scene); WorldView preloads the defaults it lists (`DEFAULT_VIEW_SCENES`); views extend `EntityView` (`setup()`, `sync()`, `on_sim_exited()`); `UnitView` places action clips by progress (`action_start` / `action_strike` / `action_end`); status VFX views sit over their unit's model (`WorldView.unit_height_m()`).
 - LOOT.md is written but not built: `Affix`, `Item.Rarity`, the roll bands, `ItemRoller`, `DropTable`, `Pickup`, the keep-current hold (`set_gain_on_max_raise()`), and a materials bucket reserved per champion.
 - Input: **Tab is free.** None of the 18 actions in `project.godot` uses it and no script reads it. Godot's built-in `ui_focus_next` uses Tab to move focus in menus; the pause menu grabs focus when it opens; the hub's and the talent screen's buttons take no focus.
 
@@ -66,7 +66,7 @@ An elite slime bursts, and among the loot sits a cocoon, glowing blue. It's dorm
 - **The power exception** (Ryan, 2026-10-02; VISION.md, Meta-progression): a companion's passives, quirks and command work for whichever champion takes it along. It's the only account-level thing that gives combat power.
 - **No companion** is allowed. A champion can go without one, and then the game plays exactly as it does today.
 
-### Rarity and quirks (MUST: its own list, LOOT's ladder, count and rolls only, Ryan 2026-10-03; counts TARGET)
+### Rarity and quirks (MUST: its own list, LOOT's ladder, count and rolls only, the counts below; Ryan 2026-10-03)
 - A **quirk** is one rolled line on a copy (Ryan's word, 2026-10-03; CONVENTIONS keeps "trait" off talents, so it isn't used). Each species has its own quirk list, written for it and never shared; a copy's quirks come only from its species' list.
 - A copy has a rarity from LOOT's ladder (Common → Artifact; LOOT's names and colors). Rarity decides **only** how many quirks a copy has and how high they roll, in LOOT's roll bands. It never changes the passives, the command or the evolutions.
 
@@ -76,12 +76,12 @@ An elite slime bursts, and among the loot sits a cocoon, glowing blue. It's dorm
 | Uncommon | 2 | 0.10–0.50 |
 | Rare | 3 | 0.25–0.65 |
 | Unique | 3 | 0.35–0.75 |
-| Exotic | 4 *(proposed)* | 0.35–0.75 |
-| Legendary | 4 *(proposed)* | 0.55–0.95 |
+| Exotic | 4 | 0.35–0.75 |
+| Legendary | 4 | 0.55–0.95 |
 | Artifact | 4 | always the maximum (no roll) |
 
-  *(proposed)* LOOT's own counts (1, 2, 3, 3, 3, 3 fixed, 4 fixed) would make a Unique copy and an Exotic copy identical: on gear the step between them is the second sigil, and companions have none. So the Exotic step adds a fourth quirk, and Legendary keeps four with its higher band.
-- **A quirk is a stat line** *(proposed)*: one `Affix` (LOOT.md) applied to the champion, themed to the species ("+3–8% move speed", "+5–12% damage to burning enemies"): a plain stat, or a `hit:` / `target:` damage scope. Never `ability:` or `tag:` (principle 3), and no sustain (life on hit, life steal, regen: LOOT's rule until ENEMIES_AI.md). Quirks that tune a passive's own numbers (a longer burn) come when a species first needs one (Open questions).
+  Why these counts (confirmed by Ryan, 2026-10-03): LOOT's own counts (1, 2, 3, 3, 3, 3 fixed, 4 fixed) would make a Unique copy and an Exotic copy identical: on gear the step between them is the second sigil, and companions have none. So the Exotic step adds a fourth quirk, and Legendary keeps four with its higher band.
+- **A quirk is a stat line** (confirmed by Ryan, 2026-10-03): one `Affix` (LOOT.md) applied to the champion, themed to the species ("+3–8% move speed", "+5–12% damage to burning enemies"): a plain stat, or a `hit:` / `target:` damage scope. Never `ability:` or `tag:` (principle 3), and no sustain (life on hit, life steal, regen: LOOT's rule until ENEMIES_AI.md). Quirks that tune a passive's own numbers (a longer burn) come when a species first needs one (Open questions).
 - A copy never has the same quirk twice. A species' list has at least 4 quirks, so an Exotic or better copy can have 4 different ones (validated).
 - The roll is saved, not the value (LOOT's rule): a retune reaches every copy already owned. Values round to the affix's `step` at roll time.
 
@@ -98,13 +98,13 @@ An elite slime bursts, and among the loot sits a cocoon, glowing blue. It's dorm
 - The two evolutions' passives differ in kind, not size *(proposed: TALENTS' authoring rule, applied here)*: two ways to play the companion, never a bigger one and a smaller one.
 
 ### The command (Tab) (MUST, Ryan 2026-10-02 and 2026-10-03; numbers TARGET)
-- Each species has one **command**, an `Ability` cast with Tab. It's fixed: talents, items, sigils, quirks and rerolls never change it, and no hub screen edits it. Only its own companion's passives may power it up (above). *(proposed reading of "the Tab ability can't be modified at the hub": no hub choice targets the command directly; a passive unlocked by bond, or by the evolution picked, may power it up.)*
+- Each species has one **command**, an `Ability` cast with Tab. It's fixed: talents, items, sigils, quirks and rerolls never change it, and no hub screen edits it. Only its own companion's passives may power it up (above). "The Tab ability can't be modified at the hub" means no hub choice targets the command directly; a passive unlocked by bond, or by the evolution picked, may power it up (confirmed by Ryan, 2026-10-03).
 - It can be anything a champion's ability can be (Ryan, 2026-10-03): damage, crowd control, a shield, swapping places, a field where the companion stands. Every cast style and targeting works.
 - **Cooldown 25–50 s** (Ryan, 2026-10-03): "not as impactful as an ult, but great utility and opportunity for bigger damage windows if used correctly". **Ability haste never shortens it** (Ryan, 2026-10-03), and no item, talent or sigil reaches it. Its cooldown is the companion's own, the same on every build.
-- **Adaptive damage** (Ryan, 2026-10-03): a command's damage scales from the higher of the champion's attack damage and ability power (League's adaptive force), through a new `DamageScaling` kind, `CASTER_ADAPTIVE`. *(proposed)* It compares the final values (the Knight: 64 AD against 0 AP, so AD) and a tie goes to AD; the damage type follows (PHYSICAL from AD, MAGIC from AP).
+- **Adaptive damage** (Ryan, 2026-10-03): a command's damage scales from the higher of the champion's attack damage and ability power (League's adaptive force), through a new `DamageScaling` kind, `CASTER_ADAPTIVE`. It compares the final values (confirmed by Ryan, 2026-10-03) (the Knight: 64 AD against 0 AP, so AD) and a tie goes to AD; the damage type follows (PHYSICAL from AD, MAGIC from AP).
 - **The caster is the champion.** The command's hits are the champion's: kill credit, crit, plain damage stats such as `damage_increase`. The command may act from the companion's point (a field around it, a projectile from it, swapping places with it); its script reads the point from the champion's `CompanionComponent`.
 - It can only be cast while the companion is out: every command has the cast condition `SELF_HAS_STATUS companion` with the fail text "Your companion is an imprint" (validated). A press during the imprint fails with the usual "condition" cue and isn't buffered.
-- *(proposed)* Its one role tag is a new sixth role, `companion`, and it carries no other tag except a style tag its cast style needs. Its modifier scopes are only `ability:<its id>`, so a `tag:` modifier (an item's "mobility cooldown −10%") never reaches it.
+- Its one role tag is a new sixth role, `companion` (with the conflict fixes, Ryan 2026-10-03; ABILITIES.md, Standard tags), and it carries no other tag except a style tag its cast style needs. Its modifier scopes are only `ability:<its id>`, so a `tag:` modifier (an item's "mobility cooldown −10%") never reaches it.
 - Cast mode, the input buffer, cast progress, the presentation hooks and the sound hooks work as for Q/W/E/R.
 
 ### Consuming the companion (MUST, Ryan 2026-10-02 and 2026-10-03)
@@ -195,13 +195,13 @@ Evolving: 60. Changing a copy's evolution: 60.
 
 ### Lore (working lore: Ryan's draft of 2026-10-02 with his edit of 2026-10-03; NARRATIVE.md refines it)
 - Companions are **bound spirits**. Looted ones are **dormant** (a cocoon, an egg, a relic core) and **awaken** at the hub. Crafted ones are **rekindled** from materials.
-- A consumed companion isn't destroyed: it falls back to its **imprint** and returns from it (Ryan's word, 2026-10-03). That's why it always comes back.
+- A consumed companion isn't destroyed: it falls back to its **imprint** and returns from it (Ryan's word, 2026-10-03, replacing "reform"; the reading confirmed the same day: the imprint is the state a consumed companion is in until it returns). That's why it always comes back.
 
 ### Cosmetics and money (MUST, Ryan 2026-10-03)
 - No dyes or skins at launch beyond the two evolutions' looks. Mutated variants from higher difficulties, other cosmetics and any monetization are decided later. Whatever comes stays look-only.
 
 ## Data (Resources)
-Names *(proposed)*, checked against CONVENTIONS.md (reserved names, vocabulary); CONVENTIONS gets them once approved. Resource scripts in `res://scripts/data/`.
+Names approved with the conflict fixes (Ryan, 2026-10-03) and listed in CONVENTIONS.md (reserved names and vocabulary, planned until built). Resource scripts in `res://scripts/data/`.
 
 ### CompanionData (`companion_data.gd`; `res://data/companions/companion_<name>.tres`)
 A species. `Data` suffix: a bundle of other resources, like `ChampionData`.
@@ -284,7 +284,7 @@ Methods: `get_quirk_count(rarity)`, `get_band(rarity) -> Vector2`, `get_bond_to_
 - **`CompanionRoller`** (static functions, `companion_roller.gd`): `roll_quirks(species, rarity, table, rng, picked := [])` (picked ids first, the rest drawn without repeats, every value in the band; a band with equal ends draws nothing, LOOT's rule), `roll_drop(...)`. Rarity rolls reuse `ItemRoller.roll_rarity()`.
 
 ### CompanionComponent (`res://scripts/components/companion_component.gd`, a `Node2D` child of `player.tscn`)
-- `top_level` (its position is its own); joins `view_source` with `view_scene` = `res://scenes/view/companion_view.tscn` (P6).
+- `top_level` (its position is its own). P6's view rule: it joins `view_source` in its `_ready()` and answers `get_view_scene()` (an export `view_scene`; null = `res://scenes/view/companion_view.tscn`, loaded with `load()` only when a WorldView asks, never preloaded); WorldView's `DEFAULT_VIEW_SCENES` gets that scene.
 - `Player._attach_champion()`, after the talents and the gear, calls `setup(Companions.get_chosen(champion))`. None: nothing happens (no point, no slot, no status). Otherwise it places itself at its spot, applies `status_companion`, attaches the passives its species' bond and the copy's evolution allow (`ToolkitBundle.apply_to()` under their source ids), adds the quirks' modifiers under `companion_<uid>`, and puts the command in AbilityComponent's `companion` slot.
 - `is_present()`, `get_point() -> Vector2`, `get_copy()`, `consume(imprint_time) -> bool` (false when not out), `bring_back()` (at once: checkpoints, debug), `get_imprint_time_left()`. Signals: `consumed`, `returned`, `teleported(from, to)`.
 - Following and teleporting as in Rules, Following, every physics tick in game time (hitstop freezes it).
@@ -293,10 +293,10 @@ Methods: `get_quirk_count(rarity)`, `get_band(rarity) -> Vector2`, `get_bond_to_
 - Exports: `follow_back_px` 40, `follow_side_px` 16, `follow_rate` 10, `max_speed_scale` 1.5, `leash_px` 256, `blocked_teleport_time` 0.4, `combat_window` 3.0, `pick_radius_px` 16, `debug_draw`.
 
 ### AbilityComponent and the Player
-- A fifth slot, `companion` (export `companion: Ability`), with the same per-slot state, cast flow, buffer and fail cues as Q/W/E/R. *(proposed)* `SLOTS` stays the champion's four, so code that means the champion's slots keeps meaning them (the talents' groups, the resource bar's thresholds); a new `ALL_SLOTS` adds `companion` where every slot is meant (cooldowns, casting, `get_all_abilities()` for StatsComponent's key check, `get_slots_matching()`).
+- A fifth slot, `companion` (export `companion: Ability`), with the same per-slot state, cast flow, buffer and fail cues as Q/W/E/R (ABILITIES.md, AbilityComponent). `SLOTS` stays the champion's four, so code that means the champion's slots keeps meaning them (the talents' groups, the resource bar's thresholds); a new `ALL_SLOTS` adds `companion` where every slot is meant (cooldowns, casting, `get_all_abilities()` for StatsComponent's key check, `get_slots_matching()`).
 - `get_cooldown_duration()`: an ability whose role is `companion` takes its `cooldown` param without ability haste.
 - `Ability.get_modifier_scopes()`: an ability whose role is `companion` returns only `ability:<id>`.
-- *(proposed)* `ModifyCooldownGameplayEffect` with an empty `ability_scope` ("every slot") skips the companion slot.
+- `ModifyCooldownGameplayEffect` with an empty `ability_scope` ("every slot") skips the companion slot (with the conflict fixes, Ryan 2026-10-03).
 - `Player.ABILITY_ACTIONS` gets `&"companion": "ability_companion"`.
 - **The consume aim:** for an ability with `can_consume_companion`, the Player's press picks the companion when the cursor is over its view (3D: its view's box on screen, as P5 picks enemies) or, without a view, within `pick_radius_px` of its point. An enemy under the cursor wins. Then `ctx.consumes_companion` is true, and a UNIT ability needs no unit target and doesn't walk into range.
 - **At the effect start** (ABILITIES.md, the cast flow's step 10), before the conditional bonuses' `self_statuses`: if `ctx.consumes_companion`, `CompanionComponent.consume(companion_imprint_time)`; if it isn't out any more, `ctx.consumes_companion` turns false (so the bonus doesn't pass).
@@ -319,7 +319,7 @@ Methods: `get_quirk_count(rarity)`, `get_band(rarity) -> Vector2`, `get_bond_to_
 
 ## View
 - `CompanionComponent` declares its `view_scene`: `CompanionView` (`res://scripts/view/companion_view.gd`, extends `EntityView`, 3D.md P6). It shows the copy's model (its evolution's `model_scene`, else the species', else a 0.4 m placeholder sphere in `icon_color`) at the terrain height plus `hover_height_m`, turning toward where it moves (toward the champion's facing when still), with idle and move clips named by exports, like `UnitView`'s.
-- The command's `cast_anim` plays on the companion's model, positioned by cast progress (ABILITIES AB14's hook) *(proposed: the champion's model plays nothing for a command)*. Its `cast_vfx` and `impact_vfx` work as for any ability; a projectile fired from the companion starts at its view's height.
+- The command's `cast_anim` plays on the companion's model, positioned by cast progress the way `UnitView` places action clips (`action_start` / `action_strike` / `action_end`, P6; ABILITIES AB14's hook) *(proposed: the champion's model plays nothing for a command)*. Its `cast_vfx` and `impact_vfx` work as for any ability; a projectile fired from the companion starts at its view's height.
 - A teleport plays a puff at both ends (VFX); WorldView already snaps any view whose sim node moved more than 64 px in a tick.
 - Consumed: it rushes into the champion over the cast time, then hides. Returning: it fades in at its spot.
 - The consume aim: WorldView picks the companion's box on screen (P5's `screen_rect_of()`), and a ring around it is drawn on the floor (`FloorOverlay`, P7) while it's the aimed target.
@@ -345,8 +345,8 @@ Audio hooks: see AUDIO.md. The command uses the ability hooks (`cast_sound`, `hi
 | A command projectile in flight when the companion is consumed | It keeps flying: it's the champion's projectile |
 | The champion has 50 ability haste | Every Q/W/E/R cooldown is shorter; the command's isn't |
 | An item's `tag:mobility` cooldown affix and a mobility-shaped command | Never reaches it (its only scope is `ability:<id>`) |
-| An empty-scope `ModifyCooldownGameplayEffect` ("reset every cooldown") | Skips the command *(proposed)* |
-| Adaptive damage with AD equal to AP | AD, PHYSICAL *(proposed)* |
+| An empty-scope `ModifyCooldownGameplayEffect` ("reset every cooldown") | Skips the command |
+| Adaptive damage with AD equal to AP | AD, PHYSICAL |
 | Kills by the command | The champion's: they count for kills, champion XP, drops and bond |
 | Progress' ability-use counter | Counts the command's casts under its id; nothing reads them (no talent group) |
 | A bond level reached mid-run | The bond passive attaches at once, without a heal *(proposed)* |
@@ -368,9 +368,9 @@ Audio hooks: see AUDIO.md. The command uses the ability hooks (`cast_sound`, `hi
 ## Build order (one step per request)
 Every step: the Knight's abilities, talents, enemies chasing and the HUD still work, and with no companion chosen the game plays exactly as before. Build logs go in CHANGELOG.md (a Companions section); this doc keeps one line per built step.
 
-**Before CO1:** LOOT L1 (`Affix`, `Item.Rarity`, the bands, `ItemRoller`). **Before CO2:** 3D P6 (views) and LOOT L2's keep-current hold (or CO2 builds the hold exactly as LOOT.md specifies it). **For CO4's ring:** P7 (`FloorOverlay`). **Before CO6:** LOOT L7 (`Pickup`).
+**Before CO1:** LOOT L1 (`Affix`, `Item.Rarity`, the bands, `ItemRoller`). **Before CO2:** 3D P6 (views; built 2026-10-03, its check pending) and LOOT L2's keep-current hold (or CO2 builds the hold exactly as LOOT.md specifies it). **For CO4's ring:** P7 (`FloorOverlay`). **Before CO6:** LOOT L7 (`Pickup`).
 
-1. **CO1 – Data, rules and the save.** `CompanionData`, `CompanionPassive` (with its validation), `CompanionEvolution`, `CompanionTable` + `companion_table_default.tres`, `Companion`, `CompanionCollection`, `CompanionRoller`, the `Companions` autoload (the save, the test guard, acquire, awaken, rekindle, reroll, evolve, release, choose, bond levels, kindling, the egg run stand-in), the two test species; `res://scenes/tests/companions_test.tscn` + `scripts/tests/companions_test.gd`. Docs: CONVENTIONS (the approved names and words).
+1. **CO1 – Data, rules and the save.** `CompanionData`, `CompanionPassive` (with its validation), `CompanionEvolution`, `CompanionTable` + `companion_table_default.tres`, `Companion`, `CompanionCollection`, `CompanionRoller`, the `Companions` autoload (the save, the test guard, acquire, awaken, rekindle, reroll, evolve, release, choose, bond levels, kindling, the egg run stand-in), the two test species; `res://scenes/tests/companions_test.tscn` + `scripts/tests/companions_test.gd`. Docs: CONVENTIONS' companion rows go from planned to built.
    **Done means:** over seeded rolls every rarity gets its quirk count and every value sits in its band and range, rounded to its step; no copy has a quirk twice or one off its species' list; rekindling only works for known species and charges the table's costs; rerolling changes one line only; evolving needs bond 10; validation catches each broken rule (a REPLACE, a champion-ability scope, a `tag:` quirk, fewer than 4 quirks, not exactly two evolutions, a command without the role tag or the condition, a cooldown out of range); a save and reload keeps copies, bond, known species, kindling, eggs and choices; an unreadable entry survives a save; tests never write the real file; every existing suite passes.
 2. **CO2 – The follower.** `CompanionComponent` (the point, following, teleports, `status_companion`, passives and quirks by bond and evolution, the keep-current hold, the imprint state with `consume()` / `bring_back()`, bond from kills and time in combat), the Player attaching the chosen copy, `CompanionView` with a placeholder model, `SandboxCompanions`, `debug_draw`.
    **Done means:** in the sandbox (2D and 3D) the test wisp trails the Knight at its spot and settles about 0.7 s after a dash; nothing hits, blocks or pushes it; crossing the wall gap makes it teleport within 0.4 s; at bond 1, 5 and 10 with an evolution the right passives sit under their source ids, and consuming it (I) restores every stat exactly; coming back doesn't heal; bond rises with kills and fighting, not while idle or an imprint; with no companion every suite is unchanged; Ryan's check at 180 Hz: no stutter, no pop except the teleport's puff.
@@ -392,22 +392,27 @@ Every step: the Knight's abilities, talents, enemies chasing and the HUD still w
 The nursery as a place in the hub, the menagerie, the trainer NPC and codex entries (UI.md, NPCS.md, NARRATIVE.md); dyes, skins, mutated variants and monetization (later, look-only); each dungeon's signature list and boss drops (DUNGEONS.md, ENEMIES_AI.md); the secrets' and stories' content (DUNGEONS.md, NARRATIVE.md); more material kinds; nicknames; a 3D preview; achievements (ACHIEVEMENTS.md); the polished screens and art (UI.md, the art pass); the launch companions themselves (content).
 
 ## Open questions
-Claude's proposals (written in above as *(proposed)*; Ryan can overrule any):
-1. **Quirk counts:** 1 / 2 / 3 / 3 / 4 / 4 / 4 from Common to Artifact. A straight copy of LOOT's counts would make Unique and Exotic copies identical.
-2. **Quirks are stat lines:** an `Affix` from its own list, on plain stats or `hit:` / `target:` scopes, each about 60% of the matching gear affix's range. Quirks that tune a passive's own numbers come when a species needs one.
-3. **"Tab can't be modified at the hub":** read as "no hub choice targets the command directly"; a passive reached by bond, or the evolution's, may power it up, as Ryan's passives answer allowed.
-4. **Adaptive:** compares the final AD and AP, a tie goes to AD, and the damage type follows. League compares bonus AD with AP and uses a per-champion preference at 0 / 0; a champion field (`adaptive_preference`) could do the same.
-5. **The command's role tag** `companion` (a sixth role) and only `ability:<id>` as its scope; an empty-scope cooldown effect skips it.
-6. **The imprint also quiets the quirks**, not only the passives.
-7. **Consuming ignores cast range; the enemy wins under the cursor;** a floor ring marks the companion as the target. A champion ability may read `SELF_HAS_STATUS companion` for a bonus, never as a cast condition.
-8. **Following numbers:** 40 px behind and 16 px aside, rate 10/s, 1.5 × move speed, a 256 px leash, 0.4 s blocked; drifting through a wall corner for a moment is accepted.
-9. **Bond:** kill XP plus 1 per 2 s in combat, the curve 800 → 2400 (bond 5 in about 4.4 runs, bond 10 in about 14), counting in the sandbox; bond passives attach at once mid-run.
-10. **Kindling:** the name, the sources (3 per elite, 5% × 1 per regular kill, releases) and the cost table; Artifact copies come only from drops.
-11. **Drops and eggs:** 3% per elite kill with LOOT's elite rarity weights; the counted-run stand-in (back to the hub with 20+ kills); eggs hatch in 3.
-12. **A starter egg** for a new account.
-13. **The choice is per champion,** saved in the companion file.
-14. **The names:** `Companions` (autoload), `Companion`, `CompanionData`, `CompanionPassive`, `CompanionEvolution`, `CompanionTable`, `CompanionCollection`, `CompanionRoller`, `CompanionComponent`, `CompanionView`, `CompanionScreen`, `SandboxCompanions`, `status_companion`, `CONSUMES_COMPANION`, `CASTER_ADAPTIVE`, `ability_companion`, the `companion` slot and role tag; the words **companion**, **species**, **copy**, **quirk**, **command**, **bond**, **evolution**, **dormant** / **awaken** / **hatch**, **rekindle**, **imprint**, **consume**, **release**, **kindling**, **known species**; files `data/companions/companion_<name>.tres`, commands `<companion>_tab_<command>.tres` with ids `<companion>_<command>`.
-15. **"Imprint":** read as the lore word for the state a consumed companion is in until it returns (Ryan replaced "reform" with it). Confirm the reading.
+Claude's proposals still open (written in above as *(proposed)*; Ryan can overrule any):
+1. **Quirk size:** each quirk about 60% of the matching gear affix's range.
+2. **The imprint also quiets the quirks**, not only the passives.
+3. **Consuming ignores cast range; the enemy wins under the cursor;** a floor ring marks the companion as the target. A champion ability may read `SELF_HAS_STATUS companion` for a bonus, never as a cast condition.
+4. **Following numbers:** 40 px behind and 16 px aside, rate 10/s, 1.5 × move speed, a 256 px leash, 0.4 s blocked; drifting through a wall corner for a moment is accepted.
+5. **Bond:** kill XP plus 1 per 2 s in combat, the curve 800 → 2400 (bond 5 in about 4.4 runs, bond 10 in about 14), counting in the sandbox; bond passives attach at once mid-run.
+6. **Kindling:** the name, the sources (3 per elite, 5% × 1 per regular kill, releases) and the cost table; Artifact copies come only from drops.
+7. **Drops and eggs:** 3% per elite kill with LOOT's elite rarity weights; the counted-run stand-in (back to the hub with 20+ kills); eggs hatch in 3.
+8. **A starter egg** for a new account.
+9. **The choice is per champion,** saved in the companion file.
+10. **Evolutions differ in kind, not size** (TALENTS' authoring rule applied to the two evolved passives).
+11. **The champion's model plays nothing for a command;** the companion's model plays the command's clip.
+
+Confirmed by Ryan, 2026-10-03 (Claude's readings, written in above):
+1. ~~Quirk counts~~: 1 / 2 / 3 / 3 / 4 / 4 / 4 from Common to Artifact (a straight copy of LOOT's counts would make Unique and Exotic copies identical).
+2. ~~Quirks are stat lines~~: an `Affix` from its own list, on plain stats or `hit:` / `target:` scopes. Quirks that tune a passive's own numbers come when a species needs one.
+3. ~~"Tab can't be modified at the hub"~~: no hub choice targets the command directly; a passive reached by bond, or the evolution's, may power it up.
+4. ~~Adaptive~~: compares the final AD and AP, a tie goes to AD, and the damage type follows. (League compares bonus AD with AP and uses a per-champion preference at 0 / 0; a champion field could do the same if a champion ever needs it.)
+5. ~~"Imprint"~~: the lore word for the state a consumed companion is in until it returns (replacing "reform").
+
+Applied with the conflict fixes (Ryan, 2026-10-03): the `companion` role tag (the sixth role) with only `ability:<id>` as a command's scope; the fifth AbilityComponent slot; an empty-scope cooldown effect skipping the command; the consume pick as P5's one exception; kindling apart from LOOT's bucket; `Pickup`'s companion and kindling payloads; Tab in MOVEMENT's input map; and the names and words, now in CONVENTIONS.md: `Companions` (autoload), `Companion`, `CompanionData`, `CompanionPassive`, `CompanionEvolution`, `CompanionTable`, `CompanionCollection`, `CompanionRoller`, `CompanionComponent`, `CompanionView`, `CompanionScreen`, `SandboxCompanions`, `status_companion`, `CONSUMES_COMPANION`, `CASTER_ADAPTIVE`, `ability_companion`, the `companion` slot and role tag; **companion**, **species**, **copy**, **quirk**, **command**, **bond**, **evolution**, **dormant** / **awaken** / **hatch**, **rekindle**, **imprint**, **consume**, **release**, **kindling**, **known species**; `data/companions/companion_<name>.tres`, commands `<companion>_tab_<command>.tres` with ids `<companion>_<command>`.
 
 For other docs (nothing proposed yet):
 - **DUNGEONS.md:** each dungeon's signature companions; what a clear is (eggs); boss drop chances; whether the imprint carries across rooms; checkpoints bring the companion back (decided here).

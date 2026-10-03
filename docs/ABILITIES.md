@@ -2,7 +2,7 @@
 
 **Read when:** the task involves abilities, casting, cast styles, charge-up, damage scalings, tooltips, ability tags, costs, cooldowns, charges, recasts, projectiles, augments, forms, empowers or conditions.
 **Depends on:** CLAUDE.md, CONVENTIONS.md (names, tags, reserved names), STATS.md (scoped params, `get_param()`, ResourceComponent, ability haste), COMBAT.md (HitPipeline, HitContext, statuses, ReactionRule and GameplayEffect, telegraphs), MOVEMENT.md (the input buffer, the dash, facing), WORLD_INTERACTION.md (WorldQuery, movement methods, Hazards), AUDIO.md (ability hooks).
-**Used by:** CHAMPIONS (kits; passives are built on this toolkit), LOOT (items: scoped modifiers and augments), ENEMIES_AI (enemies cast through the same AbilityComponent), UI (tooltips, the ability bar), DUNGEONS (run modifiers that grant rules or augments).
+**Used by:** CHAMPIONS (kits; passives are built on this toolkit), LOOT (items: scoped modifiers and augments), ENEMIES_AI (enemies cast through the same AbilityComponent), UI (tooltips, the ability bar), DUNGEONS (run modifiers that grant rules or augments), COMPANIONS (a companion's command in the fifth slot; abilities that consume the companion).
 
 ## How to read this doc
 Same as COMBAT.md: MUST (never change without asking Ryan), TARGET (start value and allowed range), FREE (your call; tiebreaker: VISION.md's decision priorities).
@@ -68,12 +68,14 @@ Moved here from MOVEMENT.md unchanged (MOVEMENT.md keeps a pointer). Per ability
 - An ability's damage is `base_damage` plus a list of scaling terms, each "ratio × a stat", read from the caster (attack_damage, bonus attack damage = final − base, ability_power, max_health, bonus health, armor, magic_resist...) or from the target (max health, missing health, current health). `ap_ratio` is supported.
 - `base_damage` / `ad_ratio` keep working (`ad_ratio` is one term, wrapped, not rewritten). Judgement's missing-health bonus is in data (a `DamageScaling` term).
 - Scalings are scoped params, so items can raise a ratio.
+- **Adaptive** (planned, COMPANIONS.md; League's adaptive force): a term on the higher of the caster's `attack_damage` and `ability_power` (`DamageScaling.Of.CASTER_ADAPTIVE`). The final values are compared, a tie goes to AD, and the hit's damage type follows (PHYSICAL from AD, MAGIC from AP). A companion's command scales this way, so one companion fits AD and AP champions (Ryan, 2026-10-03).
 
 ### Tooltips from data
 - Each ability's description is a template with placeholders (`{damage}`, `{cooldown}`, `{cost}`, `{range}`, `{charges}`, each scaling term, charge-up min–max) filled from `get_param()` with haste, modifiers and augments applied, damage colored by type (League style). It's a function other code can call; where the HUD shows it is UI.md. A talent that reshapes the ability can replace the whole template while it's on (TALENTS T3b: `Talent.ability_description`, `AbilityComponent.get_description_override()`); a scaling term at 0 is left out of `{ratios}`.
 
 ### Standard tags (listed in CONVENTIONS.md)
 - Exactly one role tag per ability, following Diablo 4's categories: `generator`, `core`, `defensive`, `mobility`, `ultimate` (Diablo's "basic" is `generator` here, so it can't be confused with the basic attack).
+- **`companion`** (planned, COMPANIONS.md): the sixth role, for a companion's command only. A command carries no other tag except a style tag its cast style needs, and its modifier scopes are only `ability:<its id>` (`get_modifier_scopes()`), so no `tag:` modifier from an item, talent or sigil reaches it.
 - Plus shape tags (`area`, `projectile`, `line`, `cone`, `dash`), style tags (`charge_up`, `channel`, `vector`; each must match the ability's `cast_style`) and element tags (`fire`, `cold`, `lightning`, `poison`, `shadow`, `holy`; the list is an open question).
 - **`melee`** (planned with the 3D terrain, 3D.md P9): the ability's hits can't reach an `elevated` target from below (COMBAT.md, Hits). The Knight: Cleave and Lunge get it; Judgement doesn't (UNIT-targeted, walks into range) and neither does Cleave Wave (a projectile).
 - **Knock-ups** (planned, 3D.md, Terrain and height 1a): an ability knocks up by giving its hit a knockback (`knockback_px`) and `status_airborne` among its statuses; no new field. Enemies don't knock up the player in v1.
@@ -100,7 +102,7 @@ Moved here from MOVEMENT.md unchanged (MOVEMENT.md keeps a pointer). Per ability
 
 ### In the 3D view (3D.md; the view never changes gameplay state)
 - **Indicators** draw on the floor: the Player's `_draw()` (and `Ability.draw_indicator()` / `draw_vector_indicator()`) goes into `FloorOverlay`, so the indicator lies on the ground, follows slopes, and still shows exactly where the cast lands.
-- **Aim:** the cursor's floor pick, or an enemy's feet when the cursor is over its model (MOVEMENT.md, Facing and aim). A VECTOR's start point is the floor pick at the press.
+- **Aim:** the cursor's floor pick, or an enemy's feet when the cursor is over its model (MOVEMENT.md, Facing and aim). A VECTOR's start point is the floor pick at the press. An ability that can consume the companion (planned, COMPANIONS.md) also picks the companion's model; an enemy under the cursor wins.
 - **Presentation hooks** drive the 3D model: `UnitView` positions the clip named by `cast_anim` (or a swing's `swing_anim`) by the cast's or swing's progress (`get_cast_progress()`, `get_swing_progress()`), so a strike lands on the effect at any cast or attack speed. `cast_vfx` / `impact_vfx` accept scenes with a Node3D root (`VFX.spawn_scene()`, P7). The 2D `Body/AnimationPlayer` path stays for the 2D game.
 
 ### Augments
@@ -112,7 +114,7 @@ Moved here from MOVEMENT.md unchanged (MOVEMENT.md keeps a pointer). Per ability
 - Forms/stances: one source can REPLACE several slots at once (League's Nidalee and Jayce, Diablo 4 Druid shapeshifts): a status tagged `form` holding several REPLACE augments grants them while active and removes them when it ends; one form at a time.
 
 ### New GameplayEffects (for augments, passives and items; each takes a source id)
-- `ModifyCooldownGameplayEffect`: reduce by seconds or percent, or reset (League kill resets, Diablo "cooldown reduced when…"). REDUCE_PERCENT is a percent of the remaining cooldown. RESET on a slot with charges finishes the current recharge (+1 charge), not a full refill. While a recast window is open (the cooldown hasn't started), it does nothing.
+- `ModifyCooldownGameplayEffect`: reduce by seconds or percent, or reset (League kill resets, Diablo "cooldown reduced when…"). REDUCE_PERCENT is a percent of the remaining cooldown. RESET on a slot with charges finishes the current recharge (+1 charge), not a full refill. While a recast window is open (the cooldown hasn't started), it does nothing. An empty scope ("every slot") never reaches the companion slot (planned, COMPANIONS.md).
 - `RestoreResourceGameplayEffect`.
 - `CastAbilityGameplayEffect`: a free cast of an ability or a variant from a source (Diablo's "also casts"); Casting, Free casts.
 - `RemoveStatusesByTagGameplayEffect` (cleanse).
@@ -143,6 +145,7 @@ Moved here from MOVEMENT.md unchanged (MOVEMENT.md keeps a pointer). Per ability
   - ENEMIES_IN_RANGE (at least N within X; optionally only enemies with a status tag: "a marked enemy within range", Lee Sin's Q2 recast)
   - RESOURCE_AT_LEAST (N)
   - LAST_PART_HIT (the previous recast part hit something)
+  - CONSUMES_COMPANION (planned, COMPANIONS.md: this cast is consuming the caster's companion; a devour's payoff bonus)
 - Each condition has a "not" toggle (`negate`). A list of conditions means all must pass (AND). No OR and no nesting; that's what scripts are for.
 - "Target" means the unit hit, for hit-time checks. For cast checks: a UNIT ability's chosen target; otherwise the enemy nearest the cursor within cast range. No target = every TARGET_ condition fails, even when negated. In a reaction rule, "self" is the unit the effects come from (the rule's source) and "target" the effect target.
 - Where conditions plug into an ability:
@@ -241,7 +244,7 @@ Extra tunables: cone_half_angle_deg 60. (The old `knockback` export was deleted 
 
 ## Numbers (TARGET: start, range)
 - Player cast times: movement and quick strikes 0.0–0.1 s; strikes 0.15–0.3 s; ultimates up to 0.5 s.
-- Cooldowns: non-ultimate abilities 3–10 s; ultimates 30–60 s (shorter than League, for run pacing).
+- Cooldowns: non-ultimate abilities 3–10 s; ultimates 30–60 s (shorter than League, for run pacing); a companion's command 25–50 s, never shortened by ability haste (Ryan, 2026-10-03; COMPANIONS.md).
 - Charge-up: time to full 1.5 s (0.5–3); overhold 2 s after full (1–4); a tap gives charge 0 (the listed minimums); walking while charging per ability (e.g. `cast_move_speed_multiplier` 0.6).
 - Charge-up release windup (`cast_time` on a CHARGE_UP ability): 0.3 s (0.15–0.5). The default stays 0 (no windup); the test Charged Line uses 0.3 s.
 - VECTOR (AB13, all placeholders until a champion uses one): start range (`cast_range`) 500 u (160 px), `vector_length` 500 u (160 px), `vector_width` 75 u (24 px), `vector_min_drag_px` 8 px (4–16), release windup 0.2 s (0.1–0.3), hold limit (`overhold_time`) 2 s, walking while aiming (`cast_move_speed_multiplier`) 0.6 (0.5–0.6); a full root only through `roots_during_cast`.
@@ -322,6 +325,8 @@ Audio hooks: see AUDIO.md (`charge_sound` is added there for CHARGE_UP).
 | `cast_anim` | `StringName` | `&""` | AB14: an animation on the caster's `Body/AnimationPlayer`, positioned by cast progress. Empty (or no such player or animation) = nothing. |
 | `heal_on_hit_ratio` | `float` | 0 | CHAMPIONS CH5, export group "Sustain": heals the caster for this × the damage taken by each unit a hit of this ability gets through to (`HitPipeline.apply_on_hit()`, `Unit.heal()`). A scoped param, and a named-input scaling may shape it (the Knight's Cleave: `self_missing_health` through a curve). A kit mechanic, not the `life_steal` stat (CHAMPIONS.md, Sustain). |
 | `heal_missing_health_ratio` | `float` | 0 | CHAMPIONS CH5b, export group "Sustain": heals the caster for this × their missing health, once per cast, on the cast's first hit that gets through (`HitPipeline.apply_on_hit()`, `Unit.heal()`; `HitContext.cast`, `CastContext.missing_health_healed`). A scoped param, shaped like `heal_on_hit_ratio`. The Knight's Cleave uses this one (0.55 through a curve on `self_missing_health`); its `heal_on_hit_ratio` is 0. |
+| `can_consume_companion` | `bool` | false | planned (COMPANIONS.md, CO4): the cast may be aimed at the caster's own companion, which it then consumes at the effect start. The ability keeps its full use on enemies (consuming is never mandatory). |
+| `companion_imprint_time` | `float` | 45 | planned (CO4): seconds a companion this ability consumes stays an imprint (TARGET 30–60). |
 
 Tags (`tags`, existing) carry the standard tags (placeholder roles until CHAMPIONS.md; CHAMPIONS.md keeps the Knight's as they are *(proposed)*): Cleave `core`, `area`, `cone`; Iron Resolve `defensive`, `buff`; Lunge `mobility`, `dash`, `movement`; Judgement `ultimate`, `channel`; the slam `core`, `area`. Existing tags stay (don't rename). A style tag is written in the data and must match `cast_style` (the test checks it).
 
@@ -345,7 +350,7 @@ New methods:
 |---|---|---|
 | `param` | `StringName` | the term's param id, e.g. `&"target_missing_health_ratio"`. Its ratio is read through `get_param(caster, param)`, so scoped modifiers raise it. Must not match an `@export` on the ability (`push_error`). |
 | `ratio` | `float` | the base ratio (0.2 = 20%). |
-| `of` | `DamageScaling.Of` | `CASTER_STAT` (the caster's `stat`, final value), `CASTER_BONUS_STAT` (final − `get_base_value()`: League's "bonus"), `TARGET_MAX_HEALTH`, `TARGET_MISSING_HEALTH`, `TARGET_CURRENT_HEALTH`. |
+| `of` | `DamageScaling.Of` | `CASTER_STAT` (the caster's `stat`, final value), `CASTER_BONUS_STAT` (final − `get_base_value()`: League's "bonus"), `TARGET_MAX_HEALTH`, `TARGET_MISSING_HEALTH`, `TARGET_CURRENT_HEALTH`; planned: `CASTER_ADAPTIVE` (the higher of the caster's final `attack_damage` and `ability_power`, a tie going to AD; the hit's damage type follows; `stat` unused; COMPANIONS.md). |
 | `stat` | `StringName` | for the CASTER kinds: a registered stat (`attack_damage`, `ability_power`, `max_health`, `armor`, `magic_resist`...). |
 | `label` | `String` | tooltip text for the stat ("bonus AD", "of the target's missing health"); empty = generated from `of` and `stat`. |
 
@@ -377,6 +382,7 @@ Kinds (`Condition.Kind`):
 - `ENEMIES_IN_RANGE`: at least `count` living enemies of self within `radius` (and tagged `status_tag` if set); counts `AbilityUtil.enemies_of()`, so untargetable enemies don't count.
 - `RESOURCE_AT_LEAST`: self's `resource_pool.current` ≥ `value`; a unit without a pool fails.
 - `LAST_PART_HIT`: in a recast sequence, the previous part hit something (reads `cast`); false anywhere else.
+- `CONSUMES_COMPANION` (planned, COMPANIONS.md; appended to the enum): the cast is consuming self's companion (`cast.consumes_companion`, which the consume at the effect start leaves true only if the companion was out); false without a cast.
 
 Methods: `is_met(self_unit, target, cast = null)` (the kind's check, then `negate`; a TARGET_ kind with no valid target is false either way), `is_target_kind()`; static `all_met(conditions, self_unit, target, cast)` (AND; an empty list passes), `first_failed(...)` (for the fail text), `any_target_kind(conditions)`.
 
@@ -407,6 +413,7 @@ Methods: `is_met(self_unit, target, cast = null)` (the kind's check, then `negat
 | `vector_end` | `Vector2` | | AB13: `vector_start` + `vector_direction` × `vector_length` (px) |
 | `progress` | `float` | 0.0 | AB14: the cast time's progress, 0 at cast start (at release for CHARGE_UP and VECTOR) to 1 at the effect start; 1 for a cast with no cast time and for a free cast. Scripts, telegraphs and `cast_anim` read it. |
 | `target` | (existing) | | for a non-UNIT cast, AbilityComponent fills it with the condition target when conditions or bonuses need one (Architecture, Conditions) |
+| `consumes_companion` | `bool` | false | planned (COMPANIONS.md, CO4): the press aimed this cast at the caster's companion (an ability with `can_consume_companion`); a UNIT ability then needs no unit target |
 
 ### AbilityAugment (Resource, `res://scripts/data/ability_augment.gd`; files `res://data/augments/augment_<name>.tres`)
 | Field | Type | Notes |
@@ -429,7 +436,7 @@ Methods: `is_met(self_unit, target, cast = null)` (the kind's check, then `negat
 
 ### New GameplayEffects (`res://scripts/data/`, subclasses of `GameplayEffect`)
 All take the usual `apply(target, source, trigger_ctx)`; the source id is the rule's (the rule was added with one).
-- `ModifyCooldownGameplayEffect`: `ability_scope` (`&""` = every slot), `mode` (`REDUCE_SECONDS`, `REDUCE_PERCENT` (of the time left), `RESET` (finishes the current recharge: +1 charge)), `amount`. Acts on `target`'s AbilityComponent, on each slot whose ability (what a press casts) matches; only a running cooldown changes (nothing while ready or while a recast window is open).
+- `ModifyCooldownGameplayEffect`: `ability_scope` (`&""` = every slot of the champion's four; planned: never the companion slot, COMPANIONS.md), `mode` (`REDUCE_SECONDS`, `REDUCE_PERCENT` (of the time left), `RESET` (finishes the current recharge: +1 charge)), `amount`. Acts on `target`'s AbilityComponent, on each slot whose ability (what a press casts) matches; only a running cooldown changes (nothing while ready or while a recast window is open).
 - `RestoreResourceGameplayEffect`: `amount` + `max_resource_ratio` × max resource, on `target.resource_pool` (nothing without one).
 - `CastAbilityGameplayEffect`: `ability: Ability` (any Ability resource, e.g. a hidden variant); `target` casts it for free (`AbilityComponent.try_cast_free(ability, aim, target, source_id)`); the aim comes from `trigger_ctx`: a CastContext → its `point` and `target`; a HitContext → the hit unit (its position, and it's the target); otherwise the caster's current aim (`get_aim_point()` if it has one, else ahead of its facing). `CastContext.source_id` = the source id of the rule that fired (`Reactions.get_current_source_id()`, e.g. `&"augment_<id>"` for an EVENT augment's rule).
 - `RemoveStatusesByTagGameplayEffect`: `tags: Array[StringName]`; removes every status on `target` carrying any of them (a cleanse is `[&"cc"]`).
@@ -469,6 +476,8 @@ All take the usual `apply(target, source, trigger_ctx)`; the source id is the ru
 ### AbilityComponent (additions; the existing API keeps working)
 Per-slot state: charges and the recharge timer (`_cooldown_left` is the recharge timer), the recast part and window, and the slot's state at cast start (for refunds). One cast or charge-up at a time (`casting`, `casting_slot`).
 
+**The companion slot** (planned, COMPANIONS.md, CO3): a fifth slot, `&"companion"` (export `companion: Ability`), holds the chosen companion's command, cast with Tab (`ability_companion`). It has the same per-slot state, cast flow, buffer and fail cues as Q/W/E/R. `SLOTS` stays the champion's four, so code that means the champion's slots keeps meaning them (talent groups, the resource bar's thresholds); an `ALL_SLOTS` adds it where every slot is meant (cooldowns, casting, `get_all_abilities()`, `get_slots_matching()`). `get_cooldown_duration()` takes a `companion`-role ability's `cooldown` without ability haste (Ryan, 2026-10-03: the command's 25–50 s cooldown is the companion's own).
+
 Queries:
 - `get_ability(slot)`: the **active** ability (the recast sequence's, else the winning REPLACE variant, else the export); the HUD, Player and the tooltip read it. `get_base_ability(slot)`: the export. `get_all_abilities()`: every slot's export and every augment's REPLACE variant, each once (StatsComponent's scoped key check).
 - `is_ready(slot)`: charges > 0 (METER later); a recast window counts as ready. With `max_charges` 1 that's exactly "cooldown done".
@@ -500,7 +509,7 @@ Signals: `charges_changed(slot, charges, max_charges)`, `charge_started(slot, ab
 7. `cast_sound`, `cast_started`, `on_cast_started()` (telegraph) and its `telegraph_sound`; `cast_vfx` and `cast_anim` (AB14; nothing while empty).
 8. (No event here: ABILITY_CAST fires at the effect start, step 10.)
 9. The cast time, as cast progress from 0 to 1 (AB14; Cast progress and presentation hooks, below). A stun (any `blocks_cast` status) applied now interrupts at once (StatusComponent's `status_applied`): `interrupt_cast()` gives the charge back and refunds the cost; no ABILITY_CAST fires. A dash or move cancel works the same way (`_cancel_cast()`).
-10. Effect start: read `self_missing_health` again (CHAMPIONS CH5), consume ability empowers (`ctx.empowers`; not for a free cast; before `ability_cast`, so a rule granting the next one on cast doesn't feed this cast), apply passing bonuses' `self_statuses`, `Events.ability_cast(unit, ability, ctx)` (ABILITY_CAST rules fire now, free casts they trigger run at once), then `execute()`. Nothing is refunded from here.
+10. Effect start: read `self_missing_health` again (CHAMPIONS CH5), consume ability empowers (`ctx.empowers`; not for a free cast; before `ability_cast`, so a rule granting the next one on cast doesn't feed this cast), planned (COMPANIONS CO4): consume the companion if `ctx.consumes_companion` (it turns false if the companion isn't out), apply passing bonuses' `self_statuses`, `Events.ability_cast(unit, ability, ctx)` (ABILITY_CAST rules fire now, free casts they trigger run at once), then `execute()`. Nothing is refunded from here.
 11. Cleanup; `cast_finished`. A recast ability opens (or closes) its window here.
 
 ### CHARGE_UP flow
@@ -565,7 +574,7 @@ Ryan, 2026-09-29. Two goals: a future cast-speed stat or item plugs into one pla
 - `_on_ability_pressed(slot)` by the active ability's `cast_style`: INSTANT → QUICK: `request_cast()`; QUICK_WITH_INDICATOR: aim (`aiming_slot`), release casts (SELF casts at once). CHANNEL → `request_cast()` on press. CHARGE_UP and VECTOR → `request_charge(slot)` (start now, or buffer). A press while the slot's recast window is open → `request_cast()` (the next part), whatever the style, except a VECTOR ability's next part → `request_charge(slot)` (AB13: every part is aimed).
 - `_on_ability_released(slot)`: the aimed slot casts; the charging (or vector-aiming) slot releases.
 - A buffered VECTOR press fires through `Player.start_buffered_ability()` like a CHARGE_UP one: the start point goes where the cursor is when it fires, and if the key isn't held any more it releases at once on its own start point (a tap: `_release_charge(get_vector_start())`).
-- Keys and right mouse (W) arrive the same way: `ability_q` / `ability_w` / `ability_e` / `ability_r` in `_unhandled_input` with `is_action_pressed` / `is_action_released`, which work for mouse buttons too.
+- Keys and right mouse (W) arrive the same way: `ability_q` / `ability_w` / `ability_e` / `ability_r` in `_unhandled_input` with `is_action_pressed` / `is_action_released`, which work for mouse buttons too. Planned (COMPANIONS CO3): `ability_companion` (Tab) for the companion slot, through `Player.ABILITY_ACTIONS`.
 - Cast mode: Player copies `Settings.get_cast_mode()` into `cast_mode` at start and on `Settings.setting_changed` (like `dash_toward_cursor`), so the Inspector value only lasts until then. A switch mid-aim doesn't touch the aim in progress.
 - The buffer (MOVEMENT.md) is unchanged except: a press on an ability that's ready and not blocked but can't be afforded, or fails its conditions, fails at once and isn't buffered (`Player.request_cast()` / `request_charge()`); a press that is also blocked or on cooldown is buffered as before and, if it runs out, shows that reason; a buffered CHARGE_UP press starts charging when it fires (step 7 above).
 
@@ -639,6 +648,7 @@ Ryan, 2026-09-29. Two goals: a future cast-speed stat or item plugs into one pla
 
 ### HUD (ability bar and hud)
 - The ability bar's tooltip is `get_tooltip_plain()`.
+- Planned (COMPANIONS CO3): a fifth slot labeled "Tab", right of R with a gap, only while a companion is chosen: the command's cooldown, the imprint's time left, and a tooltip with the companion's quirks and passives.
 - The resource bar (`res://scripts/ui/resource_bar.gd`, added by `hud.gd`'s `setup_abilities()` only when the player has a `resource_pool`): a 132 × 4 px bar just under the ability bar (the health readout is text at the top, so the bar sits with the slots), colored by `resource_type` (mana blue, energy yellow, fury red), the current amount beside it; it blinks for 0.2 s on `"not enough resource"`. CHAMPIONS CH6: `get_thresholds()` (every `RESOURCE_AT_LEAST` in the slotted abilities) drawn as ticks, `is_glowing()` as a bright outline.
 - Slot cues: a red flash (0.2 s) on `"not ready"`, `"silenced"` or `"condition"`; a grey tint while the player can't cast (stunned, silenced) or while `get_fail_reason(slot) == "condition"` (so it un-greys the frame the condition passes and the slot is ready; `is_condition_greyed(slot)` for tests); a blue tint while the slot's cost can't be paid. The fail text isn't shown yet (UI.md). A cue shows when a press is dropped: `"not enough resource"` and `"condition"` at once (never buffered), any other reason when its buffer runs out (`PlayerInput` → `AbilityComponent.fail_cast(slot, get_fail_reason(slot))`).
 - Tooltip header: "Cooldown Ns", "Cost N" when the cost is above 0, "N charges" when `max_charges` > 1.

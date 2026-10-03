@@ -51,6 +51,7 @@ Only keys that physically collided with WASD changed. Action names never change.
 | `ability_w` | Right mouse | was W |
 | `camera_center` | C | was Space |
 | `restart`, `camera_toggle_lock`, `camera_left/right/up/down` | Backspace, Y, arrow keys | unchanged |
+| `ability_companion` | Tab | planned (COMPANIONS.md, CO3): the companion's command, the fifth ability slot. Tab was unbound (checked 2026-10-03). Godot's built-in `ui_focus_next` also uses Tab, only to move focus in menus; CO3 checks that Alt+Tab never casts the command |
 
 The LoL actions `move` / `stop` / `attack_move` (were right mouse / S / A) and `select` (was left mouse, unbound since COMBAT C2) were deleted 2026-09-29, with their code (LoL-era systems, below).
 
