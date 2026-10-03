@@ -56,7 +56,8 @@ The rule for every combo with `attack_style` MELEE (the default; the Knight is t
 - Damage types: PHYSICAL (armor), MAGIC (magic_resist), TRUE (ignores both). Proposed mitigation: damage × 100 / (100 + armor).
 - Negative armor and magic_resist (core rule, built since C1): the multiplier is LoL's 2 − 100 / (100 − r) (−100 → × 1.5), so it never divides by zero (`HitPipeline.get_mitigation_multiplier()`; STATS.md).
 - Invulnerability (dash i-frames, post-hit i-frames) blocks the whole hit: damage, knockback, statuses and on-hit.
-- Hit tags: basic_attack, ability, proc, dot, crit, the damage type, plus the source ability's tags.
+- Hit tags: basic_attack, ability, proc, dot, crit, the damage type, plus the source ability's tags. Planned with the 3D terrain (3D.md, P9): `melee`, added to MELEE combo swings and abilities tagged `melee` (the Knight's Cleave and Lunge; not Judgement or Cleave Wave).
+- **Elevated targets (planned, 3D.md, Terrain and height 2):** hits use 2D distance whatever the terrain, so melee reaches an enemy at a plateau's edge. The one exception: a target tagged `elevated` (standing on a perch) can't be hit by a `melee` hit unless the attacker is `elevated` too. `AbilityUtil.can_reach()` decides it, in target picks and in `HitPipeline.resolve()` (the last guard: the hit is blocked); never inside abilities.
 - On-hit: basic attack and ability hits trigger on-hit effects; dot ticks and proc hits never do (loop guard). Each Ability has proc_coefficient (1.0 default, lower for multi-hit or area abilities), which scales on-hit chances and effects. Numbers (on_hit_damage, life_on_hit, resource_on_hit) are stats (STATS.md); behaviors are augments or ReactionRules. On-hit damage is a separate MAGIC proc hit *(proposed)*.
 - Events: every hit emits Events.unit_hit(ctx), damage emits unit_damaged(ctx), death emits unit_died(unit, ctx). Reserved names only (CONVENTIONS.md).
 - Line of sight: basic attacks never hit through walls. Abilities don't either, unless the ability is marked to ignore walls (e.g. a meteor shower).
@@ -69,7 +70,8 @@ The rule for every combo with `attack_style` MELEE (the default; the Knight is t
 ### Status effects
 - One system: StatusComponent plus StatusEffect Resources. Crowd control = statuses tagged cc (stun, root, silence, slow). `Unit.apply_stun()` and `add_speed_modifier()` are thin wrappers that create statuses.
 - Refresh or stack is decided per StatusEffect (data).
-- tenacity shortens crowd control duration; it doesn't affect damage over time.
+- tenacity shortens crowd control duration; it doesn't affect damage over time. **Except airborne** (planned): a knock-up's duration isn't shortened (`ignores_tenacity`), so its arc keeps its shape.
+- **Airborne** (planned, 3D.md, Terrain and height 1a): `status_airborne` (tags `cc`, `airborne`, `debuff`) blocks moving, attacking, casting and dashing, REFRESH_LONGER, its duration from the hit. I-frames block it (they block the whole hit); being airborne gives no i-frames (juggles). A cleanse and unstoppable don't end it (`cleansable` false; Ryan, 2026-10-01), though unstoppable refuses a new one. Its knockback can't be dash-cancelled (airborne blocks the dash). While airborne and displaced, a unit's mask drops layers 6, 7 and 11 (pits, low obstacles, ledges). **Enemies don't knock up the player in v1.** The model's rise and fall is view-only.
 - DoT kill credit goes to whoever applied the status.
 - A status that blocks casting (stun, silence) applied during a cast time or a charge-up interrupts the cast at once, refunding its cost and cooldown (ABILITIES.md, Casting).
 - **Unstoppable** (status tag `unstoppable`): immune to new cc, and applying it removes every cc status; it also blocks knockback from hits and `KnockbackGameplayEffect` (not the unit's own dashes and swing steps). ABILITIES.md.
@@ -86,6 +88,12 @@ The rule for every combo with `attack_style` MELEE (the default; the Knight is t
 - DoT ticks use a smaller style and are merged per target over a short window so they don't flood the screen.
 - Size grows with the amount, in a few discrete pixel-font steps on a log scale, so late-game numbers don't all hit max size.
 - Colors: by damage type (FREE, but readable); damage the player takes is red; healing is green; damage a shield absorbed is its own silver-blue number.
+- **In 3D (3D.md, P7):** numbers and health bars draw on the screen overlay (`ScreenOverlay`), placed above the unit's model with `unproject_position()`; their sizes are screen sizes, as today. `Unit._add_number()` gets the overlay path while the 2D path stays.
+
+### In the 3D view (3D.md; the view never changes gameplay state)
+- **Telegraphs** stay exact circles and bands on the floor: `FloorOverlay` draws them, and the floor's shader shows them on slopes. Seen through the tilted camera a circle looks like an ellipse, but it covers exactly the hit area (P0a: within the measurement's resolution on a ramp).
+- **Hit flash:** the model's material flashes white for `flash_time` instead of the Body's modulate.
+- **Shake:** `GameFeel.shake()` keeps its numbers (screen px); `GameCamera3D` turns them into a camera offset.
 
 ## Numbers (TARGET: start, range)
 Knight basic attack:
@@ -217,6 +225,7 @@ The hit feel per tier, held by `GameFeel.hit_feel`: `light_hitstop` 0.03, `heavy
 - `shield_amount`: damage it absorbs after mitigation and `incoming_damage`, per application (each stack has its own); 0 = not a shield (`is_shield()`). Used up = that stack ends (the status with its last stack). REFRESH restores the full amount, REFRESH_LONGER keeps the bigger one. Template: `data/statuses/status_shield.tres` (100, 3 s, tags `shield` + `buff`, REFRESH).
 - `vfx: PackedScene` (visuals only)
 - ABILITIES.md adds `reaction_rules`, `augments` and the empower fields.
+- Planned (3D.md, P9): `ignores_tenacity` (false; airborne true) and `cleansable` (true; airborne false: `StatusComponent.remove_statuses_with_tags()` skips it). Files `status_airborne.tres`, `status_elevated.tres`.
 - Files: `status_stun.tres` (tags cc / stun / debuff, blocks all four, REFRESH_LONGER, 1.0 s default (`apply_stun()` passes its own), VFX `res://scenes/vfx/stun_stars.tscn`), `status_slow.tres` (cc / slow / debuff, −30% `move_speed`, REFRESH, 1.5 s), `status_haste.tres` (haste / buff, +20% `move_speed`, REFRESH, 2 s).
 
 ### ReactionRule and GameplayEffect (`res://scripts/data/`; rules in `res://data/reactions/reaction_<name>.tres`)

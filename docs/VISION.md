@@ -65,6 +65,7 @@ The environment is both a **weapon** and a **traversal tool**.
 - Weapon: knockback into walls, hazards like oil and fire, destructible objects, pits.
 - Traversal: grapple and swing on walls (Akshan-style), dash over pits, blink past obstacles.
 - Everything interacts through tags and reaction rules (CONVENTIONS.md), so new interactions are easy to add.
+- **Height (3D.md, Terrain and height):** real terrain height (stairs, ramps, hills, plateaus) on a gameplay floor that stays flat. Cliffs stop walking and dashes, not projectiles or sight. Knock-ups carry enemies over ledges and into pits. A few special enemies stand on perches where melee can't reach them from below, and **no enemy is unanswerable**: each one has a walk-up route, a pull, a ranged answer or a dead zone, and every champion has at least one answer to each.
 
 ## What we take from each reference
 | Game | Take | Don't take |

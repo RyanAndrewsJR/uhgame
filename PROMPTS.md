@@ -46,7 +46,7 @@ Ending every builder conversation:
 > Do [movement/stats/...] step [N].
 
 ### Design a new system (doc first, then build in a later conversation)
-> Read CLAUDE.md, docs/VISION.md, docs/CONVENTIONS.md. I want to design [system]. Interview me to fill out docs/_TEMPLATE.md as docs/[SYSTEM].md. Add it to the Docs index when done.
+> Read CLAUDE.md, docs/VISION.md, docs/CONVENTIONS.md. I want to design [system]. Interview me to fill out docs/_TEMPLATE.md as docs/[SYSTEM].md. Include its View section: what does it look like in 3D? Which parts need a model, a floor drawing or an overlay, and what drives them? (docs/3D.md) Add it to the Docs index when done.
 
 ### Change how an existing system works
 > Change [system]: [what should happen instead, with numbers]. Reason: [why]. Plan first. Update docs/[SYSTEM].md and docs/DECISIONS.md along with the code.

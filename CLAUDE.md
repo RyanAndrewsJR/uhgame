@@ -13,7 +13,7 @@ uhgame/
 All paths in the docs are `res://` paths inside `game/`, unless they start with `docs/`.
 
 ## The game
-A 2D top-down action looter.
+An action looter under a fixed-angle 3D camera (League/Diablo-style), played on a flat 2D sim underneath (docs/3D.md). Today the screen still shows the 2D placeholder game; the 3D view is being built behind a flag (3D pivot P2–P-M).
 - **Champions** have distinct identities and kits, like League of Legends: a passive, several abilities, an ultimate.
 - **Movement and combat** feel like Hades: instant, precise, dash-centric, with heavy input buffering.
 - **Dungeons and loot** work like Diablo: runs through hand-made rooms stitched together, randomized gear with rarities and affixes that change how a build plays.
@@ -22,10 +22,11 @@ When a request is ambiguous, prioritize responsiveness and feel over realism.
 
 ## Tech facts
 - **Godot 4.7.2**, GDScript, statically typed. Use Godot 4 APIs only. If you're unsure whether an API changed in 4.7, say so.
-- 2D top-down 3/4 view. Pixel art: viewport **640×360** (window 1280×720, `canvas_items` stretch), nearest filtering, no transform snapping, 2D physics interpolation on, physics at 60 Hz.
-- Tiles are **32 px**. Rooms use `TileMapLayer` with `res://tilesets/dungeon_tileset.tres`.
+- **Sim and view (3D.md):** the gameplay world (the sim) is 2D, in px, and stays the source of truth; the 3D view (meters: **1 m = 32 px = 100 League units**) follows it and never changes gameplay state. The sim never reads height.
+- Today's settings: viewport **640×360** (window 1280×720, `canvas_items` stretch, so 3D renders at the window's resolution), nearest filtering for the 2D placeholders, no transform snapping, physics interpolation on (2D and 3D), physics at 60 Hz. The art direction is hand-painted 3D at native resolution, with the UI designed for 1920×1080 (VISION.md); the UI change comes with UI.md.
+- Tiles are **32 px** (1 m). Today's rooms are tile rooms (`TileMapLayer`, `res://tilesets/dungeon_tileset.tres`); new rooms are built in 3D as layouts whose footprints make the sim (3D.md, Rooms).
 - Single-player.
-- Pathing for AI uses `NavigationServer2D` (in `MovementComponent`).
+- Pathing for AI uses `NavigationServer2D` (in `MovementComponent`; `AutoAttackComponent` also queries it).
 - **Stat data is in League of Legends units.** `Units.to_px()` / `Units.to_units()` (`res://scripts/core/units.gd`, 0.32 px per unit) convert them. Example: 345 move speed = 110 px/s, 175 attack range = 56 px. Docs give both where it matters.
 
 ## Project layout (inside game/)
@@ -59,6 +60,7 @@ scripts/units/          unit.gd: shared base for Player and Enemy
 scripts/player|enemies|rooms|ui|vfx|audio/   (audio/: combat_sounds.gd, AUDIO.md)
 tilesets/
 ```
+Planned by the 3D pivot (3D.md): `scripts/view/`, `scenes/view/`, `scenes/rooms/assets/`, `art/models/placeholder/`, `data/camera_looks/`, and `CREDITS.md` (third-party art licences).
 New subfolders inside these are fine. Ask before adding a new top-level folder.
 
 ## Architecture (as it exists)
@@ -68,6 +70,7 @@ New subfolders inside these are fine. Ask before adding a new top-level folder.
 - `UnitStats` Resource = base stats. `Ability` Resource subclasses = one script per ability plus a .tres for its numbers.
 - `MovementComponent` already has move locks by id, speed modifiers, `displace()`, and `dash()` (passes through units; both use `move_and_slide()`, so they slide along walls instead of stopping).
 - `StatsComponent` (`Unit.stats_component`) holds every unit's live stats: base from `UnitStats` (`Unit.stats`) plus source-tagged `StatModifier`s. Gameplay reads `stats_component.get_stat(&"x")`, never `unit.stats.x` (STATS.md).
+- **The 3D view (planned, 3D.md; nothing built yet):** the 2D sim stays and is hidden from the screen; `WorldView` (under Main, behind `Main.use_3d_view`) shows it. Views follow their sim nodes on the physics tick (the `view_source` group), floor drawings come from `FloorOverlay`, the aim from the floor pick. Tests never build the view.
 
 ## Conventions
 - **Data lives in Resources** (.tres); logic lives in scripts. Tuning never needs code edits. Every tunable is `@export`.
@@ -121,19 +124,20 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 | `docs/AUDIO.md` | any sound, music, the mix, volume settings |
 | `docs/TALENTS.md` | talents, unlock requirements (`TalentRequirement`), the loadout and talent points, ability-use and kill counters, the champion level XP curve, the hub's talent screen, writing talent content (the kind-not-magnitude rule), the Knight's talent set |
 | `docs/LOOT.md` | items, item bases, affixes, rarities, sigils (the Unique/Exotic effects), the Knight's legendaries and artifact, equipping (`EquipmentComponent`), the inventory and its save (and the reserved materials bucket), drop tables, depth and magic find, pickups (layer 9), the sandbox loot list |
-| `docs/3D_PIVOT.md` | the move to a fixed-angle 3D view (A1: the 2D sim stays, hidden; a 3D view follows it): the plan P0a–P-M, terrain height and knock-ups, the rules the spikes found, Ryan's answers. Until `docs/3D.md` exists |
+| `docs/3D.md` | anything the player sees in 3D: the sim/view split and the px ↔ m mapping, the camera (`CameraLook`), models and animation, views (`WorldView`, `EntityView`, `UnitView`), building rooms in 3D (`RoomLayout`, `Footprint`, `SimMarker`, the validator), floor drawings (`FloorOverlay`), damage numbers and bars (`ScreenOverlay`), the floor pick and aim, terrain height, ledges, knock-ups (airborne), perches (`elevated`), the 3D build order P2–P-M |
+| `docs/3D_PIVOT.md` | only when asked how the 3D choice was made: the 2D baseline and inventory, the A1/A2 costing, the spikes' plans and results, the interview |
 | `docs/CHANGELOG.md` | only when asked what was built or measured |
 | `docs/_TEMPLATE.md` | writing a new doc |
 
 ## Current status
 - **Now:** CHAMPIONS is done: CH1–CH6, CH5b and milestone CH-M passed (2026-09-30); the Knight ships. TALENTS.md is written (2026-09-30): the model, requirements, curve, hub screen, the kind-not-magnitude authoring rule and the Knight's 20 talents are decided; Ryan answered its proposals 2026-09-30; every proposal and name is approved. T1–T5 passed (with T3b; T5 2026-10-01, the hub is the main scene); next the milestone T-M (a Knight's talent career, Ryan's play test). `player.tscn`'s old exports can be cleared when Ryan OKs it (CHAMPIONS.md, Loading a champion). Play tests closed 2026-09-30: the audit cleanup pass, Feel pass F1–F4 at 144 Hz, AUDIO A3, AB13, "a swing counts once its hit has landed", COMBAT C9–C12, STATS steps 5–6. Still open: the play test of COMBAT C8 (crits and on-hit; not in the 2026-09-30 round), and corner forgiveness (MOVEMENT.md, proposed). The docs-cleanup world items (pits, hazards, knockback, triggers, destructibles, kill credit, 3/4 depth) were approved 2026-09-30; pits still need a place in a build order.
 - **Open judgment call (revisit with ENEMIES_AI.md, not before):** whether the Knight's low-health rewards stacking (Unbroken's attack damage, Cleave's heal, Judgement's easier payoff) feel like real risk or too safe. Ryan's read after CH-M: a mix, depending on the fight; the sandbox's enemies (two slimes, one telegraphed elite) can't stress it. Don't tune it until real enemy content exists.
-- **3D pivot (3D_PIVOT.md, 2026-10-01):** A1 chosen (the 2D sim stays, hidden; a 3D view follows it); Ryan answered the interview. "Before P0" (test isolation) passed: the baseline is 1,788/1,788. **P0a passed: GO** (spike on branch `spike/3d-p0a`, never merged). Ryan's screen is 180 Hz (frame budget 5.6 ms), not 144. **P0b passed (2026-10-02):** perspective with a 30° field of view, 50° pitch, 28 m wide; tall things fade; smooth turning; walls become 3D assets of variable height (some fade; how that fits tile-built rooms is for P1); the material (painted vs PBR) stays open until the art pass. The 3D.md doc and the doc edits come in P1.
+- **3D pivot (3D_PIVOT.md, 2026-10-01):** A1 chosen (the 2D sim stays, hidden; a 3D view follows it); Ryan answered the interview. "Before P0" (test isolation) passed: the baseline is 1,788/1,788. **P0a passed: GO** (spike on branch `spike/3d-p0a`, never merged). Ryan's screen is 180 Hz (frame budget 5.6 ms), not 144. **P0b passed (2026-10-02):** perspective with a 30° field of view, 50° pitch, 28 m wide; tall things fade; smooth turning; walls become 3D assets of variable height, some fading; the material (painted vs PBR) stays open until the art pass. **P1 (2026-10-02):** `docs/3D.md` written and approved by Ryan with his additions; rooms are built in 3D (Q7 changed); the doc edits applied (awaiting Ryan's review).
 - **Last 3 done:**
-  1. 3D pivot P0b (passed 2026-10-02): the feel spike on branch `spike/3d-p0b` (look toggles, KayKit's CC0 Knight driven by the sim's signals); Ryan's picks in DECISIONS.md (3D view). Measurements in CHANGELOG.md.
-  2. 3D pivot P0a (passed, GO, 2026-10-01): the go/no-go spike; floor pick = a trimesh of the floor mesh with two rays; floor drawings = a SubViewport sharing the sim's World2D, sampled by the terrain shader (a Decal can't take it). Measurements in CHANGELOG.md.
-  3. 3D pivot "Before P0" (passed 2026-10-01): `Settings` test-scene guard (lazy load), scratch-file save checks, hitstop checks read at the hit. 1,788/1,788.
-- **Next:** 3D pivot P1 (decisions and docs: DECISIONS rows for the pivot and the interview, `docs/3D.md`, the doc edits; settle walls as 3D assets vs Q7). TALENTS milestone T-M (Ryan's play test) is still open: Ryan's interview answer (Q12) put it first, then he started P0a. AUDIO's later steps come with their systems; real CC0 files can replace the placeholders any time (same names). STATS step 7 (F3 overlay) whenever. LOOT.md is written and its proposals answered (2026-10-01); L1 (items: data and rolling) starts on Ryan's OK. Then the Future docs in their listed order (ENEMIES_AI.md next).
+  1. 3D pivot P1 (2026-10-02): `docs/3D.md` (approved), the DECISIONS rows, the doc edits across CLAUDE, CONVENTIONS, VISION, MOVEMENT, COMBAT, WORLD_INTERACTION, AUDIO, ABILITIES, CHAMPIONS, LOOT, `_TEMPLATE` and PROMPTS.md.
+  2. 3D pivot P0b (passed 2026-10-02): the feel spike on branch `spike/3d-p0b` (look toggles, KayKit's CC0 Knight driven by the sim's signals); Ryan's picks in DECISIONS.md (3D view). Measurements in CHANGELOG.md.
+  3. 3D pivot P0a (passed, GO, 2026-10-01): the go/no-go spike; floor pick = a trimesh with two rays; floor drawings = a SubViewport sharing the sim's World2D, sampled by the floor's shader. Measurements in CHANGELOG.md.
+- **Next:** 3D pivot P2 (scaffolding: the mapping, `WorldView`, `Main.use_3d_view` off, `view_test`; 3D.md, Build order). TALENTS milestone T-M (Ryan's play test) is still open: Ryan's interview answer (Q12) put it first, then he started P0a. AUDIO's later steps come with their systems; real CC0 files can replace the placeholders any time (same names). STATS step 7 (F3 overlay) whenever. LOOT.md is written and its proposals answered (2026-10-01); L1 (items: data and rolling) starts on Ryan's OK. Then the Future docs in their listed order (ENEMIES_AI.md next).
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.
@@ -148,7 +152,7 @@ All decisions, grouped by system with date and why, are in `docs/DECISIONS.md`.
 3. ~~`CHAMPIONS.md`~~: written 2026-09-29 (see Docs index).
 4. ~~`TALENTS.md`~~: written 2026-09-30 (see Docs index); the Knight's set and the proposals are approved; T1–T5 passed (T5 2026-10-01).
 5. ~~`LOOT.md`~~: written 2026-10-01 (see Docs index) from Ryan's spec; every proposal answered by Ryan 2026-10-01 (Exotic = a second sigil, Artifact affixes always at max, the word "sigil"); build steps L1–L7 and milestone L-M approved, not started.
-6. `ENEMIES_AI.md`: behaviors, aggro, elites, spawning. Once harder enemies exist, revisit the Knight's low-health reward stacking (Current status, Open judgment call).
-7. `DUNGEONS.md`: room stitching, run structure, checkpoints (placement; whether cleared enemies come back on respawn). Audio hooks: see AUDIO.md.
-8. `NARRATIVE.md` (written with `NPCS.md`): each dungeon's story and lore, how it's told (codex, hub NPC dialogue, voiced scenes, environmental storytelling), the champion lens, story depth and voice scope (VISION.md, Pillar 5). `PROGRESSION.md`: account-level meta-progression (VISION.md, Meta-progression: no power shared between champions) and the one save the other docs point to. Their order with DUNGEONS.md: Ryan's pick (interview order proposed 2026-10-02). `UI.md` as needed: it takes over the Esc pause menu and the player options (`Settings`), now described in MOVEMENT.md (Dash) and DECISIONS.md (General). UI audio hooks: see AUDIO.md.
+6. `ENEMIES_AI.md`: behaviors, aggro, elites, spawning. Once harder enemies exist, revisit the Knight's low-health reward stacking (Current status, Open judgment call). From the 3D pivot (3D.md): elevated archers and snipers (perches, dead zones, target choice through `AbilityUtil.can_reach()`); "no unanswerable enemy" as a design check; `Sight` stays on layer 1, so ledges don't block it; ledges split the navmesh into islands (a perched unit with no route holds or repositions); the enemy sim's cost (50 extra slimes take 10–12 ms of physics step today, P0a), so steering and pathing need a budget.
+7. `DUNGEONS.md`: room stitching, run structure, checkpoints (placement; whether cleared enemies come back on respawn). Rooms are built in 3D as layouts (3D.md, Rooms); overlapping floors are separate rooms joined by stairs or doors. Audio hooks: see AUDIO.md.
+8. `NARRATIVE.md` (written with `NPCS.md`): each dungeon's story and lore, how it's told (codex, hub NPC dialogue, voiced scenes, environmental storytelling), the champion lens, story depth and voice scope (VISION.md, Pillar 5). `PROGRESSION.md`: account-level meta-progression (VISION.md, Meta-progression: no power shared between champions) and the one save the other docs point to. Their order with DUNGEONS.md: Ryan's pick (interview order proposed 2026-10-02). `UI.md` as needed: it takes over the Esc pause menu and the player options (`Settings`), now described in MOVEMENT.md (Dash) and DECISIONS.md (General); from the 3D pivot, the UI designed for 1920×1080, the screen overlay's numbers and bars (`ScreenOverlay`, 3D.md), and a 3D paper-doll preview (the champion's model in its own SubViewport and 3D world, at the hub and in the inventory). UI audio hooks: see AUDIO.md.
 9. `ACHIEVEMENTS.md`: cross-system achievements and accolades. Written much later, once most other systems exist; nothing is designed or built for it now.

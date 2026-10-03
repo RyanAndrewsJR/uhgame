@@ -11,6 +11,31 @@
 
 ## 3D pivot (3D_PIVOT.md)
 
+### P1 – decisions and docs: 2026-10-02, 3D.md approved; doc edits awaiting Ryan's review
+Docs only; no code or tests changed.
+- **`docs/3D.md` written:** the lasting spec. Ryan approved it the same day with additions:
+  - the placeholder KayKit Knight in `art/models/placeholder/` with a `CREDITS.md` entry;
+  - `room_01` rebuilt as a layout, the last item of P8;
+  - the room tools: footprints drawn in the editor, a load-time validator with a test, `SimMarker` previews, drawn footprints for concave assets, a whole-meter kit with a 1 m snap;
+  - `FloorOverlay` as a window around the camera: 2624 × 1664 texels at the default look, 16.7 MB;
+  - P3 kept minimal.
+- **Ryan's P1 decision:** rooms are built in 3D (Q7 changed). That added **P8 Rooms built in 3D**, and the plan's P8 became **P9**.
+- **`docs/DECISIONS.md`, 3D view:** the rows the plan saved for P1 (the givens, A1, the scale, the approved mouse replace, ledge layer 11, Judgement not `melee`, no enemy knock-ups on the player, the interview, the order of work), plus 3D rooms, 3D.md as the spec, and the approval additions.
+- **Doc edits applied:**
+  - CLAUDE.md: the game, tech facts, planned folders, architecture, docs index, Future docs notes for ENEMIES_AI, DUNGEONS and UI;
+  - CONVENTIONS.md: `_m` / `_deg`, the vocabulary, the `melee` tag, status tags, reserved names, `view_test`;
+  - VISION.md: height in the cross-cutting section;
+  - MOVEMENT.md: smooth turning, slopes, the 3D aim, cliffs stop the dash, the 3D camera, 180 Hz, the vertical-speed question answered;
+  - COMBAT.md: the `melee` tag and elevated targets, airborne, tenacity's exception, the 3D numbers, telegraphs, flash and shake, the new StatusEffect fields;
+  - WORLD_INTERACTION.md: layouts, layer 11, the dash mask, surface tags on footprints, pits in layouts, knock-ups, the "while inside" hazard option, 3/4 depth superseded, a Terrain section;
+  - AUDIO.md: the listener and the distances to re-measure;
+  - ABILITIES.md: `melee`, knock-ups, projectiles in 3D, indicators, aim, presentation hooks;
+  - CHAMPIONS.md: `model_scene`;
+  - LOOT.md: pickups' views;
+  - `_TEMPLATE.md`: a View section;
+  - PROMPTS.md: the 3D question in "Design a new system";
+  - 3D_PIVOT.md: status, Q7, the doc-edits note.
+
 ### P0b – feel spike: 2026-10-02, Passed (Ryan's answers)
 Throwaway spike on branch `spike/3d-p0b` (8386604), fresh from `main`, never merged, built in one session of its two; no code from P0a. `scenes/spike/p0b_spike.tscn` runs the real `sandbox_main.tscn` as the hidden 2D sim and builds a 3D view over it:
 - **The room**, from its tiles: a flagstone floor that darkens where it meets a wall; walls at the cutaway height.

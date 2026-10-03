@@ -75,6 +75,8 @@ Moved here from MOVEMENT.md unchanged (MOVEMENT.md keeps a pointer). Per ability
 ### Standard tags (listed in CONVENTIONS.md)
 - Exactly one role tag per ability, following Diablo 4's categories: `generator`, `core`, `defensive`, `mobility`, `ultimate` (Diablo's "basic" is `generator` here, so it can't be confused with the basic attack).
 - Plus shape tags (`area`, `projectile`, `line`, `cone`, `dash`), style tags (`charge_up`, `channel`, `vector`; each must match the ability's `cast_style`) and element tags (`fire`, `cold`, `lightning`, `poison`, `shadow`, `holy`; the list is an open question).
+- **`melee`** (planned with the 3D terrain, 3D.md P9): the ability's hits can't reach an `elevated` target from below (COMBAT.md, Hits). The Knight: Cleave and Lunge get it; Judgement doesn't (UNIT-targeted, walks into range) and neither does Cleave Wave (a projectile).
+- **Knock-ups** (planned, 3D.md, Terrain and height 1a): an ability knocks up by giving its hit a knockback (`knockback_px`) and `status_airborne` among its statuses; no new field. Enemies don't knock up the player in v1.
 - Scoped modifiers use them ("+20% damage to core abilities").
 
 ### Costs and resources
@@ -94,6 +96,12 @@ Moved here from MOVEMENT.md unchanged (MOVEMENT.md keeps a pointer). Per ability
 ### Projectiles
 - A shared projectile piece: speed, range, width, pierce count (0 = stops on the first hit), blocked by walls (unless `ignores_walls`), one crit roll per cast shared by every projectile of that cast, its hits through `HitPipeline.from_ability()`. Projectile count and speed are scoped params, so "+1 projectile" is an item modifier.
 - A projectile keeps flying if its caster dies. While the caster exists, kill credit is the caster's. Once the caster is freed, the projectile uses the damage it snapshotted when fired and its hits have no source (no kill credit, no crit, no on-hit), like a DoT whose applier is gone (DECISIONS, Combat, C9).
+- **In 3D (3D.md, P6):** a projectile declares a `view_scene` (default: a bolt tinted by the ability's `icon_color`). Its height is the view's: it moves smoothly from its start height toward the terrain under its target, never below the terrain; `Projectile.DRAW_HEIGHT_PX` (the 2D 3/4 offset) isn't used by the view. Projectiles fly over ledges (the sim ignores height).
+
+### In the 3D view (3D.md; the view never changes gameplay state)
+- **Indicators** draw on the floor: the Player's `_draw()` (and `Ability.draw_indicator()` / `draw_vector_indicator()`) goes into `FloorOverlay`, so the indicator lies on the ground, follows slopes, and still shows exactly where the cast lands.
+- **Aim:** the cursor's floor pick, or an enemy's feet when the cursor is over its model (MOVEMENT.md, Facing and aim). A VECTOR's start point is the floor pick at the press.
+- **Presentation hooks** drive the 3D model: `UnitView` positions the clip named by `cast_anim` (or a swing's `swing_anim`) by the cast's or swing's progress (`get_cast_progress()`, `get_swing_progress()`), so a strike lands on the effect at any cast or attack speed. `cast_vfx` / `impact_vfx` accept scenes with a Node3D root (`VFX.spawn_scene()`, P7). The 2D `Body/AnimationPlayer` path stays for the 2D game.
 
 ### Augments
 - An `AbilityAugment` targets an ability id or tag (like scoped modifiers) and is added and removed by source id (items, passives, buffs).

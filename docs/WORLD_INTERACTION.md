@@ -1,10 +1,11 @@
-# WORLD_INTERACTION.md: Abilities vs. the World (2D)
+# WORLD_INTERACTION.md: Abilities vs. the World
 
 **Read when:** abilities touch the world (grapples, blinks, dashes into walls, knockback into terrain), or the task involves collision layers, tile tags, or interactables.
 **Depends on:** CLAUDE.md, MOVEMENT.md.
 
 ## Current code
 - Rooms are `res://scenes/rooms/room_XX.tscn`, each with a `Tiles` TileMapLayer (`dungeon_tileset.tres`, 32 px, physics layer 0 → collision layer 1 "world"), an `Entities` node, and a `PlayerSpawn` marker.
+- **Planned (3D.md, Rooms):** new rooms are built in 3D as layouts. Each blocking asset carries a `Footprint` (wall, low obstacle, pit or ledge), and at load the layout makes the same kind of 2D `Room` the game plays in: colliders on these layers, `SurfaceTags`, `Entities` from sim markers, the navigation bake. Everything below applies to both kinds of room. Tile rooms stay for the test fixtures.
 - Levels are hand-made rooms stitched together (DUNGEONS.md, when it exists).
 - `Hitbox` and `Hurtbox` Areas already exist. Hitboxes sit on the owner's attack layer and carry `damage` and `knockback`. No scene uses a Hitbox yet; hits go through the hit pipeline (COMBAT.md).
 
@@ -28,12 +29,14 @@ Example: an Akshan-style swing is an ability that asks `WorldQuery` for a grappl
 | 8 | interactable | chests, doors, shrines, NPC talk zones | planned |
 | 9 | pickup | dropped loot, gold, potions | planned |
 | 10 | hazard | traps, damaging floors | planned |
+| 11 | ledge | cliff edges, derived from the walkable ground at room load (3D.md, Terrain and height): block walking and dashes, not projectiles or line of sight | planned (3D pivot P9; Ryan, 2026-10-01) |
 
-Planned: walking masks world, pit, low_obstacle, and the other team's bodies. As it is today: the player's and the slimes' bodies both mask 7 (world, player, enemies), so units also collide with their own team (pit and low_obstacle don't exist yet). A ghosted `dash()` (the dash, Lunge) masks world only while it runs (`collision_mask & 1`), which is correct: pits and units are ignored during a dash; `displace()` keeps the unit's own mask (minus the pit layer once pits exist: Pits and movement types).
+Planned: walking masks world, pit, low_obstacle, ledge, and the other team's bodies. As it is today: the player's and the slimes' bodies both mask 7 (world, player, enemies), so units also collide with their own team (pit, low_obstacle and ledge don't exist yet). A ghosted `dash()` (the dash, Lunge) masks world only while it runs (`collision_mask & 1`), which is correct: pits and units are ignored during a dash; `displace()` keeps the unit's own mask (minus the pit layer once pits exist: Pits and movement types). **With ledges (P9) the ghosted dash masks world and ledges** (`collision_mask & (1 | 1024)`, an approved one-line replace): cliffs stop it; pits, fences and units still don't.
 
 ## Surface tags
 - **Tiles:** add TileSet **custom data layers** to `dungeon_tileset.tres` with bools `grappleable`, `destructible`, `bounce`, `wall_slam`, and set them per tile.
 - **Non-tile bodies** (crates, doors, pillars placed as scenes): a `SurfaceTags` node (`res://scripts/components/surface_tags.gd`) with the same `@export` flags.
+- **Layout assets (3D.md, Rooms):** the flags are set on the asset's `Footprint`, and the body the layout generates for it gets a `SurfaceTags` with them, so `WorldQuery` reads them like any non-tile body.
 - Plain wall default: grappleable = true, everything else false.
 - `WorldQuery` hides the difference: for a TileMapLayer hit it gets the cell via `get_coords_for_body_rid()` and reads the tile data. For anything else it reads `SurfaceTags`.
 
@@ -76,7 +79,8 @@ Abilities check tags; they never check class names.
 - **The player falls:** takes 5% of max health (can't drop below 1 health), then respawns on the last safe tile (the last floor tile the player stood fully on).
 - **An enemy falls:** it dies, the kill goes to whoever caused the displacement (Kill credit), and its drops land on the nearest floor tile. **Bosses never fall;** they snap to the edge.
 - Pit tiles have no navigation polygon, so enemies never path into them. (Today `Room._bake_navigation()` only carves colliders on layer 1 from the `navigation_source` group, so whatever builds pits has to add them to that bake.)
-- Pits get their own TileMapLayer, `Pits`, with physics on layer 6. Floor and walls stay on `Tiles`.
+- Pits get their own TileMapLayer, `Pits`, with physics on layer 6. Floor and walls stay on `Tiles`. **In a layout** (3D.md, Rooms) a pit is an asset (a hole in the floor) whose `Footprint` is kind PIT (layer 6); the bake leaves it out the same way.
+- **Knocked up** (3D.md, Terrain and height 1a): an airborne, displaced unit also drops the low-obstacle and ledge layers (7, 11), so a knock-up can carry an enemy over a fence, off a cliff or into a pit (the pit rule applies where it lands). Inside a low obstacle or a ledge's footprint, `resolve_valid_position()` puts it on the nearest floor on the side it came from. No fall damage for now (Ryan, 2026-10-01).
 
 ## Hazards (approved by Ryan 2026-09-30)
 A `Hazard` is an Area2D scene on layer 10 with:
@@ -88,6 +92,7 @@ A `Hazard` is an Area2D scene on layer 10 with:
 - `arm_time`: a telegraph before it activates. Default 0.5 s for enemy- and trap-made hazards, 0 for player-made ones.
 
 Entering applies its status; re-entering refreshes it instead of stacking. It emits `hazard_entered` / `hazard_exited`. Timed traps are Hazards with an on/off cycle.
+- **"While inside" option** (for perches, 3D.md, Terrain and height 2): the status lasts while the unit stays inside and is removed when it leaves, instead of running its own duration. A perch is a Hazard-style area giving `status_elevated` this way. In a layout, hazards and perches are placed with sim markers; their look comes through the view mechanism.
 
 ## Knockback (approved by Ryan 2026-09-30)
 - New stat `knockback_resistance`, 0–1, scales displacement distance by (1 − value). Bosses have 1. (Row in STATS.md.)
@@ -109,11 +114,18 @@ Entering applies its status; re-entering refreshes it instead of stacking. It em
 - When the environment kills something (pit, wall slam, hazard), credit goes to whoever caused the displacement or owns the hazard; null = the environment.
 - On-kill effects and drops use this.
 
-## 3/4 depth (approved by Ryan 2026-09-30)
-- The `Entities` node is y-sorted (already true in `sandbox.tscn`, and `room.gd` expects it).
+## 3/4 depth (approved by Ryan 2026-09-30; the draw order is superseded by the 3D view)
+- The `Entities` node is y-sorted (already true in `sandbox.tscn`, and `room.gd` expects it). In the 3D view the depth buffer orders everything, so y-sort only matters for the 2D game until the milestone.
 - Colliders sit at the feet (the player's already does).
-- Units behind tall walls get a silhouette (later).
+- ~~Units behind tall walls get a silhouette (later).~~ In 3D, walls, buildings and plateaus marked to fade fade (dithered) while they stand between the camera and the player (Ryan after P0b, 2026-10-02; 3D.md).
 - `low_obstacle` never blocks projectiles.
+
+## Terrain (3D.md, Terrain and height)
+The sim stays a flat floor; height is the view's. In short:
+- Real terrain height (stairs, ramps, hills, plateaus) comes from the layout's walkable ground. Ramps and stairs are plain floor in the sim, and slopes don't change speed.
+- Where the ground steps by more than 0.3 m with no ramp or stairs, a **ledge** (layer 11) is made at load. It blocks walking, dashes and navigation, not projectiles or line of sight (`WorldQuery` and `Sight` mask layer 1 only).
+- Overlapping floors (a bridge over enemies, a balcony) are separate rooms joined by stairs or doors.
+- Perches and the `elevated` tag, knock-ups (airborne), "no unanswerable enemy", and what this approach can't do (gravity, high-ground bonuses, arcs over walls, true 3D line of sight): 3D.md.
 
 ## Ability spec template
 Moved to ABILITIES.md, Ability spec sheet (its "World" line covers the world query, movement method, what ends it, and hitting a wall or an enemy, as in the worked example below).

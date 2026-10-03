@@ -1,4 +1,4 @@
-# MOVEMENT.md: Player Movement (Hades-style, 2D)
+# MOVEMENT.md: Player Movement (Hades-style)
 
 **Read when:** the task involves player movement, dash, input, the input map, buffering, facing/aim, camera follow, or the LoL-era systems that WASD replaced.
 **Depends on:** CLAUDE.md (change policy).
@@ -14,7 +14,7 @@
 | `res://scripts/camera/game_camera.gd` | Locked follow with aim lead; unlocked edge pan; shake; room bounds. |
 | `res://scripts/vfx/movement_vfx_component.gd` | `MovementVFXComponent`, last child of the Player and of slimes. Movement feedback visuals (F3). |
 
-Visuals are Polygon2D placeholders (`Body`, `SwordPivot`). The plan is **8-direction sprites**.
+Visuals are Polygon2D placeholders (`Body`, `SwordPivot`). ~~The plan is 8-direction sprites.~~ With the 3D view each unit gets a model that turns smoothly to its facing (3D.md; Ryan, Q6, confirmed in P0b 2026-10-02).
 
 **Player size** (`player.tscn`, `knight.tres`):
 - Collider: `CircleShape2D`, radius **11 px** (22 px wide), centered on the feet (the Player's origin). Set in the scene, not from stats. Collision layer 2, mask 7 (world, player, enemies).
@@ -33,6 +33,7 @@ Instant and precise, never floaty. The player steers directly with almost no mom
 | Diagonals | input vector normalized |
 | Walls | slide smoothly, never catch on tile corners |
 | Other units | the player collides but is **never steered/deflected**; steering stays for enemies |
+| Slopes | **don't change speed**: the sim is flat, so a ramp takes as long as the same map distance on flat floor (League's rule; 3D.md) |
 
 **Corner forgiveness** *(proposed, build later)*: while walking, if a tile corner blocks the player by 6 px or less on the side, nudge them around it at walk speed.
 
@@ -82,7 +83,7 @@ The LoL actions `move` / `stop` / `attack_move` (were right mouse / S / A) and `
 - **Slimes keep the LoL thresholds** (220 / 415 / 490) as overrides in `slime.tscn`, so they move exactly as before (the scaled low cap would lift 285 to 321). Enemy speeds get retuned in ENEMIES_AI.md.
 
 ## Facing and aim
-- Units don't rotate. `Player.facing` (unit vector) is the look direction; the animation layer will pick one of 8 sprites with `get_facing_octant()` (0 = right, clockwise: 2 = down, 4 = left, 6 = up).
+- Units don't rotate. `Player.facing` (unit vector) is the look direction. The 3D view turns the model smoothly toward it (3D.md, `UnitView`); `get_facing_octant()` (0 = right, clockwise: 2 = down, 4 = left, 6 = up) stays for code that wants 8 steps.
 - Facing priority, updated each physics frame:
   1. **Casting:** toward the cast's aim, locked at cast start (DIRECTION/POINT: the aim point; UNIT: the target). SELF casts don't change facing.
   2. **Attacking:** a combo swing's aim, locked at swing start, while the swing roots (COMBAT C2).
@@ -91,11 +92,13 @@ The LoL actions `move` / `stop` / `attack_move` (were right mouse / S / A) and `
   5. **Walking:** the move direction.
   6. **Standing still:** keeps the last facing.
 - `Player.get_aim_point()` = `get_global_mouse_position()`. `Player.get_aim_direction()` is the unit vector from the player's feet (where abilities cast from) to it, or `facing` when the cursor is on the player.
+- **With the 3D view (3D.md, P5):** `get_aim_point()` returns the floor pick (the walkable ground under the cursor), or an enemy's feet when the cursor is over its model; without a view (every test) it stays the mouse. The 10 direct mouse calls in `player.gd` go through it (approved 2026-10-01).
 - UNIT abilities also accept the enemy nearest the cursor within `target_forgiveness` (`Player.cast_ability()`). Clicking an enemy still works.
 
 ## Dash
 - Space calls `DashComponent.try_dash()` from PlayerInput.
-- 128 px (`dash_distance` = 400 u) over `dash_duration` = 0.18 s, bursting and then easing out (`dash_curve`, F2), through `MovementComponent.dash()` (passes through units; `move_and_slide()`, so it slides along walls instead of stopping, and only a near-head-on dash stops).
+- 128 px (`dash_distance` = 400 u, 4 m in the 3D view) over `dash_duration` = 0.18 s, bursting and then easing out (`dash_curve`, F2), through `MovementComponent.dash()` (passes through units; `move_and_slide()`, so it slides along walls instead of stopping, and only a near-head-on dash stops).
+- **Cliffs stop it, fences don't** (3D.md, P9): the ghosted dash masks walls and ledges (`collision_mask & (1 | 1024)`; layer 11 `ledge`), so it stops at a cliff edge but still crosses fences, rubble and pits (Ryan, 2026-10-01).
 - Direction: toward the cursor at the moment Space is pressed (`Player.get_aim_direction()`). A buffered dash keeps the direction from its press, even if the cursor moves before it fires. `PlayerInput.dash_toward_cursor = false` brings back the old rule: the held input direction, or `facing` with no input (DECISIONS.md, 2026-09-26).
 - **The player chooses** between the two in the Esc pause menu ("Dash direction: Cursor / Move keys (WASD)"; default Cursor). The choice lives in `Settings` (`get_dash_direction()`, `DashDirection.CURSOR` / `MOVE_KEYS`), is saved to `user://settings.cfg`, and applies at once, even mid-run: PlayerInput copies it into `dash_toward_cursor` at start and on `Settings.setting_changed`, so an Inspector value there only lasts until then.
 - The run-on after the dash (`carry_into_run`) still follows the held WASD direction, so dashing one way while holding another runs off in the held direction.
@@ -138,6 +141,7 @@ The LoL actions `move` / `stop` / `attack_move` (were right mouse / S / A) and `
 
    While dead, the state stops updating.
 4. **Camera** (`game_camera.gd`; aim lead reworked in F4): while locked, the camera leans toward the cursor, but only once the cursor leaves a dead zone.
+   - **In 3D (3D.md, P4):** `GameCamera3D` shows the game through a fixed-angle camera: perspective, 30° field of view, 50° pitch, 28 m wide (`CameraLook`; Ryan after P0b, 2026-10-02). Everything below carries over: the lean is measured in screen space, so the same share of the screen moves the 3D focus; lock, centering, edge pan, bounds, shake and `snap_to_target()` work as here. North–south distances look 23% shorter than east–west at 50° (accepted, Q11).
    - **Target lean:** zero inside `aim_lead_dead_zone` = 0.35 of the half-screen (an oval: x and y each divided by their own half-size). From there to `aim_lead_full_at` = 0.9 it follows `aim_lead_curve` (`curve_camera_lead.tres`, linear). Full lean is `aim_lead` = 80 px sideways and 80 × `aim_lead_y_scale` (0.6) = 48 px vertically (while not aiming: 40 px / 24 px).
    - **Context:** full lean while the player aims (`aiming_slot`), casts (CASTING) or winds up a basic attack (ATTACK), and for `aim_lead_hold_time` = 0.75 s after; otherwise × `aim_lead_idle_scale` = 0.5. Read through Player's public state; the camera only knows its `target`.
    - **Easing:** the lean eases toward its target at `aim_lead_smoothing` = 4.0 per second (frame-rate independent, real time so hitstop doesn't freeze it). The follow smoothing stays at 10 and also acts on the lean, so a full swing settles in about 0.7 s.
@@ -158,7 +162,8 @@ Goal: closer to Hades. Dashes and knockback burst and then ease out, frames are 
 - **Teleports:** anything that moves a node instantly (respawn, blink) must call `reset_physics_interpolation()` on it, or it visibly slides to the new spot.
 - Sprites can sit half a game pixel off the tile grid. They stay sharp (nearest filtering).
 - Known limit: the screen shows each physics state up to one tick (≤16.7 ms) later than without interpolation.
-- **Done means:** walking along the sandbox's long wall and dashing back and forth show no visible stutter at 60 Hz or at Ryan's monitor refresh rate (144 Hz), and the pixel art stays crisp.
+- **Done means:** walking along the sandbox's long wall and dashing back and forth show no visible stutter at 60 Hz or at Ryan's monitor refresh rate (144 Hz; **180 Hz** since P0a measured it, 2026-10-01: a 5.6 ms frame budget), and the pixel art stays crisp.
+- **In 3D (3D.md):** the same bar. The view copies every position on the physics tick, after the sim (`WorldView`, priority 100), and 3D physics interpolation smooths it; the camera follows the player view's interpolated transform in `_process`. P0a measured it at 180 Hz with hitstop: no step back, no pop.
 
 ### F2: Displacement curves (ease out instead of constant speed)
 - A displacement follows a progress `Curve` (x = time 0–1, y = share of the distance covered 0–1). Each physics frame it moves `total_offset × (p(now) − p(previous frame))` through `move_and_slide()`. The total distance stays exactly velocity × duration; only the speed profile changes.
@@ -208,5 +213,5 @@ Steps 1 and 3–7 passed Ryan's play test (2026-09-29, see CHANGELOG.md).
 
 ## Open questions
 - **Clicks on the HUD:** PlayerInput reads `attack` from the Input state, so a click on the ability bar also swings; the bar's `MOUSE_FILTER_STOP` doesn't block that. Fix when the HUD gets clickable parts (UI.md).
-- Should the vertical speed be scaled (e.g. 0.9×) for the 3/4 view? Default: no.
+- ~~Should the vertical speed be scaled (e.g. 0.9×) for the 3/4 view? Default: no.~~ Answered by the 3D pivot: no. Under the tilted 3D camera, north–south distances look 23% shorter at 50° pitch; the numbers stay, the foreshortening is accepted (Q11; 3D.md).
 - **Aim zoom (parked until the first long-range champion):** while aiming an ability, zoom out just enough to show its full range, keeping the cursor lean as is. The Knight's ranges (96–180 px) already fit on screen, so it would barely show today. Costs to weigh then: a zoom between 1.0 and 0.5 draws art pixels at uneven sizes (at 0.8 they're 1.6 screen px), and zooming around the screen center moves the world under a still cursor (about 36 px at the edge at 0.9, 80 px at 0.8) unless it zooms around the cursor. Alternative with neither cost: while aiming, lean just far enough that the ability's full range is on screen.

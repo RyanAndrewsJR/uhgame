@@ -25,7 +25,7 @@
 | Source id (new code) | `<kind>_<name>`, for modifier and status source ids | `&"item_4821"`, `&"status_burning"`, `&"hazard_oil"`; a champion's passive `&"passive_<champion id>"` (`passive_knight`) and its ChampionData modifiers `&"champion_<champion id>"` (CHAMPIONS.md); a talent `&"talent_<talent id>"` (`talent_knight_long_reach`, TALENTS.md) |
 | Move lock, speed modifier, invulnerability ids | name their owner (not `<kind>_<name>`). Existing ids don't change. | `&"dash"`, `&"iron_resolve_slow"` |
 | Constant / enum | `UPPER_SNAKE`; enum type PascalCase | `Targeting.SELF`, `Team.PLAYER` |
-| Units | pixels get a `_px` suffix; LoL units have no suffix; times are seconds (`_duration`, `_time`, `cooldown`) | `radius_px`, `cast_range` |
+| Units | pixels get a `_px` suffix; meters (the 3D view) get `_m`; degrees get `_deg`; LoL units have no suffix; times are seconds (`_duration`, `_time`, `cooldown`). 1 m = 32 px = 100 LoL units, converted only through `Units` (3D.md) | `radius_px`, `visible_width_m`, `pitch_deg`, `cast_range` |
 
 ## Vocabulary (use these words, not synonyms)
 - **Unit**: anything using `Unit` (champions, enemies, summons). Not "entity", "actor", or "character".
@@ -64,6 +64,11 @@
 - **Telegraph**: the floor shape that warns of an enemy attack and fills up until the hit.
 - **Proc**: a hit caused by another hit (on-hit damage, reaction damage). It's tagged `proc` and never triggers on-hit.
 - **VFX** means visuals only. It never changes gameplay state.
+- **Sim**: the gameplay world: the 2D nodes, in px, the source of truth. **View**: the 3D presentation that follows it; like VFX and sounds, it never changes gameplay state (3D.md). A sim node's 3D look is its **view** (`UnitView`, a projectile's view).
+- **Floor pick**: the point on the walkable ground under the cursor. **Floor drawing**: a shape drawn on the floor (a telegraph, an ability indicator, a hover ring, a swing arc), shown in 3D through `FloorOverlay`. **Projection**: perspective or orthographic.
+- **Layout** (room layout): a room built in 3D from placed **assets** (asset scenes from the kit in `scenes/rooms/assets/`). **Footprint**: the flat outline an asset occupies in the sim (walls, low obstacles, pits, ledges). **Sim marker**: a marker in a layout that puts a 2D sim scene (an enemy, an interactable, a hazard, a perch) there at load. **Tile room**: a room still built from a `TileMapLayer` (today's rooms and the test fixtures).
+- **Terrain height**: the walkable ground's height, in the view only; the sim never reads it. **Ledge**: a cliff edge where the walkable ground steps by more than 0.3 m with no ramp or stairs: a collider on layer 11 that blocks walking and dashes, not projectiles or sight.
+- **Airborne**: knocked up (the `airborne` status: a hard CC with a view-only arc; not a jump). **Perch**: an area that makes the units in it **elevated** (the `elevated` tag): melee hits from below can't reach them (3D.md, Terrain and height). "Level" stays reserved for the champion level and `StatsComponent.set_level()`; height is "terrain height", never "level".
 - **Sound event**: one `SoundEvent` resource (`data/sounds/sound_<category>_<name>.tres`): a named sound with its variations, jitter, bus and limits. Not "sfx", "cue" or "sample". Sounds only ever play through the `Audio` autoload, and like VFX they never change gameplay state (AUDIO.md).
 
 If you need a new term, add it here first.
@@ -83,10 +88,11 @@ Triggers *(spec in COMBAT.md, ReactionRule; list also in WORLD_INTERACTION.md)*,
 #### Standard ability tags (ABILITIES.md)
 - **Role** (exactly one per ability, Diablo 4's categories): `generator`, `core`, `defensive`, `mobility`, `ultimate`.
 - **Shape:** `area`, `projectile`, `line`, `cone`, `dash`.
+- **Reach:** `melee` (planned, 3D.md P9): a hit that can't reach an `elevated` target from below. The hit pipeline adds the hit tag `melee` to MELEE combo swings and to abilities tagged `melee` (the Knight's Cleave and Lunge; not Judgement or Cleave Wave).
 - **Style:** `charge_up`, `channel`, `vector` (must match the ability's `cast_style`).
 - **Element** (the list is an open question): `fire`, `cold`, `lightning`, `poison`, `shadow`, `holy`.
 - Existing tags stay as they are (Lunge's `movement`, Iron Resolve's `buff`).
-- Status tags used by ability rules: `empower`, `unstoppable`, `untargetable`, `form`. Hit tag: `empowered` (a hit that got an empower's bonus).
+- Status tags used by ability rules: `empower`, `unstoppable`, `untargetable`, `form`; planned with the 3D terrain (3D.md): `airborne`, `elevated`. Hit tags: `empowered` (a hit that got an empower's bonus); planned: `melee`.
 - Scopes use them: `tag:core`, `hit:empowered`.
 Adding an interaction should mean adding a `.tres`. Code changes are only needed for a new trigger type or a new GameplayEffect type.
 
@@ -150,6 +156,9 @@ Example: since `StatusComponent` (COMBAT C9), `Unit.apply_stun()` and `add_speed
 | `SandboxAbilities`, `SandboxAugments`, `SandboxReactions` | sandbox-only demo nodes (costs and test abilities; the augment playground; the Shatter reaction rule) (all exist) | ABILITIES.md, COMBAT.md (`SandboxReactions`) |
 | `Ability.ReadyMode` (`COOLDOWN`, `METER`), `ready_mode` | how a slot becomes ready: a cooldown (built) or the ultimate meter (reserved, built with the meter in CHAMPIONS.md) | ABILITIES.md |
 | `Audio`, `SoundEvent`, `AudioMix`, `CombatSounds` | the audio autoload, one sound's data, the mix-wide numbers, the Events listener that plays hit, death and status sounds | AUDIO.md |
+| `WorldView`, `EntityView`, `UnitView`, `RoomView`, `GameCamera3D`, `CameraLook`, `FloorOverlay`, `ScreenOverlay`; `Units.PX_PER_METER`, `px_to_m()`, `m_to_px()`, `to_view()`, `to_sim()`; `Main.use_3d_view`; `view_scene`, `model_scene` (Unit, ChampionData); groups `view_source`, `walkable`, `fades`, `decoration` | the 3D view: the views and their sync, the camera and its look Resource (`data/camera_looks/`), floor drawings, the screen overlay, the px ↔ m mapping, the switch (all planned, P2–P7) | 3D.md |
+| `RoomLayout` (`validate()`, `build_sim()`), `Footprint` (kinds WALL, LOW_OBSTACLE, PIT, LEDGE), `SimMarker` | rooms built in 3D: the layout, an asset's sim outline, a marker that places a sim scene (planned, P8) | 3D.md |
+| `status_airborne`, `status_elevated`; StatusEffect `ignores_tenacity`, `cleansable`; `AbilityUtil.can_reach()`; collision layer 11 `ledge`; canvas visibility layers 2 "sim" and 3 "floor drawings"; 3D physics layer 1 "floor" (view-only) | knock-ups, perches and the melee rule, cliffs, hiding the 2D world, the floor pick (planned, P9 and P2–P3) | 3D.md |
 
 ## Worked example: "knocking an enemy into a wall or oil stuns or debuffs it"
 With these patterns in place, this request is:
@@ -167,6 +176,7 @@ The prompt would be: *"Read CONVENTIONS.md and COMBAT.md. Add wall-slam stun and
 - Pits, hazards and grappleable walls get added to the sandbox with their systems (DECISIONS.md, Testing). Every new mechanic adds whatever it needs to test there.
 - Script-level test scenes live in `res://scenes/tests/` with their scripts in `res://scripts/tests/` (e.g. `stats_test.tscn`, F6). They print PASS/FAIL per check and a total; run headless, they quit with the failure count as the exit code.
 - Every new system has a `debug_draw` toggle.
+- `view_test` (planned, 3D pivot P2) checks the 3D view's logic without rendering: the px ↔ m mapping, the floor pick on a fixed camera, layouts' footprints and the validator (3D.md). Tests never build the view in the other suites.
 - The F3 stat overlay is planned (STATS.md step 7), not built. It will need a new input action when it's built (none exists yet).
 
 ## Open questions

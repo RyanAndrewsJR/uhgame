@@ -30,6 +30,10 @@
 <!-- New/changed scripts with res:// paths, public methods, signals. -->
 - 
 
+## View
+<!-- How this system looks in 3D (docs/3D.md): which sim nodes declare a view_scene, what the view shows (model, animation, floor drawing, screen overlay, sound), which signals or progress getters drive it, and its debug_draw. The view never changes gameplay state. "None" if it has no look. -->
+- 
+
 ## Build order
 <!-- One line per built step ("C8 built 2026-09-26, see CHANGELOG.md"). Test counts and measurements go in docs/CHANGELOG.md, rules in the sections above. -->
 1. 

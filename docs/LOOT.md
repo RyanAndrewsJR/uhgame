@@ -127,6 +127,7 @@ Against TALENTS' assumed run (96 regular kills, 4 elites) at depth 1 with no mag
 - **It pops first** (Ryan, 2026-10-01): the pickup hops from the corpse to a spot 12–28 px away (a random direction, kept off walls with `WorldQuery.has_line_of_sight()`; up to four tries, else the corpse's spot) over 0.3 s, and becomes collectable when it lands. Without it a melee kill inside the 64 px radius would vanish its drop the same frame, and the player would never see what dropped. The arc is VFX; the spot is decided at once.
 - Collecting: the item joins the champion's inventory (saved), the pickup is freed, the HUD shows a line in the rarity's color ("Rare: Iron Helm", "Legendary: Tidebreaker") for 2 s, and a pickup sound plays. Flying toward the player is a later feel pass (Ryan, 2026-10-01).
 - Look (placeholder): a 6 × 6 px square in the rarity color with a dark outline and a slow bob; Legendary and Artifact also get a thin vertical beam (about 40 px) in their color so they read across a room. The landing plays the rarity's drop sound (none for Common).
+- **In 3D (3D.md):** the `Pickup` stays a sim node (its Area2D on layer 9) and declares a `view_scene`, so its look (the bob, the beam, the hop's arc) is a view that never changes gameplay state. The beam's 40 px becomes a height in meters on the view.
 - Drops stay on the floor until collected or the scene changes. Respawning at a checkpoint doesn't remove them (DUNGEONS.md may change that).
 
 ### The sandbox equip entry point (MUST: exists in this build, Ryan 2026-10-01)
