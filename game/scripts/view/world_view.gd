@@ -158,6 +158,7 @@ func setup(main: CanvasItem, room: Node2D, p_player: Player, camera_2d: GameCame
 		for material in layout.get_floor_materials():
 			floor_overlay.add_floor_material(material)
 	flatten_floor_drawings()
+	VFX.warm_up_pillar(self, player.global_position if player else Vector2.ZERO)
 
 
 func _exit_tree() -> void:
@@ -166,6 +167,7 @@ func _exit_tree() -> void:
 		_sim_hidden = false
 	if _flat_floor_drawings:
 		VFX.floor_squash = VFX.FLOOR_SQUASH_2D
+		VFX.drawings_at_feet = false
 		_flat_floor_drawings = false
 	if get_tree().node_added.is_connected(_on_node_added):
 		get_tree().node_added.disconnect(_on_node_added)
@@ -174,9 +176,11 @@ func _exit_tree() -> void:
 ## Floor circles drawn by 2D nodes (the hover ring, VFX.ring()) become true
 ## circles while this view shows the game: the 2D game squashes them for its
 ## 3/4 look, and here the camera foreshortens the floor itself
-## (VFX.floor_squash). Undone when the WorldView leaves the tree.
+## (VFX.floor_squash). Swing arcs center on a unit's feet, not its 2D body's
+## center (VFX.drawings_at_feet). Undone when the WorldView leaves the tree.
 func flatten_floor_drawings() -> void:
 	VFX.floor_squash = 1.0
+	VFX.drawings_at_feet = true
 	_flat_floor_drawings = true
 
 
@@ -455,12 +459,13 @@ func _add_view(node: Node) -> void:
 ## under this view, its origin on the floor at `pos_px`, turned so its +Z
 ## points along the 2D `angle` (the way a model faces its facing: the yaw
 ## atan2(x, y)). The root's own transform in its scene is kept, relative to
-## that. The floor is flat until P9.
+## that. It stands on the ground there (ground_height_m(): a plateau's top,
+## half way up a ramp; P7's 2D-only looks step, for P9's terrain).
 func add_scene_at(node: Node3D, pos_px: Vector2, angle: float) -> void:
 	var local := node.transform
 	add_child(node)
 	var dir := Vector2.from_angle(angle)
-	node.global_transform = Transform3D(Basis(Vector3.UP, atan2(dir.x, dir.y)), Units.to_view(pos_px)) * local
+	node.global_transform = Transform3D(Basis(Vector3.UP, atan2(dir.x, dir.y)), Units.to_view(pos_px, ground_height_m(pos_px))) * local
 	node.reset_physics_interpolation()
 
 

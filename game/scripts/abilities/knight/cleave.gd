@@ -29,7 +29,7 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 	else:
 		var half := deg_to_rad(_half_angle_deg(ctx.flags))
 		var side: float = caster.get("swing_side") if "swing_side" in caster else 1.0
-		VFX.slash(caster.get_parent(), caster.get_center(), ctx.direction.angle(), 10.0, reach + 6.0, half,
+		VFX.slash(caster.get_parent(), VFX.drawing_origin(caster), ctx.direction.angle(), 10.0, reach + 6.0, half,
 			Color(1, 1, 1, 0.85), 0.13, side)
 		targets = filter_by_walls(origin, AbilityUtil.in_cone(caster, origin, ctx.direction, reach, half))
 	play_hit_feel(hit_units(caster, targets, ctx))

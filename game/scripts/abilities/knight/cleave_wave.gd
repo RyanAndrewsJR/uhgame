@@ -21,7 +21,7 @@ extends Ability
 
 func execute(caster: Unit, ctx: CastContext) -> void:
 	var side: float = caster.get("swing_side") if "swing_side" in caster else 1.0
-	VFX.slash(caster.get_parent(), caster.get_center(), ctx.direction.angle(), 8.0, 22.0,
+	VFX.slash(caster.get_parent(), VFX.drawing_origin(caster), ctx.direction.angle(), 8.0, 22.0,
 		deg_to_rad(crescent_half_angle_deg), Color(1, 1, 1, 0.85), 0.12, side)
 	for p in Projectile.fire(caster, self, ctx, caster.global_position, ctx.direction):
 		p.add_child(_crescent(p.half_width_px, p.direction))

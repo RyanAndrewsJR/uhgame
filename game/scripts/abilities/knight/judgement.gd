@@ -41,7 +41,7 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 		return  # It went behind a wall during the cast: a miss (COMBAT C7).
 	var parent := target.get_parent()
 	VFX.impact(parent, target.global_position, Color(icon_color, 0.95), 90.0, 0.35)
-	VFX.slash(parent, target.get_center(), (target.global_position - caster.global_position).angle() + PI * 0.5,
+	VFX.slash(parent, VFX.drawing_origin(target), (target.global_position - caster.global_position).angle() + PI * 0.5,
 		4.0, 26.0, deg_to_rad(70.0), Color(icon_color, 0.95), 0.12)
 	VFX.ring(parent, target.global_position, 8.0, 44.0, icon_color, 0.4, 3.0)
 	# The stun: status_stun for stun_duration, conditional bonuses included

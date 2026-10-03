@@ -20,7 +20,7 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 	var reach := Units.to_px(get_effect_param(caster, &"cast_range", ctx))
 	var origin := caster.global_position
 	var half := deg_to_rad(cone_half_angle_deg)
-	VFX.slash(caster.get_parent(), caster.get_center(), ctx.direction.angle(), 8.0, reach, half, Color(icon_color, 0.85), 0.14)
+	VFX.slash(caster.get_parent(), VFX.drawing_origin(caster), ctx.direction.angle(), 8.0, reach, half, Color(icon_color, 0.85), 0.14)
 	var airborne: StatusEffect = STATUS_AIRBORNE.duplicate()
 	airborne.duration = airborne_duration
 	var targets := filter_by_walls(origin, AbilityUtil.in_cone(caster, origin, ctx.direction, reach, half))

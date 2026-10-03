@@ -11,7 +11,29 @@
 
 ## 3D pivot (3D_PIVOT.md)
 
-### P9 fix – a knock-up's landing on stairs and ramps: 2026-10-03, Built (awaiting Ryan's check)
+### P7's 2D-only looks – swing arcs from the feet, impact pillars in 3D: 2026-10-03, Built (awaiting Ryan's check)
+The small step Ryan put before P-M (DECISIONS.md, P8's answers), from 3D.md's Build order.
+- **Swing arcs:**
+  - New `VFX.drawing_origin(unit)` and `VFX.drawings_at_feet`: the body's center in the 2D game, the feet while a WorldView shows it. `WorldView.flatten_floor_drawings()` sets it and `_exit_tree()` puts it back, with `floor_squash`.
+  - The five `VFX.slash()` calls use it: `player.gd` (the combo's swings), `cleave.gd`, `cleave_wave.gd`, `judgement.gd` (on its target) and `uppercut.gd`. Each is a one-expression replace of `get_center()`, in the files the step names, plus the P9 test Uppercut.
+- **Impact pillars:**
+  - New `scripts/view/pillar_view.gd`, `scenes/view/pillar_view.tscn` and `scripts/view/pillar.gdshader`.
+  - `VFX.impact()` keeps its 2D pillar and, with a view, also raises a `PillarView` through `add_scene_at()`: `height` px as meters, the 2D tween's narrowing, stretch and fade, then freed. New `VFX.PILLAR_VIEW_SCENE`, `warm_up_pillar()`; `WorldView.setup()` calls the warm-up.
+  - **Found while building:**
+    - **Pillars were hidden inside the units they hit.** With a plain material, the first screenshots showed Judgement's pillar only where it rose above the dummy, and Lunge's not at all: a slime is 1.32 m tall, Lunge's pillar 1.1 m. `pillar.gdshader` draws each vertex 0.8 m nearer the camera along its own view ray, so it keeps its place on screen and shows in front of the unit.
+    - **A 10–14 ms hitch on the first pillar:** Judgement's hit frame took 23–27 ms against 12–13.5 ms without a pillar. With the warm-up pillar at setup (invisible, 0.05 s) it's 13.0–13.4 ms.
+    - **Each `VFX.impact()` cost 1.4–1.9 ms:** its `load()` result was dropped with the last pillar, so every hit read the scene file again. `VFX` keeps it now (`_pillar_scene`), and the shared beam mesh is set up once (setting its radii again rebuilt it). A call costs about 65 µs (275 µs the first).
+- **`WorldView.add_scene_at()` stands on the ground** (`ground_height_m()`): P7's comment said the floor was flat until P9. A pillar on the perch dummy stands at 1.5 m.
+- **Measured** in the 3D sandbox (windowed harness, saving off):
+  - the swing arc sweeps from the Knight's feet;
+  - Judgement's pillar stands at the dummy's feet (11.5, 0, 10.5) and rises 2.8 m in front of it;
+  - Lunge's two pillars show in front of both dummies;
+  - a pillar on the perch dummy stands on the plateau (y 1.5).
+  - Frame times over 18 s: median 5.5 ms, p95 6.7–6.9 ms, max 13.0–13.4 ms, the same as without pillars (max 12.4–13.5 ms on Judgement's hit).
+- **Tests:** view_test 369 (15 new, `_test_arcs_and_pillars()`): every `VFX.slash()` call through `drawing_origin()`, the origin in 2D and under the view and back, nothing 3D without a view, the warm-up, the pillar on the plateau and the floor, its height, beam, shader, shared material and mesh, its fade, its end.
+- All seven suites: **2,175/2,175** (stats 179, combat 476, abilities 565, audio 110, champions 168, talents 308, view 369). Saves unchanged; the headless editor opens the 3D sandbox clean.
+
+### P9 fix – a knock-up's landing on stairs and ramps: 2026-10-03, Passed (Ryan's check 2026-10-03)
 Ryan, at his P9 check: a unit knocked up onto the stairs or the ramp (from the plateau or elsewhere) teleported back to where it was knocked from.
 - **Reproduced** in the 3D sandbox (scratch harness, saving off). The PerchDummy (radius 14 px) was knocked 2 m with the Uppercut:
   - from the plateau onto the stairs, a little west of their middle: it landed at (12.42, 6.47) and was put back on the plateau at (12.69, 4.87), 12 px from its start;

@@ -672,7 +672,7 @@ func _on_swing_landed(index: int, _targets: Array[Unit]) -> void:
 	var finisher := index == attack.combo.swings.size() - 1 or index < 0   # the dash-strike (-1) looks heavy too
 	sword.rotation = 0.0
 	_swing_sword(0.1)
-	VFX.slash(get_parent(), get_center(), direction.angle(), 8.0, attack.get_swing_reach_px(swing),
+	VFX.slash(get_parent(), VFX.drawing_origin(self), direction.angle(), 8.0, attack.get_swing_reach_px(swing),
 		deg_to_rad(swing.arc_deg) * 0.5, Color(1, 1, 1, 0.95 if finisher else 0.75),
 		0.16 if finisher else 0.11, swing_side)
 

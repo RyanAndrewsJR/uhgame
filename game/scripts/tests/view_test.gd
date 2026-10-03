@@ -61,6 +61,11 @@ extends Node3D
 ## floor, the top and the ramp, a unit's view standing on the plateau, the
 ## knock-up's arc, the floor drawings' window covering lower floor; the 3D
 ## sandbox's terrain corner; no enemy knocks up the player.
+## P7's 2D-only looks (after P9): swing arcs center on the body in the 2D game
+## and on the feet under the view, every VFX.slash() call through
+## VFX.drawing_origin(); the view warms up the pillar's shader at setup;
+## VFX.impact()'s PillarView standing on the ground, its height, its shader,
+## its fade, gone after its duration; nothing 3D without a view.
 ## Prints PASS/FAIL per check and a total; run headless, it quits with the
 ## number of failures as the exit code.
 
@@ -111,6 +116,7 @@ func _ready() -> void:
 	await _test_perch()
 	await _test_terrain_in_view()
 	_test_terrain_sandbox()
+	await _test_arcs_and_pillars()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -1956,6 +1962,101 @@ func _test_terrain_sandbox() -> void:
 	_check("a passive dummy on it", dummy != null and dummy.properties.get("passive") == true and Rect2(12, 1, 4, 4).has_point(Vector2(dummy.position.x, dummy.position.z)), true)
 	_check("W is the test Uppercut there", (sandbox.get_node("SandboxAbilities").get(&"test_w") as Ability).id, &"test_uppercut")
 	sandbox.free()
+
+
+# --- P7's 2D-only looks (after P9) --------------------------------------------------------
+
+func _test_arcs_and_pillars() -> void:
+	_section("P7's 2D-only looks: swing arcs from the feet, VFX.impact()'s pillar (3D.md)")
+	var calls := 0
+	var through_origin := 0
+	for path in _files_mentioning("res://scripts/", "VFX.slash("):
+		for line in FileAccess.get_file_as_string(path).split("\n"):
+			if line.contains("VFX.slash(") and not line.strip_edges().begins_with("#"):
+				calls += 1
+				through_origin += 1 if line.contains("VFX.drawing_origin(") else 0
+	_check("every VFX.slash() call centers on VFX.drawing_origin() (the Player's swings, Cleave, Cleave Wave, Judgement, the Uppercut)",
+		[calls, through_origin], [5, 5])
+
+	var layout := _terrain_layout()
+	var room := layout.build_sim()
+	var main := Node2D.new()
+	main.add_child(room)
+	add_child(main)
+	var entities := room.get_node("Entities") as Node2D
+	var slime := (load("res://scenes/enemies/slime.tscn") as PackedScene).instantiate() as Unit
+	slime.set(&"passive", true)
+	slime.position = _px(3.5, 3.5)
+	entities.add_child(slime)
+	await get_tree().physics_frame
+	_check("the 2D game: swing arcs center on the body's center, for its 3/4 look",
+		[VFX.drawings_at_feet, VFX.drawing_origin(slime)], [false, slime.get_center()])
+	var children_before := entities.get_child_count()
+	VFX.impact(entities, _px(3.5, 3.5), Color(1.0, 0.9, 0.4, 0.95), 90.0, 0.35)
+	_check("without a view, VFX.impact() makes only its 2D pillar (nothing in 3D)",
+		[entities.get_child_count() - children_before, get_tree().get_nodes_in_group(&"world_view").size()], [1, 0])
+
+	var view := WorldView.new()
+	main.add_child(view)
+	view.setup(main, room, null, null, layout)
+	var warm_up := _pillars(view)
+	_check("setting up the view draws one invisible pillar, so its shader compiles while the room loads (not on the first hit)",
+		warm_up.size() == 1 and is_zero_approx((warm_up[0].call(&"get_color") as Color).a), true)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check("under the 3D view: they center on the feet, where the swing's cone starts",
+		[VFX.drawings_at_feet, VFX.drawing_origin(slime)], [true, slime.global_position])
+	for i in 30:
+		if _pillars(view).is_empty():
+			break
+		await get_tree().physics_frame
+	_check("the warm-up pillar goes at once (0.05 s)", _pillars(view).size(), 0)
+	var color := Color(1.0, 0.9, 0.4, 0.95)
+	VFX.impact(entities, _px(3.5, 3.5), color, 90.0, 0.35)
+	VFX.impact(entities, _px(1.0, 1.0), color, 24.0, 0.35)
+	var pillars := _pillars(view)
+	_check("VFX.impact() raises a PillarView under the view (one per call)", pillars.size(), 2)
+	if pillars.size() == 2:
+		var top := pillars[0] as Node3D
+		var floor_pillar := pillars[1] as Node3D
+		_check_near_v3("it stands on the ground where it's hit: the plateau's top (3.5, 1.5, 3.5)", top.global_position, Vector3(3.5, 1.5, 3.5), 0.01)
+		_check_near_v3("or the floor (1, 0, 1)", floor_pillar.global_position, Vector3(1.0, 0.0, 1.0), 0.01)
+		var pivot := top.get(&"pivot") as Node3D
+		_check_near("as tall as the 2D one, px as m: 90 px is 2.81 m", pivot.scale.y if pivot else 0.0, Units.px_to_m(90.0), 0.001)
+		var beam := top.get(&"beam") as MeshInstance3D
+		var mesh := beam.mesh as CylinderMesh if beam else null
+		var material := beam.material_override as ShaderMaterial if beam else null
+		_check("a tapered beam, 12 px (0.375 m) across at its foot and 4 px at its top, in the hit's color, casting no shadow",
+			mesh != null and is_equal_approx(mesh.bottom_radius, 0.1875) and is_equal_approx(mesh.top_radius, 0.0625)
+			and (top.call(&"get_color") as Color).is_equal_approx(color)
+			and beam.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, true)
+		_check("drawn by pillar.gdshader, 0.8 m nearer the camera (in front of the unit it stands in); one material and one beam mesh for all",
+			material != null and material.shader.resource_path == "res://scripts/view/pillar.gdshader"
+			and is_equal_approx(float(material.get_shader_parameter(&"pull_m")), 0.8)
+			and material == (floor_pillar.get(&"beam") as MeshInstance3D).material_override
+			and beam.mesh == (floor_pillar.get(&"beam") as MeshInstance3D).mesh, true)
+		for i in 10:
+			await get_tree().physics_frame
+		await get_tree().process_frame
+		var alpha := (top.call(&"get_color") as Color).a if is_instance_valid(top) else -1.0
+		var width := pivot.scale.x if is_instance_valid(pivot) else -1.0
+		_check("part way, it narrows and fades as the 2D one does (width %.2f, alpha %.2f)" % [width, alpha],
+			width > 0.2 and width < 1.0 and alpha > 0.0 and alpha < 0.95, true)
+	for i in 60:
+		if _pillars(view).is_empty():
+			break
+		await get_tree().physics_frame
+	_check("each frees itself when its 0.35 s are over", _pillars(view).size(), 0)
+	main.free()
+	_check("when the view goes, the 2D game's looks come back", [VFX.drawings_at_feet, VFX.floor_squash], [false, VFX.FLOOR_SQUASH_2D])
+
+
+func _pillars(view: WorldView) -> Array[Node]:
+	var out: Array[Node] = []
+	for child in view.get_children():
+		if child.scene_file_path == VFX.PILLAR_VIEW_SCENE:
+			out.append(child)
+	return out
 
 
 # --- Helpers ------------------------------------------------------------------------------
