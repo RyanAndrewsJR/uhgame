@@ -47,6 +47,18 @@ extends Node3D
 ## room_01's layout (every wall cell of the tile room under a wall footprint
 ## and nothing else, the same slimes and spawn), both silent; their play
 ## scenes; the walking masks (fences block, pits wait).
+## P9: terrain and airborne. status_airborne (tags, blocks, tenacity, cleanse,
+## unstoppable, i-frames, juggles) and status_elevated; on a fixture layout
+## with a plateau and a ramp: the ground grid, the derived ledges (along the
+## plateau, none where the ramp joins it or at the ramp's foot) and their
+## collider; ledges stop walking and the dash, not projectiles or sight; a
+## path to the top of a plateau with no way up ends below it (Judgement's
+## walk into range); a knock-up carries a unit over a fence and a ledge,
+## walls still stop it, and it lands back out of a fence; the perch gives
+## elevated by the unit's feet; under the view, the ground's height under the
+## floor, the top and the ramp, a unit's view standing on the plateau, the
+## knock-up's arc, the floor drawings' window covering lower floor; the 3D
+## sandbox's terrain corner; no enemy knocks up the player.
 ## Prints PASS/FAIL per check and a total; run headless, it quits with the
 ## number of failures as the exit code.
 
@@ -90,6 +102,12 @@ func _ready() -> void:
 	_test_layout_validator()
 	await _test_layout_in_view()
 	_test_real_layouts()
+	_test_airborne_status()
+	await _test_ledges()
+	await _test_airborne_moves()
+	await _test_perch()
+	await _test_terrain_in_view()
+	_test_terrain_sandbox()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -1454,12 +1472,16 @@ func _test_real_layouts() -> void:
 	_check("the 3D sandbox is a RoomLayout, silent in the validator", sandbox != null and sandbox.validate().is_empty(), true)
 	var tile_sandbox := (load("res://scenes/rooms/sandbox.tscn") as PackedScene).instantiate()
 	var same_markers := true
+	var twins := 0
 	for marker in sandbox.get_sim_markers():
+		if String(marker.name) in ["Perch", "PerchDummy"]:
+			continue   # P9's terrain corner (checked there)
 		var twin := tile_sandbox.get_node_or_null("Entities/" + String(marker.name)) as Node2D
+		twins += 1
 		same_markers = same_markers and twin != null and Units.to_sim(RoomLayout.transform_in(marker, sandbox).origin).is_equal_approx(twin.position) \
 			and marker.scene.resource_path == twin.scene_file_path and marker.properties.get("passive", false) == twin.get(&"passive")
-	_check("its 6 markers are the tile sandbox's dummies and enemies, at the same points (dummies passive)",
-		same_markers and sandbox.get_sim_markers().size() == 6, true)
+	_check("its 6 markers (P9's perch aside) are the tile sandbox's dummies and enemies, at the same points (dummies passive)",
+		same_markers and twins == 6, true)
 	_check_exact("its spawn is the tile sandbox's", Units.to_sim((sandbox.get_node("PlayerSpawn") as Node3D).position), (tile_sandbox.get_node("PlayerSpawn") as Node2D).position)
 	var helpers_ok := true
 	for helper in ["SandboxReactions", "SandboxAbilities", "SandboxAugments", "SandboxTalents"]:
@@ -1514,9 +1536,366 @@ func _test_real_layouts() -> void:
 
 	for path in ["res://scenes/player/player.tscn", "res://scenes/enemies/slime.tscn", "res://scenes/enemies/slime_elite.tscn"]:
 		var unit := (load(path) as PackedScene).instantiate() as CollisionObject2D
-		_check("%s walks into walls, units and fences (layers 1, 2, 3, 7), not pits yet (6)" % path.get_file(),
-			unit.collision_mask, 1 | 2 | 4 | 64)
+		_check("%s walks into walls, units, fences and ledges (layers 1, 2, 3, 7; 11 since P9), not pits yet (6)" % path.get_file(),
+			unit.collision_mask, 1 | 2 | 4 | 64 | 1024)
 		unit.free()
+
+
+# --- P9: terrain and airborne -----------------------------------------------------------------
+
+const AIRBORNE_STATUS: StatusEffect = preload("res://data/statuses/status_airborne.tres")
+const ELEVATED_STATUS: StatusEffect = preload("res://data/statuses/status_elevated.tres")
+
+
+func _px(x_m: float, z_m: float) -> Vector2:
+	return Vector2(Units.m_to_px(x_m), Units.m_to_px(z_m))
+
+
+func _place(node: Node2D, pos: Vector2) -> void:
+	node.global_position = pos
+	node.reset_physics_interpolation()
+
+
+## A layout with terrain: a 10 x 8 m floor; a 3 x 3 m plateau 1.5 m high at
+## (2, 2) (its top walkable, its cliff decoration); a ramp from the plateau's
+## east edge (x 5, 1.5 m) down to x 8, z 3..4 (unless no_ramp); a fence along
+## z 6.4..6.6, x 1..4; a wall block x 9..10, z 5..7; the spawn.
+func _terrain_layout(with_ramp: bool = true) -> RoomLayout:
+	var layout := RoomLayout.new()
+	layout.name = "Terrain"
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(10.0, 8.0)
+	var floor_mesh := MeshInstance3D.new()
+	floor_mesh.name = "Floor"
+	floor_mesh.mesh = plane
+	floor_mesh.position = Vector3(5.0, 0.0, 4.0)
+	floor_mesh.material_override = load(FLOOR_STONE)
+	floor_mesh.add_to_group(&"walkable")
+	layout.add_child(floor_mesh)
+	var plateau := _asset(layout, "Plateau", Vector3(2.0, 0.0, 2.0))
+	var top := PlaneMesh.new()
+	top.size = Vector2(3.0, 3.0)
+	var top_mesh := MeshInstance3D.new()
+	top_mesh.name = "Top"
+	top_mesh.mesh = top
+	top_mesh.position = Vector3(1.5, 1.5, 1.5)
+	top_mesh.add_to_group(&"walkable")
+	plateau.add_child(top_mesh)
+	_asset_box(plateau, Vector3(3.0, 1.49, 3.0), Vector3(1.5, 0.745, 1.5)).add_to_group(&"decoration")
+	if with_ramp:
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for p: Vector3 in [Vector3(5, 1.5, 3), Vector3(8, 0, 3), Vector3(8, 0, 4), Vector3(5, 1.5, 3), Vector3(8, 0, 4), Vector3(5, 1.5, 4)]:
+			st.add_vertex(p)
+		st.generate_normals()
+		var ramp := MeshInstance3D.new()
+		ramp.name = "Ramp"
+		ramp.mesh = st.commit()
+		ramp.add_to_group(&"walkable")
+		layout.add_child(ramp)
+	var fence := _asset(layout, "Fence", Vector3(1.0, 0.0, 6.0))
+	_asset_box(fence, Vector3(3.0, 1.0, 0.2), Vector3(1.5, 0.5, 0.5))
+	_asset_footprint(fence, Footprint.Kind.LOW_OBSTACLE, PackedVector2Array([Vector2(0, 0.4), Vector2(3, 0.4), Vector2(3, 0.6), Vector2(0, 0.6)]))
+	var wall := _asset(layout, "Wall", Vector3(9.0, 0.0, 5.0))
+	_asset_box(wall, Vector3(1.0, 2.2, 2.0), Vector3(0.5, 1.1, 1.0))
+	_asset_footprint(wall, Footprint.Kind.WALL)
+	var spawn := Marker3D.new()
+	spawn.name = "PlayerSpawn"
+	spawn.position = Vector3(8.5, 0.0, 7.0)
+	layout.add_child(spawn)
+	return layout
+
+
+func _grid_at(grid: Dictionary, p_m: Vector2) -> float:
+	var cell := Vector2i(((p_m - (grid["origin"] as Vector2)) / float(grid["step"])).floor())
+	var size: Vector2i = grid["size"]
+	return (grid["heights"] as PackedFloat32Array)[cell.y * size.x + cell.x]
+
+
+func _ledge_at(ledges: Array[Dictionary], p_m: Vector2) -> bool:
+	for ledge in ledges:
+		if (ledge["rect"] as Rect2).has_point(p_m):
+			return true
+	return false
+
+
+## A room's sim in the tree (Room._ready() bakes), two physics frames later.
+## The layout itself is freed: only its sim is used.
+func _terrain_room(layout: RoomLayout) -> Node2D:
+	var holder := Node2D.new()
+	add_child(holder)
+	holder.add_child(layout.build_sim())
+	layout.free()
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	return holder
+
+
+func _test_airborne_status() -> void:
+	_section("status_airborne and status_elevated (P9; 3D.md, Airborne; Terrain and height 2)")
+	_check("airborne: tags cc, airborne, debuff; blocks moving, attacking, casting and dashing",
+		[AIRBORNE_STATUS.tags, AIRBORNE_STATUS.blocks_move, AIRBORNE_STATUS.blocks_attack, AIRBORNE_STATUS.blocks_cast, AIRBORNE_STATUS.blocks_dash],
+		[[&"cc", &"airborne", &"debuff"] as Array[StringName], true, true, true, true])
+	_check("REFRESH_LONGER (a juggle keeps the longer); tenacity doesn't shorten it; a cleanse doesn't end it",
+		[AIRBORNE_STATUS.stack_rule == StatusEffect.StackRule.REFRESH_LONGER, AIRBORNE_STATUS.ignores_tenacity, AIRBORNE_STATUS.cleansable], [true, true, false])
+	_check("elevated: the tag elevated, until removed, not cc",
+		[ELEVATED_STATUS.tags, ELEVATED_STATUS.duration, ELEVATED_STATUS.is_cc()], [[&"elevated"] as Array[StringName], -1.0, false])
+	var holder := Node2D.new()
+	add_child(holder)
+	var slime := (load("res://scenes/enemies/slime.tscn") as PackedScene).instantiate() as Unit
+	holder.add_child(slime)
+	var status := slime.status_component
+	slime.stats_component.add_modifier(StatModifier.create(&"tenacity", StatModifier.Type.FLAT, 0.5, &"p9_test"))
+	status.apply_status(load("res://data/statuses/status_stun.tres"), null, 1.0)
+	status.apply_status(AIRBORNE_STATUS, null, 0.75)
+	_check_near("50% tenacity halves a 1 s stun", status.get_time_left(&"stun"), 0.5, 0.001)
+	_check_near("and leaves a 0.75 s knock-up whole", status.get_time_left(&"airborne"), 0.75, 0.001)
+	status.remove_statuses_with_tags([&"cc"] as Array[StringName])
+	_check("a cleanse ends the stun, not the knock-up", [status.has_status(&"stun"), status.has_status(&"airborne")], [false, true])
+	var unstoppable := StatusEffect.new()
+	unstoppable.id = &"p9_unstoppable"
+	unstoppable.tags = [&"unstoppable"] as Array[StringName]
+	unstoppable.duration = 1.0
+	status.apply_status(unstoppable)
+	_check("gaining unstoppable doesn't end it either", status.has_status(&"airborne"), true)
+	status.remove_status(&"airborne")
+	_check("but while unstoppable a new knock-up is refused (it's cc)", status.apply_status(AIRBORNE_STATUS, null, 0.75), false)
+	status.remove_status(&"p9_unstoppable")
+	slime.add_invulnerability(&"p9_test")
+	var blocked := slime.make_hit_context(10.0, null)
+	blocked.statuses.append(AIRBORNE_STATUS)
+	slime.on_hit(blocked)
+	_check("i-frames block the whole hit: no knock-up", status.has_status(&"airborne"), false)
+	slime.remove_invulnerability(&"p9_test")
+	var up := slime.make_hit_context(10.0, null)
+	up.statuses.append(AIRBORNE_STATUS)
+	slime.on_hit(up)
+	var hp := slime.health.current
+	slime.on_hit(slime.make_hit_context(10.0, null))
+	_check("without them it's knocked up, and being airborne gives no i-frames (a juggle lands)",
+		[status.has_status(&"airborne"), slime.health.current < hp], [true, true])
+	holder.free()
+
+	var users := _files_mentioning("res://", "status_airborne.tres")
+	_check("only the test Uppercut uses the knock-up: no enemy knocks up the player in v1 (files: %s)" % [users],
+		users, ["res://scripts/abilities/test/uppercut.gd"])
+
+
+## Every .gd, .tres and .tscn under `dir` (tests and the status itself left
+## out) whose text contains `needle`.
+func _files_mentioning(dir: String, needle: String) -> Array[String]:
+	var out: Array[String] = []
+	for sub in DirAccess.get_directories_at(dir):
+		if sub.begins_with(".") or (dir == "res://scripts/" and sub == "tests"):
+			continue
+		out.append_array(_files_mentioning(dir.path_join(sub) + "/", needle))
+	for file in DirAccess.get_files_at(dir):
+		if not (file.ends_with(".gd") or file.ends_with(".tres") or file.ends_with(".tscn")):
+			continue
+		var path := dir.path_join(file)
+		if path == "res://data/statuses/status_airborne.tres":
+			continue
+		if FileAccess.get_file_as_string(path).contains(needle):
+			out.append(path)
+	return out
+
+
+func _test_ledges() -> void:
+	_section("Derived ledges (P9; 3D.md, Terrain and height 1b)")
+	var layout := _terrain_layout()
+	_check("the terrain fixture is silent in the validator", layout.validate(), [])
+	var grid := layout.ground_grid()
+	_check_near("the ground grid: the floor at 0 m", _grid_at(grid, Vector2(1.1, 1.1)), 0.0, 0.001)
+	_check_near("the plateau's top at 1.5 m", _grid_at(grid, Vector2(3.5, 3.5)), 1.5, 0.001)
+	_check_near("half way down the ramp, about 0.75 m (the cell's center: 0.69)", _grid_at(grid, Vector2(6.5, 3.5)), 0.6875, 0.001)
+	var ledges := layout.derive_ledges()
+	_check("a ledge runs along the plateau's west edge, on its top side",
+		_ledge_at(ledges, Vector2(2.1, 3.5)) and not _ledge_at(ledges, Vector2(1.9, 3.5)), true)
+	_check("none where the ramp joins it (its east edge, z 3..4)", _ledge_at(ledges, Vector2(4.9, 3.5)), false)
+	_check("north of the ramp the east edge is a cliff again", _ledge_at(ledges, Vector2(4.9, 2.3)), true)
+	_check("the ramp's sides are cliffs where it's high (0.75 m)", _ledge_at(ledges, Vector2(6.5, 3.1)), true)
+	_check("but not at its foot (under 0.3 m)", _ledge_at(ledges, Vector2(7.9, 3.1)), false)
+	_check("nor in the plateau's middle or on the floor", [_ledge_at(ledges, Vector2(3.5, 3.5)), _ledge_at(ledges, Vector2(1.0, 1.0))], [false, false])
+	var west_heights_ok := true
+	for ledge in ledges:
+		var r: Rect2 = ledge["rect"]
+		if r.position.x < 2.3:
+			west_heights_ok = west_heights_ok and is_equal_approx(float(ledge["height"]), 1.5)
+	_check("the plateau's ledges stand at its top (1.5 m)", west_heights_ok, true)
+
+	var holder := await _terrain_room(layout)
+	var room := holder.get_child(0) as Room
+	var ledge_body := room.get_node_or_null("Footprints/Ledges") as StaticBody2D
+	_check("build_sim() adds them as one body on layer 11 (bit 1024), colliding with nothing, a box per run",
+		ledge_body != null and ledge_body.collision_layer == 1024 and ledge_body.collision_mask == 0
+		and ledge_body.find_children("*", "CollisionShape2D", false, false).size() == ledges.size(), true)
+	var nav := room.nav_region.navigation_polygon
+	_check("the bake carves them (the top's edge is off the navmesh, its middle on it)",
+		[_on_navmesh(nav, _px(2.1, 3.5)), _on_navmesh(nav, _px(3.5, 3.5))], [false, true])
+
+	var probe := CharacterBody2D.new()
+	var circle := CircleShape2D.new()
+	circle.radius = 11.0
+	var col := CollisionShape2D.new()
+	col.shape = circle
+	probe.add_child(col)
+	holder.add_child(probe)
+	await get_tree().physics_frame
+	var walking := 1 | 2 | 4 | 64 | 1024
+	var from_west := Transform2D(0.0, _px(1.4, 3.5))
+	probe.collision_mask = walking
+	var walk_blocked := probe.test_move(from_west, Vector2(40.0, 0.0))
+	probe.collision_mask = walking & MovementComponent.GHOST_KEEP_MASK
+	var dash_blocked := probe.test_move(from_west, Vector2(40.0, 0.0))
+	probe.collision_mask = walking & 1
+	var old_dash_blocked := probe.test_move(from_west, Vector2(40.0, 0.0))
+	_check("walking into a cliff from below stops at its ledge", walk_blocked, true)
+	_check("so does the dash (it keeps walls and ledges: GHOST_KEEP_MASK = 1 | 1024)", [dash_blocked, MovementComponent.GHOST_KEEP_MASK], [true, 1 | 1024])
+	_check("(with walls only, as before P9, it would have climbed it)", old_dash_blocked, false)
+	var from_south := Transform2D(0.0, _px(2.5, 7.4))
+	probe.collision_mask = walking
+	var fence_walk := probe.test_move(from_south, Vector2(0.0, -40.0))
+	probe.collision_mask = walking & MovementComponent.GHOST_KEEP_MASK
+	var fence_dash := probe.test_move(from_south, Vector2(0.0, -40.0))
+	_check("a fence stops walking; the dash crosses it", [fence_walk, fence_dash], [true, false])
+	_check("projectiles fly over a ledge (WorldQuery.shape_sweep, walls only)", WorldQuery.shape_sweep(_px(1.4, 3.5), _px(3.5, 3.5), 4.0).is_empty(), true)
+	_check("and sight crosses it", WorldQuery.has_line_of_sight(_px(1.4, 3.5), _px(3.5, 3.5)), true)
+	holder.free()
+
+	# Judgement's walk into range (ABILITIES, UNIT targeting): it follows a path,
+	# and a plateau with no way up is an island of the navmesh.
+	var island := await _terrain_room(_terrain_layout(false))
+	var island_room := island.get_child(0) as Room
+	await get_tree().physics_frame
+	var path := NavigationServer2D.map_get_path(island_room.nav_region.get_navigation_map(), _px(1.0, 3.5), _px(3.5, 3.5), true)
+	_check("a path to the top of a plateau with no way up ends at its foot, within 2 m, not on the island (what Judgement's walk into range follows)",
+		path.size() > 0 and not Rect2(2.0, 2.0, 3.0, 3.0).has_point(Vector2(Units.px_to_m(path[path.size() - 1].x), Units.px_to_m(path[path.size() - 1].y))) and Units.px_to_m(path[path.size() - 1].distance_to(_px(3.5, 3.5))) < 2.0, true)
+	island.free()
+
+
+func _test_airborne_moves() -> void:
+	_section("A knock-up's movement (P9; 3D.md, Airborne)")
+	var holder := await _terrain_room(_terrain_layout())
+	var room := holder.get_child(0) as Room
+	var slime := (load("res://scenes/enemies/slime.tscn") as PackedScene).instantiate() as Unit
+	slime.set(&"passive", true)
+	room.get_node("Entities").add_child(slime)
+	var push := func(at: Vector2, by_px: Vector2, airborne: bool) -> Vector2:
+		slime.status_component.remove_status(&"airborne")
+		_place(slime, at)
+		await get_tree().physics_frame
+		if airborne:
+			slime.status_component.apply_status(AIRBORNE_STATUS, null, 1.0)
+		slime.movement.displace(by_px / 0.25, 0.25)
+		for i in 25:
+			await get_tree().physics_frame
+		return slime.global_position
+	var stopped: Vector2 = await push.call(_px(2.5, 7.4), Vector2(0.0, -64.0), false)
+	_check("pushed north into the fence, not knocked up: it stops at the fence", Units.px_to_m(stopped.y) > 6.6, true)
+	var over: Vector2 = await push.call(_px(2.5, 7.4), Vector2(0.0, -64.0), true)
+	_check("knocked up, the push carries it over the fence", Units.px_to_m(over.y) < 6.0, true)
+	var below: Vector2 = await push.call(_px(1.0, 3.5), Vector2(64.0, 0.0), false)
+	_check("pushed east into the plateau's cliff: it stops at the ledge", Units.px_to_m(below.x) < 2.0, true)
+	var onto: Vector2 = await push.call(_px(1.0, 3.5), Vector2(64.0, 0.0), true)
+	_check("knocked up, over the ledge and onto the top", Units.px_to_m(onto.x) > 2.3, true)
+	var wall: Vector2 = await push.call(_px(7.6, 6.0), Vector2(64.0, 0.0), true)
+	_check("walls still stop a knock-up", Units.px_to_m(wall.x) < 9.0, true)
+	var landed: Vector2 = await push.call(_px(2.5, 7.3), Vector2(0.0, -28.0), true)
+	_check("a knock-up that would land inside the fence lands back out of it, on the side it came from",
+		WorldQuery.is_point_free(landed, 11.0, 64) and Units.px_to_m(landed.y) > 6.6, true)
+	holder.free()
+
+
+func _test_perch() -> void:
+	_section("The perch (P9; 3D.md, Terrain and height 2)")
+	var holder := await _terrain_room(_terrain_layout())
+	var room := holder.get_child(0) as Room
+	var perch := (load("res://scenes/world/perch.tscn") as PackedScene).instantiate() as Perch
+	perch.size_m = Vector2(3.0, 3.0)
+	perch.position = _px(3.5, 3.5)
+	room.get_node("Entities").add_child(perch)
+	var slime := (load("res://scenes/enemies/slime.tscn") as PackedScene).instantiate() as Unit
+	slime.set(&"passive", true)
+	room.get_node("Entities").add_child(slime)
+	var settle := func() -> void:
+		for i in 3:
+			await get_tree().physics_frame
+	_place(slime, _px(3.5, 3.0))
+	await settle.call()
+	_check("a unit standing on the perch is elevated", slime.status_component.has_tag(&"elevated"), true)
+	_place(slime, _px(1.0, 3.5))
+	await settle.call()
+	_check("off it, it isn't", slime.status_component.has_tag(&"elevated"), false)
+	_place(slime, _px(1.75, 3.5))
+	await settle.call()
+	_check("pressed against the cliff below (its body reaching over the top's edge, its feet not): not elevated",
+		slime.status_component.has_tag(&"elevated"), false)
+	holder.free()
+
+
+func _test_terrain_in_view() -> void:
+	_section("Terrain under the 3D view (P9: the ground's height, a unit on a plateau, the arc, the window)")
+	var layout := _terrain_layout()
+	var room := layout.build_sim()
+	var main := Node2D.new()
+	main.add_child(room)
+	add_child(main)
+	var view := WorldView.new()
+	main.add_child(view)
+	view.setup(main, room, null, null, layout)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check_near("the ground under the floor: 0 m (a downward ray on the floor layer)", view.ground_height_m(_px(1.0, 1.0)), 0.0, 0.01)
+	_check_near("on the plateau: 1.5 m", view.ground_height_m(_px(3.5, 3.5)), 1.5, 0.01)
+	_check_near("half way down the ramp: 0.75 m", view.ground_height_m(_px(6.5, 3.5)), 0.75, 0.01)
+	var slime := (load("res://scenes/enemies/slime.tscn") as PackedScene).instantiate() as Unit
+	slime.set(&"passive", true)
+	slime.position = _px(3.5, 3.5)
+	room.get_node("Entities").add_child(slime)
+	for i in 3:
+		await get_tree().physics_frame
+	var sv := view.view_of(slime) as UnitView
+	_check_near("a unit's view stands on the plateau's top", sv.position.y if sv else -1.0, 1.5, 0.01)
+	_check_near("what sits over its head starts at its model's top there", view.unit_top_m(slime), 1.5 + 1.32, 0.01)
+	slime.status_component.apply_status(AIRBORNE_STATUS, null, 0.6)
+	for i in 18:
+		await get_tree().physics_frame
+	await get_tree().process_frame
+	var mid := sv.air_height_m if sv else 0.0
+	_check("knocked up for 0.6 s, half way its model is near the apex (1.2 m over the ground): %.2f m" % mid, mid > 0.95 and mid < 1.25, true)
+	for i in 30:
+		await get_tree().physics_frame
+	await get_tree().process_frame
+	_check_near("and back on the ground when it ends", sv.air_height_m if sv else -1.0, 0.0, 0.01)
+	_check("the floor drawings' window covers the floor 1.5 m below the top (it's seen farther)",
+		is_equal_approx(view.floor_overlay.drop_m, 1.5)
+		and FloorOverlay.seen_floor_around_focus_m(view.camera, 1.5).size.y > FloorOverlay.seen_floor_around_focus_m(view.camera).size.y, true)
+	main.free()
+
+
+func _test_terrain_sandbox() -> void:
+	_section("The 3D sandbox's terrain corner (P9)")
+	var sandbox := (load("res://scenes/rooms/sandbox_3d.tscn") as PackedScene).instantiate() as RoomLayout
+	_check("still silent in the validator", sandbox.validate(), [])
+	for piece in ["Props/Plateau", "Props/RampEast", "Props/StairsSouth"]:
+		_check("it has %s" % piece.get_file(), sandbox.get_node_or_null(piece) != null, true)
+	var grid := sandbox.ground_grid()
+	_check_near("the plateau's top is 1.5 m up", _grid_at(grid, Vector2(14.0, 3.0)), 1.5, 0.001)
+	_check_near("half way up the stairs (their hidden ramp), about 0.75 m", _grid_at(grid, Vector2(13.0, 6.5)), 0.75, 0.1)
+	_check_near("half way up the ramp, about 0.75 m", _grid_at(grid, Vector2(18.0, 3.0)), 0.75, 0.1)
+	var hidden := sandbox.get_node("Props/StairsSouth/HiddenRamp") as MeshInstance3D
+	_check("the stairs walk on a hidden ramp; their steps are decoration",
+		not hidden.visible and hidden.is_in_group(&"walkable") and sandbox.get_node("Props/StairsSouth/Steps").is_in_group(&"decoration"), true)
+	var ledges := sandbox.derive_ledges()
+	_check("ledges along the plateau's cliffs, none up the middle of the stairs or the ramp",
+		_ledge_at(ledges, Vector2(12.1, 3.0)) and not _ledge_at(ledges, Vector2(13.0, 6.5)) and not _ledge_at(ledges, Vector2(18.0, 3.0)), true)
+	var perch := sandbox.get_node_or_null("Markers/Perch") as SimMarker
+	_check("a perch on the top (4 x 4 m) with its answers noted",
+		perch != null and perch.scene.resource_path == "res://scenes/world/perch.tscn" and perch.properties.get("size_m") == Vector2(4, 4) and String(perch.properties.get("answers", "")).contains("Judgement"), true)
+	var dummy := sandbox.get_node_or_null("Markers/PerchDummy") as SimMarker
+	_check("a passive dummy on it", dummy != null and dummy.properties.get("passive") == true and Rect2(12, 1, 4, 4).has_point(Vector2(dummy.position.x, dummy.position.z)), true)
+	_check("W is the test Uppercut there", (sandbox.get_node("SandboxAbilities").get(&"test_w") as Ability).id, &"test_uppercut")
+	sandbox.free()
 
 
 # --- Helpers ------------------------------------------------------------------------------

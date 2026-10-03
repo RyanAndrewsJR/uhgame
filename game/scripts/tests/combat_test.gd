@@ -101,6 +101,8 @@ func _ready() -> void:
 	_test_kill()
 	_test_non_unit_target()
 	await _test_combo()
+	await _test_perch_melee_rule()
+	await _test_uppercut()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -2998,6 +3000,91 @@ func _test_death_mid_swing() -> void:
 
 
 ## Knight in the arena, not swinging, dash charges back, combo reset.
+# --- 3D pivot P9: the melee rule, the Uppercut ----------------------------------------
+
+const STATUS_ELEVATED: StatusEffect = preload("res://data/statuses/status_elevated.tres")
+const UPPERCUT: Ability = preload("res://data/abilities/test_w_uppercut.tres")
+
+
+func _test_perch_melee_rule() -> void:
+	_section("P9: the melee rule (a perched, elevated target; 3D.md, Terrain and height 2)")
+	var lunge: Ability = load("res://data/abilities/knight_e_lunge.tres")
+	var judgement: Ability = load("res://data/abilities/knight_r_judgement.tres")
+	var wave: Ability = load("res://data/abilities/knight_q_cleave_wave.tres")
+	_check("Cleave and Lunge are melee; Judgement and Cleave Wave aren't",
+		[&"melee" in CLEAVE.tags, &"melee" in lunge.tags, &"melee" in judgement.tags, &"melee" in wave.tags], [true, true, false, false])
+	await _fresh_knight()   # C2's last check left the Knight dead
+	await _reset_knight()
+	await _hitstop_over()
+	var dummy := _dummy_at(Vector2(50, 0))
+	await _frames(1)
+	_check("the Knight's combo swings are melee hits (a MELEE combo)",
+		HitPipeline.basic_attack(knight, dummy, knight.attack.combo.swings[0]).has_tag(&"melee"), true)
+	dummy.status_component.apply_status(STATUS_ELEVATED)
+	_check("can_reach(): a melee hit can't reach an elevated target from below",
+		AbilityUtil.can_reach(knight, dummy, [&"melee"] as Array[StringName]), false)
+	_check("a hit that isn't melee can (Judgement, Cleave Wave)", AbilityUtil.can_reach(knight, dummy, [&"ability"] as Array[StringName]), true)
+	var before := dummy.health.current
+	var blocked := HitPipeline.resolve(HitPipeline.basic_attack(knight, dummy, knight.attack.combo.swings[0]))
+	_check("HitPipeline.resolve(), the last guard, blocks it: no damage", [blocked.blocked, dummy.health.current], [true, before])
+	_check("the combo's aim help doesn't snap to it", knight.attack._find_assist_target(Vector2.RIGHT, knight.attack.get_swing_reach_px(knight.attack.combo.swings[0])) != dummy, true)
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 30)
+	_check("a real swing from below doesn't land", dummy.health.current, before)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+	await _hitstop_over()
+	_hit(dummy, 30.0, HitContext.DamageType.MAGIC)
+	_check("a hit without the melee tag lands", dummy.health.current < before, true)
+	knight.status_component.apply_status(STATUS_ELEVATED)
+	_check("from the perch (the attacker elevated too) a melee hit reaches", AbilityUtil.can_reach(knight, dummy, [&"melee"] as Array[StringName]), true)
+	before = dummy.health.current
+	await _frames(40)
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 30)
+	_check("and a real swing lands", dummy.health.current < before, true)
+	knight.status_component.remove_status(&"elevated")
+	dummy.status_component.remove_status(&"elevated")
+	dummy.queue_free()
+
+
+## A new Knight in place of the old one, as _ready() makes it.
+func _fresh_knight() -> void:
+	if is_instance_valid(knight):
+		knight.queue_free()
+	await get_tree().process_frame
+	knight = PLAYER_SCENE.instantiate()
+	add_child(knight)
+	await get_tree().physics_frame
+	_zero_knight_extras()
+
+
+func _test_uppercut() -> void:
+	_section("P9: the test Uppercut (a knock-back-and-up; 3D.md, Airborne)")
+	await _reset_knight()
+	await _hitstop_over()
+	var original_w := knight.abilities.w
+	knight.abilities.w = UPPERCUT
+	var dummy := _dummy_at(Vector2(40, 0))
+	await _frames(1)
+	var start := dummy.global_position
+	knight.cast_ability(&"w", dummy.global_position)
+	var left := 0.0
+	for i in 40:
+		await get_tree().physics_frame
+		if dummy.status_component.has_status(&"airborne"):
+			left = dummy.status_component.get_time_left(&"airborne")
+			break
+	_check_near("it knocks the dummy up for its 0.75 s", left, 0.75, 0.04)
+	_check("airborne: a cc status that blocks moving, attacking, casting and dashing",
+		[dummy.status_component.has_tag(&"cc"), dummy.is_stunned(), dummy.movement.can_move()], [true, false, false])
+	await _frames(30)
+	_check_near("and back 2 m (64 px), away from the Knight", dummy.global_position.x - start.x, 64.0, 3.0)
+	await _wait_until(func() -> bool: return not dummy.status_component.has_status(&"airborne"), 60)
+	_check("it lands when the status ends (0.75 s)", dummy.movement.is_airborne(), false)
+	knight.abilities.w = original_w
+	dummy.queue_free()
+
+
 func _reset_knight() -> void:
 	knight.attack.cancel_swing()
 	await _frames(40)   # > combo_reset_time; dash recharge, knockback and casts settle

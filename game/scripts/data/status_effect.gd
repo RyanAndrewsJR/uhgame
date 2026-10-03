@@ -32,6 +32,13 @@ enum EmpowerTrigger {
 @export var stack_rule: StackRule = StackRule.REFRESH_LONGER
 ## STACK only.
 @export var max_stacks: int = 1
+## True: tenacity doesn't shorten it, though it's cc (3D.md, Airborne: a
+## knock-up keeps its arc; League's rule).
+@export var ignores_tenacity: bool = false
+## False: a cleanse and gaining unstoppable don't end it
+## (StatusComponent.remove_statuses_with_tags() skips it; airborne, Ryan
+## 2026-10-01). Unstoppable still refuses a new one if it's cc.
+@export var cleansable: bool = true
 
 @export_group("Stats")
 ## Added while active (under get_source_id()), once per stack. Slows and

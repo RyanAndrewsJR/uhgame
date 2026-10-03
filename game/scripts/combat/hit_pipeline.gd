@@ -22,6 +22,11 @@ static var _prd_constants: Dictionary = {}
 ## Runs the attacker's stages, then the target's on_hit(ctx). Returns ctx
 ## with its results filled in. A target without on_hit() gets nothing.
 static func resolve(ctx: HitContext) -> HitContext:
+	# The last guard of the melee rule (3D.md, Terrain and height 2): a melee
+	# hit on a perched (elevated) target from below is blocked.
+	if not AbilityUtil.can_reach(ctx.source, ctx.target, ctx.tags):
+		ctx.blocked = true
+		return ctx
 	ctx.add_tag(HitContext.get_damage_type_tag(ctx.damage_type))   # before the scopes read it
 	var scopes := get_hit_scopes(ctx)
 	ctx.raw_damage = get_scaled_damage(ctx) * (1.0 + get_damage_increase(ctx, scopes))
@@ -114,6 +119,10 @@ static func basic_attack(source: Unit, target: Node, swing: AttackSwing) -> HitC
 	ctx.hit_sound = swing.hit_sound   # AUDIO.md: CombatSounds plays it
 	ctx.hit_sound_pitch = swing.sound_pitch
 	ctx.add_tag(&"basic_attack")
+	# A MELEE combo's swings are melee hits (3D.md, Terrain and height 2).
+	if is_instance_valid(source) and source.attack and source.attack.combo \
+			and source.attack.combo.attack_style == AttackCombo.AttackStyle.MELEE:
+		ctx.add_tag(&"melee")
 	return ctx
 
 

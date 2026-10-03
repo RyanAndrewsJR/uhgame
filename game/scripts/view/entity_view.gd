@@ -13,8 +13,14 @@ extends Node3D
 var sim: Node2D
 var world_view: WorldView
 
+## How fast the view follows a change in the ground's height (m/s): faster than
+## any walkable slope (a ramp at the Knight's speed climbs about 1.4 m/s), so
+## only a cliff shows the limit.
+var ground_speed_m_per_s: float = 8.0
+
 var _sim_gone := false
 var _last_px := Vector2.INF
+var _ground_m := INF
 
 
 ## Called once by WorldView, right after the view entered the tree.
@@ -40,10 +46,26 @@ func sync() -> void:
 	_on_sync()
 
 
-## How high above the floor this view stands, in meters. The floor is flat
-## until P9 (then: the terrain's height under it).
+## How high this view stands, in meters: the walkable ground under it (P9,
+## ground_height_m()). A subclass adds its own height over the ground.
 func get_height_m() -> float:
-	return 0.0
+	return ground_height_m()
+
+
+## The walkable ground under the view (m; 3D.md, Terrain and height 1b):
+## WorldView's downward ray, followed at up to ground_speed_m_per_s, so
+## walking up a ramp or stairs follows it exactly while stepping off a cliff
+## (a knock-up off a plateau) drops smoothly instead of popping. The first
+## sync snaps. 0 without a WorldView.
+func ground_height_m() -> float:
+	if world_view == null:
+		return 0.0
+	var target := world_view.ground_height_m(_sim_position_px())
+	if _ground_m == INF:
+		_ground_m = target
+	else:
+		_ground_m = move_toward(_ground_m, target, ground_speed_m_per_s * get_physics_process_delta_time())
+	return _ground_m
 
 
 ## The sim node left the tree (freed, or its status ended). The default frees

@@ -6,6 +6,7 @@ extends Node
 ##   resource" cue can be played.
 ## - AB4: extra charges (Lunge +1: two Lunges back to back).
 ## - AB5+: test_q puts a test ability on Q (set it in the Inspector).
+## - 3D pivot P9: test_w puts one on W (the 3D sandbox's Uppercut).
 ## - AB13: test_elite_w puts an ability on the elite Elite1's W (the VECTOR
 ##   wall, test_w_vector_wall.tres).
 ## The Knight's real numbers are CHAMPIONS.md's; room_01 has none of this.
@@ -31,6 +32,10 @@ const SOURCE_ID := &"sandbox_demo"
 ## A test ability to put on Q instead of Cleave (e.g.
 ## res://data/abilities/test_q_triple_step.tres). null = the Knight's own Q.
 @export var test_q: Ability
+## A test ability to put on W instead of Iron Resolve (3D pivot P9: the 3D
+## sandbox's Uppercut, res://data/abilities/test_w_uppercut.tres, a
+## knock-up). null = the Knight's own W.
+@export var test_w: Ability
 ## An ability to put on the sandbox elite Elite1's W (e.g.
 ## res://data/abilities/test_w_vector_wall.tres). null = none.
 @export var test_elite_w: Ability
@@ -66,6 +71,8 @@ func _give_costs(node: Node) -> void:
 	player.stats_component.remove_modifiers_from(SOURCE_ID)   # never twice
 	if test_q != null:
 		player.abilities.q = test_q
+	if test_w != null:
+		player.abilities.w = test_w
 	if demo_costs:
 		for id: StringName in costs:
 			player.stats_component.add_modifier(StatModifier.create(&"resource_cost",

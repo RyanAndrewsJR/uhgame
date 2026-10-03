@@ -4,9 +4,14 @@ extends EntityView
 ## direction, with a short flash where it ends. A wide projectile (a wave such
 ## as Cleave Wave) is a flat slab across its path instead.
 
-## How high the bolt flies (m; the 2D draws it 10 px above its line). It
-## follows the terrain from P9.
+## How high the bolt flies over the ground (m; the 2D draws it 10 px above its
+## line). Since P9 it starts that high over the ground where it's fired and
+## eases toward that height over the ground under it (a share per tick,
+## ground_follow), never closer to the ground than min_clearance_m: a shot
+## from a plateau glides down instead of dropping at the cliff.
 @export var height_m: float = 0.9
+@export_range(0.0, 1.0, 0.01) var ground_follow: float = 0.15
+@export var min_clearance_m: float = 0.15
 @export var bolt_length_m: float = 0.6
 ## Wider than this (half width, m) and it's a slab.
 @export var slab_from_half_width_m: float = 0.25
@@ -15,10 +20,14 @@ extends EntityView
 
 var _mesh: MeshInstance3D
 var _material: StandardMaterial3D
+var _flight_m := INF
 
 
 func get_height_m() -> float:
-	return height_m
+	var ground := world_view.ground_height_m(_sim_position_px()) if world_view else 0.0
+	var want := ground + height_m
+	_flight_m = want if _flight_m == INF else lerpf(_flight_m, want, ground_follow)
+	return maxf(_flight_m, ground + min_clearance_m)
 
 
 func _on_setup() -> void:

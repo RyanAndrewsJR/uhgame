@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="StatusEffect" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/status_effect.gd" id="1_status"]
+
+[resource]
+script = ExtResource("1_status")
+id = &"airborne"
+display_name = "Airborne"
+tags = Array[StringName]([&"cc", &"airborne", &"debuff"])
+duration = 0.75
+stack_rule = 0
+ignores_tenacity = true
+cleansable = false
+blocks_move = true
+blocks_attack = true
+blocks_cast = true
+blocks_dash = true

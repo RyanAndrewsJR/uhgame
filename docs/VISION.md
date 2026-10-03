@@ -45,7 +45,7 @@ Attacks feel weighty and immediate: hitstop, screen shake, knockback, clear feed
 ### 5. Dungeon crawling
 Runs through dungeons built from hand-made rooms stitched together.
 - Rooms are designed spaces with walls, pits, and hazards to use tactically, not empty arenas.
-- A run is one dungeon, played solo as one champion (see Game structure).
+- A run is one dungeon, played by a solo player as one champion, with an optional AI ally: another champion of the roster fighting beside them (see Game structure; ALLIES.md).
 - each dungeon has its own deep story line and lore
   - Told through a codex, hub NPC dialogue, voiced scenes and environmental storytelling (the art itself).
   - The story can change with the champion played: shared core beats plus a champion lens, so content cost stays bounded.
@@ -89,7 +89,7 @@ The loop: **hub → pick a champion → set their talents → run a dungeon → 
 - Each champion has its own persistent progress, independent of the others.
 
 ### Runs
-- A run = entering a dungeon solo as the chosen champion.
+- A run = entering a dungeon as the chosen champion: a solo player, with an optional AI ally (another champion of the roster, picked at the hub; ALLIES.md).
 - Loot drops during the run (Diablo-style).
 - A run ends when the dungeon is cleared (rewards, then back to the hub) or when the player leaves.
 - The talent loadout is set at the hub before the run and can't change mid-run.

@@ -32,6 +32,15 @@ const SAMPLE_STEP_M := 0.1
 ## Faces this close to a slice's edge count as inside it (a box's bottom face
 ## on the floor).
 const SLICE_EPSILON_M := 0.001
+## How finely derive_ledges() samples the walkable ground (m).
+const LEDGE_STEP_M := 0.25
+## The walkable ground stepping down by more than this between two samples is
+## a cliff (3D.md, Terrain and height 1b); a ramp or stairs is smooth.
+const LEDGE_HEIGHT_M := 0.3
+## A derived ledge's 2D look (the room played without the view) and its
+## editor color (yellow, like a drawn LEDGE footprint).
+const LEDGE_SIM_COLOR := Color(0.6, 0.55, 0.3)
+const LEDGE_PREVIEW_COLOR := Color(1.0, 0.95, 0.2)
 
 ## Draws every footprint over the room in the editor, colored by kind (walls
 ## red, low obstacles orange, pits purple, ledges yellow).
@@ -43,6 +52,78 @@ const SLICE_EPSILON_M := 0.001
 ## As Room.nav_agent_radius: how far enemy paths stay from what blocks them
 ## (px).
 @export var nav_agent_radius: float = 12.0
+
+var _ledge_preview: MeshInstance3D
+var _ledge_signature := INF
+var _ledge_check_left := 0.0
+
+
+# --- The derived ledges' drawing (editor; in play with debug_draw) ---------------------
+
+func _process(delta: float) -> void:
+	var wanted := show_footprints if Engine.is_editor_hint() else debug_draw
+	if not Engine.is_editor_hint() and not wanted:
+		set_process(false)   # in play the switch is read once
+		return
+	_ledge_check_left -= delta
+	if _ledge_check_left > 0.0:
+		return
+	_ledge_check_left = 1.0
+	if not wanted:
+		if is_instance_valid(_ledge_preview):
+			_ledge_preview.visible = false
+		_ledge_signature = INF
+		return
+	# Recomputed only when the walkable ground moved (a cheap signature).
+	var signature := 0.0
+	var meshes := get_walkable_meshes()
+	for i in meshes.size():
+		var t := transform_in(meshes[i], self)
+		signature += (i + 1) * (t.origin.x * 1.31 + t.origin.y * 7.17 + t.origin.z * 3.73 + t.basis.x.x + t.basis.z.x * 2.0 + t.basis.y.y * 5.0)
+	if is_equal_approx(signature, _ledge_signature) and is_instance_valid(_ledge_preview):
+		_ledge_preview.visible = true
+		return
+	_ledge_signature = signature
+	if not is_instance_valid(_ledge_preview):
+		_ledge_preview = MeshInstance3D.new()
+		_ledge_preview.name = "LedgePreview"
+		_ledge_preview.set_meta(TOOL_META, true)
+		_ledge_preview.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var material := StandardMaterial3D.new()
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		material.vertex_color_use_as_albedo = true
+		material.no_depth_test = true
+		material.cull_mode = BaseMaterial3D.CULL_DISABLED
+		material.render_priority = 10
+		_ledge_preview.material_override = material
+		add_child(_ledge_preview, false, Node.INTERNAL_MODE_BACK)
+	_ledge_preview.visible = true
+	_ledge_preview.mesh = _ledges_mesh(derive_ledges())
+
+
+static func _ledges_mesh(ledges: Array[Dictionary]) -> ArrayMesh:
+	var verts := PackedVector3Array()
+	var colors := PackedColorArray()
+	for ledge in ledges:
+		var r: Rect2 = ledge["rect"]
+		var y: float = ledge["height"] + Footprint.PREVIEW_LIFT_M
+		var a := Vector3(r.position.x, y, r.position.y)
+		var b := Vector3(r.end.x, y, r.position.y)
+		var c := Vector3(r.end.x, y, r.end.y)
+		var d := Vector3(r.position.x, y, r.end.y)
+		for v in [a, b, c, a, c, d]:
+			verts.append(v)
+			colors.append(Color(LEDGE_PREVIEW_COLOR, 0.6))
+	var mesh := ArrayMesh.new()
+	if verts.is_empty():
+		return mesh
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_COLOR] = colors
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
 
 
 # --- The sim (build_sim) -------------------------------------------------------
@@ -66,6 +147,9 @@ func build_sim() -> Room:
 		var body := make_footprint_body(fp)
 		if body:
 			footprints.add_child(body)
+	var ledges := make_ledge_body(derive_ledges())
+	if ledges:
+		footprints.add_child(ledges)
 
 	var entities := Node2D.new()
 	entities.name = "Entities"
@@ -113,6 +197,129 @@ func make_footprint_body(fp: Footprint) -> StaticBody2D:
 	look.color = Footprint.SIM_COLORS[fp.kind]
 	body.add_child(look)
 	return body
+
+
+## The derived ledges' collider (P9): one StaticBody2D "Ledges" on layer 11,
+## a rectangle per run of ledge cells (in px), with a flat 2D look. null when
+## the room has no cliffs.
+func make_ledge_body(ledges: Array[Dictionary]) -> StaticBody2D:
+	if ledges.is_empty():
+		return null
+	var body := StaticBody2D.new()
+	body.name = "Ledges"
+	body.collision_layer = 1 << 10
+	body.collision_mask = 0
+	for ledge in ledges:
+		var r: Rect2 = ledge["rect"]
+		var px := Rect2(Units.m_to_px(r.position.x), Units.m_to_px(r.position.y), Units.m_to_px(r.size.x), Units.m_to_px(r.size.y))
+		var shape := RectangleShape2D.new()
+		shape.size = px.size
+		var col := CollisionShape2D.new()
+		col.shape = shape
+		col.position = px.get_center()
+		body.add_child(col)
+		var look := Polygon2D.new()
+		look.polygon = PackedVector2Array([px.position, Vector2(px.end.x, px.position.y), px.end, Vector2(px.position.x, px.end.y)])
+		look.color = LEDGE_SIM_COLOR
+		body.add_child(look)
+	return body
+
+
+## The walkable ground's height on a grid of `step_m` cells over the room's
+## bounds (the topmost walkable surface over each cell's center: one floor per
+## map spot, 3D.md 1c): {"origin": Vector2 (m, x and z), "size": Vector2i,
+## "step": float, "heights": PackedFloat32Array, -INF where there's no
+## ground}. Rasterized from the walkable meshes' faces, so it needs no
+## physics (a layout is read before it's in the tree).
+func ground_grid(step_m: float = LEDGE_STEP_M) -> Dictionary:
+	var bounds := get_bounds_m()
+	var size := Vector2i(ceili(bounds.size.x / step_m - 0.001), ceili(bounds.size.y / step_m - 0.001))
+	var heights := PackedFloat32Array()
+	heights.resize(maxi(size.x * size.y, 0))
+	heights.fill(-INF)
+	for mesh in get_walkable_meshes():
+		var xf := transform_in(mesh, self)
+		var faces := mesh.mesh.get_faces()
+		for i in range(0, faces.size() - 2, 3):
+			var a := xf * faces[i]
+			var b := xf * faces[i + 1]
+			var c := xf * faces[i + 2]
+			var a2 := Vector2(a.x, a.z)
+			var v0 := Vector2(b.x, b.z) - a2
+			var v1 := Vector2(c.x, c.z) - a2
+			var den := v0.cross(v1)
+			if absf(den) < 0.000001:
+				continue   # a vertical face: no ground
+			var lo := Vector2(minf(a.x, minf(b.x, c.x)), minf(a.z, minf(b.z, c.z)))
+			var hi := Vector2(maxf(a.x, maxf(b.x, c.x)), maxf(a.z, maxf(b.z, c.z)))
+			var x0 := maxi(ceili((lo.x - bounds.position.x) / step_m - 0.5), 0)
+			var x1 := mini(floori((hi.x - bounds.position.x) / step_m - 0.5), size.x - 1)
+			var z0 := maxi(ceili((lo.y - bounds.position.y) / step_m - 0.5), 0)
+			var z1 := mini(floori((hi.y - bounds.position.y) / step_m - 0.5), size.y - 1)
+			for zi in range(z0, z1 + 1):
+				for xi in range(x0, x1 + 1):
+					var p := bounds.position + Vector2(xi + 0.5, zi + 0.5) * step_m
+					var v2 := p - a2
+					var l1 := v2.cross(v1) / den
+					var l2 := v0.cross(v2) / den
+					if l1 < -0.0001 or l2 < -0.0001 or l1 + l2 > 1.0001:
+						continue
+					var y := a.y + (b.y - a.y) * l1 + (c.y - a.y) * l2
+					var index := zi * size.x + xi
+					heights[index] = maxf(heights[index], y)
+	return {"origin": bounds.position, "size": size, "step": step_m, "heights": heights}
+
+
+## The ledges derived from the walkable ground (3D.md, Terrain and height
+## 1b; P9): wherever the ground steps down by more than LEDGE_HEIGHT_M between
+## two neighboring cells (no ramp or stairs between them), the top side's cell
+## is a ledge cell. Each row's ledge cells merge into rectangles: [{"rect":
+## Rect2 (m, x and z), "height": the top's height (m)}]. Where the ground just
+## ends (the room's edge, a wall's gap) there's no ledge.
+func derive_ledges() -> Array[Dictionary]:
+	var grid := ground_grid()
+	var size: Vector2i = grid["size"]
+	var heights: PackedFloat32Array = grid["heights"]
+	var step: float = grid["step"]
+	var origin: Vector2 = grid["origin"]
+	var out: Array[Dictionary] = []
+	for zi in size.y:
+		var run_start := -1
+		var run_height := 0.0
+		for xi in size.x + 1:
+			var is_ledge := false
+			var h := -INF
+			if xi < size.x:
+				h = heights[zi * size.x + xi]
+				if h > -INF:
+					for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+						var n := Vector2i(xi, zi) + d
+						if n.x < 0 or n.y < 0 or n.x >= size.x or n.y >= size.y:
+							continue
+						var nh := heights[n.y * size.x + n.x]
+						if nh > -INF and h - nh > LEDGE_HEIGHT_M:
+							is_ledge = true
+							break
+			if is_ledge and run_start < 0:
+				run_start = xi
+				run_height = h
+			elif is_ledge:
+				run_height = maxf(run_height, h)
+			elif run_start >= 0:
+				out.append({"rect": Rect2(origin + Vector2(run_start, zi) * step, Vector2(xi - run_start, 1) * step), "height": run_height})
+				run_start = -1
+	return out
+
+
+## The walkable ground's lowest and highest points (m): x min, y max.
+func get_height_range_m() -> Vector2:
+	var lo := INF
+	var hi := -INF
+	for mesh in get_walkable_meshes():
+		var aabb: AABB = transform_in(mesh, self) * mesh.get_aabb()
+		lo = minf(lo, aabb.position.y)
+		hi = maxf(hi, aabb.end.y)
+	return Vector2(lo, hi) if lo <= hi else Vector2.ZERO
 
 
 ## A footprint's outline in the layout's floor plane (m, x and z).
@@ -169,12 +376,12 @@ func build_floor_pick() -> StaticBody3D:
 	return body
 
 
-## The floor drawings' materials on the walkable ground: each distinct
-## ShaderMaterial using the floor's shader (floor_drawings.gdshader), for
-## FloorOverlay.
+## The floor drawings' materials: each distinct ShaderMaterial using the
+## floor's shader (floor_drawings.gdshader) on any mesh of the room (the
+## walkable ground, and since P9 a stair's visible steps), for FloorOverlay.
 func get_floor_materials() -> Array[ShaderMaterial]:
 	var out: Array[ShaderMaterial] = []
-	for mesh in get_walkable_meshes():
+	for mesh in get_meshes():
 		var candidates: Array = [mesh.material_override]
 		if mesh.mesh:
 			for i in mesh.mesh.get_surface_count():

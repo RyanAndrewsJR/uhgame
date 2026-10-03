@@ -29,9 +29,9 @@ Example: an Akshan-style swing is an ability that asks `WorldQuery` for a grappl
 | 8 | interactable | chests, doors, shrines, NPC talk zones | planned |
 | 9 | pickup | dropped loot, gold, potions | planned |
 | 10 | hazard | traps, damaging floors | planned |
-| 11 | ledge | cliff edges, derived from the walkable ground at room load (3D.md, Terrain and height): block walking and dashes, not projectiles or line of sight | planned (3D pivot P9; Ryan, 2026-10-01) |
+| 11 | ledge | cliff edges, derived from the walkable ground at room load (3D.md, Terrain and height): block walking and dashes, not projectiles or line of sight | exists (3D pivot P9: `RoomLayout.derive_ledges()`, one `Ledges` body per room built in 3D; Ryan, 2026-10-01) |
 
-Planned: walking masks world, pit, low_obstacle, ledge, and the other team's bodies. As it is today: the player's and the slimes' bodies both mask 71 (world, player, enemies, low_obstacle; since P8, Ryan 2026-10-03: fences block walking now, pits wait for their step), so units also collide with their own team (pit and ledge aren't masked yet). A low obstacle also stops `displace()` (knockback, swing steps), which keeps the unit's mask. A ghosted `dash()` (the dash, Lunge) masks world only while it runs (`collision_mask & 1`), which is correct: pits and units are ignored during a dash; `displace()` keeps the unit's own mask (minus the pit layer once pits exist: Pits and movement types). **With ledges (P9) the ghosted dash masks world and ledges** (`collision_mask & (1 | 1024)`, an approved one-line replace): cliffs stop it; pits, fences and units still don't.
+Planned: walking masks world, pit, low_obstacle, ledge, and the other team's bodies. As it is today: the player's and the slimes' bodies both mask 1095 (world, player, enemies, low_obstacle since P8, ledge since P9; Ryan 2026-10-03: fences block walking now, pits wait for their step), so units also collide with their own team (the pit layer isn't masked yet). A low obstacle or a ledge also stops `displace()` (knockback, swing steps), which keeps the unit's mask, unless the unit is knocked up (Knocked up, below). **A ghosted `dash()` (the dash, Lunge) masks world and ledges while it runs** (`MovementComponent.GHOST_KEEP_MASK`, `1 | 1024`; built in P9, the approved one-line replace of `collision_mask & 1`): cliffs stop it; pits, fences and units don't. `displace()` keeps the unit's own mask (minus the pit layer once pits exist: Pits and movement types).
 
 ## Surface tags
 - **Tiles:** add TileSet **custom data layers** to `dungeon_tileset.tres` with bools `grappleable`, `destructible`, `bounce`, `wall_slam`, and set them per tile.
@@ -49,7 +49,7 @@ Built:
 Planned:
 - `raycast_terrain(from, dir, max_dist_px) -> Dictionary {position, normal, collider, tags}` (empty if nothing hit)
 - `find_grapple_point(from, dir, max_dist_px)`: the first world hit must be `grappleable`, otherwise empty
-- `resolve_valid_position(target, from)`: if an endpoint is in a wall, returns the nearest valid floor point on the caster's side (pits are valid endpoints: a displacement that ends over one follows the pit rule, Pits and movement types)
+- `resolve_valid_position(target, from, radius, mask)`: if a circle of `radius` at `target` overlaps something on `mask`, steps back toward `from` until it doesn't (built minimal in 3D pivot P9, for a knock-up's landing; with `is_point_free()`). A blink's use (walls only; pits are valid endpoints: a displacement that ends over one follows the pit rule, Pits and movement types) comes with the blink.
 - `get_units_in_radius(center, r, team_filter)`
 
 ## Ability movement (MovementComponent methods)
@@ -92,7 +92,7 @@ A `Hazard` is an Area2D scene on layer 10 with:
 - `arm_time`: a telegraph before it activates. Default 0.5 s for enemy- and trap-made hazards, 0 for player-made ones.
 
 Entering applies its status; re-entering refreshes it instead of stacking. It emits `hazard_entered` / `hazard_exited`. Timed traps are Hazards with an on/off cycle.
-- **"While inside" option** (for perches, 3D.md, Terrain and height 2): the status lasts while the unit stays inside and is removed when it leaves, instead of running its own duration. A perch is a Hazard-style area giving `status_elevated` this way. In a layout, hazards and perches are placed with sim markers; their look comes through the view mechanism.
+- **"While inside" option** (for perches, 3D.md, Terrain and height 2): the status lasts while the unit stays inside and is removed when it leaves, instead of running its own duration. A perch is a Hazard-style area giving `status_elevated` this way. In a layout, hazards and perches are placed with sim markers; their look comes through the view mechanism. **Built for perches in 3D pivot P9** (`Perch`, `scripts/world/perch.gd`, `scenes/world/perch.tscn`): standing inside means the unit's feet (its position) are inside, so a unit pressed against the cliff below never counts; the Hazard itself isn't built.
 
 ## Knockback (approved by Ryan 2026-09-30)
 - New stat `knockback_resistance`, 0–1, scales displacement distance by (1 − value). Bosses have 1. (Row in STATS.md.)

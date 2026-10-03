@@ -98,6 +98,23 @@ static func nearest_enemy_in_range(caster: Unit, point: Vector2, range_px: float
 	return best
 
 
+## Whether a hit tagged `hit_tags` from `attacker` can reach `target` (3D.md,
+## Terrain and height 2): an &"elevated" target (on a perch) can't be hit by a
+## hit tagged &"melee" unless the attacker is elevated too. Every other hit
+## reaches (hits use 2D distance whatever the terrain). Called in two places
+## only: the target picks (the combo's aim help) and HitPipeline.resolve();
+## never inside abilities.
+static func can_reach(attacker: Node, target: Node, hit_tags: Array[StringName]) -> bool:
+	if not hit_tags.has(&"melee"):
+		return true
+	return not _has_status_tag(target, &"elevated") or _has_status_tag(attacker, &"elevated")
+
+
+static func _has_status_tag(node: Node, tag: StringName) -> bool:
+	var unit := node as Unit
+	return unit != null and is_instance_valid(unit) and unit.status_component != null and unit.status_component.has_tag(tag)
+
+
 ## The enemy nearest to `point` within `max_dist_px` (the Player's
 ## target_forgiveness pick for UNIT abilities).
 static func nearest_enemy_to(caster: Unit, point: Vector2, max_dist_px: float) -> Unit:

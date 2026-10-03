@@ -34,7 +34,7 @@ func _on_setup() -> void:
 
 
 func get_height_m() -> float:
-	return world_view.unit_height_m(sim.get_parent()) + above_head_m
+	return world_view.unit_top_m(sim.get_parent()) + above_head_m   # P9: over the model where it stands (the ground, a knock-up)
 
 
 func _sim_position_px() -> Vector2:

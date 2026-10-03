@@ -1,0 +1,34 @@
+[gd_scene format=4]
+
+[ext_resource type="Material" path="res://scenes/rooms/assets/materials/floor_stone.tres" id="1_lwy8s"]
+[ext_resource type="Material" path="res://scenes/rooms/assets/materials/cliff_rock.tres" id="2_w1uhx"]
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_3ulbt"]
+_surfaces = [{
+"aabb": AABB(0, 0, 0, 4, 1.5, 2),
+"format": 34359738375,
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 6,
+"vertex_data": PackedByteArray("AAAAAAAAAAAAAAAAAACAQAAAwD8AAAAAAACAQAAAwD8AAABAAAAAAAAAAAAAAAAAAACAQAAAwD8AAABAAAAAAAAAAAAAAABAFl0W3YsrKbAWXRbdiyspsBZdFt2LKymwFl0W3YsrKbAWXRbdiyspsBZdFt2LKymw")
+}]
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_j7rwx"]
+_surfaces = [{
+"aabb": AABB(0, 0, 0, 4, 1.49, 2),
+"format": 34359738375,
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 12,
+"vertex_data": PackedByteArray("AAAAAAAAAAAAAAAAAACAQAAAAAAAAAAAAACAQFK4vj8AAAAAAAAAAAAAAAAAAABAAACAQAAAAAAAAABAAACAQFK4vj8AAABAAACAQAAAAAAAAAAAAACAQFK4vj8AAAAAAACAQFK4vj8AAABAAACAQAAAAAAAAAAAAACAQFK4vj8AAABAAACAQAAAAAAAAABA//////9/AIAAAKmqbVvatgAA/79UVamq//////9/AIAAAP+/VFWpqgAAqaptW9q2AACpqm1b2rYAAP+/VFWpqgAAqaptW9q2AACpqm1b2rYAAKmqbVvatgAA/79UVamq")
+}]
+
+[node name="Ramp4x2" type="Node3D" unique_id=1114400834]
+
+[node name="Slope" type="MeshInstance3D" parent="." unique_id=1733928134 groups=["walkable"]]
+material_override = ExtResource("1_lwy8s")
+mesh = SubResource("ArrayMesh_3ulbt")
+
+[node name="Sides" type="MeshInstance3D" parent="." unique_id=948537772 groups=["decoration"]]
+material_override = ExtResource("2_w1uhx")
+mesh = SubResource("ArrayMesh_j7rwx")

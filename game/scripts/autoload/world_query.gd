@@ -38,3 +38,37 @@ func shape_sweep(from: Vector2, to: Vector2, radius: float, mask: int = WORLD_MA
 	if result.is_empty() or result[0] >= 1.0:
 		return {}
 	return {"position": from + (to - from) * result[0], "fraction": result[0]}
+
+
+## Where a circle of `radius` px can stand at or near `target` without
+## overlapping anything on `mask`, on the side of `from` (WORLD_INTERACTION.md;
+## built in 3D pivot P9 for a knock-up's landing): `target` if it's free,
+## else the first free point stepping back toward `from`, else `from`. Units
+## aren't on these layers, so they never count.
+func resolve_valid_position(target: Vector2, from: Vector2, radius: float, mask: int = WORLD_MASK) -> Vector2:
+	if is_point_free(target, radius, mask):
+		return target
+	var length := target.distance_to(from)
+	var step := 2.0
+	var travelled := step
+	while travelled < length:
+		var p := target.move_toward(from, travelled)
+		if is_point_free(p, radius, mask):
+			return p
+		travelled += step
+	return from
+
+
+## True if a circle of `radius` px at `point` overlaps nothing on `mask`.
+func is_point_free(point: Vector2, radius: float, mask: int = WORLD_MASK) -> bool:
+	var world := get_tree().root.world_2d
+	if world == null:
+		return true
+	var circle := CircleShape2D.new()
+	circle.radius = maxf(radius, 0.5)
+	var params := PhysicsShapeQueryParameters2D.new()
+	params.shape = circle
+	params.transform = Transform2D(0.0, point)
+	params.collision_mask = mask
+	params.collide_with_areas = false
+	return world.direct_space_state.intersect_shape(params, 1).is_empty()

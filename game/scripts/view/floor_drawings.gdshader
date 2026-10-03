@@ -39,6 +39,10 @@ void fragment() {
 	if (uv.x >= 0.0 && uv.y >= 0.0 && uv.x <= 1.0 && uv.y <= 1.0) {
 		drawn = texture(drawings, uv);
 	}
+	// Laid straight down, a drawing would smear down a cliff face or a stair's
+	// riser: it fades on faces steeper than about 45 degrees (P9).
+	float up = (INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).y;
+	drawn *= smoothstep(0.55, 0.8, up);
 	vec3 color = drawn.a > 0.0001 ? srgb_to_linear(clamp(drawn.rgb / drawn.a, 0.0, 1.0)) : vec3(0.0);
 	vec3 base = albedo.rgb;
 	if (checker_m > 0.0) {

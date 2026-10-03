@@ -1,0 +1,22 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://scenes/rooms/assets/materials/floor_stone.tres" id="1_vumsn"]
+[ext_resource type="Material" path="res://scenes/rooms/assets/materials/cliff_rock.tres" id="2_d5ojq"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_wsj8c"]
+size = Vector2(4, 4)
+
+[sub_resource type="BoxMesh" id="BoxMesh_a0x0o"]
+size = Vector3(4, 1.49, 4)
+
+[node name="Plateau4x4" type="Node3D" unique_id=770803331]
+
+[node name="Top" type="MeshInstance3D" parent="." unique_id=1719311517 groups=["walkable"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 1.5, 2)
+material_override = ExtResource("1_vumsn")
+mesh = SubResource("PlaneMesh_wsj8c")
+
+[node name="Cliff" type="MeshInstance3D" parent="." unique_id=1643578037 groups=["decoration"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.745, 2)
+material_override = ExtResource("2_d5ojq")
+mesh = SubResource("BoxMesh_a0x0o")

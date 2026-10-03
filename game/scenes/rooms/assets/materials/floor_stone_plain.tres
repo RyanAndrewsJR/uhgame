@@ -1,0 +1,13 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://scripts/view/floor_drawings.gdshader" id="1_j2sc4"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_j2sc4")
+shader_parameter/albedo = Color(0.584, 0.576, 0.609, 1)
+shader_parameter/albedo_alt = null
+shader_parameter/checker_m = null
+shader_parameter/roughness = 0.95
+shader_parameter/drawings_origin_m = null
+shader_parameter/drawings_size_m = null

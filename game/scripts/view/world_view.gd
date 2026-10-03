@@ -38,6 +38,8 @@ const SIM_VISIBILITY_BIT := 1 << 1
 ## A view whose sim node moved farther than this in one tick is snapped, not
 ## slid: a teleport (the dash peaks near 23 px a tick).
 const TELEPORT_PX := 64.0
+## The ground ray (ground_height_m()) runs from this high down to this deep (m).
+const GROUND_RAY_M := 50.0
 ## The fade looks from the camera to the player's feet, chest and head
 ## (m above the floor; the Knight is 1.8 m tall).
 const FADE_SIGHT_HEIGHTS_M := [0.0, 0.9, 1.8]
@@ -145,6 +147,9 @@ func setup(main: CanvasItem, room: Node2D, p_player: Player, camera_2d: GameCame
 	# the camera and laid on the room's floor.
 	floor_overlay = FloorOverlay.new()
 	floor_overlay.world_2d = get_viewport().world_2d
+	if layout:
+		var heights := layout.get_height_range_m()
+		floor_overlay.drop_m = heights.y - heights.x   # P9: lower floor is seen farther
 	add_child(floor_overlay)
 	floor_overlay.setup(camera, camera.bounds_m)
 	if room_view and room_view.floor_material:
@@ -396,6 +401,28 @@ func view_of(node: Node) -> EntityView:
 func unit_height_m(node: Node) -> float:
 	var view := view_of(node) as UnitView
 	return view.model_height_m if view else 1.5
+
+
+## The top of a unit's model where it's drawn (m): the ground under it, its
+## knock-up arc and its model's height (P9). For what sits over its head.
+func unit_top_m(node: Node) -> float:
+	var view := view_of(node) as UnitView
+	if view == null:
+		var n2d := node as Node2D
+		return (ground_height_m(n2d.global_position) if n2d else 0.0) + 1.5
+	return view.position.y + view.air_height_m + view.model_height_m
+
+
+## The walkable ground's height under a sim point (m; 3D.md, Terrain and
+## height 1b): a downward ray on the view-only floor layer (the floor pick's
+## bodies). 0 where there's no ground. During a physics frame, as views sync.
+func ground_height_m(px: Vector2) -> float:
+	var space := get_world_3d().direct_space_state if is_inside_tree() else null
+	if space == null:
+		return 0.0
+	var query := PhysicsRayQueryParameters3D.create(Units.to_view(px, GROUND_RAY_M), Units.to_view(px, -GROUND_RAY_M), FLOOR_LAYER)
+	var hit := space.intersect_ray(query)
+	return (hit["position"] as Vector3).y if not hit.is_empty() else 0.0
 
 
 func _on_node_added(node: Node) -> void:

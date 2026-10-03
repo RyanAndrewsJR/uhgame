@@ -29,6 +29,10 @@ const SIZE_STEP := 64
 ## Floor drawn past what the camera sees, on every side (m), so a shake or a
 ## lean never shows the window's edge.
 @export var margin_m: float = 2.0
+## How far the room's walkable ground reaches below its highest point (m; P9,
+## set by WorldView from the layout): floor that much lower than the focus is
+## seen farther away, and the window covers it too. 0 for a flat room.
+var drop_m: float = 0.0
 
 ## The camera whose view the window covers.
 var camera: GameCamera3D
@@ -91,7 +95,7 @@ func update_window() -> void:
 	var screen := camera.get_viewport().get_visible_rect().size
 	if screen != _seen_for:
 		_seen_for = screen
-		_seen_m = seen_floor_around_focus_m(camera).grow(margin_m)
+		_seen_m = seen_floor_around_focus_m(camera, drop_m).grow(margin_m)
 		var want := window_size_texels(_seen_m.size, get_texels_per_m(), bounds_m)
 		if size != want:
 			size = want
@@ -124,9 +128,9 @@ func get_size_m() -> Vector2:
 ## x and z): the box around the points where the rays through the screen's
 ## four corners meet the floor, the shake set aside. Every look we use sees
 ## floor at the screen's top edge (the default: still 35° down there).
-## P9: at the lowest walkable height in view instead (a floor 1 m lower is
-## seen 1.4 m farther at the top edge).
-static func seen_floor_around_focus_m(p_camera: GameCamera3D) -> Rect2:
+## With `p_drop_m` (P9), also where they meet the floor that much lower (a
+## floor 1 m lower is seen 1.4 m farther at the top edge): the box holds both.
+static func seen_floor_around_focus_m(p_camera: GameCamera3D, p_drop_m: float = 0.0) -> Rect2:
 	var screen := p_camera.get_viewport().get_visible_rect()
 	var center := screen.get_center()
 	var corners: Array[Vector2] = [screen.position, Vector2(screen.end.x, screen.position.y),
@@ -136,6 +140,9 @@ static func seen_floor_around_focus_m(p_camera: GameCamera3D) -> Rect2:
 		var d := p_camera.screen_to_floor(corners[i] - center)
 		var p := Vector2(d.x, d.z)
 		box = Rect2(p, Vector2.ZERO) if i == 0 else box.expand(p)
+		if p_drop_m > 0.0:
+			var low := p_camera.screen_to_floor_below(corners[i] - center, p_drop_m)
+			box = box.expand(Vector2(low.x, low.z))
 	return box
 
 

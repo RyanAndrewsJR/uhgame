@@ -50,6 +50,13 @@ enum Phase { NONE, LEAD_BY_PROGRESS, LEAD_BY_TIME, FOLLOW, DASH }
 ## A cast with no cast time strikes this long after it starts (s).
 @export var instant_cast_lead: float = 0.08
 
+@export_group("Airborne")
+## A knock-up's apex over the ground (m; 3D.md, Airborne): view data, the sim
+## never reads it.
+@export var airborne_apex_m: float = 1.2
+## The rise and fall over the knock-up's actual duration: 0 at both ends.
+@export var airborne_curve: Curve = preload("res://data/curves/curve_airborne.tres")
+
 @export_group("Hit flash")
 @export var flash_color: Color = Color(1, 1, 1, 1)
 ## How long the flash fades (s), and how bright it starts (0–1).
@@ -71,6 +78,14 @@ enum Phase { NONE, LEAD_BY_PROGRESS, LEAD_BY_TIME, FOLLOW, DASH }
 var unit: Unit
 ## The model's height (m), for what sits over its head (status VFX).
 var model_height_m: float = 1.0
+## How high a knock-up lifts the model this frame (m; P9).
+var air_height_m: float = 0.0
+
+var _air_from := 0.0          # the arc's start height (a refresh mid-air starts from where it is)
+var _air_total := 0.0         # the knock-up's length (s); 0 = not airborne
+var _air_elapsed := 0.0
+var _air_elapsed_prev := 0.0
+var _air_left_prev := 0.0
 
 var _model: Node3D            # turns to the facing (physics tick, interpolated)
 var _anim: AnimationPlayer    # null for a placeholder
@@ -240,6 +255,27 @@ func _on_sync() -> void:
 	_model.rotation.y = _yaw   # a glTF model faces +z: a sim facing (x, y) is the yaw atan2(x, y)
 	_progress_prev = _progress_cur
 	_progress_cur = _sim_progress()
+	_sync_airborne()
+
+
+## The knock-up's clock from the sim (P9): the arc runs over the status's
+## actual duration. A new knock-up, or one refreshed to a longer time mid-air,
+## starts a new arc from the model's current height.
+func _sync_airborne() -> void:
+	var status := unit.status_component
+	var left := status.get_time_left(&"airborne") if status and status.has_status(&"airborne") else 0.0
+	if left > 0.0:
+		if _air_total <= 0.0 or left > _air_left_prev + 0.0001:
+			_air_from = air_height_m
+			_air_total = left
+			_air_elapsed = 0.0
+			_air_elapsed_prev = 0.0
+		else:
+			_air_elapsed_prev = _air_elapsed
+			_air_elapsed = _air_total - left
+	else:
+		_air_total = 0.0
+	_air_left_prev = left
 
 
 ## A swing's or a cast's progress now (0 when nothing runs).
@@ -272,12 +308,27 @@ func _process(delta: float) -> void:
 		return
 	if is_sim_gone():
 		return
+	_update_airborne(delta)
 	_update_blink(delta)
 	_update_ghosts(delta)
 	if _anim:
 		_update_clips(delta)
 	else:
 		_update_placeholder(delta)
+
+
+## The arc this frame: the knock-up's time between the last two ticks
+## (interpolated, so it doesn't step at 60 Hz on a faster screen). A knock-up
+## that ends early (a death) lands quickly.
+func _update_airborne(delta: float) -> void:
+	if _air_total > 0.0:
+		var elapsed := lerpf(_air_elapsed_prev, _air_elapsed, Engine.get_physics_interpolation_fraction())
+		var t := clampf(elapsed / _air_total, 0.0, 1.0)
+		var arc := airborne_curve.sample(t) if airborne_curve else 4.0 * t * (1.0 - t)
+		air_height_m = lerpf(_air_from, 0.0, t) + airborne_apex_m * arc
+	else:
+		air_height_m = move_toward(air_height_m, 0.0, delta * 8.0)
+	_model.position.y = air_height_m
 
 
 func _set_flash(amount: float) -> void:
@@ -352,7 +403,7 @@ func _seek(share: float) -> void:
 func _update_base_clip() -> void:
 	var speed := 1.0
 	var clip := idle_clip
-	if unit.is_stunned():
+	if unit.is_stunned() or unit.movement.is_airborne():   # knocked up: the stun pose (P9)
 		clip = stun_clip
 	elif unit.movement.is_displaced():
 		clip = hit_clip

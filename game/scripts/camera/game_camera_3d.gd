@@ -119,6 +119,25 @@ func screen_to_floor(offset_px: Vector2) -> Vector3:
 	return delta
 
 
+## As screen_to_floor(), but the point `offset_px` from the center is taken on
+## the plane `drop_m` below the focus (P9: floor lower than the focus is seen
+## farther; FloorOverlay's window covers it). Relative to the floor under the
+## center at the focus height. Shake aside.
+func screen_to_floor_below(offset_px: Vector2, drop_m: float) -> Vector3:
+	var shake := Vector2(h_offset, v_offset)
+	h_offset = 0.0
+	v_offset = 0.0
+	var center := get_viewport().get_visible_rect().get_center()
+	var origin := project_ray_origin(center + offset_px)
+	var normal := project_ray_normal(center + offset_px)
+	var plane_y := _focus.y - drop_m
+	var p := Vector3(origin.x, plane_y, origin.z) if absf(normal.y) < 0.0001 else origin + normal * ((plane_y - origin.y) / normal.y)
+	var delta := p - _floor_under(center)
+	h_offset = shake.x
+	v_offset = shake.y
+	return delta
+
+
 ## The floor point (at the focus height) under a canvas point. The camera only
 ## ever moves sideways at a fixed height above the focus, so the difference of
 ## two of these doesn't depend on where it is.

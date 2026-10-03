@@ -73,7 +73,7 @@ func apply_status(effect: StatusEffect, source: Unit = null, duration_override: 
 	if unit == null or not unit.is_alive():
 		return false
 	var duration := duration_override if duration_override >= 0.0 else effect.duration
-	if duration > 0.0 and effect.is_cc():
+	if duration > 0.0 and effect.is_cc() and not effect.ignores_tenacity:
 		duration *= 1.0 - _get_tenacity()
 	if duration >= 0.0 and duration <= EPSILON:
 		return false
@@ -141,12 +141,13 @@ func remove_status(id: StringName) -> bool:
 
 
 ## Removes every status carrying any of `tags` (a cleanse: [&"cc"];
-## ABILITIES AB8). Returns how many were removed.
+## ABILITIES AB8). A status that isn't `cleansable` stays (a knock-up; 3D.md,
+## Airborne). Returns how many were removed.
 func remove_statuses_with_tags(tags: Array[StringName]) -> int:
 	var removed := 0
 	for id: StringName in _active.keys():
 		var active: ActiveStatus = _active.get(id)
-		if active == null:
+		if active == null or not active.effect.cleansable:
 			continue
 		for t in tags:
 			if active.effect.tags.has(t):

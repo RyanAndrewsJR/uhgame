@@ -45,6 +45,16 @@ const SOFT_CAP_LOW_FACTOR := 0.5
 const SOFT_CAP_HIGH_FACTOR := 0.8
 const SOFT_CAP_MAX_FACTOR := 0.5
 ## Templates for add_speed_modifier() once statuses exist (COMBAT C9).
+## A ghosted dash keeps walls (layer 1) and ledges (11): cliffs stop it;
+## pits, low obstacles and units don't (3D.md, Terrain and height 1b).
+const GHOST_KEEP_MASK := 1 | (1 << 10)
+## While a unit is airborne and displaced (a knock-up), it ignores pits (6),
+## low obstacles (7) and ledges (11); walls still stop it (3D.md, Airborne).
+const AIRBORNE_IGNORED_MASK := (1 << 5) | (1 << 6) | (1 << 10)
+## Where an airborne displacement may not end: inside a wall, a low obstacle
+## or a ledge. It lands back toward where it started instead.
+const LANDING_BLOCKING_MASK := 1 | (1 << 6) | (1 << 10)
+
 const STATUS_SLOW: StatusEffect = preload("res://data/statuses/status_slow.tres")
 const STATUS_HASTE: StatusEffect = preload("res://data/statuses/status_haste.tres")
 
@@ -118,6 +128,7 @@ var _displace_curve: Curve = null
 var _curve_start: float = 0.0
 var _curve_end: float = 1.0
 var _ghost_saved_mask: int = -1
+var _displace_from: Vector2 = Vector2.ZERO   # where the running displacement started
 var _displace_dash_cancelable: bool = false
 var _displace_serial: int = 0   # bumped by every displacement start
 
@@ -260,15 +271,16 @@ func get_displacement_remaining_px() -> float:
 
 
 ## Dash at `velocity` (average) for `duration` seconds. Ghosted by default:
-## passes through other units; walls still block it, and it slides along
-## them (move_and_slide). `curve` shapes the speed; null = constant speed.
-## Await `displacement_finished` to know when it's over.
+## passes through other units, low obstacles and pits; walls and ledges
+## still block it, and it slides along them (move_and_slide). `curve` shapes
+## the speed; null = constant speed. Await `displacement_finished` to know
+## when it's over.
 func dash(velocity: Vector2, duration: float, ghosted: bool = true, curve: Curve = null) -> void:
 	_end_ghost()
 	_start_displacement(velocity, duration, curve)
 	if ghosted:
 		_ghost_saved_mask = body.collision_mask
-		body.collision_mask = body.collision_mask & 1  # walls only
+		body.collision_mask = body.collision_mask & GHOST_KEEP_MASK  # walls and ledges only (3D pivot P9; approved 2026-10-01)
 
 
 func _end_ghost() -> void:
@@ -279,6 +291,31 @@ func _end_ghost() -> void:
 
 func is_displaced() -> bool:
 	return _displace_time > 0.0
+
+
+## True while the unit is knocked up (its status tag &"airborne").
+func is_airborne() -> bool:
+	return _status != null and _status.has_tag(&"airborne")
+
+
+## An airborne displacement ended: inside a low obstacle or a ledge's
+## footprint, the unit lands on the nearest free floor back toward where the
+## displacement started (WorldQuery.resolve_valid_position()). No fall damage
+## (Ryan, 2026-10-01). Pits wait for the pit step.
+func _land() -> void:
+	var here := body.global_position
+	var landed := WorldQuery.resolve_valid_position(here, _displace_from, _body_radius(), LANDING_BLOCKING_MASK)
+	if landed != here:
+		body.global_position = landed
+
+
+## The body's collision circle (px), else the pathing radius.
+func _body_radius() -> float:
+	for child in body.get_children():
+		var shape := child as CollisionShape2D
+		if shape and shape.shape is CircleShape2D:
+			return (shape.shape as CircleShape2D).radius
+	return radius_px
 
 
 ## True while the running displacement was started with dash_cancelable.
@@ -306,6 +343,7 @@ func stop_displacement() -> void:
 
 func _start_displacement(velocity: Vector2, duration: float, curve: Curve) -> void:
 	_displace_serial += 1
+	_displace_from = body.global_position if body else Vector2.ZERO
 	_displace_dash_cancelable = false
 	_displace_velocity = velocity
 	_displace_time = duration
@@ -463,10 +501,18 @@ func _physics_process(delta: float) -> void:
 		var step := _displace_offset * (_displacement_progress(t1) - _displacement_progress(t0))
 		_move_dir = Vector2.ZERO
 		body.velocity = step / delta
+		# Knocked up (3D.md, Airborne): over pits, fences and cliffs; walls still stop it.
+		var airborne := is_airborne()
+		var mask := body.collision_mask
+		if airborne:
+			body.collision_mask = mask & ~AIRBORNE_IGNORED_MASK
 		body.move_and_slide()
+		body.collision_mask = mask
 		if _displace_time <= 0.0:
 			body.velocity = Vector2.ZERO
 			_end_ghost()
+			if airborne:
+				_land()
 			if _has_order:
 				_compute_path(_destination)  # Re-path from where we got pushed to.
 			displacement_finished.emit()

@@ -581,6 +581,10 @@ func _find_assist_target(aim: Vector2, reach: float) -> Unit:
 			continue
 		if not WorldQuery.has_line_of_sight(unit.global_position, other.global_position):
 			continue
+		# Melee aim help never snaps to a target the swing can't hit (a perched
+		# enemy from below; 3D.md, Terrain and height 2).
+		if combo.attack_style == AttackCombo.AttackStyle.MELEE and not AbilityUtil.can_reach(unit, other, [&"melee"] as Array[StringName]):
+			continue
 		if angle < best_angle - 0.001 or (absf(angle - best_angle) <= 0.001 and dist < best_dist):
 			best = other
 			best_angle = angle

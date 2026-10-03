@@ -15,17 +15,22 @@
 [ext_resource type="PackedScene" path="res://scenes/rooms/assets/pit_2x2.tscn" id="13_ucgov"]
 [ext_resource type="PackedScene" path="res://scenes/rooms/assets/rock_large.tscn" id="14_oi0ey"]
 [ext_resource type="PackedScene" path="res://scenes/rooms/assets/rock_small.tscn" id="15_me5ro"]
+[ext_resource type="PackedScene" path="res://scenes/rooms/assets/plateau_4x4.tscn" id="16_1cxoi"]
 [ext_resource type="Script" path="res://scripts/rooms/sim_marker.gd" id="16_1023d"]
+[ext_resource type="PackedScene" path="res://scenes/rooms/assets/ramp_4x2.tscn" id="17_528vl"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/slime.tscn" id="17_ahnuo"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/slime_elite.tscn" id="18_3eg28"]
+[ext_resource type="PackedScene" path="res://scenes/rooms/assets/stairs_3x2.tscn" id="18_n8hhi"]
 [ext_resource type="Script" path="res://scripts/rooms/sandbox_reactions.gd" id="19_mvfpr"]
 [ext_resource type="Script" path="res://scripts/data/reaction_rule.gd" id="20_foasv"]
 [ext_resource type="Resource" path="res://data/reactions/reaction_shatter.tres" id="21_jwe0n"]
+[ext_resource type="PackedScene" path="res://scenes/world/perch.tscn" id="22_0x5xl"]
 [ext_resource type="Script" path="res://scripts/rooms/sandbox_abilities.gd" id="22_fjl51"]
 [ext_resource type="Resource" path="res://data/abilities/test_w_vector_wall.tres" id="23_c0snp"]
 [ext_resource type="Script" path="res://scripts/rooms/sandbox_augments.gd" id="24_hlv53"]
 [ext_resource type="Script" path="res://scripts/data/ability_augment.gd" id="25_jhi6k"]
 [ext_resource type="Resource" path="res://data/augments/augment_lunge_stuns.tres" id="26_tlx1e"]
+[ext_resource type="Resource" path="res://data/abilities/test_w_uppercut.tres" id="27_blx4e"]
 [ext_resource type="Resource" path="res://data/augments/augment_cleave_wave.tres" id="27_mg6oo"]
 [ext_resource type="Resource" path="res://data/augments/augment_judgement_reset.tres" id="28_cm518"]
 [ext_resource type="Resource" path="res://data/augments/augment_cleave_casts_lunge.tres" id="29_s5csv"]
@@ -321,10 +326,19 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11, 0, 16)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.3, 0, 5.2)
 
 [node name="PebblesMiddle" parent="Props" unique_id=1601036874 instance=ExtResource("15_me5ro")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15.7, 0, 3.4)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.2, 0, 6.6)
 
 [node name="PebblesEast" parent="Props" unique_id=1817721208 instance=ExtResource("15_me5ro")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26.2, 0, 12.1)
+
+[node name="Plateau" parent="Props" unique_id=770803331 instance=ExtResource("16_1cxoi")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 1)
+
+[node name="RampEast" parent="Props" unique_id=1114400834 instance=ExtResource("17_528vl")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 20, 0, 4)
+
+[node name="StairsSouth" parent="Props" unique_id=145890397 instance=ExtResource("18_n8hhi")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 12, 0, 8)
 
 [node name="Markers" type="Node3D" parent="." unique_id=1396828077]
 
@@ -370,6 +384,24 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.5, 0, 3.5)
 script = ExtResource("16_1023d")
 scene = ExtResource("18_3eg28")
 
+[node name="Perch" type="Marker3D" parent="Markers" unique_id=1972095600]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 0, 3)
+script = ExtResource("16_1023d")
+scene = ExtResource("22_0x5xl")
+properties = {
+"answers": "Walk up the ramp (east) or the stairs (south). Judgement from the floor south of the plateau (within 4.5 m). Cleave Wave (the item, key 2) from anywhere in line. No dead zone (a passive dummy) and no pull (the Knight has none).",
+"size_m": Vector2(4, 4)
+}
+
+[node name="PerchDummy" type="Marker3D" parent="Markers" unique_id=691368563]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0, 2.2)
+script = ExtResource("16_1023d")
+scene = ExtResource("17_ahnuo")
+properties = {
+"modulate": Color(0.7, 0.75, 1, 1),
+"passive": true
+}
+
 [node name="PlayerSpawn" type="Marker3D" parent="." unique_id=1257000944]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 0, 9.5)
 
@@ -381,6 +413,7 @@ player_rules = Array[ExtResource("20_foasv")]([ExtResource("21_jwe0n")])
 script = ExtResource("22_fjl51")
 demo_costs = false
 demo_charges = false
+test_w = ExtResource("27_blx4e")
 test_elite_w = ExtResource("23_c0snp")
 
 [node name="SandboxAugments" type="Node" parent="." unique_id=2004837431]
