@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="CameraLook" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/camera_look.gd" id="1_look"]
+
+[resource]
+script = ExtResource("1_look")
+projection = 0
+fov_deg = 30.0
+pitch_deg = 50.0
+visible_width_m = 28.0
+fade_to = 0.25
+fade_time = 0.18

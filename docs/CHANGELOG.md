@@ -11,6 +11,55 @@
 
 ## 3D pivot (3D_PIVOT.md)
 
+### P3 – look and light (tile rooms): 2026-10-02, Passed (Ryan's check)
+Minimal scaffolding, built from 3D.md, with stand-ins for the camera and the units (Ryan's answer at the start; DECISIONS.md, 3D view). Played from `scenes/sandbox_main_3d.tscn`.
+- **`scripts/data/camera_look.gd`** (new, `class_name CameraLook`) and **`data/camera_looks/camera_look_default.tres`**:
+  - `projection` (enum `ProjectionMode`: PERSPECTIVE, ORTHOGRAPHIC), `fov_deg` 30, `pitch_deg` 50, `visible_width_m` 28, `fade_to` 0.25, `fade_time` 0.18;
+  - `get_distance_m(aspect)`, `get_offset_m(aspect)`, `apply(camera, focus, aspect)`. At 16:9 the camera sits 29.39 m from its focus: 22.51 m up and 18.89 m south.
+- **`scripts/view/room_view.gd`** (new, `class_name RoomView`), built from a tile room's Tiles:
+  - a floor mesh: a quad per floor cell, in a two-tone checker so movement reads;
+  - a 1 × 2.2 × 1 m box per wall cell (a cell whose tile has a collision polygon). Each box is its own `fades` asset; all share one material;
+  - a WorldEnvironment (plain background, ambient color) and the key light, a DirectionalLight3D from the north-west with shadows up to 50 m;
+  - exports for the colors, the wall height and the light.
+- **`scripts/view/fade_dither.gdshader`** (new): a flat color and `instance uniform float fade`. A 4×4 Bayer dither discards fragments, except in the shadow pass.
+- **`scripts/view/world_view.gd`** (additive), `setup(main, room, player)`:
+  - `hide_sim()`: the room's root and Entities go on visibility layer 2, Main on 1 and 2, and the root viewport's `canvas_cull_mask` drops layer 2. Restored when the WorldView leaves the tree.
+  - Builds the RoomView and collects the `fades` assets with their bounds.
+  - The fade, in `_process`: an asset fades while the segment from the camera to the player's feet, chest or head (0, 0.9 or 1.8 m up) crosses its bounds. `blocks_view()` and `step_fade()` are static.
+  - Stand-ins (throwaway; P4 and P6 replace them):
+    - a capsule per Unit: blue and 1.8 m for the player, red and 1.0 m for enemies, as wide as the body's CollisionShape2D circle. Synced on the physics tick at priority 100 and physics-interpolated, snapped after a jump of more than 64 px, added on `node_added`, removed on `tree_exiting`;
+    - a Camera3D (physics interpolation off), placed every frame by `CameraLook.apply()` at the player capsule's interpolated feet.
+  - `pick_floor()`'s parameter `camera` is now `p_camera`, since the new member `camera` would shadow it. No behavior change.
+- **`scripts/main.gd`** (additive): with the switch on, `world_view.setup(self, room, player)`; the export's comment.
+- **`scenes/sandbox_main_3d.tscn`** (new): `sandbox_main.tscn` with `use_3d_view = true`.
+- **view_test**: 79 checks (51 new).
+  - CameraLook: the default numbers, the distance and offset at 16:9, and on a camera in both projections, the focus at the screen's center and 14 m east and west on the screen's edges (within 0.05 px).
+  - RoomView on a fixture tile room (6 × 5 cells, offset 2 m east and 1 m south): 19 wall boxes and 11 floor quads; the inner wall's box at (4.5, 1.1, 3.5) m; boxes 1 × 2.2 × 1 m, in `fades`, with the fade shader; the floor's extent, normals and winding (every triangle faces up); the environment; the key light's shadows and direction.
+  - The fade: what blocks the view (the two cells south of the player do, the third doesn't, a 6 m pillar there does, walls north or east don't, a beam only the head's line crosses does), and the pace (half the time goes half the way, 0.25 after 0.18 s, back to 1 over the same time, a time of 0 jumps).
+  - Hiding: the layers, the mask (only layer 2 dropped) and its restore.
+  - The switch: on in `sandbox_main_3d.tscn`.
+- **Found while building:**
+  - `Projection` can't name an enum in a script: it's a built-in type (the 4×4 matrix). The enum is `CameraLook.ProjectionMode`.
+  - A physics-interpolated Camera3D projects (`unproject_position()`, `project_ray_*()`) from its interpolated transform outside the physics tick, so a transform set by code shows up late. The first CameraLook checks were off by up to 3,300 px. A camera moved by code runs with physics interpolation off (the stand-in does, and so will GameCamera3D, as P0a found). Into 3D.md, Engine facts.
+  - Mesh normals come back compressed: UP reads (0, 1, −0.000015), so the test compares with a tolerance.
+- **Measured** (windowed, from a scratch harness with saving off and a fixed random seed): the same scripted walk in `sandbox_main` and `sandbox_main_3d` (right, up into the north wall, down into an inner wall, a dash, left).
+  - Every unit's position was identical, frame for frame, for 644 frames, through both wall contacts.
+  - After the dash (frame 642), any two runs differ by up to 0.004 px for a few frames, 2D against 2D too (0.0003 px there). The dash aims at the real cursor (dash direction CURSOR), not through the view. Enemy wandering uses the global random numbers, hence the fixed seed.
+  - Screenshots: the lit room, the walls' shadows, the capsules, the HUD on top, no 2D world. At an inner wall, the cell between the camera and the Knight is dithered away.
+  - About 178 frames a second on Ryan's 180 Hz screen (vsync).
+  - At the default look, a 2.2 m wall hides the player when it stands within about 2 m south of them.
+- **Tests:** stats 179, combat 460, abilities 563, audio 110, champions 168, talents 308, view 79: **1,867/1,867**, all seven suites in parallel. `settings.cfg` and `progress.cfg` were unchanged, hashed before and after every run.
+- **Ryan's check (2026-10-02): passed.** He noticed that a dash or Lunge aimed toward a wall can go the opposite way. That's the aim gap below:
+  - The aim still reads the mouse through the 2D camera, and that camera stops at the room's bounds near an edge.
+  - The 3D stand-in camera keeps the Knight centered.
+  - So near an edge, the screen point Ryan aims at lies on the other side of the Knight in 2D.
+  - P5 fixes it with the floor pick, and its check includes aiming next to the room's edge.
+- **Not in P3** (with the switch on):
+  - aiming: the mouse still aims through the 2D camera (P5);
+  - the camera's lean, lock, pan, shake and bounds, and the listener (P4);
+  - models, facing, hit flash, death, projectiles, auras, status VFX and the VECTOR test wall (P6);
+  - floor drawings, damage numbers and health bars (P7).
+
 ### P2 – scaffolding: 2026-10-02, Passed (Ryan's check)
 No visible change. Built from 3D.md.
 - **`scripts/core/units.gd`** (additive): `PX_PER_METER` (32.0), `px_to_m()`, `m_to_px()`, `to_view(p, height_m)` (sim x → view x, sim y → view z) and `to_sim(p)` (the height dropped).

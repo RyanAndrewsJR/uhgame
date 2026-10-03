@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" uid="uid://m13bba3dcc2k" path="res://scenes/sandbox_main.tscn" id="1_sandbox_main"]
+
+[node name="Main" instance=ExtResource("1_sandbox_main")]
+use_3d_view = true

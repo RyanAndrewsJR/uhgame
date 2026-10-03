@@ -3,11 +3,16 @@ extends Node3D
 ## res://scenes/tests/view_test.tscn and press F6.
 ## Checks the 3D view's logic without drawing anything: the px <-> m mapping
 ## (Units), WorldView's physics priority, Main's use_3d_view switch (off by
-## default and in both main scenes), and the floor pick on a fixed camera at
-## the default look (perspective, 30° field of view, 50° pitch, 28 m wide)
-## over a 1 m floor grid with a raised plateau: the screen center, round
-## trips, the plateau top, the exact shared vertices that made a single ray
-## slip through in P0a, a blocker on another layer, and a miss.
+## default and in both main scenes, on in the 3D sandbox scene), and the floor
+## pick on a fixed camera at the default look (perspective, 30° field of
+## view, 50° pitch, 28 m wide) over a 1 m floor grid with a raised plateau:
+## the screen center, round trips, the plateau top, the exact shared vertices
+## that made a single ray slip through in P0a, a blocker on another layer,
+## and a miss.
+## P3: CameraLook (its numbers, and on a real camera the visible width in
+## both projections), RoomView on a fixture tile room (walls, floor, the
+## environment and key light), the fade (what blocks the view, the fade's
+## pace) and hiding the 2D world (and restoring it).
 ## Prints PASS/FAIL per check and a total; run headless, it quits with the
 ## number of failures as the exit code.
 
@@ -32,6 +37,10 @@ func _ready() -> void:
 	_test_mapping()
 	_test_world_view()
 	_test_main_switch()
+	_test_camera_look()
+	_test_room_view()
+	_test_fade()
+	_test_hide_sim()
 	await _test_floor_pick()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
@@ -89,6 +98,194 @@ func _test_main_switch() -> void:
 			if state.get_node_property_name(0, i) == &"use_3d_view" and state.get_node_property_value(0, i) == true:
 				turned_on = true
 		_check("%s doesn't turn it on" % path.get_file(), turned_on, false)
+	_check("sandbox_main_3d.tscn (the 3D sandbox to play, P3) turns it on", _turns_3d_on("res://scenes/sandbox_main_3d.tscn"), true)
+
+
+func _turns_3d_on(path: String) -> bool:
+	var state := (load(path) as PackedScene).get_state()
+	for i in state.get_node_property_count(0):
+		if state.get_node_property_name(0, i) == &"use_3d_view" and state.get_node_property_value(0, i) == true:
+			return true
+	return false
+
+
+# --- P3: CameraLook, RoomView, the fade, hiding the 2D world -------------------------------------
+
+func _test_camera_look() -> void:
+	_section("CameraLook (Ryan's picks after P0b)")
+	var look: CameraLook = load("res://data/camera_looks/camera_look_default.tres")
+	_check_exact("perspective", look.projection, CameraLook.ProjectionMode.PERSPECTIVE)
+	_check("a 30° field of view", look.fov_deg, 30.0)
+	_check("a 50° pitch", look.pitch_deg, 50.0)
+	_check("28 m wide", look.visible_width_m, 28.0)
+	_check("faded things fade to 0.25", look.fade_to, 0.25)
+	_check("over 0.18 s", look.fade_time, 0.18)
+	_check_near("16:9: the camera sits 29.4 m from its focus", look.get_distance_m(16.0 / 9.0), 29.389, 0.001)
+	var offset := look.get_offset_m(16.0 / 9.0)
+	_check_near("16:9: 22.5 m above it", offset.y, 22.513, 0.001)
+	_check_near("16:9: 18.9 m south of it", offset.z, 18.891, 0.001)
+	_check_near("16:9: not east or west of it (the camera never turns)", offset.x, 0.0, 0.0)
+
+	# The look on a camera: the focus lands on the screen's center, and 14 m
+	# east and west of it on the screen's right and left edges. Physics
+	# interpolation off, like every camera moved by code outside the physics
+	# tick: an interpolated Camera3D projects from its interpolated transform
+	# (3D.md, Engine facts), which lags a transform just set.
+	var cam := Camera3D.new()
+	cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	add_child(cam)
+	var vis := get_viewport().get_visible_rect().size
+	var focus := Vector3(10.0, 0.0, 8.0)
+	for projection: CameraLook.ProjectionMode in [CameraLook.ProjectionMode.PERSPECTIVE, CameraLook.ProjectionMode.ORTHOGRAPHIC]:
+		var each := look.duplicate() as CameraLook
+		each.projection = projection
+		each.apply(cam, focus, vis.x / vis.y)
+		var name_ := "perspective" if projection == CameraLook.ProjectionMode.PERSPECTIVE else "orthographic"
+		_check_near("%s: the focus is the screen's center (px off)" % name_, cam.unproject_position(focus).distance_to(vis * 0.5), 0.0, 0.01)
+		_check_near("%s: 14 m west of the focus is the left edge (x px)" % name_, cam.unproject_position(focus + Vector3(-14.0, 0.0, 0.0)).x, 0.0, 0.05)
+		_check_near("%s: 14 m east of it is the right edge (x px)" % name_, cam.unproject_position(focus + Vector3(14.0, 0.0, 0.0)).x, vis.x, 0.05)
+	cam.free()
+
+
+## A tile room's Tiles (the game's TileSet), offset 2 m east and 1 m south,
+## 6 x 5 cells: walls around the edge and one inside at cell (2, 2), the two
+## floor tiles mixed. 19 wall cells, 11 floor cells. Under a Node2D "room"
+## with an Entities child, under a Node2D "main"; all in the tree.
+func _fixture_room() -> Node2D:
+	var main := Node2D.new()
+	main.name = "FixtureMain"
+	var room := Node2D.new()
+	room.name = "FixtureRoom"
+	var entities := Node2D.new()
+	entities.name = "Entities"
+	var tiles := TileMapLayer.new()
+	tiles.name = "Tiles"
+	tiles.tile_set = load("res://tilesets/dungeon_tileset.tres")
+	tiles.position = Vector2(64.0, 32.0)
+	for y in 5:
+		for x in 6:
+			var edge := x == 0 or y == 0 or x == 5 or y == 4
+			var atlas := Vector2i(2, 0) if edge or Vector2i(x, y) == Vector2i(2, 2) else Vector2i((x + y) % 2, 0)
+			if Vector2i(x, y) == Vector2i(5, 4):
+				atlas = Vector2i(3, 0)   # the other wall tile
+			tiles.set_cell(Vector2i(x, y), 0, atlas)
+	room.add_child(tiles)
+	room.add_child(entities)
+	main.add_child(room)
+	add_child(main)
+	return main
+
+
+func _test_room_view() -> void:
+	_section("RoomView (a tile room's look: walls, floor, environment, key light)")
+	var main := _fixture_room()
+	var tiles: TileMapLayer = main.get_node("FixtureRoom/Tiles")
+	var view := RoomView.new()
+	add_child(view)
+	view.build(tiles)
+
+	_check("19 wall cells: 19 wall boxes", view.walls.size(), 19)
+	_check("11 floor cells: 11 floor quads", view.floor_cell_count, 11)
+	var inner := view.get_node_or_null("Wall_2_2") as MeshInstance3D
+	_check("the inner wall cell (2, 2) has a box", inner != null, true)
+	if inner:
+		_check_near_v3("its box stands on the cell, through the Tiles' offset and Units: (4.5, 1.1, 3.5) m", inner.position, Vector3(4.5, 1.1, 3.5), 0.0001)
+	var sizes_ok := true
+	var fades_ok := true
+	var shader_ok := true
+	for wall in view.walls:
+		sizes_ok = sizes_ok and (wall.mesh as BoxMesh).size.is_equal_approx(Vector3(1.0, 2.2, 1.0))
+		fades_ok = fades_ok and wall.is_in_group(&"fades")
+		shader_ok = shader_ok and (wall.material_override as ShaderMaterial).shader == RoomView.FADE_SHADER
+	_check("every wall box is 1 x 2.2 x 1 m (a cell wide, Ryan's 2.2 m tall)", sizes_ok, true)
+	_check("every wall box is in the fades group", fades_ok, true)
+	_check("every wall box uses the dithered fade shader", shader_ok, true)
+
+	_check("the floor exists", view.floor_mesh != null, true)
+	if view.floor_mesh:
+		var aabb := view.floor_mesh.get_aabb()
+		_check_near_v3("the floor covers cells 1..4 x 1..3: from (3, 0, 2) m", aabb.position, Vector3(3.0, 0.0, 2.0), 0.0001)
+		_check_near_v3("4 m by 3 m, flat", aabb.size, Vector3(4.0, 0.0, 3.0), 0.0001)
+		var arrays := view.floor_mesh.mesh.surface_get_arrays(0)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+		var up_ok := normals.size() == verts.size()
+		for n in normals:
+			up_ok = up_ok and n.dot(Vector3.UP) > 0.9999   # normals are stored compressed: (0, 1, -0.000015)
+		var front_ok := verts.size() == 11 * 6
+		for i in range(0, verts.size(), 3):
+			# Clockwise seen from above (Godot's front face): the cross points down.
+			front_ok = front_ok and (verts[i + 1] - verts[i]).cross(verts[i + 2] - verts[i]).y < 0.0
+		_check("its normals all point up", up_ok, true)
+		_check("its 22 triangles all face up (clockwise from above)", front_ok, true)
+
+	_check("the environment has a plain background", view.environment != null and view.environment.environment.background_mode == Environment.BG_COLOR, true)
+	_check("the key light casts shadows", view.key_light != null and view.key_light.shadow_enabled, true)
+	if view.key_light:
+		var shine := -view.key_light.global_basis.z
+		_check("the key light shines down, from the north-west (toward +x, -y, +z)", shine.y < 0.0 and shine.x > 0.0 and shine.z > 0.0, true)
+	view.free()
+	main.free()
+
+
+func _test_fade() -> void:
+	_section("Fade (dithered; whatever stands between the camera and the player)")
+	var look: CameraLook = load("res://data/camera_looks/camera_look_default.tres")
+	var feet := Vector3(10.0, 0.0, 8.0)
+	var eye := feet + look.get_offset_m(16.0 / 9.0)
+	var wall_h := 2.2
+	_check("a 2.2 m wall cell right south of the player (toward the camera) blocks the view",
+		WorldView.blocks_view(AABB(Vector3(9.5, 0.0, 8.5), Vector3(1.0, wall_h, 1.0)), eye, feet), true)
+	_check("the next cell south blocks it too",
+		WorldView.blocks_view(AABB(Vector3(9.5, 0.0, 9.5), Vector3(1.0, wall_h, 1.0)), eye, feet), true)
+	_check("the one after doesn't: the camera sees over a 2.2 m wall 2.5 m away",
+		WorldView.blocks_view(AABB(Vector3(9.5, 0.0, 10.5), Vector3(1.0, wall_h, 1.0)), eye, feet), false)
+	_check("a 6 m pillar there does",
+		WorldView.blocks_view(AABB(Vector3(9.5, 0.0, 10.5), Vector3(1.0, 6.0, 1.0)), eye, feet), true)
+	_check("a wall north of the player (behind them) doesn't",
+		WorldView.blocks_view(AABB(Vector3(9.5, 0.0, 6.5), Vector3(1.0, wall_h, 1.0)), eye, feet), false)
+	_check("a wall touching the player's east side doesn't",
+		WorldView.blocks_view(AABB(Vector3(10.34, 0.0, 7.5), Vector3(1.0, wall_h, 1.0)), eye, feet), false)
+	# Only the head's line: a beam 1.9–2.5 m up, 0.4–0.6 m south of the player.
+	# There the feet's line runs 0.5–0.7 m up, the chest's 1.4–1.6 m and the
+	# head's 2.2–2.5 m.
+	var beam := AABB(Vector3(9.5, 1.9, 8.4), Vector3(1.0, 0.6, 0.2))
+	_check("a beam only the head's line crosses blocks the view (feet, chest and head all count)",
+		WorldView.blocks_view(beam, eye, feet), true)
+
+	var f := WorldView.step_fade(1.0, true, 0.09, look)
+	_check_near("blocked: half the fade time goes half the way (1 -> 0.625)", f, 0.625, 0.0001)
+	f = WorldView.step_fade(f, true, 0.09, look)
+	_check_near("the whole fade time reaches 0.25", f, 0.25, 0.0001)
+	f = WorldView.step_fade(f, true, 1.0, look)
+	_check_near("and stays there", f, 0.25, 0.0001)
+	f = WorldView.step_fade(f, false, 0.09, look)
+	f = WorldView.step_fade(f, false, 0.09, look)
+	_check_near("not blocked: back to 1 over the same 0.18 s", f, 1.0, 0.0001)
+	var instant := look.duplicate() as CameraLook
+	instant.fade_time = 0.0
+	_check_near("a fade time of 0 jumps", WorldView.step_fade(1.0, true, 0.001, instant), 0.25, 0.0)
+
+
+func _test_hide_sim() -> void:
+	_section("Hiding the 2D world (visibility layer 2 'sim', the root's cull mask)")
+	var main := _fixture_room()
+	var room: Node2D = main.get_node("FixtureRoom")
+	var viewport := get_viewport()
+	var before := viewport.canvas_cull_mask
+	var view := WorldView.new()
+	add_child(view)
+	view.hide_sim(main, room)
+	_check("the room's root is on layer 2 only", room.visibility_layer, 2)
+	_check("its Entities too", (room.get_node("Entities") as CanvasItem).visibility_layer, 2)
+	_check("Main on layers 1 and 2", main.visibility_layer, 1 | 2)
+	_check("the viewport no longer draws layer 2", viewport.canvas_cull_mask & 2, 0)
+	_check("it still draws every other layer (layer 1: the HUD, menus)", viewport.canvas_cull_mask, before & ~2)
+	_check("the Tiles keep their own layer (hidden through their parent)", (room.get_node("Tiles") as CanvasItem).visibility_layer, 1)
+	remove_child(view)
+	_check("the WorldView leaving the tree restores the viewport's mask", viewport.canvas_cull_mask, before)
+	view.free()
+	main.free()
 
 
 # --- Floor pick -------------------------------------------------------------------------------
@@ -258,6 +455,10 @@ func _check(label: String, actual: Variant, expected: Variant) -> void:
 
 func _check_exact(label: String, actual: Variant, expected: Variant) -> void:
 	_report(actual == expected, label, "got %s, expected %s" % [actual, expected])
+
+
+func _check_near(label: String, actual: float, expected: float, tolerance: float) -> void:
+	_report(absf(actual - expected) <= tolerance, label, "got %s, expected %s ± %s" % [actual, expected, tolerance])
 
 
 func _check_near_v3(label: String, actual: Vector3, expected: Vector3, tolerance: float) -> void:
