@@ -46,6 +46,12 @@ extends Resource
 @export var pop_scale: float = 1.35
 ## Random sideways spread, px.
 @export var spread_px: float = 6.0
+## A unit's new number starts this much higher than its previous one while
+## that one still shows (its `lifetime`), px, so hits in a row read as a
+## column instead of a pile (Ryan, 2026-10-03).
+@export var stack_step_px: float = 11.0
+## How many numbers stack up before the next starts at the bottom again.
+@export var stack_levels: int = 4
 
 
 ## The font size for a normal hit of `amount`.

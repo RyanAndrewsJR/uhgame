@@ -19,6 +19,9 @@ extends Node3D
 ## numbers and health bars (ScreenOverlay), presentation-hook scenes with a
 ## Node3D root (add_scene_at(), from VFX.spawn_scene()). Sim code finds the
 ## view through WorldView.of() (the group world_view).
+## P8: a room built in 3D (RoomLayout) is its own look: it moves under this
+## node with its floor pick; its walkable floors' materials take the floor
+## drawings, and its `fades` assets fade.
 
 ## Runs after every sim node (they're all at the default 0), so the views copy
 ## positions the sim has already moved this tick (3D.md, Core rules).
@@ -59,6 +62,8 @@ const PROCESS_PRIORITY := 20
 
 ## The tile room's look (null for a room without Tiles).
 var room_view: RoomView
+## The room built in 3D, its own look (P8; null for a tile room).
+var layout: RoomLayout
 var camera: GameCamera3D
 var player: Player
 ## The floor drawings (P7).
@@ -98,17 +103,26 @@ static func of(node: Node) -> WorldView:
 ## builds the room's look, every view and the camera, and gives the player
 ## its aim through this view. `camera_2d` is Main's GameCamera: the 3D camera
 ## uses its lock, lean, shake, pan settings and room bounds (null: no lean,
-## shake or bounds).
-func setup(main: CanvasItem, room: Node2D, p_player: Player, camera_2d: GameCamera = null) -> void:
+## shake or bounds). `p_layout` is the room built in 3D whose sim `room` is
+## (P8): it moves under this view as the room's look, with its floor pick;
+## null for a tile room, whose look RoomView makes from its Tiles.
+func setup(main: CanvasItem, room: Node2D, p_player: Player, camera_2d: GameCamera = null, p_layout: RoomLayout = null) -> void:
 	player = p_player
 	if player:
 		player.world_view = self
 	hide_sim(main, room)
-	var tiles := room.get_node_or_null("Tiles") as TileMapLayer
-	if tiles:
-		room_view = RoomView.new()
-		add_child(room_view)
-		room_view.build(tiles)
+	layout = p_layout
+	if layout:
+		if layout.get_parent():
+			layout.get_parent().remove_child(layout)
+		add_child(layout)
+		layout.add_child(layout.build_floor_pick())
+	else:
+		var tiles := room.get_node_or_null("Tiles") as TileMapLayer
+		if tiles:
+			room_view = RoomView.new()
+			add_child(room_view)
+			room_view.build(tiles)
 	_collect_fading()
 	# Before the views, so each unit's health bar comes with its view (P7).
 	screen_overlay = ScreenOverlay.new()
@@ -135,6 +149,9 @@ func setup(main: CanvasItem, room: Node2D, p_player: Player, camera_2d: GameCame
 	floor_overlay.setup(camera, camera.bounds_m)
 	if room_view and room_view.floor_material:
 		floor_overlay.add_floor_material(room_view.floor_material)
+	if layout:
+		for material in layout.get_floor_materials():
+			floor_overlay.add_floor_material(material)
 	flatten_floor_drawings()
 
 

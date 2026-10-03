@@ -8,6 +8,13 @@ shader_type spatial;
 // sRGB. The drawings are unlit (added as emission over the floor, which they
 // cover by their alpha), so a telegraph reads the same in a shadow.
 
+// The floor's color, times its vertex colors (white without them; P8: rooms
+// built in 3D; RoomView leaves it white and colors its vertices). With
+// checker_m > 0, squares checker_m wide alternate with albedo_alt, so
+// movement reads on a plain floor.
+uniform vec4 albedo : source_color = vec4(1.0);
+uniform vec4 albedo_alt : source_color = vec4(1.0);
+uniform float checker_m = 0.0;
 uniform float roughness : hint_range(0.0, 1.0) = 0.95;
 // FloorOverlay's texture; without one, nothing is drawn.
 uniform sampler2D drawings : hint_default_transparent, filter_linear, repeat_disable;
@@ -33,7 +40,14 @@ void fragment() {
 		drawn = texture(drawings, uv);
 	}
 	vec3 color = drawn.a > 0.0001 ? srgb_to_linear(clamp(drawn.rgb / drawn.a, 0.0, 1.0)) : vec3(0.0);
-	ALBEDO = COLOR.rgb * (1.0 - drawn.a);
+	vec3 base = albedo.rgb;
+	if (checker_m > 0.0) {
+		vec2 cell = floor(world_xz / checker_m);
+		if (mod(cell.x + cell.y, 2.0) > 0.5) {
+			base = albedo_alt.rgb;
+		}
+	}
+	ALBEDO = base * COLOR.rgb * (1.0 - drawn.a);
 	EMISSION = color * drawn.a;
 	ROUGHNESS = roughness;
 }

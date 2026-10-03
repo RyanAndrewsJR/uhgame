@@ -1,0 +1,67 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://scenes/rooms/assets/materials/wood.tres" id="1_vidcb"]
+[ext_resource type="Script" path="res://scripts/rooms/footprint.gd" id="2_mnu08"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_8t8uh"]
+size = Vector3(0.15, 1, 0.15)
+
+[sub_resource type="BoxMesh" id="BoxMesh_470ue"]
+size = Vector3(0.15, 1, 0.15)
+
+[sub_resource type="BoxMesh" id="BoxMesh_8d15o"]
+size = Vector3(0.15, 1, 0.15)
+
+[sub_resource type="BoxMesh" id="BoxMesh_2gdy8"]
+size = Vector3(0.15, 1, 0.15)
+
+[sub_resource type="BoxMesh" id="BoxMesh_2gq6q"]
+size = Vector3(0.15, 1, 0.15)
+
+[sub_resource type="BoxMesh" id="BoxMesh_n1jvs"]
+size = Vector3(4, 0.08, 0.06)
+
+[sub_resource type="BoxMesh" id="BoxMesh_r7i2b"]
+size = Vector3(4, 0.08, 0.06)
+
+[node name="Fence4m" type="Node3D" unique_id=887974508]
+
+[node name="Post0" type="MeshInstance3D" parent="." unique_id=1979926638]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.075, 0.5, 0.5)
+material_override = ExtResource("1_vidcb")
+mesh = SubResource("BoxMesh_8t8uh")
+
+[node name="Post1" type="MeshInstance3D" parent="." unique_id=1696159132]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0.5, 0.5)
+material_override = ExtResource("1_vidcb")
+mesh = SubResource("BoxMesh_470ue")
+
+[node name="Post2" type="MeshInstance3D" parent="." unique_id=963207022]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.5, 0.5)
+material_override = ExtResource("1_vidcb")
+mesh = SubResource("BoxMesh_8d15o")
+
+[node name="Post3" type="MeshInstance3D" parent="." unique_id=105867679]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0.5, 0.5)
+material_override = ExtResource("1_vidcb")
+mesh = SubResource("BoxMesh_2gdy8")
+
+[node name="Post4" type="MeshInstance3D" parent="." unique_id=1816435194]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.925, 0.5, 0.5)
+material_override = ExtResource("1_vidcb")
+mesh = SubResource("BoxMesh_2gq6q")
+
+[node name="RailLow" type="MeshInstance3D" parent="." unique_id=1828118042]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.35, 0.5)
+material_override = ExtResource("1_vidcb")
+mesh = SubResource("BoxMesh_n1jvs")
+
+[node name="RailHigh" type="MeshInstance3D" parent="." unique_id=324836717]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.75, 0.5)
+material_override = ExtResource("1_vidcb")
+mesh = SubResource("BoxMesh_r7i2b")
+
+[node name="Footprint" type="Node3D" parent="." unique_id=252386535]
+script = ExtResource("2_mnu08")
+kind = 1
+polygon = PackedVector2Array()

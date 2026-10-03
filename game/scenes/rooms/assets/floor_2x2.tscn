@@ -1,0 +1,12 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://scenes/rooms/assets/materials/floor_stone.tres" id="1_gqi1w"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_40gvg"]
+
+[node name="Floor2x2" type="Node3D" unique_id=2124737558]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=231053849 groups=["walkable"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1)
+material_override = ExtResource("1_gqi1w")
+mesh = SubResource("PlaneMesh_40gvg")

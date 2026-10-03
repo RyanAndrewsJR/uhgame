@@ -86,6 +86,7 @@ The rule for every combo with `attack_style` MELEE (the default; the Knight is t
 - Every hit shows a number above the target.
 - Crits use a distinct font (proposed) and are larger.
 - DoT ticks use a smaller style and are merged per target over a short window so they don't flood the screen.
+- **Hits in a row stack** (Ryan, 2026-10-03; revisited with UI.md): a unit's new number starts `stack_step_px` (11) above its previous number while that one still shows (its `lifetime`), up to `stack_levels` (4) high, then at the bottom again. Equal hits (a combo's swings) read as a rising column, not one number drawn twice. The same in 2D and on the 3D overlay (`Unit._stack_lift()`).
 - Size grows with the amount, in a few discrete pixel-font steps on a log scale, so late-game numbers don't all hit max size.
 - Colors: by damage type (FREE, but readable); damage the player takes is red; healing is green; damage a shield absorbed is its own silver-blue number.
 - **In 3D (3D.md, P7; built 2026-10-03):** numbers and health bars draw on the screen overlay (`ScreenOverlay`), placed above the unit's model with `unproject_position()`; their sizes are screen sizes, as today. `Unit._add_number()` gets the overlay path while the 2D path stays.
@@ -135,7 +136,7 @@ Enemy damage bands (per hit, as % of the player's max health; a tuning guide for
 - Telegraph: a floor shape that fills up until the hit; one consistent enemy-threat color (FREE which).
 
 Hit forgiveness: player attack hitboxes +10% over their visuals, enemy attack hitboxes −10% (each 0–20%).
-Damage numbers: rise 12 px and fade over 0.6 s; 3 size steps.
+Damage numbers: rise 12 px and fade over 0.6 s; 3 size steps; hits in a row stack 11 px apart, up to 4 high.
 
 ## Current code
 What exists today (the rest of the design is in Data and Architecture).

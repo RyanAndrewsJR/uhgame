@@ -1473,6 +1473,26 @@ func _test_damage_numbers() -> void:
 		var ref: WeakRef = weakref(n)
 		await _wait_until(func() -> bool: return ref.get_ref() == null, 20)
 		_check("gone after 0.6 s", ref.get_ref() == null, true)
+
+	# Stacking (Ryan, 2026-10-03): hits in a row read as a column, not a pile.
+	await _wait_until(func() -> bool: return _numbers().is_empty(), 60)
+	dummy.health.heal(1000.0)
+	var starts: Array[float] = []
+	for i in 5:
+		before = _numbers()
+		dummy.take_damage(40.0, knight)
+		added = _numbers().filter(func(n: Label) -> bool: return not before.has(n))
+		starts.append((added[0] as Label).position.y if added.size() == 1 else INF)
+	var steps: Array[float] = []
+	for i in range(1, 5):
+		steps.append(snappedf(starts[i - 1] - starts[i], 0.01))
+	_check("a unit's next number starts %.0f px above its previous one while that one shows, up to %d high, then at the bottom again" % [style.stack_step_px, style.stack_levels],
+		steps, [style.stack_step_px, style.stack_step_px, style.stack_step_px, -3.0 * style.stack_step_px])
+	await _wait_until(func() -> bool: return _numbers().is_empty(), 60)
+	before = _numbers()
+	dummy.take_damage(40.0, knight)
+	added = _numbers().filter(func(n: Label) -> bool: return not before.has(n))
+	_check("once its numbers are gone, the next starts at the bottom", added.size() == 1 and is_equal_approx((added[0] as Label).position.y, starts[0]), true)
 	dummy.queue_free()
 
 

@@ -1,0 +1,18 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://scenes/rooms/assets/materials/wall_stone_dark.tres" id="1_c8he5"]
+[ext_resource type="Script" path="res://scripts/rooms/footprint.gd" id="2_l8ej5"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_fkg7a"]
+size = Vector3(4, 3.4, 1)
+
+[node name="Wall4mTall" type="Node3D" unique_id=1533186659 groups=["fades"]]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=298659201]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 1.7, 0.5)
+material_override = ExtResource("1_c8he5")
+mesh = SubResource("BoxMesh_fkg7a")
+
+[node name="Footprint" type="Node3D" parent="." unique_id=1192469949]
+script = ExtResource("2_l8ej5")
+polygon = PackedVector2Array()

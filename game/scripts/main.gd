@@ -10,15 +10,19 @@ extends Node2D
 @export var player_died_sound: SoundEvent
 ## The 3D view (docs/3D.md), off until the 3D pivot's milestone. Off, the game
 ## is exactly the 2D game. On, Main adds a WorldView: the 2D world is hidden
-## from the screen and the room shows in 3D through GameCamera3D (P3–P4;
-## capsules for the units until P6). To play it: open
-## scenes/sandbox_main_3d.tscn, press F6.
+## from the screen and the room shows in 3D through GameCamera3D. To play it:
+## open scenes/sandbox_main_3d.tscn (the tile sandbox) or
+## scenes/sandbox_main_layout.tscn (the sandbox built in 3D, P8), press F6.
 @export var use_3d_view: bool = false
 
 @onready var hud: CanvasLayer = $HUD
 @onready var camera: Camera2D = $Camera
 
 var room: Room
+## The room built in 3D when room_scene is one (a RoomLayout, docs/3D.md,
+## Rooms): the 3D view shows it, and `room` is the sim it made. null for a
+## tile room.
+var layout: RoomLayout
 var player: Player
 var pause_menu: PauseMenu
 ## The 3D view, or null while use_3d_view is off.
@@ -27,7 +31,9 @@ var _game_over := false
 
 
 func _ready() -> void:
-	room = room_scene.instantiate()
+	var scene_root := room_scene.instantiate()
+	layout = scene_root as RoomLayout
+	room = layout.build_sim() if layout else scene_root as Room
 	add_child(room)
 	move_child(room, 0)
 
@@ -52,7 +58,13 @@ func _ready() -> void:
 	if use_3d_view:
 		world_view = WorldView.new()
 		add_child(world_view)
-		world_view.setup(self, room, player, camera)
+		world_view.setup(self, room, player, camera, layout)
+	elif layout:
+		# Without the view a room built in 3D shows only its footprints' flat
+		# 2D look.
+		push_warning("Main: %s is a room built in 3D; turn on use_3d_view to see it" % layout.name)
+		layout.free()
+		layout = null
 
 	pause_menu = pause_menu_scene.instantiate()
 	add_child(pause_menu)
@@ -81,10 +93,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _setup_camera() -> void:
-	var tiles: TileMapLayer = room.get_node("Tiles")
-	var rect := tiles.get_used_rect()
-	var size := Vector2(tiles.tile_set.tile_size)
-	camera.bounds = Rect2(Vector2(rect.position) * size, Vector2(rect.size) * size)
+	# A tile room's used tiles; a room built in 3D gives its walkable floor.
+	camera.bounds = room.get_bounds_px()
 	camera.target = player
 	camera.snap_to_target()
 

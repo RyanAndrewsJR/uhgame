@@ -1,0 +1,51 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://scenes/rooms/assets/materials/pit_dark.tres" id="1_tcy2u"]
+[ext_resource type="Material" path="res://scenes/rooms/assets/materials/pit_side.tres" id="2_i21po"]
+[ext_resource type="Script" path="res://scripts/rooms/footprint.gd" id="3_ntcym"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_25f6a"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_cx8tx"]
+size = Vector3(2, 0.9, 0.05)
+
+[sub_resource type="BoxMesh" id="BoxMesh_mnwdn"]
+size = Vector3(2, 0.9, 0.05)
+
+[sub_resource type="BoxMesh" id="BoxMesh_dbfyb"]
+size = Vector3(0.05, 0.9, 2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_j2pp1"]
+size = Vector3(0.05, 0.9, 2)
+
+[node name="Pit2x2" type="Node3D" unique_id=290494757]
+
+[node name="Bottom" type="MeshInstance3D" parent="." unique_id=566438937]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, -0.9, 1)
+material_override = ExtResource("1_tcy2u")
+mesh = SubResource("PlaneMesh_25f6a")
+
+[node name="SideNorth" type="MeshInstance3D" parent="." unique_id=1860323363]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, -0.45, 0.025)
+material_override = ExtResource("2_i21po")
+mesh = SubResource("BoxMesh_cx8tx")
+
+[node name="SideSouth" type="MeshInstance3D" parent="." unique_id=1892888960]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, -0.45, 1.975)
+material_override = ExtResource("2_i21po")
+mesh = SubResource("BoxMesh_mnwdn")
+
+[node name="SideWest" type="MeshInstance3D" parent="." unique_id=528333641]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.025, -0.45, 1)
+material_override = ExtResource("2_i21po")
+mesh = SubResource("BoxMesh_dbfyb")
+
+[node name="SideEast" type="MeshInstance3D" parent="." unique_id=1371696279]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.975, -0.45, 1)
+material_override = ExtResource("2_i21po")
+mesh = SubResource("BoxMesh_j2pp1")
+
+[node name="Footprint" type="Node3D" parent="." unique_id=519404388]
+script = ExtResource("3_ntcym")
+kind = 2
+polygon = PackedVector2Array(0, 0, 2, 0, 2, 2, 0, 2)

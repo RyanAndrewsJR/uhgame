@@ -1,0 +1,38 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://scenes/rooms/assets/materials/wall_stone.tres" id="1_3mge8"]
+[ext_resource type="Script" path="res://scripts/rooms/footprint.gd" id="2_c6k1l"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_mv4ti"]
+size = Vector3(1, 2.2, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_y3yym"]
+size = Vector3(1, 2.2, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_bmx1i"]
+size = Vector3(4, 0.6, 1)
+
+[node name="Archway4m" type="Node3D" unique_id=47017875 groups=["fades"]]
+
+[node name="PillarLeft" type="MeshInstance3D" parent="." unique_id=437580246]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 1.1, 0.5)
+material_override = ExtResource("1_3mge8")
+mesh = SubResource("BoxMesh_mv4ti")
+
+[node name="PillarRight" type="MeshInstance3D" parent="." unique_id=1273320340]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 1.1, 0.5)
+material_override = ExtResource("1_3mge8")
+mesh = SubResource("BoxMesh_y3yym")
+
+[node name="Lintel" type="MeshInstance3D" parent="." unique_id=1003731614]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 2.5, 0.5)
+material_override = ExtResource("1_3mge8")
+mesh = SubResource("BoxMesh_bmx1i")
+
+[node name="FootprintLeft" type="Node3D" parent="." unique_id=1012435701]
+script = ExtResource("2_c6k1l")
+polygon = PackedVector2Array(0, 0, 1, 0, 1, 1, 0, 1)
+
+[node name="FootprintRight" type="Node3D" parent="." unique_id=91862418]
+script = ExtResource("2_c6k1l")
+polygon = PackedVector2Array(3, 0, 4, 0, 4, 1, 3, 1)

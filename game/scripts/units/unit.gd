@@ -76,6 +76,8 @@ var crit_misses: int = 0
 var _alive: bool = true
 var _reaction_rules: Array = []   # [ReactionRule, source_id] (COMBAT C11)
 var _dot_number: Label   # the latest DoT number, to merge the next tick into
+var _last_number: Label   # the latest number, to stack the next one above (_stack_lift())
+var _last_number_level: int = 0
 var _invulnerable: Dictionary = {}   # id -> true (e.g. &"dash" i-frames)
 var _stat_scalings: Array = []   # [StatScaling, source_id, its StatModifier copy] (CHAMPIONS CH2)
 var _stat_scalings_dirty: bool = false
@@ -489,16 +491,33 @@ func _make_number(amount: float, style: DamageNumberStyle) -> Label:
 
 
 func _add_number(n: Label) -> void:
+	var lift := _stack_lift(n)
 	# Under the 3D view the number goes on its screen overlay, over the model
 	# (3D.md, ScreenOverlay); the path below is the 2D game's.
 	var view := WorldView.of(self)
 	if view != null and view.screen_overlay != null:
-		view.screen_overlay.add_number(n, self)
+		view.screen_overlay.add_number(n, self, lift)
 		return
 	var parent := get_parent() as Node2D
 	var spread: float = (n.style as DamageNumberStyle).spread_px
-	n.position = parent.to_local(get_center() + Vector2(randf_range(-spread, spread), -get_gameplay_radius_px() * 0.8))
+	n.position = parent.to_local(get_center() + Vector2(randf_range(-spread, spread), -get_gameplay_radius_px() * 0.8 - lift))
 	parent.add_child(n)
+
+
+## How much higher than usual a new number starts (COMBAT.md, Damage
+## numbers): one stack_step_px above this unit's previous number while that
+## one still shows, so hits in a row read as a column instead of a pile (Ryan,
+## 2026-10-03). After stack_levels numbers the next starts at the bottom
+## again.
+func _stack_lift(n: Label) -> float:
+	var style := n.style as DamageNumberStyle
+	var level := 0
+	if is_instance_valid(_last_number) and not _last_number.is_queued_for_deletion() \
+			and _last_number.get_age() < style.lifetime:
+		level = (_last_number_level + 1) % maxi(style.stack_levels, 1)
+	_last_number = n
+	_last_number_level = level
+	return level * style.stack_step_px
 
 
 # --- Death --------------------------------------------------------------------

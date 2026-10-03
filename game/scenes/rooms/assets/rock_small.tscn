@@ -1,0 +1,38 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://scenes/rooms/assets/materials/rock.tres" id="1_gfsly"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_xmpf4"]
+radius = 0.16
+height = 0.20799999
+radial_segments = 6
+rings = 2
+
+[sub_resource type="SphereMesh" id="SphereMesh_v7we3"]
+radius = 0.21
+height = 0.273
+radial_segments = 6
+rings = 2
+
+[sub_resource type="SphereMesh" id="SphereMesh_64wkt"]
+radius = 0.26
+height = 0.338
+radial_segments = 6
+rings = 2
+
+[node name="RockSmall" type="Node3D" unique_id=1960340222 groups=["decoration"]]
+
+[node name="Pebble0" type="MeshInstance3D" parent="." unique_id=981069882]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.08, 0)
+material_override = ExtResource("1_gfsly")
+mesh = SubResource("SphereMesh_xmpf4")
+
+[node name="Pebble1" type="MeshInstance3D" parent="." unique_id=1997188595]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.35, 0.07, 0.2)
+material_override = ExtResource("1_gfsly")
+mesh = SubResource("SphereMesh_v7we3")
+
+[node name="Pebble2" type="MeshInstance3D" parent="." unique_id=1457547146]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.1, 0.3)
+material_override = ExtResource("1_gfsly")
+mesh = SubResource("SphereMesh_64wkt")

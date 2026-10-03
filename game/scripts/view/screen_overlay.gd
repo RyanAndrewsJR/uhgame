@@ -40,15 +40,16 @@ func _init() -> void:
 
 ## Shows a damage number for `unit` (Unit._add_number()'s path under the 3D
 ## view): where the unit is drawn now, number_height_share of its model's
-## height up, spread sideways like the 2D game's. It pops, rises and fades on
-## its own (DamageNumber); its holder goes with it.
-func add_number(n: Label, unit: Unit) -> void:
+## height up, spread sideways like the 2D game's, `lift_px` higher when it
+## stacks over the unit's previous number (Unit._stack_lift()). It pops,
+## rises and fades on its own (DamageNumber); its holder goes with it.
+func add_number(n: Label, unit: Unit, lift_px: float = 0.0) -> void:
 	var style := n.get(&"style") as DamageNumberStyle
 	var spread: float = style.spread_px if style else 0.0
 	var holder := Node2D.new()
 	holder.name = "Number"
 	holder.scale = Vector2.ONE * number_scale
-	n.position = Vector2(randf_range(-spread, spread), 0.0)
+	n.position = Vector2(randf_range(-spread, spread), -lift_px)
 	holder.add_child(n)
 	var point := point_over(unit, number_height_share)
 	_numbers.append({"holder": holder, "point": point})

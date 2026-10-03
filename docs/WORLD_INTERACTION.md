@@ -5,7 +5,7 @@
 
 ## Current code
 - Rooms are `res://scenes/rooms/room_XX.tscn`, each with a `Tiles` TileMapLayer (`dungeon_tileset.tres`, 32 px, physics layer 0 → collision layer 1 "world"), an `Entities` node, and a `PlayerSpawn` marker.
-- **Planned (3D.md, Rooms):** new rooms are built in 3D as layouts. Each blocking asset carries a `Footprint` (wall, low obstacle, pit or ledge), and at load the layout makes the same kind of 2D `Room` the game plays in: colliders on these layers, `SurfaceTags`, `Entities` from sim markers, the navigation bake. Everything below applies to both kinds of room. Tile rooms stay for the test fixtures.
+- **Built in 3D pivot P8 (3D.md, Rooms):** new rooms are built in 3D as layouts. Each blocking asset carries a `Footprint` (wall, low obstacle, pit or ledge), and at load the layout makes the same kind of 2D `Room` the game plays in: colliders on these layers, `Entities` from sim markers, the navigation bake (walls, pits, low obstacles and ledges carved). Footprints get `SurfaceTags` when that exists (Surface tags; not built). Everything below applies to both kinds of room. Tile rooms stay for the test fixtures.
 - Levels are hand-made rooms stitched together (DUNGEONS.md, when it exists).
 - `Hitbox` and `Hurtbox` Areas already exist. Hitboxes sit on the owner's attack layer and carry `damage` and `knockback`. No scene uses a Hitbox yet; hits go through the hit pipeline (COMBAT.md).
 
@@ -24,14 +24,14 @@ Example: an Akshan-style swing is an ability that asks `WorldQuery` for a grappl
 | 3 | enemies | enemy bodies | exists |
 | 4 | player_attack | player hitboxes and projectiles | exists |
 | 5 | enemy_attack | enemy hitboxes and projectiles | exists |
-| 6 | pit | chasms (`Pits` TileMapLayer): block walking only, not dashes, other displacements (knockback, blink, pull, swing) or projectiles | planned |
-| 7 | low_obstacle | fences, rubble: block walking, not projectiles | planned |
+| 6 | pit | chasms (`Pits` TileMapLayer): block walking only, not dashes, other displacements (knockback, blink, pull, swing) or projectiles | planned; a layout's pit footprints are on it since P8 and carved from the navigation, but nothing masks it until the pit step (Ryan, 2026-10-03) |
+| 7 | low_obstacle | fences, rubble: block walking, not projectiles | exists (3D pivot P8: a layout's low-obstacle footprints; the fence in the room kit) |
 | 8 | interactable | chests, doors, shrines, NPC talk zones | planned |
 | 9 | pickup | dropped loot, gold, potions | planned |
 | 10 | hazard | traps, damaging floors | planned |
 | 11 | ledge | cliff edges, derived from the walkable ground at room load (3D.md, Terrain and height): block walking and dashes, not projectiles or line of sight | planned (3D pivot P9; Ryan, 2026-10-01) |
 
-Planned: walking masks world, pit, low_obstacle, ledge, and the other team's bodies. As it is today: the player's and the slimes' bodies both mask 7 (world, player, enemies), so units also collide with their own team (pit, low_obstacle and ledge don't exist yet). A ghosted `dash()` (the dash, Lunge) masks world only while it runs (`collision_mask & 1`), which is correct: pits and units are ignored during a dash; `displace()` keeps the unit's own mask (minus the pit layer once pits exist: Pits and movement types). **With ledges (P9) the ghosted dash masks world and ledges** (`collision_mask & (1 | 1024)`, an approved one-line replace): cliffs stop it; pits, fences and units still don't.
+Planned: walking masks world, pit, low_obstacle, ledge, and the other team's bodies. As it is today: the player's and the slimes' bodies both mask 71 (world, player, enemies, low_obstacle; since P8, Ryan 2026-10-03: fences block walking now, pits wait for their step), so units also collide with their own team (pit and ledge aren't masked yet). A low obstacle also stops `displace()` (knockback, swing steps), which keeps the unit's mask. A ghosted `dash()` (the dash, Lunge) masks world only while it runs (`collision_mask & 1`), which is correct: pits and units are ignored during a dash; `displace()` keeps the unit's own mask (minus the pit layer once pits exist: Pits and movement types). **With ledges (P9) the ghosted dash masks world and ledges** (`collision_mask & (1 | 1024)`, an approved one-line replace): cliffs stop it; pits, fences and units still don't.
 
 ## Surface tags
 - **Tiles:** add TileSet **custom data layers** to `dungeon_tileset.tres` with bools `grappleable`, `destructible`, `bounce`, `wall_slam`, and set them per tile.

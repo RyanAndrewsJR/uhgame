@@ -1,0 +1,9 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://scripts/view/fade_dither.gdshader" id="1_1rqow"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_1rqow")
+shader_parameter/albedo = Color(0.46, 0.43, 0.5, 1)
+shader_parameter/roughness = 0.9

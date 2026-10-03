@@ -1,0 +1,21 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://scenes/rooms/assets/materials/rock.tres" id="1_4e78h"]
+[ext_resource type="Script" path="res://scripts/rooms/footprint.gd" id="2_8hxja"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_f8pgy"]
+radius = 0.8
+height = 1.5
+radial_segments = 7
+rings = 3
+
+[node name="RockLarge" type="Node3D" unique_id=881504912]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=2112276385]
+transform = Transform3D(1.0592201, 0, 0.44783106, 0, 1, 0, -0.3699474, 0, 0.8750079, 0, 0.55, 0)
+material_override = ExtResource("1_4e78h")
+mesh = SubResource("SphereMesh_f8pgy")
+
+[node name="Footprint" type="Node3D" parent="." unique_id=93639591]
+script = ExtResource("2_8hxja")
+polygon = PackedVector2Array()

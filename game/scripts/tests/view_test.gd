@@ -35,6 +35,18 @@ extends Node3D
 ## fed by its health, hidden with its 2D bar, gone with it; a damage number
 ## over the model that stays where it appeared, and the 2D path without a
 ## view), and VFX.spawn_scene() with a Node3D root.
+## P8: rooms built in 3D. On a fixture layout built here: build_sim() (each
+## footprint's collider on its kind's layer, in px; a derived wall outline;
+## the markers in Entities with their properties; the spawn; a helper node
+## moved in; the bounds) and the navigation bake (walls, fences and pits
+## carved out); the validator silent on it and flagging an unmarked solid
+## mesh, an empty footprint, a hull over an archway and a mesh sticking out,
+## while a boulder's derived outline passes; footprints drawn in play only
+## with debug_draw; WorldView taking a layout as the room's look. The real
+## layouts: the 3D sandbox (the tile sandbox's markers and helpers) and
+## room_01's layout (every wall cell of the tile room under a wall footprint
+## and nothing else, the same slimes and spawn), both silent; their play
+## scenes; the walking masks (fences block, pits wait).
 ## Prints PASS/FAIL per check and a total; run headless, it quits with the
 ## number of failures as the exit code.
 
@@ -48,6 +60,8 @@ const PLATEAU_TOP := 1.5
 ## A box on 3D layer 2 (not the floor's layer), standing in front of some floor.
 const BLOCKER_CENTER := Vector3(8.0, 2.0, 12.0)
 const BLOCKER_SIZE := Vector3(2.0, 4.0, 2.0)
+
+const NUMBER_STYLE: DamageNumberStyle = preload("res://data/damage_number_styles/damage_number_style_default.tres")
 
 var _passed: int = 0
 var _failed: int = 0
@@ -72,6 +86,10 @@ func _ready() -> void:
 	_test_floor_drawings_layers()
 	await _test_overlays_in_setup()
 	_test_spawn_scene_3d()
+	await _test_layout_sim()
+	_test_layout_validator()
+	await _test_layout_in_view()
+	_test_real_layouts()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -1084,6 +1102,12 @@ func _test_overlays_in_setup() -> void:
 		return
 	var point := screen.point_over(slime, 0.8)
 	_check_near("it appears over the unit, at 0.8 of its model's height (px off)", holder.position.distance_to(cam.unproject_position(point)), 0.0, 0.001)
+	slime.show_heal_number(12.0)
+	var stacked := screen.get_child(screen.get_child_count() - 1) as Node2D
+	var stacked_label: Label = stacked.get_child(0) as Label if stacked != holder and stacked.get_child_count() > 0 else null
+	_check("a second number while the first shows stacks one step above it (2D's rule, on the overlay)",
+		stacked_label != null and is_equal_approx(label.position.y - stacked_label.position.y, NUMBER_STYLE.stack_step_px), true)
+	stacked.free()
 	var target := Node3D.new()
 	target.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	view.add_child(target)
@@ -1140,6 +1164,359 @@ func _test_spawn_scene_3d() -> void:
 		flat != null and flat.get_parent() == holder and flat.global_position.is_equal_approx(Vector2(10.0, 20.0)) and is_equal_approx(flat.global_rotation, 0.5), true)
 	view.free()
 	holder.free()
+
+
+# --- P8: rooms built in 3D -----------------------------------------------------------------
+
+const FLOOR_STONE := "res://scenes/rooms/assets/materials/floor_stone.tres"
+const WALL_STONE := "res://scenes/rooms/assets/materials/wall_stone.tres"
+
+
+## A small layout built here: an 8 x 6 m floor (walkable, the kit's floor
+## material), a 4 m wall at (1, 1) with a derived footprint (in `fades`), a
+## 3 m fence at (1, 4) with a drawn low-obstacle footprint, a 1 x 1 m pit at
+## (6, 1), pebbles (decoration), a dummy marker at (5.5, 4.5), the spawn at
+## (2.5, 3) and a plain helper node.
+func _fixture_layout() -> RoomLayout:
+	var layout := RoomLayout.new()
+	layout.name = "Fixture"
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(8.0, 6.0)
+	var floor_mesh := MeshInstance3D.new()
+	floor_mesh.name = "Floor"
+	floor_mesh.mesh = plane
+	floor_mesh.position = Vector3(4.0, 0.0, 3.0)
+	floor_mesh.material_override = load(FLOOR_STONE)
+	floor_mesh.add_to_group(&"walkable")
+	layout.add_child(floor_mesh)
+	var wall := _asset(layout, "Wall", Vector3(1.0, 0.0, 1.0))
+	wall.add_to_group(&"fades")
+	_asset_box(wall, Vector3(4.0, 2.2, 1.0), Vector3(2.0, 1.1, 0.5)).material_override = load(WALL_STONE)
+	_asset_footprint(wall, Footprint.Kind.WALL)
+	var fence := _asset(layout, "Fence", Vector3(1.0, 0.0, 4.0))
+	_asset_box(fence, Vector3(3.0, 1.0, 0.2), Vector3(1.5, 0.5, 0.5))
+	_asset_footprint(fence, Footprint.Kind.LOW_OBSTACLE, PackedVector2Array([Vector2(0, 0.4), Vector2(3, 0.4), Vector2(3, 0.6), Vector2(0, 0.6)]))
+	var pit := _asset(layout, "Pit", Vector3(6.0, 0.0, 1.0))
+	var bottom := PlaneMesh.new()
+	bottom.size = Vector2(1.0, 1.0)
+	var bottom_mesh := MeshInstance3D.new()
+	bottom_mesh.mesh = bottom
+	bottom_mesh.position = Vector3(0.5, -0.9, 0.5)
+	pit.add_child(bottom_mesh)
+	_asset_footprint(pit, Footprint.Kind.PIT, PackedVector2Array([Vector2(0, 0), Vector2(1, 0), Vector2(1, 1), Vector2(0, 1)]))
+	var pebbles := _asset(layout, "Pebbles", Vector3(7.0, 0.0, 5.0))
+	pebbles.add_to_group(&"decoration")
+	var pebble := MeshInstance3D.new()
+	pebble.mesh = SphereMesh.new()
+	pebbles.add_child(pebble)
+	var marker := SimMarker.new()
+	marker.name = "Dummy"
+	marker.scene = load("res://scenes/enemies/slime.tscn")
+	marker.properties = {"passive": true}
+	marker.position = Vector3(5.5, 0.0, 4.5)
+	layout.add_child(marker)
+	var spawn := Marker3D.new()
+	spawn.name = "PlayerSpawn"
+	spawn.position = Vector3(2.5, 0.0, 3.0)
+	layout.add_child(spawn)
+	var helper := Node.new()
+	helper.name = "Helper"
+	layout.add_child(helper)
+	return layout
+
+
+func _asset(parent: Node, asset_name: String, at: Vector3) -> Node3D:
+	var root := Node3D.new()
+	root.name = asset_name
+	root.position = at
+	parent.add_child(root)
+	return root
+
+
+func _asset_box(asset: Node3D, size: Vector3, center: Vector3) -> MeshInstance3D:
+	var box := BoxMesh.new()
+	box.size = size
+	var mesh := MeshInstance3D.new()
+	mesh.mesh = box
+	mesh.position = center
+	asset.add_child(mesh)
+	return mesh
+
+
+func _asset_footprint(asset: Node3D, kind: Footprint.Kind, polygon := PackedVector2Array()) -> Footprint:
+	var fp := Footprint.new()
+	fp.name = "Footprint%d" % asset.get_child_count()
+	fp.kind = kind
+	fp.polygon = polygon
+	asset.add_child(fp)
+	return fp
+
+
+func _body_rect(room: Node, body_name: String) -> Rect2:
+	var body := room.get_node_or_null("Footprints/" + body_name) as StaticBody2D
+	if body == null:
+		return Rect2()
+	var poly := (body.get_child(0) as CollisionPolygon2D).polygon
+	var r := Rect2(poly[0], Vector2.ZERO)
+	for p in poly:
+		r = r.expand(p)
+	return r
+
+
+func _on_navmesh(nav: NavigationPolygon, p: Vector2) -> bool:
+	var verts := nav.get_vertices()
+	for i in nav.get_polygon_count():
+		var poly := PackedVector2Array()
+		for k in nav.get_polygon(i):
+			poly.append(verts[k])
+		if Geometry2D.is_point_in_polygon(p, poly):
+			return true
+	return false
+
+
+func _test_layout_sim() -> void:
+	_section("RoomLayout.build_sim() (P8: footprints, markers, spawn, helpers, bounds, the bake)")
+	var layout := _fixture_layout()
+	_check("the fixture layout is silent in the validator", layout.validate(), [])
+	var room := layout.build_sim()
+	_check("it makes a Room named after the layout", room is Room and String(room.name) == "Fixture", true)
+	_check_exact("the bounds: the walkable floor's extent, 8 x 6 m in px", room.bounds_px, Rect2(0.0, 0.0, 256.0, 192.0))
+	var footprints := room.get_node_or_null("Footprints")
+	_check("one collider per footprint, under Footprints (in navigation_source)",
+		footprints != null and footprints.get_child_count() == 3 and footprints.is_in_group(&"navigation_source"), true)
+	var layers := {}
+	if footprints:
+		for body in footprints.get_children():
+			layers[String(body.name)] = [(body as StaticBody2D).collision_layer, (body as StaticBody2D).collision_mask]
+	_check("on their kinds' layers, colliding with nothing: the wall 1, the fence 7 (bit 64), the pit 6 (bit 32)",
+		layers, {"Wall_Footprint1": [1, 0], "Fence_Footprint1": [64, 0], "Pit_Footprint1": [32, 0]})
+	_check("the wall's derived outline is its box's: 4 x 1 m at (1, 1) m, in px", _body_rect(room, "Wall_Footprint1").is_equal_approx(Rect2(32.0, 32.0, 128.0, 32.0)), true)
+	var wall_body := footprints.get_node_or_null("Wall_Footprint1") if footprints else null
+	_check_near("its area: 128 x 32 px (no slack from the hull)",
+		absf(RoomLayout.polygon_area((wall_body.get_child(0) as CollisionPolygon2D).polygon)) if wall_body else 0.0, 4096.0, 0.5)
+	_check("the fence's drawn outline, through its asset's place, in px", _body_rect(room, "Fence_Footprint1").is_equal_approx(Rect2(32.0, 140.8, 96.0, 6.4)), true)
+	_check("the pit's", _body_rect(room, "Pit_Footprint1").is_equal_approx(Rect2(192.0, 32.0, 32.0, 32.0)), true)
+	_check("each collider has a flat 2D look (the room plays without the view)", wall_body != null and wall_body.get_child(1) is Polygon2D, true)
+	var dummy := room.get_node_or_null("Entities/Dummy")
+	_check("the marker's scene is in Entities, named after the marker", dummy is Unit, true)
+	if dummy:
+		_check_exact("where the marker stands: (5.5, 4.5) m = (176, 144) px", (dummy as Node2D).position, Vector2(176.0, 144.0))
+		_check("with its properties set (passive)", dummy.get(&"passive"), true)
+	_check_exact("the spawn: (2.5, 3) m = (80, 96) px", (room.get_node("PlayerSpawn") as Node2D).position, Vector2(80.0, 96.0))
+	_check("a plain helper node moves into the room", room.get_node_or_null("Helper") != null and layout.get_node_or_null("Helper") == null, true)
+
+	var holder := Node2D.new()
+	add_child(holder)
+	holder.add_child(room)   # Room._ready() bakes the navigation
+	await get_tree().physics_frame
+	var nav := room.nav_region.navigation_polygon if room.nav_region else null
+	_check("the navigation is baked", nav != null and nav.get_polygon_count() > 0, true)
+	if nav:
+		_check("open floor is on the navmesh", _on_navmesh(nav, Vector2(200.0, 150.0)), true)
+		_check("the wall is carved out", _on_navmesh(nav, Vector2(96.0, 48.0)), false)
+		_check("the fence too (low obstacles, layer 7)", _on_navmesh(nav, Vector2(80.0, 144.0)), false)
+		_check("and the pit (layer 6): enemies path around it", _on_navmesh(nav, Vector2(208.0, 48.0)), false)
+	_check("the bake carves walls, pits, low obstacles and ledges (layers 1, 6, 7, 11)", Room.NAV_BLOCKING_LAYERS, 1 | 32 | 64 | 1024)
+	holder.free()
+	layout.free()
+
+
+func _test_layout_validator() -> void:
+	_section("RoomLayout.validate() (P8: what looks wrong is flagged; a clean layout is silent)")
+	var crate_layout := _fixture_layout()
+	var crate := MeshInstance3D.new()
+	crate.name = "Crate"
+	crate.mesh = BoxMesh.new()
+	crate_layout.add_child(crate)
+	var found := crate_layout.validate()
+	_check("an unmarked solid mesh is flagged (no footprint, not walkable, not decoration)",
+		found.size() == 1 and found[0].contains("Crate") and found[0].contains("no footprint"), true)
+	crate_layout.free()
+
+	var empty_layout := _fixture_layout()
+	var broken := _asset(empty_layout, "Broken", Vector3(5.0, 0.0, 3.0))
+	_asset_box(broken, Vector3(1.0, 1.0, 1.0), Vector3(0.5, 0.5, 0.5))
+	_asset_footprint(broken, Footprint.Kind.WALL, PackedVector2Array([Vector2(0, 0), Vector2(1, 0)]))
+	var ghost := _asset(empty_layout, "Ghost", Vector3(3.0, 0.0, 5.0))
+	_asset_footprint(ghost, Footprint.Kind.WALL)
+	found = empty_layout.validate()
+	_check("an empty footprint is flagged: 2 points", found.any(func(s: String) -> bool: return s.contains("Broken") and s.contains("empty footprint")), true)
+	_check("and an empty polygon with no meshes to derive it from", found.any(func(s: String) -> bool: return s.contains("Ghost") and s.contains("nothing to derive")), true)
+	empty_layout.free()
+
+	var arch_layout := _fixture_layout()
+	var arch := _asset(arch_layout, "Arch", Vector3(2.0, 0.0, 2.0))
+	_asset_box(arch, Vector3(1.0, 2.2, 1.0), Vector3(0.5, 1.1, 0.5))
+	_asset_box(arch, Vector3(1.0, 2.2, 1.0), Vector3(3.5, 1.1, 0.5))
+	_asset_box(arch, Vector3(4.0, 0.6, 1.0), Vector3(2.0, 2.5, 0.5))
+	_asset_footprint(arch, Footprint.Kind.WALL)   # derived: the hull closes the opening
+	found = arch_layout.validate()
+	_check("a hull over an archway is flagged (an invisible wall in the opening)",
+		found.size() == 1 and found[0].contains("Arch") and found[0].contains("invisible wall"), true)
+	var drawn_arch := _asset(arch_layout, "DrawnArch", Vector3(2.0, 0.0, 2.0))
+	arch.free()
+	_asset_box(drawn_arch, Vector3(1.0, 2.2, 1.0), Vector3(0.5, 1.1, 0.5))
+	_asset_box(drawn_arch, Vector3(1.0, 2.2, 1.0), Vector3(3.5, 1.1, 0.5))
+	_asset_box(drawn_arch, Vector3(4.0, 0.6, 1.0), Vector3(2.0, 2.5, 0.5))
+	_asset_footprint(drawn_arch, Footprint.Kind.WALL, PackedVector2Array([Vector2(0, 0), Vector2(1, 0), Vector2(1, 1), Vector2(0, 1)]))
+	_asset_footprint(drawn_arch, Footprint.Kind.WALL, PackedVector2Array([Vector2(3, 0), Vector2(4, 0), Vector2(4, 1), Vector2(3, 1)]))
+	_check("drawn as two footprints, one per pillar, it passes", arch_layout.validate(), [])
+	arch_layout.free()
+
+	var long_layout := _fixture_layout()
+	var long_wall := _asset(long_layout, "Long", Vector3(2.0, 0.0, 2.0))
+	_asset_box(long_wall, Vector3(4.0, 2.2, 1.0), Vector3(2.0, 1.1, 0.5))
+	_asset_footprint(long_wall, Footprint.Kind.WALL, PackedVector2Array([Vector2(0, 0), Vector2(2, 0), Vector2(2, 1), Vector2(0, 1)]))
+	found = long_layout.validate()
+	_check("a mesh sticking out of its footprint is flagged (2 m past it)",
+		found.size() == 1 and found[0].contains("Long") and found[0].contains("stick out") and found[0].contains("2.00 m"), true)
+	long_layout.free()
+
+	var rock_layout := _fixture_layout()
+	var rock := _asset(rock_layout, "Rock", Vector3(5.0, 0.0, 3.0))
+	var sphere := SphereMesh.new()
+	sphere.radius = 0.8
+	sphere.height = 1.5
+	sphere.radial_segments = 7
+	sphere.rings = 3
+	var rock_mesh := MeshInstance3D.new()
+	rock_mesh.mesh = sphere
+	rock_mesh.position = Vector3(0.0, 0.55, 0.0)
+	rock.add_child(rock_mesh)
+	var rock_fp := _asset_footprint(rock, Footprint.Kind.WALL)
+	_check("a boulder's derived outline passes (its middle is inside its cross-section)", rock_layout.validate(), [])
+	_check("the derived outline is the boulder's widest ring: 7 sides, 0.8 m out",
+		rock_fp.get_outline_local().size() in [7, 8] and absf(rock_fp.get_outline_local()[0].length() - 0.8) < 0.1, true)
+	rock_layout.free()
+
+
+func _test_layout_in_view() -> void:
+	_section("A layout under the 3D view (P8: the room's look, its floor pick, floor drawings, fading)")
+	var layout := _fixture_layout()
+	var room := layout.build_sim()
+	var main := Node2D.new()
+	main.name = "FixtureMain"
+	main.add_child(room)
+	add_child(main)
+	var view := WorldView.new()
+	main.add_child(view)
+	view.setup(main, room, null, null, layout)
+	_check("the layout moves under the WorldView as the room's look (no RoomView)",
+		layout.get_parent() == view and view.layout == layout and view.room_view == null, true)
+	var pick := layout.get_node_or_null("FloorPick") as StaticBody3D
+	_check("its walkable floor's pick body: 3D layer 1, colliding with nothing",
+		pick != null and pick.collision_layer == WorldView.FLOOR_LAYER and pick.collision_mask == 0, true)
+	_check("its floor's material shows the floor drawings",
+		(load(FLOOR_STONE) as ShaderMaterial).get_shader_parameter(&"drawings") == view.floor_overlay.get_texture(), true)
+	_check("its fades asset (the wall) fades", (view.get("_fading") as Array).size(), 1)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var on_floor := Vector3(6.3, 0.0, 4.2)
+	_check_near("the floor pick lands on its floor (px off)", view.floor_at_screen_px(view.camera.unproject_position(on_floor)).distance_to(Units.to_sim(on_floor)), 0.0, 0.5)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var fp := layout.get_node("Wall").get_child(1) as Footprint
+	_check("in play its footprints aren't drawn (debug_draw off)", fp.get_child_count(true), 0)
+	main.free()
+
+	var drawn := _fixture_layout()
+	drawn.debug_draw = true
+	add_child(drawn)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var drawn_fp := drawn.get_node("Wall").get_child(1) as Footprint
+	_check("with debug_draw they are: a preview mesh (a tool's, never part of the room)",
+		drawn_fp.get_child_count(true) == 1 and drawn_fp.get_child(0, true).has_meta(RoomLayout.TOOL_META), true)
+	_check("the layout's own lists leave the preview out (its 5 meshes)", drawn.get_meshes().size(), 5)
+	drawn.free()
+
+	var marker := SimMarker.new()
+	marker.name = "Slime9"
+	marker.scene = load("res://scenes/enemies/slime.tscn")
+	add_child(marker)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check("in play a SimMarker shows nothing (its look is the editor's)", marker.get_child_count(true), 0)
+	marker._rebuild_preview()   # what the editor runs
+	var preview := marker.get_child(0, true) if marker.get_child_count(true) == 1 else null
+	var capsule := preview.find_children("*", "MeshInstance3D", true, false) if preview else []
+	var label := preview.find_children("*", "Label3D", true, false) if preview else []
+	_check("its editor look: a capsule as wide as the slime's gameplay radius (0.55 m), its name over it, marked a tool's",
+		preview != null and preview.has_meta(RoomLayout.TOOL_META) and capsule.size() == 1
+		and is_equal_approx(((capsule[0] as MeshInstance3D).mesh as CapsuleMesh).radius, 0.55)
+		and label.size() == 1 and (label[0] as Label3D).text == "Slime9", true)
+	marker.free()
+
+
+func _test_real_layouts() -> void:
+	_section("The real layouts (P8: the 3D sandbox, room_01's layout, their play scenes, walking masks)")
+	var sandbox := (load("res://scenes/rooms/sandbox_3d.tscn") as PackedScene).instantiate() as RoomLayout
+	_check("the 3D sandbox is a RoomLayout, silent in the validator", sandbox != null and sandbox.validate().is_empty(), true)
+	var tile_sandbox := (load("res://scenes/rooms/sandbox.tscn") as PackedScene).instantiate()
+	var same_markers := true
+	for marker in sandbox.get_sim_markers():
+		var twin := tile_sandbox.get_node_or_null("Entities/" + String(marker.name)) as Node2D
+		same_markers = same_markers and twin != null and Units.to_sim(RoomLayout.transform_in(marker, sandbox).origin).is_equal_approx(twin.position) \
+			and marker.scene.resource_path == twin.scene_file_path and marker.properties.get("passive", false) == twin.get(&"passive")
+	_check("its 6 markers are the tile sandbox's dummies and enemies, at the same points (dummies passive)",
+		same_markers and sandbox.get_sim_markers().size() == 6, true)
+	_check_exact("its spawn is the tile sandbox's", Units.to_sim((sandbox.get_node("PlayerSpawn") as Node3D).position), (tile_sandbox.get_node("PlayerSpawn") as Node2D).position)
+	var helpers_ok := true
+	for helper in ["SandboxReactions", "SandboxAbilities", "SandboxAugments", "SandboxTalents"]:
+		var copy := sandbox.get_node_or_null(helper)
+		helpers_ok = helpers_ok and copy != null and copy.get_script() == tile_sandbox.get_node(helper).get_script()
+	_check("it carries the tile sandbox's four helper nodes", helpers_ok, true)
+	var kinds := {}
+	for fp in sandbox.get_footprints():
+		kinds[fp.kind] = int(kinds.get(fp.kind, 0)) + 1
+	_check("it has walls, a fence (low obstacle) and a pit", kinds.has(Footprint.Kind.WALL) and kinds.get(Footprint.Kind.LOW_OBSTACLE, 0) == 1 and kinds.get(Footprint.Kind.PIT, 0) == 1, true)
+	tile_sandbox.free()
+	sandbox.free()
+
+	var layout := (load("res://scenes/rooms/room_01_layout.tscn") as PackedScene).instantiate() as RoomLayout
+	_check("room_01's layout is silent in the validator", layout != null and layout.validate().is_empty(), true)
+	var tile_room := (load("res://scenes/rooms/room_01.tscn") as PackedScene).instantiate()
+	var tiles := tile_room.get_node("Tiles") as TileMapLayer
+	var outlines: Array[PackedVector2Array] = []
+	var only_walls := true
+	for fp in layout.get_footprints():
+		outlines.append(layout.footprint_outline_m(fp))
+		only_walls = only_walls and fp.kind == Footprint.Kind.WALL
+	var mismatches := 0
+	var cells := 0
+	for c in tiles.get_used_cells():
+		var data := tiles.get_cell_tile_data(c)
+		var is_wall := data != null and data.get_collision_polygons_count(0) > 0
+		var center_m := Vector2(Units.px_to_m(tiles.map_to_local(c).x), Units.px_to_m(tiles.map_to_local(c).y))
+		var covered := RoomLayout.distance_outside(center_m, outlines) == 0.0
+		if covered != is_wall:
+			mismatches += 1
+		cells += 1
+	_check("every one of the tile room's %d cells: a wall cell is under a wall footprint, a floor cell isn't (mismatches)" % cells, mismatches, 0)
+	_check("its footprints are all walls", only_walls, true)
+	var same := true
+	for e in tile_room.get_node("Entities").get_children():
+		var marker := layout.get_node_or_null("Markers/" + String(e.name)) as SimMarker
+		same = same and marker != null and Units.to_sim(marker.position).is_equal_approx((e as Node2D).position) and marker.scene.resource_path == e.scene_file_path
+	_check("its markers are the tile room's six slimes, at the same points", same and layout.get_sim_markers().size() == 6, true)
+	_check_exact("its spawn is the tile room's", Units.to_sim((layout.get_node("PlayerSpawn") as Node3D).position), (tile_room.get_node("PlayerSpawn") as Node2D).position)
+	tile_room.free()
+	layout.free()
+
+	for pair: Array in [["res://scenes/sandbox_main_layout.tscn", "res://scenes/rooms/sandbox_3d.tscn"], ["res://scenes/main_layout.tscn", "res://scenes/rooms/room_01_layout.tscn"]]:
+		var state := (load(pair[0]) as PackedScene).get_state()
+		var props := {}
+		for i in state.get_node_property_count(0):
+			props[state.get_node_property_name(0, i)] = state.get_node_property_value(0, i)
+		var room_scene: PackedScene = props.get(&"room_scene")
+		_check("%s plays %s with the 3D view on" % [String(pair[0]).get_file(), String(pair[1]).get_file()],
+			props.get(&"use_3d_view", false) == true and room_scene != null and room_scene.resource_path == pair[1], true)
+
+	for path in ["res://scenes/player/player.tscn", "res://scenes/enemies/slime.tscn", "res://scenes/enemies/slime_elite.tscn"]:
+		var unit := (load(path) as PackedScene).instantiate() as CollisionObject2D
+		_check("%s walks into walls, units and fences (layers 1, 2, 3, 7), not pits yet (6)" % path.get_file(),
+			unit.collision_mask, 1 | 2 | 4 | 64)
+		unit.free()
 
 
 # --- Helpers ------------------------------------------------------------------------------
