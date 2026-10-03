@@ -308,7 +308,7 @@ func _on_ability_released(slot: StringName) -> void:
 func request_charge(slot: StringName) -> void:
 	if abilities.is_ready(slot) and not is_cast_blocked() and not abilities.can_afford(slot):
 		abilities.fail_cast(slot, AbilityComponent.FAIL_NO_RESOURCE)
-	elif abilities.is_ready(slot) and not is_cast_blocked() and not abilities.conditions_pass(slot, get_global_mouse_position()):
+	elif abilities.is_ready(slot) and not is_cast_blocked() and not abilities.conditions_pass(slot, _spike_mouse()):
 		abilities.fail_cast(slot, AbilityComponent.FAIL_CONDITION)   # AB12: not buffered
 	elif abilities.can_cast(slot) and not dash.is_dashing() and can_interrupt_swing(slot):
 		_start_charge(slot)
@@ -334,7 +334,7 @@ func start_buffered_ability(slot: StringName) -> void:
 
 
 func _start_charge(slot: StringName) -> bool:
-	if not abilities.try_start_charge(slot, get_global_mouse_position()):
+	if not abilities.try_start_charge(slot, _spike_mouse()):
 		return false
 	_charge_from_input = true
 	queue_redraw()
@@ -344,7 +344,7 @@ func _start_charge(slot: StringName) -> bool:
 ## Releases the hold at `aim` (INF = the cursor).
 func _release_charge(aim: Vector2 = Vector2.INF) -> void:
 	_charge_from_input = false
-	abilities.release_charge(aim if aim != Vector2.INF else get_global_mouse_position())
+	abilities.release_charge(aim if aim != Vector2.INF else _spike_mouse())
 	queue_redraw()
 
 
@@ -363,7 +363,7 @@ func get_indicator_slot() -> StringName:
 ## release windup), otherwise the cursor.
 func get_indicator_aim() -> Vector2:
 	var locked := abilities.get_locked_charge_aim()
-	return locked if locked != Vector2.INF else get_global_mouse_position()
+	return locked if locked != Vector2.INF else _spike_mouse()
 
 
 ## Any way a charge-up ends (AbilityComponent's one end-charge path): the
@@ -383,7 +383,7 @@ func _on_abilities_charge_ended(_slot: StringName, _ability: Ability) -> void:
 func request_cast(slot: StringName) -> void:
 	if abilities.is_ready(slot) and not is_cast_blocked() and not abilities.can_afford(slot):
 		abilities.fail_cast(slot, AbilityComponent.FAIL_NO_RESOURCE)
-	elif abilities.is_ready(slot) and not is_cast_blocked() and not abilities.conditions_pass(slot, get_global_mouse_position(), _condition_target_for(slot)):
+	elif abilities.is_ready(slot) and not is_cast_blocked() and not abilities.conditions_pass(slot, _spike_mouse(), _condition_target_for(slot)):
 		abilities.fail_cast(slot, AbilityComponent.FAIL_CONDITION)   # AB12: fails at once, not buffered
 	elif abilities.can_cast(slot) and not dash.is_dashing() and can_interrupt_swing(slot):
 		cast_ability(slot)
@@ -414,7 +414,7 @@ func _condition_target_for(slot: StringName) -> Unit:
 	var ability := abilities.get_ability(slot)
 	if ability == null or ability.targeting != Ability.Targeting.UNIT:
 		return null
-	var aim := get_global_mouse_position()
+	var aim := _spike_mouse()
 	var target := _enemy_under_point(aim)
 	return target if target != null else AbilityUtil.nearest_enemy_to(self, aim, target_forgiveness)
 
@@ -422,7 +422,7 @@ func _condition_target_for(slot: StringName) -> Unit:
 ## Cast an ability at the cursor (also used by tests).
 func cast_ability(slot: StringName, aim: Vector2 = Vector2.INF) -> bool:
 	if aim == Vector2.INF:
-		aim = get_global_mouse_position()
+		aim = _spike_mouse()
 	var target := _enemy_under_point(aim)
 	if target == null:
 		target = AbilityUtil.nearest_enemy_to(self, aim, target_forgiveness)
@@ -430,7 +430,7 @@ func cast_ability(slot: StringName, aim: Vector2 = Vector2.INF) -> bool:
 
 
 func _enemy_under_mouse() -> Unit:
-	return _enemy_under_point(get_global_mouse_position())
+	return _enemy_under_point(_spike_mouse())
 
 
 func _enemy_under_point(point: Vector2) -> Unit:
@@ -453,7 +453,7 @@ func _enemy_under_point(point: Vector2) -> Unit:
 func _physics_process(_delta: float) -> void:
 	if not is_alive():
 		return
-	abilities.set_aim_hint(get_global_mouse_position())   # conditions checked outside a press (AB12)
+	abilities.set_aim_hint(_spike_mouse())   # conditions checked outside a press (AB12)
 	_update_charge_input()
 	_update_facing()
 	_update_state()
@@ -467,7 +467,7 @@ func _update_charge_input() -> void:
 	if not abilities.is_charging():
 		_charge_from_input = false
 		return
-	abilities.set_charge_aim(get_global_mouse_position())
+	abilities.set_charge_aim(_spike_mouse())
 	if _charge_from_input and not Input.is_action_pressed(ABILITY_ACTIONS[abilities.casting_slot]):
 		_release_charge()
 
@@ -586,6 +586,17 @@ func _update_state() -> void:
 
 ## Where the player is aiming, in world space (the mouse).
 func get_aim_point() -> Vector2:
+	return _spike_mouse()
+
+
+## P0b spike only (branch spike/3d-p0b, never merged): the 3D view's floor
+## pick replaces the 2D mouse when it sets spike_aim.
+var spike_aim: Callable
+
+
+func _spike_mouse() -> Vector2:
+	if spike_aim.is_valid():
+		return spike_aim.call()
 	return get_global_mouse_position()
 
 
