@@ -13,6 +13,9 @@ extends Node3D
 ## both projections), RoomView on a fixture tile room (walls, floor, the
 ## environment and key light), the fade (what blocks the view, the fade's
 ## pace) and hiding the 2D world (and restoring it).
+## P4: GameCamera3D (GameCamera's lean, centering, pan and shake as the same
+## share of the screen, bounds, the follow pace) and the listener (it follows
+## the focus; Audio's reach and panning scale with the view, and go back).
 ## Prints PASS/FAIL per check and a total; run headless, it quits with the
 ## number of failures as the exit code.
 
@@ -41,6 +44,7 @@ func _ready() -> void:
 	_test_room_view()
 	_test_fade()
 	_test_hide_sim()
+	_test_game_camera_3d()
 	await _test_floor_pick()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
@@ -286,6 +290,118 @@ func _test_hide_sim() -> void:
 	_check("the WorldView leaving the tree restores the viewport's mask", viewport.canvas_cull_mask, before)
 	view.free()
 	main.free()
+
+
+# --- P4: GameCamera3D and the listener --------------------------------------------------------
+
+func _test_game_camera_3d() -> void:
+	_section("GameCamera3D (GameCamera's lock, lean, pan, shake and bounds; the listener)")
+	var look: CameraLook = load("res://data/camera_looks/camera_look_default.tres")
+	var vis := get_viewport().get_visible_rect().size
+	var center := vis * 0.5
+	var k := GameCamera3D.meters_per_screen_px(look, vis.x)
+
+	var probe := GameCamera3D.new()
+	var view := WorldView.new()
+	_check("physics interpolation off (placed by code every frame)", probe.physics_interpolation_mode, Node.PHYSICS_INTERPOLATION_MODE_OFF)
+	_check("it runs after GameCamera (0) and before WorldView's fade",
+		probe.process_priority > 0 and probe.process_priority < view.process_priority, true)
+	probe.free()
+	view.free()
+	_check_near("follow smoothing: GameCamera's speed 10 at 60 ticks is 10.94 per second", GameCamera3D.follow_rate_per_second(10.0, 60), 10.9393, 0.0001)
+	_check_near("28 m across a 640 px wide screen: 0.04375 m per screen px", GameCamera3D.meters_per_screen_px(look, 640.0), 0.04375, 0.000001)
+	_check_near("sounds reach 1.4 times as far: the view's 896 px over the 640 px screen", GameCamera3D.view_distance_scale(look, 640.0), 1.4, 0.000001)
+	var floor_m := Rect2(1.0, 1.0, 28.0, 18.0)
+	_check_exact("bounds: a focus on the room's floor stays", GameCamera3D.clamp_focus(Vector3(5.0, 0.0, 6.0), floor_m), Vector3(5.0, 0.0, 6.0))
+	_check_exact("bounds: past the east and south edges it stops on them, its height kept",
+		GameCamera3D.clamp_focus(Vector3(31.0, 0.5, 25.0), floor_m), Vector3(29.0, 0.5, 19.0))
+	_check_exact("no bounds: anywhere", GameCamera3D.clamp_focus(Vector3(-50.0, 0.0, 90.0), Rect2()), Vector3(-50.0, 0.0, 90.0))
+
+	# A camera following a target at FOCUS. Its source is a GameCamera outside
+	# the tree: its lean, lock and shake are set by hand, and its smoothing is
+	# off there, so the focus jumps to its goal on each _process().
+	var target := Node3D.new()
+	target.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	add_child(target)
+	target.global_position = FOCUS
+	var cam2d := GameCamera.new()
+	var cam := GameCamera3D.new()
+	cam.target = target
+	cam.source = cam2d
+	add_child(cam)
+	cam.snap_to_target()
+	_check_near("snapped: the target is the screen's center (px off)", cam.unproject_position(FOCUS).distance_to(center), 0.0, 0.01)
+	_check_near_v3("80 px sideways on screen is 3.5 m on the floor (the same share of the screen as in 2D)", cam.screen_to_floor(Vector2(80.0, 0.0)), Vector3(3.5, 0.0, 0.0), 0.001)
+	var up := cam.screen_to_floor(Vector2(0.0, -48.0))
+	_check("48 px up the screen is north, and more floor than 48 px sideways (perspective at 50°)", up.z < -48.0 * k and absf(up.x) < 0.0001, true)
+	var round_ok := 0
+	var offsets: Array[Vector2] = [Vector2(80.0, 48.0), Vector2(-80.0, -48.0), Vector2(40.0, 24.0), Vector2(-7.0, 150.0), Vector2(250.0, -160.0)]
+	for o in offsets:
+		if cam.unproject_position(FOCUS + cam.screen_to_floor(o)).distance_to(center + o) <= 0.05:
+			round_ok += 1
+	_check("5 screen offsets: each floor point found projects back onto its screen point", round_ok, offsets.size())
+
+	cam2d._lead = Vector2(80.0, 0.0)
+	cam._process(0.016)
+	_check_near("locked, GameCamera leaning 80 px right: the target sits 80 px left of the center (px off)",
+		cam.unproject_position(FOCUS).distance_to(center + Vector2(-80.0, 0.0)), 0.0, 0.05)
+	cam2d._lead = Vector2(0.0, 48.0)
+	cam._process(0.016)
+	_check_near("leaning 48 px down: the target sits 48 px above the center (px off)",
+		cam.unproject_position(FOCUS).distance_to(center + Vector2(0.0, -48.0)), 0.0, 0.05)
+	cam2d._lead = Vector2(80.0, 0.0)
+	Input.action_press(&"camera_center")
+	cam._process(0.016)
+	Input.action_release(&"camera_center")
+	_check_near("holding C: centered, no lean (px off)", cam.unproject_position(FOCUS).distance_to(center), 0.0, 0.01)
+	cam.bounds_m = Rect2(0.0, 0.0, 11.0, 20.0)
+	cam._process(0.016)
+	_check_near_v3("the room's floor ends 1 m east of the target: the lean stops there", cam.get_focus(), Vector3(11.0, 0.0, 8.0), 0.0001)
+	cam.bounds_m = Rect2()
+	cam2d._lead = Vector2.ZERO
+	cam2d.offset = Vector2(10.0, -4.0)
+	cam._process(0.016)
+	_check_near("GameFeel's shake (GameCamera's offset 10 px right, 4 px up): h_offset 10 px of floor", cam.h_offset, 10.0 * k, 0.000001)
+	_check_near("v_offset 4 px of floor, up", cam.v_offset, 4.0 * k, 0.000001)
+	_check_near("the picture moves as in 2D: the target 10 px left, 4 px down (px off)",
+		cam.unproject_position(FOCUS).distance_to(center + Vector2(-10.0, 4.0)), 0.0, 0.05)
+	cam2d.offset = Vector2.ZERO
+	cam2d.locked = false
+	cam2d.edge_margin = -100000.0   # no edge pan: headless, the mouse sits in the window's corner
+	var before := cam.get_focus()
+	Input.action_press(&"camera_right")
+	cam._process(0.1)
+	Input.action_release(&"camera_right")
+	_check_near_v3("unlocked, the right arrow for 0.1 s: GameCamera's 420 px/s of screen, 42 px = 1.84 m east",
+		cam.get_focus() - before, Vector3(42.0 * k, 0.0, 0.0), 0.001)
+	cam2d.locked = true
+
+	# The listener and Audio's scale.
+	var scale := GameCamera3D.view_distance_scale(look, vis.x)
+	_check("the listener is current", cam.listener != null and cam.listener.is_current(), true)
+	_check_near("Audio hears from the camera's focus, in px (px off)", Audio.get_listener_position().distance_to(Units.to_sim(cam.get_focus())), 0.0, 0.001)
+	_check_near("Audio's reach is scaled to the view", Audio.distance_scale, scale, 0.000001)
+	var ev := SoundEvent.new()
+	ev.resource_name = "view_test_tone"
+	var streams: Array[AudioStream] = [load("res://audio/sfx/hit_crit_01.wav")]
+	ev.variations = streams
+	ev.volume_db = -80.0
+	ev.max_distance_px = 480.0
+	var heard_from := Audio.get_listener_position()
+	var h := Audio.play_at(ev, heard_from + Vector2(480.0 * scale - 10.0, 0.0))
+	_check("a sound past its 480 px but inside 480 px x the scale starts", h > 0, true)
+	var p2 := Audio.get_player(h) as AudioStreamPlayer2D
+	_check_near("its player's reach is 480 px x the scale", p2.max_distance if p2 else 0.0, 480.0 * scale, 0.001)
+	_check_near("its panning strength is 1 / the scale", p2.panning_strength if p2 else 0.0, 1.0 / scale, 0.0001)
+	_check("one beyond 480 px x the scale isn't started", Audio.play_at(ev, heard_from + Vector2(480.0 * scale + 10.0, 0.0)), 0)
+	_check("logged out_of_range", Audio.get_log()[-1].reason, &"out_of_range")
+	Audio.stop_all()
+	remove_child(cam)
+	_check("the camera gone: Audio's reach is the data's again (scale 1)", Audio.distance_scale, 1.0)
+	_check("and no listener: sounds are heard from the screen center again", get_viewport().get_audio_listener_2d() == null, true)
+	cam.free()
+	cam2d.free()
+	target.free()
 
 
 # --- Floor pick -------------------------------------------------------------------------------

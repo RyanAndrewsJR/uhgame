@@ -11,6 +11,52 @@
 
 ## 3D pivot (3D_PIVOT.md)
 
+### P4 – camera and listener: 2026-10-02, Built (awaiting Ryan's check)
+Built from 3D.md, with Ryan's two answers at the start (DECISIONS.md, 3D view): bounds keep the focus on the room's floor, and sounds scale with the view. Played from `scenes/sandbox_main_3d.tscn`.
+- **`scripts/camera/game_camera_3d.gd`** (new, `class_name GameCamera3D`, Camera3D):
+  - The look from `CameraLook`, placed every frame with physics interpolation off. It follows its target (the player's capsule until P6) through the target's interpolated transform.
+  - It reads Main's `GameCamera`, which stays the one place these are tuned and computed: `locked` (Y), `get_current_lead()` (the lean), `offset` (the shake), `edge_pan_speed`, `edge_margin` and the follow smoothing.
+  - Locked: the goal is the target plus the lean. Holding C centers with no lean. Unlocked: the arrow keys and the window's edges pan the goal at GameCamera's 420 screen px a second, in real time.
+  - The lean: a lean of `lead` screen px puts the target exactly `lead` px off the screen's center, as in 2D. The focus is `target − screen_to_floor(−lead)`.
+  - `screen_to_floor(offset_px)`: the floor distance between the points under the screen's center and under the center plus an offset. 80 px sideways is 3.5 m, the same share of the 28 m screen. Up the screen, more floor per px (perspective).
+  - Follow smoothing: GameCamera's `position_smoothing_speed` 10 on 60 Hz ticks, turned into the same pace per second (10.94/s), on game time (hitstop freezes it, as Camera2D's physics-tick smoothing does).
+  - Shake: GameCamera's `offset` (canvas px) × 0.04375 m per px goes to `h_offset` / `v_offset`.
+  - Bounds: `clamp_focus()` keeps the focus inside the room's floor (GameCamera's `bounds` in meters). Near an edge the void past the walls shows.
+  - Process priority 10: after GameCamera (0), before WorldView's fade (now 20).
+  - An `AudioListener2D` child, made current, placed at the focus in px every frame. While it lives, it sets `Audio.distance_scale` to the view's width over the canvas's (896 / 640 = 1.4), and back to 1 when it leaves.
+  - Static helpers for the tests: `meters_per_screen_px()`, `view_distance_scale()`, `clamp_focus()`, `follow_rate_per_second()`; `get_focus()`, `snap_to_target()`.
+- **`scripts/autoload/audio.gd`** (additive): `distance_scale` (1.0), `get_listener_position()` reading the current AudioListener2D first, the out-of-range check and each 2D player's `max_distance` × the scale, and `panning_strength` = 1 / the scale. At 1 everything is as before.
+- **`scripts/view/world_view.gd`:** P3's stand-in camera is replaced by GameCamera3D, as agreed in P3 (`_place_camera()` is gone). `setup()` takes Main's GameCamera (optional 4th argument) for its lock, lean, shake, pan settings and bounds. `process_priority` is 20.
+- **`scripts/main.gd`** (additive): `world_view.setup(self, room, player, camera)`; the export's comment.
+- **view_test**: 109 checks (30 new).
+  - The camera's priority and interpolation, the follow pace, meters per screen px, the sound scale, the bounds clamp.
+  - On a camera following a target:
+    - the snap;
+    - 80 px = 3.5 m;
+    - up the screen is north and covers more floor;
+    - 5 offsets project back within 0.05 px;
+    - a lean of 80 px right or 48 px down puts the target exactly 80 px left of or 48 px above the center;
+    - C centers;
+    - the lean stops at the floor's edge;
+    - the shake's h/v offsets move the picture as in 2D;
+    - the right arrow pans 42 px = 1.84 m in 0.1 s.
+  - The listener: current, at the focus; Audio's scale; a sound inside 480 × 1.4 px starts with the scaled reach and panning, one beyond is dropped `out_of_range`; with the camera gone the scale is 1 and there's no listener.
+- **Found while building:**
+  - The first lean put the target 3 px off vertically at 48 px: moving the focus to the floor point under `center + lead` isn't symmetric up and down the screen in perspective. Fixed by placing the focus so the target lands on `center − lead`, into 3D.md.
+  - The shake moves the camera along its tilted up axis, off its usual height, so the floor mapping sets it aside (it was 0.3% off).
+  - Headless, the mouse sits in the window's corner, so an arrow-pan check also edge-pans unless the edge margin is off.
+  - GameCamera's shake rolls the global random numbers once per rendered frame. A shake then shifts later enemy wander rolls by however many frames were drawn, so a forced shake made the 2D and 3D runs part at frame 228. This happens in the 2D game too; nothing in P4 changed it.
+- **Measured** (windowed, from the scratch harness, with saving off and a fixed seed):
+  - The P3 walk with no shake: every unit identical in 2D and 3D until the dash (frame 647, the known cursor noise).
+  - While playing:
+    - the focus sits off the Knight by GameCamera's lean (18 screen px became 25 sim px sideways; up the screen became more);
+    - the listener sat exactly on the focus;
+    - the sound scale was 1.40;
+    - a forced shake showed in the h/v offsets.
+  - Screenshots: the Knight off-center by the lean toward the cursor, and the void past the north wall when walking there.
+  - Real frame times: median 5.55 ms (180 Hz vsync), 95th percentile 6.33 ms, worst 10.6 ms. Measured as real time between frames: `Performance.TIME_PROCESS`, used in P3's harness, isn't a frame time.
+- **Tests:** stats 179, combat 460, abilities 563, audio 110, champions 168, talents 308, view 109: **1,897/1,897**, all seven suites in parallel. `settings.cfg` and `progress.cfg` were unchanged by every run (hashed again after Ryan's P3 play, which saved progress at 23:00).
+
 ### P3 – look and light (tile rooms): 2026-10-02, Passed (Ryan's check)
 Minimal scaffolding, built from 3D.md, with stand-ins for the camera and the units (Ryan's answer at the start; DECISIONS.md, 3D view). Played from `scenes/sandbox_main_3d.tscn`.
 - **`scripts/data/camera_look.gd`** (new, `class_name CameraLook`) and **`data/camera_looks/camera_look_default.tres`**:

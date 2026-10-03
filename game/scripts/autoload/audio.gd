@@ -32,6 +32,14 @@ const RESULT_STOLEN := &"stolen"
 ## it in the Remote scene tree while the game runs.
 @export var debug_draw: bool = false
 
+## Positional sounds' reach and panning, scaled to the view (AUDIO.md; 3D.md,
+## GameCamera3D): max_distance_px × this, panning strength ÷ this. 1 = the
+## data's numbers, set for the 2D game's 640 px wide screen. The 3D camera sets
+## it to its view's width over the screen's (28 m = 896 px over 640: 1.4), so
+## a sound at the screen's edge is as loud and as panned as in 2D; back to 1
+## when that camera leaves.
+var distance_scale: float = 1.0
+
 
 ## One sound that's playing.
 class Voice:
@@ -161,10 +169,15 @@ func get_bus_base_db(bus: StringName) -> float:
 	return _base_db.get(bus, 0.0)
 
 
-## Where positional sounds are heard from: the screen center in world space
-## (Godot's default with no AudioListener2D: the camera's actual view).
+## Where positional sounds are heard from: the current AudioListener2D if
+## there is one (the 3D camera's floor focus, 3D.md), else the screen center
+## in world space (Godot's default with no AudioListener2D: the camera's
+## actual view).
 func get_listener_position() -> Vector2:
 	var viewport := get_viewport()
+	var listener := viewport.get_audio_listener_2d()
+	if listener:
+		return listener.global_position
 	return viewport.get_canvas_transform().affine_inverse() * (viewport.get_visible_rect().size * 0.5)
 
 
@@ -207,7 +220,7 @@ func _play(event: SoundEvent, position: Vector2, wants_position: bool, follow: N
 	if starts.size() >= event.max_instances:
 		return _drop(entry, &"instance_limit")
 
-	if positional and not event.loop and position.distance_to(get_listener_position()) > event.max_distance_px:
+	if positional and not event.loop and position.distance_to(get_listener_position()) > event.max_distance_px * distance_scale:
 		return _drop(entry, &"out_of_range")
 
 	var bus := event.get_bus_name()
@@ -243,9 +256,9 @@ func _start_player(event: SoundEvent, stream: AudioStream, bus: StringName, posi
 	var player: Node
 	if positional:
 		var p2 := _take_player_2d()
-		p2.max_distance = event.max_distance_px
+		p2.max_distance = event.max_distance_px * distance_scale
 		p2.attenuation = 1.0
-		p2.panning_strength = 1.0
+		p2.panning_strength = 1.0 / distance_scale
 		p2.global_position = position
 		p2.stream = stream
 		p2.bus = bus

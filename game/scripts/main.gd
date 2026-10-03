@@ -10,8 +10,9 @@ extends Node2D
 @export var player_died_sound: SoundEvent
 ## The 3D view (docs/3D.md), off until the 3D pivot's milestone. Off, the game
 ## is exactly the 2D game. On, Main adds a WorldView: the 2D world is hidden
-## from the screen and the room shows in 3D (P3; a stand-in camera and capsules
-## until P4 and P6). To play it: open scenes/sandbox_main_3d.tscn, press F6.
+## from the screen and the room shows in 3D through GameCamera3D (P3–P4;
+## capsules for the units until P6). To play it: open
+## scenes/sandbox_main_3d.tscn, press F6.
 @export var use_3d_view: bool = false
 
 @onready var hud: CanvasLayer = $HUD
@@ -51,7 +52,7 @@ func _ready() -> void:
 	if use_3d_view:
 		world_view = WorldView.new()
 		add_child(world_view)
-		world_view.setup(self, room, player)
+		world_view.setup(self, room, player, camera)
 
 	pause_menu = pause_menu_scene.instantiate()
 	add_child(pause_menu)

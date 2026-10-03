@@ -7,8 +7,8 @@ extends Node3D
 ## P2: its place in the tree, its physics priority and the floor pick.
 ## P3: hides the 2D world from the screen, shows a tile room's look
 ## (RoomView) and fades `fades` assets between the camera and the player.
-## Until P4 and P6 it also holds stand-ins (throwaway): a plain follow camera
-## at the CameraLook (no lean, pan, shake or bounds) and a capsule per unit.
+## P4: the camera is GameCamera3D (P3's plain stand-in camera is gone). Until
+## P6 it also holds stand-ins (throwaway): a capsule per unit.
 
 ## Runs after every sim node (they're all at the default 0), so the views copy
 ## positions the sim has already moved this tick (3D.md, Core rules).
@@ -39,10 +39,13 @@ const STAND_IN_ENEMY_COLOR := Color(0.9, 0.25, 0.2)
 ## The camera's look (field of view, pitch, width) and the fade's numbers.
 @export var look: CameraLook = preload("res://data/camera_looks/camera_look_default.tres")
 
+## Runs its _process after GameCamera3D's (10): the fade looks from where the
+## camera is this frame.
+const PROCESS_PRIORITY := 20
+
 ## The tile room's look (null for a room without Tiles).
 var room_view: RoomView
-## P3's stand-in camera (P4: GameCamera3D).
-var camera: Camera3D
+var camera: GameCamera3D
 var player: Player
 
 var _sim_hidden := false
@@ -57,11 +60,14 @@ var _fading: Array[Dictionary] = []
 func _init() -> void:
 	name = "WorldView"
 	process_physics_priority = PHYSICS_PRIORITY
+	process_priority = PROCESS_PRIORITY
 
 
 ## Main calls this once, right after adding the WorldView: hides the 2D world,
-## builds the room's look, the stand-ins and the camera.
-func setup(main: CanvasItem, room: Node2D, p_player: Player) -> void:
+## builds the room's look, the stand-ins and the camera. `camera_2d` is Main's
+## GameCamera: the 3D camera uses its lock, lean, shake, pan settings and room
+## bounds (null: no lean, shake or bounds).
+func setup(main: CanvasItem, room: Node2D, p_player: Player, camera_2d: GameCamera = null) -> void:
 	player = p_player
 	hide_sim(main, room)
 	var tiles := room.get_node_or_null("Tiles") as TileMapLayer
@@ -74,14 +80,16 @@ func setup(main: CanvasItem, room: Node2D, p_player: Player) -> void:
 		_add_stand_in(unit as Unit)
 	get_tree().node_added.connect(_on_node_added)
 
-	camera = Camera3D.new()
-	camera.name = "StandInCamera"
-	camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF   # it follows interpolated views itself (P0a)
-	camera.near = 0.5
-	camera.far = 200.0
+	camera = GameCamera3D.new()
+	camera.look = look
+	camera.source = camera_2d
+	if camera_2d:
+		camera.bounds_m = Rect2(camera_2d.bounds.position / Units.PX_PER_METER, camera_2d.bounds.size / Units.PX_PER_METER)
+	if _stand_ins.has(player):
+		camera.target = _stand_ins[player]["root"]
 	add_child(camera)
 	camera.make_current()
-	_place_camera()
+	camera.snap_to_target()
 
 
 func _exit_tree() -> void:
@@ -130,7 +138,6 @@ func _physics_process(_delta: float) -> void:
 func _process(delta: float) -> void:
 	if camera == null:
 		return
-	_place_camera()
 	var feet := _player_feet()
 	var eye := camera.global_position
 	for entry in _fading:
@@ -261,11 +268,3 @@ func _player_feet() -> Vector3:
 	if not is_instance_valid(player) or not _stand_ins.has(player):
 		return Vector3.INF
 	return (_stand_ins[player]["root"] as Node3D).get_global_transform_interpolated().origin
-
-
-func _place_camera() -> void:
-	var feet := _player_feet()
-	if feet == Vector3.INF:
-		return
-	var size := get_viewport().get_visible_rect().size
-	look.apply(camera, feet, size.x / size.y)
