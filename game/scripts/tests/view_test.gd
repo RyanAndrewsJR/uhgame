@@ -376,7 +376,7 @@ func _test_hide_sim() -> void:
 # --- P4: GameCamera3D and the listener --------------------------------------------------------
 
 func _test_game_camera_3d() -> void:
-	_section("GameCamera3D (GameCamera's lock, lean, pan, shake and bounds; the listener)")
+	_section("GameCamera3D (its lock, lean, pan, shake and bounds, tuned on CameraLook since the cleanup's C1; the listener)")
 	var look: CameraLook = load("res://data/camera_looks/camera_look_default.tres")
 	var vis := get_viewport().get_visible_rect().size
 	var center := vis * 0.5
@@ -385,10 +385,21 @@ func _test_game_camera_3d() -> void:
 	var probe := GameCamera3D.new()
 	var view := WorldView.new()
 	_check("physics interpolation off (placed by code every frame)", probe.physics_interpolation_mode, Node.PHYSICS_INTERPOLATION_MODE_OFF)
-	_check("it runs after GameCamera (0) and before WorldView's fade",
+	_check("it runs before WorldView's fade",
 		probe.process_priority > 0 and probe.process_priority < view.process_priority, true)
 	probe.free()
 	view.free()
+	_check("CameraLook holds GameCamera's tuning, the same values (follow 10; lean 80 px, dead zone 0.35, full at 0.9, y 0.6, easing 4, idle 0.5, hold 0.75 s, walk lean off; pan 420 px/s, margin 6 px; shake decay 30; debug off)",
+		[look.follow_smoothing_speed, look.aim_lead_px, look.aim_lead_dead_zone, look.aim_lead_full_at, look.aim_lead_y_scale,
+			look.aim_lead_smoothing, look.aim_lead_idle_scale, look.aim_lead_hold_time, look.move_lead_px,
+			look.edge_pan_speed_px, look.edge_margin_px, look.shake_decay_px, look.aim_lead_curve.resource_path, look.debug_draw],
+		[10.0, 80.0, 0.35, 0.9, 0.6, 4.0, 0.5, 0.75, 0.0, 420.0, 6.0, 30.0, "res://data/curves/curve_camera_lead.tres", false])
+	var game_camera: Script = load("res://scripts/camera/game_camera.gd")
+	_check("and they're GameCamera's defaults (main.tscn sets none of its own)",
+		[game_camera.get_property_default_value(&"aim_lead"), game_camera.get_property_default_value(&"edge_pan_speed"),
+			game_camera.get_property_default_value(&"edge_margin"), game_camera.get_property_default_value(&"shake_decay"),
+			game_camera.get_property_default_value(&"aim_lead_dead_zone"), game_camera.get_property_default_value(&"aim_lead_hold_time")],
+		[look.aim_lead_px, look.edge_pan_speed_px, look.edge_margin_px, look.shake_decay_px, look.aim_lead_dead_zone, look.aim_lead_hold_time])
 	_check_near("follow smoothing: GameCamera's speed 10 at 60 ticks is 10.94 per second", GameCamera3D.follow_rate_per_second(10.0, 60), 10.9393, 0.0001)
 	_check_near("28 m across a 640 px wide screen: 0.04375 m per screen px", GameCamera3D.meters_per_screen_px(look, 640.0), 0.04375, 0.000001)
 	_check_near("sounds reach 1.4 times as far: the view's 896 px over the 640 px screen", GameCamera3D.view_distance_scale(look, 640.0), 1.4, 0.000001)
@@ -398,17 +409,20 @@ func _test_game_camera_3d() -> void:
 		GameCamera3D.clamp_focus(Vector3(31.0, 0.5, 25.0), floor_m), Vector3(29.0, 0.5, 19.0))
 	_check_exact("no bounds: anywhere", GameCamera3D.clamp_focus(Vector3(-50.0, 0.0, 90.0), Rect2()), Vector3(-50.0, 0.0, 90.0))
 
-	# A camera following a target at FOCUS. Its source is a GameCamera outside
-	# the tree: its lean, lock and shake are set by hand, and its smoothing is
-	# off there, so the focus jumps to its goal on each _process().
+	# A camera following a target at FOCUS, on a copy of the look with no
+	# follow smoothing (the focus jumps to its goal on each _process()) and no
+	# edge pan (headless, the mouse sits in the window's corner). Its player is
+	# a Player outside the tree: only its aiming state is read.
 	var target := Node3D.new()
 	target.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	add_child(target)
 	target.global_position = FOCUS
-	var cam2d := GameCamera.new()
+	var test_look := look.duplicate() as CameraLook
+	test_look.follow_smoothing_speed = 0.0
+	test_look.edge_margin_px = -100000.0
 	var cam := GameCamera3D.new()
+	cam.look = test_look
 	cam.target = target
-	cam.source = cam2d
 	add_child(cam)
 	cam.snap_to_target()
 	_check_near("snapped: the target is the screen's center (px off)", cam.unproject_position(FOCUS).distance_to(center), 0.0, 0.01)
@@ -422,40 +436,88 @@ func _test_game_camera_3d() -> void:
 			round_ok += 1
 	_check("5 screen offsets: each floor point found projects back onto its screen point", round_ok, offsets.size())
 
-	cam2d._lead = Vector2(80.0, 0.0)
-	cam._process(0.016)
-	_check_near("locked, GameCamera leaning 80 px right: the target sits 80 px left of the center (px off)",
+	# The lean, from the real mouse (headless, Viewport.get_mouse_position()
+	# reads Input's last motion event).
+	var mouse_before := get_viewport().get_mouse_position()
+	var point_mouse := func(canvas_pos: Vector2) -> void:
+		var motion := InputEventMouseMotion.new()
+		motion.position = get_viewport().get_screen_transform() * canvas_pos
+		motion.global_position = motion.position
+		Input.parse_input_event(motion)
+		Input.flush_buffered_events()
+	point_mouse.call(center + Vector2(vis.x * 0.5, 0.0))   # the screen's right edge, half way down
+	cam._process(10.0)
+	_check_near("no player: no lean, wherever the mouse is (px off)", cam.unproject_position(FOCUS).distance_to(center), 0.0, 0.01)
+	var knight := (load("res://scenes/player/player.tscn") as PackedScene).instantiate() as Player
+	cam.player = knight
+	_check("with one, the full lean toward the mouse at the right edge is 80 px right", cam.get_aim_lead().is_equal_approx(Vector2(80.0, 0.0)), true)
+	cam._process(10.0)
+	_check_near("locked, the player not aiming: half of it (idle 0.5), the target 40 px left of the center (px off)",
+		cam.unproject_position(FOCUS).distance_to(center + Vector2(-40.0, 0.0)), 0.0, 0.05)
+	knight.aiming_slot = &"q"
+	cam._process(10.0)
+	_check_near("aiming: the full lean, the target 80 px left of the center (px off)",
 		cam.unproject_position(FOCUS).distance_to(center + Vector2(-80.0, 0.0)), 0.0, 0.05)
-	cam2d._lead = Vector2(0.0, 48.0)
-	cam._process(0.016)
-	_check_near("leaning 48 px down: the target sits 48 px above the center (px off)",
-		cam.unproject_position(FOCUS).distance_to(center + Vector2(0.0, -48.0)), 0.0, 0.05)
-	cam2d._lead = Vector2(80.0, 0.0)
+	knight.aiming_slot = &""
+	cam._process(0.5)
+	_check("for aim_lead_hold_time (0.75 s) after the aim, still the full lean", cam.get_current_lead().is_equal_approx(Vector2(80.0, 0.0)), true)
+	cam._process(10.0)
+	_check_near("then back to half", cam.get_current_lead().x, 40.0, 0.01)
+	point_mouse.call(center + Vector2(0.0, vis.y * 0.5))   # the bottom edge
+	cam._process(10.0)
+	_check_near("toward the bottom edge: 80 x 0.6 x 0.5 = 24 px down, the target 24 px above the center (px off)",
+		cam.unproject_position(FOCUS).distance_to(center + Vector2(0.0, -24.0)), 0.0, 0.05)
+	point_mouse.call(center + Vector2(vis.x * 0.1, 0.0))
+	cam._process(10.0)
+	_check_near("inside the dead zone (0.2 of the half-screen < 0.35): no lean (px off)", cam.unproject_position(FOCUS).distance_to(center), 0.0, 0.05)
+	point_mouse.call(center + Vector2(vis.x * 0.5, 0.0))
+	cam._process(10.0)
 	Input.action_press(&"camera_center")
 	cam._process(0.016)
 	Input.action_release(&"camera_center")
 	_check_near("holding C: centered, no lean (px off)", cam.unproject_position(FOCUS).distance_to(center), 0.0, 0.01)
 	cam.bounds_m = Rect2(0.0, 0.0, 11.0, 20.0)
-	cam._process(0.016)
+	knight.aiming_slot = &"q"
+	cam._process(10.0)
 	_check_near_v3("the room's floor ends 1 m east of the target: the lean stops there", cam.get_focus(), Vector3(11.0, 0.0, 8.0), 0.0001)
 	cam.bounds_m = Rect2()
-	cam2d._lead = Vector2.ZERO
-	cam2d.offset = Vector2(10.0, -4.0)
+	knight.aiming_slot = &""
+	cam.player = null
+	point_mouse.call(mouse_before)
 	cam._process(0.016)
-	_check_near("GameFeel's shake (GameCamera's offset 10 px right, 4 px up): h_offset 10 px of floor", cam.h_offset, 10.0 * k, 0.000001)
-	_check_near("v_offset 4 px of floor, up", cam.v_offset, 4.0 * k, 0.000001)
-	_check_near("the picture moves as in 2D: the target 10 px left, 4 px down (px off)",
-		cam.unproject_position(FOCUS).distance_to(center + Vector2(-10.0, 4.0)), 0.0, 0.05)
-	cam2d.offset = Vector2.ZERO
-	cam2d.locked = false
-	cam2d.edge_margin = -100000.0   # no edge pan: headless, the mouse sits in the window's corner
+
+	# The shake (GameFeel.shake() reaches this camera when it's current).
+	cam.make_current()
+	GameFeel.shake(10.0)
+	cam._process(0.0)
+	var offset := cam.shake_offset_px
+	_check("GameFeel.shake(10) shakes the current 3D camera: up to 10 px each way",
+		offset != Vector2.ZERO and absf(offset.x) <= 10.0 and absf(offset.y) <= 10.0, true)
+	_check_near("h_offset is its x in px of floor", cam.h_offset, offset.x * k, 0.000001)
+	_check_near("v_offset its y, up", cam.v_offset, -offset.y * k, 0.000001)
+	_check_near("the picture moves as in 2D: the target moves against the offset (px off)",
+		cam.unproject_position(FOCUS).distance_to(center - offset), 0.0, 0.05)
+	cam._process(0.2)
+	_check("it decays at 30 px a second, real time: up to 4 px after 0.2 s",
+		absf(cam.shake_offset_px.x) <= 4.0 and absf(cam.shake_offset_px.y) <= 4.0, true)
+	cam._process(0.2)
+	_check("and it's gone", cam.shake_offset_px, Vector2.ZERO)
+
+	# The lock (Y) and the pan.
+	var toggle := InputEventAction.new()
+	toggle.action = &"camera_toggle_lock"
+	toggle.pressed = true
+	cam._unhandled_input(toggle)
+	_check("Y unlocks it", cam.locked, false)
 	var before := cam.get_focus()
 	Input.action_press(&"camera_right")
 	cam._process(0.1)
 	Input.action_release(&"camera_right")
-	_check_near_v3("unlocked, the right arrow for 0.1 s: GameCamera's 420 px/s of screen, 42 px = 1.84 m east",
+	_check_near_v3("unlocked, the right arrow for 0.1 s: 420 px/s of screen, 42 px = 1.84 m east",
 		cam.get_focus() - before, Vector3(42.0 * k, 0.0, 0.0), 0.001)
-	cam2d.locked = true
+	cam._unhandled_input(toggle)
+	_check("Y again locks it", cam.locked, true)
+	knight.free()
 
 	# The listener and Audio's scale.
 	var scale := GameCamera3D.view_distance_scale(look, vis.x)
@@ -481,7 +543,6 @@ func _test_game_camera_3d() -> void:
 	_check("the camera gone: Audio's reach is the data's again (scale 1)", Audio.distance_scale, 1.0)
 	_check("and no listener: sounds are heard from the screen center again", get_viewport().get_audio_listener_2d() == null, true)
 	cam.free()
-	cam2d.free()
 	target.free()
 
 

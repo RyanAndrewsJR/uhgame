@@ -42,7 +42,6 @@ description = "+50% damage to Staggered enemies."
 
 [resource]
 script = ExtResource("1_script")
-cast_anim = &"1H_Melee_Attack_Slice_Horizontal"
 id = &"knight_cleave_wave"
 tags = Array[StringName]([&"core", &"projectile"])
 display_name = "Cleave Wave"
@@ -62,3 +61,4 @@ projectile_speed = 900.0
 projectile_width = 150.0
 projectile_pierce = 20
 cast_sound = ExtResource("s1_cast_sound")
+cast_anim = &"1H_Melee_Attack_Slice_Horizontal"

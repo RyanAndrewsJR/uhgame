@@ -11,7 +11,43 @@
 
 ## 3D pivot (3D_PIVOT.md)
 
-### P-M – the milestone: the view on by default: 2026-10-03, Built (awaiting Ryan's feel play test)
+### Cleanup C1 – the camera handover: 2026-10-03, Built (awaiting Ryan's check)
+The first of the cleanup's three steps (3D.md, Build order after P-M), with Ryan's answers at the start: three steps with the camera first, its tuning on `CameraLook`, and the debug drawings on the floor (in C2).
+- **Mapped first** (a read-only sweep of every 2D placeholder look and what depends on it): nothing in gameplay depends on them, except four things C2 fixes first:
+  - a unit is freed by its 2D death tween;
+  - `swing_side` flips inside the sword's animation;
+  - UnitView colors capsules from the 2D body and reads `MovementVFXComponent` for the 3D dash ghosts;
+  - the 3D bars copy the 2D HealthBar.
+  - About 40 test checks read 2D looks (20 on 2D damage numbers); they move in C3.
+- **`CameraLook`** (`camera_look.gd`): new export groups Follow, Aim lean, Pan, Shake and Debug, holding GameCamera's tuning with its defaults (`main.tscn` set none of its own): `follow_smoothing_speed` 10, `aim_lead_px` 80, the `aim_lead_*` fields, `move_lead_px` 0, `edge_pan_speed_px` 420, `edge_margin_px` 6, `shake_decay_px` 30, `debug_draw`.
+- **`GameCamera3D`**, rewritten (P4's code read `source`, the 2D camera):
+  - It computes the lock, the lean, the pan, the shake and the smoothing itself, from its look: `locked` (Y), `get_aim_lead()` and `get_current_lead()`, `shake()` and `shake_offset_px`.
+  - New `player` (whose aiming makes the lean full; with no player it doesn't lean, as P4's camera with no 2D source didn't).
+  - With `look.debug_draw` on, it draws the dead-zone oval and the two leans on a screen-space CanvasLayer (90).
+  - `source` is gone.
+- **`WorldView.setup()`:** it gives the camera the player and the room's bounds (`Room.get_bounds_px()`); its `camera_2d` parameter is unused (`_camera_2d`, goes in C3).
+- **`GameFeel.shake()`:** the current Camera3D's `shake()` first, else a current Camera2D's (the 2D game, the tests' spies).
+- **`main.gd`:** under the view it turns the 2D camera off (`enabled` false, processing disabled); the HUD's "Camera locked/free (Y)" reads the 3D camera.
+- **Played** (headless harness in the tile sandbox, saving off):
+  - Under the view, the 2D camera is off and not current, and the 3D one is current.
+  - The mouse at the right edge leans about 40 px (idle).
+  - Y unlocks it and the HUD says "Camera free (Y)"; the right arrow pans 9.12 m in 0.5 s (420 px/s: 9.19 m); Y locks it again.
+  - Judgement's hit shakes the 3D camera (up to 1.9 px), not the 2D one.
+  - With the flag off (the rollback), the 2D camera is current and shakes (up to 1.6 px).
+  - A windowed screenshot shows the debug drawing on screen.
+- **Found while building:** a test's `Input.parse_input_event()` mouse motion isn't seen by `Viewport.get_mouse_position()` until the buffered events are flushed: `Input.flush_buffered_events()` after it.
+- **Tests:** view_test 384 (+13). The P4 section now drives the real mouse:
+  - no player, no lean;
+  - the 80 px full lean, half of it while not aiming, the full lean held 0.75 s after the aim, then half again;
+  - 24 px toward the bottom edge, none inside the dead zone;
+  - C to center, the bounds;
+  - `GameFeel.shake()` reaching the current 3D camera, its offsets and its decay at 30 px/s;
+  - Y both ways, the arrow pan;
+  - `CameraLook`'s values equal to GameCamera's defaults.
+  - combat_test's and abilities_test's shake spies are unchanged (no Camera3D in them).
+- All seven suites: **2,190/2,190** (stats 179, combat 476, abilities 565, audio 110, champions 168, talents 308, view 384). Saves unchanged.
+
+### P-M – the milestone: the view on by default: 2026-10-03, Passed (Ryan's feel play test 2026-10-03)
 Built from 3D.md's Build order, with Ryan's answers at the start (DECISIONS.md, 3D view): a run plays room_01's layout; the hub's Sandbox stays the tile sandbox, in 3D.
 - **The switch:** `main.gd`: `use_3d_view` defaults to `true` (its comment now names off as the rollback). `main.tscn` and `sandbox_main.tscn` set nothing, so both play in 3D. `main_layout.tscn`, `sandbox_main_layout.tscn` and `sandbox_main_3d.tscn` still set it explicitly (harmless, kept until the cleanup).
 - **The hub:** `hub.gd`'s `run_scene` default is `res://scenes/main_layout.tscn` (was `main.tscn`); `sandbox_scene` is unchanged; `hub.tscn` overrides neither.

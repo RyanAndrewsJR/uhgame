@@ -103,12 +103,14 @@ static func of(node: Node) -> WorldView:
 
 ## Main calls this once, right after adding the WorldView: hides the 2D world,
 ## builds the room's look, every view and the camera, and gives the player
-## its aim through this view. `camera_2d` is Main's GameCamera: the 3D camera
-## uses its lock, lean, shake, pan settings and room bounds (null: no lean,
-## shake or bounds). `p_layout` is the room built in 3D whose sim `room` is
-## (P8): it moves under this view as the room's look, with its floor pick;
-## null for a tile room, whose look RoomView makes from its Tiles.
-func setup(main: CanvasItem, room: Node2D, p_player: Player, camera_2d: GameCamera = null, p_layout: RoomLayout = null) -> void:
+## its aim through this view. The camera keeps its focus on the room's floor
+## (Room.get_bounds_px()) and leans for `p_player`. `_camera_2d` (Main's
+## GameCamera) is no longer read since the cleanup's C1: the 3D camera
+## computes its lock, lean, pan and shake itself (it goes in C3).
+## `p_layout` is the room built in 3D whose sim `room` is (P8): it moves under
+## this view as the room's look, with its floor pick; null for a tile room,
+## whose look RoomView makes from its Tiles.
+func setup(main: CanvasItem, room: Node2D, p_player: Player, _camera_2d: GameCamera = null, p_layout: RoomLayout = null) -> void:
 	player = p_player
 	if player:
 		player.world_view = self
@@ -134,9 +136,9 @@ func setup(main: CanvasItem, room: Node2D, p_player: Player, camera_2d: GameCame
 
 	camera = GameCamera3D.new()
 	camera.look = look
-	camera.source = camera_2d
-	if camera_2d:
-		camera.bounds_m = Rect2(camera_2d.bounds.position / Units.PX_PER_METER, camera_2d.bounds.size / Units.PX_PER_METER)
+	camera.player = player
+	var room_bounds := (room as Room).get_bounds_px() if room is Room else Rect2()
+	camera.bounds_m = Rect2(room_bounds.position / Units.PX_PER_METER, room_bounds.size / Units.PX_PER_METER)
 	camera.target = view_of(player)
 	add_child(camera)
 	camera.make_current()

@@ -58,6 +58,10 @@ func _ready() -> void:
 		world_view = WorldView.new()
 		add_child(world_view)
 		world_view.setup(self, room, player, camera, layout)
+		# The 3D camera does the 2D camera's job (the cleanup's C1): it stays
+		# here, off, for the 2D game (the flag off) until the cleanup's C3.
+		camera.enabled = false
+		camera.process_mode = Node.PROCESS_MODE_DISABLED
 	elif layout:
 		# Without the view a room built in 3D shows only its footprints' flat
 		# 2D look.
@@ -72,12 +76,14 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if not is_instance_valid(player):
 		return
+	# The camera the player sees: the 3D one under the view (cleanup C1).
+	var camera_locked: bool = world_view.camera.locked if world_view and world_view.camera else camera.locked
 	hud.set_info("AD %d   AS %.2f   MS %d   Range %d   |   Camera %s (Y)" % [
 		roundi(player.stats_component.get_stat(&"attack_damage")),
 		player.attack.get_attack_speed(),
 		roundi(player.movement.get_move_speed()),
 		roundi(player.stats_component.get_stat(&"attack_range")),
-		"locked" if camera.locked else "free",
+		"locked" if camera_locked else "free",
 	])
 
 

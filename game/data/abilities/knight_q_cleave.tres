@@ -42,7 +42,6 @@ description = "+50% damage to Staggered enemies."
 
 [resource]
 script = ExtResource("1_script")
-cast_anim = &"1H_Melee_Attack_Slice_Horizontal"
 id = &"knight_cleave"
 tags = Array[StringName]([&"area", &"core", &"cone", &"melee"])
 display_name = "Cleave"
@@ -61,3 +60,4 @@ hit_shake = 3.0
 hit_hitstop = 0.05
 conditional_bonuses = Array[ExtResource("c2_bonus")]([SubResource("staggered_bonus")])
 cast_sound = ExtResource("s1_cast_sound")
+cast_anim = &"1H_Melee_Attack_Slice_Horizontal"

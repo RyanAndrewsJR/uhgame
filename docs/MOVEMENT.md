@@ -11,7 +11,7 @@
 | `res://scripts/player/player_input.gd` | `PlayerInput`, child of Player. Reads WASD, dash and attack each physics frame; owns the input buffer. |
 | `res://scripts/components/dash_component.gd` | `DashComponent`, child of Player. The dash. |
 | `res://scripts/player/player.gd` | Q/W/E/R casting, facing and aim, player states. (The dormant LoL right-click orders were deleted 2026-09-29.) |
-| `res://scripts/camera/game_camera.gd` | Locked follow with aim lead; unlocked edge pan; shake; room bounds. |
+| `res://scripts/camera/game_camera.gd` | Locked follow with aim lead; unlocked edge pan; shake; room bounds. Since the 3D pivot's cleanup C1 it runs only in the 2D game; `game_camera_3d.gd` does the same in 3D, tuned on `CameraLook` (3D.md). |
 | `res://scripts/vfx/movement_vfx_component.gd` | `MovementVFXComponent`, last child of the Player and of slimes. Movement feedback visuals (F3). |
 
 Visuals are Polygon2D placeholders (`Body`, `SwordPivot`). ~~The plan is 8-direction sprites.~~ With the 3D view each unit gets a model that turns smoothly to its facing (3D.md; Ryan, Q6, confirmed in P0b 2026-10-02).
@@ -145,6 +145,7 @@ The LoL actions `move` / `stop` / `attack_move` (were right mouse / S / A) and `
    - **In 3D (3D.md, P4):** `GameCamera3D` shows the game through a fixed-angle camera: perspective, 30° field of view, 50° pitch, 28 m wide (`CameraLook`; Ryan after P0b, 2026-10-02). Everything below carries over: the lean is measured in screen space, so the same share of the screen moves the 3D focus; lock, centering, edge pan, bounds, shake and `snap_to_target()` work as here. North–south distances look 23% shorter than east–west at 50° (accepted, Q11). Built in P4 (2026-10-02, see CHANGELOG.md). `GameCamera3D` reads this camera's lock, lean, shake and pan settings, so they're still tuned here. Two differences:
      - **Bounds:** in 3D they keep the camera's focus on the room's floor, and the void past the walls shows near an edge (Ryan, P4). The view is about the sandbox's size, so the 2D rule below would freeze it.
      - **The lean:** it puts the Knight exactly the lean's screen px off the center, as here.
+     - **Since the cleanup's C1** (2026-10-03): `GameCamera3D` computes all of this itself, and the numbers below live on `CameraLook` (`data/camera_looks/camera_look_default.tres`; Ryan's pick), the same values. Three px names gained the suffix there: `aim_lead` is `aim_lead_px`, `edge_pan_speed` is `edge_pan_speed_px`, `edge_margin` is `edge_margin_px`; `shake_decay` is `shake_decay_px`, and the follow smoothing is `follow_smoothing_speed`. `GameCamera` runs only in the 2D game (the flag off) until the cleanup's C3 deletes it.
    - **Target lean:** zero inside `aim_lead_dead_zone` = 0.35 of the half-screen (an oval: x and y each divided by their own half-size). From there to `aim_lead_full_at` = 0.9 it follows `aim_lead_curve` (`curve_camera_lead.tres`, linear). Full lean is `aim_lead` = 80 px sideways and 80 × `aim_lead_y_scale` (0.6) = 48 px vertically (while not aiming: 40 px / 24 px).
    - **Context:** full lean while the player aims (`aiming_slot`), casts (CASTING) or winds up a basic attack (ATTACK), and for `aim_lead_hold_time` = 0.75 s after; otherwise × `aim_lead_idle_scale` = 0.5. Read through Player's public state; the camera only knows its `target`.
    - **Easing:** the lean eases toward its target at `aim_lead_smoothing` = 4.0 per second (frame-rate independent, real time so hitstop doesn't freeze it). The follow smoothing stays at 10 and also acts on the lean, so a full swing settles in about 0.7 s.
@@ -152,7 +153,7 @@ The LoL actions `move` / `stop` / `attack_move` (were right mouse / S / A) and `
    - `get_aim_lead()` returns the target lean (dead zone and curve, before context and easing); `get_current_lead()` returns the eased lean.
    - Holding C centers with no lean and resets it; `snap_to_target()` resets it too. Room bounds still clamp, so there's no sideways lean near a room's left or right edge. The camera runs in physics process mode because physics interpolation is on (F1).
    - **Aim drift (accepted):** the world under a still cursor slides whenever the lean changes. Full lean starts when you begin aiming, so while you hold an ability still, the spot under the cursor can move up to 80 px sideways / 48 px vertically over about 0.7 s, and a POINT ability like Lunge lands where the cursor is at release. Accepted because the indicator always shows the true landing spot (clarity), and the lean only grows outside the dead zone and while aiming. Revisit if play testing shows mis-aims.
-   - `debug_draw` on the Camera: the dead zone oval (white), the target lean (yellow) and the current lean (green).
+   - `debug_draw` on the Camera: the dead zone oval (white), the target lean (yellow) and the current lean (green). In 3D: `debug_draw` on `CameraLook` draws the same on the screen.
 5. **Signals:** `Player.state_changed(from, to)`; `DashComponent.dash_started(direction)`, `dash_ended`, `charges_changed(charges, max)` (`debug_draw` on DashComponent shows charge pips); `PlayerInput.attack_pressed(dash_strike)`; `AbilityComponent.cast_cancelled(slot, ability)`. `fell_in_pit` only if pits come back.
 
 ## Feel pass
@@ -212,7 +213,7 @@ Steps 1 and 3–7 passed Ryan's play test (2026-09-29, see CHANGELOG.md).
 - Sandbox test spots: open floor (start/stop), a long wall (sliding), a single pillar, an L-corner, a diagonal stair-step wall (corner catching), a 1-tile corridor and a 2-tile gap, and two cracked floor tiles 128 px apart (dash length).
 - Three passive training dummies (`Enemy.passive = true`) and two normal slimes in a pen (chase test).
 - One elite slime (`slime_elite.tscn`) in the open top-right corner: it casts a telegraphed slam at the player (COMBAT C5).
-- The camera can only lean sideways in the middle third of the sandbox (room bounds). `debug_draw` on the Camera node (in `main.tscn`) shows the dead zone and the lean.
+- The camera can only lean sideways in the middle third of the sandbox (room bounds). `debug_draw` on the Camera node (in `main.tscn`) shows the dead zone and the lean. In 3D the bounds keep the focus on the floor instead, and `debug_draw` is on `CameraLook`.
 
 ## Open questions
 - **Clicks on the HUD:** PlayerInput reads `attack` from the Input state, so a click on the ability bar also swings; the bar's `MOUSE_FILTER_STOP` doesn't block that. Fix when the HUD gets clickable parts (UI.md).
