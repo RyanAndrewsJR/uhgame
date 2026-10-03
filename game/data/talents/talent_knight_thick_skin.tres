@@ -1,10 +1,11 @@
-[gd_resource type="Resource" script_class="Talent" format=3]
+[gd_resource type="Resource" script_class="Talent" format=3 uid="uid://di2fpodt6bcwj"]
 
-[ext_resource type="Script" path="res://scripts/data/talent.gd" id="1_talent"]
-[ext_resource type="Script" path="res://scripts/data/talent_requirement.gd" id="2_req"]
-[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="3_mod"]
-[ext_resource type="Script" path="res://scripts/data/stat_scaling.gd" id="4_scaling"]
+[ext_resource type="Script" uid="uid://bu2artg4nhd6d" path="res://scripts/data/talent.gd" id="1_talent"]
+[ext_resource type="Script" uid="uid://dbsq57x0w3vid" path="res://scripts/data/talent_requirement.gd" id="2_req"]
+[ext_resource type="Script" uid="uid://cvwv2nrsbyrah" path="res://scripts/data/stat_modifier.gd" id="3_mod"]
+[ext_resource type="Script" uid="uid://4f7eiawforfq" path="res://scripts/data/stat_scaling.gd" id="4_scaling"]
 [ext_resource type="Curve" path="res://data/curves/curve_knight_unbroken.tres" id="5_curve"]
+
 [sub_resource type="Resource" id="req_level"]
 script = ExtResource("2_req")
 amount = 2
@@ -17,19 +18,18 @@ amount = 150
 [sub_resource type="Resource" id="s_armor_mod"]
 script = ExtResource("3_mod")
 stat = &"armor"
-type = 0
 value = 30.0
 
 [sub_resource type="Resource" id="s_armor"]
 script = ExtResource("4_scaling")
 modifier = SubResource("s_armor_mod")
 curve = ExtResource("5_curve")
+
 [resource]
 script = ExtResource("1_talent")
+id = &"knight_thick_skin"
+group = 4
+requirements = Array[ExtResource("2_req")]([SubResource("req_level"), SubResource("req_use")])
 display_name = "Thick Skin"
 description = "Unbroken also gives up to +30 armor."
 stat_scalings = Array[ExtResource("4_scaling")]([SubResource("s_armor")])
-id = &"knight_thick_skin"
-group = 4
-tier = 1
-requirements = Array[ExtResource("2_req")]([SubResource("req_level"), SubResource("req_use")])

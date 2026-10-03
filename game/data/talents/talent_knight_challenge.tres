@@ -1,9 +1,11 @@
-[gd_resource type="Resource" script_class="Talent" format=3]
+[gd_resource type="Resource" script_class="Talent" format=3 uid="uid://dxirrkxgvelbh"]
 
-[ext_resource type="Script" path="res://scripts/data/talent.gd" id="1_talent"]
-[ext_resource type="Script" path="res://scripts/data/talent_requirement.gd" id="2_req"]
-[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="3_mod"]
+[ext_resource type="Script" uid="uid://bu2artg4nhd6d" path="res://scripts/data/talent.gd" id="1_talent"]
+[ext_resource type="Script" uid="uid://dbsq57x0w3vid" path="res://scripts/data/talent_requirement.gd" id="2_req"]
+[ext_resource type="Script" uid="uid://cvwv2nrsbyrah" path="res://scripts/data/stat_modifier.gd" id="3_mod"]
+[ext_resource type="Script" uid="uid://4f7eiawforfq" path="res://scripts/data/stat_scaling.gd" id="5_tddfw"]
 [ext_resource type="Resource" path="res://data/augments/augment_iron_resolve_challenge.tres" id="7_aug"]
+
 [sub_resource type="Resource" id="req_level"]
 script = ExtResource("2_req")
 amount = 6
@@ -15,11 +17,11 @@ amount = 750
 
 [resource]
 script = ExtResource("1_talent")
-display_name = "Challenge"
-description = "Iron Resolve Staggers every enemy within 96 px instead of hasting you, so your next Cleave hits them harder."
-ability_description = "Stagger every enemy within {flag_challenge_radius} units. Your next attack within {empower_window}s deals {damage} ({base_damage} {ratios}) bonus damage and slows the target by {slow_amount%} for {slow_duration}s."
-augments = Array[Resource]([ExtResource("7_aug")])
 id = &"knight_challenge"
 group = 1
 tier = 2
 requirements = Array[ExtResource("2_req")]([SubResource("req_level"), SubResource("req_use")])
+ability_description = "Stagger every enemy within {flag_challenge_radius} units. Your next attack within {empower_window}s deals {damage} ({base_damage} {ratios}) bonus damage and slows the target by {slow_amount%} for {slow_duration}s."
+display_name = "Challenge"
+description = "Iron Resolve Staggers every enemy within 96 px instead of hasting you, so your next Cleave hits them harder."
+augments = Array[Resource]([ExtResource("7_aug")])

@@ -1,9 +1,11 @@
-[gd_resource type="Resource" script_class="Talent" format=3]
+[gd_resource type="Resource" script_class="Talent" format=3 uid="uid://b5bq70iuj5w0j"]
 
-[ext_resource type="Script" path="res://scripts/data/talent.gd" id="1_talent"]
-[ext_resource type="Script" path="res://scripts/data/talent_requirement.gd" id="2_req"]
-[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="3_mod"]
+[ext_resource type="Script" uid="uid://bu2artg4nhd6d" path="res://scripts/data/talent.gd" id="1_talent"]
+[ext_resource type="Script" uid="uid://dbsq57x0w3vid" path="res://scripts/data/talent_requirement.gd" id="2_req"]
+[ext_resource type="Script" uid="uid://cvwv2nrsbyrah" path="res://scripts/data/stat_modifier.gd" id="3_mod"]
+[ext_resource type="Script" uid="uid://4f7eiawforfq" path="res://scripts/data/stat_scaling.gd" id="5_wvq7r"]
 [ext_resource type="Resource" path="res://data/augments/augment_iron_resolve_bulwark.tres" id="7_aug"]
+
 [sub_resource type="Resource" id="req_level"]
 script = ExtResource("2_req")
 amount = 6
@@ -15,11 +17,11 @@ amount = 750
 
 [resource]
 script = ExtResource("1_talent")
-display_name = "Bulwark"
-description = "Iron Resolve gives a 120 shield for 3 s instead of empowering your next swing."
-ability_description = "Gain {move_speed_bonus%} movement speed for {move_speed_duration}s and a {flag_shield_amount} shield for 3s."
-augments = Array[Resource]([ExtResource("7_aug")])
 id = &"knight_bulwark"
 group = 1
 tier = 2
 requirements = Array[ExtResource("2_req")]([SubResource("req_level"), SubResource("req_use")])
+ability_description = "Gain {move_speed_bonus%} movement speed for {move_speed_duration}s and a {flag_shield_amount} shield for 3s."
+display_name = "Bulwark"
+description = "Iron Resolve gives a 120 shield for 3 s instead of empowering your next swing."
+augments = Array[Resource]([ExtResource("7_aug")])

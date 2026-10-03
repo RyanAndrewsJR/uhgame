@@ -1,9 +1,51 @@
-[gd_resource type="Resource" script_class="Talent" format=3]
+[gd_resource type="Resource" script_class="Talent" format=3 uid="uid://dmuq5amyy5cog"]
 
-[ext_resource type="Script" path="res://scripts/data/talent.gd" id="1_talent"]
-[ext_resource type="Script" path="res://scripts/data/talent_requirement.gd" id="2_req"]
-[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="3_mod"]
+[ext_resource type="Script" uid="uid://bu2artg4nhd6d" path="res://scripts/data/talent.gd" id="1_talent"]
+[ext_resource type="Script" uid="uid://dbsq57x0w3vid" path="res://scripts/data/talent_requirement.gd" id="2_req"]
+[ext_resource type="Script" uid="uid://cvwv2nrsbyrah" path="res://scripts/data/stat_modifier.gd" id="3_mod"]
+[ext_resource type="Script" uid="uid://4f7eiawforfq" path="res://scripts/data/stat_scaling.gd" id="5_qesuv"]
 [ext_resource type="Resource" path="res://data/augments/augment_cleave_whirl.tres" id="7_aug"]
+
+[sub_resource type="Resource" id="m_range"]
+script = ExtResource("3_mod")
+stat = &"cast_range"
+type = 2
+value = -0.25
+scope = &"ability:knight_cleave"
+
+[sub_resource type="Resource" id="m_base"]
+script = ExtResource("3_mod")
+stat = &"base_damage"
+type = 2
+value = -0.15
+scope = &"ability:knight_cleave"
+
+[sub_resource type="Resource" id="m_ad"]
+script = ExtResource("3_mod")
+stat = &"ad_ratio"
+type = 2
+value = -0.15
+scope = &"ability:knight_cleave"
+
+[sub_resource type="Resource" id="m_push"]
+script = ExtResource("3_mod")
+stat = &"hit_knockback_px"
+type = 2
+value = -1.0
+scope = &"ability:knight_cleave"
+
+[sub_resource type="Resource" id="m_count"]
+script = ExtResource("3_mod")
+stat = &"projectile_count"
+value = 7.0
+scope = &"ability:knight_cleave"
+
+[sub_resource type="Resource" id="m_spread"]
+script = ExtResource("3_mod")
+stat = &"projectile_spread_deg"
+value = 30.0
+scope = &"ability:knight_cleave"
+
 [sub_resource type="Resource" id="req_level"]
 script = ExtResource("2_req")
 amount = 6
@@ -13,50 +55,13 @@ script = ExtResource("2_req")
 kind = 1
 amount = 1800
 
-[sub_resource type="Resource" id="m_range"]
-script = ExtResource("3_mod")
-stat = &"cast_range"
-type = 2
-value = -0.25
-scope = &"ability:knight_cleave"
-[sub_resource type="Resource" id="m_base"]
-script = ExtResource("3_mod")
-stat = &"base_damage"
-type = 2
-value = -0.15
-scope = &"ability:knight_cleave"
-[sub_resource type="Resource" id="m_ad"]
-script = ExtResource("3_mod")
-stat = &"ad_ratio"
-type = 2
-value = -0.15
-scope = &"ability:knight_cleave"
-[sub_resource type="Resource" id="m_push"]
-script = ExtResource("3_mod")
-stat = &"hit_knockback_px"
-type = 2
-value = -1.0
-scope = &"ability:knight_cleave"
-[sub_resource type="Resource" id="m_count"]
-script = ExtResource("3_mod")
-stat = &"projectile_count"
-type = 0
-value = 7.0
-scope = &"ability:knight_cleave"
-[sub_resource type="Resource" id="m_spread"]
-script = ExtResource("3_mod")
-stat = &"projectile_spread_deg"
-type = 0
-value = 30.0
-scope = &"ability:knight_cleave"
 [resource]
 script = ExtResource("1_talent")
-display_name = "Whirling Cleave"
-description = "Cleave hits all around you instead of in front: 75% reach, 85% damage, no knockback. With Cleave Wave: 8 waves all around you."
-ability_description = "Spin your sword all around you, dealing {damage} physical damage ({base_damage} {ratios}) to every enemy within {range} units. Each cast that hits heals you for up to {heal_missing_health_ratio%} of your missing health, more the lower your health."
-modifiers = Array[ExtResource("3_mod")]([SubResource("m_range"), SubResource("m_base"), SubResource("m_ad"), SubResource("m_push"), SubResource("m_count"), SubResource("m_spread")])
-augments = Array[Resource]([ExtResource("7_aug")])
 id = &"knight_whirling_cleave"
-group = 0
 tier = 2
 requirements = Array[ExtResource("2_req")]([SubResource("req_level"), SubResource("req_use")])
+ability_description = "Spin your sword all around you, dealing {damage} physical damage ({base_damage} {ratios}) to every enemy within {range} units. Each cast that hits heals you for up to {heal_missing_health_ratio%} of your missing health, more the lower your health."
+display_name = "Whirling Cleave"
+description = "Cleave hits all around you instead of in front: 75% reach, 85% damage, no knockback. With Cleave Wave: 8 waves all around you."
+modifiers = Array[ExtResource("3_mod")]([SubResource("m_range"), SubResource("m_base"), SubResource("m_ad"), SubResource("m_push"), SubResource("m_count"), SubResource("m_spread")])
+augments = Array[Resource]([ExtResource("7_aug")])

@@ -1,9 +1,18 @@
-[gd_resource type="Resource" script_class="Talent" format=3]
+[gd_resource type="Resource" script_class="Talent" format=3 uid="uid://llox7je1xbu4"]
 
-[ext_resource type="Script" path="res://scripts/data/talent.gd" id="1_talent"]
-[ext_resource type="Script" path="res://scripts/data/talent_requirement.gd" id="2_req"]
-[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="3_mod"]
+[ext_resource type="Script" uid="uid://bu2artg4nhd6d" path="res://scripts/data/talent.gd" id="1_talent"]
+[ext_resource type="Script" uid="uid://dbsq57x0w3vid" path="res://scripts/data/talent_requirement.gd" id="2_req"]
+[ext_resource type="Script" uid="uid://cvwv2nrsbyrah" path="res://scripts/data/stat_modifier.gd" id="3_mod"]
+[ext_resource type="Script" uid="uid://4f7eiawforfq" path="res://scripts/data/stat_scaling.gd" id="5_6a56q"]
 [ext_resource type="Resource" path="res://data/augments/augment_judgement_shockwave.tres" id="7_aug"]
+
+[sub_resource type="Resource" id="m_missing"]
+script = ExtResource("3_mod")
+stat = &"target_missing_health_ratio"
+type = 2
+value = -1.0
+scope = &"ability:knight_judgement"
+
 [sub_resource type="Resource" id="req_level"]
 script = ExtResource("2_req")
 amount = 6
@@ -13,20 +22,14 @@ script = ExtResource("2_req")
 kind = 1
 amount = 180
 
-[sub_resource type="Resource" id="m_missing"]
-script = ExtResource("3_mod")
-stat = &"target_missing_health_ratio"
-type = 2
-value = -1.0
-scope = &"ability:knight_judgement"
 [resource]
 script = ExtResource("1_talent")
-display_name = "Shockwave"
-description = "Judgement also hits every enemy within 80 px of its target for 50% damage and stuns them 0.5 s, but deals no missing-health damage."
-ability_description = "Strike an enemy for {damage} physical damage ({base_damage} {ratios}) and stun it for {stun_duration}s. Every other enemy within {flag_shockwave_radius} units of it takes {flag_shockwave_damage_ratio%} of that and is stunned for {flag_shockwave_stun_duration}s. Channel: moving cancels it. Walks into range if needed."
-modifiers = Array[ExtResource("3_mod")]([SubResource("m_missing")])
-augments = Array[Resource]([ExtResource("7_aug")])
 id = &"knight_shockwave"
 group = 3
 tier = 2
 requirements = Array[ExtResource("2_req")]([SubResource("req_level"), SubResource("req_use")])
+ability_description = "Strike an enemy for {damage} physical damage ({base_damage} {ratios}) and stun it for {stun_duration}s. Every other enemy within {flag_shockwave_radius} units of it takes {flag_shockwave_damage_ratio%} of that and is stunned for {flag_shockwave_stun_duration}s. Channel: moving cancels it. Walks into range if needed."
+display_name = "Shockwave"
+description = "Judgement also hits every enemy within 80 px of its target for 50% damage and stuns them 0.5 s, but deals no missing-health damage."
+modifiers = Array[ExtResource("3_mod")]([SubResource("m_missing")])
+augments = Array[Resource]([ExtResource("7_aug")])

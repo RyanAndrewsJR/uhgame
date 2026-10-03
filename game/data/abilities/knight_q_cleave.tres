@@ -43,9 +43,9 @@ description = "+50% damage to Staggered enemies."
 [resource]
 script = ExtResource("1_script")
 id = &"knight_cleave"
-supported_flags = Array[StringName]([&"cleave_whirl", &"cleave_rend"])
 tags = Array[StringName]([&"area", &"core", &"cone"])
 display_name = "Cleave"
+supported_flags = Array[StringName]([&"cleave_whirl", &"cleave_rend"])
 description = "Sweep your sword in a wide arc in front of you, dealing {damage} physical damage ({base_damage} {ratios}) and knocking enemies back. Each cast that hits heals you for up to {heal_missing_health_ratio%} of your missing health, more the lower your health."
 icon_color = Color(0.85, 0.9, 1, 1)
 cooldown = 3.0

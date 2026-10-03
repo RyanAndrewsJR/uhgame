@@ -1,20 +1,14 @@
-[gd_resource type="Resource" script_class="Talent" format=3]
+[gd_resource type="Resource" script_class="Talent" format=3 uid="uid://brnrkl4464drn"]
 
-[ext_resource type="Script" path="res://scripts/data/talent.gd" id="1_talent"]
-[ext_resource type="Script" path="res://scripts/data/talent_requirement.gd" id="2_req"]
-[ext_resource type="Script" path="res://scripts/data/ability_augment.gd" id="3_augment"]
-[ext_resource type="Script" path="res://scripts/data/reaction_rule.gd" id="4_rule"]
-[ext_resource type="Script" path="res://scripts/data/restore_resource_gameplay_effect.gd" id="5_restore"]
-[ext_resource type="Script" path="res://scripts/data/gameplay_effect.gd" id="6_effect"]
-
-[sub_resource type="Resource" id="req_level"]
-script = ExtResource("2_req")
-amount = 2
-
-[sub_resource type="Resource" id="req_use"]
-script = ExtResource("2_req")
-kind = 1
-amount = 75
+[ext_resource type="Script" uid="uid://bu2artg4nhd6d" path="res://scripts/data/talent.gd" id="1_talent"]
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="2_2ppda"]
+[ext_resource type="Script" uid="uid://dbsq57x0w3vid" path="res://scripts/data/talent_requirement.gd" id="2_req"]
+[ext_resource type="Script" uid="uid://wnhx8l8oou7k" path="res://scripts/data/ability_augment.gd" id="3_augment"]
+[ext_resource type="Script" uid="uid://4jx6fbr85xri" path="res://scripts/data/reaction_rule.gd" id="4_rule"]
+[ext_resource type="Script" uid="uid://crijl518k50l5" path="res://scripts/data/restore_resource_gameplay_effect.gd" id="5_restore"]
+[ext_resource type="Script" uid="uid://bnt28s0u3qkaw" path="res://scripts/data/gameplay_effect.gd" id="6_effect"]
+[ext_resource type="Script" uid="uid://cvwv2nrsbyrah" path="res://scripts/data/stat_modifier.gd" id="6_pwf86"]
+[ext_resource type="Script" uid="uid://4f7eiawforfq" path="res://scripts/data/stat_scaling.gd" id="9_42k5f"]
 
 [sub_resource type="Resource" id="restore"]
 script = ExtResource("5_restore")
@@ -36,12 +30,20 @@ rules = Array[ExtResource("4_rule")]([SubResource("on_cast")])
 display_name = "Battle Cry"
 description = "Restores 15 Fury on cast."
 
+[sub_resource type="Resource" id="req_level"]
+script = ExtResource("2_req")
+amount = 2
+
+[sub_resource type="Resource" id="req_use"]
+script = ExtResource("2_req")
+kind = 1
+amount = 75
+
 [resource]
 script = ExtResource("1_talent")
+id = &"knight_battle_cry"
+group = 1
+requirements = Array[ExtResource("2_req")]([SubResource("req_level"), SubResource("req_use")])
 display_name = "Battle Cry"
 description = "Iron Resolve restores 15 Fury on cast."
 augments = Array[Resource]([SubResource("augment")])
-id = &"knight_battle_cry"
-group = 1
-tier = 1
-requirements = Array[ExtResource("2_req")]([SubResource("req_level"), SubResource("req_use")])
