@@ -281,6 +281,7 @@ Functional only (Ryan, 2026-09-29): a tester can read their own state during CH-
 
 ## Audio hooks
 See AUDIO.md. Champion sounds (hurt, death, low health) move onto ChampionData in CH1. Fury, Staggered and the heal use existing hooks (the resource bar has no sound; Staggered's apply sound, if any, is a status sound; heals have none) until AUDIO.md adds any.
+- *(AUDIO A4: approved 2026-10-04, not built)* A champion's sounds take variants and cues like any other (AUDIO.md, Conditional audio): its hurt, death and low-health sounds on ChampionData, its combo's swings (one sound per combo step, plus `sound_cues` on the swing's progress) and its abilities (cast and hit sounds, `sound_cues` on the cast's progress), its statuses' end sounds by reason (`consume_sound` for an empower used up). A champion's signature state (stacks, an empower) gets its sound by a variant gated on a `Condition`, never by code per sound. The Knight's kit and sounds don't change.
 
 ## How each edge case is handled
 | Edge case | Handling |

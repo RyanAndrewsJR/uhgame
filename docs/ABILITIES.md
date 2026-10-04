@@ -165,7 +165,7 @@ A **blink** moves a unit to a point instantly: no travel, no time in the air (Le
 - Unique state is modeled as statuses, so data conditions can read it (League style: Lee Sin's Q2 works because Q1 marks the target with a status).
 
 ### Conditions
-- One condition system for the whole game: the `Condition` resource. `ReactionRule` has a `conditions` list next to its existing tag filters (additive). Abilities, conditional bonuses, augments, passives, items and later the enemy AI all use the same resource. Never two parallel condition systems.
+- One condition system for the whole game: the `Condition` resource. `ReactionRule` has a `conditions` list next to its existing tag filters (additive). Abilities, conditional bonuses, augments, passives, items and later the enemy AI all use the same resource, and so do sound variants (AUDIO.md, Conditional audio; A4, approved 2026-10-04, not built). Never two parallel condition systems.
 - Starting condition kinds (small on purpose; CHAMPIONS.md and LOOT.md may add more later, additively):
   - SELF_HAS_STATUS (tag, min stacks)
   - TARGET_HAS_STATUS (tag, min stacks): covers "marked" (Lee Sin Q2), stack counts (Kalista E), "crowd controlled" (the `cc` tag)
@@ -479,6 +479,7 @@ Built in ENEMIES_AI AI1 (2026-10-04): the kind `RESPECT` and the `situation` arg
 ### StatusComponent (additions)
 - `get_tag_stacks(tag) -> int`: the stacks of every active status carrying `tag`, summed (a status without stacks counts 1). What SELF_ / TARGET_HAS_STATUS read.
 - `remove_statuses_with_tags(tags) -> int` (the cleanse), `get_empowers(trigger)` (the active empowers used up by `trigger`, in the order applied).
+- *(AUDIO A4: approved 2026-10-04, not built)* Why a status ended: `remove_status(id, reason := StatusEffect.EndReason.REMOVED)` (an optional parameter; every caller today keeps working), and each removal path passes its reason: the timer `EXPIRED`, an empower used by its swing or cast and a shield used up `CONSUMED`, `remove_statuses_with_tags()` `CLEANSED`, `clear()` at death `DIED`, everything else `REMOVED`. A new signal `status_ended(effect, reason)`, re-emitted as `Events.status_ended(unit, status, reason)`, right after `status_removed`, which doesn't change (a signal's argument count can't change without breaking its connected callables). AUDIO.md, Why a status ended.
 
 ### New GameplayEffects (`res://scripts/data/`, subclasses of `GameplayEffect`)
 All take the usual `apply(target, source, trigger_ctx)`; the source id is the rule's (the rule was added with one).
@@ -496,6 +497,7 @@ All take the usual `apply(target, source, trigger_ctx)`; the source id is the ru
   - `empower_base_damage`, `empower_ad_ratio` (the source's AD, at the hit): added to every hit of that swing or cast
   - `empower_statuses`: applied to every enemy that swing or cast hits (through `HitContext.statuses`). Typed `Array[Resource]`: a typed array of its own class made the script reference itself, reported as leaked resources at exit.
 - Status tags used by rules here: `empower`, `unstoppable`, `untargetable`, `form`.
+- *(AUDIO A4: approved 2026-10-04, not built)* Sounds: next to `apply_sound`, `loop_sound` and `expire_sound` (AUDIO A3), a `consume_sound` for an end by `CONSUMED` (an empower used by its swing or cast: the "big impact"; a shield used up); `expire_sound` then plays for EXPIRED, CLEANSED and REMOVED; nothing at death, as today. The enum `StatusEffect.EndReason` (`EXPIRED`, `CONSUMED`, `CLEANSED`, `DIED`, `REMOVED`). AUDIO.md, Why a status ended, and its ring-out example (an empower whose ring loops while it's up, sheathes on a timeout and lands a big impact when used).
 
 ### Settings
 - Key `&"cast_mode"`, saved as a word (`quick` / `quick_with_indicator`), default `quick`. `get_cast_mode() -> Player.CastMode`, `set_cast_mode(value)`; `setting_changed` as usual. It reuses `Player.CastMode` (no second enum).
@@ -718,6 +720,8 @@ Ryan, 2026-09-29. Two goals: a future cast-speed stat or item plugs into one pla
 | `telegraph_sound` | after `on_cast_started()` sets a telegraph | Telegraph |
 | `ready_sound` | `cooldown_finished`: a slot going from 0 charges to 1 (not on a refund; not when a recast sequence ends with charges left) | AbilityComponent |
 | `charge_sound` | a loop from `charge_started` to release, cancel or interrupt (a VECTOR ability may set one for its aim) | AbilityComponent (`play_on`, stopped by handle) |
+| `sound_cues` *(A4, not built)* | each `SoundCue` as the cast's progress passes its `progress` (cast speed); all at cast start with no cast time or for a free cast; cues not reached when a cast is cancelled or interrupted never play | AbilityComponent |
+| variants on any of these *(A4, not built)* | the SoundEvent's `variants`, resolved by Audio with a `SoundContext`: self = the caster, target = `ctx.target`, cast = the CastContext (hit sounds: the unit hit and `HitContext.cast`) | Audio |
 
 ## How each edge case is handled
 | Edge case | Handling |
