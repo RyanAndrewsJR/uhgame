@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemBase" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_base.gd" id="1_base"]
+[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="2_mod"]
+
+[sub_resource type="Resource" id="implicit"]
+script = ExtResource("2_mod")
+stat = &"attack_damage"
+value = 6.0
+
+[resource]
+script = ExtResource("1_base")
+id = &"item_base_longsword"
+display_name = "Longsword"
+implicits = Array[ExtResource("2_mod")]([SubResource("implicit")])

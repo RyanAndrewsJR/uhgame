@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="DropTable" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/drop_table.gd" id="1_drop"]
+
+[resource]
+script = ExtResource("1_drop")
+item_chance = 1.0
+chance_per_depth = 0.0
+item_count = 1
+rarity_weights = Array[float]([0.0, 36.0, 40.0, 10.0, 7.0, 6.0, 1.0])
+rarity_growth = Array[float]([0.0, 0.05, 0.1, 0.15, 0.2, 0.2, 0.25])

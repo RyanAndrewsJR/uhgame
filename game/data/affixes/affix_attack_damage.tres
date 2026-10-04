@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Affix" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/affix.gd" id="1_affix"]
+
+[resource]
+script = ExtResource("1_affix")
+id = &"affix_attack_damage"
+stat = &"attack_damage"
+min_value = 2.0
+max_value = 10.0
+step = 1.0
+slots = Array[int]([0, 3, 5, 6])

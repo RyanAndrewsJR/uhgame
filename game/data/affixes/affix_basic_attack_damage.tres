@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Affix" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/affix.gd" id="1_affix"]
+
+[resource]
+script = ExtResource("1_affix")
+id = &"affix_basic_attack_damage"
+stat = &"damage_increase"
+scope = &"hit:basic_attack"
+min_value = 0.06
+max_value = 0.25
+step = 0.01
+slots = Array[int]([0, 3, 5])
+text = "{value%} basic attack damage"

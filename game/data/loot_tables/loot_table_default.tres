@@ -1,0 +1,109 @@
+[gd_resource type="Resource" script_class="LootTable" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/loot_table.gd" id="1_table"]
+[ext_resource type="Script" path="res://scripts/data/item_rarity.gd" id="2_rarity"]
+[ext_resource type="Script" path="res://scripts/data/item_base.gd" id="3_base"]
+[ext_resource type="Script" path="res://scripts/data/affix.gd" id="4_affix"]
+[ext_resource type="Script" path="res://scripts/data/drop_table.gd" id="5_drop"]
+[ext_resource type="Resource" path="res://data/drop_tables/drop_table_regular.tres" id="6_regular"]
+[ext_resource type="Resource" path="res://data/drop_tables/drop_table_elite.tres" id="7_elite"]
+[ext_resource type="Resource" path="res://data/item_bases/item_base_longsword.tres" id="10_base"]
+[ext_resource type="Resource" path="res://data/item_bases/item_base_iron_helm.tres" id="11_base"]
+[ext_resource type="Resource" path="res://data/item_bases/item_base_mail_hauberk.tres" id="12_base"]
+[ext_resource type="Resource" path="res://data/item_bases/item_base_leather_gloves.tres" id="13_base"]
+[ext_resource type="Resource" path="res://data/item_bases/item_base_leather_boots.tres" id="14_base"]
+[ext_resource type="Resource" path="res://data/item_bases/item_base_band.tres" id="15_base"]
+[ext_resource type="Resource" path="res://data/item_bases/item_base_pendant.tres" id="16_base"]
+[ext_resource type="Resource" path="res://data/affixes/affix_max_health.tres" id="20_affix"]
+[ext_resource type="Resource" path="res://data/affixes/affix_attack_damage.tres" id="21_affix"]
+[ext_resource type="Resource" path="res://data/affixes/affix_attack_speed.tres" id="22_affix"]
+[ext_resource type="Resource" path="res://data/affixes/affix_crit_chance.tres" id="23_affix"]
+[ext_resource type="Resource" path="res://data/affixes/affix_crit_damage.tres" id="24_affix"]
+[ext_resource type="Resource" path="res://data/affixes/affix_armor.tres" id="25_affix"]
+[ext_resource type="Resource" path="res://data/affixes/affix_magic_resist.tres" id="26_affix"]
+[ext_resource type="Resource" path="res://data/affixes/affix_move_speed.tres" id="27_affix"]
+[ext_resource type="Resource" path="res://data/affixes/affix_ability_haste.tres" id="28_affix"]
+[ext_resource type="Resource" path="res://data/affixes/affix_tenacity.tres" id="29_affix"]
+[ext_resource type="Resource" path="res://data/affixes/affix_damage.tres" id="30_affix"]
+[ext_resource type="Resource" path="res://data/affixes/affix_core_damage.tres" id="31_affix"]
+[ext_resource type="Resource" path="res://data/affixes/affix_basic_attack_damage.tres" id="32_affix"]
+[ext_resource type="Resource" path="res://data/affixes/affix_mobility_cooldown.tres" id="33_affix"]
+[ext_resource type="Resource" path="res://data/affixes/affix_magic_find.tres" id="34_affix"]
+
+[sub_resource type="Resource" id="rarity_common"]
+script = ExtResource("2_rarity")
+display_name = "Common"
+color = Color(0.784314, 0.784314, 0.784314, 1)
+affix_count = 1
+roll_min = 0.0
+roll_max = 0.35
+magic_find_effect = 0.0
+
+[sub_resource type="Resource" id="rarity_uncommon"]
+script = ExtResource("2_rarity")
+rarity = 1
+display_name = "Uncommon"
+color = Color(0.298039, 0.815686, 0.298039, 1)
+affix_count = 2
+roll_min = 0.1
+roll_max = 0.5
+
+[sub_resource type="Resource" id="rarity_rare"]
+script = ExtResource("2_rarity")
+rarity = 2
+display_name = "Rare"
+color = Color(0.301961, 0.54902, 1, 1)
+affix_count = 3
+roll_min = 0.25
+roll_max = 0.65
+
+[sub_resource type="Resource" id="rarity_unique"]
+script = ExtResource("2_rarity")
+rarity = 3
+display_name = "Unique"
+color = Color(0.705882, 0.301961, 1, 1)
+affix_count = 3
+roll_min = 0.35
+roll_max = 0.75
+sigil_count = 1
+
+[sub_resource type="Resource" id="rarity_exotic"]
+script = ExtResource("2_rarity")
+rarity = 4
+display_name = "Exotic"
+color = Color(0.14902, 0.85098, 0.768627, 1)
+affix_count = 3
+roll_min = 0.35
+roll_max = 0.75
+sigil_count = 2
+
+[sub_resource type="Resource" id="rarity_legendary"]
+script = ExtResource("2_rarity")
+rarity = 5
+display_name = "Legendary"
+color = Color(1, 0.54902, 0.101961, 1)
+roll_min = 0.55
+roll_max = 0.95
+is_named = true
+magic_find_effect = 0.5
+
+[sub_resource type="Resource" id="rarity_artifact"]
+script = ExtResource("2_rarity")
+rarity = 6
+display_name = "Artifact"
+color = Color(0.941176, 0.847059, 0.564706, 1)
+roll_min = 1.0
+roll_max = 1.0
+is_named = true
+magic_find_effect = 0.5
+
+[resource]
+script = ExtResource("1_table")
+rarities = Array[ExtResource("2_rarity")]([SubResource("rarity_common"), SubResource("rarity_uncommon"), SubResource("rarity_rare"), SubResource("rarity_unique"), SubResource("rarity_exotic"), SubResource("rarity_legendary"), SubResource("rarity_artifact")])
+item_bases = Array[ExtResource("3_base")]([ExtResource("10_base"), ExtResource("11_base"), ExtResource("12_base"), ExtResource("13_base"), ExtResource("14_base"), ExtResource("15_base"), ExtResource("16_base")])
+affixes = Array[ExtResource("4_affix")]([ExtResource("20_affix"), ExtResource("21_affix"), ExtResource("22_affix"), ExtResource("23_affix"), ExtResource("24_affix"), ExtResource("25_affix"), ExtResource("26_affix"), ExtResource("27_affix"), ExtResource("28_affix"), ExtResource("29_affix"), ExtResource("30_affix"), ExtResource("31_affix"), ExtResource("32_affix"), ExtResource("33_affix"), ExtResource("34_affix")])
+drop_table_by_unit = Dictionary[StringName, ExtResource("5_drop")]({
+&"slime": ExtResource("6_regular"),
+&"slime_elite": ExtResource("7_elite")
+})
+default_drop_table = ExtResource("6_regular")

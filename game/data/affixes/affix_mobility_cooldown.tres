@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="Affix" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/affix.gd" id="1_affix"]
+
+[resource]
+script = ExtResource("1_affix")
+id = &"affix_mobility_cooldown"
+stat = &"cooldown"
+type = 1
+scope = &"tag:mobility"
+min_value = -0.04
+max_value = -0.15
+step = 0.01
+slots = Array[int]([4])
+text = "{value%} cooldown on mobility abilities"
