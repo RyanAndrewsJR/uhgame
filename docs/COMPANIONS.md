@@ -249,7 +249,7 @@ The global rules, held by `Companions.table`.
 | `species` | `Array[CompanionData]` | every species (the save looks them up; validated) |
 | `drop_table` | `DropTable` | LOOT's resource: `drop_table_companion_elite.tres` (`item_chance` read as the companion chance, 0.03; LOOT's elite rarity weights) |
 | `drop_species` | `Array[CompanionData]` | **temporary, until DUNGEONS.md** gives each dungeon its signature list |
-| `kindling_by_unit` | `Dictionary` | **temporary, until ENEMIES_AI.md**: unit file name → [chance, amount] (`slime` [0.05, 1], `slime_elite` [1.0, 3]), LOOT's stand-in pattern |
+| `kindling_by_unit` | `Dictionary` | **temporary, until ENEMIES_AI.md**: unit file name → [chance, amount] (`slime` [0.05, 1], `slime_elite` [1.0, 3]), LOOT's stand-in pattern. ENEMIES_AI.md (2026-10-03) *(proposed there)* moves it onto each enemy's `EnemyData` (`kindling_chance`, `kindling_amount`) in its AI7; until then this table stands in, and CO6 reads `EnemyData` first when an enemy has one |
 | `egg_run_min_kills` | `int` | 20 (the counted-run stand-in) |
 | `starter_species` | `CompanionData` | the starter egg *(proposed)*; null = none |
 
@@ -317,7 +317,7 @@ Methods: `get_quirk_count(rarity)`, `get_band(rarity) -> Vector2`, `get_bond_to_
 `res://scripts/rooms/sandbox_companions.gd` in `sandbox.tscn`, like `SandboxTalents`: a small list. **N** cycles the live Knight's companion through every species, none included (Shift+N goes back), **B** adds a bond level to its species (debug), **I** consumes it or brings it back. It never changes the save: the hub's screen is the real one. N, B and I are unbound elsewhere.
 
 ### Drops (CO6)
-- `Companions` on `Events.unit_died` (a kill by the tracked player or its AI ally, not a training dummy; the ally with ALLIES' step, as in LOOT): kindling from `kindling_by_unit`, and a companion at the `drop_table`'s chance (rarity by `ItemRoller.roll_rarity()` with the depth and the killer's magic find, a species from `drop_species`).
+- `Companions` on `Events.unit_died` (a kill by the tracked player or its AI ally, not a training dummy; the ally with ALLIES' step, as in LOOT): kindling from `kindling_by_unit` (from the dead enemy's `EnemyData` once it has one: ENEMIES_AI.md), and a companion at the `drop_table`'s chance (rarity by `ItemRoller.roll_rarity()` with the depth and the killer's magic find, a species from `drop_species`).
 - A drop is LOOT's `Pickup` carrying a `Companion` or an amount of kindling instead of an `Item` (an addition to LOOT's Pickup, made in CO6): layer 9, the pop, collected on proximity by `PickupComponent`. `Companions.collect()` adds it (saved; its species becomes known) and the HUD shows a line in its rarity's color ("Rare Ember Fox (cocoon)", "+3 kindling").
 
 ## View
@@ -430,7 +430,7 @@ For other docs (nothing proposed yet):
 - **NARRATIVE.md:** the lore (spirits, dormant, rekindle, imprint), codex entries, secrets and lore puzzles that give companions, and the champion-linked companion in each champion's story.
 - **UI.md / NPCS.md:** the polished companion screen, the nursery and menagerie as places, the trainer, a 3D preview of the companion.
 - **PROGRESSION.md:** folding `user://companions.cfg` into the one save; companion statistics.
-- **ENEMIES_AI.md:** which enemies drop companions and kindling (replacing the temporary tables).
+- **ENEMIES_AI.md** (written 2026-10-03; applied there, *proposed*): which enemies drop companions and kindling moves onto `EnemyData` (`kindling_chance` and `kindling_amount`, and `companion_drop_chance`, where −1 keeps this doc's rate for the enemy's rank: elites 3%), replacing `kindling_by_unit` in its AI7. Enemies never see companions: they're never in the enemy brain's snapshot or a target, and the command's slot doesn't count toward the respect enemies give a champion. Sustain quirks still wait: LOOT's rule holds until ENEMIES_AI's milestone settles the Knight's low-health judgment call.
 - **Later:** mutated variants from higher difficulties, dyes and skins (look-only), monetization.
 
 Answered in the interview (Ryan, 2026-10-03):

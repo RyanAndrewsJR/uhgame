@@ -66,6 +66,10 @@ The rule for every combo with `attack_style` MELEE (the default; the Knight is t
 - Two kinds of threat: swarms (small chip hits, short or no telegraph) and elites/bosses (big, telegraphed hits). Any enemy attack above the trash damage band has a floor telegraph.
 - How fast the player dies is set per enemy, by its damage band (see Numbers).
 - Enemy attacks can be walked out of: a hit lands only if the target is still in reach at the moment of the hit.
+- **How enemies fight** is ENEMIES_AI.md's (written 2026-10-03; Ryan's decisions): ranks (fodder, regular, elite, boss) and roles (fodder, brute, skirmisher, caster). Fodder is the swarm above; regulars (brutes, skirmishers, casters with 1–2 abilities) sit between the two kinds of threat. **The damage bands don't change** *(proposed there)*: a regular's basic attack sits in the swarm chip band, and any ability of its above that band is telegraphed, in the elite band's lower part.
+- **Tells come before telegraphs** (ENEMIES_AI.md, Tells): every smart enemy decision (a dive, a punish, raising a shield) shows as a pose before it acts, body language only, no icons; the attack's floor telegraph follows as this doc says.
+- **Enemies that dodge** (ENEMIES_AI.md, Dodging): elites and bosses may sidestep a dodgeable attack (a skillshot, a charge-up, a VECTOR line, a slow area) after a reaction time, with a cooldown, never while casting or crowd-controlled. It's a visible move, not a "random dodge chance": a hit that lands always counts (References, Diablo). UNIT-targeted abilities and fast casts are never dodged.
+- **Punishes and finishers** (ENEMIES_AI.md, Bosses): a boss's attack on a whiff or a low target is telegraphed for at least 0.6 s and can be left with one dash *(proposed there)*: a dash always answers it.
 
 ### Status effects
 - One system: StatusComponent plus StatusEffect Resources. Crowd control = statuses tagged cc (stun, root, silence, slow). `Unit.apply_stun()` and `add_speed_modifier()` are thin wrappers that create statuses.
@@ -153,7 +157,7 @@ What exists today (the rest of the design is in Data and Architecture).
 | `Unit.apply_stun()` | **Wrapped:** `apply_stun(duration, source = null)` applies `status_stun` (tenacity shortens it); its stars are `scenes/vfx/stun_stars.tscn`, that status's VFX. `is_stunned()` = any status tagged `stun`. The pre-C9 `StunEffect` fallback was deleted 2026-09-29: a unit without a StatusComponent can't be stunned (every Unit scene has one). |
 | `MovementComponent.add_speed_modifier()` | **Wrapped:** with a StatusComponent each call applies a copy of `status_slow` (any negative part) or `status_haste` with that id, those `move_speed` modifiers (source `&"status_<id>"`) and that duration (−1 = until removed), REFRESH (the same id replaces); `remove_speed_modifier(id)` removes it. Without one, the old path (StatModifiers, its own timer) runs; the stats test uses it. |
 | `MovementComponent.displace()` | **Changed:** the stronger displacement wins; `displace()` returns false when it's dropped. |
-| `res://scripts/enemies/enemy.gd` | **Kept.** Wander, aggro (also on `damaged`), chase, attack. `passive` = training dummy. An enemy with an AbilityComponent (the elite) casts a ready ability (Architecture, Enemy), skipping slots that can't be cast (a failing condition, a cost); an untargetable player is chased without attacking (ABILITIES.md). |
+| `res://scripts/enemies/enemy.gd` | **Kept.** Wander, aggro (also on `damaged`), chase, attack. `passive` = training dummy. An enemy with an AbilityComponent (the elite) casts a ready ability (Architecture, Enemy), skipping slots that can't be cast (a failing condition, a cost); an untargetable player is chased without attacking (ABILITIES.md). ENEMIES_AI.md (2026-10-03) plans the brain that replaces the cast loop; the loop stays behind `Enemy.naive_casting` until its milestone. |
 | `res://scripts/main.gd` | **Kept.** "You died – press Backspace to restart" (`restart`), "Room cleared!". |
 | `res://scripts/abilities/ability_util.gd` | **Kept, extended.** Cone, segment, circle queries using the target's gameplay radius; `in_sight(from, units)` keeps only the units in line of sight (walls block, units don't; feet to feet). The shape queries themselves ignore walls; callers filter. |
 
@@ -360,13 +364,14 @@ STATS step 7 (the F3 overlay) comes after M1. For every step: no errors; the Kni
 - **A swing counts once its hit has landed** (Rules, Basic attack). Built 2026-09-27, see CHANGELOG.md (awaiting play test).
 
 ## Out of scope
-Items and affixes (LOOT.md); ability costs, recasts and augments (ABILITIES.md); enemy AI beyond one telegraphed attack (ENEMIES_AI.md); elite modifiers (DUNGEONS.md; "affix" is an item's line); pits; controller support.
+Items and affixes (LOOT.md); ability costs, recasts and augments (ABILITIES.md); enemy AI beyond one telegraphed attack (ENEMIES_AI.md); elite modifiers (their format ENEMIES_AI.md's, how many per elite DUNGEONS.md's; "affix" is an item's line); pits; controller support.
 
 ## Open questions
 - Weapons: a champion's combo will come from its equipped weapon, and its class limits which weapons it can wield (e.g. a bruiser like Darus can't use daggers); bruiser weapons are heavier, diver and rogue weapons snappier. Today the combo comes from the champion (`ChampionData.combo`, copied onto AutoAttackComponent at load; CHAMPIONS.md), and LOOT's weapons don't change it in this build (LOOT.md, Item slots).
 - Ranged basic attacks: design later (RANGED combos only get walk-cancel for now).
 - What attack_speed means for enemies (AutoAttackComponent).
 - Sustain caps (life steal cap? regen during combat?).
+- ~~**Poise or flinch** (ENEMIES_AI.md, Interview 8): does a hit interrupt a smart enemy's cast, and what tenacity elites and bosses get?~~ Answered (Ryan, ENEMIES_AI I8, 2026-10-03): **no flinch:** a hit never interrupts an enemy's cast, only a status that blocks casting does (this doc's rule, unchanged); **tenacity** 20% for elites and 40% for bosses, given by their rank at spawn (ENEMIES_AI.md, Poise).
 - Healing between rooms (DUNGEONS.md).
 - The crit font asset.
 - Confirm the armor formula; is penetration needed? (Negative armor is settled: a core rule, Rules, Hits.)

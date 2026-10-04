@@ -2,7 +2,7 @@
 
 **Read when:** abilities touch the world (grapples, blinks, dashes into walls, knockback into terrain), or the task involves collision layers, tile tags, interactables (puzzle elements included), hazards, pits, destructibles or kill credit.
 **Depends on:** CLAUDE.md, MOVEMENT.md.
-**Used by:** DUNGEONS (puzzle elements as interactables with element rules, plates and signature hazards as Hazards, breakable walls as destructibles, doors, pits and pit-drops), 3D.md (footprints on these layers), COMBAT (reaction triggers), LOOT (pickups on layer 9, destructibles' drops).
+**Used by:** DUNGEONS (puzzle elements as interactables with element rules, plates and signature hazards as Hazards, breakable walls as destructibles, doors, pits and pit-drops), 3D.md (footprints on these layers), COMBAT (reaction triggers), LOOT (pickups on layer 9, destructibles' drops), ENEMIES_AI (sight through WorldQuery, ambush triggers, a dodge's free-floor check).
 
 ## Current code
 - Rooms are `res://scenes/rooms/room_XX.tscn`, each with a `Tiles` TileMapLayer (`dungeon_tileset.tres`, 32 px, physics layer 0 → collision layer 1 "world"), an `Entities` node, and a `PlayerSpawn` marker.
@@ -42,7 +42,7 @@ Planned: walking masks world, pit, low_obstacle, ledge, and the other team's bod
 - `WorldQuery` hides the difference: for a TileMapLayer hit it gets the cell via `get_coords_for_body_rid()` and reads the tile data. For anything else it reads `SurfaceTags`.
 
 ## WorldQuery (autoload, `res://scripts/autoload/world_query.gd`)
-This is the only place raycasts are written, with one exception today: each Enemy's own `Sight` RayCast2D (`slime.tscn`, mask 1, used by `enemy.gd` `_can_see_player()` for aggro), older than WorldQuery; it moves into `has_line_of_sight()` when ENEMIES_AI.md reworks aggro. It's built on `PhysicsDirectSpaceState2D` (`intersect_ray`, `intersect_shape`, `cast_motion`). No `debug_draw` yet (How to answer, below, asks for one): add it with the next query.
+This is the only place raycasts are written, with one exception today: each Enemy's own `Sight` RayCast2D (`slime.tscn`, mask 1, used by `enemy.gd` `_can_see_player()` for aggro), older than WorldQuery; it moves into `has_line_of_sight()` when ENEMIES_AI.md reworks aggro (written 2026-10-03: its AI2; sight stays on layer 1, so ledges don't block it; the `Sight` node stays until Ryan OKs removing it). It's built on `PhysicsDirectSpaceState2D` (`intersect_ray`, `intersect_shape`, `cast_motion`). No `debug_draw` yet (How to answer, below, asks for one): add it with the next query.
 Built:
 - `has_line_of_sight(from, to, mask = 1)`: walls only; units don't block it. The melee target pull and every hit (COMBAT.md: basic attacks never hit through walls; abilities unless `ignores_walls`).
 - `shape_sweep(from, to, radius, mask = 1)`: the first block along the path (prevents tunneling; projectiles, ABILITIES.md). A circle through `cast_motion`; returns {position (the circle's center where it stops), fraction} or {} when clear.
@@ -108,6 +108,7 @@ A `Hazard` is an Area2D scene on layer 10 with:
 
 Entering applies its status; re-entering refreshes it instead of stacking. It emits `hazard_entered` / `hazard_exited`. Timed traps are Hazards with an on/off cycle.
 - **Themes** (DUNGEONS.md, Themes; Ryan 2026-10-03): each wing theme has 2–3 signature hazards (blood pools that heal enemies, sunlight shafts, glyph traps...) plus the shared basics (fire, oil, pits). A signature hazard is data on this Hazard (its tags, its status, its reaction rules), never code per wing, and shows its telegraph during `arm_time` like every hazard. Darkness or weather that changes play is a Hazard with a status too; the view only shows it.
+- **Ambush triggers** (ENEMIES_AI.md, Spawning; *proposed there*): an `Ambush`'s trigger is a region the party enters, a Hazard-style area on layer 10 with no status (like a plate), and/or Conditions on world states (DUNGEONS.md: a chest opened, a lever pulled). Its enemies then emerge after a floor telegraph, aggroed at once. No new trigger kind: the ambush listens to its own area, as a perch does.
 - **"While inside" option** (for perches, 3D.md, Terrain and height 2): the status lasts while the unit stays inside and is removed when it leaves, instead of running its own duration. A perch is a Hazard-style area giving `status_elevated` this way. In a layout, hazards and perches are placed with sim markers; their look comes through the view mechanism. **Built for perches in 3D pivot P9** (`Perch`, `scripts/world/perch.gd`, `scenes/world/perch.tscn`): standing inside means the unit's feet (its position) are inside, so a unit pressed against the cliff below never counts; the Hazard itself isn't built.
 
 ## Knockback (approved by Ryan 2026-09-30)

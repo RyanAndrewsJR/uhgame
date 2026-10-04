@@ -2,7 +2,7 @@
 <!-- Written 2026-10-03 from Ryan's decisions (his interview with the advisor, the same day). A plan: nothing is built. -->
 
 **Read when:** the task involves a dungeon or a wing (its structure, floors, spaces, scale or authoring budget), a run from the hub to a clear, checkpoints (finding, resting, respawning, fast travel), what's shuffled each run (content slots, pools, packs, elites, events, chests), arenas and doors, bosses as set pieces, the puzzle framework (puzzle elements, world states), secrets and collectibles and their rewards, quests and the quest list, where codex entries sit and how they unlock, the map, difficulty tiers and wing modifiers, what a wing favors ("recommended for"), a theme's signature hazards and lighting, the champion lens and champion quest lines, or the dungeon save.
-**Depends on:** CLAUDE.md, VISION.md (Pillar 5, Game structure, Meta-progression), CONVENTIONS.md (tags plus rules, context objects, Events), 3D.md (rooms built in 3D: `RoomLayout`, `SimMarker`, overlapping floors as separate rooms, terrain; Wing scale), WORLD_INTERACTION.md (interactables, hazards, destructibles, pits, kill credit, layers 6–10), COMBAT.md (ReactionRule, GameplayEffect, Events), ABILITIES.md (Condition, ability tags), STATS.md (StatModifier), LOOT.md (DropTable, ItemRoller, Pickup, NamedItem, depth), TALENTS.md (Progress, XP, the save pattern and test guard), COMPANIONS.md (drops, eggs, kindling, the imprint), ALLIES.md (party scaling, downed and revive), CHAMPIONS.md (ChampionData, `champion_class`), AUDIO.md (hooks), ENEMIES_AI.md (not written: rosters, behaviors, packs, elites).
+**Depends on:** CLAUDE.md, VISION.md (Pillar 5, Game structure, Meta-progression), CONVENTIONS.md (tags plus rules, context objects, Events), 3D.md (rooms built in 3D: `RoomLayout`, `SimMarker`, overlapping floors as separate rooms, terrain; Wing scale), WORLD_INTERACTION.md (interactables, hazards, destructibles, pits, kill credit, layers 6–10), COMBAT.md (ReactionRule, GameplayEffect, Events), ABILITIES.md (Condition, ability tags), STATS.md (StatModifier), LOOT.md (DropTable, ItemRoller, Pickup, NamedItem, depth), TALENTS.md (Progress, XP, the save pattern and test guard), COMPANIONS.md (drops, eggs, kindling, the imprint), ALLIES.md (party scaling, downed and revive), CHAMPIONS.md (ChampionData, `champion_class`), AUDIO.md (hooks), ENEMIES_AI.md (written 2026-10-03: rosters, behaviors, packs, elites, spawning, the boss director).
 **Used by:** ENEMIES_AI (a roster per dungeon on shared behaviors, packs vs arena enemies, elite modifiers, the attack patterns a tier adds), NARRATIVE and NPCS (codex content, the champion lens, quest writing, NPC dialogue), PROGRESSION (one save: clears, tiers, finds), UI (the hub's wing pick, the map, the quest list, the codex screen), LOOT (chest tables, hand-placed named gear, tier loot quality, depth), COMPANIONS (signature companions, counted runs, parts and clues), ALLIES (checkpoints, party scaling with tiers, pair recommendations), CHAMPIONS (champion quest lines), AUDIO (music and ambience per wing), ACHIEVEMENTS (much later).
 **Status:** written 2026-10-03. Ryan's decisions (his interview with the advisor, 2026-10-03) are MUST. Items marked *(proposed)* are Claude's picks Ryan hasn't answered; each is also in Open questions. The interview is done: Ryan answered all ten items (I1–I10) in five rounds on 2026-10-03; his answers are MUST, written into the sections below (marked I1–I10) and listed under Open questions, Interview. Nothing is built.
 
@@ -104,28 +104,34 @@ At the hub you pick the Knight, set his talents and open the Enchantress's Castl
   - **mini-bosses vary**: a side area's mini-boss is picked from 2–3 candidates each run.
 - **A higher difficulty tier widens the pools** (I3): the layout stays, but tougher packs unlock in the pools, some slots fill only from a given tier, and elites show up more often. Tier 4 is a nastier version of the same place.
 - **Content slots** (the authored-slot system): a **content slot** is a marker the level builder places in a space. It lists the **pools** it may draw from, and at the run's start the run picks one entry from them, or nothing, with the run's seed. Always "content slot" in full: "slot" alone means an ability slot or an equipment slot.
-  - Kinds: `PACK` (a roaming pack), `ELITE` (an elite, its elite modifiers rolled at spawn), `MINI_BOSS` (one of 2–3 candidates, never empty), `EVENT` (an optional event: an ambush, a shrine, a caged prisoner, a cursed chest), `CHEST` (a chest whose contents roll from its table; a few chest slots share a group so the chest's position moves).
+  - Kinds: `PACK` (a roaming pack), `ELITE` (an elite, its elite modifiers rolled at spawn), `MINI_BOSS` (one of 2–3 candidates, never empty), `EVENT` (an optional event: an ambush (ENEMIES_AI.md's `Ambush`), a shrine, a caged prisoner, a cursed chest), `CHEST` (a chest whose contents roll from its table; a few chest slots share a group so the chest's position moves).
   - A content slot has `pools` (the allowed pools), `empty_weight` (its chance to stay empty, weighed against the pools' entries), `min_difficulty_tier` (it fills only from that tier up), `group` and `group_count` (slots sharing a group fill exactly `group_count` of them: "an ambush in the hall or in the crypt, not both"), and a stable id (so the run remembers what it rolled and what died there).
   - A **pool** is a weighted list of entries, each a scene (a pack, an elite, an event, a chest) with a `weight` and a tier range. Pools belong to the dungeon (they draw on its roster) and its wings share them.
   - Fixed things are plain `SimMarker`s, never content slots.
-- A **pack** is a scene of enemies placed together, which notice the player by proximity and fight together. What makes them a pack (noticing, calling each other, leashing) is ENEMIES_AI's.
+- A **pack** is a scene of enemies placed together, which notice the player by proximity and fight together. What makes them a pack (noticing, calling each other, leashing) is ENEMIES_AI's (written 2026-10-03: a `Pack` root node, its home, the shout to packmates, the walk home and recovery).
 
 ### Fights: packs and arenas (MUST; Ryan 2026-10-03)
 - **Roaming packs** placed in the space notice the player by proximity (Diablo). **Most of a wing is packs.**
 - **Arenas** are a few set pieces that lock their doors until cleared (Hades): bosses and set-piece fights.
 - *(proposed)* An **arena** (a sim node placed with a marker) has a region, its doors and its waves. When the party is inside the region (or `seal_delay` after the player enters), its doors seal (bodies on layer 1: walking, dashes, projectiles and sight all stop) and wave 1 spawns in with a telegraph. Each wave fills its own content slots or fixed markers; the next starts when the last enemy of a wave dies (or when fewer than `next_wave_at` are left). When the last wave dies, the doors open, the arena is **cleared** for the run (a world state, `arena_<id>_cleared`), and its reward opens. *(proposed, following I8's boss rule)* Dying inside re-arms the arena whole: its doors open, its living enemies leave, and the next entry starts at wave 1. An arena isn't progress until it's cleared, as a boss isn't until it's dead; every kill outside it, find and puzzle is kept.
-- How enemies notice, chase, leash and spawn in is ENEMIES_AI's; this doc places them.
+- **Waves wait on Ryan** (ENEMIES_AI.md, 2026-10-03): Ryan didn't pick arena waves or mid-fight reinforcements in the enemy interview, so ENEMIES_AI keeps **spawn-in** as a basic kind (an arena's enemies spawn together, once, when it seals, each after a floor telegraph and with instant aggro) and defers waves. Until Ryan confirms waves, an arena has one wave; `ArenaWave` and `next_wave_at` stay *(proposed)*.
+- How enemies notice, chase, leash and spawn in is ENEMIES_AI's; this doc places them. ENEMIES_AI.md's spawn kinds: placed packs, ambushes (an EVENT content slot's `Ambush`) and spawn-in (`EnemySpawner.spawn_in()`, which arenas call). Arena and boss enemies never leash.
 
 ### Bosses (MUST; Ryan 2026-10-03)
 - Each wing ends in its own **boss set piece** (an arena with a boss). Side areas may hold optional **mini-bosses** and elites. A side area's mini-boss is picked from 2–3 candidates each run (I3: a `MINI_BOSS` content slot); the wing's boss is always the same. *(proposed)* A mini-boss counts as a boss for the respawn rule: dead for good.
 - The final wing's boss is the dungeon's **finale**, locked until the other wings are cleared.
-- **Dying to a boss** (I8, 2026-10-03): a checkpoint always stands right outside the boss arena. Dying resets the boss to full health and re-arms its arena; every kill, find and puzzle in the run is kept. A boss isn't progress until it's dead (Dark Souls, Hades), so "dying never undoes progress" holds.
+- **Dying to a boss** (I8, 2026-10-03): a checkpoint always stands right outside the boss arena. Dying resets the boss to full health and re-arms its arena; every kill, find and puzzle in the run is kept. A boss isn't progress until it's dead (Dark Souls, Hades), so "dying never undoes progress" holds. The arena calls the boss's `BossDirector.reset()` (ENEMIES_AI.md: full health, phase 1, its tempo, cooldowns, statuses and position reset).
+- A boss's phases, its pressure and breather tempo, punishes and finishers are ENEMIES_AI.md's (the boss director). Ryan (its I10, 2026-10-03): three phases by default, at 100%, 66% and 33% of health, as data; a mini-boss is rank boss with one or two.
 - *(proposed)* A boss at a higher difficulty tier gets the tier's enemy modifiers like any enemy, and its new attack patterns come from the same tier gate (ENEMIES_AI.md).
 
 ### Enemies: a roster per dungeon on shared behaviors (MUST; Ryan 2026-10-03; ENEMIES_AI.md builds it)
 - Each dungeon has its **own enemy roster**, built on **shared behaviors** (charger, ranged, summoner, shielded...), each with a new look and a twist.
 - The requirement for ENEMIES_AI.md: **behaviors are reusable data, rosters are content.** A dungeon's roster names its enemies; each is a shared behavior plus its own data (stats, abilities, look, twist). DUNGEONS' pools draw from the roster.
 - Elite modifiers and the attack patterns a difficulty tier adds are ENEMIES_AI's data; the tier only says how many (Difficulty tiers).
+- **The formats** (ENEMIES_AI.md, written 2026-10-03; Ryan approved the format in its interview, I9: `EnemyBehavior`, `EnemyData`, `EnemyRoster`; its other names *(proposed there)*):
+  - a dungeon's roster is an `EnemyRoster`: its enemies (`EnemyData`: rank, role preset, a few slider overrides, stats, abilities with a minimum difficulty tier each (the tier's new attack patterns), its twist, look, XP, kill tags, drops), its **faction** (a personality preset: a `BrainAdjust` on every enemy's sliders, e.g. vampires cunning and evasive, constructs relentless and blunt) and its **elite modifier pool**;
+  - a shared behavior is an `EnemyBehavior` (one per role: brute, skirmisher, caster; later support, summoner, sniper);
+  - an elite modifier is an `EliteModifier` (stats, statuses, reaction rules, an ability, a brain adjust), rolled at spawn from the run's seed.
 
 ### Navigation (MUST; Ryan 2026-10-03)
 - An **auto-map** fills in as you explore; a **minimap** sits in a corner; **quest markers** show where quest steps point; **checkpoint travel** opens at a checkpoint. The map handles **multiple floors**.
@@ -170,6 +176,7 @@ The four kinds, all in:
 - Always "difficulty tier" in full: "tier" alone is a talent's depth (TALENTS.md) and "elite" and "boss" are enemy tiers (CONVENTIONS.md).
 - Tiers are difficulty, never power: unlocking one grants no combat power.
 - *(proposed)* A tier is data (`DifficultyTier`, Data): enemy stat modifiers applied at spawn next to `PartyScaling.apply_to()` (source `&"difficulty_tier"`), how many elite modifiers an elite rolls, a tier range on pool entries and enemy abilities (the new attack patterns and tougher packs), a loot depth bonus (LOOT's formulas unchanged), and the wing modifiers.
+- **Smarter, not only tougher** (ENEMIES_AI.md, Scaling; Ryan 2026-10-03: higher tiers turn the brains' sliders up: faster reactions, better dodges, shorter patience, more attack tokens, more elite modifiers): *(proposed there)* each tier carries a `brain_adjust` (multipliers on the enemy brain's sliders, and a token bonus), applied at spawn after the enemy's rank and its dungeon's faction. The two rows below are ENEMIES_AI's proposal.
 - *(proposed)* A **wing modifier** is a bundle of world rules (`Reactions.add_world_rule()` under `&"wing_modifier_<id>"`), enemy stat modifiers and statuses given at spawn: "enemies burst into flame on death", "elites are shielded", "darkness: fewer lights". It never lowers the champion's own stats: harder fights, not a weaker you.
 
 | Difficulty tier (five: Ryan, I4; the numbers TARGET, *proposed*) | 1 | 2 | 3 | 4 | 5 |
@@ -180,6 +187,8 @@ The four kinds, all in:
 | New attack patterns | none | from here | more | more | more |
 | Loot depth bonus | +0 | +2 | +4 | +6 | +8 |
 | Wing modifiers | none | none | none | 1 | 2 |
+| Enemy brains (ENEMIES_AI.md) | as authored | reaction × 0.95, patience × 0.9 | reaction × 0.9, patience × 0.8, dodge skill × 1.15 | reaction × 0.85, patience × 0.7, dodge × 1.3 | reaction × 0.8, patience × 0.6, dodge × 1.4 |
+| Attack tokens per champion (ENEMIES_AI.md; Ryan, its I3) | 2 | 2 | 2 | 3 | 3 |
 
 ### Recommended for: what a wing favors (MUST; Ryan 2026-10-03)
 - "Recommended for" champions or champion+ally combos is **real design, not a hint label**: a wing contains enemies, hazards and puzzles that favor certain kits (dark rooms reward a light-based champion; long corridors favor ranged). It is **never required**: every champion can clear every wing, and "no unanswerable enemy" holds (3D.md, Terrain and height 3).
@@ -246,7 +255,7 @@ Names are *(proposed)* and checked against CONVENTIONS.md (reserved names, vocab
 | `wings` | `Array[WingData]` | 1–3 |
 | `first_wing`, `final_wing` | `WingData` | the first opens the others; the final's boss waits for the other clears (one wing: both the same) |
 | `quests`, `codex_entries` | `Array[Quest]`, `Array[CodexEntry]` | dungeon-level |
-| `roster` | ENEMIES_AI's type | the dungeon's enemies |
+| `roster` | `EnemyRoster` (ENEMIES_AI.md) | the dungeon's enemies, its faction preset and its elite modifier pool |
 | `pools` | `Array[ContentPool]` | what its wings' content slots draw from |
 | `signature_companions` | `Array[CompanionData]` | replaces COMPANIONS' temporary `drop_species` |
 | `music`, `ambience` | `SoundEvent` | AUDIO hooks |
@@ -281,10 +290,10 @@ Names are *(proposed)* and checked against CONVENTIONS.md (reserved names, vocab
 | Backdrops | view-only | group `decoration` (3D.md, Wing scale) |
 
 ### ContentPool (`content_pool.gd`; `res://data/content_pools/content_pool_<name>.tres`)
-`entries: Array[PoolEntry]` (inline: `scene: PackedScene`, `weight` 1, `min_difficulty_tier` 1, `max_difficulty_tier` 0 = none). A pack is a scene of its members (ENEMIES_AI.md); an elite entry's modifiers are rolled at spawn.
+`entries: Array[PoolEntry]` (inline: `scene: PackedScene`, `weight` 1, `min_difficulty_tier` 1, `max_difficulty_tier` 0 = none). A pack is a scene of its members under a `Pack` root (ENEMIES_AI.md); an elite entry's modifiers are rolled at spawn. *(proposed, ENEMIES_AI.md)* The validator warns about an entry holding an enemy outside the dungeon's roster.
 
 ### DifficultyTier (`difficulty_tier.gd`; inline in the wing)
-`index`, `display_name`, `enemy_modifiers: Array[StatModifier]` (source `&"difficulty_tier"`), `elite_modifier_count`, `loot_depth_bonus`, `wing_modifiers: Array[WingModifier]`, `party_scaling: PartyScaling` (null = the AllyTable's). Method `apply_to(enemy: Unit)`, called at spawn with `PartyScaling.apply_to()`.
+`index`, `display_name`, `enemy_modifiers: Array[StatModifier]` (source `&"difficulty_tier"`), `elite_modifier_count`, `loot_depth_bonus`, `wing_modifiers: Array[WingModifier]`, `party_scaling: PartyScaling` (null = the AllyTable's), (ENEMIES_AI.md) `brain_adjust: BrainAdjust` (the tier's multipliers on enemy brain sliders and its attack token bonus). Method `apply_to(enemy: Unit)`, called at spawn with `PartyScaling.apply_to()`.
 
 ### WingModifier (`wing_modifier.gd`; `res://data/wing_modifiers/wing_modifier_<name>.tres`)
 `id`, `display_name`, `description`, `world_rules: Array[ReactionRule]`, `enemy_modifiers: Array[StatModifier]`, `enemy_statuses: Array[StatusEffect]`.
@@ -396,7 +405,7 @@ Audio hooks: see AUDIO.md. To add when built (synthesized placeholders until rea
 **Before D1:**
 - 3D pivot P-M (the view on by default; passed 2026-10-03), and the **P-spike** (3D.md, Wing scale), which decides one sim Room per floor or per space.
 - WORLD_INTERACTION's approved pieces that have no build slot yet: interactables (layer 8), Hazards (layer 10 and the hazard triggers), `IMPACT` and `ImpactContext`, destructibles, `SurfaceTags` on footprints, and the pit step (every wing has pits).
-- ENEMIES_AI's first steps (aggro and packs); LOOT L1–L7 (chests, drops and pickups).
+- ENEMIES_AI's first steps (aggro and packs: its AI1–AI2; spawn-in and ambushes are its AI7); LOOT L1–L7 (chests, drops and pickups).
 
 Every step: the Knight's abilities, talents, enemies chasing and the HUD still work, and the sandbox and today's Start run play as before until D1 moves Start run to the wing pick. Logs go in CHANGELOG.md (the Dungeons section); this doc keeps one line per built step.
 
@@ -460,7 +469,7 @@ Procedural geometry (VISION.md, Scope); seamless streaming between floors (v1); 
 - **Doors, room locking and room transitions** (WORLD_INTERACTION.md, Open questions) are answered here (doors, arenas, floor links); WORLD_INTERACTION.md can point to this doc.
 
 ### For other docs
-- **ENEMIES_AI.md:** a roster per dungeon on shared behaviors (behaviors are reusable data, rosters content); roaming packs (proximity notice, a pack aggroing together, leashes) versus arena enemies (spawning in with a telegraph, aggro at once); elite modifiers and their pool (a difficulty tier says how many); attack patterns gated by difficulty tier; mini-bosses and bosses as set pieces with phases; which enemy attacks are `melee`; kill tags for quest counters and the bestiary; the sleep distance from the P-spike.
+- **ENEMIES_AI.md** (written 2026-10-03; each point is answered there): a roster per dungeon on shared behaviors (behaviors are reusable data, rosters content); roaming packs (proximity notice, a pack aggroing together, leashes) versus arena enemies (spawning in with a telegraph, aggro at once); elite modifiers and their pool (a difficulty tier says how many); attack patterns gated by difficulty tier; mini-bosses and bosses as set pieces with phases; which enemy attacks are `melee`; kill tags for quest counters and the bestiary; the sleep distance from the P-spike. **Open with Ryan from it:** arena waves and reinforcements (deferred: spawn-in only, Fights).
 - **NARRATIVE.md / NPCS.md:** the codex's content and its per-champion lens; quest writing (wing, dungeon and champion lines); NPC dialogue with per-champion variants; the scenes that change per champion; voice scope; lore puzzles' answers.
 - **PROGRESSION.md:** `user://dungeons.cfg` folds into the one save; clears and difficulty tiers (I1); the codex as an account collection; the statistics pages; the run in progress (I2).
 - **UI.md:** the hub's wing pick, the map and minimap, the quest list, the codex screen, the "Recommended for" display (I5), the fade.

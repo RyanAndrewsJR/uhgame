@@ -146,6 +146,7 @@ Moved here from MOVEMENT.md unchanged (MOVEMENT.md keeps a pointer). Per ability
   - RESOURCE_AT_LEAST (N)
   - LAST_PART_HIT (the previous recast part hit something)
   - CONSUMES_COMPANION (planned, COMPANIONS.md: this cast is consuming the caster's companion; a devour's payoff bonus)
+  - Planned by ENEMIES_AI.md (2026-10-03; *proposed* names), for the AI's use rules: THREATENED (an attack coming at self lands within N seconds), TARGET_WHIFFED (the target's punish window is open and at least N seconds long), RESPECT (the brain's respect above or below N). They read the brain's `SituationContext`, passed as an optional last argument; anywhere without one they're false.
 - Each condition has a "not" toggle (`negate`). A list of conditions means all must pass (AND). No OR and no nesting; that's what scripts are for.
 - "Target" means the unit hit, for hit-time checks. For cast checks: a UNIT ability's chosen target; otherwise the enemy nearest the cursor within cast range. No target = every TARGET_ condition fails, even when negated. In a reaction rule, "self" is the unit the effects come from (the rule's source) and "target" the effect target.
 - Where conditions plug into an ability:
@@ -156,6 +157,12 @@ Moved here from MOVEMENT.md unchanged (MOVEMENT.md keeps a pointer). Per ability
 - Feedback: when a cast or recast condition fails, the slot shows as unavailable (greyed, League style) and pressing it plays the fail cue with reason "condition"; nothing is spent and the press isn't buffered. A condition can carry a short fail text for later UI (e.g. "No marked target").
 - Named 0–1 scaling inputs: CastContext carries named values from 0 to 1. Charge is the first one; `CastContext.charge` keeps working exactly as it is (a thin wrapper, change policy). Any charge-style scaling can read any named input through its optional curve. Built in: `charge`, `self_missing_health`, `target_missing_health`, `target_distance` (distance ÷ cast range), `vector_drag` (a VECTOR cast's drag length ÷ `vector_length`; AB13); an ability script can set any other (e.g. stack count ÷ max stacks).
 - Conditions work outside ability slots (passives, items, enemy AI), like the rest of the toolkit: a condition is a pure check on units, and whatever holds it (a rule, an augment, a status, an item) is added and removed by its source id.
+
+### What the AI uses an ability for (ENEMIES_AI.md, written 2026-10-03; Ryan's enemy decisions; names *(proposed there)*)
+- **Each ability carries what it's for, as data:** `ai_uses`, a list of `AIUse`: an intent tag (`poke`, `gap_close`, `escape`, `defend`, `punish`, `finish`, `zone`, and ALLIES' effect tags `damage`, `heal`, `shield`, `buff`, `cc`), use rules (the shared `Condition`s, all of which must pass) and a weight. A brain picks the ability the moment calls for, not whatever is ready: a caster's shield has only a `defend` use with THREATENED, so it never goes up "just because". An ability with no `ai_uses` counts as one `damage` use with no rules.
+- **The data says what for and when; the ability's `get_ai_plan()` (ALLIES.md) says how and how good.** Intent tags aren't ability tags: they never enter scopes or hit tags.
+- **Respect:** what a champion has ready holds smart enemies back. An ability's weight in it is `respect_value`, derived from its role tag and whether it crowd-controls unless authored (ENEMIES_AI.md, Respect); never from damage numbers.
+- **What enemies can dodge** (elites and bosses; ENEMIES_AI.md, Dodging): only what a person could see coming in time, read through `get_effect_area()`: skillshot projectiles by their travel time, charge-ups while held and in their release windup, VECTOR lines in their release windup, POINT and area casts with a long enough cast time. Never UNIT-targeted abilities (Judgement), casts faster than the reaction plus a sidestep (Cleave, Lunge, swings) or the dash.
 
 ## The toolkit (every ability is built from these)
 Targeting and indicators; cast styles; shapes (cone, line, circle, line of sight); the hit (`HitPipeline.from_ability` with scalings, knockback, statuses, feel, crit roll per cast); statuses (incl. unstoppable, untargetable, empowers); movement methods (dash, displace; blink and pull_to when first needed); projectiles; ground areas (player-made Hazards, WORLD_INTERACTION.md); telegraphs; reaction rules and GameplayEffects granted by abilities; conditions; tooltips; sounds and VFX hooks.
@@ -327,6 +334,8 @@ Audio hooks: see AUDIO.md (`charge_sound` is added there for CHARGE_UP).
 | `heal_missing_health_ratio` | `float` | 0 | CHAMPIONS CH5b, export group "Sustain": heals the caster for this × their missing health, once per cast, on the cast's first hit that gets through (`HitPipeline.apply_on_hit()`, `Unit.heal()`; `HitContext.cast`, `CastContext.missing_health_healed`). A scoped param, shaped like `heal_on_hit_ratio`. The Knight's Cleave uses this one (0.55 through a curve on `self_missing_health`); its `heal_on_hit_ratio` is 0. |
 | `can_consume_companion` | `bool` | false | planned (COMPANIONS.md, CO4): the cast may be aimed at the caster's own companion, which it then consumes at the effect start. The ability keeps its full use on enemies (consuming is never mandatory). |
 | `companion_imprint_time` | `float` | 45 | planned (CO4): seconds a companion this ability consumes stays an imprint (TARGET 30–60). |
+| `ai_uses` | `Array[AIUse]` | `[]` | planned (ENEMIES_AI.md, AI1): what the AI uses this ability for and when (What the AI uses an ability for). Empty = one `damage` use with no rules. |
+| `respect_value` | `float` | −1 | planned (ENEMIES_AI.md, AI1): this ability's weight in enemies' respect; −1 = derived from its role tag and crowd control. |
 
 Tags (`tags`, existing) carry the standard tags (placeholder roles until CHAMPIONS.md; CHAMPIONS.md keeps the Knight's as they are *(proposed)*): Cleave `core`, `area`, `cone` (and `melee` since 3D pivot P9); Iron Resolve `defensive`, `buff`; Lunge `mobility`, `dash`, `movement` (and `melee`); Judgement `ultimate`, `channel`; the slam `core`, `area`. Existing tags stay (don't rename). A style tag is written in the data and must match `cast_style` (the test checks it).
 
@@ -344,6 +353,7 @@ New methods:
 - `get_effect_param(caster, param, cast, target = null)`: the param after scoped modifiers, its named-input scaling from `cast`, and every conditional bonus whose conditions pass now for that target (Architecture, Conditions).
 - `get_conditions_for_part(part)`, `get_active_bonuses(caster, cast, target)`, `needs_condition_target()`.
 - AB13: `get_vector_direction(caster, start, aim)` (start → aim for a drag of at least `vector_min_drag_px`, else `get_vector_tap_direction(caster, start)`: caster → start, or the caster's `facing` when the start is on it, right for a unit without one); `draw_vector_indicator(canvas, caster, start, aim)` (virtual; the default draws the start range, a start marker and the line `vector_length` × `vector_width` along `get_vector_direction()`, tap fallback included); `get_ai_vector(caster, target) -> Dictionary` (virtual, `{start, direction}` for the enemy AI; the default: start at the target, direction caster → target).
+- Planned (ENEMIES_AI.md, AI1; ALLIES.md): `get_ai_plan(caster, situation) -> CastPlan` (virtual; where to aim and how good; the shared default aims at the target where it stands and wraps `get_ai_vector()`), and `get_effect_area(caster, ctx) -> Dictionary` (virtual; where a cast in progress will land, as a circle, cone or segment in px, from the ability's tags and params by default), which enemy perception reads for party casts and the ally brain for enemy casts.
 
 ### DamageScaling (Resource, `res://scripts/data/damage_scaling.gd`; inline in the ability's .tres)
 | Field | Type | Notes |
@@ -385,6 +395,7 @@ Kinds (`Condition.Kind`):
 - `CONSUMES_COMPANION` (planned, COMPANIONS.md; appended to the enum): the cast is consuming self's companion (`cast.consumes_companion`, which the consume at the effect start leaves true only if the companion was out); false without a cast.
 
 Methods: `is_met(self_unit, target, cast = null)` (the kind's check, then `negate`; a TARGET_ kind with no valid target is false either way), `is_target_kind()`; static `all_met(conditions, self_unit, target, cast)` (AND; an empty list passes), `first_failed(...)` (for the fail text), `any_target_kind(conditions)`.
+Planned (ENEMIES_AI.md, AI1–AI6): the kinds `THREATENED`, `TARGET_WHIFFED` and `RESPECT` (appended; `value` is seconds for the first two and 0–1 for RESPECT, with `comparison`), and an optional last argument `situation: SituationContext` on `is_met()`, `all_met()` and `first_failed()`; the three kinds read it and are false without it; every other kind ignores it.
 
 ### ConditionalBonus (Resource, `res://scripts/data/conditional_bonus.gd`; inline)
 | Field | Type | Notes |
@@ -539,7 +550,7 @@ Signals: `charges_changed(slot, charges, max_charges)`, `charge_started(slot, ab
 6. **Without a mouse**:
    - `try_cast()` on a VECTOR ability (a free cast, or a hold-to-aim release whose slot became VECTOR) casts at once as a tap (`_make_cast_context()`, shared with `try_cast_free()`): start = the aim clamped as at a press, direction = caster → start, `vector_drag` 0.
    - `try_cast_vector(slot, start, direction)`: casts at once with that start (clamped as at a press) and direction, `vector_drag` 1 (no drag to measure; full, like an input without a cast). The usual checks and cost; the cast time as usual.
-   - Enemy AI: `Enemy._try_cast_ability()` calls `try_cast_vector(slot, v.start, v.direction)` with `v = ability.get_ai_vector(unit, player)` for a VECTOR ability (after `set_aim_hint()`, as for any ability). The ability's `on_cast_started()` shows a `Telegraph.line()` during the cast time; a stun or death removes it the same frame, as for the slam.
+   - Enemy AI: `Enemy._try_cast_ability()` calls `try_cast_vector(slot, v.start, v.direction)` with `v = ability.get_ai_vector(unit, player)` for a VECTOR ability (after `set_aim_hint()`, as for any ability). The ability's `on_cast_started()` shows a `Telegraph.line()` during the cast time; a stun or death removes it the same frame, as for the slam. (ENEMIES_AI.md: the enemy brain replaces this naive loop, which stays behind `Enemy.naive_casting` until the milestone; the brain casts through the same `try_cast_vector()`, aimed by `get_ai_plan()`, whose default wraps `get_ai_vector()`.)
 7. **Hits and ground areas** use the three vector fields: e.g. `AbilityUtil.along_segment(caster, vector_start, vector_end, width)` for a line of hits; a ground area (a wall of fire) along the same segment.
 8. **Named input** `vector_drag` is filled at release (step 3) and read like any other (`ChargeScaling.input`, `get_effect_param()`).
 
@@ -693,7 +704,7 @@ Ryan, 2026-09-29. Two goals: a future cast-speed stat or item plugs into one pla
 | A condition reading a status that expires mid-cast | Cast conditions are checked once, when the cast (or part) starts; the cast goes on if the status expires in the cast time. A bonus reading it is checked at the effect, so the expired status gives no bonus. |
 | A recast condition failing for the whole recast window | Presses fail with `"condition"`; the window runs out normally and the cooldown starts. |
 | TARGET_ conditions with no valid target | False, even when negated (no enemy near the aim within range, a dead target, or a UNIT cast without one). A cast needing one fails with `"condition"`. |
-| Enemy abilities using conditions | Allowed: the same `get_fail_reason()`; the enemy AI sets the aim hint to its target first (ENEMIES_AI.md chooses when to try). |
+| Enemy abilities using conditions | Allowed: the same `get_fail_reason()`; the enemy AI sets the aim hint to its target first (ENEMIES_AI.md chooses when to try: an ability's `ai_uses` and their use rules, then its `get_ai_plan()`). |
 | A reaction rule's condition with no target (a world rule whose effect target is gone) | The rule doesn't fire (Reactions already skips a missing target; TARGET_ conditions are false). |
 | Cast mode switched mid-aim | The aim in progress finishes as it started (release casts); the new mode applies to the next press. |
 | A projectile whose caster dies | It keeps flying. Kill credit is the caster's while it exists; once it's freed, snapshot damage and no source (Rules, Projectiles). |
@@ -763,7 +774,7 @@ Not build steps. Each is data once 2+ kits use it (Data or script, above).
 - Example use: capture-and-throw abilities (Tahm Kench, Singed E style).
 
 ## Out of scope
-Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modifiers, unit reaction rules, statuses, empowers and an optional script, all under a source id like `passive_knight`, built on this toolkit); items and affix rolls (LOOT.md); enemy AI choosing abilities (ENEMIES_AI.md); ability ranks (none, replaced by talents: Ability ranks); talents (TALENTS.md, built on augments); summons; ability slot swapping by the player (decided no, 2026-09-29: slots are fixed, VISION.md, Build variety; REPLACE augments and forms still change what's active in a slot); TOGGLE and SUSTAINED cast styles (not planned: Cast styles); the ultimate meter (CHAMPIONS.md).
+Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modifiers, unit reaction rules, statuses, empowers and an optional script, all under a source id like `passive_knight`, built on this toolkit); items and affix rolls (LOOT.md); enemy AI choosing abilities (ENEMIES_AI.md, written 2026-10-03: the brain, intents, use rules; this doc keeps only the fields it adds to Ability and Condition); ability ranks (none, replaced by talents: Ability ranks); talents (TALENTS.md, built on augments); summons; ability slot swapping by the player (decided no, 2026-09-29: slots are fixed, VISION.md, Build variety; REPLACE augments and forms still change what's active in a slot); TOGGLE and SUSTAINED cast styles (not planned: Cast styles); the ultimate meter (CHAMPIONS.md).
 
 ## Open questions
 - Ultimate meter details (CHAMPIONS.md, when a champion first uses one).
