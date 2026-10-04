@@ -4,9 +4,9 @@ extends Resource
 ## Brains.table (the pattern of LootTable): the ranks, the think rate, the
 ## respect and patience numbers, the tell, the hold's movement and the
 ## scores. res://data/enemy_ai_tables/enemy_ai_table_default.tres.
-## Every number is a TARGET until the play tests. The groups' numbers (tokens,
-## alert, leash), the target pick's, dodging's and the whiff's come with their
-## steps (AI2, AI4, AI6).
+## Every number is a TARGET until the play tests. AI2 added the groups'
+## numbers (tokens, the fodder ring, the alert, the leash) and the target
+## pick's; dodging's and the whiff's come with their steps (AI4, AI6).
 
 ## The four ranks (fodder, regular, elite, boss), each a RankRules.
 @export var ranks: Array[RankRules] = []
@@ -78,6 +78,63 @@ extends Resource
 @export var strafe_turn_min: float = 2.0
 @export var strafe_turn_max: float = 4.0
 
+@export_group("Attack tokens")
+## Tokens in each champion's pool by difficulty tier 1–5 (Ryan, I3): 2 at
+## tiers 1–3, 3 at tiers 4–5. A regular holds 1, an elite 2
+## (RankRules.token_cost); fodder and bosses need none.
+@export var tokens_per_target: Array[int] = [2, 2, 2, 3, 3]
+## A holder keeps its token for at most this long (s; its commit ends then
+## too), then can't ask again for token_rest_time s, so attackers rotate
+## (Ryan, I3). A holder that's stunned or rooted rests too.
+@export var token_hold_time: float = 4.0
+@export var token_rest_time: float = 1.5
+
+@export_group("Fodder")
+## Pack thinks a second: fodder's places in the ring around its target.
+@export var pack_think_rate: float = 5.0
+## The gap between two fodder in the ring around their target (px, edge to
+## edge; Ryan, I6: about 0.6 m).
+@export var fodder_ring_spacing_px: float = 19.0
+## The ring sits this share of the fodder's reach out from its target's edge
+## (inside its reach, so it hits from its place).
+@export_range(0.1, 1.0) var fodder_ring_reach_share: float = 0.5
+## A fodder this close to its place in the ring (px) attacks from there;
+## farther, it walks to it first (then it keeps attacking from where it
+## stands while its target is in its reach).
+@export var fodder_ring_tolerance_px: float = 6.0
+
+@export_group("Target pick")
+## ALLIES' target pick ("Tier B's resource"): an enemy switches to another
+## champion only when its effective distance (edge distance ÷ threat) is
+## switch_ratio shorter and switch_px shorter than its target's, without a
+## break, for switch_hold_time s.
+@export var switch_ratio: float = 0.25
+@export var switch_px: float = 48.0
+@export var switch_hold_time: float = 0.5
+
+@export_group("Alert and leash")
+## The shout (Ryan, I5): the rest of the pack wakes alert_delay s after its
+## first member notices, and so do the packs within alert_radius_px (edge to
+## edge) that have the shouter in sight.
+@export var alert_radius_px: float = 192.0
+@export var alert_delay: float = 0.4
+## The `alert` pose shows this long when an enemy wakes (its look).
+@export var alert_pose_time: float = 0.4
+## The shout's sound, at the enemy that noticed (with its pose; never audio only).
+@export var alert_sound: SoundEvent
+## The leash, from the pack's home (Ryan, I5): its targets all farther than
+## leash_px (12 m) from home, or none reachable for leash_out_of_reach_time s.
+@export var leash_px: float = 384.0
+@export var leash_out_of_reach_time: float = 6.0
+## Walking home: return_speed_ratio × its move speed, new aggro ignored for
+## return_ignore_time s; once home it heals to full over recover_time s.
+@export var return_speed_ratio: float = 1.3
+@export var return_ignore_time: float = 2.0
+@export var recover_time: float = 1.5
+## An enemy checks its path to its target at most this often (s): out of
+## reach, a holder lets its token go and the pack's leash timer runs.
+@export var reach_check_time: float = 0.5
+
 ## Derived respect values, cached per ability (they read only data).
 var _respect_cache: Dictionary = {}
 
@@ -88,6 +145,14 @@ func get_rank_rules(rank: EnemyData.Rank) -> RankRules:
 		if r != null and r.rank == rank:
 			return r
 	return null
+
+
+## The tokens in one champion's pool at difficulty tier `tier` (1–5,
+## clamped to the list).
+func get_tokens_per_target(tier: int) -> int:
+	if tokens_per_target.is_empty():
+		return 0
+	return tokens_per_target[clampi(tier, 1, tokens_per_target.size()) - 1]
 
 
 ## Base score of `intent` (0 when the table has none).

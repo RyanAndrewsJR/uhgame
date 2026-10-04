@@ -1,10 +1,10 @@
 # ENEMIES_AI.md: Enemy Brains, Roles, Groups, Dodging, Tells, Elites, Bosses and the Tuning Toolkit
-<!-- Written 2026-10-03 from Ryan's decisions (his interview with the advisor, the same day). AI1 built 2026-10-04 (CHANGELOG.md); the rest is a plan. -->
+<!-- Written 2026-10-03 from Ryan's decisions (his interview with the advisor, the same day). AI1 built and passed 2026-10-04, AI2 built 2026-10-04 (CHANGELOG.md); the rest is a plan. -->
 
 **Read when:** the task involves how enemies decide (the brain, the situation, intents, respect, patience), enemy roles and ranks (fodder, brute, skirmisher, caster; regular, elite, boss), what an enemy ability is for (its AI uses), what enemies know about the party, attack tokens, packs (alert, leash), enemy dodging, enemy tells (poses), elite modifiers, the boss director (phases, pressure and breather, punish, finish, reset), spawning (packs, ambushes, spawn-in), how factions and difficulty tiers scale brains, where enemy data lives (`EnemyData`, the roster: XP, kill tags, drops), the AI's performance (think rate, sleeping), or the AI tuning toolkit (sliders, the brain overlay, the live tuning panel, the scenario spawner).
 **Depends on:** CLAUDE.md, VISION.md (Pillar 1, decision priorities, Open question 7), CONVENTIONS.md, ABILITIES.md (AbilityComponent and the cast flow, `Condition`, `get_ai_vector()`, telegraphs, cast progress, untargetable), COMBAT.md (damage bands, telegraph rules, hit forgiveness, statuses, CC and tenacity), ALLIES.md (`UnitController`, the target-pick rules, `threat`, taunt, stealth, `get_ai_plan()` and `CastPlan`, party scaling), DUNGEONS.md (rosters on shared behaviors, packs and arenas, content slots, difficulty tiers and elite modifier counts, bosses and their reset), 3D.md (views and `UnitView`, perches and `can_reach()`, ledges and navmesh islands, the sleep distance and the P-spike), WORLD_INTERACTION.md (WorldQuery, Hazards, kill credit), COMPANIONS.md (enemies never see companions; drops), TALENTS.md (kill counters and XP; the kind-not-magnitude rule), LOOT.md (drop tables), MOVEMENT.md (MovementComponent, soft caps), STATS.md, AUDIO.md (hooks).
 **Used by:** ALLIES (the shared perception, the controller base, `CastPlan`, the target pick; the ally brain reuses the toolkit), DUNGEONS (the roster format, faction presets, spawn kinds, elite modifiers, difficulty tier hooks, the boss reset), COMBAT and ABILITIES (intent tags, use rules, enemy telegraph and dodge rules), TALENTS, LOOT and COMPANIONS (enemy XP, kill tags, drop tables and kindling move onto `EnemyData`), 3D (pose hooks, the perched sniper), UI (the boss bar, elite modifier names), AUDIO (hooks), NARRATIVE (bestiary entries by kill tag).
-**Status:** written 2026-10-03. Ryan's decisions (his interview with the advisor, 2026-10-03) are MUST, recorded in DECISIONS.md (Enemies). **The interview is done:** Ryan answered all eleven open items (I1–I11) in three rounds the same day, each as Claude proposed; his answers are MUST, marked I1–I11 in the sections below and listed under Open questions, Interview. Items still marked *(proposed)* are Claude's picks Ryan hasn't answered; each is also in Open questions. **AI1 built 2026-10-04** (see CHANGELOG.md; Ryan started it before ALLIES' second champion, and approved its names); AI2–AI8 and AI-M aren't started. ALLIES.md calls this doc's first steps "Tier B": they are AI1 and AI2 here.
+**Status:** written 2026-10-03. Ryan's decisions (his interview with the advisor, 2026-10-03) are MUST, recorded in DECISIONS.md (Enemies). **The interview is done:** Ryan answered all eleven open items (I1–I11) in three rounds the same day, each as Claude proposed; his answers are MUST, marked I1–I11 in the sections below and listed under Open questions, Interview. Items still marked *(proposed)* are Claude's picks Ryan hasn't answered; each is also in Open questions. **AI1 built and passed 2026-10-04** (see CHANGELOG.md; Ryan started it before ALLIES' second champion, and approved its names). **AI2 built 2026-10-04** (awaiting Ryan's play test). AI3–AI8 and AI-M aren't started. ALLIES.md calls this doc's first steps "Tier B": they are AI1 and AI2 here.
 
 ## How to read this doc
 Same as ALLIES.md: MUST (never change without asking Ryan), TARGET (start value and allowed range), FREE (your call; tiebreaker: VISION.md's decision priorities). Every number is a TARGET placeholder until the play tests; the performance budget is measured in AI1, never guessed. Enemy names in examples (a brute, a thrall caster) are illustrations, not launch content.
@@ -41,6 +41,7 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 - **Measured:** 50 extra slimes take 10–12 ms of physics step in today's game (3D pivot P0a), against a 5.6 ms frame at Ryan's 180 Hz. That cost is the enemy sim's, so this doc's (DECISIONS.md, 3D view).
 - Nothing about brains, roles, ranks, tokens, packs, alerts, leashing home, dodging, tells, elite modifiers, bosses or factions exists.
 - **Since AI1 (built 2026-10-04, CHANGELOG.md):** the data (EnemyData, EnemyBehavior, BrainAdjust, RankRules, EnemyAITable, AIUse, PoseSet), the `Brains` autoload, `UnitController`, `EnemyBrain` with hold, commit and poke, respect and patience, `CastPlan` and the default `get_ai_plan()`, the `RESPECT` condition kind, the brute's tells on capsules, `SandboxBrains` (I, N, H), `ScriptedController` and `enemies_test`. The slimes and the test brute are on data: the slime is fodder (no brain, as before), **the elite slime is an elite brute with a brain everywhere, room_01 included** (Ryan, 2026-10-04). The bullets above describe the code before AI1; the naive loop and the old routine still run for an enemy with no data or its brain switched off.
+- **Since AI2 (built 2026-10-04, CHANGELOG.md):** every enemy with data plays the pack rules (Ryan, 2026-10-04). It's in a `Pack` (its parent, or a pack of one), notices any party member in sight through WorldQuery (with a path to it), shouts, picks its target by ALLIES' rules, and leashes home with its pack, where it heals. Brained enemies commit on attack tokens. Fodder takes its place in the ring around its target. The `threat` stat exists. An enemy with no data keeps the old routine (the player only, the 800 u leash, the `Sight` ray).
 
 ## Goal / feel
 | What | Number (TARGET) | Why |
@@ -88,7 +89,7 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 - **The decision is a pure function:** `EnemyBrain.decide(situation, behavior, rng) -> BrainDecision`, static, reading nothing else. A test builds a situation by hand and checks the intent; the brain node builds the real situation and carries the decision out.
 - **The naive cast loop is disabled, not deleted** (Ryan; the change policy): `Enemy.naive_casting` (export, default true) gates `_try_cast_ability()`, and an enemy whose brain runs never calls it. It's deleted after the milestone passes, with Ryan's OK.
 - **The brain switch** (built AI1): `Enemy.brain_enabled` (export, default true; the tuning panel's checkbox switches it while playing). Off, an enemy with data plays the old routine and the naive loop, as one with no data does.
-- **Noticing stays the old routine's in AI1:** idle, wander, sight within `detect_range`, a hit, and today's leash (800 u from the player). The brain drives the enemy only while it's aggroed (`Enemy.is_brain_active()`), and wakes on the tick after it aggroes. AI2 replaces the noticing and the leash for packs.
+- **Noticing stayed the old routine's in AI1:** idle, wander, sight within `detect_range`, a hit, and today's leash (800 u from the player). The brain drives the enemy only while it's aggroed (`Enemy.is_brain_active()`), and wakes on the tick after it aggroes. *(Built AI2)* For every enemy with data (Ryan, 2026-10-04), the pack rules replace the noticing and the leash (Aggro, packs and the leash); an enemy with no data keeps the old routine.
 - **Fodder has no brain:** it keeps `enemy.gd`'s own routine (idle, wander, aggro, chase, attack) without casting, plus its pack's group decisions (Groups).
 - *(proposed; built AI1)* **No flip-flopping:** an intent holds for at least `min_intent_time` (0.4 s) unless an urgent event breaks it (an attack to dodge, its token lost, its target gone, a stun). The current intent scores +0.15 (`intent_hold_bonus`) until then.
 
@@ -188,6 +189,31 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 - *(proposed)* **What needs a token:** `commit`, and `punish` and `finish` for any enemy below boss. `poke`, `hold`, `defend`, `dodge`, `escape`, `retreat` and `return` never do.
 - **The queue** (the 4 s rotation: Ryan, I3; the rest *(proposed)*): the highest patience asks first, ties to the nearest. A holder keeps its token until its commit ends, for at most `token_hold_time` (4 s); then it can't ask again for `token_rest_time` (1.5 s), so attackers rotate. "Stunned" means any status that blocks moving or attacking; "out of reach" means no path to the target, or a melee holder against an `elevated` target it can't hit (`can_reach()`).
 - Fodder in the same fight attacks freely: five thralls and a brute means the brute on a token and the thralls chipping.
+- *(Built AI2)* **How tokens run:**
+  - A brain at full patience asks each think (`Brains.request_token()`) and holds until it gets them. A request lapses if it isn't renewed within 2.5 thinks.
+  - The first in the queue waits until enough tokens are free, and the ones behind it wait too, so an elite isn't starved by regulars.
+  - It lets them go:
+    - when its commit ends (then it rests `token_rest_time`);
+    - when it decides not to commit after all (no rest);
+    - when its target is out of reach;
+    - when its target changes, or its brain resets.
+  - Brains takes them back each tick:
+    - from a dead holder, at once;
+    - when the target dies or turns untargetable;
+    - when the holder is stunned, rooted or anything else that blocks moving or attacking (`Enemy.is_cc_blocked()`; it rests, its commit breaks off, its patience stays);
+    - after `token_hold_time` (it rests, its commit ends).
+- *(Built AI2; proposed)* **A taunted brain commits on its taunter** without patience or a token, its tell first. The commit ends when the taunt does.
+- *(Built AI2; found while building)* **The fodder ring, in detail:**
+  - **One ring per target**, over every pack (Brains, `pack_think_rate`), so two packs' fodder never stack.
+  - **Fixed places:** as many as fit, neighbors at least 0.6 m apart edge to edge, spread evenly from an angle kept while the ring lasts (the first fodder's). The nearest fodder take the first ring, the rest the next ones out. Each takes the free place nearest it (`Pack.get_ring_spots()`), so the places move with the target without turning.
+    - Centering the places on the fodder's mean angle, the first version, turned every place as they walked.
+  - **At half its reach** (`fodder_ring_reach_share` 0.5). At 0.7, a slime's 12 px push on its hit took the Knight out of its own reach each time.
+  - **At its place** (within `fodder_ring_tolerance_px`, 6 px), it attacks and keeps hitting from where it stands until its target leaves its reach, then walks to its place again.
+  - **Blocked** short of its place for 1 s with its target in reach, it settles there.
+  - **Crowded:** standing within half the spacing of another, the one farther from its place walks to it.
+  - **Far round the ring:** a place more than 50° away is walked to round the outside of the ring. A straight path through its target and the settled fodder got stuck.
+  - **Its first moment:** before its first place (up to one pack think) it chases as before.
+  - **An outer ring's** fodder waits at its place, out of reach.
 
 ### Cornered casters (MUST; Ryan 2026-10-03)
 - A caster **uses an escape ability if it has one** to reset distance. **Otherwise it stops running and fights at close range with a weaker, slower option.** Catching it is a reward, not an endless chase. **CC and walls beat kiting.**
@@ -197,11 +223,22 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 - **A pack wakes on proximity or sight**, and **nearby packmates join** (a shout, a short delay). A pack is a scene of enemies placed together (DUNGEONS.md).
 - **The leash:** if the player gets far enough away, the pack **gives up, walks back to its spot and recovers** (Diablo-style).
 - **The default target is the nearest,** unless taunt, stealth or another rule says otherwise: ALLIES.md's target pick (the nearest by edge distance ÷ `threat`, sticky with a margin, taunt wins, a stealthed champion is never picked, a downed one is dropped at once). This doc builds it (AI2).
-- **Sight stays on layer 1,** so ledges don't block it. It moves from each enemy's `Sight` RayCast2D to `WorldQuery.has_line_of_sight()` (WORLD_INTERACTION.md).
+- **Sight stays on layer 1,** so ledges don't block it. It moves from each enemy's `Sight` RayCast2D to `WorldQuery.has_line_of_sight()` (WORLD_INTERACTION.md). *(Built AI2 for every enemy with data; one with no data keeps its `Sight` ray.)*
 - **Waking** (Ryan, I5): a member wakes when a party member is within its `detect_range` (450 u, edge to edge) and in sight, or hits it. It **shouts**: the rest of its pack wakes `alert_delay` (0.4 s) later, and so do the members of other packs within `alert_radius` (6 m) of it that have it in sight. The shout has a look (the `alert` pose) and a sound.
 - **The leash is measured from the pack's home** (its placed center), not from the enemy (Ryan, I5): when its target is more than `leash_px` (12 m) from home, or no party member has been in reach of the pack for 6 s, the pack gives up (`return`). It walks home 30% faster and once home heals to full over 1.5 s (League's jungle camps). *(proposed)* On the way it ignores new aggro for 2 s, its statuses clear at home, and a hit doesn't turn it around unless the attacker stands inside the leash.
 - Arena and boss enemies never leash (their doors are sealed: DUNGEONS.md).
-- Today's leash (800 u from the player, stopping where it stands) is replaced for packs: a replace of working code, asked first in AI2.
+- Today's leash (800 u from the player, stopping where it stands) is replaced for packs: a replace of working code, asked first in AI2. *(Answered: Ryan, 2026-10-04: for every enemy with data, a lone one being a pack of one; the old noticing and leash stay for an enemy with no data.)*
+- *(Built AI2; found while building)* **The details:**
+  - **What it knows:** an enemy's candidates are the party members it knows (noticed, hit by, or alerted to by a shout), not only those in sight now; while fighting, it also learns of any it sees within `detect_range`.
+  - **Its own target:** each member picks its own by ALLIES' rules (`Enemy._update_pick()`, every think).
+  - **An untargetable target:** if that's its only one, it's kept and chased, not attacked (AB10); with another candidate, it switches at once.
+  - **Sight never wakes an enemy on a champion it has no path to** *(proposed)*. Otherwise a pack below an unreachable perch would wake, give up after 6 s, walk home, and wake again every ~8 s. A hit from there still wakes it, and the leash then sends it home to heal (League's camps).
+  - **"In reach of the pack"** (the 6 s rule) means a member's path gets it within its reach of its target (`Enemy.is_target_reachable()`, checked at most every 0.5 s; with no navigation to judge by, always).
+  - **The leash at once:** the pack gives up when none of its fighting members knows a living party member inside the leash, so a dead or far champion sends it home.
+  - **One shout:** a member woken by a shout doesn't shout on, so no chain wakes a floor. The shout's sound and the `alert` pose (0.4 s) play at the member that noticed.
+  - **On the way home:** it ignores sight for `return_ignore_time`, and afterwards notices only party members inside the leash. A hit turns it around only from inside the leash.
+  - **Home:** the statuses others put on it clear, and it heals to full over `recover_time`, then idles.
+  - **Each member walks back to its own placed spot;** the leash is measured from the pack's home.
 
 ### Low health: role-based (MUST; Ryan 2026-10-03)
 - **Fodder and brutes fight to the death.**
@@ -290,6 +327,7 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
   - **Crowd movement is the cost.** Physics-step scripts, chasing fodder: 10 add 0.7 ms, 25 add about 5 ms, 50 add 16.4 ms (it grows faster than the count). Standing still, 50 cost 2.2 ms. Chasing without steering (avoidance off), 50 cost 6.2 ms: **steering is about 60% of the movement cost.** A brute costs about as much as 2–4 fodder (mostly its movement; its brain is about 0.03 ms of it).
   - **The frame at 180 Hz holds** (mean 5.56 ms) up to about **20 awake enemies: 10 fodder + 10 brutes** (p99 11.9 ms: an occasional missed frame on the physics tick) **or 25 fodder alone** (p99 13 ms). 25 fodder + 10 brutes falls to about 100 fps; **50 chasing fodder break the game** (the physics step can't keep up: 6–7 fps), so P0a's 10–12 ms was the crowd's movement, not deciding.
   - **So until a fix:** a fight wakes **at most about 20 enemies** that move (any mix of brained and fodder; brains themselves aren't the limit). **The fix is Ryan's pick** (Open questions): fewer awake enemies, cheaper fodder movement (no steering for fodder, the ring spacing doing its job), or the optimization pass ALLIES.md puts after all AI.
+  - **Ryan's pick (2026-10-04, starting AI2): the cap.** A fight wakes at most about 20 moving enemies; DUNGEONS' packs, arenas and the sleep distance plan around it. No code changed for it; the optimization pass after all AI may lift it.
 
 ### The tuning toolkit (MUST: built first; Ryan 2026-10-03)
 1. **A brain Resource with sliders,** every tunable an `@export` in the inspector. **Archetype presets and faction presets are Resources;** each enemy carries only a few overrides (kind, not magnitude). **The slider list** (Ryan, I1: all twelve, in one preset per role; bosses read pressure, breather and finisher, the others ignore them), with each role preset's starting value (TARGET):
@@ -313,7 +351,7 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 2. **An in-game brain overlay** in the sandbox: per enemy, its state, chosen intent, why (its top scores), respect, patience, whether it holds a token, its dodge cooldown and its reaction timer.
 3. **A live tuning panel** in the sandbox: pick an enemy, drag its sliders, watch it change while you play, and save back to its .tres.
 4. **A scenario spawner:** preset situations (all cooldowns ready, none ready, low health, an ally present) and a scripted dummy player for the headless tests.
-- *(Built AI1)* All three in-game tools live on one sandbox node, `SandboxBrains` (Architecture), on raw keys like `SandboxLoot`'s: **I** the overlay (B was taken: the AB15 test blink; Ryan, 2026-10-04), **N** the panel, **H** the scenarios.
+- *(Built AI1)* All three in-game tools live on one sandbox node, `SandboxBrains` (Architecture), on raw keys like `SandboxLoot`'s: **I** the overlay (B was taken: the AB15 test blink; Ryan, 2026-10-04), **N** the panel, **H** the scenarios (AI2 added two packs).
 
 ### Testing (MUST: scenarios in the headless suites; Ryan 2026-10-03)
 - The brain is a pure function, so scenarios are tested in the headless suites, with no view and a seeded random number generator: a player with an ultimate ready at 5 m means a brute holds; the ultimate spent means it dives; a projectile aimed at a caster means `defend`; a dodge only after the reaction delay and never on cooldown; `punish` only after a real whiff; token counts and release; the leash and the pack alert; a boss reset. Each step's list is in Build order.
@@ -392,11 +430,14 @@ The global rules, held by `Brains.table` (the pattern of `LootTable`, `AllyTable
 | `ranks` | `Array[RankRules]` | four (below) |
 | `think_rate`, `pack_think_rate` | `float` | 10, 5 (per second) |
 | `fodder_ring_spacing_px` | `float` | 19 (0.6 m between fodder in the ring around their target; I6) |
+| `fodder_ring_reach_share`, `fodder_ring_tolerance_px` | `float` | *(added AI2)* 0.5 (the ring at half the fodder's reach), 6 (at its place within this) |
 | `min_intent_time`, `tell_time`, `reaction_floor` | `float` | 0.4, 0.3, 0.2 |
 | `switch_ratio`, `switch_px`, `switch_hold_time` | `float` | 0.25, 48, 0.5: ALLIES' target pick ("Tier B's resource") |
 | `alert_radius_px`, `alert_delay` | `float` | 192, 0.4 |
+| `alert_pose_time`, `alert_sound` | `float`, `SoundEvent` | *(added AI2)* 0.4, `sound_enemy_alert.tres` (the shout's look and sound) |
 | `leash_px`, `leash_out_of_reach_time` | `float` | 384, 6 |
 | `return_speed_ratio`, `return_ignore_time`, `recover_time` | `float` | 1.3, 2, 1.5 |
+| `reach_check_time` | `float` | *(added AI2)* 0.5 (a path to its target checked at most this often) |
 | `tokens_per_target` | `Array[int]` | by difficulty tier: 2, 2, 2, 3, 3 |
 | `token_hold_time`, `token_rest_time` | `float` | 4, 1.5 |
 | `respect_by_role` | `Dictionary` (StringName → float) | `ultimate` 4, `core` 2, `mobility` 2, `defensive` 1.5, `generator` 1, `companion` 0 |
@@ -413,7 +454,7 @@ The global rules, held by `Brains.table` (the pattern of `LootTable`, `AllyTable
 | `commit_hits`, `commit_max_time`, `back_off_time` | `int`, `float`, `float` | *(added AI1)* 2, 4, 2: a commit's end and the walk back out (The standoff) |
 | `hold_replan_time`, `strafe_step_px`, `strafe_turn_min`, `strafe_turn_max` | `float` | *(added AI1)* 0.25, 40, 2, 4: the hold's movement |
 
-*(AI1 built the ranks, `think_rate`, `min_intent_time`, `tell_time`, `reaction_floor`, the respect and patience rows and the added rows; each later row comes with its step.)*
+*(AI1 built the ranks, `think_rate`, `min_intent_time`, `tell_time`, `reaction_floor`, the respect and patience rows and the added rows. AI2 built `pack_think_rate`, the fodder ring, the switch, alert, leash, return and token rows, and its added rows; each later row comes with its step.)*
 
 ### RankRules (`rank_rules.gd`; inline in the table)
 `rank`, `has_brain` (fodder false), `can_dodge` (elites and bosses), `token_cost` (regular 1, elite 2; 0 = no tokens), `tenacity` (elite 0.2, boss 0.4; a FLAT `tenacity` modifier at spawn under `&"enemy_rank"`), `max_abilities` (0, 2, 3, −1 = any; the enemies test checks every EnemyData), `brain_adjust: BrainAdjust`.
@@ -441,15 +482,15 @@ The global rules, held by `Brains.table` (the pattern of `LootTable`, `AllyTable
 - *(Built AI1)* `enemy_test_brute.tres` (a regular brute: 600 health, chip-band 26 basic attacks, 300 move speed; `test_brute_q_smash.tres`: the slam's script, POINT, 250 range, a 0.7 s telegraph, a 64 px circle, 80 damage, 5 s cooldown) in `scenes/enemies/test_brute.tscn`, and the slimes' data. A test scene needs a navigation region: without one, `MovementComponent.move_to()` heads for the world's origin (`map_get_closest_point()` with no regions), which once dragged the test brute through the Knight.
 
 ## Architecture / contracts
-### Brains (autoload, `res://scripts/autoload/brains.gd`) *(built AI1: the table, the generator, the schedule, the shared read; tokens AI2, whiffs AI6, sleep AI7)*
+### Brains (autoload, `res://scripts/autoload/brains.gd`) *(built AI1: the table, the generator, the schedule, the shared read; AI2: the enemies with data, tokens, the shout, the fodder ring; whiffs AI6, sleep AI7)*
 - Registered after `Progress` and `Loot` (and the planned `Companions`, `Allies` and `Dungeons`), before `Audio` (which stays last).
 - *(Built AI1)* `get_time()` (game time), `get_think_period()`, `get_brains()`, `wake(brain)`, `get_party()` (the groups `player` and `party`, each once), `get_idle_time(unit)` (tracked every tick while brains exist), `difficulty_tier` (1; the stand-in until DUNGEONS D8: which ability slots exist), and the measuring hooks `get_think_stats()` / `reset_think_stats()` / `get_snapshot_builds()`.
 - `table: EnemyAITable`; `rng: RandomNumberGenerator` (seedable; each brain draws its own stream from it).
 - **The think schedule:** `register(brain)` / `unregister(brain)`. Each physics tick, in game time (hitstop slows it, the pause stops it), it lets the brains due on that tick think: each brain gets a fixed tick slot, so at 60 Hz and 10 thinks a second a sixth of them think on each tick. **Urgent wake-ups:** a new attack coming at a brain, its token lost, its target gone, a stun ending: that brain thinks on the next tick.
 - **The shared read:** `get_snapshot() -> PartySnapshot`, built at most once per physics tick, the first time a brain asks.
-- **Tokens:** `request_token(enemy, target) -> bool`, `release_token(enemy)`, `get_token_holders(target)`; the queue and timeouts of Groups.
+- **Tokens:** `request_token(enemy, target) -> bool`, `release_token(enemy)`, `get_token_holders(target)`; the queue and timeouts of Groups. *(Built AI2, plus `request_token()`'s `patience`, `release_token()`'s `rest`, `get_tokens_per_target()`, `get_token_cost()`, `get_tokens_free()`, `get_token_target()`, `has_token()`, `is_waiting_for_token()`, `get_token_rest_left()`; releases each tick.)*
 - **Whiffs:** listens to `Events.ability_cast` and `Events.unit_hit` for party members' major abilities and keeps each champion's punish window (Punish).
-- **Packs and sleep:** packs register; `is_asleep(unit)` once sleeping exists.
+- **Packs and sleep:** packs register; `is_asleep(unit)` once sleeping exists. *(Built AI2: each enemy with data registers itself (`register_enemy()`, `get_enemies()`); a `Pack` doesn't. `shout(shouter, target)` and the alerts' delivery; the fodder ring (`get_pack_think_period()`, one ring per target with its kept angle, the crowding check). `get_party()` is read once per tick.)*
 - `debug_draw`.
 
 ### UnitController (`res://scripts/units/unit_controller.gd`)
@@ -460,7 +501,8 @@ ALLIES.md's contract, built here first (AI1) because the enemy brain is the firs
 - `think()`: `build_situation()` → `decide()` → `act(decision)`. Static `decide(situation, behavior, rng) -> BrainDecision`. *(Built AI1)* `decide()`'s `behavior` is the brain's resolved copy (the preset with the enemy's overrides and every adjust), and it reads the role from it. Brains calls `think()` on its tick (true when it thought); `Enemy` calls `drive(delta)` every physics tick while its brain runs (the act step: movement, the swing, the decision's cast). Static `get_patience_rate(situation, behavior, table)`. `build_situation()` gathers only the uses the brain could pick now (poke and zone always; damage and gap_close while a commit is possible): asking abilities for plans is most of a think.
 - **What it keeps between thinks:** patience, the intent and when it started, the attacks it has seen and when, its dodge cooldown, its token, its commit's progress, its cornered time, its pose and when it started.
 - **Every tick** (cheap): carries out the current intent's movement and presses (steering, a swing when the target is in reach), as ALLIES' ally brain does.
-- Queries for the view and the overlay: `get_intent()`, `get_pose()`, `get_pose_progress()`, `get_last_decision()`. Signals `intent_changed(intent)`, `pose_changed(pose)`, `dodged()`. *(Built AI1: those but `dodged()` (AI4), plus `get_situation()`, `get_patience()`, `is_committing()`, `get_tell_left()`, `get_think_usec()`, `get_face_point()`, `resolve_behavior()` (the panel's live change).)*
+- Queries for the view and the overlay: `get_intent()`, `get_pose()`, `get_pose_progress()`, `get_last_decision()`. Signals `intent_changed(intent)`, `pose_changed(pose)`, `dodged()`. *(Built AI1: those but `dodged()` (AI4), plus `get_situation()`, `get_patience()`, `is_committing()`, `get_tell_left()`, `get_think_usec()`, `get_face_point()`, `resolve_behavior()` (the panel's live change). AI2: `get_token_state()`.)*
+- *(Built AI2)* Tokens in the think: a lost token breaks a commit off or ends it (`_check_token_lost()`), full patience asks (`_ask_token()`), a decision other than `commit` lets a held token go; `_end_commit()` releases with the rest, `_reset()` without.
 - `debug_draw`: its range band, home and leash, a line to its target while it holds a token, its dodge direction. *(AI1: the sandbox overlay draws them (I), as `Brains.debug_draw`; the band and the commit line so far.)*
 
 ### SituationContext (RefCounted, `res://scripts/enemies/situation_context.gd`)
@@ -471,6 +513,7 @@ Pure data, filled by `EnemyBrain.build_situation()` or by a test:
 - **Incoming attacks:** a list of `{source, ability, kind (CAST, CHARGE_UP, PROJECTILE), area, time_to_hit, age, dodgeable}`, each aimed at or covering self.
 - **Packmates:** count, roles, positions of melee packmates, token holders.
 - The live nodes (`target_unit`, `self_unit`) ride along for the act step only; `decide()` never reads them.
+- *(Built AI2)* `needs_token` (false in a hand-built situation), `has_token`, `waiting_for_token`, `tokens_free`, `taunted`, `home_position`, `home_distance_px`; `target_reachable` from the path.
 
 ### PartySnapshot (RefCounted, `res://scripts/enemies/party_snapshot.gd`)
 Per champion (the `party` group from ALLIES; the `player` until then): the unit, position, health ratio, up or downed, targetable, stealthed, `threat`, each slot's ability, ready, cooldown left and value, kit ready, its respect share, its cast in progress (ability, area, time to the effect), its punish window, its idle time. Plus the party's projectiles in flight (area, time to each point). Companions never appear.
@@ -501,10 +544,26 @@ ALLIES' `CastPlan` (`res://scripts/abilities/cast_plan.gd`) and `Ability.get_ai_
 - `_can_see_player()` moves to `WorldQuery.has_line_of_sight()`; the `Sight` node stays until Ryan OKs removing it.
 - `get_pose()` and `get_pose_progress()` (the brain's, or empty).
 - *(Built AI1)* `brain_enabled` and `set_brain_enabled()` (the brain switch), `get_brain()`, `is_brain_active()`, `get_brain_target()` (the player until AI2's pick), `get_rank_rules()`, `get_pose_set()`, `get_face_point()`; the rank's tenacity goes on at spawn under `&"enemy_rank"`. `attack_tags` aren't applied yet (proposal 9).
+- *(Built AI2)* An enemy with data joins its pack and plays `_physics_process_pack()`:
+  - `AI.RETURN` (appended).
+  - Noticing through WorldQuery with a path (`_notice()`), `_wake()` and the shout, `alert(target)`, hits (`_on_damaged_pack()`).
+  - The pick (`_update_pick()`, `can_pick()`, `is_inside_leash()`, `get_effective_distance()`, static `is_better_target()`, `get_taunter()`).
+  - Fodder's ring (`_drive_fodder()`, `uses_fodder_ring()`, `set_ring_spot()`, `get_ring_spot()`).
+  - The walk home and recovery (`start_return()`, `is_recovering()`; +30% move speed under `&"enemy_return"`).
+  - Queries: `get_target()` (`get_brain_target()` reads it), `get_pack()`, `get_pack_home()`, `get_home()`, `get_known()`, `is_target_reachable()`, `has_target_in_reach()`, `knows_party_inside_leash()`, `is_cc_blocked()`.
+  - `get_pose()` gives `alert` as it wakes and `return` on the way home (fodder too).
+  - With its brain switched off it fights by the old routine (the chase, the naive loop) on its pick. `_can_see_player()` and the `Sight` node stay for an enemy with no data.
 
-### Pack (`res://scripts/enemies/pack.gd`; the root of a pack scene) *(proposed)*
+### Pack (`res://scripts/enemies/pack.gd`; the root of a pack scene) *(built AI2)*
 - A Node2D whose Enemy children are the pack. `home` = its position when placed. An enemy placed on its own is a pack of one (its own position is home).
 - The shout (`alert(target)`, `Events.pack_alerted`), the leash and the walk home, and the fodder members' group think (their spots around the target, `pack_think_rate` times a second).
+- *(As built)*
+  - Members register themselves (`add_member()`, `get_members()`). An enemy with data placed on its own adds a `Pack` as its own child (its pack of one).
+  - The home is lazy (`get_home()`: its position the first time anything asks).
+  - The leash check runs in its `_physics_process()` and calls `give_up()`; `is_fighting()`, `get_time_out_of_reach()`.
+  - The shout is `Brains.shout()` (it spans packs), and `Events.pack_alerted(pack, target)` fires for each pack it wakes.
+  - The fodder ring runs per target in Brains; only the pure placement, `get_ring_spots()`, is here.
+  - No arena flag yet (AI7: arena and boss enemies never leash).
 
 ### BossDirector (`res://scripts/enemies/boss_director.gd`; a child of a boss) *(proposed)*
 - Reads `EnemyData.boss_plan`. Owns the phase, the tempo (pressure, breather), when `punish` and `finish` may open, and hands its brain the phase's intent weights and the intents allowed now.
@@ -523,7 +582,7 @@ A unit farther than `sleep_distance_px` from every party member stops its physic
 ### SandboxBrains (`res://scripts/rooms/sandbox_brains.gd`; in `sandbox.tscn` and `sandbox_3d.tscn`) *(built AI1)*
 - **I** toggles **the brain overlay** (B is the AB15 test blink; Ryan, 2026-10-04): over each brained enemy (screen text): its intent and pose, its top three scores, respect (and the effective respect), patience, its token (held, waiting or none), its dodge cooldown, its reaction time and its think's cost; on the floor (debug drawings): its band, home and leash, token lines. *(AI1 shows "-" for the token and the dodge, and draws the band around its target and a line while it commits.)*
 - **N** opens **the tuning panel:** the brained enemy nearest the cursor is picked (`,` and `.` cycle), and its twelve sliders show as sliders (the mouse drags them; the click also swings the Knight, as any click does) with the resolved value and the preset's. A change applies at once to it and to every enemy sharing its data (an in-memory override until saved). **Ctrl+S** saves into its behavior preset (the archetype .tres); **Ctrl+Shift+S** saves an override into its `EnemyData` (a warning past three). Saving works only in a run from the editor (`OS.has_feature("editor")`), never in an exported build or a test scene. After a save, Godot reports the file changed on disk: choose Reload (CLAUDE.md, Known issues). *(Built AI1)* Its **brain** checkbox switches the picked enemy's brain off (the old routine and the naive loop) and on.
-- **H** cycles **the scenarios:** all cooldowns ready, none ready, low health (25%), an ally present (a friendly stand-in dummy until ALLIES), a whiff (Judgement spent at nothing), an incoming shot (a test bolt fired at the picked enemy). Each spawns the chosen test enemy 5 m away and sets the Knight's cooldowns and health through test hooks. *(Built AI1: it spawns the test brute toward the cursor; the hooks are `AbilityComponent.start_cooldown()` / `reset_cooldown()`, the Fury pool and the health component; the whiff only starts Judgement's cooldown until AI6 reads whiffs.)*
+- **H** cycles **the scenarios:** all cooldowns ready, none ready, low health (25%), an ally present (a friendly stand-in dummy until ALLIES), a whiff (Judgement spent at nothing), an incoming shot (a test bolt fired at the picked enemy). *(Built AI2)* Then two packs, placed 9 m away toward the cursor on the walkable floor and idle until they notice the Knight: five test brutes (tokens, the shout, the leash) and eight slimes (the ring). The overlay shows each brain's token (held, waiting, rest, or none needed) and draws each pack's home and leash, token lines and fodder's places. Each spawns the chosen test enemy 5 m away and sets the Knight's cooldowns and health through test hooks. *(Built AI1: it spawns the test brute toward the cursor; the hooks are `AbilityComponent.start_cooldown()` / `reset_cooldown()`, the Fury pool and the health component; the whiff only starts Judgement's cooldown until AI6 reads whiffs.)*
 - It never touches the player's saves.
 
 ## View
@@ -548,6 +607,9 @@ Audio hooks: see AUDIO.md. To add when built (synthesized placeholders until rea
 | A token holder dies | Its token frees the same tick |
 | Every token held by enemies that can't reach | They release after the out-of-reach check; the next in the queue asks |
 | The champion stands on a perch | Melee walks its route up if one exists; otherwise holds below without a token while the pack's ranged members poke |
+| A champion it has no path to *(built AI2; proposed)* | Sight doesn't wake it; a hit does; after 6 s with nothing in reach the pack walks home and heals, and sight doesn't wake it again |
+| Two packs' fodder (or lone fodder) on one target *(built AI2)* | One ring around the target for all of them |
+| A pack built in code, then moved into place *(built AI2)* | Its home (and each member's spot) is taken at its first tick, after the move |
 | Two attacks coming at an elite at once | Each is rolled once; the dodge cooldown means it dodges at most one (layered attacks beat it) |
 | An attack too fast to leave | It doesn't try (time left under `dodge_time`); `defend` may still answer |
 | Casting when an attack comes | It can't dodge; its cast plays out |
@@ -576,9 +638,9 @@ Audio hooks: see AUDIO.md. To add when built (synthesized placeholders until rea
 **Before AI1:** nothing in the code blocks it. Where it goes in the order of work is Ryan's call (Open questions): CLAUDE.md has LOOT L4 next, ALLIES.md puts the second champion before "Tier B" (AI1–AI2), and DUNGEONS.md wants AI1–AI2 before its D1. Dodging (AI4) is best tested against a ranged kit with skillshots. *(Answered: Ryan started AI1 on 2026-10-04, before the second champion.)*
 Every step: Ryan runs `git status` first; the Knight's abilities, talents, enemies chasing and the HUD still work; an enemy with no `EnemyData` plays exactly as before; the new `enemies_test` suite joins the baseline (every suite green, the counts in CHANGELOG.md under an Enemies AI section); this doc keeps one line per built step.
 
-1. **AI1 – The tooling and the brain skeleton.** `EnemyData` (the slimes and the test brute on data), `EnemyBehavior` with the twelve sliders, `BrainAdjust`, `RankRules` (with tenacity by rank), `EnemyAITable`, the `Brains` autoload (the staggered schedule, the shared snapshot), `UnitController`, `EnemyBrain` with `SituationContext` and `BrainDecision`, the intents `hold`, `commit` and `poke` for the brute, respect (derived values, `respect_value`) and patience, `AIUse` and `Ability.ai_uses`, `CastPlan` and the default `get_ai_plan()`, the `RESPECT` condition kind and the situation argument, the `tell_time` lead, the brute's poses (`PoseSet`, UnitView's pose hooks), `Enemy.naive_casting` (the naive loop off behind it), `SandboxBrains` (I, N with saving, H), `ScriptedController`, `enemies_test`. **The measured performance budget** (Performance), written into this doc. **Built 2026-10-04 (see CHANGELOG.md); awaiting Ryan's play test.**
+1. **AI1 – The tooling and the brain skeleton.** `EnemyData` (the slimes and the test brute on data), `EnemyBehavior` with the twelve sliders, `BrainAdjust`, `RankRules` (with tenacity by rank), `EnemyAITable`, the `Brains` autoload (the staggered schedule, the shared snapshot), `UnitController`, `EnemyBrain` with `SituationContext` and `BrainDecision`, the intents `hold`, `commit` and `poke` for the brute, respect (derived values, `respect_value`) and patience, `AIUse` and `Ability.ai_uses`, `CastPlan` and the default `get_ai_plan()`, the `RESPECT` condition kind and the situation argument, the `tell_time` lead, the brute's poses (`PoseSet`, UnitView's pose hooks), `Enemy.naive_casting` (the naive loop off behind it), `SandboxBrains` (I, N with saving, H), `ScriptedController`, `enemies_test`. **The measured performance budget** (Performance), written into this doc. **Built 2026-10-04 (see CHANGELOG.md); passed Ryan's play test 2026-10-04.**
    **Done means:** with the brute and everything up, it holds and circles at 350–500 u; after Lunge and Judgement go down it crouches and dives; its hold always ends within 12 s (4 × its 3 s `patience_time`); dragging a slider changes it live and saving writes the .tres; the scenarios load; with the brain off the elite slime casts as before. **Tests:** an ultimate ready at 5 m → `hold`; spent → `commit`; respect from known kits; patience's fill and its floor; the same seed → the same decisions; ranks' ability counts; the naive loop gated. **Play test:** Ryan fights the test brute.
-2. **AI2 – Groups (tokens, packs, alert, leash).** Token pools per target (`tokens_per_target`, rank costs, the queue, release on stun, death, out of reach, timeouts), `Pack` (home, the shout, the walk home and recovery), the fodder group think (the ring around the target, 0.6 m apart), ALLIES' target pick (nearest by `threat`, sticky with the margin, taunt, stealth, downed; tested on a second PLAYER-team dummy), sight through `WorldQuery`, the old leash replaced for packs (asked first).
+2. **AI2 – Groups (tokens, packs, alert, leash).** Token pools per target (`tokens_per_target`, rank costs, the queue, release on stun, death, out of reach, timeouts), `Pack` (home, the shout, the walk home and recovery), the fodder group think (the ring around the target, 0.6 m apart), ALLIES' target pick (nearest by `threat`, sticky with the margin, taunt, stealth, downed; tested on a second PLAYER-team dummy), sight through `WorldQuery`, the old leash replaced for packs (asked first). **Built 2026-10-04 (see CHANGELOG.md); awaiting Ryan's play test.** Ryan's answers first: the performance fix is the cap (Performance), the pack rules for every enemy with data, ALLIES' `threat` and status tags approved (AI2 registers `threat`).
    **Done means:** five test brutes never put more than two on you at tier 1, and they rotate; a stunned holder frees its token at once; one pack member noticing wakes its pack 0.4 s later; walking 12 m away sends them home to heal; fodder surrounds you with no tokens. **Tests:** token counts and release, timeouts, pack alert (through walls for packmates, sight for other packs), the leash and recovery, the target pick's margin, taunt and stealth. **Play test:** a pack fight in the sandbox.
 3. **AI3 – Skirmisher and caster.** Range bands and positioning (ranged behind or beside melee), `poke`, `defend` (incoming attacks, `get_effect_area()`, the `THREATENED` kind), `escape` or fight (cornered), role-based retreat, the skirmisher's dive and reset, the test skirmisher and caster with their plans, their poses.
    **Done means:** the caster pokes from 550–800 u, shields only when something is aimed at it, blinks away when caught and squares up when its blink is down; the skirmisher dives when respect drops and hops out after its hit. **Tests:** a projectile aimed at a caster → `defend`; nothing aimed → no shield; cornered → basic attacks, no running for 3 s; low health → behind a melee packmate. **Play test:** a mixed pack.
@@ -615,7 +677,7 @@ Arena waves and mid-fight reinforcements (deferred; Spawning); habit reading for
 11. ~~**I11 – When support, summoner and sniper are built.**~~ Answered: **AI8, right after the milestone,** before DUNGEONS' slice (Build order).
 
 ### Open after AI1 (Ryan's call)
-- **The performance fix** (found in AI1, 2026-10-04; Performance, The budget): crowd movement, mostly steering, breaks the 180 Hz frame past about 20 moving enemies, and 50 chasing fodder break the game. Ryan picks: (a) **fewer awake enemies** (a cap of about 20 per fight until later; DUNGEONS' pack sizes and the sleep distance plan around it), (b) **cheaper fodder movement** (fodder without avoidance steering, kept apart by the fodder ring of AI2: about 60% of their cost; Claude's pick, to build with AI2), or (c) **the optimization pass** ALLIES.md puts after all AI (and live with the cap until then).
+- ~~**The performance fix**~~ Answered (Ryan, 2026-10-04, starting AI2): **(a), the cap** of about 20 moving enemies per fight (Performance). The question as asked (found in AI1, 2026-10-04; Performance, The budget): crowd movement, mostly steering, breaks the 180 Hz frame past about 20 moving enemies, and 50 chasing fodder break the game. Ryan picks: (a) **fewer awake enemies** (a cap of about 20 per fight until later; DUNGEONS' pack sizes and the sleep distance plan around it), (b) **cheaper fodder movement** (fodder without avoidance steering, kept apart by the fodder ring of AI2: about 60% of their cost; Claude's pick, to build with AI2), or (c) **the optimization pass** ALLIES.md puts after all AI (and live with the cap until then).
 
 ### Claude's other proposals (written in above as *(proposed)*; Ryan can overrule any)
 1. ~~**Names**~~ Answered (Ryan, 2026-10-04, starting AI1): **all approved as proposed**, the word **rank** included (CONVENTIONS.md updated). The list: (`EnemyData`, `EnemyBehavior` and `EnemyRoster` approved as the format in I9): `EnemyAbilitySlot`, `BrainAdjust`, `EliteModifier`, `BossPlan`, `BossPhase`, `AIUse`, `PoseSet`, `PoseLook`, `EnemyAITable`, `RankRules`, `Brains` (autoload), `EnemyBrain`, `SituationContext`, `PartySnapshot`, `BrainDecision`, `Pack`, `BossDirector`, `Ambush`, `EnemySpawner`, `SandboxBrains`, `ScriptedController`; `Ability.ai_uses`, `respect_value`, `get_effect_area()`; `Condition.Kind.THREATENED`, `TARGET_WHIFFED`, `RESPECT`; `Enemy.data`, `naive_casting`; the Events `pack_alerted`, `boss_phase_changed`, `boss_reset`; the source ids `elite_modifier_<id>`, `enemy_<id>`; the intents and intent tags; the word **rank** for the ladder (CONVENTIONS calls elite and boss "enemy tiers").
@@ -631,12 +693,21 @@ Arena waves and mid-fight reinforcements (deferred; Spawning); habit reading for
 11. **`ScriptedController`** shared with ALLIES AL1.
 12. **The tuning panel saves** to the preset (Ctrl+S) or as an override (Ctrl+Shift+S), only in an editor run.
 13. **Ranged roles' regular attacks:** basic attacks in COMBAT's chip band; telegraphed abilities in the elite band's lower part. No new band (COMBAT.md's bands stay unchanged).
+14. *(Built AI2)* **A taunted brain commits on its taunter** without patience or a token (the doc said only "needs no token").
+15. *(Built AI2)* **Sight never wakes an enemy on a champion it has no path to;** a hit does, and the 6 s leash then sends it home to heal (no wake, leash, wake loop under a perch).
+16. *(Built AI2)* **The fodder ring's mechanics:** at half the fodder's reach, fixed places per target, a fodder hitting from where it stands until its target leaves its reach, the blocked, crowded and round-the-outside rules (Groups).
 
 ### Conflicts and notes for Ryan (found 2026-10-03)
 - ~~**Arena spawn-in vs waves:** DUNGEONS.md proposes arena waves (`ArenaWave`, `next_wave_at`); Ryan didn't pick waves or reinforcements. This doc keeps spawn-in (one group at the seal) and defers waves; DUNGEONS' wave proposal is marked waiting on Ryan.~~ Answered (Ryan, 2026-10-04): spawn-in confirmed (one group at the seal); waves and reinforcements stay deferred. DUNGEONS.md updated.
 - **Data intents vs ALLIES' script-only AI:** ALLIES' decision ("one AI method per ability ... replaces the brief's data hints") and this brief's data intent tags both stand: the data says what for and when, the script says how and how good. ALLIES' `engage` intent is renamed `gap_close`, and `get_ai_plan()`'s `sense` is the `SituationContext`.
 - ~~**"Rank" vs "enemy tier":** CONVENTIONS.md's vocabulary calls elite and boss enemy tiers; this doc proposes "rank". CONVENTIONS isn't edited until Ryan picks.~~ Answered (Ryan, 2026-10-04): "rank"; CONVENTIONS.md updated.
 - **Found building AI1 (2026-10-04):** the doc's **B** for the overlay was already the sandbox's AB15 test blink; Ryan picked **I**. Putting the slimes on data gives the elite slime a brain in room_01 too (Ryan: yes, everywhere); combat_test's C5 and abilities_test's AB13 and cleanup-pass checks of the naive loop now spawn the elite with no data.
+- **Found building AI2 (2026-10-04):**
+  - The doc gave the fodder ring to each pack; it runs per target over every pack (two packs' fodder would otherwise stack).
+  - Centering the ring on the fodder's mean angle turned the places as they walked; the places are fixed per target instead.
+  - At 0.7 of a slime's reach, its own 12 px push took the Knight out of its reach after every hit; the ring is at half.
+  - Waking by sight on an unreachable champion looped (wake, leash after 6 s, wake again); sight now needs a path.
+  - The sandbox's packs aimed past a wall stood off the walkable floor; they're snapped to it.
 - **Where elite modifiers are defined:** COMBAT.md's Out of scope and CONVENTIONS.md's vocabulary point to DUNGEONS.md; DUNGEONS.md says ENEMIES_AI defines them. Now: the format here, the count in DUNGEONS. COMBAT's pointer is fixed; CONVENTIONS' too (2026-10-04, with the names).
 - **"Random dodge" in COMBAT's references:** a visible sidestep with a chance to try is not a hit that silently misses (Dodging).
 - **Think rates:** the ally brain thinks 5 times a second (ALLIES.md), enemy brains about 10; both are data and both are measured.

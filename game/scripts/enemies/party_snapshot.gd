@@ -39,7 +39,7 @@ static func build(units: Array[Unit], table: EnemyAITable, idle: Dictionary, p_f
 			"unit": u,
 			"position": u.global_position,
 			"health_ratio": u.health.current / max_health if max_health > 0.0 else 0.0,
-			"up": u.is_alive(),
+			"up": u.is_alive() and not (u.status_component != null and u.status_component.has_tag(&"downed")),   # AI2: a downed champion isn't up (ALLIES)
 			"targetable": u.is_targetable(),
 			"idle_time": float(idle.get(u, 0.0)),
 			"casting": u.abilities != null and u.abilities.casting,

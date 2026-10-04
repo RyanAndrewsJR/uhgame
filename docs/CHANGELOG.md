@@ -932,7 +932,7 @@ Play test passed (Ryan, 2026-10-01): F5, the pause menu shows the saved cast mod
 
 ## Abilities (ABILITIES.md)
 
-### Roots are roots: 2026-10-04, Built (awaiting Ryan's play test)
+### Roots are roots: 2026-10-04, Passed (Ryan's play test, reported starting ENEMIES_AI AI2)
 Ryan's answer at LOOT L-M to AB15's question (should a root also block dashes): "roots are roots. You shouldn't be able to move at all until it ends." He also kept Homeward Lunge's 0.05 s cast time (no per-part cast time).
 - **Code:**
   - `Ability.MOVEMENT_TAGS` (`dash`, `leap`, `blink`) and `moves_caster()`.
@@ -1410,7 +1410,76 @@ Docs only; no code or tests changed.
 
 ## Enemies AI (ENEMIES_AI.md)
 
-### AI1 – The tooling and the brain skeleton: 2026-10-04, Built (awaiting Ryan's play test)
+### AI2 – Groups: tokens, packs, the alert, the leash: 2026-10-04, Built (awaiting Ryan's play test)
+Ryan passed AI1 and "roots are roots", started AI2, and answered three questions first:
+- **The performance fix is a cap:** about 20 moving enemies awake per fight; no code change.
+- **Every enemy with data plays the pack rules:** it notices any party member, the shout wakes its pack, and the leash runs from home. That replaces today's noticing and 800 u leash, which stay for enemies with no data.
+- **ALLIES' names are approved:** the `threat` stat and the status tags `taunt`, `stealth`, `downed`. AI2 registers `threat`.
+- **Code, new:**
+  - `Pack` (`scripts/enemies/pack.gd`): members, a lazy home, the leash, `get_ring_spots()`.
+  - The `threat` stat (registry: default 1, 0.1–10).
+  - `sound_enemy_alert` (`data/sounds/`) over `audio/sfx/enemy_alert_01.wav` (synthesized in a GDScript tool; `audio/LICENSES.md` row).
+- **Code, changed (additive):**
+  - `brains.gd`:
+    - The party is read once per tick (`get_party()` is cached), and the enemies with data are tracked (`register_enemy()`).
+    - Attack tokens: `get_tokens_per_target()`, `get_token_cost()`, `request_token()` (the queue: patience, then the nearest; the rest), `release_token()`, `has_token()`, `get_token_holders()`, `get_tokens_free()`, `is_waiting_for_token()`, `get_token_rest_left()`.
+    - Tokens are released each tick on a dead holder, a dead or untargetable target, a stun or root, or `token_hold_time`.
+    - `shout()` and the alerts' delivery.
+    - The fodder ring 5 times a second: one ring per target, with a kept angle and a crowding check.
+  - `enemy.gd`:
+    - `AI.RETURN`. An enemy with data joins its pack (its parent `Pack`, else a pack of one as its own child), registers with Brains, and plays `_physics_process_pack()`.
+    - Noticing (`_notice()`: any party member in sight through WorldQuery, within `detect_range`, with a path), `_wake()` and the shout, `alert()`, and hits (`_on_damaged_pack()`).
+    - The pick: `_update_pick()`, `can_pick()`, `get_effective_distance()`, `is_better_target()`, `get_taunter()`, and the AB10 chase.
+    - Fodder: `_drive_fodder()` (its ring place, settling, the blocked fallback, the detour).
+    - The walk home and recovery: `start_return()`, `_drive_return()`, `_arrive_home()`; +30% move speed under `enemy_return`.
+    - The `alert` and `return` poses; a dead token holder frees its token at once.
+    - New queries: `get_target()`, `get_pack()`, `get_pack_home()`, `get_home()`, `get_known()`, `is_target_reachable()`, `has_target_in_reach()`, `knows_party_inside_leash()`, `is_cc_blocked()`, `uses_fodder_ring()`, `set_ring_spot()`.
+    - The old routine (no data) is untouched.
+  - `enemy_brain.gd`:
+    - A commit needs its tokens: at full patience it asks each think, and it releases them when the commit ends (then rests), when it doesn't commit after all, out of reach, and on a reset.
+    - A lost token breaks a commit off (stunned: patience kept) or ends it.
+    - A taunt commits without patience or a token.
+    - `get_token_state()`; `decide()` reads `needs_token`, `has_token` and `taunted`.
+  - `situation_context.gd`: `needs_token`, `has_token`, `waiting_for_token`, `tokens_free`, `taunted`, `home_position`, `home_distance_px`. `target_reachable` is real now.
+  - `party_snapshot.gd`: a downed champion isn't up.
+  - `enemy_ai_table.gd`: the groups Attack tokens, Fodder, Target pick, and Alert and leash. The .tres gets the alert sound; the other values are the script's defaults.
+  - `events.gd`: `pack_alerted(pack, target)`.
+  - `sandbox_brains.gd`:
+    - H's two packs, 9 m away, on the floor, idle: `pack` (five test brutes) and `fodder` (eight slimes).
+    - The overlay's token (held, waiting, rest) and its floor drawings: each pack's home and leash, token lines, fodder places.
+  - `stats_test.gd`: the registry count, 26 → 27.
+- **Changed during the step** (the rules are in ENEMIES_AI.md):
+  - **The fodder ring is per target, over every pack, with fixed places.**
+    - The places are anchored once per target and spread evenly, and each fodder takes the free one nearest it.
+    - The first version centered the places on the fodder's mean angle each think. That turned every place as they walked, so settled slimes ended up off their places.
+  - **The ring is at half the fodder's reach, not 0.7.** A slime's hit pushes the Knight 12 px. At 0.7 (10.6 px inside its reach), every hit pushed him out of its own reach.
+  - **How a fodder holds its place:**
+    - At its place (within 6 px), it keeps hitting from where it stands until its target leaves its reach.
+    - Blocked short of its place for 1 s with its target in reach, it settles there.
+    - Too close to another fodder, it walks back to its place.
+    - When its place is more than 50° round the ring, it walks round the outside. A path straight through the Knight and the settled slimes got stuck in 2 runs of 6.
+  - **Sight never wakes an enemy on a champion it has no path to.** Otherwise a pack below an unreachable spot woke, gave up after 6 s, walked home, and woke again every ~8 s. A hit still wakes it, and the leash then sends it home to heal (League's camps).
+  - **A pack's home is set lazily:** its position the first time anything asks. A pack (or enemy) built in code and moved into place before its first tick is then right.
+  - **A taunted brain commits on its taunter** without patience or a token (proposed; the doc only said it needs no token).
+  - **The sandbox's packs stand on the floor** (the nearest point of its navigation). Aimed past a wall, a pack stood where nothing could reach it.
+  - **Data enemies see through WorldQuery**, from the enemy's position. `_can_see_player()` and the `Sight` node stay for enemies with no data and for the naive loop.
+- **Measured** (a scratch harness, saving off; the saves were byte-identical throughout):
+  - `sandbox_main` and `sandbox_main_layout`:
+    - A pack of five test brutes 9 m away stays idle until the Knight walks up, then wakes together.
+    - Over 10 s, at most 2 tokens were held, with holders resting and rotating.
+    - 14 m from home, all five walked home, and they were at full health (600) 5 s later.
+    - Eight slimes each got a ring place.
+  - `main_layout`: a slime chases the Knight and goes home when he leaves.
+  - Think cost (headless, 12 brutes): mean 221 µs, p99 416 µs. The cap stands (Ryan), so no new budget.
+- **Sensitivity:** each key behavior was broken once on purpose and restored (diff-checked), and each failed its checks:
+  - The shout's delay, and the other packs' sight rule.
+  - Stealth, and the switch hold.
+  - A stunned holder's release, and the token cap (five brutes: 5 holders).
+  - The ring bypassed, the detour (2 runs of 6 failed without it), and the immediate leash.
+  - Noticing without a path.
+- **Tests:** enemies 220/220 (89 new; 8 runs in a row green in parallel with other suites), stats 180/180 (1 new: threat), combat 474/474, abilities 593/593, audio 110/110, champions 168/168, talents 310/310, view 469/469, loot 750/750: 3,274/3,274.
+
+### AI1 – The tooling and the brain skeleton: 2026-10-04, Passed (Ryan's play test; he committed it and started AI2)
 Ryan started AI1 ahead of ALLIES' second champion and answered three questions first: ENEMIES_AI's names are approved as proposed ("rank" included); the brain overlay goes on **I** (the doc's B is SandboxAbilities' AB15 test blink); the elite slime gets its brain everywhere, room_01 included.
 - **Code, new:**
   - Data (`scripts/data/`): `AIUse`, `EnemyBehavior` (the twelve sliders with their limits, the kind, `resolve()`), `BrainAdjust`, `RankRules`, `EnemyAITable` (`get_respect_value()`, `applies_cc()`), `EnemyAbilitySlot`, `EnemyData`, `PoseSet`, `PoseLook`.

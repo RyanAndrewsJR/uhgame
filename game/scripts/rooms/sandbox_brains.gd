@@ -4,11 +4,13 @@ extends Node
 ## toolkit's three in-game tools, on raw keys read here (no input action,
 ## like SandboxLoot's):
 ##   I            the brain overlay: over each brained enemy its intent and
-##                pose, its top three scores, respect, patience, its token,
-##                its dodge cooldown, its reaction time and its think's cost;
-##                on the floor its range band around its target and, while it
-##                commits, a line to its target. (The doc's B is the AB15
-##                test blink: Ryan, 2026-10-04.)
+##                pose, its top three scores, respect, patience, its token
+##                (held, waiting, rest), its dodge cooldown, its reaction time
+##                and its think's cost; on the floor its range band around its
+##                target and, while it holds a token, a line to its target;
+##                each pack's home and leash (AI2), and fodder's places in the
+##                ring around its target. (The doc's B is the AB15 test blink:
+##                Ryan, 2026-10-04.)
 ##   N            the tuning panel: the brained enemy nearest the cursor is
 ##                picked (, and . cycle), its twelve sliders show as sliders
 ##                with the resolved value and the preset's. A change applies
@@ -29,15 +31,20 @@ extends Node
 ##                scenario_enemy (the test brute) 5 m from the Knight, toward
 ##                the cursor, and sets the Knight's cooldowns, Fury and health
 ##                through test hooks (the previous scenario's units go).
+##                AI2 adds two packs, placed 9 m away toward the cursor and
+##                idle until they notice the Knight: a pack of five test
+##                brutes (two tokens at a time, the shout, the leash) and a
+##                pack of eight slimes (the fodder ring).
 ## It never touches the player's saves. room_01 has none of this.
 
 const TEXT_COLOR := Color(0.92, 0.92, 0.92)
 const HINT_COLOR := Color(0.65, 0.65, 0.7)
 const SOURCE_ID := &"sandbox_brains"
-const SCENARIOS: Array[StringName] = [&"all_ready", &"none_ready", &"low_health", &"ally", &"whiff", &"incoming_shot"]
+const SCENARIOS: Array[StringName] = [&"all_ready", &"none_ready", &"low_health", &"ally", &"whiff", &"incoming_shot", &"pack", &"fodder"]
 const SCENARIO_NAMES := {
 	&"all_ready": "all cooldowns ready", &"none_ready": "none ready", &"low_health": "low health (25%)",
 	&"ally": "an ally present", &"whiff": "a whiff (Judgement spent)", &"incoming_shot": "an incoming shot",
+	&"pack": "a pack of five brutes (9 m away, idle)", &"fodder": "a pack of eight slimes (9 m away, idle)",
 }
 const FRIENDLY_SCENE := preload("res://scenes/enemies/slime.tscn")
 
@@ -49,6 +56,14 @@ const FRIENDLY_SCENE := preload("res://scenes/enemies/slime.tscn")
 @export var test_bolt: Ability = preload("res://data/abilities/test_q_bolt.tres")
 ## The overlay is on at the start.
 @export var overlay_on: bool = false
+## The pack scenarios (AI2): where the pack is placed (px from the Knight;
+## 288 = 9 m, outside the members' notice range), its size, and the fodder.
+@export var pack_distance_px: float = 288.0
+@export var pack_size: int = 5
+@export var fodder_scene: PackedScene = preload("res://scenes/enemies/slime.tscn")
+@export var fodder_pack_size: int = 8
+## How far apart a pack's members stand at home (px).
+@export var pack_spread_px: float = 44.0
 
 var _player: Player
 var _overlay_layer: CanvasLayer
@@ -159,9 +174,12 @@ func get_overlay_text(enemy: Enemy) -> String:
 	var brain := enemy.get_brain()
 	if brain == null:
 		return ""
-	var intent := brain.get_intent()
+	var intent := String(brain.get_intent())
+	if intent == "":
+		intent = "return" if enemy.ai == Enemy.AI.RETURN else "idle"
+	var pose := brain.get_pose()
 	var lines: PackedStringArray = []
-	lines.append("%s · %s" % [intent if intent != &"" else "idle", brain.get_pose() if brain.get_pose() != &"" else "-"])
+	lines.append("%s · %s" % [intent, pose if pose != &"" else "-"])
 	var d := brain.get_last_decision()
 	if d != null and not d.scores.is_empty():
 		var parts: PackedStringArray = []
@@ -172,7 +190,7 @@ func get_overlay_text(enemy: Enemy) -> String:
 	var respect := s.respect if s != null else 0.0
 	var effective := s.effective_respect if s != null else 0.0
 	lines.append("respect %.2f (%.2f)  patience %.2f" % [respect, effective, brain.get_patience()])
-	lines.append("token -  dodge -  react %.2f s  %d µs" % [brain.behavior.reaction_time, brain.get_think_usec()])
+	lines.append("token %s  dodge -  react %.2f s  %d µs" % [brain.get_token_state(), brain.behavior.reaction_time, brain.get_think_usec()])
 	return "\n".join(lines)
 
 
@@ -212,7 +230,9 @@ func _make_label() -> Label:
 
 
 ## Floor drawings: each brain's range band around its target (its two edges,
-## both radii counted) and, while it commits, a line to its target.
+## both radii counted) and, while it holds a token (or commits on a taunt), a
+## line to its target; each pack's home (a cross) and leash (a thin circle);
+## each fighting fodder's place in the ring (a dot).
 func _draw_floor() -> void:
 	for e in get_brained_enemies():
 		var brain := e.get_brain()
@@ -224,8 +244,24 @@ func _draw_floor() -> void:
 		var color := Color(e.model_color, 0.55)
 		for edge_units in [brain.behavior.range_band_min, brain.behavior.range_band_max]:
 			_floor.draw_arc(center, Units.to_px(edge_units) + radii, 0.0, TAU, 64, color, 1.0)
-		if brain.is_committing():
+		if Brains.has_token(e) or brain.is_committing():
 			_floor.draw_line(_floor.to_local(e.global_position), center, Color(1, 0.3, 0.2, 0.9), 1.5)
+	var packs: Array[Pack] = []
+	for e in Brains.get_enemies():
+		if not is_instance_valid(e) or not e.is_alive():
+			continue
+		var pack := e.get_pack()
+		if pack != null and not packs.has(pack):
+			packs.append(pack)
+		var spot := e.get_ring_spot()
+		if e.uses_fodder_ring() and spot != Vector2.INF:
+			_floor.draw_circle(_floor.to_local(spot), 2.5, Color(e.model_color, 0.8))
+	for pack in packs:
+		var home := _floor.to_local(pack.get_home())
+		var color := Color(0.8, 0.8, 0.85, 0.5) if not pack.is_fighting() else Color(1.0, 0.75, 0.3, 0.6)
+		_floor.draw_line(home - Vector2(6, 0), home + Vector2(6, 0), color, 1.0)
+		_floor.draw_line(home - Vector2(0, 6), home + Vector2(0, 6), color, 1.0)
+		_floor.draw_arc(home, Brains.table.leash_px, 0.0, TAU, 96, color, 1.0)
 
 
 # --- The tuning panel (N) ----------------------------------------------------------------
@@ -492,7 +528,8 @@ func next_scenario() -> StringName:
 
 
 ## Runs `scenario`: clears the last one's units, sets the Knight up, spawns
-## the scenario enemy. Returns the spawned enemy (null without a Knight).
+## the scenario enemy (or the pack). Returns the spawned enemy (a pack's
+## first member; null without a Knight).
 func run_scenario(scenario: StringName) -> Enemy:
 	_scenario = SCENARIOS.find(scenario)
 	clear_scenario()
@@ -509,7 +546,14 @@ func run_scenario(scenario: StringName) -> Enemy:
 			_player.abilities.start_cooldown(&"r")   # AI6 reads a real whiff from the cast
 		&"ally":
 			_spawn_friendly()
-	var enemy := _spawn_enemy()
+	var enemy: Enemy
+	match scenario:
+		&"pack":
+			enemy = _spawn_pack(scenario_enemy, pack_size)
+		&"fodder":
+			enemy = _spawn_pack(fodder_scene, fodder_pack_size)
+		_:
+			enemy = _spawn_enemy()
 	if scenario == &"incoming_shot" and enemy != null:
 		_fire_bolt_at.call_deferred(enemy)
 	_status = "Scenario: %s" % SCENARIO_NAMES[scenario]
@@ -559,6 +603,45 @@ func _spawn_enemy() -> Enemy:
 	enemy.reset_physics_interpolation()
 	_scenario_units.append(enemy)
 	return enemy
+
+
+## A pack (AI2) of `count` instances of `scene`, placed pack_distance_px from
+## the Knight toward the cursor (its home), the members around its center
+## pack_spread_px apart. Idle until one notices the Knight. Returns its first
+## member (null without a scene).
+func _spawn_pack(scene: PackedScene, count: int) -> Enemy:
+	if scene == null or count <= 0:
+		return null
+	var pack := Pack.new()
+	pack.name = "ScenarioPack"
+	var center := _on_floor(_spawn_point(pack_distance_px))
+	pack.position = center
+	var first: Enemy
+	for i in count:
+		var enemy := scene.instantiate() as Enemy
+		enemy.name = "Scenario%s" % enemy.name
+		if i > 0:
+			var ring := 1 + floori((i - 1) / 6.0)
+			var slot := (i - 1) % 6
+			var offset := Vector2.from_angle(TAU * slot / 6.0 + ring * 0.5) * pack_spread_px * ring
+			enemy.position = _on_floor(center + offset) - center
+		pack.add_child(enemy, true)
+		if first == null:
+			first = enemy
+	_entities().add_child(pack, true)
+	for enemy in pack.get_children():
+		(enemy as Node2D).reset_physics_interpolation()
+	_scenario_units.append(pack)
+	return first
+
+
+## The nearest point of the room's walkable floor (its navigation) to
+## `point`, so a pack aimed past a wall still stands where it can walk.
+func _on_floor(point: Vector2) -> Vector2:
+	var map := get_viewport().world_2d.navigation_map
+	if NavigationServer2D.map_get_iteration_id(map) == 0 or NavigationServer2D.map_get_regions(map).is_empty():
+		return point
+	return NavigationServer2D.map_get_closest_point(map, point)
 
 
 ## A friendly stand-in for the ally until ALLIES: a passive slime on the

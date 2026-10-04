@@ -13,6 +13,14 @@ extends UnitController
 ## its damage and gap-closer uses) and poke (cast a poke use from range).
 ## Fodder has no brain. While a brain runs, the enemy's naive cast loop never
 ## does (Enemy.naive_casting).
+## AI2: a commit needs its attack tokens (Brains: a regular 1, an elite 2 of
+## its target's pool); at full patience it asks each think and holds until
+## it gets them. It lets them go when its commit ends (then rests
+## token_rest_time s), when it doesn't commit after all, or when its target
+## is out of reach; Brains takes them back when it's stunned or rooted (its
+## commit breaks off, patience kept) or after token_hold_time s. A taunted
+## brain commits on its taunter without patience or a token. Its target is
+## its enemy's pick (Enemy.get_target(): ALLIES' rules).
 
 signal intent_changed(intent: StringName)
 signal pose_changed(pose: StringName)
@@ -89,6 +97,8 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	Brains.unregister(self)
+	if is_instance_valid(_enemy):
+		Brains.release_token(_enemy, false)
 
 
 ## Rebuilds the behavior it reads from its data (the tuning panel calls it
@@ -149,6 +159,21 @@ func get_think_usec() -> int:
 	return _think_usec
 
 
+## Its attack token, for the overlay: "held", "waiting" (in the queue),
+## "rest" (it can't ask yet), "-" (none), or "none needed" (its rank or role
+## takes none).
+func get_token_state() -> String:
+	if not is_instance_valid(_enemy) or Brains.get_token_cost(_enemy) <= 0:
+		return "none needed"
+	if Brains.has_token(_enemy):
+		return "held"
+	if Brains.is_waiting_for_token(_enemy):
+		return "waiting"
+	if Brains.get_token_rest_left(_enemy) > 0.0:
+		return "rest"
+	return "-"
+
+
 ## Where its enemy faces while the brain runs: its target (Vector2.INF = no
 ## target: the view faces its walk).
 func get_face_point() -> Vector2:
@@ -186,12 +211,18 @@ func think() -> bool:
 		_reset()
 		_situation = s
 		return false
+	_check_token_lost(s)
 	if not _committing:
 		_patience = clampf(_patience + get_patience_rate(s, behavior, Brains.table) * dt, 0.0, 1.0)
 		if _patience > 1.0 - PATIENCE_EPSILON:
 			_patience = 1.0   # summed float steps fall a hair short of 1
 	s.patience = _patience
+	s.committing = _committing
+	_ask_token(s)
 	var d := decide(s, behavior, rng)
+	if d.intent != COMMIT and Brains.has_token(_enemy):
+		Brains.release_token(_enemy, false)   # it didn't go in after all: no rest
+		s.has_token = false
 	_apply_decision(d, now)
 	_situation = s
 	_think_usec = Time.get_ticks_usec() - t0
@@ -222,6 +253,10 @@ func build_situation() -> SituationContext:
 	s.intent_hold_bonus = table.intent_hold_bonus
 	s.intent_scores = table.intent_scores
 	s.caster_poke_score = table.caster_poke_score
+	s.home_position = _enemy.get_pack_home()
+	s.home_distance_px = _enemy.global_position.distance_to(s.home_position)
+	s.needs_token = Brains.get_token_cost(_enemy) > 0
+	s.has_token = Brains.has_token(_enemy)
 	var target := _enemy.get_brain_target()
 	if target == null or not target.is_targetable():
 		return s
@@ -230,6 +265,9 @@ func build_situation() -> SituationContext:
 	s.target_position = target.global_position
 	s.target_edge_distance_px = _enemy.edge_distance_to(target)
 	s.target_in_sight = WorldQuery.has_line_of_sight(_enemy.global_position, target.global_position)
+	s.target_reachable = _enemy.is_target_reachable()
+	s.taunted = _enemy.get_taunter() == target
+	s.tokens_free = Brains.get_tokens_free(target)
 	var snap := Brains.get_snapshot()
 	s.party_size = snap.members.size()
 	var target_share := 0.0
@@ -290,6 +328,36 @@ static func _has_use_for(ability: Ability, intents: Array[StringName]) -> bool:
 	return false
 
 
+## Its tokens went while it committed (Brains: it's stunned or rooted, or it
+## held them token_hold_time s; or its target changed): a stun breaks the
+## commit off and keeps its patience (it asks again after its rest), anything
+## else ends it (patience empties). A commit on a taunt holds no token: it
+## ends when the taunt does.
+func _check_token_lost(s: SituationContext) -> void:
+	if not _committing or not s.needs_token or s.taunted or Brains.has_token(_enemy):
+		return
+	if _enemy.is_cc_blocked():
+		_break_commit()
+	else:
+		_end_commit()
+	s.has_token = false
+
+
+## Patience full (and not committing yet): it asks for its tokens on its
+## target each think (Brains' queue). Out of reach, it lets them go (Groups).
+func _ask_token(s: SituationContext) -> void:
+	if not s.needs_token:
+		return
+	if not s.target_reachable:
+		if Brains.has_token(_enemy):
+			Brains.release_token(_enemy, false)
+		s.has_token = false
+	elif not s.has_token and not _committing and not s.taunted and _patience >= 1.0:
+		s.has_token = Brains.request_token(_enemy, s.target_unit, _patience)
+	s.waiting_for_token = Brains.is_waiting_for_token(_enemy)
+	s.tokens_free = Brains.get_tokens_free(s.target_unit)
+
+
 ## Patience fills by the next think (so the commit's plans are ready on the
 ## think it fires).
 func _patience_full_soon(s: SituationContext) -> bool:
@@ -304,8 +372,8 @@ func _patience_full_soon(s: SituationContext) -> bool:
 ## intent the situation allows gets its base score × the behavior's intent
 ## weight × (1 ± jitter); the current intent gets the hold bonus until
 ## min_intent_time; the highest wins. AI1: hold (always), poke (a poke use
-## passes; a caster's scores higher), commit (patience full, or a commit under
-## way; tokens come in AI2).
+## passes; a caster's scores higher), commit (patience full with its tokens
+## (AI2: or none needed), a commit under way, or a taunt on its target).
 static func decide(s: SituationContext, b: EnemyBehavior, rng: RandomNumberGenerator) -> BrainDecision:
 	var d := BrainDecision.new()
 	if not s.has_target:
@@ -316,7 +384,8 @@ static func decide(s: SituationContext, b: EnemyBehavior, rng: RandomNumberGener
 	var poke := s.get_best_use([POKE])
 	if not poke.is_empty():
 		raw[POKE] = s.caster_poke_score if b.role == EnemyBehavior.Role.CASTER else float(s.intent_scores.get(POKE, 0.0))
-	if s.target_reachable and (s.committing or s.patience >= 1.0):
+	var tokens_ok := s.has_token or not s.needs_token
+	if s.target_reachable and (s.committing or s.taunted or (s.patience >= 1.0 and tokens_ok)):
 		raw[COMMIT] = float(s.intent_scores.get(COMMIT, 0.0))
 	var best: StringName = &""
 	var best_score := -INF
@@ -507,12 +576,22 @@ func _is_commit_done(now: float) -> bool:
 
 
 ## A commit that's done empties patience, and it walks back out to its band.
+## Its tokens go, and it rests token_rest_time s before it may ask again.
 func _end_commit() -> void:
 	_committing = false
 	_patience = 0.0
 	_tell_left = 0.0
 	_pending_plan = null
 	_back_off_left = Brains.table.back_off_time
+	Brains.release_token(_enemy, true)
+
+
+## A commit broken off (stunned: its token went): patience stays, so it asks
+## again once its rest is over.
+func _break_commit() -> void:
+	_committing = false
+	_tell_left = 0.0
+	_pending_plan = null
 
 
 func _update_pose(now: float) -> void:
@@ -539,6 +618,8 @@ func _reset() -> void:
 	_hold_edge = -1.0
 	_last_think = -1.0
 	_decision = null
+	if is_instance_valid(_enemy):
+		Brains.release_token(_enemy, false)
 	if had_intent:
 		intent_changed.emit(_intent)
 	_update_pose(Brains.get_time())

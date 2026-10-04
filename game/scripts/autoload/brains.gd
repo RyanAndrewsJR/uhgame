@@ -10,8 +10,12 @@ extends Node
 ##   champion's idle time;
 ## - `rng`, seedable: each brain draws its own stream from it when it
 ##   registers, so the same seed gives the same decisions;
-## - the difficulty tier's stand-in (difficulty_tier) until DUNGEONS D8.
-## AI2 adds the attack tokens and packs, AI6 the whiffs, AI7 sleeping.
+## - the difficulty tier's stand-in (difficulty_tier) until DUNGEONS D8;
+## - (AI2) every enemy with data (register_enemy()), the attack tokens (each
+##   champion's pool, the queue, the timeouts and releases), the shout
+##   (shout(): a pack wakes alert_delay s after its first member notices) and
+##   the fodder ring around each target (pack_think_rate times a second).
+## AI6 adds the whiffs, AI7 sleeping.
 
 const TABLE_PATH := "res://data/enemy_ai_tables/enemy_ai_table_default.tres"
 ## A champion counts as acting while it moves faster than this (px/s).
@@ -40,6 +44,20 @@ var _idle: Dictionary = {}   # champion Unit -> idle seconds
 var _think_count := 0
 var _think_usec := 0
 var _think_usec_samples: PackedInt32Array = PackedInt32Array()
+var _party: Array[Unit] = []
+var _party_frame := -1
+var _enemies: Array[Enemy] = []   # every enemy with data (AI2)
+## Attack tokens (AI2): target Unit -> Array of {enemy, cost, since}.
+var _tokens: Dictionary = {}
+## The token queue: target Unit -> Array of {enemy, patience, distance, at}.
+var _token_queue: Dictionary = {}
+## Enemy -> the game time it may ask for a token again.
+var _token_rest: Dictionary = {}
+## Shouts on their way: {enemy, target, at}.
+var _alerts: Array[Dictionary] = []
+## Each target's fodder ring angle (target Unit -> radians), kept while it
+## has fodder on it.
+var _ring_anchor: Dictionary = {}
 
 
 func _ready() -> void:
@@ -86,6 +104,10 @@ func wake(brain: EnemyBrain) -> void:
 func _physics_process(delta: float) -> void:
 	_time += delta
 	_tick += 1
+	_update_tokens()
+	_deliver_alerts()
+	if _tick % get_pack_think_period() == 0:
+		_update_fodder_rings()
 	if _brains.is_empty():
 		_urgent.clear()
 		return
@@ -109,14 +131,21 @@ func _physics_process(delta: float) -> void:
 # --- The party ----------------------------------------------------------------------
 
 ## The champions the brains read: the groups `player` and `party` (ALLIES adds
-## `party`), each once. Companions are never Units, so never here.
+## `party`), each once. Companions are never Units, so never here. Read once
+## per physics tick (every enemy asks: noticing, the pick); don't change the
+## array it returns.
 func get_party() -> Array[Unit]:
+	var frame := Engine.get_physics_frames()
+	if frame == _party_frame:
+		return _party
+	_party_frame = frame
 	var out: Array[Unit] = []
 	for group: StringName in [&"player", &"party"]:
 		for node in get_tree().get_nodes_in_group(group):
 			var u := node as Unit
 			if u != null and not out.has(u):
 				out.append(u)
+	_party = out
 	return out
 
 
@@ -150,6 +179,318 @@ func _update_idle(delta: float) -> void:
 		var acting: bool = u.velocity.length() > IDLE_SPEED_PX or u.attack.is_swinging() \
 			or u.attack.is_winding_up() or (u.abilities != null and u.abilities.casting)
 		_idle[u] = 0.0 if acting else float(_idle.get(u, 0.0)) + delta
+
+
+# --- Enemies with data (AI2) ---------------------------------------------------------------
+
+func register_enemy(enemy: Enemy) -> void:
+	if enemy != null and not _enemies.has(enemy):
+		_enemies.append(enemy)
+
+
+func unregister_enemy(enemy: Enemy) -> void:
+	_enemies.erase(enemy)
+	release_token(enemy, false)
+	_token_rest.erase(enemy)
+	for i in range(_alerts.size() - 1, -1, -1):
+		if _alerts[i].enemy == enemy:
+			_alerts.remove_at(i)
+
+
+func get_enemies() -> Array[Enemy]:
+	return _enemies.duplicate()
+
+
+# --- Attack tokens (ENEMIES_AI.md, Groups; AI2) -------------------------------------------
+
+## Tokens in each champion's pool now: by the difficulty tier (Ryan, I3).
+## ALLIES' second champion brings a second pool (one per target).
+func get_tokens_per_target() -> int:
+	return table.get_tokens_per_target(difficulty_tier)
+
+
+## The tokens `enemy` needs to commit: its rank's cost (a regular 1, an elite
+## 2), 0 when its rank or role takes none (fodder swarms; bosses have the
+## director).
+func get_token_cost(enemy: Enemy) -> int:
+	if enemy == null or enemy.data == null or enemy.data.behavior == null or not enemy.data.behavior.uses_tokens:
+		return 0
+	var rules := enemy.get_rank_rules()
+	return rules.token_cost if rules != null else 0
+
+
+func get_tokens_free(target: Unit) -> int:
+	var used := 0
+	for entry: Dictionary in _tokens.get(target, []):
+		used += int(entry.cost)
+	return get_tokens_per_target() - used
+
+
+## The champion whose token `enemy` holds (null = none).
+func get_token_target(enemy: Enemy) -> Unit:
+	for target: Variant in _tokens:
+		for entry: Dictionary in _tokens[target]:
+			if entry.enemy == enemy:
+				return target as Unit if is_instance_valid(target) else null
+	return null
+
+
+func has_token(enemy: Enemy) -> bool:
+	return get_token_target(enemy) != null
+
+
+## The enemies holding tokens on `target`, oldest first.
+func get_token_holders(target: Unit) -> Array[Enemy]:
+	var out: Array[Enemy] = []
+	for entry: Dictionary in _tokens.get(target, []):
+		if is_instance_valid(entry.enemy):
+			out.append(entry.enemy)
+	return out
+
+
+## True while `enemy` is in a token queue (it asked and is waiting its turn).
+func is_waiting_for_token(enemy: Enemy) -> bool:
+	for target: Variant in _token_queue:
+		for entry: Dictionary in _token_queue[target]:
+			if entry.enemy == enemy:
+				return true
+	return false
+
+
+## Seconds before `enemy` may ask again (0 = now).
+func get_token_rest_left(enemy: Enemy) -> float:
+	return maxf(float(_token_rest.get(enemy, -INF)) - _time, 0.0)
+
+
+## `enemy` (patience full) asks for its tokens on `target`. True when it
+## holds them now (or needs none). The queue: the highest patience asks first,
+## ties to the nearest; the first one waits until enough tokens are free, and
+## the ones behind it wait too. After a token it can't ask again for
+## token_rest_time s. A request is good for one think: a brain that stops
+## asking (its patience dropped, it died) leaves the queue.
+func request_token(enemy: Enemy, target: Unit, patience: float = 1.0) -> bool:
+	if enemy == null or target == null or not is_instance_valid(target):
+		return false
+	var cost := get_token_cost(enemy)
+	if cost <= 0:
+		return true
+	var held := get_token_target(enemy)
+	if held == target:
+		return true
+	if held != null:
+		release_token(enemy, false)
+	if get_token_rest_left(enemy) > 0.0:
+		return false
+	_leave_other_queues(enemy, target)
+	var queue: Array = _token_queue.get_or_add(target, [])
+	var mine: Dictionary = {}
+	for entry: Dictionary in queue:
+		if entry.enemy == enemy:
+			mine = entry
+	if mine.is_empty():
+		mine = {"enemy": enemy}
+		queue.append(mine)
+	mine.patience = patience
+	mine.distance = enemy.edge_distance_to(target)
+	mine.at = _time
+	_prune_queue(target)
+	queue.sort_custom(_queue_before)
+	if queue.is_empty() or queue[0].enemy != enemy or get_tokens_free(target) < cost:
+		return false
+	queue.remove_at(0)
+	(_tokens.get_or_add(target, []) as Array).append({"enemy": enemy, "cost": cost, "since": _time})
+	return true
+
+
+## `enemy` lets its tokens go (its commit ended, it was stunned, it died...).
+## With `rest` it can't ask again for token_rest_time s (the rotation).
+func release_token(enemy: Enemy, rest: bool = true) -> void:
+	_leave_other_queues(enemy, null)
+	for target: Variant in _tokens.keys():
+		var list: Array = _tokens[target]
+		for i in range(list.size() - 1, -1, -1):
+			if list[i].enemy == enemy:
+				list.remove_at(i)
+				if rest:
+					_token_rest[enemy] = _time + table.token_rest_time
+		if list.is_empty():
+			_tokens.erase(target)
+
+
+static func _queue_before(a: Dictionary, b: Dictionary) -> bool:
+	if not is_equal_approx(float(a.patience), float(b.patience)):
+		return float(a.patience) > float(b.patience)
+	return float(a.distance) < float(b.distance)
+
+
+func _leave_other_queues(enemy: Enemy, keep: Unit) -> void:
+	for target: Variant in _token_queue.keys():
+		if target == keep:
+			continue
+		var queue: Array = _token_queue[target]
+		for i in range(queue.size() - 1, -1, -1):
+			if queue[i].enemy == enemy:
+				queue.remove_at(i)
+		if queue.is_empty():
+			_token_queue.erase(target)
+
+
+## Drops queue entries that weren't asked again lately (two thinks) or whose
+## enemy is gone.
+func _prune_queue(target: Variant) -> void:
+	var queue: Array = _token_queue.get(target, [])
+	var stale := 2.5 / maxf(table.think_rate, 0.01)
+	for i in range(queue.size() - 1, -1, -1):
+		var e: Variant = queue[i].enemy
+		if not is_instance_valid(e) or not (e as Enemy).is_alive() or _time - float(queue[i].at) > stale:
+			queue.remove_at(i)
+	if queue.is_empty():
+		_token_queue.erase(target)
+
+
+## Each tick: tokens free the moment a holder dies or goes, its target dies
+## or turns untargetable, it's stunned or rooted (anything that blocks moving
+## or attacking: it rests), or it held them token_hold_time s (it rests).
+## A brain that lost its token thinks on the next tick.
+func _update_tokens() -> void:
+	for target: Variant in _tokens.keys():
+		var list: Array = _tokens[target]
+		var target_gone: bool = not is_instance_valid(target) or not (target as Unit).is_alive() or not (target as Unit).is_targetable()
+		for i in range(list.size() - 1, -1, -1):
+			var entry: Dictionary = list[i]
+			var e: Variant = entry.enemy
+			var gone: bool = not is_instance_valid(e) or not (e as Enemy).is_alive()
+			var rest := false
+			if not gone and not target_gone:
+				if _time - float(entry.since) >= table.token_hold_time - 0.0001 or (e as Enemy).is_cc_blocked():
+					rest = true
+				else:
+					continue
+			list.remove_at(i)
+			if not gone:
+				if rest:
+					_token_rest[e] = _time + table.token_rest_time
+				var brain := (e as Enemy).get_brain()
+				if brain != null:
+					wake(brain)
+		if list.is_empty():
+			_tokens.erase(target)
+	for target: Variant in _token_queue.keys():
+		if not is_instance_valid(target):
+			_token_queue.erase(target)
+		else:
+			_prune_queue(target)
+	for e: Variant in _token_rest.keys():
+		if not is_instance_valid(e) or float(_token_rest[e]) <= _time:
+			_token_rest.erase(e)
+
+
+# --- The shout (ENEMIES_AI.md, Aggro, packs and the leash; AI2) ------------------------------
+
+## `shouter` noticed `target` (Ryan, I5): the rest of its pack wakes
+## alert_delay s later (through walls: packmates know), and so do the packs
+## of the enemies within alert_radius_px of it (edge to edge) that have it in
+## sight. Nobody they wake shouts on (one shout, no chain across a floor).
+## Its sound plays at the shouter; Events.pack_alerted for each pack woken.
+func shout(shouter: Enemy, target: Unit) -> void:
+	if shouter == null or target == null:
+		return
+	var at := _time + table.alert_delay
+	var packs: Array[Pack] = []
+	var own := shouter.get_pack()
+	if own != null:
+		packs.append(own)
+	for e in _enemies:
+		if not is_instance_valid(e) or e == shouter or not e.is_alive() or e.passive:
+			continue
+		var pack := e.get_pack()
+		if pack == null or packs.has(pack):
+			continue
+		if e.edge_distance_to(shouter) <= table.alert_radius_px \
+				and WorldQuery.has_line_of_sight(e.global_position, shouter.global_position):
+			packs.append(pack)
+	for pack in packs:
+		for m in pack.get_members():
+			if m != shouter and not _is_alert_pending(m):
+				_alerts.append({"enemy": m, "target": target, "at": at})
+		Events.pack_alerted.emit(pack, target)
+	if table.alert_sound != null:
+		Audio.play_on(table.alert_sound, shouter)
+
+
+func _is_alert_pending(enemy: Enemy) -> bool:
+	for a in _alerts:
+		if a.enemy == enemy:
+			return true
+	return false
+
+
+func _deliver_alerts() -> void:
+	if _alerts.is_empty():
+		return
+	var due: Array[Dictionary] = []
+	for i in range(_alerts.size() - 1, -1, -1):
+		if float(_alerts[i].at) <= _time + 0.0001:
+			due.push_front(_alerts[i])
+			_alerts.remove_at(i)
+	for a in due:
+		if is_instance_valid(a.enemy) and is_instance_valid(a.target):
+			(a.enemy as Enemy).alert(a.target)
+
+
+# --- The fodder ring (ENEMIES_AI.md, Groups; Ryan, I6; AI2) ---------------------------------
+
+## Physics ticks between two pack thinks (12 at 60 Hz and 5 a second).
+func get_pack_think_period() -> int:
+	var tps := Engine.physics_ticks_per_second
+	return maxi(1, roundi(tps / maxf(table.pack_think_rate, 0.01)))
+
+
+## Gives every fighting fodder its place in the ring around its target: all
+## the fodder on one target share one ring, whatever their pack (Pack.
+## get_ring_spots()), nearest first. A target's ring keeps the angle it got
+## when it formed (the first fodder's), so its places never turn.
+func _update_fodder_rings() -> void:
+	var by_target: Dictionary = {}
+	for e in _enemies:
+		if is_instance_valid(e) and e.uses_fodder_ring():
+			(by_target.get_or_add(e.get_target(), []) as Array).append(e)
+	for target: Variant in _ring_anchor.keys():
+		if not by_target.has(target):
+			_ring_anchor.erase(target)
+	for target: Variant in by_target:
+		_place_ring(target as Unit, by_target[target])
+
+
+func _place_ring(target: Unit, fodder: Array) -> void:
+	var tpos := target.global_position
+	fodder.sort_custom(func(a: Enemy, b: Enemy) -> bool:
+		return a.global_position.distance_squared_to(tpos) < b.global_position.distance_squared_to(tpos))
+	var member_r := 0.0
+	var reach := INF
+	var positions: Array[Vector2] = []
+	for e: Enemy in fodder:
+		member_r = maxf(member_r, e.get_gameplay_radius_px())
+		reach = minf(reach, e.attack.get_range_px())
+		positions.append(e.global_position)
+	var radius := target.get_gameplay_radius_px() + member_r + reach * table.fodder_ring_reach_share
+	if not _ring_anchor.has(target):
+		_ring_anchor[target] = (positions[0] - tpos).angle()
+	var spots := Pack.get_ring_spots(tpos, positions, radius, member_r, table.fodder_ring_spacing_px, _ring_anchor[target])
+	# Crowded: two closer than half the spacing (edge to edge; a settled one
+	# stays put while its target is pushed about): the one farther from its
+	# place walks to it.
+	var crowded: Array[bool] = []
+	crowded.resize(fodder.size())
+	crowded.fill(false)
+	var too_close := 2.0 * member_r + table.fodder_ring_spacing_px * 0.5
+	for i in fodder.size():
+		for j in range(i + 1, fodder.size()):
+			if positions[i].distance_to(positions[j]) < too_close:
+				var far_i := positions[i].distance_squared_to(spots[i]) >= positions[j].distance_squared_to(spots[j])
+				crowded[i if far_i else j] = true
+	for i in fodder.size():
+		(fodder[i] as Enemy).set_ring_spot(spots[i], crowded[i])
 
 
 # --- Measuring (Performance) --------------------------------------------------------------

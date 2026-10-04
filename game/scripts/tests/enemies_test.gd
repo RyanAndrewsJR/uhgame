@@ -23,6 +23,20 @@ extends Node2D
 ##   its hold always ends within 12 s;
 ## - ScriptedController; SandboxBrains (the overlay's text, the scenarios,
 ##   the panel's live change, no saving in a test scene).
+## Step AI2, groups:
+## - the table's group numbers and the threat stat; the fodder ring's places
+##   (Pack.get_ring_spots()); decide() with tokens and a taunt;
+## - attack tokens: costs by rank, a pool per champion by difficulty tier,
+##   the queue (patience, then the nearest), the rest, the timeout, a stunned
+##   or dead holder, a dead target;
+## - noticing through WorldQuery (any party member); the shout (the pack 0.4 s
+##   later, through walls; other packs within 6 m in sight; no chain);
+## - ALLIES' target pick: nearest, sticky with the margin, threat, stealth,
+##   taunt, downed, an untargetable target chased;
+## - the leash (12 m from home, or 6 s with nothing in reach), the walk home
+##   (faster, ignoring sight, a hit only from inside the leash) and recovery;
+## - a stunned holder; five test brutes never more than two on the Knight,
+##   rotating; fodder in a ring around him with no tokens; the pack scenarios.
 ## Brains.rng is seeded. Prints PASS/FAIL per check, then a total. Run
 ## headless and it quits with the number of failures as the exit code.
 
@@ -56,7 +70,7 @@ var _failed: int = 0
 
 
 func _ready() -> void:
-	print("\n=== Enemies test (ENEMIES_AI AI1) ===")
+	print("\n=== Enemies test (ENEMIES_AI AI1–AI2) ===")
 	Progress.get_progress(KNIGHT)   # the save guards latch off first (a test scene)
 	Loot.get_inventory(KNIGHT)
 	Brains.rng.seed = 20261004
@@ -86,6 +100,21 @@ func _ready() -> void:
 	await _test_hold_ends_within_12s()
 	await _test_scripted_controller()
 	await _test_sandbox_brains()
+
+	# AI2: groups.
+	_test_ai2_data()
+	_test_ring_spots()
+	_test_decide_tokens()
+	await _test_tokens()
+	await _test_sight()
+	await _test_pack_alert()
+	await _test_target_pick()
+	await _test_leash()
+	await _test_unreachable()
+	await _test_stunned_holder()
+	await _test_five_brutes()
+	await _test_fodder_ring()
+	await _test_sandbox_packs()
 
 	Audio.stop_all()
 	await _frames(120)   # stop_all() leaves the UI bus: let the ultimate-ready pings (reset_cooldown()) finish
@@ -804,7 +833,7 @@ func _test_sandbox_brains() -> void:
 	await _frames(2)
 	Events.ability_cast.disconnect(on_cast)
 	_check("incoming_shot: the Knight fires the test bolt at it", casts.size() == 1 and casts[0][0] == knight and casts[0][1] == sb.test_bolt, true)
-	_check("H cycles the six", [sb.next_scenario(), sb.next_scenario()], [&"all_ready", &"none_ready"])
+	_check("H cycles the eight (AI2 added the two packs)", [sb.next_scenario(), sb.next_scenario(), sb.next_scenario()], [&"pack", &"fodder", &"all_ready"])
 
 	# The panel: a live change for every enemy sharing the data; no saving here.
 	brute = sb.run_scenario(&"all_ready")
@@ -831,7 +860,623 @@ func _test_sandbox_brains() -> void:
 	await _frames(2)
 
 
+# --- AI2: groups ----------------------------------------------------------------------------
+
+func _test_ai2_data() -> void:
+	_section("AI2 data: tokens, the fodder ring, the pick, the alert, the leash; the threat stat")
+	var t := Brains.table
+	_check("tokens per champion by tier 1–5: 2, 2, 2, 3, 3 (I3), clamped past 5",
+		[t.tokens_per_target, t.get_tokens_per_target(1), t.get_tokens_per_target(4), t.get_tokens_per_target(9)],
+		[[2, 2, 2, 3, 3] as Array[int], 2, 3, 3])
+	_check("a holder keeps its token at most 4 s, then rests 1.5 s (I3)", [t.token_hold_time, t.token_rest_time], [4.0, 1.5])
+	_check("fodder: 5 pack thinks a second, 19 px (0.6 m) apart in the ring (I6), at half its reach",
+		[t.pack_think_rate, t.fodder_ring_spacing_px, t.fodder_ring_reach_share], [5.0, 19.0, 0.5])
+	_check("the pick: 25% and 1.5 m closer, held 0.5 s (ALLIES)", [t.switch_ratio, t.switch_px, Units.px_to_m(t.switch_px), t.switch_hold_time], [0.25, 48.0, 1.5, 0.5])
+	_check("the shout: 6 m, 0.4 s (I5); the alert pose 0.4 s, with a sound",
+		[Units.px_to_m(t.alert_radius_px), t.alert_delay, t.alert_pose_time, t.alert_sound != null], [6.0, 0.4, 0.4, true])
+	_check("the leash: 12 m from home or 6 s out of reach; home 30% faster, ignoring aggro 2 s, healed over 1.5 s (I5)",
+		[Units.px_to_m(t.leash_px), t.leash_out_of_reach_time, t.return_speed_ratio, t.return_ignore_time, t.recover_time], [12.0, 6.0, 1.3, 2.0, 1.5])
+	var def := knight.stats_component.registry.get_definition(&"threat")
+	_check("the threat stat (ALLIES' name, approved 2026-10-04): default 1, limits 0.1–10; the Knight's is 1",
+		[def != null, def.default_value if def else 0.0, def.min_value if def else 0.0, def.max_value if def else 0.0, knight.stats_component.get_stat(&"threat")],
+		[true, 1.0, 0.1, 10.0, 1.0])
+	_check("the margin (Enemy.is_better_target()): 25% shorter and 48 px shorter, both",
+		[Enemy.is_better_target(200.0, 100.0, t), Enemy.is_better_target(200.0, 151.0, t), Enemy.is_better_target(80.0, 50.0, t), Enemy.is_better_target(300.0, 225.0, t)],
+		[true, false, false, true])
+
+
+func _test_ring_spots() -> void:
+	_section("The fodder ring (Pack.get_ring_spots()): side by side 0.6 m apart, never stacked (I6)")
+	var c := Vector2(100, 100)
+	var r := 50.0
+	var gap := 2.0 * 10.0 + 19.0   # two members of radius 10, 19 px apart: 39 px center to center
+	var three: Array[Vector2] = [c + Vector2.from_angle(0.3) * 200.0, c + Vector2.from_angle(-0.2) * 180.0, c + Vector2.from_angle(0.05) * 220.0]
+	var spots := Pack.get_ring_spots(c, three, r, 10.0, 19.0)
+	var on_ring := spots.size() == 3
+	for s in spots:
+		on_ring = on_ring and absf(s.distance_to(c) - r) < 0.01
+	_check("three fodder: a place each on the ring", on_ring, true)
+	var apart := INF
+	for i in 3:
+		for j in range(i + 1, 3):
+			apart = minf(apart, spots[i].distance_to(spots[j]))
+	_check("seven places fit (neighbors ≥ 39 px: 0.6 m edge to edge), spread evenly: 43.4 px apart; theirs differ (got %.2f)" % apart,
+		snappedf(apart, 0.01) >= snappedf(2.0 * r * sin(PI / 7.0), 0.01), true)
+	_check("the ring's angle is the nearest's (no anchor given): its place is straight in toward the center",
+		absf(wrapf((spots[0] - c).angle() - 0.3, -PI, PI)) < 0.0001, true)
+	_check("at its place, each keeps it (arrived, nothing changes)", Pack.get_ring_spots(c, spots, r, 10.0, 19.0, 0.3) == spots, true)
+	var moved: Array[Vector2] = []
+	for s in spots:
+		moved.append(s + Vector2(30, -20))
+	var shifted := Pack.get_ring_spots(c + Vector2(30, -20), moved, r, 10.0, 19.0, 0.3)
+	_check("the target steps aside: the places move with it, without turning",
+		shifted[0].is_equal_approx(spots[0] + Vector2(30, -20)) and shifted[1].is_equal_approx(spots[1] + Vector2(30, -20)) and shifted[2].is_equal_approx(spots[2] + Vector2(30, -20)), true)
+	var ten: Array[Vector2] = []
+	for i in 10:
+		ten.append(c + Vector2.from_angle(i * 0.1) * (100.0 + i * 10.0))   # nearest first
+	var many := Pack.get_ring_spots(c, ten, r, 10.0, 19.0)
+	var inner := 0
+	var outer := 0
+	var first_seven := true
+	for i in 10:
+		var d := many[i].distance_to(c)
+		if absf(d - r) < 0.01:
+			inner += 1
+			first_seven = first_seven and i < 7
+		elif absf(d - (r + gap)) < 0.01:
+			outer += 1
+	_check("ten: the seven nearest fill the first ring (as many as fit), the rest the next ring out", [inner, outer, first_seven], [7, 3, true])
+	var min_d := INF
+	for i in 10:
+		for j in range(i + 1, 10):
+			min_d = minf(min_d, many[i].distance_to(many[j]))
+	_check("no two closer than 39 px (got %.2f)" % min_d, min_d >= gap - 0.01, true)
+	var seven: Array[Vector2] = []
+	for i in 7:
+		seven.append(ten[i])
+	var full := Pack.get_ring_spots(c, seven, r, 10.0, 19.0)
+	var even := true
+	var step := full[0].distance_to(full[1])
+	for i in 7:
+		var nearest := INF
+		for j in 7:
+			if i != j:
+				nearest = minf(nearest, full[i].distance_to(full[j]))
+		even = even and absf(nearest - step) < 0.01
+	_check("a full ring spreads evenly", [even, step >= gap], [true, true])
+
+
+func _test_decide_tokens() -> void:
+	_section("decide() with tokens: none held, no commit; held, commit; out of reach, never; a taunt commits")
+	var b := _regular_brute()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var s := _situation(0.0, 1.0)
+	s.needs_token = true
+	_check("patience full but no token: it holds (first in the queue)", EnemyBrain.decide(s, b, rng).intent, &"hold")
+	s.has_token = true
+	_check("with its token: it commits", EnemyBrain.decide(s, b, rng).intent, &"commit")
+	s.target_reachable = false
+	_check("out of reach: never commits, token or not", EnemyBrain.decide(s, b, rng).intent, &"hold")
+	var taunt := _situation(1.0, 0.0)
+	taunt.needs_token = true
+	taunt.taunted = true
+	_check("taunted, patience empty, no token: it commits on its taunter", EnemyBrain.decide(taunt, b, rng).intent, &"commit")
+	_check("a hand-built situation needs no token (AI1's checks hold)", EnemyBrain.decide(_situation(0.0, 1.0), b, rng).intent, &"commit")
+
+
+func _test_tokens() -> void:
+	_section("Attack tokens: a pool per champion, costs by rank, the queue, the rest, releases (I3)")
+	await _reset_knight()
+	var base := knight.global_position
+	var brutes: Array[Enemy] = []
+	for i in 5:
+		brutes.append(_spawn(BRUTE_SCENE, base + Vector2(200 + i * 60, 600), true))   # passive: they never notice
+	var elite := _spawn(ELITE_SCENE, base + Vector2(0, 700), true)
+	var slime := _spawn(SLIME_SCENE, base + Vector2(-200, 700), true)
+	await _frames(1)
+	var a := brutes[0]
+	var b := brutes[1]
+	var c := brutes[2]
+	var d := brutes[3]
+	var e := brutes[4]
+	_check("costs: a regular 1, an elite 2, fodder none (I3)", [Brains.get_token_cost(a), Brains.get_token_cost(elite), Brains.get_token_cost(slime)], [1, 2, 0])
+	_check("tier 1: a pool of 2 on the Knight", [Brains.get_tokens_per_target(), Brains.get_tokens_free(knight)], [2, 2])
+	_check("two ask and get one each; the third waits", [Brains.request_token(a, knight), Brains.request_token(b, knight), Brains.request_token(c, knight)], [true, true, false])
+	_check("the holders, none free, the third in the queue",
+		[Brains.get_token_holders(knight) == ([a, b] as Array[Enemy]), Brains.get_tokens_free(knight), Brains.is_waiting_for_token(c), Brains.request_token(a, knight)], [true, 0, true, true])
+	Brains.release_token(a)
+	_check("a commit ends: its token frees and it rests 1.5 s",
+		[Brains.get_tokens_free(knight), Brains.has_token(a), snappedf(Brains.get_token_rest_left(a), 0.01), Brains.request_token(a, knight)], [1, false, 1.5, false])
+	_check("the one waiting gets it", Brains.request_token(c, knight), true)
+	_check("full again: d and e wait", [Brains.request_token(d, knight), Brains.request_token(e, knight)], [false, false])
+	Brains.release_token(b, false)
+	_check("a token frees: e asks first, but d (as patient, nearer) is ahead of it", [Brains.request_token(e, knight), Brains.request_token(d, knight)], [false, true])
+	_check("full: b (patience 0.9, nearer) and e (1.0) wait", [Brains.request_token(b, knight, 0.9), Brains.request_token(e, knight, 1.0)], [false, false])
+	Brains.release_token(c, false)
+	_check("a token frees: the most patient first, whoever is nearer", [Brains.request_token(b, knight, 0.9), Brains.request_token(e, knight, 1.0)], [false, true])
+	Brains.difficulty_tier = 4
+	_check("tier 4: 3 per champion (one free with two held)", [Brains.get_tokens_per_target(), Brains.get_tokens_free(knight)], [3, 1])
+	Brains.difficulty_tier = 1
+	Brains.release_token(d, false)
+	Brains.release_token(e, false)
+	_check("an elite takes 2: the whole pool at tier 1", [Brains.request_token(elite, knight), Brains.get_tokens_free(knight)], [true, 0])
+	_check("fodder needs none: it asks and holds nothing", [Brains.request_token(slime, knight), Brains.has_token(slime), Brains.get_tokens_free(knight)], [true, false, 0])
+	Brains.release_token(elite, false)
+	var hold := Brains.table.token_hold_time
+	Brains.table.token_hold_time = 0.25
+	Brains.request_token(b, knight)
+	await _frames(20)
+	_check("held past token_hold_time: Brains takes it back and it rests", [Brains.has_token(b), Brains.get_token_rest_left(b) > 1.0], [false, true])
+	Brains.table.token_hold_time = hold
+	await _wait_until(func() -> bool: return Brains.get_token_rest_left(b) <= 0.0, 120)
+	_check("its rest over, it may ask again", Brains.request_token(b, knight), true)
+	b.apply_stun(0.5)
+	await _frames(1)
+	_check("a holder stunned: its token frees the next tick, and it rests", [Brains.has_token(b), Brains.get_token_rest_left(b) > 1.0], [false, true])
+	Brains.request_token(c, knight)
+	c.health.take_damage(100000.0)
+	_check("a holder dies: its token frees the same tick", [c.is_alive(), Brains.has_token(c), Brains.get_tokens_free(knight)], [false, false, 2])
+	var dummy := _friend(base + Vector2(0, -600))
+	await _frames(1)
+	_check("another champion has its own pool", [Brains.request_token(d, dummy), Brains.get_tokens_free(dummy), Brains.get_tokens_free(knight)], [true, 1, 2])
+	dummy.health.take_damage(100000.0)
+	await _frames(1)
+	_check("its target dies: its pool empties", [Brains.has_token(d), Brains.get_token_holders(dummy).size()], [false, 0])
+	for x in [a, b, c, d, e, elite, slime, dummy]:
+		if is_instance_valid(x):
+			x.queue_free()
+	await _frames(2)
+
+
+func _test_sight() -> void:
+	_section("Noticing (AI2): any party member in sight within 450 u, through WorldQuery")
+	await _reset_knight()
+	var spot := knight.global_position + Vector2(0, -1500)
+	var slime := _spawn(SLIME_SCENE, spot, false)
+	var wall := _wall_at(spot + Vector2(-60, 0), Vector2(8, 200))
+	await _frames(3)
+	_place(knight, spot + Vector2(-130, 0))   # 91.6 px edge to edge: in range, behind the wall
+	await _frames(20)
+	_check("a wall between them: it doesn't notice", slime.ai != Enemy.AI.AGGRO, true)
+	wall.queue_free()
+	await _frames(5)
+	_check("the wall gone: it notices and picks him", [slime.ai, slime.get_target() == knight], [Enemy.AI.AGGRO, true])
+	slime.passive = true
+	slime.attack.cancel()
+	await _reset_knight()
+	var other := _spawn(SLIME_SCENE, knight.global_position + Vector2(0, 1500), false)
+	await _frames(3)
+	var dummy := _friend(other.global_position + Vector2(100, 0))
+	await _frames(5)
+	_check("any party member: a friendly dummy (team PLAYER, group party) is noticed", [other.ai, other.get_target() == dummy], [Enemy.AI.AGGRO, true])
+	for x in [slime, other, dummy]:
+		x.queue_free()
+	await _frames(2)
+
+
+## The step's "Done means": one pack member noticing wakes its pack 0.4 s
+## later; packmates wake through walls, other packs only with the shouter in
+## sight within 6 m; nobody they wake shouts on.
+func _test_pack_alert() -> void:
+	_section("The shout: the pack wakes 0.4 s after one member notices (I5)")
+	await _reset_knight()
+	var q := knight.global_position + Vector2(0, 1200)
+	var pack := Pack.new()
+	pack.name = "TestPack"
+	var a := SLIME_SCENE.instantiate() as Enemy
+	var b := SLIME_SCENE.instantiate() as Enemy
+	var c := SLIME_SCENE.instantiate() as Enemy
+	b.position = Vector2(40, 0)
+	c.position = Vector2(60, 60)
+	pack.add_child(a)
+	pack.add_child(b)
+	pack.add_child(c)
+	entities.add_child(pack)
+	_place(pack, q)
+	var wall := _wall_at(q + Vector2(40, 32), Vector2(220, 6))   # c behind it: no sight of a, b or the Knight
+	var near := _spawn(SLIME_SCENE, q + Vector2(150, -40), false)    # another pack: 6 m of a, in sight
+	var hidden := _spawn(SLIME_SCENE, q + Vector2(100, 100), false)  # within 6 m of a, behind the wall
+	var far := _spawn(SLIME_SCENE, q + Vector2(0, -260), false)      # in sight, past 6 m
+	var alerted: Array = []
+	var on_alert := func(p: Node, t: Unit) -> void: alerted.append([p, t])
+	Events.pack_alerted.connect(on_alert)
+	await _frames(3)
+	_check("its members and its home", [pack.get_members().size(), a.get_pack() == pack, c.get_pack() == pack, pack.get_home().distance_to(q) < 0.5, near.get_pack() != pack], [3, true, true, true, true])
+	_place(knight, q + Vector2(-150, 0))   # only a (111.6 px) notices him
+	var woke := {}
+	var tick := 0
+	var alert_pose := false
+	while tick < 60:
+		await get_tree().physics_frame
+		tick += 1
+		for x in [a, b, c, near, hidden, far]:
+			if not woke.has(x) and x.ai == Enemy.AI.AGGRO:
+				woke[x] = tick
+				if x == b:
+					alert_pose = b.get_pose() == &"alert"
+	Events.pack_alerted.disconnect(on_alert)
+	var t0: int = woke.get(a, -1)
+	var lag := func(x: Enemy) -> int: return woke.get(x, 1000) - t0
+	_check("a notices him; it shows its alert pose", [t0 > 0, a.get_known().has(knight)], [true, true])
+	_check("its packmates wake 0.4 s later (24 ticks ± 1)", [absi(lag.call(b) - 24) <= 1, absi(lag.call(c) - 24) <= 1], [true, true])
+	_check("c woke behind the wall (packmates know), in its alert pose", [woke.has(c), alert_pose], [true, true])
+	_check("another pack within 6 m with a in sight wakes with them", absi(lag.call(near) - 24) <= 1, true)
+	_check("one within 6 m behind a wall, and one past 6 m, stay asleep (no chain)", [woke.has(hidden), woke.has(far)], [false, false])
+	_check("Events.pack_alerted: a's pack and the other, on the Knight",
+		[alerted.size(), alerted.size() > 0 and alerted[0][0] == pack and alerted[0][1] == knight, alerted.size() > 1 and alerted[1][0] == near.get_pack()], [2, true, true])
+	for x in [a, b, c, near, hidden, far]:
+		x.passive = true
+		x.attack.cancel()
+	pack.queue_free()
+	for x in [near, hidden, far]:
+		x.queue_free()
+	wall.queue_free()
+	await _frames(2)
+
+
+## ALLIES' target pick against a second PLAYER-team dummy: the nearest,
+## sticky with the margin, threat, stealth, taunt, downed, and an untargetable
+## target chased (AB10).
+func _test_target_pick() -> void:
+	_section("The target pick (ALLIES): nearest by threat, sticky with the margin, taunt, stealth, downed")
+	await _reset_knight()
+	var p := knight.global_position + Vector2(-1500, 0)
+	var e := _spawn(SLIME_SCENE, p, false)
+	e.status_component.apply_status(_tag_status(&"test_root", [&"cc", &"root"] as Array[StringName], true))   # it stays put
+	var dummy := _friend(p + Vector2(0, 70))        # 34.8 px edge to edge
+	_place(knight, p + Vector2(-150, 0))             # 111.6 px
+	await _frames(4)
+	_check("it notices both and picks the nearest (the dummy)", [e.ai, e.get_target() == dummy, e.get_known().has(knight)], [Enemy.AI.AGGRO, true, true])
+	_place(dummy, p + Vector2(0, 175))               # 139.8 px: the Knight is nearer, not by the margin
+	await _frames(45)
+	_check("sticky: the Knight a little nearer (111.6 vs 139.8 px) changes nothing", e.get_target() == dummy, true)
+	_place(knight, p + Vector2(-120, 0))             # 81.6 px: 25% and 48 px nearer
+	await _frames(24)
+	var early := e.get_target() == dummy
+	await _frames(24)
+	_check("past the margin it switches, after 0.5 s (not at 0.4 s)", [early, e.get_target() == knight], [true, true])
+	var threat := StatModifier.create(&"threat", StatModifier.Type.FLAT, 4.0, &"test_threat")
+	dummy.stats_component.add_modifier(threat)
+	await _frames(48)
+	_check("threat 5: the dummy at 139.8 px counts as 28 px, and draws it",
+		[snappedf(e.get_effective_distance(dummy), 0.1), e.get_target() == dummy], [snappedf((175.0 - 35.2) / 5.0, 0.1), true])
+	dummy.stats_component.remove_modifiers_from(&"test_threat")
+	var stealth := _tag_status(&"test_stealth", [&"stealth", &"buff"] as Array[StringName])
+	dummy.status_component.apply_status(stealth)
+	await _frames(2)
+	_check("its target stealthed: dropped at its next pick", e.get_target() == knight, true)
+	_place(dummy, p + Vector2(0, 60))
+	await _frames(45)
+	_check("a stealthed dummy right beside it is never picked", e.get_target() == knight, true)
+	dummy.status_component.remove_status(stealth.id)
+	_place(dummy, p + Vector2(0, 175))
+	await _frames(2)
+	var taunt := _tag_status(&"test_taunt", [&"cc", &"taunt", &"debuff"] as Array[StringName])
+	e.status_component.apply_status(taunt, dummy)
+	await _frames(7)
+	_check("taunted by the farther dummy: its target at once (the taunt wins)", [e.get_taunter() == dummy, e.get_target() == dummy], [true, true])
+	e.status_component.remove_status(taunt.id)
+	await _frames(48)
+	_check("the taunt over: back to the rules (the Knight is past the margin again)", e.get_target() == knight, true)
+	var downed := _tag_status(&"test_downed", [&"downed"] as Array[StringName])
+	knight.status_component.apply_status(downed)
+	await _frames(2)
+	_check("its target downed: dropped at once, the other picked", e.get_target() == dummy, true)
+	knight.status_component.remove_status(downed.id)
+	dummy.queue_free()
+	await _frames(8)
+	_check("the dummy gone: the Knight again", e.get_target() == knight, true)
+	var hidden := _tag_status(&"test_untargetable", [&"untargetable"] as Array[StringName])
+	knight.status_component.apply_status(hidden)
+	await _frames(10)
+	_check("its only target untargetable: kept and chased, not attacked (AB10)", [e.get_target() == knight, e.attack.target], [true, null])
+	knight.status_component.remove_status(hidden.id)
+	e.passive = true
+	e.attack.cancel()
+	e.queue_free()
+	await _frames(2)
+
+
+## The step's "Done means": walking 12 m away sends the pack home to heal.
+func _test_leash() -> void:
+	_section("The leash: 12 m from home or 6 s out of reach; home 30% faster, healed over 1.5 s (I5)")
+	await _reset_knight()
+	var home := knight.global_position + Vector2(0, -900)
+	var pack := Pack.new()
+	pack.name = "LeashPack"
+	var s1 := SLIME_SCENE.instantiate() as Enemy
+	var s2 := SLIME_SCENE.instantiate() as Enemy
+	s2.position = Vector2(40, 0)
+	pack.add_child(s1)
+	pack.add_child(s2)
+	entities.add_child(pack)
+	_place(pack, home)
+	await _frames(3)
+	var s1_home := s1.get_home()
+	_place(knight, home + Vector2(-140, 0))
+	await _wait_until(func() -> bool: return s1.ai == Enemy.AI.AGGRO and s2.ai == Enemy.AI.AGGRO, 90)
+	_check("they notice him and fight; the pack's home is where it was placed",
+		[s1.ai, s2.ai, pack.is_fighting(), pack.get_home().distance_to(home) < 0.5, s1_home.distance_to(home) < 0.5], [Enemy.AI.AGGRO, Enemy.AI.AGGRO, true, true, true])
+	s1.health.take_damage(150.0)
+	var mark := _tag_status(&"test_mark", [&"debuff"] as Array[StringName])
+	s1.status_component.apply_status(mark, knight)
+	_place(knight, home + Vector2(-352, 0))   # 11 m from home
+	await _wait_until(func() -> bool: return s1.global_position.distance_to(home) > 250.0 and s2.global_position.distance_to(home) > 250.0, 480)
+	_check("at 11 m from home they keep after him", [s1.ai, s2.ai, s2.global_position.distance_to(home) > 250.0], [Enemy.AI.AGGRO, Enemy.AI.AGGRO, true])
+	_place(knight, home + Vector2(-420, 0))   # 13 m: out of the leash
+	await _wait_until(func() -> bool: return s1.ai == Enemy.AI.RETURN, 10)
+	var mods := s1.stats_component.get_modifiers_from(Enemy.RETURN_SOURCE_ID)
+	_check("past 12 m the pack gives up at once and walks home", [s1.ai, s2.ai], [Enemy.AI.RETURN, Enemy.AI.RETURN])
+	_check("30% faster, in its return pose, no target", [mods.size(), snappedf(mods[0].value, 0.0001) if mods.size() > 0 else 0.0, s1.get_pose(), s1.get_target()], [1, 0.3, &"return", null])
+	s1.take_damage(1.0, knight)
+	await _frames(1)
+	_check("a hit from outside the leash doesn't turn it around", s1.ai, Enemy.AI.RETURN)
+	_place(knight, s2.global_position + (home - s2.global_position).normalized() * 100.0)   # inside the leash, in its sight
+	await _frames(20)
+	_check("for 2 s it ignores what it sees on the way", s2.ai, Enemy.AI.RETURN)
+	_place(knight, home + Vector2(-700, 0))
+	await _wait_until(func() -> bool: return s1.is_recovering(), 480)
+	_check("home: the status the Knight put on it is gone; it heals", [s1.is_recovering(), s1.status_component.has_status(mark.id), s1.global_position.distance_to(s1_home) < 45.0], [true, false, true])
+	var hp0 := s1.health.current
+	await _frames(45)
+	var hp_mid := s1.health.current
+	await _wait_until(func() -> bool: return s1.ai == Enemy.AI.IDLE, 90)
+	_check("to full over about 1.5 s (part way at 0.75 s: %d → %d), then it idles at home" % [roundi(hp0), roundi(hp_mid)],
+		[hp_mid > hp0 + 30.0 and hp_mid < s1.health.max_health - 20.0, s1.health.current, s1.ai, s1.stats_component.get_modifiers_from(Enemy.RETURN_SOURCE_ID).size()],
+		[true, s1.health.max_health, Enemy.AI.IDLE, 0])
+	await _wait_until(func() -> bool: return s2.ai == Enemy.AI.IDLE, 120)
+
+	# No target in reach for 6 s (here the Knight stealthed, inside the leash).
+	var lone := _spawn(SLIME_SCENE, home + Vector2(600, 0), false)
+	await _frames(3)
+	_place(knight, lone.global_position + Vector2(-130, 0))
+	await _wait_until(func() -> bool: return lone.ai == Enemy.AI.AGGRO, 30)
+	var stealth := _tag_status(&"test_stealth", [&"stealth", &"buff"] as Array[StringName])
+	knight.status_component.apply_status(stealth)
+	var t0 := Brains.get_time()
+	await _wait_until(func() -> bool: return lone.ai == Enemy.AI.RETURN, 480)
+	var waited := Brains.get_time() - t0
+	_check("nothing it can reach for 6 s: home (got %.2f s)" % waited, [lone.ai, waited >= 5.85 and waited <= 6.3], [Enemy.AI.RETURN, true])
+	knight.status_component.remove_status(stealth.id)
+	for x in [s1, s2, lone]:
+		x.passive = true
+		x.attack.cancel()
+	pack.queue_free()
+	lone.queue_free()
+	await _frames(2)
+
+
+## Found building AI2: sight never wakes an enemy on a champion it has no path
+## to (a perch with no way up); a hit does, the leash sends it home after 6 s,
+## and it doesn't wake again by sight (no wake, leash, wake loop).
+func _test_unreachable() -> void:
+	_section("A champion it can't reach: not noticed by sight; a hit wakes it, 6 s later it goes home and stays")
+	await _reset_knight()
+	var edge := ARENA + Vector2(2500, 0)   # the navigation's east edge
+	var slime := _spawn(SLIME_SCENE, edge + Vector2(-50, 0), false)
+	await _frames(3)
+	_place(knight, edge + Vector2(100, 0))   # 111.6 px away, in sight, 100 px off the walkable floor
+	await _frames(30)
+	_check("in sight within 450 u but unreachable: it doesn't wake", slime.ai != Enemy.AI.AGGRO, true)
+	slime.take_damage(1.0, knight)
+	await _frames(2)
+	_check("a hit wakes it; its target is out of reach", [slime.ai, slime.get_target() == knight, slime.is_target_reachable()], [Enemy.AI.AGGRO, true, false])
+	await _wait_until(func() -> bool: return slime.ai == Enemy.AI.RETURN, 420)
+	_check("6 s with nothing in reach: home", slime.ai, Enemy.AI.RETURN)
+	await _wait_until(func() -> bool: return slime.ai == Enemy.AI.IDLE, 300)
+	await _frames(150)
+	_check("home and healed, it doesn't wake again on what it can't reach", [slime.ai != Enemy.AI.AGGRO, slime.health.current, slime.get_target()], [true, slime.health.max_health, null])
+	slime.passive = true
+	slime.queue_free()
+	await _frames(2)
+
+
+## The step's "Done means": a stunned holder frees its token at once.
+func _test_stunned_holder() -> void:
+	_section("A stunned holder frees its token at once, keeps its patience, and asks again after its rest")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	_spend_kit()
+	var brute := _spawn(BRUTE_SCENE, knight.global_position + Vector2(170, 0), false)
+	var brain := brute.get_brain()
+	await _wait_until(func() -> bool: return Brains.has_token(brute), 400)
+	_check("its patience full, it asks, gets its token and commits", [Brains.has_token(brute), brain.is_committing(), brain.get_token_state()], [true, true, "held"])
+	brute.apply_stun(1.0)
+	await _frames(2)
+	_check("stunned: no token, its commit broken off, its patience kept, resting",
+		[Brains.has_token(brute), brain.is_committing(), brain.get_patience() > 0.99, Brains.get_token_rest_left(brute) > 1.0, brain.get_token_state()], [false, false, true, true, "rest"])
+	await _wait_until(func() -> bool: return Brains.has_token(brute), 300)
+	_check("after the stun and its rest it asks again and gets it", Brains.has_token(brute), true)
+	brute.passive = true
+	brute.attack.cancel()
+	brute.queue_free()
+	await _frames(30)
+
+
+## The step's "Done means": five test brutes never put more than two on the
+## Knight at tier 1, and they rotate.
+func _test_five_brutes() -> void:
+	_section("Five test brutes at tier 1: never more than two on the Knight at once, and they rotate")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	_spend_kit()
+	var brutes: Array[Enemy] = []
+	for i in 5:
+		brutes.append(_spawn(BRUTE_SCENE, knight.global_position + Vector2.from_angle(TAU * i / 5.0) * 150.0, false))
+	var max_holders := 0
+	var max_committing := 0
+	var stray := 0
+	var streak := 0
+	var holders_seen := {}
+	var hits := [0]
+	var on_damaged := func(ctx: HitContext) -> void:
+		if ctx.target == knight:
+			hits[0] += 1
+	Events.unit_damaged.connect(on_damaged)
+	var start := Brains.get_time()
+	var frames := 0
+	while Brains.get_time() - start < 15.0 and frames < 1800:
+		await get_tree().physics_frame
+		frames += 1
+		knight.health.heal(100000.0)
+		if frames % 30 == 0:
+			_spend_kit()
+		var holders := Brains.get_token_holders(knight)
+		max_holders = maxi(max_holders, holders.size())
+		for h in holders:
+			holders_seen[h] = true
+		var committing := 0
+		var bad := false
+		for b in brutes:
+			if b.get_brain().is_committing():
+				committing += 1
+				bad = bad or not Brains.has_token(b)
+		max_committing = maxi(max_committing, committing)
+		streak = streak + 1 if bad else 0
+		if streak > 1:
+			stray += 1
+	Events.unit_damaged.disconnect(on_damaged)
+	_check("all five aggroed on him", brutes.all(func(b: Enemy) -> bool: return b.ai == Enemy.AI.AGGRO and b.get_target() == knight), true)
+	_check("never more than two tokens held, never more than two committing (15 s; got %d / %d)" % [max_holders, max_committing],
+		[max_holders, max_committing <= 2], [2, true])
+	_check("no commit without its token (beyond a tick's hand-over)", stray, 0)
+	_check("they rotate: at least four of the five held a token (got %d); they hit him" % holders_seen.size(), [holders_seen.size() >= 4, hits[0] > 0], [true, true])
+	for b in brutes:
+		b.passive = true
+		b.attack.cancel()
+		b.queue_free()
+	await _frames(60)
+
+
+## The step's "Done means": fodder surrounds the Knight, with no tokens.
+func _test_fodder_ring() -> void:
+	_section("Fodder surrounds its target in a ring, 0.6 m apart, with no tokens (I6)")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	# First the ring itself: the Knight unstoppable, so their hits don't push
+	# him about (AB10).
+	var steady := _tag_status(&"test_unstoppable", [&"unstoppable"] as Array[StringName])
+	knight.status_component.apply_status(steady)
+	var slimes: Array[Enemy] = []
+	for i in 6:
+		slimes.append(_spawn(SLIME_SCENE, knight.global_position + Vector2.from_angle(deg_to_rad(-30.0 + i * 12.0)) * 120.0, false))
+	# A full ring (six places for six): the last one's place can be on his far
+	# side, so it walks around the others; give them up to 7 s.
+	var tolerance := Brains.table.fodder_ring_tolerance_px
+	var placed := func() -> bool:
+		knight.health.heal(100000.0)
+		return slimes.all(func(s: Enemy) -> bool: return s.get_ring_spot() != Vector2.INF and s.global_position.distance_to(s.get_ring_spot()) <= tolerance + 1.0)
+	var start := Brains.get_time()
+	await _wait_until(placed, 420)
+	var took := Brains.get_time() - start
+	var reach_frames: Array[int] = [0, 0, 0, 0, 0, 0]
+	for i in 30:
+		await get_tree().physics_frame
+		knight.health.heal(100000.0)
+		for k in slimes.size():
+			reach_frames[k] += int(slimes[k].attack.is_in_range(knight))
+	var member_r := slimes[0].get_gameplay_radius_px()
+	var radius := knight.get_gameplay_radius_px() + member_r + slimes[0].attack.get_range_px() * Brains.table.fodder_ring_reach_share
+	var on_ring := true
+	var at_place := true
+	var in_reach := true
+	var min_d := INF
+	for k in slimes.size():
+		var s := slimes[k]
+		on_ring = on_ring and absf(s.get_ring_spot().distance_to(knight.global_position) - radius) < 0.5
+		at_place = at_place and s.global_position.distance_to(s.get_ring_spot()) <= Brains.table.fodder_ring_tolerance_px + 1.0
+		in_reach = in_reach and reach_frames[k] == 30
+	for i in slimes.size():
+		for j in range(i + 1, slimes.size()):
+			min_d = minf(min_d, slimes[i].global_position.distance_to(slimes[j].global_position))
+	_check("all six have their place in one ring around him (%.1f px, half their reach), stand at it (after %.1f s), and stay in reach (frames of 30: %s)" % [radius, took, reach_frames],
+		[on_ring, at_place, in_reach], [true, true, true])
+	# Their places are 0.6 m apart edge to edge (a full ring of six: a little
+	# more); each stands within the tolerance of its own (6 px).
+	_check("side by side, not stacked: about 0.6 m between them, edge to edge (got %.1f px)" % (min_d - 2.0 * member_r),
+		min_d >= 2.0 * member_r + Brains.table.fodder_ring_spacing_px - 2.0 * Brains.table.fodder_ring_tolerance_px - 2.0, true)
+	_check("no tokens (fodder swarms)", [Brains.get_token_holders(knight).size(), Brains.get_token_cost(slimes[0])], [0, 0])
+	# Then the real fight: their hits push him about; each keeps hitting him.
+	knight.status_component.remove_status(steady.id)
+	var landed: Array[int] = [0, 0, 0, 0, 0, 0]
+	for k in slimes.size():
+		slimes[k].attack.attack_landed.connect(func(_t: Unit, _d: float) -> void: landed[k] += 1)
+	for i in 240:
+		await get_tree().physics_frame
+		knight.health.heal(100000.0)
+	_check("pushed about by their hits for 4 s, every one of them keeps hitting him (hits each: %s)" % [landed], landed.all(func(n: int) -> bool: return n >= 1), true)
+	for s in slimes:
+		s.passive = true
+		s.attack.cancel()
+		s.queue_free()
+	await _frames(30)
+
+
+func _test_sandbox_packs() -> void:
+	_section("SandboxBrains (AI2): the pack scenarios; the overlay's token")
+	await _reset_knight()
+	var sb := SandboxBrains.new()
+	add_child(sb)
+	await _frames(2)
+	var first := sb.run_scenario(&"pack")
+	await _frames(2)
+	var pack: Pack = first.get_pack() if first != null else null
+	_check("pack: five test brutes in one Pack 9 m away, idle",
+		[pack != null and pack.get_members().size() == 5, first != null and first.data == BRUTE_DATA,
+			pack != null and absf(pack.get_home().distance_to(knight.global_position) - 288.0) < 2.0, first != null and first.ai != Enemy.AI.AGGRO],
+		[true, true, true, true])
+	if pack != null:
+		_place(knight, pack.get_home() + Vector2(-90, 0))
+		await _wait_until(func() -> bool: return pack.get_members().all(func(m: Enemy) -> bool: return m.ai == Enemy.AI.AGGRO), 90)
+		_check("walk up to it: one notices, and the pack wakes", pack.get_members().all(func(m: Enemy) -> bool: return m.ai == Enemy.AI.AGGRO), true)
+		await _wait_until(func() -> bool: return first.get_brain().get_intent() != &"", 30)
+		_check("the overlay shows its token", sb.get_overlay_text(first).contains("token "), true)
+	var slime := sb.run_scenario(&"fodder")
+	await _frames(2)
+	_check("fodder: eight slimes in one Pack; the brutes' pack gone",
+		[slime != null and slime.get_pack().get_members().size() == 8, slime != null and slime.data == SLIME_DATA, not is_instance_valid(pack)], [true, true, true])
+	sb.clear_scenario()
+	sb.queue_free()
+	await _frames(2)
+
+
 # --- Helpers ----------------------------------------------------------------------------
+
+## The Knight's kit all spent (every slot on cooldown, no Fury): respect 0.
+func _spend_kit() -> void:
+	for slot in AbilityComponent.SLOTS:
+		if knight.abilities.get_ability(slot) != null:
+			knight.abilities.start_cooldown(slot)
+	if knight.resource_pool != null:
+		knight.resource_pool.try_spend(knight.resource_pool.current)
+
+
+## A friendly dummy (ALLIES' second champion's stand-in): a passive slime with
+## no data on the player's team, in the group `party`.
+func _friend(pos: Vector2) -> Enemy:
+	var f := SLIME_SCENE.instantiate() as Enemy
+	f.data = null
+	f.passive = true
+	entities.add_child(f)
+	f.team = Unit.Team.PLAYER
+	f.remove_from_group(&"enemies")
+	f.add_to_group(&"party")
+	_place(f, pos)
+	return f
+
+
+## A status with these tags that lasts until removed (blocks moving with
+## `root`).
+func _tag_status(id: StringName, tags: Array[StringName], root: bool = false) -> StatusEffect:
+	var s := StatusEffect.new()
+	s.id = id
+	s.tags = tags
+	s.duration = -1.0
+	s.blocks_move = root
+	s.blocks_dash = root
+	return s
+
 
 ## One flat walkable rectangle around the arena on the world's navigation map,
 ## as a room's baked navigation would be.

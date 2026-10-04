@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://scripts/data/rank_rules.gd" id="1_tp8sr"]
 [ext_resource type="Script" path="res://scripts/data/brain_adjust.gd" id="2_vigi2"]
 [ext_resource type="Script" path="res://scripts/data/enemy_ai_table.gd" id="3_pb3ve"]
+[ext_resource type="Resource" path="res://data/sounds/sound_enemy_alert.tres" id="4_alert"]
 
 [sub_resource type="Resource" id="Resource_y7c0d"]
 script = ExtResource("1_tp8sr")
@@ -46,3 +47,4 @@ brain_adjust = SubResource("Resource_sq8i8")
 [resource]
 script = ExtResource("3_pb3ve")
 ranks = Array[ExtResource("1_tp8sr")]([SubResource("Resource_y7c0d"), SubResource("Resource_db0wg"), SubResource("Resource_2debi"), SubResource("Resource_i4duy")])
+alert_sound = ExtResource("4_alert")

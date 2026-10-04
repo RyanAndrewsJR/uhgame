@@ -114,7 +114,7 @@ A **blink** moves a unit to a point instantly: no travel, no time in the air (Le
   - Stopping at walls, the first wall is found by sweeping a 2 px core (`BLINK_WALL_CORE_PX`), as AB13's VECTOR start is, so a unit already touching a wall can still blink away from it.
   - A blink inside a cast follows the cast's timing: Homeward Lunge's return keeps Lunge's 0.05 s cast time (3 ticks from the press). Ryan kept it at L-M (2026-10-04).
 
-### Roots (MUST: Ryan, 2026-10-04, at LOOT L-M: "roots are roots. You shouldn't be able to move at all until it ends."; built the same day)
+### Roots (MUST: Ryan, 2026-10-04, at LOOT L-M: "roots are roots. You shouldn't be able to move at all until it ends."; built the same day; passed Ryan's play test 2026-10-04)
 - **A rooted unit can't move itself at all** while the root lasts (a root: a status with `blocks_move` and `blocks_dash`, COMBAT.md; a stun includes it): no walking (as before), no dash (as before), and now:
   - **An ability that moves its caster** (`Ability.moves_caster()`: tagged `dash`, `leap` or `blink`, `Ability.MOVEMENT_TAGS`) fails its press the way a condition does (AB12): at once, with its cue, not buffered, no cost or cooldown spent, and its slot greys while the root lasts (fail text "Rooted", `AbilityComponent.ROOTED_FAIL_TEXT`). The Knight's Lunge (and Homeward Lunge) and Judgement Leap, the test Triple Step and blinks.
   - **The movement itself refuses** (`MovementComponent.is_dash_blocked()`, the same as `Unit.is_dash_blocked()`): `dash()` and `leap()` do nothing, as `blink()` already didn't, so a free cast (which skips conditions) goes nowhere either. A leap refused at its effect (rooted during Judgement Leap's 0.2 s crouch) leaves the caster where it stands, and the landing hits there.

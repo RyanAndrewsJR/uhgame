@@ -33,3 +33,9 @@ signal item_equipped(unit: Unit, item: Item)
 ## An item was taken off a unit: everything it gave is gone.
 @warning_ignore("unused_signal")
 signal item_unequipped(unit: Unit, item: Item)
+## A pack was woken by a shout (ENEMIES_AI AI2): one of its members noticed
+## `target` (or a member of a pack nearby did, in sight of it). Its members
+## wake EnemyAITable.alert_delay s later. `pack` is a Pack (an enemy placed on
+## its own has a pack of one).
+@warning_ignore("unused_signal")
+signal pack_alerted(pack: Node, target: Unit)

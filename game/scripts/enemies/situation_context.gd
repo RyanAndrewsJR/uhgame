@@ -8,8 +8,9 @@ extends RefCounted
 ## for the use rules and plans gathered while building it; decide() never
 ## reads them.
 ## Built in AI1: self, the target, respect, patience, the commit and the
-## castable uses. Later steps add the incoming attacks (AI3), tokens,
-## packmates, home and leash (AI2), dodging (AI4) and the punish window (AI6).
+## castable uses. AI2 added the tokens, the taunt, reachability and home.
+## Later steps add the incoming attacks (AI3), packmates' roles and places
+## (AI3: casters behind melee), dodging (AI4) and the punish window (AI6).
 
 # --- Self ---------------------------------------------------------------------
 var rank: EnemyData.Rank = EnemyData.Rank.REGULAR
@@ -47,8 +48,11 @@ var target_edge_distance_px: float = INF
 var target_health_ratio: float = 1.0
 ## Its ready kit's share of its whole kit (0–1; Respect).
 var target_kit_ready: float = 0.0
-## It can get to the target (AI2 adds paths and perches; always true in AI1).
+## It can get to the target: a path gets it within its reach (AI2;
+## Enemy.is_target_reachable()). Out of reach it never commits.
 var target_reachable: bool = true
+## Its target taunts it (ALLIES.md): it commits without patience or a token.
+var taunted: bool = false
 var target_in_sight: bool = false
 ## Seconds since the target last moved, swung, dashed or cast.
 var target_idle_time: float = 0.0
@@ -63,6 +67,20 @@ var respect: float = 0.0
 var effective_respect: float = 0.0
 ## Champions in the snapshot.
 var party_size: int = 0
+
+# --- Tokens and home (AI2) ----------------------------------------------------
+## Its rank and role take attack tokens to commit (Groups); false = it needs
+## none (a hand-built situation's default).
+var needs_token: bool = false
+## It holds its tokens on its target (a commit may start).
+var has_token: bool = false
+## It asked and waits its turn in the queue.
+var waiting_for_token: bool = false
+## Tokens free in its target's pool.
+var tokens_free: int = 0
+## Its pack's home and its distance to it (px).
+var home_position: Vector2 = Vector2.ZERO
+var home_distance_px: float = 0.0
 
 # --- What it can cast ---------------------------------------------------------
 ## Each castable slot's passing uses: {slot, intent, weight, plan: CastPlan}.
