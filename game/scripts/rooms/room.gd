@@ -25,6 +25,10 @@ const NAV_BLOCKING_LAYERS := 1 | (1 << 5) | (1 << 6) | (1 << 10)
 ## The room's floor in px, for a room without Tiles (a room built in 3D sets
 ## it from its walkable ground). A tile room's floor is its used tiles.
 @export var bounds_px: Rect2 = Rect2()
+## How deep the room is (LOOT.md, Drops: drop chances and better rarities
+## grow with it; Loot.get_depth()). 1 = the top. A room built in 3D gets it
+## from RoomLayout.depth. DUNGEONS.md sets it per run later. LOOT L3.
+@export_range(1, 100, 1, "or_greater") var depth: int = 1
 
 @onready var tiles: TileMapLayer = get_node_or_null(^"Tiles") as TileMapLayer
 

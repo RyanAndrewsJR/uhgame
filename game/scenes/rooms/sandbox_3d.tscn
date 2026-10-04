@@ -35,6 +35,7 @@
 [ext_resource type="Resource" path="res://data/augments/augment_judgement_reset.tres" id="28_cm518"]
 [ext_resource type="Resource" path="res://data/augments/augment_cleave_casts_lunge.tres" id="29_s5csv"]
 [ext_resource type="Script" path="res://scripts/rooms/sandbox_talents.gd" id="30_f16o5"]
+[ext_resource type="Script" path="res://scripts/rooms/sandbox_loot.gd" id="31_loot"]
 
 [node name="Sandbox3D" type="Node3D" unique_id=123001834]
 script = ExtResource("1_0el4y")
@@ -422,3 +423,6 @@ items = Array[ExtResource("25_jhi6k")]([ExtResource("26_tlx1e"), ExtResource("27
 
 [node name="SandboxTalents" type="Node" parent="." unique_id=1278714251]
 script = ExtResource("30_f16o5")
+
+[node name="SandboxLoot" type="Node" parent="."]
+script = ExtResource("31_loot")

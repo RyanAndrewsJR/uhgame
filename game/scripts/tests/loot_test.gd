@@ -19,6 +19,14 @@ extends Node2D
 ## materials bucket); the Loot autoload (the test-scene guard, the equip
 ## listener, a save to a scratch file, the real file untouched); the Player
 ## equipping its saved gear at load.
+## L3: SandboxLoot. Room.depth and RoomLayout.depth (copied by build_sim()),
+## Loot.get_depth(); SandboxLoot in both sandboxes; on a live Knight in a
+## room: the list (header, rarity colors, ON, scrolling, the tooltip lines),
+## J / Shift+J, U (equip, swap, unequip, rings), K (one roll at the room's
+## depth with the Knight's magic find, into the inventory), P (nothing until
+## L5), [ / ] (depth, never below 1), the keys through the viewport; a
+## respawned Knight wearing what was set; K and U saving at once (a scratch
+## file).
 ## Prints PASS/FAIL per check, then a total.
 ## Run headless and it quits with the number of failures as the exit code.
 
@@ -94,7 +102,7 @@ class ForeignItem extends Item:
 
 
 func _ready() -> void:
-	print("\n=== Loot test (LOOT L1–L2) ===")
+	print("\n=== Loot test (LOOT L1–L3) ===")
 	# First, before anything touches either autoload: a window's close request
 	# saves, and Progress.save() once checked saving_enabled before its lazy
 	# test-scene guard, so a windowed run closed before anything touched
@@ -139,6 +147,12 @@ func _ready() -> void:
 	_test_inventory_save()
 	await _test_loot_autoload()
 	await _test_player_loads_gear()
+	# L3
+	_test_room_depth()
+	_test_sandbox_scenes()
+	await _test_sandbox_loot()
+	await _test_sandbox_loot_keys()
+	await _test_sandbox_loot_saves()
 	Loot.reset(KNIGHT)
 	_check("the real inventory file was never written", _file_stamp(REAL_SAVE), real_before)
 	_check("nor the real progress file", _file_stamp("user://progress.cfg"), progress_before)
@@ -984,6 +998,242 @@ func _test_player_loads_gear() -> void:
 	await _free(p)
 
 
+# --- L3: SandboxLoot ------------------------------------------------------------
+
+func _test_room_depth() -> void:
+	_section("L3: Room.depth, RoomLayout.depth, Loot.get_depth()")
+	var room := Room.new()
+	var layout := RoomLayout.new()
+	_check("a Room and a RoomLayout start at depth 1", [room.depth, layout.depth], [1, 1])
+	layout.free()
+	room.depth = 4
+	var child := Node2D.new()
+	var grandchild := Node.new()
+	room.add_child(child)
+	child.add_child(grandchild)
+	_check("get_depth(): the nearest Room's, from the room, a child or a grandchild",
+		[Loot.get_depth(room), Loot.get_depth(child), Loot.get_depth(grandchild)], [4, 4, 4])
+	room.depth = 0
+	_check("a depth below 1 counts as 1", Loot.get_depth(grandchild), 1)
+	var loose := Node.new()
+	_check("no Room above (or no node): depth 1", [Loot.get_depth(loose), Loot.get_depth(null)], [1, 1])
+	loose.free()
+	room.free()
+	var sandbox := (load("res://scenes/rooms/sandbox_3d.tscn") as PackedScene).instantiate() as RoomLayout
+	sandbox.depth = 3
+	var built := sandbox.build_sim()
+	_check("build_sim() copies the layout's depth onto the Room", built.depth, 3)
+	_check("and moves SandboxLoot into the Room", built.get_node_or_null("SandboxLoot") is SandboxLoot, true)
+	built.free()
+	sandbox.free()
+
+
+func _test_sandbox_scenes() -> void:
+	_section("L3: SandboxLoot in both sandboxes")
+	var tile_sandbox := (load("res://scenes/rooms/sandbox.tscn") as PackedScene).instantiate() as Room
+	var node := tile_sandbox.get_node_or_null("SandboxLoot") as SandboxLoot
+	_check("sandbox.tscn has a SandboxLoot node; the room is at depth 1", [node != null, tile_sandbox.depth], [true, 1])
+	_check("K rolls from the elite table by default", node != null and node.drop_table == ELITE, true)
+	tile_sandbox.free()
+	var sandbox := (load("res://scenes/rooms/sandbox_3d.tscn") as PackedScene).instantiate() as RoomLayout
+	_check("sandbox_3d.tscn has one too (not a Node3D, so build_sim() moves it); the layout is at depth 1",
+		[sandbox.get_node_or_null("SandboxLoot") is SandboxLoot, sandbox.depth], [true, 1])
+	sandbox.free()
+
+
+func _test_sandbox_loot() -> void:
+	_section("L3: SandboxLoot on a live Knight (the list, U, K, P, [ / ])")
+	Loot.reset(KNIGHT)
+	var setup := await _sandbox_room()
+	var room: Room = setup[0]
+	var sl: SandboxLoot = setup[1]
+	var p: Player = setup[2]
+	_check("it finds the Knight in Entities", sl.get_champion() == KNIGHT, true)
+	_check("an empty inventory: the header and a hint", _row_texts(sl).slice(1, 3),
+		["Inventory 0   Depth 1   MF +0%", "  Nothing yet: K rolls an item"])
+	var label := _find_label(sl)
+	_check("the list is a RichTextLabel that never takes the mouse (attack clicks pass)",
+		label != null and label.mouse_filter == Control.MOUSE_FILTER_IGNORE, true)
+
+	# K
+	Loot.rng.seed = 3030
+	var first := sl.roll_drop()
+	var record := Loot.get_inventory(KNIGHT)
+	_check("K: one item from the elite table, into the inventory with uid 1",
+		[first.size(), record.items.size(), first[0].uid if first.size() == 1 else -1], [1, 1, 1])
+	_check("the cursor on it, the result said", [sl.get_cursor(), sl.get_status().begins_with("Rolled ")], [0, true])
+	for i in 5:
+		sl.roll_drop()
+	var rarities_ok := true
+	for item in record.items:
+		rarities_ok = rarities_ok and item.rarity >= R.UNCOMMON and item.rarity <= R.EXOTIC
+	_check("six rolls: six items, each Uncommon to Exotic (the elite table has no Common; named fall back until L5)",
+		[record.items.size(), rarities_ok], [6, true])
+	_check("the cursor follows the newest", sl.get_cursor(), 5)
+
+	# K at the room's depth with the Knight's magic find.
+	var half := DropTable.new()
+	half.item_chance = 0.5
+	half.chance_per_depth = 1.0
+	sl.drop_table = half
+	Loot.rng.seed = 7070
+	var hits_1 := 0
+	for i in 40:
+		hits_1 += sl.roll_drop().size()
+	sl.change_depth(1)
+	var hits_2 := 0
+	for i in 40:
+		hits_2 += sl.roll_drop().size()
+	_check("K uses the room's depth (chance 0.5 at depth 1: some of 40 miss; 1.0 at depth 2: none)",
+		[hits_1 > 0 and hits_1 < 40, hits_2], [true, 40])
+	var never := DropTable.new()
+	never.item_chance = 0.0
+	sl.drop_table = never
+	_check("a table that never drops: nothing, said so", [sl.roll_drop().size(), sl.get_status()], [0, "Rolled nothing (depth 2)"])
+	sl.change_depth(-1)
+	var split := DropTable.new()
+	split.item_chance = 1.0
+	split.rarity_weights = [1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+	sl.drop_table = split
+	Loot.rng.seed = 8080
+	var plain := _count_rolled(sl, 40, R.UNCOMMON)
+	p.stats_component.add_modifiers([StatModifier.create(&"magic_find", StatModifier.Type.FLAT, 9.0, &"loot_test_mf")])
+	_check("the header shows the Knight's magic find", _row_texts(sl)[1].ends_with("MF +900%"), true)
+	Loot.rng.seed = 8080
+	var found := _count_rolled(sl, 40, R.UNCOMMON)
+	_check("K uses the Knight's magic find (Uncommon of 40, Common / Uncommon 1:1, then +900% magic find: 1:10)",
+		[plain < 30, found >= 30], [true, true])
+	p.stats_component.remove_modifiers_from(&"loot_test_mf")
+	sl.drop_table = ELITE
+
+	# U
+	Loot.reset(KNIGHT)
+	record = Loot.get_inventory(KNIGHT)
+	var helm_a := _item(&"item_base_iron_helm", R.RARE, [[&"affix_max_health", 0.5], [&"affix_armor", 0.5]], 0)
+	var helm_b := _item(&"item_base_iron_helm", R.UNCOMMON, [[&"affix_magic_find", 1.0]], 0)
+	var ring_x := _item(&"item_base_band", R.COMMON, [[&"affix_attack_damage", 0.2]], 0)
+	var ring_y := _item(&"item_base_band", R.COMMON, [[&"affix_crit_chance", 0.4]], 0)
+	var ring_z := _item(&"item_base_band", R.COMMON, [[&"affix_attack_speed", 0.6]], 0)
+	for item in [helm_a, helm_b, ring_x, ring_y, ring_z]:
+		Loot.add_item(KNIGHT, item)
+	sl.move_cursor(-sl.get_cursor())
+	var bare := _all_values(p.stats_component)
+	_check("U on a helm: worn and remembered", [sl.toggle(0), p.equipment.get_item(&"helm") == helm_a, record.equipped.get(&"helm")],
+		[true, true, helm_a.uid])
+	_check("the list marks it ON, in the Rare color",
+		_row_color(sl, "[Helm] Iron Helm  Rare  ON"), _table.get_rarity(R.RARE).color)
+	_check("and the label shows it (the bracket escaped)", label.get_parsed_text().contains("[Helm] Iron Helm  Rare  ON"), true)
+	_check("U on the other helm: a swap, said so", [sl.toggle(1), p.equipment.get_item(&"helm") == helm_b, sl.get_status()],
+		[true, true, "Equipped Iron Helm (swapped out Iron Helm)"])
+	_check("the first helm's pieces are gone", p.stats_component.get_modifiers_from(helm_a.get_source_id()).size(), 0)
+	_check("U again: unequipped, the Knight exactly as before", [sl.toggle(1), p.equipment.get_item(&"helm"), record.equipped.has(&"helm")],
+		[false, null, false])
+	_check("(every stat back)", _all_values(p.stats_component) == bare, true)
+	sl.toggle(1)
+	_check("the header shows the helm's magic find", _row_texts(sl)[1].ends_with("MF +%d%%" % roundi(helm_b.get_affix_value(0, _table) * 100.0)), true)
+	sl.toggle(2)
+	sl.toggle(3)
+	_check("two rings: both ring slots", [p.equipment.get_item(&"ring_1") == ring_x, p.equipment.get_item(&"ring_2") == ring_y], [true, true])
+	_check("a third ring swaps out ring 1", [sl.toggle(4), p.equipment.get_item(&"ring_1") == ring_z, sl.get_status()],
+		[true, true, "Equipped Band (swapped out Band)"])
+	_check("the record remembers the worn set", record.equipped, {&"helm": helm_b.uid, &"ring_1": ring_z.uid, &"ring_2": ring_y.uid})
+	_check("three rows marked ON", _row_texts(sl).filter(func(t: String) -> bool: return t.ends_with("  ON")).size(), 3)
+
+	# J, the scrolling and the tooltip.
+	sl.visible_rows = 3
+	sl.move_cursor(-sl.get_cursor())
+	var texts := _row_texts(sl)
+	_check("cursor at the top: the first 3 items, then how many below",
+		[texts.has("> [Helm] Iron Helm  Rare"), texts.has("  (2 below)"), _row_with(sl, "above")], [true, true, false])
+	sl.move_cursor(-1)
+	texts = _row_texts(sl)
+	_check("up from the top wraps to the last item; the list scrolls with it",
+		[sl.get_cursor(), texts.has("> [Ring] Band  Common  ON"), texts.has("  (2 above)"), _row_with(sl, "below")], [4, true, true, false])
+	var tooltip := ring_z.get_tooltip_lines(_table)
+	var tooltip_ok := true
+	for line in tooltip.slice(2):
+		tooltip_ok = tooltip_ok and texts.has("    " + line)
+	_check("the highlighted item's tooltip lines are under the list (past its name and rarity, already on its row)",
+		[tooltip_ok, texts.has("    " + tooltip[0]), texts.has("    " + tooltip[1])], [true, false, false])
+	sl.visible_rows = 6
+
+	# P and [ / ].
+	_check("P: nothing until L5, said so", [sl.grant_named_items(), record.items.size(), sl.get_status()], [0, 5, "No named items yet (LOOT L5)"])
+	_check("]: depth 2", [sl.change_depth(1), room.depth], [2, 2])
+	_check("[ twice: back to 1, never below", [sl.change_depth(-1), sl.change_depth(-1), room.depth], [1, 1, 1])
+
+	# A new Knight (a restart) wears what was set.
+	await _free(p)
+	var p2 := await _spawn_in(room)
+	_check("a new Knight: found, the cursor back at the top", [sl.get_champion() == KNIGHT, sl.get_cursor(), sl.get_status()], [true, 0, ""])
+	_check("it wears what was set (the helm, both rings)",
+		[p2.equipment.get_item(&"helm") == helm_b, p2.equipment.get_item(&"ring_1") == ring_z, p2.equipment.get_item(&"ring_2") == ring_y],
+		[true, true, true])
+	room.queue_free()
+	await _frames(1)
+
+
+func _test_sandbox_loot_keys() -> void:
+	_section("L3: SandboxLoot's keys (through the viewport)")
+	Loot.reset(KNIGHT)
+	var setup := await _sandbox_room()
+	var room: Room = setup[0]
+	var sl: SandboxLoot = setup[1]
+	var p: Player = setup[2]
+	Loot.rng.seed = 5050
+	for i in 3:
+		_press(KEY_K)
+	var items := Loot.get_inventory(KNIGHT).items
+	_check("K three times: three items, the cursor on the last", [items.size(), sl.get_cursor()], [3, 2])
+	_press(KEY_J)
+	_check("J: down (wraps to the top)", sl.get_cursor(), 0)
+	_press(KEY_J, true)
+	_check("Shift+J: up (wraps to the bottom)", sl.get_cursor(), 2)
+	_press(KEY_J, false, true)
+	_check("a held J repeats", sl.get_cursor(), 0)
+	_press(KEY_U)
+	_check("U: the highlighted item worn", p.equipment.get_slot_of(items[0]) != &"", true)
+	_press(KEY_U, false, true)
+	_check("a held U doesn't repeat", p.equipment.get_slot_of(items[0]) != &"", true)
+	_press(KEY_U)
+	_check("U again: off", p.equipment.get_slot_of(items[0]), &"")
+	_press(KEY_BRACKETRIGHT)
+	_press(KEY_BRACKETRIGHT)
+	_check("] twice: depth 3", room.depth, 3)
+	_press(KEY_BRACKETLEFT)
+	_check("[: depth 2", room.depth, 2)
+	_press(KEY_P)
+	_check("P: says named items come with L5", sl.get_status(), "No named items yet (LOOT L5)")
+	room.queue_free()
+	await _frames(1)
+
+
+func _test_sandbox_loot_saves() -> void:
+	_section("L3: K and U save at once (to a scratch file, never the real one)")
+	Loot.reset(KNIGHT)
+	var setup := await _sandbox_room()
+	var room: Room = setup[0]
+	var sl: SandboxLoot = setup[1]
+	var p: Player = setup[2]
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH_SAVE))
+	Loot.save_path = SCRATCH_SAVE
+	Loot.saving_enabled = true
+	Loot.rng.seed = 6060
+	var rolled := sl.roll_drop()
+	var after_roll := _read_scratch()
+	sl.toggle(0)
+	var after_equip := _read_scratch()
+	Loot.saving_enabled = false
+	Loot.save_path = Loot.SAVE_PATH
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH_SAVE))
+	_check("K: the new item is in the file", after_roll != null and after_roll.items.size() == 1
+		and after_roll.items[0].to_dict() == rolled[0].to_dict(), true)
+	_check("U: the worn slot is in the file", after_equip.equipped if after_equip != null else null,
+		{p.equipment.get_slot_of(rolled[0]): rolled[0].uid})
+	room.queue_free()
+	await _frames(1)
+
+
 # --- Helpers ------------------------------------------------------------------
 
 ## A Knight from player.tscn in the tree (its saved gear equipped at load).
@@ -1005,6 +1255,87 @@ func _spawn_knight_with_empty_record() -> Player:
 	var p := await _spawn_knight()
 	record.equipped = kept
 	return p
+
+
+## A Room (depth 1) holding Entities and a SandboxLoot, with a Knight from
+## player.tscn spawned in it: [room, sandbox loot, player].
+func _sandbox_room() -> Array:
+	var room := Room.new()
+	room.bounds_px = Rect2(-160, -160, 320, 320)
+	var entities := Node2D.new()
+	entities.name = "Entities"
+	entities.y_sort_enabled = true
+	room.add_child(entities)
+	var sl := SandboxLoot.new()
+	sl.name = "SandboxLoot"
+	room.add_child(sl)
+	_next_x += 400.0
+	room.position = Vector2(_next_x, 0)
+	add_child(room)
+	var p := await _spawn_in(room)
+	return [room, sl, p]
+
+
+## A Knight from player.tscn in `room`'s Entities.
+func _spawn_in(room: Room) -> Player:
+	var p: Player = PLAYER_SCENE.instantiate()
+	room.get_node("Entities").add_child(p)
+	p.reset_physics_interpolation()
+	await _frames(2)
+	return p
+
+
+## One key press pushed through the viewport, as a player's arrives.
+func _press(keycode: Key, shift: bool = false, echo: bool = false) -> void:
+	var ev := InputEventKey.new()
+	ev.physical_keycode = keycode
+	ev.keycode = keycode
+	ev.pressed = true
+	ev.echo = echo
+	ev.shift_pressed = shift
+	get_viewport().push_input(ev)
+
+
+func _row_texts(sl: SandboxLoot) -> Array:
+	return sl.get_rows().map(func(row: Array) -> String: return row[0])
+
+
+func _row_with(sl: SandboxLoot, needle: String) -> bool:
+	return _row_texts(sl).any(func(text: String) -> bool: return text.contains(needle))
+
+
+## The color of the first row containing `needle` (null if none).
+func _row_color(sl: SandboxLoot, needle: String) -> Variant:
+	for row: Array in sl.get_rows():
+		var text: String = row[0]
+		if text.contains(needle):
+			return row[1]
+	return null
+
+
+func _find_label(sl: SandboxLoot) -> RichTextLabel:
+	for child in sl.get_children():
+		if child is CanvasLayer and child.get_child_count() > 0:
+			return child.get_child(0) as RichTextLabel
+	return null
+
+
+## How many of `n` K rolls' items are of `rarity`.
+func _count_rolled(sl: SandboxLoot, n: int, rarity: Item.Rarity) -> int:
+	var count := 0
+	for i in n:
+		for item in sl.roll_drop():
+			if item.rarity == rarity:
+				count += 1
+	return count
+
+
+## The scratch save read back the way a new session would (null if unreadable).
+func _read_scratch() -> ChampionInventory:
+	var cfg := ConfigFile.new()
+	if cfg.load(SCRATCH_SAVE) != OK:
+		return null
+	return ChampionInventory.read_from(cfg, KNIGHT, _table)
 
 
 func _free(node: Node) -> void:

@@ -2,8 +2,8 @@ extends Node
 ## Every champion's inventory (LOOT.md): a ChampionInventory per champion id,
 ## saved to user://inventory.cfg (a ConfigFile, one section per champion; its
 ## own file, so a corrupt or huge inventory never touches talent progress).
-## Autoloaded as Loot, after Progress and before Audio. LOOT L2; drops and
-## pickups (L7) come here too.
+## Autoloaded as Loot, after Progress and before Audio. LOOT L2 (get_depth():
+## L3); drops and pickups (L7) come here too.
 ##
 ## The Player tracks itself when its champion loads (track()) and equips its
 ## saved gear. Equipping and unequipping on the tracked player update its
@@ -89,6 +89,15 @@ func add_item(champion: ChampionData, item: Item) -> int:
 	var uid := get_inventory(champion).add(item)
 	save()
 	return uid
+
+
+## The depth drops at `node` roll at (LOOT.md, Drops): the nearest Room
+## above it (or itself), its `depth`; else 1. DUNGEONS.md takes it over.
+func get_depth(node: Node) -> int:
+	var at := node
+	while at != null and not (at is Room):
+		at = at.get_parent()
+	return maxi(1, (at as Room).depth) if at != null else 1
 
 
 ## Debug and tests: the champion back to an empty inventory (saved).

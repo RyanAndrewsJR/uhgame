@@ -12,7 +12,8 @@ extends Node3D
 ##   - the layout's children that aren't Node3D (room scripts, such as the
 ##     sandbox's helpers): moved into the Room;
 ##   - the walkable ground's extent (or bounds_m): the Room's bounds and the
-##     navigation bake's outline.
+##     navigation bake's outline;
+##   - depth: the Room's depth (LOOT L3).
 ## The groups: `walkable` on a mesh (walkable ground: the floor pick, later
 ## the height under each unit), `fades` on an asset's root (it fades while
 ## between the camera and the player), `decoration` on an asset's root (never
@@ -52,6 +53,9 @@ const LEDGE_PREVIEW_COLOR := Color(1.0, 0.95, 0.2)
 ## As Room.nav_agent_radius: how far enemy paths stay from what blocks them
 ## (px).
 @export var nav_agent_radius: float = 12.0
+## As Room.depth (LOOT.md, Drops), copied onto the Room build_sim() makes.
+## LOOT L3.
+@export_range(1, 100, 1, "or_greater") var depth: int = 1
 
 var _ledge_preview: MeshInstance3D
 var _ledge_signature := INF
@@ -138,6 +142,7 @@ func build_sim() -> Room:
 	room.name = name
 	room.nav_agent_radius = nav_agent_radius
 	room.bounds_px = get_bounds_px()
+	room.depth = depth
 
 	var footprints := Node2D.new()
 	footprints.name = "Footprints"
