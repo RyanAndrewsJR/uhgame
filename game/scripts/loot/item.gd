@@ -8,7 +8,11 @@ extends RefCounted
 ## is recomputed from the current data (Affix.get_value() inside the rarity's
 ## band), so a retune of an affix range or a band reaches every item already
 ## owned. LOOT L1; the sigil names and tooltip lines L4; named items
-## (Legendary / Artifact) come in L5.
+## (Legendary / Artifact: `named`) L5.
+##
+## A named item's base, rarity, affix list, fixed modifiers and augment come
+## from its NamedItem; only its affixes' rolls are its own (an Artifact's are
+## always 1). It's saved by its named id and read back through its champion.
 
 enum Slot { WEAPON, HELM, CHEST, GLOVES, BOOTS, RING, AMULET }
 enum Rarity { COMMON, UNCOMMON, RARE, UNIQUE, EXOTIC, LEGENDARY, ARTIFACT }
@@ -28,6 +32,9 @@ var base: ItemBase
 var affix_rolls: Array = []
 ## Unique 1, Exotic 2 (always different): EVENT augments from LootTable.sigils.
 var sigils: Array[AbilityAugment] = []
+## A Legendary's or Artifact's named item (LOOT L5); null for every rolled
+## Common–Exotic.
+var named: NamedItem
 
 
 ## The source id its modifiers and augments go on a unit under.
@@ -41,8 +48,10 @@ func get_slot() -> Slot:
 
 ## The base's name, plus " of " and its sigils' name suffixes (LOOT L4):
 ## "Iron Helm of Storms", "Band of the Hunt and Ruin". A sigil without a
-## suffix adds nothing.
+## suffix adds nothing. A named item: its own name.
 func get_display_name() -> String:
+	if named != null:
+		return named.display_name
 	var base_name := base.display_name if base != null else "?"
 	var suffixes: PackedStringArray = []
 	for sigil in sigils:
@@ -68,7 +77,8 @@ func get_affix_value(index: int, table: LootTable) -> float:
 	return affix.get_value(def.roll_min, def.roll_max, affix_rolls[index][1])
 
 
-## The implicits (copies) and the affixes' modifiers, all under get_source_id().
+## The implicits (copies), the affixes' modifiers and a named item's fixed
+## modifiers (copies), all under get_source_id().
 func get_modifiers(table: LootTable) -> Array[StatModifier]:
 	var out: Array[StatModifier] = []
 	var source := get_source_id()
@@ -81,22 +91,32 @@ func get_modifiers(table: LootTable) -> Array[StatModifier]:
 	for i in affix_rolls.size():
 		var affix: Affix = affix_rolls[i][0]
 		out.append(affix.make_modifier(get_affix_value(i, table), source))
+	if named != null:
+		for mod in named.modifiers:
+			if mod != null:
+				var copy: StatModifier = mod.duplicate()
+				copy.source_id = source
+				out.append(copy)
 	return out
 
 
-## The augments it gives its wearer: its sigils (L5 adds a named item's augment).
+## The augments it gives its wearer: its sigils, and a named item's augment.
 func get_augments() -> Array[AbilityAugment]:
 	var out: Array[AbilityAugment] = []
 	out.append_array(sigils)
+	if named != null and named.augment != null:
+		out.append(named.augment)
 	return out
 
 
-## The champion it belongs to; &"" = any champion (every rolled Common–Exotic).
+## The champion it belongs to: a named item's; &"" = any champion (every
+## rolled Common–Exotic).
 func get_champion_id() -> StringName:
-	return &""
+	return named.champion_id if named != null else &""
 
 
-## Name, rarity and slot, the implicits, the affixes, the sigils.
+## Name, rarity and slot, the implicits, the affixes, the sigils; a named
+## item adds its fixed modifiers, its augment and its flavor (in quotes).
 func get_tooltip_lines(table: LootTable) -> PackedStringArray:
 	var lines: PackedStringArray = []
 	var def := table.get_rarity(rarity)
@@ -108,17 +128,34 @@ func get_tooltip_lines(table: LootTable) -> PackedStringArray:
 				lines.append(Affix.describe(mod.stat, mod.type, mod.value))
 	for i in affix_rolls.size():
 		lines.append((affix_rolls[i][0] as Affix).get_line(get_affix_value(i, table)))
-	for sigil in sigils:
-		if sigil != null:
-			lines.append(get_sigil_line(sigil))
+	if named != null:
+		for mod in named.modifiers:
+			if mod != null:
+				lines.append(get_named_modifier_line(mod, named.champion_id))
+	for augment in get_augments():
+		if augment != null:
+			lines.append(get_augment_line(augment))
+	if named != null and named.flavor.strip_edges() != "":
+		lines.append("\"%s\"" % named.flavor.strip_edges())
 	return lines
 
 
-## A sigil's tooltip line: "Storm Strike: <its description>" (just the name,
-## or the id, without a description).
-static func get_sigil_line(sigil: AbilityAugment) -> String:
-	var label := sigil.display_name if sigil.display_name != "" else String(sigil.id)
-	return "%s: %s" % [label, sigil.description] if sigil.description != "" else label
+## A sigil's or a named item's augment line: "Storm Strike: <its
+## description>" (just the name, or the id, without a description).
+static func get_augment_line(augment: AbilityAugment) -> String:
+	var label := augment.display_name if augment.display_name != "" else String(augment.id)
+	return "%s: %s" % [label, augment.description] if augment.description != "" else label
+
+
+## A named item's fixed modifier: "+50% Cast Range (Judgement)". An ability:
+## scope names the ability (its id without the champion's prefix); another
+## scope is shown as it is.
+static func get_named_modifier_line(mod: StatModifier, champion_id: StringName) -> String:
+	var line := Affix.describe(mod.stat, mod.type, mod.value)
+	var scope := String(mod.scope)
+	if scope.begins_with("ability:"):
+		return "%s (%s)" % [line, scope.trim_prefix("ability:").trim_prefix(String(champion_id) + "_").capitalize()]
+	return line if scope == "" else "%s (%s)" % [line, scope]
 
 
 ## What the inventory save keeps (LOOT.md, Inventory and saving): ids and
@@ -130,19 +167,28 @@ func to_dict() -> Dictionary:
 	var sigil_ids: Array = []
 	for sigil in sigils:
 		sigil_ids.append(String(sigil.id))
-	return {
+	var d := {
 		"uid": uid,
 		"base": String(base.id) if base != null else "",
 		"rarity": rarity_to_word(rarity),
 		"affixes": affixes,
 		"sigils": sigil_ids,
 	}
+	if named != null:
+		d["named"] = String(named.id)
+	return d
 
 
 ## The item `d` describes, or null when its base or rarity is unknown (the
 ## inventory keeps such an entry raw, L2). An unknown affix or sigil id drops
 ## that line only, with a warning. Rolls are clamped to 0–1.
-static func from_dict(d: Dictionary, table: LootTable) -> Item:
+## A named item (a "named" key) needs `champion` and one of its named items
+## with that id, else it's null too (kept raw: a data fix brings it back).
+static func from_dict(d: Dictionary, table: LootTable, champion: ChampionData = null) -> Item:
+	var named_id := str(d.get("named", ""))
+	if named_id != "":
+		var named_res := champion.get_named_item(StringName(named_id)) if champion != null else null
+		return _from_named(d, named_res, table) if named_res != null else null
 	var base_res := table.get_base(StringName(str(d.get("base", ""))))
 	var r := word_to_rarity(str(d.get("rarity", "")))
 	if base_res == null or r < 0:
@@ -170,6 +216,42 @@ static func from_dict(d: Dictionary, table: LootTable) -> Item:
 				push_warning("Item %d: unknown sigil '%s'; dropped" % [item.uid, id])
 				continue
 			item.sigils.append(sigil)
+	return item
+
+
+## A named item from its save: its base, rarity and affix list from `named`
+## (the data wins), each affix's roll from the save by affix id. An affix the
+## save has no roll for gets the band's middle (0.5; warning); a saved affix
+## the named item no longer lists is dropped (warning); an Artifact's rolls
+## are always 1.
+static func _from_named(d: Dictionary, named_res: NamedItem, table: LootTable) -> Item:
+	var item := Item.new()
+	item.uid = int(d.get("uid", 0))
+	item.named = named_res
+	item.rarity = named_res.rarity
+	item.base = named_res.base
+	var saved := {}
+	var affixes: Variant = d.get("affixes", [])
+	if affixes is Array:
+		for pair: Variant in affixes:
+			if pair is Array and (pair as Array).size() >= 2:
+				saved[StringName(str(pair[0]))] = float(pair[1])
+	var def := table.get_rarity(item.rarity)
+	var fixed := def != null and def.has_fixed_roll()
+	for affix in named_res.affixes:
+		if affix == null:
+			continue
+		var roll := 1.0
+		if not fixed:
+			if saved.has(affix.id):
+				roll = saved[affix.id]
+			else:
+				roll = 0.5
+				push_warning("Item %d (%s): no saved roll for '%s'; the band's middle" % [item.uid, named_res.id, affix.id])
+		saved.erase(affix.id)
+		item.affix_rolls.append([affix, quantize_roll(roll)])
+	for gone: StringName in saved:
+		push_warning("Item %d (%s): '%s' isn't one of its affixes any more; dropped" % [item.uid, named_res.id, gone])
 	return item
 
 

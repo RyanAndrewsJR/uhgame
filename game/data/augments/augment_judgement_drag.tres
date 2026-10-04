@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="AbilityAugment" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ability_augment.gd" id="1_augment"]
+
+[resource]
+script = ExtResource("1_augment")
+id = &"judgement_drag"
+scope = &"ability:knight_judgement"
+display_name = "Chains"
+description = "Judgement drags its target to you through the air before it strikes: over fences, cliffs and pits, but not walls."

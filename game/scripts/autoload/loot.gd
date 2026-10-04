@@ -100,6 +100,22 @@ func get_depth(node: Node) -> int:
 	return maxi(1, (at as Room).depth) if at != null else 1
 
 
+## Debug (SandboxLoot's P, LOOT L5): one of each of the champion's named
+## items into its inventory (ItemRoller.make_named(), rolled with rng), then
+## one save. Returns them (in ChampionData order).
+func debug_grant_named_items(champion: ChampionData) -> Array[Item]:
+	var out: Array[Item] = []
+	var record := get_inventory(champion)
+	for named in champion.named_items:
+		if named != null:
+			var item := ItemRoller.make_named(named, table, rng)
+			record.add(item)
+			out.append(item)
+	if not out.is_empty():
+		save()
+	return out
+
+
 ## Debug and tests: the champion back to an empty inventory (saved).
 func reset(champion: ChampionData) -> void:
 	_records[champion.id] = ChampionInventory.create(champion)

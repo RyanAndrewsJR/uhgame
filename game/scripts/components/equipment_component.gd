@@ -72,8 +72,9 @@ func get_equipped() -> Dictionary:
 
 ## "" when `item` can go in `slot` (&"" = the slot equip() would pick), else
 ## why not: no item, a slot it doesn't fit, another champion's item, already
-## worn in another slot, or another worn item with its uid (removing one by
-## source id would take the other's pieces too).
+## worn in another slot, another worn item with its uid (removing one by
+## source id would take the other's pieces too), or another copy of its named
+## item worn in another slot (LOOT L5).
 func can_equip(item: Item, slot: StringName = &"") -> String:
 	if item == null or item.base == null:
 		return "no item"
@@ -91,6 +92,13 @@ func can_equip(item: Item, slot: StringName = &"") -> String:
 	for other: Item in _items.values():
 		if other != item and other.uid == item.uid:
 			return "another equipped item has uid %d" % item.uid
+	# A named item is worn once (LOOT L5): a second copy can't go in another
+	# slot at the same time (it may replace the first in its own slot).
+	if item.named != null:
+		for slot_name: StringName in _items:
+			var other: Item = _items[slot_name]
+			if other != item and other.named == item.named and slot_name != target:
+				return "%s is already equipped (%s)" % [item.named.display_name, slot_name]
 	return ""
 
 

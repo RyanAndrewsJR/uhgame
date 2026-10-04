@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="NamedItem" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/named_item.gd" id="1_named"]
+[ext_resource type="Script" path="res://scripts/data/affix.gd" id="2_affix"]
+[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="3_modifier"]
+[ext_resource type="Resource" path="res://data/item_bases/item_base_leather_gloves.tres" id="4_base"]
+[ext_resource type="Resource" path="res://data/affixes/affix_attack_damage.tres" id="5_affix"]
+[ext_resource type="Resource" path="res://data/affixes/affix_attack_speed.tres" id="6_affix"]
+[ext_resource type="Resource" path="res://data/affixes/affix_crit_damage.tres" id="7_affix"]
+[ext_resource type="Resource" path="res://data/augments/augment_judgement_drag.tres" id="8_augment"]
+
+[sub_resource type="Resource" id="judgement_range"]
+script = ExtResource("3_modifier")
+stat = &"cast_range"
+type = 1
+value = 0.5
+scope = &"ability:knight_judgement"
+
+[resource]
+script = ExtResource("1_named")
+id = &"knight_chains_of_judgement"
+display_name = "Chains of Judgement"
+rarity = 5
+champion_id = &"knight"
+base = ExtResource("4_base")
+affixes = Array[ExtResource("2_affix")]([ExtResource("5_affix"), ExtResource("6_affix"), ExtResource("7_affix")])
+modifiers = Array[ExtResource("3_modifier")]([SubResource("judgement_range")])
+augment = ExtResource("8_augment")

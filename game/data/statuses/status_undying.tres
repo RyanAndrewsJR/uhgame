@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="StatusEffect" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/status_effect.gd" id="1_status"]
+
+[resource]
+script = ExtResource("1_status")
+id = &"undying"
+display_name = "Undying"
+tags = Array[StringName]([&"undying", &"buff"])
+duration = 1.5
+stack_rule = 1

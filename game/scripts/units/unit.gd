@@ -235,6 +235,12 @@ func on_hit(ctx: HitContext) -> void:
 	if status_component and to_health > 0.0:   # shields first (COMBAT C10)
 		ctx.absorbed = status_component.absorb_damage(to_health)
 		to_health -= ctx.absorbed
+	# Undying (LOOT L5, Oathbound Plate): a status tagged undying keeps the last
+	# 1 health. The hit (a DoT tick too) takes only what's above it, and the
+	# number shows that.
+	if status_component and to_health > health.current - 1.0 and status_component.has_tag(&"undying"):
+		to_health = maxf(health.current - 1.0, 0.0)
+		ctx.taken_damage = ctx.absorbed + to_health
 	var before := health.current
 	health.take_damage(to_health)   # may die here (_on_died runs)
 	ctx.health_lost = before - health.current

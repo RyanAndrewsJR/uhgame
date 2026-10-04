@@ -11,7 +11,46 @@
 
 ## Loot (LOOT.md)
 
-### L4 – Sigils: 2026-10-03, Built (awaiting Ryan's play test)
+### L5 – Named items, part 1: the framework and the FLAGs: 2026-10-03, Built (awaiting Ryan's play test)
+- **Classes and data:**
+  - `NamedItem` (`scripts/data/named_item.gd`): `get_ability_id()`, and `get_validation_errors(champion)` for rarity, champion, base, affixes, the FLAG/REPLACE augment rules (a REPLACE's variant supports every talent FLAG of its ability), `ability:` modifiers only on its own ability, and the champion's other named items (unique ids, one item slot per ability).
+  - `ChampionData.named_items` and `get_named_item()`.
+  - `data/items/`: `item_knight_tidebreaker.tres`, `item_knight_oathbound_plate.tres`, `item_knight_chains_of_judgement.tres`, listed in `knight.tres`.
+  - `augment_iron_resolve_undying.tres` and `augment_judgement_drag.tres` (both FLAG), `status_undying.tres` (1.5 s, tags `undying`, `buff`).
+  - Iron Resolve and Judgement list the new FLAGs in `supported_flags`.
+- **Code:**
+  - `Item.named`; its name, modifiers (plus the fixed ones), augments, champion id and tooltip (fixed modifiers as "+50% Cast Range (Judgement)", the augment line, the flavor).
+  - Saving: `to_dict()` gains `"named"`; `from_dict(d, table, champion)` reads through the champion and lets the data win. `ChampionInventory.read_from()` passes the champion.
+  - `ItemRoller.pick_named()` and `make_named()`; `roll_item()` picks a named item for Legendary and Artifact, else an Exotic.
+  - `EquipmentComponent.can_equip()`: a second copy of a worn named item can't go in another slot.
+  - `Loot.debug_grant_named_items()`; SandboxLoot's P grants the champion's named items.
+  - `Unit.on_hit()`: Undying, after the shields.
+  - `iron_resolve.gd`: `flag_undying_duration` 1.5, with an aura.
+  - `judgement.gd`: `flag_drag_gap_px` 8, `flag_drag_time` 0.15; the drag, then the hit, after the drag's time. The hit moved unchanged into `_strike()`.
+  - `Ability.pull_airborne()`: the toolkit's pull.
+- **Changed during the step:**
+  - **Cleave Wave now costs Cleave's 20 Fury.** It had no cost: AB-M built it before Cleave got its Fury cost, and nothing caught it since. Without the cost, Tidebreaker would have made Cleave free, and Thrifty Edge's −5 had nothing to reach (TALENTS.md says it reaches the wave; Ryan, 2026-09-29: "the same as Cleave"). One data line; the older wave checks still pass.
+  - **The drag moved into the toolkit.** abilities_test's AB11 guard (no `displace()` in the Knight's scripts) caught the first version, which displaced the target from `judgement.gd`. The move is now `Ability.pull_airborne()`.
+  - **view_test's P9 guard updated.** "Only the Uppercut uses the knock-up" now lists the toolkit's pull too, and a new check keeps Judgement the only caller of `pull_airborne()`, so no enemy knocks up the player.
+  - **Named affixes ignore the slot lists.** Oathbound Plate's tenacity and both Gloves' crit damage aren't in those slots' pools, so validation doesn't check slots for named items.
+  - **A stray sound at quit.** The loot test's last Judgement left its hit sound playing when the test quit, which leaked the sound's stream about two runs in three. Fixed as abilities_test does it: `Audio.stop_all()`, then 10 frames before quitting.
+  - Not a bug: running the loot suite in parallel *with itself* races on its shared scratch save files.
+- **Measured** (loot test, seeded):
+  - 600 Knight Legendaries came out about a third each, every affix value inside the Legendary band.
+  - A 50-roll Artifact fixture always rolled 1, and `make_named()` of an Artifact left the rng untouched.
+  - The drag ended with the target 33.6 px from the Knight (the radii plus 8 px), and the hit landed 9–10 frames after it rose. A ground push along the same line stops at the same fence and ledge (the controls).
+  - A wall slit the line of sight passes but the body can't stopped the drag, and the hit landed there.
+  - Undying held at 1 health through a killing blow, a DoT tick and a shielded hit, and ended on time.
+- **Layout** (the probe, saving off): Chains of Judgement highlighted mid-list and equipped ends at y 294 (its Chains line wraps once), as in L4; the ability bar is at 322.
+- **Smoke run** (`sandbox_main`, `sandbox_main_layout`, `main_layout`, 600 frames each, the saves backed up first): no errors or warnings; all three saves byte-identical after.
+- **Tests:** loot 543/543 (98 new; four L3 checks updated now that P grants named items and Legendaries are named), view 408/408 (the P9 guard split in two). Stats 179/179, combat 474/474, abilities 557/557, audio 110/110, champions 168/168, talents 308/308 (unchanged, run in parallel): 2,747/2,747.
+  - **Named data:** the three items' data and validation; 17 broken rules caught, plus the slot and id rules among siblings.
+  - **Rolls and saving:** Legendary and Artifact rolls with every fallback; names, tooltips and the save (the data wins; unreadable entries kept raw); worn once, its champion's only.
+  - **Tidebreaker:** with Thrifty Edge, Long Reach, Whirling and Rending (real casts carrying their FLAGs), and wave casts counting as Cleave casts.
+  - **Undying, and Oathbound Plate:** with no talent, Challenge, Bulwark, Quick Recovery and Battle Cry (real casts).
+  - **Chains of Judgement:** its range with Long Arm and Swift Verdict, and the drag over a fence and a ledge, stopped by a wall, refused by an unstoppable target, with Shockwave around the landing, with Executioner, and none without the item.
+
+### L4 – Sigils: 2026-10-03, Passed (Ryan committed it and started L5)
 - **Data:**
   - `data/augments/augment_sigil_storm_strike.tres`: HIT, chance 0.15 (× the hit's proc coefficient), a `DealDamageGameplayEffect` of 30 + 40% AD magic, tagged `lightning`.
   - `augment_sigil_bloodrush.tres`: UNIT_DIED, effect target OTHER (the killer), applies `status_bloodrush`.

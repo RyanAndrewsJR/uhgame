@@ -253,6 +253,9 @@ const DAMAGE_NUMBER_STYLE_PATH := "res://data/damage_number_styles/damage_number
 ## Empty or no such clip = nothing.
 @export var cast_anim: StringName = &""
 
+## pull_airborne()'s knock-up (loaded at its first use, LOOT L5).
+const AIRBORNE_STATUS_PATH := "res://data/statuses/status_airborne.tres"
+static var _airborne_template: StatusEffect
 static var _placeholder_regex: RegEx
 static var _base_params: Dictionary = {}   # StringName -> true (is_base_param())
 var _role_warned: bool = false
@@ -318,6 +321,33 @@ func hit_units(caster: Unit, units: Array[Unit], ctx: CastContext, statuses: Arr
 			u.movement.displace((u.global_position - origin).normalized() * push / time, time)
 		hits.append(hit)
 	return hits
+
+
+## The toolkit's airborne pull (LOOT L5, Chains of Judgement's drag; 3D.md,
+## Airborne): `target` gets status_airborne from `caster` for `duration` and
+## is moved in a straight line to `to` over that time. Airborne, it crosses
+## fences, cliffs and pits (walls stop it), lands by the knock-up's rule, and
+## its view arcs. False when it isn't moved: it refuses airborne (unstoppable,
+## untargetable), it's already within half a pixel, or a stronger
+## displacement is running (then the knock-up it was given is taken back).
+func pull_airborne(caster: Unit, target: Unit, to: Vector2, duration: float) -> bool:
+	if duration <= 0.0 or not is_instance_valid(target) or target.movement == null or target.status_component == null:
+		return false
+	var offset := to - target.global_position
+	if offset.length() <= 0.5:
+		return false
+	if _airborne_template == null:
+		_airborne_template = load(AIRBORNE_STATUS_PATH)
+	var airborne: StatusEffect = _airborne_template.duplicate()
+	airborne.duration = duration
+	var was_airborne := target.status_component.has_status(airborne.id)
+	if not target.status_component.apply_status(airborne, caster if is_instance_valid(caster) else null):
+		return false
+	if not target.movement.displace(offset / duration, duration):
+		if not was_airborne:
+			target.status_component.remove_status(airborne.id)
+		return false
+	return true
 
 
 ## The cast's feel, once: hit_hitstop and hit_shake if any of `hits` landed

@@ -101,7 +101,7 @@ static func read_from(cfg: ConfigFile, champion: ChampionData, table: LootTable)
 	var loaded: Array[Item] = []
 	var entries: Variant = cfg.get_value(section, "items", [])
 	for entry: Variant in (entries if entries is Array else []):
-		var item: Item = Item.from_dict(entry, table) if entry is Dictionary else null
+		var item: Item = Item.from_dict(entry, table, champion) if entry is Dictionary else null
 		if item == null:
 			push_warning("%s: an item it can't read (%s); kept in the save, not loaded" % [label, entry])
 			inv._unreadable.append(entry)

@@ -61,6 +61,12 @@ extends Resource
 ## The level curve and talent points (TALENTS T4). null = the shared default.
 @export var leveling: ChampionLeveling
 
+@export_group("Loot")
+## The champion's named items (LOOT.md, LOOT L5): its Legendary and Artifact
+## items. A Legendary or Artifact drop for this champion is one of these;
+## with none of the rolled rarity, the drop is an Exotic.
+@export var named_items: Array[NamedItem] = []
+
 @export_group("Sounds")
 @export var hurt_sound: SoundEvent
 @export var death_sound: SoundEvent
@@ -106,4 +112,12 @@ func get_talent(talent_id: StringName) -> Talent:
 	for t in talents:
 		if t != null and t.id == talent_id:
 			return t
+	return null
+
+
+## The named item with this id in `named_items`, or null (LOOT L5).
+func get_named_item(named_id: StringName) -> NamedItem:
+	for n in named_items:
+		if n != null and n.id == named_id:
+			return n
 	return null

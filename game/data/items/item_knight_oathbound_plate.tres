@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="NamedItem" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/named_item.gd" id="1_named"]
+[ext_resource type="Script" path="res://scripts/data/affix.gd" id="2_affix"]
+[ext_resource type="Resource" path="res://data/item_bases/item_base_mail_hauberk.tres" id="3_base"]
+[ext_resource type="Resource" path="res://data/affixes/affix_max_health.tres" id="4_affix"]
+[ext_resource type="Resource" path="res://data/affixes/affix_armor.tres" id="5_affix"]
+[ext_resource type="Resource" path="res://data/affixes/affix_tenacity.tres" id="6_affix"]
+[ext_resource type="Resource" path="res://data/augments/augment_iron_resolve_undying.tres" id="7_augment"]
+
+[resource]
+script = ExtResource("1_named")
+id = &"knight_oathbound_plate"
+display_name = "Oathbound Plate"
+rarity = 5
+champion_id = &"knight"
+base = ExtResource("3_base")
+affixes = Array[ExtResource("2_affix")]([ExtResource("4_affix"), ExtResource("5_affix"), ExtResource("6_affix")])
+augment = ExtResource("7_augment")

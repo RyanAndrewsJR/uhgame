@@ -35,6 +35,10 @@
 [ext_resource type="Resource" uid="uid://llox7je1xbu4" path="res://data/talents/talent_knight_shockwave.tres" id="39_shockwave"]
 [ext_resource type="Script" uid="uid://bu2artg4nhd6d" path="res://scripts/data/talent.gd" id="40_talent"]
 [ext_resource type="PackedScene" path="res://art/models/placeholder/kaykit_knight/kaykit_knight.tscn" id="41_model"]
+[ext_resource type="Script" path="res://scripts/data/named_item.gd" id="50_named"]
+[ext_resource type="Resource" path="res://data/items/item_knight_tidebreaker.tres" id="51_tidebreaker"]
+[ext_resource type="Resource" path="res://data/items/item_knight_oathbound_plate.tres" id="52_oathbound_plate"]
+[ext_resource type="Resource" path="res://data/items/item_knight_chains_of_judgement.tres" id="53_chains_of_judgement"]
 
 [sub_resource type="Resource" id="StatModifier_fury_on_hit"]
 script = ExtResource("10_stat_modifier")
@@ -78,6 +82,7 @@ r = ExtResource("6_r")
 combo = ExtResource("7_combo")
 passive = SubResource("Passive_unbroken")
 talents = Array[ExtResource("40_talent")]([ExtResource("20_thrifty_edge"), ExtResource("21_long_reach"), ExtResource("34_whirling_cleave"), ExtResource("35_rending_cleave"), ExtResource("22_quick_recovery"), ExtResource("23_battle_cry"), ExtResource("36_challenge"), ExtResource("37_bulwark"), ExtResource("24_long_lunge"), ExtResource("25_quick_footing"), ExtResource("38_tackle"), ExtResource("26_twin_lunge"), ExtResource("27_swift_verdict"), ExtResource("28_long_arm"), ExtResource("29_executioner"), ExtResource("39_shockwave"), ExtResource("30_bloodrage"), ExtResource("31_thick_skin"), ExtResource("32_battle_trance"), ExtResource("33_stalwart")])
+named_items = Array[ExtResource("50_named")]([ExtResource("51_tidebreaker"), ExtResource("52_oathbound_plate"), ExtResource("53_chains_of_judgement")])
 hurt_sound = ExtResource("8_hurt_sound")
 low_health_sound = ExtResource("9_low_health_sound")
 model_scene = ExtResource("41_model")

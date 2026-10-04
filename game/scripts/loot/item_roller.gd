@@ -5,9 +5,9 @@ class_name ItemRoller
 ## RandomNumberGenerator, so a seeded rng gives the same items every time
 ## (tests; COMPANIONS' rolls reuse roll_rarity()). A band with equal ends
 ## (the Artifact's) draws nothing.
-## LOOT L1 (sigils in the pool since L4). Named items (Legendary / Artifact)
-## come in L5; until then, and for a champion with none of the rolled rarity,
-## the item is an Exotic.
+## LOOT L1 (sigils in the pool since L4). A Legendary or Artifact is one of
+## the champion's named items of that rarity (L5: make_named()); with no
+## champion, or one with none of that rarity (in that slot), it's an Exotic.
 
 
 ## A rarity rolled from `drop_table`'s weights at `depth` with `magic_find`.
@@ -19,13 +19,16 @@ static func roll_rarity(drop_table: DropTable, depth: int, magic_find: float, rn
 
 
 ## One item of `rarity` (its uid 0 until an inventory adds it), from `slot`'s
-## bases (-1 = any slot). `_champion` picks a named item from L5.
-static func roll_item(rarity: Item.Rarity, _champion: ChampionData, table: LootTable, rng: RandomNumberGenerator, slot: int = -1) -> Item:
+## bases (-1 = any slot). A named rarity: one of `champion`'s named items of
+## it (weighted; in `slot` if one is given), else an Exotic.
+static func roll_item(rarity: Item.Rarity, champion: ChampionData, table: LootTable, rng: RandomNumberGenerator, slot: int = -1) -> Item:
 	var t := table if table != null else LootTable.get_default()
 	var r := rarity
 	var def := t.get_rarity(r)
 	if def != null and def.is_named:
-		# L5 picks one of the champion's named items here.
+		var named := pick_named(champion, r, rng, slot)
+		if named != null:
+			return make_named(named, t, rng)
 		r = Item.Rarity.EXOTIC
 		def = t.get_rarity(r)
 	var bases := t.get_bases_for(slot)
@@ -61,6 +64,40 @@ static func roll_item(rarity: Item.Rarity, _champion: ChampionData, table: LootT
 		var k := rng.randi_range(0, sigil_pool.size() - 1)
 		item.sigils.append(sigil_pool[k])
 		sigil_pool.remove_at(k)
+	return item
+
+
+## One of `champion`'s named items of `rarity` (in `slot` if not -1), picked
+## by drop_weight; null when there's none (or no champion), with no draw.
+static func pick_named(champion: ChampionData, rarity: Item.Rarity, rng: RandomNumberGenerator, slot: int = -1) -> NamedItem:
+	if champion == null:
+		return null
+	var candidates: Array[NamedItem] = []
+	var weights: Array[float] = []
+	for named in champion.named_items:
+		if named != null and named.base != null and named.rarity == rarity and (slot < 0 or named.base.slot == slot):
+			candidates.append(named)
+			weights.append(named.drop_weight)
+	if candidates.is_empty():
+		return null
+	var k := pick_weighted(weights, rng)
+	return candidates[k] if k >= 0 else null
+
+
+## One specific named item (LOOT sync; built in L5): its affixes rolled in its
+## rarity's band (an Artifact's at their maximum, with no draw), no sigils,
+## uid 0 until an inventory adds it. For what gives a fixed item: SandboxLoot's
+## P (Loot.debug_grant_named_items()), and later DUNGEONS' hand-placed gear.
+static func make_named(named: NamedItem, table: LootTable, rng: RandomNumberGenerator) -> Item:
+	var t := table if table != null else LootTable.get_default()
+	var def := t.get_rarity(named.rarity)
+	var item := Item.new()
+	item.named = named
+	item.rarity = named.rarity
+	item.base = named.base
+	for affix in named.affixes:
+		if affix != null:
+			item.affix_rolls.append([affix, roll_in_band(def, rng) if def != null else 1.0])
 	return item
 
 

@@ -13,7 +13,8 @@ extends Node
 ##   K             roll one drop from drop_table at the room's depth with the
 ##                 champion's magic find, straight into the inventory (L7
 ##                 makes it a pickup at the champion's feet)
-##   P             one of each of the champion's named items (L5; nothing yet)
+##   P             one of each of the champion's named items, into the
+##                 inventory (LOOT L5; Loot.debug_grant_named_items())
 ##   [ / ]         lower / raise the room's depth (Room.depth, at least 1)
 ## Unlike SandboxTalents it changes the real save (Ryan, 2026-10-01): it's the
 ## only equip screen until UI.md, so gear set here carries into Start run.
@@ -205,13 +206,24 @@ func roll_drop() -> Array[Item]:
 	return out
 
 
-## P: one of each of the champion's named items into its inventory. Nothing
-## until named items exist (LOOT L5: Loot.debug_grant_named_items()).
-## Returns how many were granted.
+## P: one of each of the champion's named items into its inventory
+## (Loot.debug_grant_named_items(), LOOT L5; saved). The cursor moves to the
+## last one. Returns how many were granted.
 func grant_named_items() -> int:
-	_status = "No named items yet (LOOT L5)"
+	var champion := get_champion()
+	if champion == null:
+		return 0
+	var granted := Loot.debug_grant_named_items(champion)
+	if granted.is_empty():
+		_status = "%s has no named items" % champion.display_name
+	else:
+		var names: PackedStringArray = []
+		for item in granted:
+			names.append(item.get_display_name())
+		_cursor = get_items().size() - 1
+		_status = "Granted %s" % ", ".join(names)
 	_update_label()
-	return 0
+	return granted.size()
 
 
 ## [ / ]: the room's depth by `step` (never below 1). Returns the depth now.

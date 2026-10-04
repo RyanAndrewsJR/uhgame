@@ -139,7 +139,7 @@ Twenty talents, two tiers of two per group, every one exclusive with its sibling
 As built (T3): each Cleave FLAG changes only the shape; its numbers are the talent's own scoped modifiers, so the tooltip, the indicator and `get_param()` show the real reach and damage (ABILITIES principle 2), and they reach Cleave Wave through `variant_of`. Both tier 2s keep the Staggered bonus and the heal (they're on Cleave's .tres). **With an item's Cleave Wave** in the slot, each has the wave's own take (Ryan, 2026-09-30); `cleave_wave.gd` lists both flags in `supported_flags` and needs no code for them, since `Projectile.fire()` reads every number:
 - **Whirling Wave**: 8 waves fired evenly all around the Knight (45° apart) instead of one forward, each at 75% of the range (700 → 525 u, 224 → 168 px; the plan said 60%: one range modifier serves both shapes), 85% damage. The same trade: the aim for every side.
 - **Rending Wave**: one narrow, long, heavy wave: width 150 → 60 u (48 → 19 px), range ×1.4 (700 → 980 u, 224 → 314 px), +35% damage. The same trade: the sweep for reach and weight.
-- Thrifty Edge and Long Reach apply to the wave as to Cleave (cost, `cast_range`). The waves keep the wave's Staggered bonus and heal (on its .tres since AB-M / CH5b).
+- Thrifty Edge and Long Reach apply to the wave as to Cleave (cost, `cast_range`). (The wave had no cost until LOOT L5 gave it Cleave's 20 Fury, which Thrifty Edge's −5 now reaches.) The waves keep the wave's Staggered bonus and heal (on its .tres since AB-M / CH5b).
 
 ### W: Iron Resolve (`knight_iron_resolve`)
 | Tier | Talent (id) | Plays as | What it does | Built from | Unlock |

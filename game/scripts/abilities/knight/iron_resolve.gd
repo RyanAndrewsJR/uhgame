@@ -17,8 +17,13 @@ extends Ability
 ## - &"iron_resolve_bulwark" (Bulwark): instead of the empowered swing (and so
 ##   its slow), a shield of flag_shield_amount (a status_shield copy, its 3 s).
 ##   The haste stays.
+## LOOT L5, an item FLAG (Oathbound Plate): &"iron_resolve_undying": the cast
+## also makes the Knight Undying (status_undying) for flag_undying_duration:
+## his health can't drop below 1 (Unit.on_hit()). On top of the haste or
+## Challenge, and of the empower or Bulwark.
 
 const STATUS_HASTE: StatusEffect = preload("res://data/statuses/status_haste.tres")
+const STATUS_UNDYING: StatusEffect = preload("res://data/statuses/status_undying.tres")
 const STATUS_SLOW: StatusEffect = preload("res://data/statuses/status_slow.tres")
 const STATUS_SHIELD: StatusEffect = preload("res://data/statuses/status_shield.tres")
 const STATUS_STAGGERED: StatusEffect = preload("res://data/statuses/status_staggered.tres")
@@ -32,12 +37,16 @@ const STATUS_STAGGERED: StatusEffect = preload("res://data/statuses/status_stagg
 @export var flag_challenge_radius: float = 300.0
 ## With &"iron_resolve_bulwark": the shield's amount.
 @export var flag_shield_amount: float = 120.0
+## With &"iron_resolve_undying" (Oathbound Plate): how long Undying lasts, s.
+@export var flag_undying_duration: float = 1.5
 
 
 func execute(caster: Unit, ctx: CastContext) -> void:
 	var statuses := caster.status_component
 	if statuses == null:
 		return
+	if ctx.has_flag(&"iron_resolve_undying"):
+		_undying(caster, ctx)
 	if ctx.has_flag(&"iron_resolve_challenge"):
 		_challenge(caster, ctx)
 	else:
@@ -79,6 +88,16 @@ func _challenge(caster: Unit, ctx: CastContext) -> void:
 	for u in filter_by_walls(origin, AbilityUtil.in_circle(caster, origin, radius)):
 		if u.status_component != null:
 			u.status_component.apply_status(STATUS_STAGGERED, caster)
+
+
+## Oathbound Plate: Undying for flag_undying_duration (a recast refreshes it),
+## with a pale gold aura while it lasts.
+func _undying(caster: Unit, ctx: CastContext) -> void:
+	var duration := get_effect_param(caster, &"flag_undying_duration", ctx)
+	if duration <= 0.0 or not caster.status_component.apply_status(STATUS_UNDYING, caster, duration):
+		return
+	var statuses := caster.status_component
+	VFX.aura(caster, Color(1.0, 0.86, 0.45), func() -> bool: return statuses.has_status(&"undying"), duration + 0.1)
 
 
 ## Bulwark: a shield instead of the empowered swing.

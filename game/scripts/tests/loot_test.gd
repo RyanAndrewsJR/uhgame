@@ -23,8 +23,8 @@ extends Node2D
 ## Loot.get_depth(); SandboxLoot in both sandboxes; on a live Knight in a
 ## room: the list (header, rarity colors, ON, scrolling, the tooltip lines),
 ## J / Shift+J, U (equip, swap, unequip, rings), K (one roll at the room's
-## depth with the Knight's magic find, into the inventory), P (nothing until
-## L5), [ / ] (depth, never below 1), the keys through the viewport; a
+## depth with the Knight's magic find, into the inventory), P (the named items,
+## since L5), [ / ] (depth, never below 1), the keys through the viewport; a
 ## respawned Knight wearing what was set; K and U saving at once (a scratch
 ## file).
 ## L4: sigils. The three sigil augments and their rules, status_bloodrush and
@@ -37,6 +37,17 @@ extends Node2D
 ## real Judgement (x1.15 damage taken), not from Staggered or another unit's
 ## stun; the same sigil from two items as one; an Exotic's two both firing;
 ## unequipping removing each.
+## L5: named items, part 1. The Knight's three (Tidebreaker, Oathbound Plate,
+## Chains of Judgement) and their data, status_undying, the new FLAGs;
+## NamedItem validation catching each broken rule; Legendary rolls from the
+## Knight's list (a band, rolled), an Artifact at its maximum with no draw (a
+## fixture until L6), the Exotic fallbacks; names, tooltips, the save by
+## named id (the data wins); worn once, its champion's only. On a live
+## Knight: Tidebreaker with every Cleave talent, Undying (Unit.on_hit()),
+## Oathbound Plate with every W talent, Chains of Judgement's range (with Long
+## Arm and Swift Verdict) and its drag (airborne, before the hit, over a fence
+## and a ledge, stopped by a wall, none on an unstoppable target, Shockwave
+## around the landing, Executioner).
 ## Prints PASS/FAIL per check, then a total.
 ## Run headless and it quits with the number of failures as the exit code.
 
@@ -57,6 +68,14 @@ const STATUS_EXPOSED: StatusEffect = preload("res://data/statuses/status_exposed
 const STATUS_STUN: StatusEffect = preload("res://data/statuses/status_stun.tres")
 const STATUS_SLOW: StatusEffect = preload("res://data/statuses/status_slow.tres")
 const STATUS_STAGGERED: StatusEffect = preload("res://data/statuses/status_staggered.tres")
+const STATUS_UNDYING: StatusEffect = preload("res://data/statuses/status_undying.tres")
+const STATUS_SHIELD: StatusEffect = preload("res://data/statuses/status_shield.tres")
+const TIDEBREAKER: NamedItem = preload("res://data/items/item_knight_tidebreaker.tres")
+const OATHBOUND_PLATE: NamedItem = preload("res://data/items/item_knight_oathbound_plate.tres")
+const CHAINS_OF_JUDGEMENT: NamedItem = preload("res://data/items/item_knight_chains_of_judgement.tres")
+const CLEAVE_WAVE: Ability = preload("res://data/abilities/knight_q_cleave_wave.tres")
+const IRON_RESOLVE: Ability = preload("res://data/abilities/knight_w_iron_resolve.tres")
+const JUDGEMENT: Ability = preload("res://data/abilities/knight_r_judgement.tres")
 const PLAYER_SCENE: PackedScene = preload("res://scenes/player/player.tscn")
 const KNIGHT: ChampionData = preload("res://data/champions/knight.tres")
 const REAL_SAVE := "user://inventory.cfg"
@@ -122,7 +141,7 @@ class ForeignItem extends Item:
 
 
 func _ready() -> void:
-	print("\n=== Loot test (LOOT L1–L4) ===")
+	print("\n=== Loot test (LOOT L1–L5) ===")
 	# First, before anything touches either autoload: a window's close request
 	# saves, and Progress.save() once checked saving_enabled before its lazy
 	# test-scene guard, so a windowed run closed before anything touched
@@ -180,12 +199,24 @@ func _ready() -> void:
 	await _test_bloodrush()
 	await _test_expose()
 	await _test_sigil_stacking()
+	# L5
+	_test_named_data()
+	_test_named_validation()
+	_test_named_rolls()
+	await _test_named_items()
+	await _test_tidebreaker()
+	await _test_undying()
+	await _test_oathbound_plate()
+	await _test_chains_of_judgement()
 	Audio.stop_all()
 	Loot.reset(KNIGHT)
 	_check("the real inventory file was never written", _file_stamp(REAL_SAVE), real_before)
 	_check("nor the real progress file", _file_stamp("user://progress.cfg"), progress_before)
 	_check("both saves are off in this test scene", [Progress.saving_enabled, Loot.saving_enabled], [false, false])
-	await _frames(2)
+	# A sound still playing at quit leaks its stream (L5: Judgement's hit):
+	# stop them and let the players go, as abilities_test does.
+	Audio.stop_all()
+	await _frames(10)
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -1101,8 +1132,8 @@ func _test_sandbox_loot() -> void:
 		sl.roll_drop()
 	var rarities_ok := true
 	for item in record.items:
-		rarities_ok = rarities_ok and item.rarity >= R.UNCOMMON and item.rarity <= R.EXOTIC
-	_check("six rolls: six items, each Uncommon to Exotic (the elite table has no Common; named fall back until L5)",
+		rarities_ok = rarities_ok and item.rarity >= R.UNCOMMON and (item.rarity <= R.EXOTIC or (item.named != null and item.named.champion_id == KNIGHT.id))
+	_check("six rolls: six items, Uncommon or better (the elite table has no Common); a Legendary is one of the Knight's named items (L5)",
 		[record.items.size(), rarities_ok], [6, true])
 	_check("the cursor follows the newest", sl.get_cursor(), 5)
 
@@ -1193,7 +1224,8 @@ func _test_sandbox_loot() -> void:
 	sl.visible_rows = 6
 
 	# P and [ / ].
-	_check("P: nothing until L5, said so", [sl.grant_named_items(), record.items.size(), sl.get_status()], [0, 5, "No named items yet (LOOT L5)"])
+	_check("P: one of each of the Knight's named items into the inventory, named (L5)", [sl.grant_named_items(), record.items.size(), sl.get_status()],
+		[KNIGHT.named_items.size(), 5 + KNIGHT.named_items.size(), "Granted " + ", ".join(KNIGHT.named_items.map(func(n: NamedItem) -> String: return n.display_name))])
 	_check("]: depth 2", [sl.change_depth(1), room.depth], [2, 2])
 	_check("[ twice: back to 1, never below", [sl.change_depth(-1), sl.change_depth(-1), room.depth], [1, 1, 1])
 
@@ -1238,7 +1270,7 @@ func _test_sandbox_loot_keys() -> void:
 	_press(KEY_BRACKETLEFT)
 	_check("[: depth 2", room.depth, 2)
 	_press(KEY_P)
-	_check("P: says named items come with L5", sl.get_status(), "No named items yet (LOOT L5)")
+	_check("P: grants the named items", [sl.get_status().begins_with("Granted "), Loot.get_inventory(KNIGHT).items.size()], [true, 3 + KNIGHT.named_items.size()])
 	room.queue_free()
 	await _frames(1)
 
@@ -1539,6 +1571,383 @@ func _test_sigil_stacking() -> void:
 	await _free(p)
 
 
+# --- L5: named items, part 1 ------------------------------------------------------
+
+func _test_named_data() -> void:
+	_section("L5: the Knight's named items, part 1 (LOOT.md, The Knight's named items)")
+	_check("the Knight lists Tidebreaker, Oathbound Plate and Chains of Judgement (L6 adds the other two)",
+		KNIGHT.named_items, [TIDEBREAKER, OATHBOUND_PLATE, CHAINS_OF_JUDGEMENT])
+	var rows := [
+		# item, name, slot, augment id, kind, ability, affix ids
+		[TIDEBREAKER, "Tidebreaker", S.WEAPON, &"cleave_wave", AbilityAugment.Kind.REPLACE, &"knight_cleave",
+			[&"affix_attack_damage", &"affix_core_damage", &"affix_crit_chance"]],
+		[OATHBOUND_PLATE, "Oathbound Plate", S.CHEST, &"iron_resolve_undying", AbilityAugment.Kind.FLAG, &"knight_iron_resolve",
+			[&"affix_max_health", &"affix_armor", &"affix_tenacity"]],
+		[CHAINS_OF_JUDGEMENT, "Chains of Judgement", S.GLOVES, &"judgement_drag", AbilityAugment.Kind.FLAG, &"knight_judgement",
+			[&"affix_attack_damage", &"affix_attack_speed", &"affix_crit_damage"]],
+	]
+	for row: Array in rows:
+		var named: NamedItem = row[0]
+		_check("%s: Legendary, the Knight's, its slot, its augment on its ability, its 3 fixed affixes, weight 1" % row[1],
+			[named.display_name, named.rarity, named.champion_id, named.base.slot, named.augment.id, named.augment.kind,
+				named.get_ability_id(), named.affixes.map(func(a: Affix) -> StringName: return a.id), named.drop_weight],
+			[row[1], R.LEGENDARY, &"knight", row[2], row[3], row[4], row[5], row[6], 1.0])
+		_check("%s validates" % row[1], named.get_validation_errors(KNIGHT), PackedStringArray())
+	_check("Chains of Judgement's fixed modifier: +50% Judgement range; the others have none",
+		[_named_mod_rows(CHAINS_OF_JUDGEMENT), TIDEBREAKER.modifiers.size(), OATHBOUND_PLATE.modifiers.size()],
+		[[[&"cast_range", StatModifier.Type.PERCENT_ADD, 0.5, &"ability:knight_judgement"]], 0, 0])
+	_check("Tidebreaker is the existing Cleave Wave", TIDEBREAKER.augment.replacement == CLEAVE_WAVE, true)
+	_check("Cleave Wave costs Cleave's 20 Fury (L5: it was free)", [CLEAVE_WAVE.resource_cost, CLEAVE.resource_cost], [20.0, 20.0])
+	_check("get_named_item(): by id; an unknown id: null",
+		[KNIGHT.get_named_item(&"knight_tidebreaker") == TIDEBREAKER, KNIGHT.get_named_item(&"knight_nope")], [true, null])
+	_check("status_undying: a 1.5 s buff tagged undying, refreshed, never cc",
+		[STATUS_UNDYING.id, _plain(STATUS_UNDYING.tags), STATUS_UNDYING.duration, STATUS_UNDYING.stack_rule, STATUS_UNDYING.is_cc()],
+		[&"undying", [&"undying", &"buff"], 1.5, StatusEffect.StackRule.REFRESH, false])
+	_check("Iron Resolve supports iron_resolve_undying (1.5 s); Judgement judgement_drag (8 px from his edge, 0.15 s)",
+		[IRON_RESOLVE.supported_flags.has(&"iron_resolve_undying"), IRON_RESOLVE.get(&"flag_undying_duration"),
+			JUDGEMENT.supported_flags.has(&"judgement_drag"), JUDGEMENT.get(&"flag_drag_gap_px"), JUDGEMENT.get(&"flag_drag_time")],
+		[true, 1.5, true, 8.0, 0.15])
+
+
+func _test_named_validation() -> void:
+	_section("L5: NamedItem validation catches each broken rule")
+	var bogus_flag := AbilityAugment.new()
+	bogus_flag.id = &"judgement_bogus"
+	bogus_flag.scope = &"ability:knight_judgement"
+	var foreign_ability := AbilityAugment.new()
+	foreign_ability.id = &"fireball_twice"
+	foreign_ability.scope = &"ability:mage_fireball"
+	var bare_replace := AbilityAugment.new()
+	bare_replace.id = &"judgement_nothing"
+	bare_replace.kind = AbilityAugment.Kind.REPLACE
+	bare_replace.scope = &"ability:knight_judgement"
+	var wrong_variant: AbilityAugment = bare_replace.duplicate()
+	wrong_variant.replacement = CLEAVE_WAVE
+	var flagless_wave: Ability = CLEAVE_WAVE.duplicate()
+	flagless_wave.supported_flags = [&"cleave_whirl"]
+	var flagless: AbilityAugment = TIDEBREAKER.augment.duplicate()
+	flagless.replacement = flagless_wave
+	var cases := [
+		["an id without the champion's prefix", func(n: NamedItem) -> void: n.id = &"tidebreaker", "must start with knight_"],
+		["no name", func(n: NamedItem) -> void: n.display_name = " ", "no display_name"],
+		["a Rare", func(n: NamedItem) -> void: n.rarity = R.RARE, "Legendary or Artifact"],
+		["another champion's", func(n: NamedItem) -> void: n.champion_id = &"mage", "isn't knight"],
+		["no base", func(n: NamedItem) -> void: n.base = null, "no base"],
+		["a drop weight of 0", func(n: NamedItem) -> void: n.drop_weight = 0.0, "drop_weight"],
+		["an affix twice", func(n: NamedItem) -> void: n.affixes = [n.affixes[0], n.affixes[0]], "twice"],
+		["no augment", func(n: NamedItem) -> void: n.augment = null, "no augment"],
+		["a sigil (EVENT) as its augment", func(n: NamedItem) -> void: n.augment = SIGIL_STORM_STRIKE, "is an EVENT"],
+		["an augment on none of the Knight's abilities", func(n: NamedItem) -> void: n.augment = foreign_ability, "not ability:<one of knight"],
+		["a FLAG the ability doesn't support", func(n: NamedItem) -> void: n.augment = bogus_flag, "isn't in knight_judgement's supported_flags"],
+		["a REPLACE with no variant", func(n: NamedItem) -> void: n.augment = bare_replace, "no replacement"],
+		["a REPLACE whose variant replaces another ability", func(n: NamedItem) -> void: n.augment = wrong_variant, "not 'knight_judgement'"],
+		["a REPLACE variant missing a talent FLAG (Rending Cleave's)", func(n: NamedItem) -> void: n.augment = flagless, "talent FLAG 'cleave_rend'"],
+		["an ability: modifier on another ability", func(n: NamedItem) -> void:
+			n.modifiers = [StatModifier.create(&"cast_range", StatModifier.Type.PERCENT_ADD, 0.5, &"", &"ability:knight_cleave")], "only on its own ability"],
+		["a param the ability doesn't have", func(n: NamedItem) -> void:
+			n.modifiers = [StatModifier.create(&"no_such_param", StatModifier.Type.FLAT, 1.0, &"", &"ability:knight_judgement")], "isn't a param of knight_judgement"],
+		["an unknown stat", func(n: NamedItem) -> void:
+			n.modifiers = [StatModifier.create(&"no_such_stat", StatModifier.Type.FLAT, 1.0, &"")], "unknown stat"],
+	]
+	for c: Array in cases:
+		var n: NamedItem = CHAINS_OF_JUDGEMENT.duplicate()
+		(c[1] as Callable).call(n)
+		_check_error(c[0], _join(n.get_validation_errors(KNIGHT)), c[2])
+	# Its siblings: named items for one ability share an item slot; ids are unique.
+	var helm_chains: NamedItem = CHAINS_OF_JUDGEMENT.duplicate()
+	helm_chains.id = &"knight_helm_chains"
+	helm_chains.base = _table.get_base(&"item_base_iron_helm")
+	var same_id: NamedItem = OATHBOUND_PLATE.duplicate()
+	var more_chains: NamedItem = CHAINS_OF_JUDGEMENT.duplicate()
+	more_chains.id = &"knight_more_chains"
+	var champ := _knight_with([helm_chains, same_id, more_chains])
+	_check_error("two named items for Judgement in different item slots", _join(helm_chains.get_validation_errors(champ)), "aren't in one item slot")
+	_check_error("two named items with one id", _join(same_id.get_validation_errors(champ)), "has the id 'knight_oathbound_plate'")
+	_check("another Judgement item in the Gloves is fine (the two can never be worn together)",
+		more_chains.get_validation_errors(_knight_with([more_chains])), PackedStringArray())
+	_check("named affixes may ignore the pool's slot lists (tenacity on a chest)", _table.get_affix(&"affix_tenacity").slots.has(S.CHEST), false)
+
+
+func _test_named_rolls() -> void:
+	_section("L5: Legendary and Artifact rolls (the champion's named items; the Exotic fallback)")
+	var rng := _rng(5505)
+	var def := _table.get_rarity(R.LEGENDARY)
+	var counts := {}
+	var shape_ok := true
+	var band_ok := true
+	var rolls := {}
+	for i in 600:
+		var item := ItemRoller.roll_item(R.LEGENDARY, KNIGHT, _table, rng)
+		shape_ok = shape_ok and item != null and item.named != null and item.rarity == R.LEGENDARY and item.sigils.is_empty() \
+			and item.base == item.named.base and item.get_champion_id() == &"knight" \
+			and item.affix_rolls.map(func(p: Array) -> StringName: return (p[0] as Affix).id) == item.named.affixes.map(func(a: Affix) -> StringName: return a.id)
+		if item == null or item.named == null:
+			continue
+		counts[item.named.id] = int(counts.get(item.named.id, 0)) + 1
+		for k in item.affix_rolls.size():
+			var affix: Affix = item.affix_rolls[k][0]
+			var span := affix.get_band_range(def.roll_min, def.roll_max)
+			var value := item.get_affix_value(k, _table)
+			band_ok = band_ok and value >= span.x - affix.step * 0.5 - 0.000001 and value <= span.y + affix.step * 0.5 + 0.000001
+			rolls[item.affix_rolls[k][1]] = true
+	_check("600 Legendaries for the Knight: each one of his named items, its base, its affixes in order, no sigils", shape_ok, true)
+	var even := counts.size() == 3
+	for id: StringName in counts:
+		even = even and absf(counts[id] / 600.0 - 1.0 / 3.0) < 0.06
+	_report(even, "each about a third of them (drop weight 1 each)", str(counts))
+	_check("their values inside the Legendary band (0.55–0.95) of each range", band_ok, true)
+	_check("and rolled, not fixed (many different rolls)", rolls.size() > 100, true)
+	var artifact := ItemRoller.roll_item(R.ARTIFACT, KNIGHT, _table, rng)
+	_check("an Artifact for the Knight (none until L6): an Exotic, with its two sigils", [artifact.rarity, artifact.named, artifact.sigils.size()], [R.EXOTIC, null, 2])
+	var nobody := ItemRoller.roll_item(R.LEGENDARY, null, _table, rng)
+	_check("a Legendary with no champion: an Exotic", [nobody.rarity, nobody.named], [R.EXOTIC, null])
+	_check("a Legendary for the Chest slot: Oathbound Plate", ItemRoller.roll_item(R.LEGENDARY, KNIGHT, _table, rng, S.CHEST).named, OATHBOUND_PLATE)
+	var helm := ItemRoller.roll_item(R.LEGENDARY, KNIGHT, _table, rng, S.HELM)
+	_check("a Legendary for the Helm slot (the Knight has none): an Exotic helm", [helm.rarity, helm.named, helm.base.slot], [R.EXOTIC, null, S.HELM])
+	# An Artifact: always its maximum, with no draw (a fixture until L6's The Last Verdict).
+	var verdict := _fixture_artifact()
+	var champ := _knight_with([verdict])
+	var max_ok := true
+	for i in 50:
+		var item := ItemRoller.roll_item(R.ARTIFACT, champ, _table, rng)
+		max_ok = max_ok and item.named == verdict and item.affix_rolls.all(func(p: Array) -> bool: return p[1] == 1.0)
+	_check("50 Artifacts (a fixture): every affix roll 1", max_ok, true)
+	var state_before := rng.state
+	var made := ItemRoller.make_named(verdict, _table, rng)
+	_check("make_named() of an Artifact draws nothing", rng.state, state_before)
+	var at_max := true
+	for k in made.affix_rolls.size():
+		var affix: Affix = made.affix_rolls[k][0]
+		at_max = at_max and is_equal_approx(made.get_affix_value(k, _table), affix.get_value(0.0, 1.0, 1.0))
+	_check("its values are each affix's maximum", at_max, true)
+	var legend := ItemRoller.make_named(TIDEBREAKER, _table, _rng(77))
+	_check("make_named(): that item, uid 0, its rarity and base, its 3 affixes",
+		[legend.named, legend.uid, legend.rarity, legend.base, legend.affix_rolls.size()], [TIDEBREAKER, 0, R.LEGENDARY, TIDEBREAKER.base, 3])
+
+
+func _test_named_items() -> void:
+	_section("L5: a named item's name, tooltip and save; worn once; its champion's only")
+	var tide := ItemRoller.make_named(TIDEBREAKER, _table, _rng(81))
+	tide.uid = 7
+	var lines := tide.get_tooltip_lines(_table)
+	_check("Tidebreaker: its own name, in the Legendary color, a Legendary Weapon",
+		[tide.get_display_name(), tide.get_color(_table), lines[1]], ["Tidebreaker", _table.get_rarity(R.LEGENDARY).color, "Legendary Weapon"])
+	_check("its tooltip: the implicit, its 3 affixes, then its augment",
+		[lines.size(), lines[2], lines[6]], [7, "+6 Attack Damage", "Cleave Wave: " + TIDEBREAKER.augment.description])
+	_check("its augment is given to its wearer", tide.get_augments(), [TIDEBREAKER.augment])
+	var chains := ItemRoller.make_named(CHAINS_OF_JUDGEMENT, _table, _rng(82))
+	chains.uid = 8
+	var chain_lines := chains.get_tooltip_lines(_table)
+	_check("Chains of Judgement's tooltip ends with its fixed modifier (naming Judgement) and its augment",
+		[chain_lines[chain_lines.size() - 2], chain_lines[chain_lines.size() - 1]],
+		["+50% Cast Range (Judgement)", "Chains: " + CHAINS_OF_JUDGEMENT.augment.description])
+	var mods := _mod_rows(chains)
+	_check("its modifiers: the implicit, the 3 affixes, then the fixed one, all under item_8",
+		[mods.size(), mods[mods.size() - 1]], [5, [&"cast_range", StatModifier.Type.PERCENT_ADD, 0.5, &"ability:knight_judgement", &"item_8"]])
+	# The save: by its named id, read back through its champion.
+	var d := tide.to_dict()
+	_check("saved with its named id", [d.get("named"), d["base"], d["rarity"]], ["knight_tidebreaker", "item_base_longsword", "legendary"])
+	var back := Item.from_dict(d, _table, KNIGHT)
+	_check("read back through the Knight: the same item, rolls and all",
+		back != null and back.named == TIDEBREAKER and back.to_dict() == d and _mod_rows(back) == _mod_rows(tide), true)
+	_check("without its champion, or for a champion without it: unreadable (kept raw)",
+		[Item.from_dict(d, _table), Item.from_dict(d, _table, _knight_with_none())], [null, null])
+	var drifted := d.duplicate(true)
+	drifted["base"] = "item_base_band"
+	drifted["rarity"] = "common"
+	drifted["affixes"] = [d["affixes"][0], ["affix_gone", 0.4]]
+	var fixed := Item.from_dict(drifted, _table, KNIGHT)
+	_check("the named item's data wins: its base, rarity and affix list; a missing roll is the band's middle, an unknown one dropped (expect 3 warnings)",
+		[fixed.base, fixed.rarity, fixed.affix_rolls.map(func(p: Array) -> StringName: return (p[0] as Affix).id), fixed.affix_rolls.map(func(p: Array) -> float: return p[1])],
+		[TIDEBREAKER.base, R.LEGENDARY, [&"affix_attack_damage", &"affix_core_damage", &"affix_crit_chance"], [d["affixes"][0][1], 0.5, 0.5]])
+	var verdict_champ := _knight_with([_fixture_artifact()])
+	var art := ItemRoller.make_named(verdict_champ.get_named_item(&"knight_test_verdict"), _table, _rng(1))
+	var ad := art.to_dict()
+	ad["affixes"][0][1] = 0.3
+	_check("an Artifact's saved roll reads back as 1 (always its maximum)", Item.from_dict(ad, _table, verdict_champ).affix_rolls[0][1], 1.0)
+	var inv := ChampionInventory.create(KNIGHT)
+	inv.add(ItemRoller.make_named(OATHBOUND_PLATE, _table, _rng(3)))
+	inv.add(_item(&"item_base_band", R.RARE, [[&"affix_crit_chance", 0.5]], 0))
+	var read := _through_text(inv)
+	_check("an inventory through a ConfigFile's text keeps it", read != null and read.items.size() == 2 and read.items[0].named == OATHBOUND_PLATE
+		and read.items[0].to_dict() == inv.items[0].to_dict(), true)
+	var other_inv := ChampionInventory.create(KNIGHT)
+	other_inv.add(art)
+	var cfg := ConfigFile.new()
+	other_inv.write_to(cfg)
+	var lost := ChampionInventory.read_from(cfg, KNIGHT, _table)   # expect a warning
+	var cfg_again := ConfigFile.new()
+	lost.write_to(cfg_again)
+	_check("a named item its champion no longer has: kept raw and written back (expect a warning)",
+		[lost.items.size(), lost.get_unreadable_count(), cfg_again.encode_to_text().contains("knight_test_verdict")], [0, 1, true])
+	# Equipping: its champion's only; worn once.
+	Loot.reset(KNIGHT)
+	var p := await _spawn_knight()
+	var foreign_named: NamedItem = TIDEBREAKER.duplicate()
+	foreign_named.champion_id = &"mage"
+	var foreign := ItemRoller.make_named(foreign_named, _table, _rng(4))
+	foreign.uid = 601
+	_check("another champion's named item: refused", p.equipment.can_equip(foreign), "Mage only")
+	var ring_named: NamedItem = OATHBOUND_PLATE.duplicate()
+	ring_named.id = &"knight_test_ring"
+	ring_named.base = _table.get_base(&"item_base_band")
+	var first := ItemRoller.make_named(ring_named, _table, _rng(5))
+	first.uid = 602
+	var second := ItemRoller.make_named(ring_named, _table, _rng(6))
+	second.uid = 603
+	p.equipment.equip(first)
+	_check("a second copy of a worn named item (a fixture ring): refused in the other ring slot",
+		p.equipment.can_equip(second, &"ring_2"), "Oathbound Plate is already equipped (ring_1)")
+	_check("and by equip() (which picks the empty ring slot)", [p.equipment.equip(second), p.equipment.get_item(&"ring_2")], [false, null])
+	_check("it may replace the first copy in its own slot", [p.equipment.equip(second, &"ring_1"), p.equipment.get_item(&"ring_1") == second], [true, true])
+	p.equipment.unequip(&"ring_1")
+	await _free(p)
+
+
+func _test_tidebreaker() -> void:
+	_section("L5: Tidebreaker (Q becomes Cleave Wave; with every Cleave talent)")
+	Loot.reset(KNIGHT)
+	var p := await _spawn_knight()
+	p.resource_pool.restore(1000.0)
+	_equip_named(p, TIDEBREAKER, 701)
+	_check("worn: Q casts Cleave Wave, for Cleave's 20 Fury", [p.abilities.get_ability(&"q"), p.abilities.get_slot_cost(&"q")], [CLEAVE_WAVE, 20.0])
+	var reach := CLEAVE_WAVE.get_param(p, &"cast_range")
+	var thrifty := KNIGHT.get_talent(&"knight_thrifty_edge")
+	p.add_talent(thrifty)
+	_check("Thrifty Edge reaches the wave: 15 Fury", p.abilities.get_slot_cost(&"q"), 15.0)
+	p.remove_talent(thrifty)
+	var long_reach := KNIGHT.get_talent(&"knight_long_reach")
+	p.add_talent(long_reach)
+	_check_near("Long Reach reaches it: +25% range (700 → 875)", CLEAVE_WAVE.get_param(p, &"cast_range"), reach * 1.25, 0.01)
+	p.remove_talent(long_reach)
+	var uses_before := Progress.get_progress(KNIGHT).get_ability_uses(&"knight_cleave")
+	for pair: Array in [[&"knight_whirling_cleave", &"cleave_whirl"], [&"knight_rending_cleave", &"cleave_rend"]]:
+		var talent := KNIGHT.get_talent(pair[0])
+		p.add_talent(talent)
+		var cast := await _cast_and_watch(p, &"q", p.global_position + Vector2(100, 0), null)
+		_check("%s: the wave is cast with its FLAG (%s)" % [talent.display_name, pair[1]],
+			[cast.get("ability") == CLEAVE_WAVE, cast.get("flag_" + String(pair[1]), false)], [true, true])
+		p.remove_talent(talent)
+		p.abilities.reset_cooldown(&"q")
+	_check("each wave counts as a Cleave cast (2 more)", Progress.get_progress(KNIGHT).get_ability_uses(&"knight_cleave") - uses_before, 2)
+	p.equipment.unequip(&"weapon")
+	_check("taken off: Q is Cleave again", p.abilities.get_ability(&"q"), CLEAVE)
+	await _free(p)
+
+
+func _test_undying() -> void:
+	_section("L5: Undying (status_undying keeps the last 1 health; Unit.on_hit())")
+	Loot.reset(KNIGHT)
+	_dummy_offset = 0.0
+	var p := await _spawn_knight()
+	var died := [0]
+	var on_died := func(unit: Unit, _ctx: HitContext) -> void:
+		if unit == p:
+			died[0] += 1
+	Events.unit_died.connect(on_died)
+	var hitter := _dummy_near(p)
+	p.status_component.apply_status(STATUS_UNDYING, p)
+	var before := p.health.current
+	var blow := _hit_from(hitter, p, 1000000.0)
+	_check("a killing blow while Undying: 1 health left, alive, not killed", [p.health.current, p.is_alive(), blow.killed], [1.0, true, false])
+	_check("its number is what was taken (all but the last 1)", blow.taken_damage, before - 1.0)
+	await _wait_vulnerable(p)
+	var again := _hit_from(hitter, p, 500.0)
+	_check("another hit at 1 health: nothing taken, still 1", [again.taken_damage, p.health.current], [0.0, 1.0])
+	await _wait_vulnerable(p)
+	var tick := HitContext.new()
+	tick.source = hitter
+	tick.target = p
+	tick.base_damage = 500.0
+	tick.can_crit = false
+	tick.add_tag(&"dot")
+	HitPipeline.resolve(tick)
+	_check("a DoT tick too: still 1, no death", [p.health.current, p.is_alive(), died[0]], [1.0, true, 0])
+	p.health.heal(99.0)
+	var shield: StatusEffect = STATUS_SHIELD.duplicate()
+	shield.shield_amount = 50.0
+	p.status_component.apply_status(shield, p)
+	await _wait_vulnerable(p)
+	var shielded := _hit_from(hitter, p, 1000000.0)
+	_check("with a shield: the shield takes its 50 first, then all but 1 health", [shielded.absorbed, p.health.current, shielded.taken_damage], [50.0, 1.0, 149.0])
+	p.status_component.apply_status(STATUS_UNDYING, p, 0.5)
+	await _wait_hitstop()
+	await _frames(40)
+	_check("it ends on time (0.5 s here)", p.status_component.has_status(&"undying"), false)
+	await _wait_vulnerable(p)
+	_hit_from(hitter, p, 1000000.0)
+	_check("then a killing blow kills", [p.is_alive(), died[0]], [false, 1])
+	Events.unit_died.disconnect(on_died)
+	await _free_dummies()
+	await _free(p)
+
+
+func _test_oathbound_plate() -> void:
+	_section("L5: Oathbound Plate (Iron Resolve also makes the Knight Undying; with every W talent)")
+	var plain := await _iron_resolve_case(&"", false)
+	_check("without it: Iron Resolve gives no Undying", plain.undying, false)
+	var base := await _iron_resolve_case(&"", true)
+	_check("worn: Iron Resolve makes the Knight Undying for 1.5 s, on top of its haste and empower",
+		[base.undying, base.undying_left_ok, base.haste, base.empower], [true, true, true, true])
+	var challenge := await _iron_resolve_case(&"knight_challenge", true)
+	_check("with Challenge: Undying, and the enemy nearby Staggered (no haste)",
+		[challenge.undying, challenge.staggered, challenge.haste], [true, true, false])
+	var bulwark := await _iron_resolve_case(&"knight_bulwark", true)
+	_check("with Bulwark: Undying, the shield and the haste (no empower)",
+		[bulwark.undying, bulwark.shield > 0.0, bulwark.haste, bulwark.empower], [true, true, true, false])
+	var quick := await _iron_resolve_case(&"knight_quick_recovery", true)
+	_check_near("with Quick Recovery: Undying, on a 6.5 s cooldown (more often)", quick.cooldown_left, 6.5, 0.1)
+	_check("(Undying)", quick.undying, true)
+	var cry := await _iron_resolve_case(&"knight_battle_cry", true)
+	_check("with Battle Cry: Undying, and its 15 Fury", [cry.undying, cry.fury_gained >= 14.0], [true, true])
+
+
+func _test_chains_of_judgement() -> void:
+	_section("L5: Chains of Judgement (+50% range; the drag through the air, before the hit)")
+	Loot.reset(KNIGHT)
+	var p := await _spawn_knight()
+	var plain_range := JUDGEMENT.get_param(p, &"cast_range")
+	_equip_named(p, CHAINS_OF_JUDGEMENT, 901)
+	_check("Judgement's range: 450 → 675 with it", [plain_range, JUDGEMENT.get_param(p, &"cast_range")], [450.0, 675.0])
+	var long_arm := KNIGHT.get_talent(&"knight_long_arm")
+	p.add_talent(long_arm)
+	_check("with Long Arm: +80% (the two add): 810", JUDGEMENT.get_param(p, &"cast_range"), 810.0)
+	p.remove_talent(long_arm)
+	var swift := KNIGHT.get_talent(&"knight_swift_verdict")
+	p.add_talent(swift)
+	_check("with Swift Verdict: its 24 s cooldown, unchanged by the item", JUDGEMENT.get_param(p, &"cooldown"), 24.0)
+	p.remove_talent(swift)
+	await _free(p)
+	var gap := Units.to_px(35.0) + Units.to_px(45.0) + 8.0   # the Knight's and the slime's pathing radii, then the gap
+	var open := await _drag_case(Vector2(180, 0))
+	_check("cast at 180 px (in range only with the item): the target is airborne during the drag", [open.cast, open.airborne_seen], [true, true])
+	_check_near("the hit lands with it next to the Knight, 8 px from his edge", open.get("distance", 0.0), gap, 1.5)
+	_report(open.frames >= 8 and open.frames <= 11, "the hit lands when the drag ends (0.15 s: 9 frames)", "got %d" % open.frames)
+	_check("and stuns it", open.stunned, true)
+	var fence_push := await _push_case(7)
+	var ledge_push := await _push_case(11)
+	_check("(control: pushed along the ground, not lifted, a slime stops at the same fence and ledge)",
+		[fence_push > 90.0, ledge_push > 90.0], [true, true])
+	var fence := await _drag_case(Vector2(180, 0), [[7, Rect2(Vector2(90, 0) - Vector2(4, 60), Vector2(8, 120))]])
+	_check_near("over a fence (layer 7) in between: lifted over it, next to the Knight", fence.get("distance", 0.0), gap, 1.5)
+	var ledge := await _drag_case(Vector2(180, 0), [[11, Rect2(Vector2(90, 0) - Vector2(4, 60), Vector2(8, 120))]])
+	_check_near("off a plateau (a ledge, layer 11, in between): lifted over it", ledge.get("distance", 0.0), gap, 1.5)
+	var slit := await _drag_case(Vector2(180, 0), [[1, Rect2(Vector2(86, -62), Vector2(8, 60))], [1, Rect2(Vector2(86, 2), Vector2(8, 60))]])
+	_report(slit.cast and slit.get("hit", false) and slit.get("distance", 0.0) > 90.0 and slit.get("distance", 0.0) < 130.0 and slit.moved > 40.0,
+		"a wall with a slit the sight passes but the body can't: stopped at the wall, and the hit lands there",
+		"cast %s, hit %s, distance %s, moved %s" % [slit.cast, slit.get("hit", false), slit.get("distance", 0.0), slit.moved])
+	var still := await _drag_case(Vector2(120, 0), [], &"", true)
+	_check("an unstoppable target: not lifted, not moved; the hit still lands",
+		[still.airborne_seen, still.moved < 1.0, still.get("hit", false), still.get("taken", 0.0) > 0.0], [false, true, true, true])
+	var shock := await _drag_case(Vector2(180, 0), [], &"knight_shockwave", false, true, Vector2(0, 60))
+	_check("with Shockwave: the splash hits around where the target lands (next to the Knight)",
+		[shock.get("hit", false), shock.bystander_hit], [true, true])
+	var execute := await _drag_case(Vector2(180, 0), [], &"knight_executioner")
+	_check_near("with Executioner: dragged all the same", execute.get("distance", 0.0), gap, 1.5)
+	var none := await _drag_case(Vector2(120, 0), [], &"", false, false)
+	_check("without it: no drag (the target stays where it is)", [none.get("hit", false), none.airborne_seen, none.moved < 1.0], [true, false, true])
+
+
 # --- Helpers ------------------------------------------------------------------
 
 ## A Knight from player.tscn in the tree (its saved gear equipped at load).
@@ -1674,6 +2083,224 @@ func _mod_rows_from(unit: Unit, source_id: StringName) -> Array:
 	for mod in unit.stats_component.get_modifiers_from(source_id):
 		rows.append([mod.stat, mod.type, mod.value, mod.scope])
 	return rows
+
+
+## `named` made (rolled with a seed from `uid`), given `uid` and worn by `p`.
+func _equip_named(p: Player, named: NamedItem, uid: int) -> Item:
+	var item := ItemRoller.make_named(named, _table, _rng(uid))
+	item.uid = uid
+	p.equipment.equip(item)
+	return item
+
+
+## A copy of the Knight whose named items are his own plus `extra`.
+func _knight_with(extra: Array) -> ChampionData:
+	var c: ChampionData = KNIGHT.duplicate()
+	var list: Array[NamedItem] = []
+	list.append_array(KNIGHT.named_items)
+	for n: NamedItem in extra:
+		list.append(n)
+	c.named_items = list
+	return c
+
+
+## A copy of the Knight with no named items.
+func _knight_with_none() -> ChampionData:
+	var c: ChampionData = KNIGHT.duplicate()
+	c.named_items = [] as Array[NamedItem]
+	return c
+
+
+## An Artifact for the Knight's Judgement in the Gloves, with 4 affixes (a
+## fixture until L6's The Last Verdict).
+func _fixture_artifact() -> NamedItem:
+	var n: NamedItem = CHAINS_OF_JUDGEMENT.duplicate()
+	n.id = &"knight_test_verdict"
+	n.display_name = "Test Verdict"
+	n.rarity = R.ARTIFACT
+	n.modifiers = [] as Array[StatModifier]
+	n.affixes = [_table.get_affix(&"affix_attack_damage"), _table.get_affix(&"affix_crit_chance"),
+		_table.get_affix(&"affix_crit_damage"), _table.get_affix(&"affix_ability_haste")] as Array[Affix]
+	return n
+
+
+func _named_mod_rows(named: NamedItem) -> Array:
+	var rows: Array = []
+	for mod in named.modifiers:
+		rows.append([mod.stat, mod.type, mod.value, mod.scope])
+	return rows
+
+
+## Waits (up to 2 s) until `u`'s post-hit i-frames are over.
+func _wait_vulnerable(u: Unit) -> void:
+	for i in 120:
+		if not u.is_invulnerable():
+			return
+		await get_tree().physics_frame
+
+
+## Presses `slot` and waits (up to 1 s) for its effect to start: the cast
+## ability and, for each FLAG it supports, "flag_<id>": whether the cast had it.
+func _cast_and_watch(p: Player, slot: StringName, aim: Vector2, target: Unit) -> Dictionary:
+	var out := {}
+	var on_cast := func(unit: Unit, ability: Ability, ctx: CastContext) -> void:
+		if unit == p and not out.has("ability"):
+			out["ability"] = ability
+			for flag in ability.supported_flags:
+				out["flag_" + String(flag)] = ctx.has_flag(flag)
+	Events.ability_cast.connect(on_cast)
+	await _wait_hitstop()
+	p.abilities.try_cast(slot, aim, target)
+	for i in 60:
+		if out.has("ability"):
+			break
+		await _frames(1)
+	await _frames(1)
+	Events.ability_cast.disconnect(on_cast)
+	return out
+
+
+## Iron Resolve cast by a fresh Knight (with `talent_id` and Oathbound Plate
+## when `with_item`), a dummy 40 px away: what it left.
+func _iron_resolve_case(talent_id: StringName, with_item: bool) -> Dictionary:
+	Loot.reset(KNIGHT)
+	_dummy_offset = 0.0
+	var p := await _spawn_knight()
+	var near := _dummy_near(p)
+	near.global_position = p.global_position + Vector2(40, 0)
+	near.reset_physics_interpolation()
+	if talent_id != &"":
+		p.add_talent(KNIGHT.get_talent(talent_id))
+	if with_item:
+		_equip_named(p, OATHBOUND_PLATE, 801)
+	p.resource_pool.restore(50.0)
+	await _frames(1)
+	var fury_before := p.resource_pool.current
+	var cast := await _cast_and_watch(p, &"w", p.global_position, null)
+	var statuses := p.status_component
+	var out := {
+		"cast": cast.get("ability") == IRON_RESOLVE,
+		"undying": statuses.has_status(&"undying"),
+		"undying_left_ok": absf(statuses.get_time_left(&"undying") - 1.5) < 0.05,
+		"haste": statuses.has_status(&"iron_resolve"),
+		"empower": statuses.has_status(AutoAttackComponent.get_empower_status_id(&"iron_resolve")),
+		"shield": statuses.get_total_shield(),
+		"staggered": near.status_component.has_status(&"staggered"),
+		"cooldown_left": p.abilities.get_cooldown_left(&"w"),
+		"fury_gained": p.resource_pool.current - fury_before,
+	}
+	await _free_dummies()
+	await _free(p)
+	return out
+
+
+## Judgement cast by a fresh Knight (with `talent_id`, and Chains of Judgement
+## when `with_item`) on a tough dummy at `offset`, with `blockers` ([layer,
+## Rect2 relative to the Knight]) and an optional `bystander` dummy: what
+## happened. "distance": the target from the Knight when the hit landed;
+## "frames": from the first frame it was airborne to the hit; "moved": how far
+## the target went.
+func _drag_case(offset: Vector2, blockers: Array = [], talent_id: StringName = &"", unstoppable: bool = false,
+		with_item: bool = true, bystander_at: Vector2 = Vector2.INF) -> Dictionary:
+	Loot.reset(KNIGHT)
+	_dummy_offset = 0.0
+	var p := await _spawn_knight()
+	if talent_id != &"":
+		p.add_talent(KNIGHT.get_talent(talent_id))
+	if with_item:
+		_equip_named(p, CHAINS_OF_JUDGEMENT, 902)
+	var target := _dummy_near(p)
+	target.global_position = p.global_position + offset
+	target.reset_physics_interpolation()
+	var bystander: Enemy = null
+	if bystander_at != Vector2.INF:
+		bystander = _dummy_near(p)
+		bystander.global_position = p.global_position + bystander_at
+		bystander.reset_physics_interpolation()
+	var bodies: Array[Node] = []
+	for b: Array in blockers:
+		var rect: Rect2 = b[1]
+		bodies.append(_blocker(Rect2(p.global_position + rect.position, rect.size), b[0]))
+	if unstoppable:
+		var u := StatusEffect.new()
+		u.id = &"test_unstoppable"
+		u.tags = [&"unstoppable", &"buff"] as Array[StringName]
+		u.duration = 10.0
+		target.status_component.apply_status(u, target)
+	await _frames(2)
+	await _wait_hitstop()
+	var start := target.global_position
+	var out := {"airborne_seen": false, "bystander_hit": false}
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source != p or ctx.ability == null or ctx.ability.id != &"knight_judgement" or ctx.blocked:
+			return
+		if ctx.target == target and not out.has("hit"):
+			out["hit"] = true
+			out["distance"] = target.global_position.distance_to(p.global_position)
+			out["hit_frame"] = Engine.get_physics_frames()
+			out["taken"] = ctx.taken_damage
+		elif ctx.target == bystander:
+			out["bystander_hit"] = true
+	Events.unit_hit.connect(on_hit)
+	out["cast"] = p.abilities.try_cast(&"r", target.global_position, target)
+	var drag_start := -1
+	for i in 200:
+		if target.status_component.has_status(&"airborne"):
+			out["airborne_seen"] = true
+			if drag_start < 0:
+				drag_start = Engine.get_physics_frames()
+		if out.has("hit"):
+			break
+		await _frames(1)
+	await _frames(2)
+	Events.unit_hit.disconnect(on_hit)
+	out["frames"] = int(out.get("hit_frame", 0)) - drag_start if drag_start >= 0 else -1
+	out["stunned"] = target.status_component.has_status(&"stun")
+	out["moved"] = target.global_position.distance_to(start)
+	for body in bodies:
+		body.queue_free()
+	await _free_dummies()
+	await _free(p)
+	return out
+
+
+## The drag checks' control: a slime 180 px out pushed (displace(), not
+## airborne) as far as the drag would take it, with a blocker on `layer`
+## across the way at 86–94 px. Returns where it ends, px from the origin.
+func _push_case(layer: int) -> float:
+	_next_x += 400.0
+	var origin := Vector2(_next_x, 0)
+	var d: Enemy = SLIME_SCENE.instantiate()
+	d.passive = true
+	add_child(d)
+	d.global_position = origin + Vector2(180, 0)
+	d.reset_physics_interpolation()
+	var body := _blocker(Rect2(origin + Vector2(86, -60), Vector2(8, 120)), layer)
+	await _frames(2)
+	var gap := Units.to_px(35.0) + Units.to_px(45.0) + 8.0
+	d.movement.displace(Vector2(-(180.0 - gap) / 0.15, 0.0), 0.15)
+	await _frames(15)
+	var distance := d.global_position.distance_to(origin)
+	body.queue_free()
+	d.queue_free()
+	await _frames(1)
+	return distance
+
+
+## A StaticBody2D filling `rect` (global) on collision layer `layer` (1 =
+## walls, 7 = low obstacles, 11 = ledges), colliding with nothing itself.
+func _blocker(rect: Rect2, layer: int) -> StaticBody2D:
+	var body := StaticBody2D.new()
+	body.collision_layer = 1 << (layer - 1)
+	body.collision_mask = 0
+	var shape := CollisionShape2D.new()
+	var box := RectangleShape2D.new()
+	box.size = rect.size
+	shape.shape = box
+	body.add_child(shape)
+	add_child(body)
+	body.global_position = rect.get_center()
+	return body
 
 
 ## One key press pushed through the viewport, as a player's arrives.

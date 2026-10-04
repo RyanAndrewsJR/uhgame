@@ -18,6 +18,15 @@ extends Ability
 ## flag_shockwave_stun_duration stun, plus whatever the bonus adds to the
 ## target's stun. The talent also zeroes target_missing_health_ratio (data).
 ## The Fury is consumed once, by the target's hit, as before.
+## LOOT L5, an item FLAG (Chains of Judgement): &"judgement_drag": at the
+## effect, before the hit, the target is dragged toward the Knight until
+## flag_drag_gap_px from his edge (the pathing radii) over flag_drag_time,
+## airborne for the drag (status_airborne from the Knight), so the knock-up's
+## movement carries it over fences, cliffs and pits (walls stop it), its
+## landing rule sets it down and its view arcs it. The hit, the stun and
+## everything after land when the drag ends, wherever the target is (Shockwave
+## splashes around it there). An unstoppable target isn't moved (it refuses
+## airborne); the hit lands where it stands.
 
 const STATUS_STUN: StatusEffect = preload("res://data/statuses/status_stun.tres")
 
@@ -31,6 +40,10 @@ const STATUS_STUN: StatusEffect = preload("res://data/statuses/status_stun.tres"
 @export var flag_shockwave_radius: float = 250.0
 @export var flag_shockwave_damage_ratio: float = 0.5
 @export var flag_shockwave_stun_duration: float = 0.5
+## With &"judgement_drag" (Chains of Judgement): the gap left between the
+## Knight's edge and the target's, px, and how long the drag takes, seconds.
+@export var flag_drag_gap_px: float = 8.0
+@export var flag_drag_time: float = 0.15
 
 
 func execute(caster: Unit, ctx: CastContext) -> void:
@@ -39,6 +52,30 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 		return
 	if not can_reach_through_walls(caster.global_position, target):
 		return  # It went behind a wall during the cast: a miss (COMBAT C7).
+	if ctx.has_flag(&"judgement_drag"):
+		var drag_time := get_effect_param(caster, &"flag_drag_time", ctx)
+		if _drag(caster, ctx, target, drag_time):
+			await caster.get_tree().create_timer(drag_time, false, true).timeout
+			if not is_instance_valid(caster) or not caster.is_alive() or not is_instance_valid(target) or not target.is_alive():
+				return
+	_strike(caster, ctx, target)
+
+
+## Chains of Judgement: pulls `target` through the air toward the Knight, to
+## the gap from his edge (the toolkit's pull_airborne()). False when it isn't
+## moved: unstoppable or untargetable (it refuses airborne), already within
+## the gap, or a stronger displacement running.
+func _drag(caster: Unit, ctx: CastContext, target: Unit, drag_time: float) -> bool:
+	var to_caster := caster.global_position - target.global_position
+	var gap := caster.get_pathing_radius_px() + target.get_pathing_radius_px() + get_effect_param(caster, &"flag_drag_gap_px", ctx)
+	var distance := to_caster.length() - gap
+	if distance <= 0.5:
+		return false
+	return pull_airborne(caster, target, target.global_position + to_caster.normalized() * distance, drag_time)
+
+
+## The hit (as before LOOT L5): the stun, the Fury bonus, Shockwave, the Fury spent.
+func _strike(caster: Unit, ctx: CastContext, target: Unit) -> void:
 	var parent := target.get_parent()
 	VFX.impact(parent, target.global_position, Color(icon_color, 0.95), 90.0, 0.35)
 	VFX.slash(parent, VFX.drawing_origin(target), (target.global_position - caster.global_position).angle() + PI * 0.5,

@@ -1761,9 +1761,16 @@ func _test_airborne_status() -> void:
 		[status.has_status(&"airborne"), slime.health.current < hp], [true, true])
 	holder.free()
 
+	# LOOT L5: the toolkit's pull_airborne() (Ability) loads it too, and only
+	# the Knight's Judgement calls that (Chains of Judgement's drag).
 	var users := _files_mentioning("res://", "status_airborne.tres")
-	_check("only the test Uppercut uses the knock-up: no enemy knocks up the player in v1 (files: %s)" % [users],
-		users, ["res://scripts/abilities/test/uppercut.gd"])
+	users.sort()
+	_check("only the test Uppercut and the toolkit's airborne pull use the knock-up (files: %s)" % [users],
+		users, ["res://scripts/abilities/ability.gd", "res://scripts/abilities/test/uppercut.gd"])
+	var pullers := _files_mentioning("res://", "pull_airborne(")
+	pullers.sort()
+	_check("and only the Knight's Judgement pulls: no enemy knocks up the player in v1 (files: %s)" % [pullers],
+		pullers, ["res://scripts/abilities/ability.gd", "res://scripts/abilities/knight/judgement.gd"])
 
 
 ## Every .gd, .tres and .tscn under `dir` (tests and the status itself left
