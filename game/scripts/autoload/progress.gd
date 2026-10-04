@@ -168,11 +168,15 @@ func get_kill_tags(_unit: Unit) -> Array[StringName]:
 	return []
 
 
-## Writes every record to save_path (nothing while saving is off).
+## Writes every record to save_path (nothing while saving is off). The
+## test-scene guard runs first (LOOT L2, 2026-10-03): checked before it, a
+## save() that came before any get_progress() in a test scene, such as the
+## close request of a windowed test that never touched Progress, wrote an
+## empty config over the real file.
 func save() -> void:
+	_ensure_loaded()
 	if not saving_enabled:
 		return
-	_ensure_loaded()
 	for record: ChampionProgress in _records.values():
 		record.write_to(_cfg)
 	var err := _cfg.save(save_path)

@@ -95,10 +95,15 @@ class ForeignItem extends Item:
 
 func _ready() -> void:
 	print("\n=== Loot test (LOOT L1–L2) ===")
-	# Latch both save guards off first: Progress.save() runs on a window's
-	# close request and checks saving_enabled before its lazy test-scene guard,
-	# so a windowed run closed before anything touched Progress wrote an
-	# empty progress.cfg (2026-10-03, the L1 run).
+	# First, before anything touches either autoload: a window's close request
+	# saves, and Progress.save() once checked saving_enabled before its lazy
+	# test-scene guard, so a windowed run closed before anything touched
+	# Progress wrote an empty progress.cfg (2026-10-03, the L1 run; fixed in
+	# L2). Checked against scratch files, never the real ones. Then latch both
+	# guards off for the rest of the run.
+	_section("Save guards: a close request comes first")
+	_check_close_request(Progress, "Progress")
+	_check_close_request(Loot, "Loot")
 	Progress.get_progress(KNIGHT)
 	Loot.get_inventory(KNIGHT)
 	var real_before := _file_stamp(REAL_SAVE)
@@ -1060,6 +1065,25 @@ func _through_text(inv: ChampionInventory) -> ChampionInventory:
 	var cfg2 := ConfigFile.new()
 	cfg2.parse(cfg.encode_to_text())
 	return ChampionInventory.read_from(cfg2, KNIGHT, _table)
+
+
+## A close request sent to `autoload` (Progress or Loot) while its save path
+## points at a scratch file with content: the test-scene guard must stop the
+## save, so the file keeps its bytes.
+func _check_close_request(autoload: Node, label: String) -> void:
+	var scratch := "user://loot_test_%s_scratch.cfg" % label.to_lower()
+	var content := "[keep]\n\nlevel=12\n"
+	var f := FileAccess.open(scratch, FileAccess.WRITE)
+	f.store_string(content)
+	f.close()
+	var real_path: String = autoload.get(&"save_path")
+	autoload.set(&"save_path", scratch)
+	autoload.notification(NOTIFICATION_WM_CLOSE_REQUEST)
+	autoload.set(&"save_path", real_path)
+	var kept := FileAccess.get_file_as_string(scratch)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(scratch))
+	_check("%s: a close request in a test scene, before anything else, writes nothing" % label, kept, content)
+	_check("%s: and turns its saving off" % label, autoload.get(&"saving_enabled"), false)
 
 
 ## Whether a file exists and when it was last written ([] = no file).
