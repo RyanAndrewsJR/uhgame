@@ -11,7 +11,7 @@
 
 ## Loot (LOOT.md)
 
-### L7 – Drops and pickups: 2026-10-04, Built (awaiting Ryan's play test)
+### L7 – Drops and pickups: 2026-10-04, Passed (Ryan committed it and asked for dropping and trashing items before L-M)
 Ryan passed AB15 and started L7 (2026-10-04).
 - **Data:**
   - `project.godot`: collision layer 9 named `pickup` (written directly while Godot was closed; it shows under Project Settings → General → Layer Names → 2D Physics).
