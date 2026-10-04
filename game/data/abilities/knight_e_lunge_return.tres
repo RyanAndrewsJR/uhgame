@@ -1,5 +1,6 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" format=3 uid="uid://beumi405351ke"]
 
+[ext_resource type="Script" uid="uid://dqnryfnfjqenh" path="res://scripts/data/ai_use.gd" id="1_1fs43"]
 [ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="1_iftfj"]
 [ext_resource type="Script" uid="uid://bu056xl0usviw" path="res://scripts/abilities/knight/lunge.gd" id="1_script"]
 [ext_resource type="Curve" path="res://data/curves/curve_dash.tres" id="2_curve"]
@@ -22,8 +23,8 @@ dash_curve = ExtResource("2_curve")
 id = &"knight_lunge_return"
 tags = Array[StringName]([&"movement", &"mobility", &"dash", &"melee", &"blink"])
 display_name = "Homeward Lunge"
-variant_of = &"knight_lunge"
 supported_flags = Array[StringName]([&"lunge_stuns", &"lunge_tackle"])
+variant_of = &"knight_lunge"
 description = "Dash up to {range} units toward the target spot, passing through units and dealing {damage} physical damage ({base_damage} {ratios}) to every enemy you cut through. Recast within {recast_window}s to blink back to where you started (over walls; it hits nothing). The cooldown starts after the return."
 icon_color = Color(0.45, 0.8, 1, 1)
 targeting = 2

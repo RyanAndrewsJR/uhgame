@@ -1,9 +1,9 @@
-[gd_resource type="Resource" script_class="NamedItem" format=3]
+[gd_resource type="Resource" script_class="NamedItem" format=3 uid="uid://cwybifmccl4kq"]
 
-[ext_resource type="Script" path="res://scripts/data/named_item.gd" id="1_named"]
-[ext_resource type="Script" path="res://scripts/data/affix.gd" id="2_affix"]
-[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="3_modifier"]
-[ext_resource type="Resource" path="res://data/item_bases/item_base_leather_gloves.tres" id="4_base"]
+[ext_resource type="Script" uid="uid://p26v7iodp8m8" path="res://scripts/data/named_item.gd" id="1_named"]
+[ext_resource type="Script" uid="uid://bcl2a6fx4strt" path="res://scripts/data/affix.gd" id="2_affix"]
+[ext_resource type="Script" uid="uid://cvwv2nrsbyrah" path="res://scripts/data/stat_modifier.gd" id="3_modifier"]
+[ext_resource type="Resource" uid="uid://xu2s8xn52rhx" path="res://data/item_bases/item_base_leather_gloves.tres" id="4_base"]
 [ext_resource type="Resource" path="res://data/affixes/affix_attack_damage.tres" id="5_affix"]
 [ext_resource type="Resource" path="res://data/affixes/affix_attack_speed.tres" id="6_affix"]
 [ext_resource type="Resource" path="res://data/affixes/affix_crit_damage.tres" id="7_affix"]
@@ -20,7 +20,6 @@ scope = &"ability:knight_judgement"
 script = ExtResource("1_named")
 id = &"knight_chains_of_judgement"
 display_name = "Chains of Judgement"
-rarity = 5
 champion_id = &"knight"
 base = ExtResource("4_base")
 affixes = Array[ExtResource("2_affix")]([ExtResource("5_affix"), ExtResource("6_affix"), ExtResource("7_affix")])

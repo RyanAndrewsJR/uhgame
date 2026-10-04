@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="StatusEffect" format=3]
+[gd_resource type="Resource" script_class="StatusEffect" format=3 uid="uid://bv33ssagrnm3o"]
 
-[ext_resource type="Script" path="res://scripts/data/status_effect.gd" id="1_status"]
-[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="2_modifier"]
+[ext_resource type="Script" uid="uid://b03uhk6wyab30" path="res://scripts/data/status_effect.gd" id="1_status"]
+[ext_resource type="Script" uid="uid://cvwv2nrsbyrah" path="res://scripts/data/stat_modifier.gd" id="2_modifier"]
 
 [sub_resource type="Resource" id="exposed_incoming_damage"]
 script = ExtResource("2_modifier")

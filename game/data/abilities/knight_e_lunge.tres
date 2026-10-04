@@ -1,5 +1,6 @@
 [gd_resource type="Resource" format=3 uid="uid://cyup43vj2m6v1"]
 
+[ext_resource type="Script" uid="uid://dqnryfnfjqenh" path="res://scripts/data/ai_use.gd" id="1_1qhhu"]
 [ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="1_iftfj"]
 [ext_resource type="Script" uid="uid://bu056xl0usviw" path="res://scripts/abilities/knight/lunge.gd" id="1_script"]
 [ext_resource type="Curve" path="res://data/curves/curve_dash.tres" id="2_curve"]

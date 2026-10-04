@@ -5,3 +5,4 @@
 
 [resource]
 script = ExtResource("1_look")
+visible_width_m = 30.0

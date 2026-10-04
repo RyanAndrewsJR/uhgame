@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="ItemBase" format=3]
+[gd_resource type="Resource" script_class="ItemBase" format=3 uid="uid://daw5dh7ymjcb5"]
 
-[ext_resource type="Script" path="res://scripts/data/item_base.gd" id="1_base"]
-[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="2_mod"]
+[ext_resource type="Script" uid="uid://hi6uneq7sx81" path="res://scripts/data/item_base.gd" id="1_base"]
+[ext_resource type="Script" uid="uid://cvwv2nrsbyrah" path="res://scripts/data/stat_modifier.gd" id="2_mod"]
 
 [sub_resource type="Resource" id="implicit"]
 script = ExtResource("2_mod")

@@ -1410,7 +1410,7 @@ Docs only; no code or tests changed.
 
 ## Enemies AI (ENEMIES_AI.md)
 
-### AI2 – Groups: tokens, packs, the alert, the leash: 2026-10-04, Built (awaiting Ryan's play test)
+### AI2 – Groups: tokens, packs, the alert, the leash: 2026-10-04, Passed (Ryan's play test; he committed it)
 Ryan passed AI1 and "roots are roots", started AI2, and answered three questions first:
 - **The performance fix is a cap:** about 20 moving enemies awake per fight; no code change.
 - **Every enemy with data plays the pack rules:** it notices any party member, the shout wakes its pack, and the leash runs from home. That replaces today's noticing and 800 u leash, which stay for enemies with no data.

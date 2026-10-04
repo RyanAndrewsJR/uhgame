@@ -35,10 +35,10 @@
 [ext_resource type="Resource" uid="uid://llox7je1xbu4" path="res://data/talents/talent_knight_shockwave.tres" id="39_shockwave"]
 [ext_resource type="Script" uid="uid://bu2artg4nhd6d" path="res://scripts/data/talent.gd" id="40_talent"]
 [ext_resource type="PackedScene" path="res://art/models/placeholder/kaykit_knight/kaykit_knight.tscn" id="41_model"]
-[ext_resource type="Script" path="res://scripts/data/named_item.gd" id="50_named"]
+[ext_resource type="Script" uid="uid://p26v7iodp8m8" path="res://scripts/data/named_item.gd" id="50_named"]
 [ext_resource type="Resource" path="res://data/items/item_knight_tidebreaker.tres" id="51_tidebreaker"]
 [ext_resource type="Resource" path="res://data/items/item_knight_oathbound_plate.tres" id="52_oathbound_plate"]
-[ext_resource type="Resource" path="res://data/items/item_knight_chains_of_judgement.tres" id="53_chains_of_judgement"]
+[ext_resource type="Resource" uid="uid://cwybifmccl4kq" path="res://data/items/item_knight_chains_of_judgement.tres" id="53_chains_of_judgement"]
 [ext_resource type="Resource" path="res://data/items/item_knight_homeward_greaves.tres" id="54_homeward_greaves"]
 [ext_resource type="Resource" path="res://data/items/item_knight_last_verdict.tres" id="55_last_verdict"]
 
