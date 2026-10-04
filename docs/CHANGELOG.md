@@ -11,7 +11,7 @@
 
 ## Loot (LOOT.md)
 
-### L6 – Named items, part 2: the REPLACE variants: 2026-10-04, Built (awaiting Ryan's play test)
+### L6 – Named items, part 2: the REPLACE variants: 2026-10-04, Passed (Ryan committed it; he asked for blinks next, and the return becomes one in ABILITIES AB15)
 - **Data:**
   - `data/items/item_knight_homeward_greaves.tres` (Legendary, Boots: move speed, mobility cooldown, armor) and `item_knight_last_verdict.tres` (Artifact, Gloves: attack damage, crit chance, crit damage, ability haste, all at their maximum). `knight.tres` lists all five named items in LOOT's table order.
   - `augment_lunge_return.tres` (REPLACE `ability:knight_lunge` → `knight_e_lunge_return.tres`) and `augment_judgement_leap.tres` (REPLACE `ability:knight_judgement` → `knight_r_judgement_leap.tres`).

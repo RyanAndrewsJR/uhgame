@@ -125,7 +125,7 @@ Enemies **target the nearest party member unless something overrides it**. With 
 
 ### Following and catch-up (MUST: teleport past a range, Ryan 2026-10-03; numbers *(proposed)*)
 - Outside a fight the ally walks to a **follow spot**: 2 m (64 px) behind the player's last walking direction and 1 m (32 px) to the side. It paths there (`MovementComponent.move_to()`, NavigationServer2D) and steers around enemies like any unit. Inside a fight its stance sets how far it may stray (Stances).
-- **Teleport:** beyond 12 m (384 px) from the player, or with no path to them, it teleports to a free spot near the player (behind them, on floor it can stand on, out of walls), calls `reset_physics_interpolation()` (CLAUDE.md, teleports) and plays a puff. Never while downed and never mid-cast: it waits until the cast ends.
+- **Teleport:** beyond 12 m (384 px) from the player, or with no path to them, it teleports to a free spot near the player (behind them, on floor it can stand on, out of walls), calls `reset_physics_interpolation()` (CLAUDE.md, teleports) and plays a puff. *(proposed, 2026-10-04)* The move is a `MovementComponent.blink()` (ABILITIES.md, Blinks; AB15), which already lands on walkable floor and snaps the view; the puff replaces its afterimage. Never while downed and never mid-cast: it waits until the cast ends.
 - At a room change it comes along and appears next to the player (DUNGEONS.md decides how rooms change).
 
 ### Controllers: one unit, any controller (MUST shape, Ryan 2026-10-03; names *(proposed)*)

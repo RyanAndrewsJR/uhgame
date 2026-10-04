@@ -13,7 +13,7 @@
 ## Core principle: three layers, one job each
 1. **Physics layers** answer *what collides with what*.
 2. **Surface tags** answer *what a surface means for gameplay* (grappleable, destructible...).
-3. **Ability → movement bridge**: abilities never set position or velocity themselves. They call MovementComponent methods (`dash`, `displace`, and later `blink`, `pull_to`, `orbit`, `tether`).
+3. **Ability → movement bridge**: abilities never set position or velocity themselves. They call MovementComponent methods (`dash`, `displace`, `leap` (LOOT L6), `blink` (ABILITIES AB15), and later `pull_to`, `orbit`, `tether`).
 
 Example: an Akshan-style swing is an ability that asks `WorldQuery` for a grappleable wall, then calls `movement.orbit(...)`.
 
