@@ -13,6 +13,8 @@ extends Area2D
 ## Spawned by the Loot autoload (drop(), restore_ground_drops()) and collected
 ## through Loot.collect(), which frees it. COMPANIONS CO6 adds two more
 ## payloads (a dormant companion copy, kindling), one per pickup.
+## An item the player dropped (L7b, Loot.drop_from_inventory()) is held for
+## that unit: it can't take it back until its collect circle has left it.
 
 ## It landed: collectable from now on (its rarity's drop sound plays).
 signal landed
@@ -46,6 +48,7 @@ var _spot := Vector2.INF
 var _hop_t := 0.0
 var _landed := false
 var _collected := false
+var _held_for_id: int = 0   # the instance id of the unit it's held for (0 = none)
 
 
 func _ready() -> void:
@@ -79,6 +82,26 @@ func place(spot: Vector2) -> void:
 	_spot = spot
 	_hop_t = pop_time
 	_landed = true
+
+
+## Before it enters the tree (L7b, an item the player dropped): `unit` can't
+## collect it until its collect circle has left it. The hold ends when that
+## circle reports it gone (PickupComponent, area_exited) or, checked every
+## physics tick, no longer reaches it (the unit walked off while it hopped);
+## and when the unit is freed. Any other collector takes it as usual.
+func hold_for(unit: Unit) -> void:
+	_held_for_id = unit.get_instance_id() if unit != null else 0
+
+
+## True while `unit` can't collect it (it dropped it and hasn't left it yet).
+func is_held_for(unit: Unit) -> bool:
+	return unit != null and _held_for_id != 0 and unit.get_instance_id() == _held_for_id
+
+
+## Ends the hold if it's `unit`'s.
+func release_hold(unit: Unit) -> void:
+	if is_held_for(unit):
+		_held_for_id = 0
 
 
 ## A landing spot `pop_distance_min_px`–`pop_distance_max_px` from `origin`
@@ -154,11 +177,25 @@ func get_view_scene() -> PackedScene:
 
 
 func _physics_process(delta: float) -> void:
+	if _held_for_id != 0:
+		_check_hold()
 	if _landed or _collected:
 		return
 	_hop_t += delta
 	if _hop_t >= pop_time:
 		_land()
+
+
+## The hold ends once its unit is gone or its collect circle no longer
+## reaches this pickup's (half a pixel of slack: the physics overlap is
+## exact, and a hold that outlived it would need a second walk away).
+func _check_hold() -> void:
+	var unit := instance_from_id(_held_for_id) as Unit
+	var collector := unit.get_node_or_null(^"PickupComponent") as PickupComponent if unit != null else null
+	if collector == null or not collector.is_inside_tree():
+		_held_for_id = 0
+	elif collector.global_position.distance_to(global_position) > collector.get_radius_px() + get_radius() + 0.5:
+		_held_for_id = 0
 
 
 func _land() -> void:

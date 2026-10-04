@@ -27,6 +27,9 @@ const RARITY_COUNT := 7
 @export var default_drop_table: DropTable
 ## Played on collect (L7).
 @export var pickup_sound: SoundEvent
+## Trashing an item of this rarity or better needs a second press (L7b; Ryan,
+## 2026-10-04: Unique and up).
+@export var trash_confirm_from: Item.Rarity = Item.Rarity.UNIQUE
 
 static var _default: LootTable
 

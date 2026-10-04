@@ -12,9 +12,14 @@ extends Control
 ## pivot's milestone (Ryan, P-M); main.tscn keeps the tile room_01.
 @export_file("*.tscn") var run_scene: String = "res://scenes/main_layout.tscn"
 @export_file("*.tscn") var sandbox_scene: String = "res://scenes/sandbox_main.tscn"
-## Debug buttons (+1 level, +100 uses, +100 kills, unlock all, reset), so play
-## tests don't need dozens of runs. On in hub.tscn for now.
+## Debug buttons (+1 level, +100 uses, +100 kills, unlock all, reset, and
+## since LOOT L7b clear inventory), so play tests don't need dozens of runs.
+## On in hub.tscn for now.
 @export var debug_tools: bool = true
+## How long Clear inventory waits for its second click (s; LOOT L7b).
+@export var clear_confirm_time: float = 3.0
+
+var _clear_asked_ms: int = -1
 
 var talent_screen: TalentScreen
 var _header: Label
@@ -75,6 +80,7 @@ func _ready() -> void:
 		debug.add_child(_button("+100 kills", func() -> void: _debug(func() -> void: Progress.debug_add_kills(champion, 100)), 8))
 		debug.add_child(_button("Unlock all", func() -> void: _debug(func() -> void: Progress.debug_unlock_all(champion)), 8))
 		debug.add_child(_button("Reset", func() -> void: _debug(func() -> void: Progress.reset(champion)), 8))
+		debug.add_child(_button("Clear inventory", debug_clear_inventory, 8))
 	refresh()
 
 
@@ -114,6 +120,32 @@ func debug_add_level() -> void:
 	if record.level < leveling.get_max_level():
 		Progress.add_xp(champion, leveling.get_xp_to_next(record.level) - record.xp)
 	refresh()
+
+
+## Debug (LOOT L7b): empties the champion's inventory for the looting
+## milestone (Loot.reset(): no items, nothing worn, saved). The first click
+## only asks, in the detail line; a second within clear_confirm_time empties
+## it. Returns whether it emptied.
+func debug_clear_inventory() -> bool:
+	var count := Loot.get_inventory(champion).items.size()
+	var asked := _clear_asked_ms >= 0 and Time.get_ticks_msec() - _clear_asked_ms < roundi(clear_confirm_time * 1000.0)
+	if count == 0:
+		_clear_asked_ms = -1
+		_detail.text = "The %s's inventory is already empty." % champion.display_name
+		return false
+	if not asked:
+		_clear_asked_ms = Time.get_ticks_msec()
+		_detail.text = "Click Clear inventory again to empty the %s's inventory (%d items, for good)." % [champion.display_name, count]
+		return false
+	_clear_asked_ms = -1
+	Loot.reset(champion)
+	_detail.text = "Emptied the %s's inventory (%d items)." % [champion.display_name, count]
+	return true
+
+
+## The detail line's text now (tests read it).
+func get_detail_text() -> String:
+	return _detail.text
 
 
 func _debug(action: Callable) -> void:

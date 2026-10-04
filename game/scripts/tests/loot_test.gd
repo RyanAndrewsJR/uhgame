@@ -76,6 +76,14 @@ extends Node2D
 ## walled in, a corpse over a pit (the room's navigation; push_out() outside a
 ## Room); ground drops taken and put back; the HUD's loot lines. K drops
 ## pickups at the Knight's feet (the L3 checks wait for them).
+## L7b: dropping and trashing items, sorting. ChampionInventory.remove(), what
+## can't leave (no item, a stranger, a worn item), what asks first (Unique and
+## up); a drop out of the inventory and the save at once, held for the Knight
+## while he stands by it, taken back when he walks away and returns (also when
+## he walks off during the hop), a ground drop like any; a trash gone for
+## good, the second press and every way it's cancelled; L, X and O through
+## the viewport; the sorts (by slot, by rarity, a view only, the cursor kept);
+## the hub's Clear inventory and its second click.
 ## Prints PASS/FAIL per check, then a total.
 ## Run headless and it quits with the number of failures as the exit code.
 
@@ -180,7 +188,7 @@ class ForeignItem extends Item:
 
 
 func _ready() -> void:
-	print("\n=== Loot test (LOOT L1–L7) ===")
+	print("\n=== Loot test (LOOT L1–L7b) ===")
 	# First, before anything touches either autoload: a window's close request
 	# saves, and Progress.save() once checked saving_enabled before its lazy
 	# test-scene guard, so a windowed run closed before anything touched
@@ -266,6 +274,12 @@ func _ready() -> void:
 	await _test_drop_over_pit()
 	await _test_ground_drops()
 	await _test_hud_loot_line()
+	# L7b
+	await _test_l7b_rules()
+	await _test_drop_item()
+	await _test_trash_item()
+	await _test_sort()
+	await _test_hub_clear_inventory()
 	Audio.stop_all()
 	Loot.reset(KNIGHT)
 	_check("the real inventory file was never written", _file_stamp(REAL_SAVE), real_before)
@@ -3034,6 +3048,264 @@ func _test_hud_loot_line() -> void:
 	await _frames(160)
 	_check("gone after 2 s and the fade", (hud.call(&"get_loot_lines") as PackedStringArray).size(), 0)
 	hud.queue_free()
+	await _frames(1)
+
+
+# --- L7b: dropping and trashing items, sorting ---------------------------------------
+
+func _test_l7b_rules() -> void:
+	_section("L7b: removing an item from the record; what can't leave; what asks first")
+	var inv := ChampionInventory.create(KNIGHT)
+	var a := _item(&"item_base_band", R.COMMON, [[&"affix_attack_damage", 0.5]], 0)
+	var b := _item(&"item_base_iron_helm", R.RARE, [[&"affix_armor", 0.5]], 0)
+	inv.add(a)
+	inv.add(b)
+	inv.set_equipped(&"helm", b.uid)
+	_check("ChampionInventory.remove(): the item out, returned; the uid isn't reused",
+		[inv.remove(a.uid) == a, inv.items.size(), inv.items[0] == b, inv.next_uid], [true, 1, true, 3])
+	_check("an unknown uid: null, nothing changes", [inv.remove(99), inv.items.size()], [null, 1])
+	_check("it never touches equipped (the caller refuses a worn item first)", inv.equipped, {&"helm": b.uid})
+	_check("LootTable.trash_confirm_from: Unique", _table.trash_confirm_from, R.UNIQUE)
+	var asks: Array = []
+	for r in 7:
+		asks.append(Loot.needs_trash_confirm(_item(&"item_base_band", r as Item.Rarity, [], 0)))
+	_check("trashing asks first from Unique up", asks, [false, false, false, true, true, true, true])
+	Loot.reset(KNIGHT)
+	var p := await _spawn_knight()
+	var mine := _item(&"item_base_band", R.COMMON, [[&"affix_crit_chance", 0.5]], 0)
+	var worn := _item(&"item_base_iron_helm", R.RARE, [[&"affix_armor", 0.5]], 0)
+	Loot.add_item(KNIGHT, mine)
+	Loot.add_item(KNIGHT, worn)
+	p.equipment.equip(worn)
+	var stranger := _item(&"item_base_band", R.COMMON, [[&"affix_crit_chance", 0.5]], 0)
+	_check("can_remove(): yes for a carried item, no for none, a stranger, a worn one (by the record and by the unit)",
+		[Loot.can_remove(KNIGHT, mine, p), Loot.can_remove(KNIGHT, null), Loot.can_remove(KNIGHT, stranger),
+		Loot.can_remove(KNIGHT, worn), Loot.can_remove(KNIGHT, worn, p)],
+		["", "No item", "Not in Knight's inventory", "Worn: unequip it first", "Worn: unequip it first"])
+	_check("a worn item: neither trashed nor dropped, still carried and worn",
+		[Loot.trash_item(KNIGHT, worn, p), Loot.drop_from_inventory(KNIGHT, worn, p), Loot.get_inventory(KNIGHT).items.has(worn), p.equipment.get_slot_of(worn)],
+		[false, null, true, &"helm"])
+	await _free(p)
+
+
+func _test_drop_item() -> void:
+	_section("L7b: dropping an item: back on the ground, not taken back until the Knight walks away")
+	Loot.reset(KNIGHT)
+	var setup := await _sandbox_room()
+	var room: Room = setup[0]
+	var p: Player = setup[2]
+	var entities := room.get_node("Entities")
+	var record := Loot.get_inventory(KNIGHT)
+	var item := _item(&"item_base_leather_gloves", R.UNIQUE, [[&"affix_attack_speed", 0.5], [&"affix_armor", 0.4], [&"affix_crit_chance", 0.3]], 0)
+	Loot.add_item(KNIGHT, item)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH_SAVE))
+	Loot.save_path = SCRATCH_SAVE
+	Loot.saving_enabled = true
+	var seen: Array = []
+	var on_drop := func(champion_id: StringName, it: Item) -> void: seen.append([champion_id, it])
+	Loot.item_dropped.connect(on_drop)
+	Loot.rng.seed = 7801
+	var feet := p.global_position
+	var pickup := Loot.drop_from_inventory(KNIGHT, item, p)
+	var saved := _read_scratch()
+	Loot.saving_enabled = false
+	Loot.save_path = Loot.SAVE_PATH
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH_SAVE))
+	Loot.item_dropped.disconnect(on_drop)
+	_check("out of the inventory and the save at once; item_dropped once",
+		[record.items.has(item), saved != null and saved.items.is_empty(), seen], [false, true, [[&"knight", item]]])
+	var away := pickup.global_position.distance_to(feet) if pickup != null else -1.0
+	_check("a pickup in the room's Entities, popping from his feet to %.1f px off (12–28), held for him" % away,
+		[pickup != null and pickup.get_parent() == entities, pickup.get_hop_from() == feet if pickup else false, away >= 12.0 and away <= 28.0, pickup.is_held_for(p) if pickup else false],
+		[true, true, true, true])
+	await _frames(30)
+	_check("landed inside his 64 px: not taken back while he stands there",
+		[is_instance_valid(pickup) and pickup.is_landed(), record.items.size(), pickup.is_held_for(p) if is_instance_valid(pickup) else false], [true, 0, true])
+	_place_unit(p, feet + Vector2(150, 0))
+	await _frames(3)
+	_check("he walks away: the hold ends; nothing taken", [pickup.is_held_for(p), record.items.size()], [false, 0])
+	_place_unit(p, feet)
+	await _frames(3)
+	_check("he comes back: taken, with a new uid", [record.items.has(item), item.uid, is_instance_valid(pickup) and not pickup.is_queued_for_deletion()], [true, 2, false])
+	# Walking off while it still hops (no area_exited: it never became collectable around him).
+	Loot.rng.seed = 7802
+	var hopper := Loot.drop_from_inventory(KNIGHT, item, p)
+	_place_unit(p, feet + Vector2(150, 0))
+	await _frames(3)
+	var released := not hopper.is_held_for(p)
+	await _frames(25)
+	_check("walked off during the hop: the hold ends then, and it lands untaken", [released, hopper.is_landed(), record.items.has(item)], [true, true, false])
+	_place_unit(p, feet)
+	await _frames(3)
+	_check("back over it: taken", record.items.has(item), true)
+	# Kept through a floor's rebuild; put back without the hold.
+	Loot.rng.seed = 7803
+	Loot.drop_from_inventory(KNIGHT, item, p)
+	await _frames(25)
+	var drops := Loot.take_ground_drops(room)
+	_check("a dropped item is a ground drop like any (taken off the room)", [drops.size(), drops[0].item if drops.size() > 0 else {}], [1, item.to_dict()])
+	_place_unit(p, feet + Vector2(150, 0))
+	await _frames(2)
+	var back := Loot.restore_ground_drops(room, drops)
+	_check("put back: not held (the hold isn't saved)", [back.size(), back[0].is_held_for(p) if back.size() > 0 else true], [1, false])
+	Loot.take_ground_drops(room)
+	# SandboxLoot's L.
+	var sl: SandboxLoot = setup[1]
+	Loot.reset(KNIGHT)
+	_place_unit(p, feet)
+	await _frames(2)
+	var first := _item(&"item_base_band", R.COMMON, [[&"affix_attack_damage", 0.1]], 0)
+	var second := _item(&"item_base_band", R.UNCOMMON, [[&"affix_attack_damage", 0.2], [&"affix_crit_chance", 0.2]], 0)
+	var third := _item(&"item_base_iron_helm", R.RARE, [[&"affix_armor", 0.3]], 0)
+	for it in [first, second, third]:
+		Loot.add_item(KNIGHT, it)
+	p.equipment.equip(third)
+	sl.move_cursor(-sl.get_cursor())
+	_check("L on the first: dropped, said so; the next moves up into the cursor's row",
+		[sl.drop_item(0), sl.get_status(), _plain(sl.get_items()), sl.get_cursor()], [true, "Dropped Band", [second, third], 0])
+	_check("L on a worn item: refused, said so",
+		[sl.drop_item(1), sl.get_status(), sl.get_items().has(third)], [false, "Can't drop Iron Helm: Worn: unequip it first", true])
+	sl.move_cursor(-sl.get_cursor())
+	_press(KEY_L)
+	_check("L through the viewport drops the highlighted item", [_plain(sl.get_items()), sl.get_status()], [[third], "Dropped Band"])
+	Loot.take_ground_drops(room)
+	room.queue_free()
+	await _frames(1)
+
+
+func _test_trash_item() -> void:
+	_section("L7b: trashing an item: gone for good; Unique and up ask first")
+	Loot.reset(KNIGHT)
+	var setup := await _sandbox_room()
+	var room: Room = setup[0]
+	var sl: SandboxLoot = setup[1]
+	var p: Player = setup[2]
+	var record := Loot.get_inventory(KNIGHT)
+	var common := _item(&"item_base_band", R.COMMON, [[&"affix_attack_damage", 0.5]], 0)
+	var unique := _item(&"item_base_leather_gloves", R.UNIQUE, [[&"affix_attack_speed", 0.5], [&"affix_armor", 0.4], [&"affix_crit_chance", 0.3]], 0)
+	var legendary := ItemRoller.make_named(TIDEBREAKER, _table, _rng(7901))
+	var rare := _item(&"item_base_iron_helm", R.RARE, [[&"affix_armor", 0.5]], 0)
+	for it in [common, unique, legendary, rare]:
+		Loot.add_item(KNIGHT, it)
+	p.equipment.equip(rare)
+	# Loot.trash_item() itself: no asking (the caller's job).
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH_SAVE))
+	Loot.save_path = SCRATCH_SAVE
+	Loot.saving_enabled = true
+	var seen: Array = []
+	var on_trash := func(champion_id: StringName, it: Item) -> void: seen.append([champion_id, it])
+	Loot.item_trashed.connect(on_trash)
+	var spare := _item(&"item_base_pendant", R.UNCOMMON, [[&"affix_magic_find", 0.5], [&"affix_damage", 0.5]], 0)
+	Loot.add_item(KNIGHT, spare)
+	var done := Loot.trash_item(KNIGHT, spare, p)
+	var saved := _read_scratch()
+	Loot.saving_enabled = false
+	Loot.save_path = Loot.SAVE_PATH
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH_SAVE))
+	_check("Loot.trash_item(): gone from the inventory and the save at once; item_trashed once; no pickup",
+		[done, record.items.has(spare), saved != null and not saved.items.any(func(i: Item) -> bool: return i.to_dict() == spare.to_dict()), seen, Loot.get_ground_pickups(room).size()],
+		[true, false, true, [[&"knight", spare]], 0])
+	seen.clear()
+	# X: a Common at once.
+	sl.move_cursor(-sl.get_cursor())
+	_check("X on a Common: trashed at once, said so", [sl.trash(0), record.items.has(common), sl.get_status(), sl.get_pending_trash()],
+		[true, false, "Trashed Band", null])
+	# X on a Unique: asks, then trashes.
+	_check("X on a Unique: only asks; still carried", [sl.trash(0), record.items.has(unique), sl.get_status(), sl.get_pending_trash() == unique],
+		[false, true, "Trash %s (Unique)? X again" % unique.get_display_name(), true])
+	_check("X again on it: trashed", [sl.trash(0), record.items.has(unique), sl.get_status(), sl.get_pending_trash()], [true, false, "Trashed %s" % unique.get_display_name(), null])
+	# Cancels: a cursor move, another key, the time running out.
+	var idx := sl.get_items().find(legendary)
+	sl.trash(idx)
+	sl.move_cursor(1)
+	_check("a Legendary asked, then the cursor moved: cancelled, said so", [sl.get_pending_trash(), sl.get_status(), record.items.has(legendary)], [null, "Trash cancelled", true])
+	sl.move_cursor(-sl.get_cursor() + idx)
+	_press(KEY_X)
+	_press(KEY_H)
+	_check("X, then an unrelated key (H): cancelled", [sl.get_pending_trash(), sl.get_status(), record.items.has(legendary)], [null, "Trash cancelled", true])
+	sl.trash_confirm_time = 0.1
+	_press(KEY_X)
+	await _frames(12)
+	_check("X, then 0.2 s with trash_confirm_time 0.1: cancelled by itself", [sl.get_pending_trash(), sl.get_status()], [null, "Trash cancelled"])
+	sl.trash_confirm_time = 3.0
+	_press(KEY_X)
+	_check("so the next X asks again", [sl.get_pending_trash() == legendary, record.items.has(legendary)], [true, true])
+	_press(KEY_X)
+	_check("X again through the viewport: the Legendary trashed", [record.items.has(legendary), sl.get_status()], [false, "Trashed Tidebreaker"])
+	_check("X on a worn item: refused, said so",
+		[sl.trash(sl.get_items().find(rare)), record.items.has(rare), sl.get_status()], [false, true, "Can't trash Iron Helm: Worn: unequip it first"])
+	Loot.item_trashed.disconnect(on_trash)
+	_check("item_trashed for each trashed item", seen.map(func(e: Array) -> Item: return e[1]), [common, unique, legendary])
+	room.queue_free()
+	await _frames(1)
+
+
+func _test_sort() -> void:
+	_section("L7b: O sorts the list (pickup order, by slot, by rarity); a view only")
+	Loot.reset(KNIGHT)
+	var setup := await _sandbox_room()
+	var room: Room = setup[0]
+	var sl: SandboxLoot = setup[1]
+	var record := Loot.get_inventory(KNIGHT)
+	var ring_c := _item(&"item_base_band", R.COMMON, [[&"affix_attack_damage", 0.1]], 0)
+	var helm_r := _item(&"item_base_iron_helm", R.RARE, [[&"affix_armor", 0.1]], 0)
+	var sword_u := _item(&"item_base_longsword", R.UNCOMMON, [[&"affix_attack_damage", 0.1], [&"affix_crit_chance", 0.1]], 0)
+	var ring_r := _item(&"item_base_band", R.RARE, [[&"affix_attack_damage", 0.2]], 0)
+	var helm_c := _item(&"item_base_iron_helm", R.COMMON, [[&"affix_armor", 0.2]], 0)
+	var ring_r2 := _item(&"item_base_band", R.RARE, [[&"affix_attack_damage", 0.3]], 0)
+	var picked := [ring_c, helm_r, sword_u, ring_r, helm_c, ring_r2]
+	for it in picked:
+		Loot.add_item(KNIGHT, it)
+	_check("by default: pickup order", [sl.get_sort(), _plain(sl.get_items())], [&"picked_up", picked])
+	sl.move_cursor(-sl.get_cursor() + 3)   # ring_r
+	_check("O: by slot (weapon, helm, ... ring), the best first, ties in pickup order",
+		[sl.cycle_sort(), _plain(sl.get_items())], [&"slot", [sword_u, helm_r, helm_c, ring_r, ring_r2, ring_c]])
+	_check("the cursor stays on the same item; the header and the result say so",
+		[sl.get_items()[sl.get_cursor()] == ring_r, _row_texts(sl)[1].ends_with("   By slot"), sl.get_status()], [true, true, "Sorted by slot"])
+	_press(KEY_O)
+	_check("O again (through the viewport): by rarity, best first, then by slot",
+		[sl.get_sort(), _plain(sl.get_items())], [&"rarity", [helm_r, ring_r, ring_r2, sword_u, helm_c, ring_c]])
+	_check("(the cursor still on it)", sl.get_items()[sl.get_cursor()] == ring_r, true)
+	_check("O a third time: pickup order again, no sort in the header", [sl.cycle_sort(), _plain(sl.get_items()), _row_texts(sl)[1].contains("By ")], [&"picked_up", picked, false])
+	sl.cycle_sort()
+	_check("a view only: the inventory keeps its order", record.items, picked)
+	var newest := _item(&"item_base_longsword", R.RARE, [[&"affix_attack_damage", 0.3]], 0)
+	Loot.restore_ground_drops(room, [{"item": newest.to_dict(), "pos": (setup[2] as Player).global_position}])
+	await _frames(3)
+	var taken: Item = record.items.back()
+	_check("sorted by slot, a new pickup takes its place and the cursor follows it",
+		[sl.get_items().find(taken), sl.get_cursor()], [0, 0])
+	room.queue_free()
+	await _frames(1)
+
+
+func _test_hub_clear_inventory() -> void:
+	_section("L7b: the hub's Clear inventory (for L-M): a second click empties it")
+	Loot.reset(KNIGHT)
+	for i in 3:
+		Loot.add_item(KNIGHT, _item(&"item_base_band", R.COMMON, [[&"affix_attack_damage", 0.5]], 0))
+	var hub := (load("res://scenes/ui/hub.tscn") as PackedScene).instantiate() as Hub
+	add_child(hub)
+	await _frames(1)
+	var button: Button = null
+	for b in hub.find_children("*", "Button", true, false):
+		if (b as Button).text == "Clear inventory":
+			button = b
+	_check("the debug row has Clear inventory", button != null and button.get_parent().name == "DebugTools", true)
+	_check("the first click only asks", [hub.debug_clear_inventory(), Loot.get_inventory(KNIGHT).items.size(), hub.get_detail_text()],
+		[false, 3, "Click Clear inventory again to empty the Knight's inventory (3 items, for good)."])
+	_check("the second empties it", [hub.debug_clear_inventory(), Loot.get_inventory(KNIGHT).items.size(), hub.get_detail_text()],
+		[true, 0, "Emptied the Knight's inventory (3 items)."])
+	_check("empty: nothing to ask", [hub.debug_clear_inventory(), hub.get_detail_text()], [false, "The Knight's inventory is already empty."])
+	Loot.add_item(KNIGHT, _item(&"item_base_band", R.COMMON, [[&"affix_attack_damage", 0.5]], 0))
+	hub.clear_confirm_time = 0.1
+	hub.debug_clear_inventory()
+	await _frames(12)
+	_check("a second click after clear_confirm_time asks again", [hub.debug_clear_inventory(), Loot.get_inventory(KNIGHT).items.size()], [false, 1])
+	if button != null:
+		button.pressed.emit()
+	_check("the button itself (the second click in time): emptied", Loot.get_inventory(KNIGHT).items.size(), 0)
+	hub.queue_free()
 	await _frames(1)
 
 

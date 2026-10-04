@@ -17,7 +17,16 @@ extends Node
 ##                 radius)
 ##   P             one of each of the champion's named items, into the
 ##                 inventory (LOOT L5; Loot.debug_grant_named_items())
+##   L             drop the highlighted item back on the ground at the
+##                 champion's feet (LOOT L7b; it can't take it back until it
+##                 walks out of its pickup radius and returns)
+##   X             trash the highlighted item for good (L7b; Unique and up ask
+##                 first: X again on it within trash_confirm_time; any other
+##                 key, a cursor move or the time running out cancels)
+##   O             cycle the list's order: pickup order, by slot, by rarity
+##                 (L7b; a view only, the save keeps its own order)
 ##   [ / ]         lower / raise the room's depth (Room.depth, at least 1)
+## L and X refuse a worn item (unequip it first).
 ## Unlike SandboxTalents it changes the real save (Ryan, 2026-10-01): it's the
 ## only equip screen until UI.md, so gear set here carries into Start run.
 ## Rolls go in through Loot.drop() and the pickup (Loot.collect()), P's
@@ -29,6 +38,11 @@ extends Node
 ## The list's plain text and its hints (the keys, scroll marks, the last result).
 const TEXT_COLOR := Color(0.92, 0.92, 0.92)
 const HINT_COLOR := Color(0.65, 0.65, 0.7)
+## O cycles these (L7b): the inventory's own order (oldest first), by slot
+## (then the best rarity first), by rarity (best first, then by slot). Ties
+## keep the pickup order.
+const SORTS: Array[StringName] = [&"picked_up", &"slot", &"rarity"]
+const SORT_NAMES := {&"picked_up": "pickup order", &"slot": "slot", &"rarity": "rarity"}
 
 ## What K rolls from (the elite table: always one item, Uncommon or better).
 @export var drop_table: DropTable = preload("res://data/drop_tables/drop_table_elite.tres")
@@ -37,11 +51,16 @@ const HINT_COLOR := Color(0.65, 0.65, 0.7)
 ## How many items the list shows at once (it scrolls around the cursor). 6
 ## keeps the list and a long tooltip above the ability bar.
 @export var visible_rows: int = 6
+## How long a trash waits for its second press (s; L7b).
+@export var trash_confirm_time: float = 3.0
 
 var _player: Player
 var _cursor: int = 0
 var _status: String = ""
 var _label: RichTextLabel
+var _sort: StringName = &"picked_up"
+var _pending_trash: Item
+var _pending_until_ms: int = 0
 
 
 func _ready() -> void:
@@ -61,6 +80,7 @@ func _ready() -> void:
 		_label.offset_right = -6.0
 		_label.offset_top = 66.0   # under SandboxAugments' four lines (they end at 61)
 		layer.add_child(_label)
+	set_process(false)   # only while a trash waits for its second press
 	Events.item_equipped.connect(_on_item_changed)
 	Events.item_unequipped.connect(_on_item_changed)
 	Loot.item_picked_up.connect(_on_item_picked_up)
@@ -80,6 +100,8 @@ func _on_entity(node: Node) -> void:
 		_player = node
 		_cursor = 0
 		_status = ""
+		_pending_trash = null
+		set_process(false)
 		if node.is_node_ready():
 			_update_label()
 		else:
@@ -97,8 +119,9 @@ func _on_item_picked_up(champion_id: StringName, item: Item) -> void:
 	if champion == null or champion.id != champion_id:
 		return
 	var index := get_items().find(item)
-	if index >= 0:
+	if index >= 0 and index != _cursor:
 		_cursor = index
+		cancel_trash()   # the cursor moved off the item waiting to be trashed
 	_update_label()
 
 
@@ -106,6 +129,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key == null or not key.pressed or (key.echo and key.physical_keycode != KEY_J):
 		return
+	# Any key but X cancels a trash waiting for its second press.
+	if key.physical_keycode != KEY_X:
+		cancel_trash()
 	match key.physical_keycode:
 		KEY_J:
 			move_cursor(-1 if key.shift_pressed else 1)
@@ -115,6 +141,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			roll_drop()
 		KEY_P:
 			grant_named_items()
+		KEY_L:
+			drop_item(_cursor)
+		KEY_X:
+			trash(_cursor)
+		KEY_O:
+			cycle_sort()
 		KEY_BRACKETLEFT:
 			change_depth(-1)
 		KEY_BRACKETRIGHT:
@@ -124,17 +156,52 @@ func _unhandled_input(event: InputEvent) -> void:
 	get_viewport().set_input_as_handled()
 
 
+## A trash waiting for its second press runs out (trash_confirm_time).
+func _process(_delta: float) -> void:
+	if _pending_trash == null or Time.get_ticks_msec() >= _pending_until_ms:
+		cancel_trash()
+
+
 func get_champion() -> ChampionData:
 	return _player.champion if is_instance_valid(_player) else null
 
 
-## The champion's inventory, oldest first (empty without a champion).
+## The champion's inventory in the list's order (O; the inventory's own
+## order, oldest first, by default); empty without a champion.
 func get_items() -> Array[Item]:
 	var out: Array[Item] = []
 	var champion := get_champion()
 	if champion != null:
 		out.append_array(Loot.get_inventory(champion).items)
+	if _sort != &"picked_up" and out.size() > 1:
+		var order := {}   # item -> its place in the inventory (the tie-break)
+		for i in out.size():
+			order[out[i]] = i
+		out.sort_custom(func(a: Item, b: Item) -> bool: return _comes_before(a, b, order))
 	return out
+
+
+## The list's order now: &"picked_up", &"slot" or &"rarity".
+func get_sort() -> StringName:
+	return _sort
+
+
+## O: the next order (pickup order → slot → rarity → pickup order). The
+## cursor stays on the same item. Returns the order now.
+func cycle_sort() -> StringName:
+	var items := get_items()
+	var keep: Item = items[_cursor] if _cursor < items.size() else null
+	_sort = SORTS[(SORTS.find(_sort) + 1) % SORTS.size()]
+	if keep != null:
+		_cursor = maxi(0, get_items().find(keep))
+	_status = "Sorted by %s" % SORT_NAMES[_sort]
+	_update_label()
+	return _sort
+
+
+## The item waiting for X's second press (null when none).
+func get_pending_trash() -> Item:
+	return _pending_trash
 
 
 func get_cursor() -> int:
@@ -167,6 +234,7 @@ func get_magic_find() -> float:
 
 
 func move_cursor(step: int) -> void:
+	cancel_trash()
 	var count := get_items().size()
 	if count > 0:
 		_cursor = posmod(_cursor + step, count)
@@ -198,6 +266,70 @@ func toggle(index: int) -> bool:
 				_status += " (swapped out %s)" % old.get_display_name()
 	_update_label()
 	return equipment.get_slot_of(item) != &""
+
+
+## L (L7b): drops item `index` back on the ground at the champion's feet
+## (Loot.drop_from_inventory(): out of the inventory and the save; it can't
+## take it back until it walks out of its pickup radius and returns). The
+## next item moves up into the cursor's row. Refuses a worn item. Returns
+## whether it dropped.
+func drop_item(index: int) -> bool:
+	var items := get_items()
+	var champion := get_champion()
+	if champion == null or index < 0 or index >= items.size():
+		return false
+	var item := items[index]
+	var reason := Loot.can_remove(champion, item, _player)
+	var dropped := reason == "" and Loot.drop_from_inventory(champion, item, _player) != null
+	if dropped:
+		_status = "Dropped %s" % item.get_display_name()
+	else:
+		_status = "Can't drop %s: %s" % [item.get_display_name(), reason if reason != "" else "no floor here"]
+	_update_label()
+	return dropped
+
+
+## X (L7b): trashes item `index` for good (Loot.trash_item()). Unique and up
+## (Loot.needs_trash_confirm()) only ask on the first press; X again on the
+## same item within trash_confirm_time trashes it. Refuses a worn item. The
+## next item moves up into the cursor's row. Returns whether it trashed.
+func trash(index: int) -> bool:
+	var items := get_items()
+	var champion := get_champion()
+	if champion == null or index < 0 or index >= items.size():
+		return false
+	var item := items[index]
+	var reason := Loot.can_remove(champion, item, _player)
+	if reason != "":
+		cancel_trash()
+		_status = "Can't trash %s: %s" % [item.get_display_name(), reason]
+		_update_label()
+		return false
+	var confirmed := _pending_trash == item and Time.get_ticks_msec() < _pending_until_ms
+	if Loot.needs_trash_confirm(item) and not confirmed:
+		_pending_trash = item
+		_pending_until_ms = Time.get_ticks_msec() + roundi(trash_confirm_time * 1000.0)
+		set_process(true)
+		_status = "Trash %s (%s)? X again" % [item.get_display_name(), _rarity_name(item)]
+		_update_label()
+		return false
+	_pending_trash = null
+	set_process(false)
+	Loot.trash_item(champion, item, _player)
+	_status = "Trashed %s" % item.get_display_name()
+	_update_label()
+	return true
+
+
+## Drops a trash waiting for its second press ("Trash cancelled"); nothing
+## when none waits.
+func cancel_trash() -> void:
+	set_process(false)
+	if _pending_trash == null:
+		return
+	_pending_trash = null
+	_status = "Trash cancelled"
+	_update_label()
 
 
 ## K: one roll of drop_table at the room's depth with the champion's magic
@@ -260,13 +392,16 @@ func change_depth(step: int) -> int:
 ## items around the cursor (ON = worn), the highlighted item's tooltip lines
 ## and the last result.
 func get_rows() -> Array:
-	var rows: Array = [["Loot (J / Shift+J move, U equip, K roll, P named, [ / ] depth)", HINT_COLOR]]
+	var rows: Array = [["Loot (J / Shift+J move, U equip, K roll, P named, L drop, X trash, O sort, [ / ] depth)", HINT_COLOR]]
 	var champion := get_champion()
 	if champion == null:
 		rows.append(["No champion here", HINT_COLOR])
 		return rows
 	var items := get_items()
-	rows.append(["Inventory %d   Depth %d   MF +%d%%" % [items.size(), get_depth(), roundi(get_magic_find() * 100.0)], TEXT_COLOR])
+	var header := "Inventory %d   Depth %d   MF +%d%%" % [items.size(), get_depth(), roundi(get_magic_find() * 100.0)]
+	if _sort != &"picked_up":
+		header += "   By %s" % SORT_NAMES[_sort]
+	rows.append([header, TEXT_COLOR])
 	if items.is_empty():
 		rows.append(["  Nothing yet: K rolls an item", HINT_COLOR])
 	var first := clampi(_cursor - int(visible_rows / 2.0), 0, maxi(0, items.size() - visible_rows))
@@ -293,6 +428,17 @@ func get_rows() -> Array:
 func _rarity_name(item: Item) -> String:
 	var def := Loot.table.get_rarity(item.rarity)
 	return def.display_name if def != null else "?"
+
+
+## The list's order for O (L7b): by slot then the best rarity first, or by
+## rarity (best first) then slot; ties keep the inventory's order.
+func _comes_before(a: Item, b: Item, order: Dictionary) -> bool:
+	var ka: Array = [a.get_slot(), -a.rarity] if _sort == &"slot" else [-a.rarity, a.get_slot()]
+	var kb: Array = [b.get_slot(), -b.rarity] if _sort == &"slot" else [-b.rarity, b.get_slot()]
+	for i in ka.size():
+		if ka[i] != kb[i]:
+			return ka[i] < kb[i]
+	return order[a] < order[b]
 
 
 func _update_label() -> void:

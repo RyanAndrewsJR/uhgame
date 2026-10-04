@@ -11,6 +11,29 @@
 
 ## Loot (LOOT.md)
 
+### L7b – Dropping and trashing items, sorting: 2026-10-04, Built (awaiting Ryan's play test)
+Ryan asked to drop and trash items (2026-10-04), answered four questions (inventories stay unlimited; drop back on the ground, held until you walk away; trash for good, a second press for Unique and up; the spec first), committed the spec, and started L7b with Claude's proposals as written plus sorting on O.
+- **Code:**
+  - `ChampionInventory.remove(uid)`.
+  - `LootTable.trash_confirm_from` (Unique; the class default, so the .tres is unchanged).
+  - `Loot`: `can_remove()`, `drop_from_inventory()`, `trash_item()`, `needs_trash_confirm()`, the signals `item_dropped` / `item_trashed`. `drop()` takes an optional `held_for` unit.
+  - `Pickup`: `hold_for()` / `is_held_for()` / `release_hold()`, and the hold checked every physics tick. `PickupComponent` skips a pickup held for its unit and releases the hold on `area_exited`.
+  - `SandboxLoot`: L (`drop_item()`), X (`trash()`, `cancel_trash()`, `get_pending_trash()`, `trash_confirm_time` 3 s), O (`cycle_sort()`, `get_sort()`; the header's "By slot" / "By rarity"); the keys line.
+  - `hub.gd`: Clear inventory in the debug row (`debug_clear_inventory()`, `clear_confirm_time` 3 s, `get_detail_text()`).
+- **Changed during the step:**
+  - **The hold also ends by distance.** The spec released it on `area_exited` only. But a drop isn't collectable while it hops, so a player who walks off during the 0.3 s never gets an `area_exited` for it. The hold outlived the walk away, and coming back didn't take it (the sensitivity run shows exactly that). Every physics tick the pickup now checks whether its unit's collect circle still reaches it.
+  - **The threshold is data** (`LootTable.trash_confirm_from`), and `trash_item()` takes an optional unit for the worn check, as `can_remove()` does.
+  - **Any key but X cancels a waiting trash**, including keys SandboxLoot doesn't use, and a pickup that moves the cursor does too.
+- **Measured** (loot test; a layout probe in `sandbox_main`, saving off):
+  - **Dropping:** the item was out of the inventory and the scratch save at once, and `item_dropped` fired once. The pickup popped 23.3 px from the Knight's feet into the room's Entities, held for him. It landed inside his 64 px and stayed. He walked 150 px off, the hold ended, and on coming back he took it with a new uid. Walking off during the hop also ended the hold, the drop landed untaken, and coming back took it. A dropped item is a ground drop like any other (taken and put back), and put back it isn't held.
+  - **Trashing:** `Loot.trash_item()` removed the item from the inventory and the scratch save, fired `item_trashed` once, and left no pickup. X trashed a Common at once. A Unique only asked; X again trashed it. A Legendary's ask was cancelled by a cursor move, by an unused key (H), and by `trash_confirm_time` running out (0.1 s in the test); then X, X trashed it. A worn item was refused for both L and X, with the reason.
+  - **Sorting:** by slot: Longsword, Rare helm, Common helm, then the rings (Rare, Rare, Common; the two Rares in pickup order). By rarity: Rare helm, Rare, Rare, Uncommon, Common helm, Common ring. The cursor stayed on its item through each O, the inventory's own order never changed, and a new pickup took its sorted place with the cursor on it.
+  - **Clear inventory:** the first click asked and kept the 3 items; the second emptied them. With nothing in it, it only says so. A second click after `clear_confirm_time` asks again, and the button itself works.
+  - **Layout:** the keys line wraps to two rows. The worst case (The Last Verdict or Chains of Judgement worn and highlighted mid-list, sorted by slot, a refused trash as the result) ends at y 306; the ability bar starts at 322.
+- **Sensitivity:** each key check was broken on purpose once and restored, and each failed: the held skip in `PickupComponent`, the per-tick hold check, the worn refusal in `can_remove()`, the confirm threshold, the cursor-move cancel, the hub's second click.
+- **Smoke run** (`sandbox_main`, `sandbox_main_layout`, `main_layout` for 600 frames, `hub.tscn` for 300; the saves backed up first): no errors or warnings; all three saves byte-identical after.
+- **Tests:** loot 750/750 (44 new). Stats 179/179, combat 474/474, abilities 580/580, audio 110/110, champions 168/168, talents 310/310, view 457/457: 3,028/3,028.
+
 ### L7 – Drops and pickups: 2026-10-04, Passed (Ryan committed it and asked for dropping and trashing items before L-M)
 Ryan passed AB15 and started L7 (2026-10-04).
 - **Data:**

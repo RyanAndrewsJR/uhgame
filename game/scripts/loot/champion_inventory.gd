@@ -37,6 +37,18 @@ func add(item: Item) -> int:
 	return item.uid
 
 
+## Takes the item with `uid` out of the record and returns it (null when
+## there's none). It never touches `equipped`: the caller refuses a worn item
+## first (LOOT L7b, Loot.can_remove()). The uid isn't reused.
+func remove(uid: int) -> Item:
+	for i in items.size():
+		if items[i].uid == uid:
+			var item := items[i]
+			items.remove_at(i)
+			return item
+	return null
+
+
 func get_item(uid: int) -> Item:
 	for item in items:
 		if item.uid == uid:

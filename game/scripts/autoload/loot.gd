@@ -20,8 +20,14 @@ extends Node
 ## they lay (take_ground_drops() / restore_ground_drops(), DUNGEONS D1's
 ## floor rebuilds).
 ##
-## Saved when an item is added, an equipped slot changes, the tracked player
-## leaves the tree and the window closes. A scene under res://scenes/tests/
+## Dropping and trashing (L7b): the player can drop an item back on the
+## ground (drop_from_inventory(): a pickup it can't take back until it has
+## walked away) or trash it for good (trash_item(); Unique and up ask first,
+## needs_trash_confirm()). Never a worn item (can_remove()).
+##
+## Saved when an item is added, dropped or trashed, an equipped slot changes,
+## the tracked player leaves the tree and the window closes. A scene under
+## res://scenes/tests/
 ## never reads or writes the save (Progress.is_test_scene(), the same guard):
 ## its records start fresh and stay in memory, and its kills drop nothing
 ## unless a test turns drops_enabled on. A scripted harness sets
@@ -29,6 +35,12 @@ extends Node
 
 ## A pickup was collected: `item` is in `champion_id`'s inventory now (saved).
 signal item_picked_up(champion_id: StringName, item: Item)
+## The player dropped `item` (L7b): out of `champion_id`'s inventory (saved),
+## on the ground as a pickup.
+signal item_dropped(champion_id: StringName, item: Item)
+## The player trashed `item` (L7b): out of `champion_id`'s inventory and the
+## save for good.
+signal item_trashed(champion_id: StringName, item: Item)
 
 const SAVE_PATH := "user://inventory.cfg"
 const PICKUP_SCENE_PATH := "res://scenes/loot/pickup.tscn"
@@ -163,8 +175,10 @@ func roll_kill_drop(unit: Unit, killer: Player) -> Array[Item]:
 
 ## One Pickup per item under `parent` (a room's Entities), each hopping from
 ## `at` (px, global; over a pit: get_drop_origin()) to its own landing spot
-## (Pickup.pick_landing(), rolled with rng). Returns them.
-func drop(items: Array[Item], at: Vector2, parent: Node) -> Array[Pickup]:
+## (Pickup.pick_landing(), rolled with rng). `held_for`: an item the player
+## dropped, which that unit can't take back until it has walked away (L7b).
+## Returns them.
+func drop(items: Array[Item], at: Vector2, parent: Node, held_for: Unit = null) -> Array[Pickup]:
 	var out: Array[Pickup] = []
 	if parent == null or not parent.is_inside_tree():
 		return out
@@ -174,6 +188,8 @@ func drop(items: Array[Item], at: Vector2, parent: Node) -> Array[Pickup]:
 			continue
 		var pickup := _make_pickup(item)
 		pickup.hop(origin, pickup.pick_landing(origin, rng))
+		if held_for != null:
+			pickup.hold_for(held_for)
 		parent.add_child(pickup)
 		out.append(pickup)
 	return out
@@ -263,6 +279,56 @@ func restore_ground_drops(room: Node, drops: Array, champion: ChampionData = nul
 		parent.add_child(pickup)
 		out.append(pickup)
 	return out
+
+
+# --- Dropping and trashing (L7b) --------------------------------------------------
+
+## Why `item` can't leave `champion`'s inventory ("" = it can): no item, not
+## one of this inventory's, or worn (by the tracked player's record, or by
+## `unit` when given).
+func can_remove(champion: ChampionData, item: Item, unit: Unit = null) -> String:
+	if item == null:
+		return "No item"
+	var record := get_inventory(champion)
+	if record.get_item(item.uid) != item:
+		return "Not in %s's inventory" % champion.display_name
+	var player := unit as Player
+	if record.get_equipped_slot(item.uid) != &"" or (player != null and player.equipment != null and player.equipment.get_slot_of(item) != &""):
+		return "Worn: unequip it first"
+	return ""
+
+
+## The player drops `item` (LOOT.md, Dropping and trashing items): out of the
+## inventory (saved), item_dropped, then a pickup popping from `unit`'s feet
+## like a kill's drop, held for `unit` until it walks away. Null when
+## can_remove() refuses it or `unit` isn't in a room's tree.
+func drop_from_inventory(champion: ChampionData, item: Item, unit: Unit) -> Pickup:
+	if unit == null or not unit.is_inside_tree() or unit.get_parent() == null or can_remove(champion, item, unit) != "":
+		return null
+	get_inventory(champion).remove(item.uid)
+	save()
+	item_dropped.emit(champion.id, item)
+	var one: Array[Item] = [item]
+	var pickups := drop(one, unit.global_position, unit.get_parent(), unit)
+	return pickups[0] if not pickups.is_empty() else null
+
+
+## The player trashes `item`: out of the inventory and the save for good,
+## item_trashed. Asking first (needs_trash_confirm()) is the caller's job.
+## False when can_remove() refuses it.
+func trash_item(champion: ChampionData, item: Item, unit: Unit = null) -> bool:
+	if can_remove(champion, item, unit) != "":
+		return false
+	get_inventory(champion).remove(item.uid)
+	save()
+	item_trashed.emit(champion.id, item)
+	return true
+
+
+## True when trashing `item` needs a second press: its rarity is
+## LootTable.trash_confirm_from or better (Unique and up).
+func needs_trash_confirm(item: Item) -> bool:
+	return item != null and item.rarity >= table.trash_confirm_from
 
 
 ## Debug (SandboxLoot's P, LOOT L5): one of each of the champion's named

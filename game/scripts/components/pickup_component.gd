@@ -34,6 +34,7 @@ func _ready() -> void:
 	_shape = CircleShape2D.new()
 	shape_node.shape = _shape
 	area_entered.connect(_on_area_entered)
+	area_exited.connect(_on_area_exited)
 	if debug_draw:
 		visibility_layer |= FloorOverlay.DRAWING_VISIBILITY_BIT   # a floor drawing in 3D
 	# The unit sets its stats up in its own _ready(), after this one.
@@ -65,10 +66,17 @@ func _on_stat_changed(key: StringName, _old_value: float, _new_value: float) -> 
 		_update_radius()
 
 
-## A dead unit collects nothing.
+## A dead unit collects nothing, nor an item it dropped until it has walked
+## away from it (L7b, Pickup's hold).
 func _on_area_entered(area: Area2D) -> void:
-	if area is Pickup and unit != null and unit.is_alive():
+	if area is Pickup and unit != null and unit.is_alive() and not (area as Pickup).is_held_for(unit):
 		Loot.collect(area as Pickup, unit)
+
+
+## Leaving a pickup this unit dropped ends its hold: coming back takes it.
+func _on_area_exited(area: Area2D) -> void:
+	if area is Pickup and unit != null:
+		(area as Pickup).release_hold(unit)
 
 
 func _draw() -> void:
