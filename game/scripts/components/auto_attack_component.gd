@@ -606,6 +606,7 @@ func _update_debug_draw() -> void:
 		_debug_node.name = "SwingAssistDebug"
 		_debug_node.top_level = true
 		_debug_node.z_index = 100
+		_debug_node.visibility_layer |= FloorOverlay.DRAWING_VISIBILITY_BIT   # shows on the 3D floor (the cleanup's C2)
 		_debug_node.draw.connect(_on_debug_node_draw)
 		unit.add_child(_debug_node)
 	_debug_node.queue_redraw()

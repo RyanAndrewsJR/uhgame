@@ -31,6 +31,8 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
+	if Unit.looks_2d_off:
+		return   # the 2D look; the 3D view shows its view (the cleanup's C2)
 	var pulse := 1.0 + 0.08 * sin(_time * 10.0)
 	var r := 7.0 * pulse
 	# Four arcs with gaps: a ring cracked in four places, flattened for the 3/4 view.

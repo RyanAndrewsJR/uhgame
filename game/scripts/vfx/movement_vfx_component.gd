@@ -1,7 +1,9 @@
 class_name MovementVFXComponent
 extends Node2D
 ## Movement feedback for a Unit (docs/MOVEMENT.md, Feel pass F3).
-## VFX only: never changes gameplay state.
+## VFX only: never changes gameplay state. The 2D game's look only: it does
+## nothing while Unit.looks_2d_off (the 3D view shows the game; its dash ghosts
+## are UnitView's since the cleanup's C2).
 ##
 ## - Dash (DashComponent signals): the Body stretches along the dash, then
 ##   squashes when the dash ends; afterimages; a dust puff at the start.
@@ -228,7 +230,7 @@ func _reset_state() -> void:
 # --- Dash -----------------------------------------------------------------------
 
 func _on_dash_component_dash_started(direction: Vector2) -> void:
-	if not enabled:
+	if not enabled or Unit.looks_2d_off:   # the 3D view's dash ghosts are UnitView's
 		return
 	_dash_dir = direction
 	_stretch_age = 0.0
@@ -258,7 +260,7 @@ func _physics_process(delta: float) -> void:
 	# afterimage placed here never shows up ahead of the unit.
 	var frame_start_position := _last_physics_position
 	_last_physics_position = unit.global_position
-	if not unit.is_alive():
+	if not unit.is_alive() or Unit.looks_2d_off:
 		return
 	_reversal_cooldown_left -= delta
 
@@ -289,7 +291,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _process(delta: float) -> void:
-	if not unit.is_alive():
+	if not unit.is_alive() or Unit.looks_2d_off:
 		_deform_scale = Vector2.ONE
 		return
 	_update_bob(delta)
@@ -356,7 +358,7 @@ func _envelope(age: float, hold: float, return_time: float) -> float:
 
 func _on_frame_pre_draw() -> void:
 	_body_changed = false
-	if not is_instance_valid(body) or not unit.is_alive():
+	if not is_instance_valid(body) or not unit.is_alive() or Unit.looks_2d_off:
 		return
 	var uses_bob := walk_bob_px > 0.0
 	if not uses_bob and _deform_scale == Vector2.ONE:

@@ -22,6 +22,17 @@ const HURTBOX_KNOCKBACK_TIME := 0.12
 ## Invulnerability id of the post-hit i-frames.
 const HIT_IFRAMES_ID := &"hit_iframes"
 
+## The 2D game's own looks (the placeholder bodies and sword, their flashes,
+## bobs and death tweens, the 2D movement effects, VFX.impact()'s 2D pillar,
+## VFX.afterimage(), the 2D drawings of projectiles, auras, stun stars and
+## marks, a unit's own HealthBar) don't run while this is true: the 3D view
+## shows the game and hides the 2D world (WorldView.hide_sim() sets it and
+## puts it back; 3D.md, the cleanup's C2). Floor drawings (VFX.slash(),
+## VFX.ring(), Telegraph, the indicators, the hover ring) aren't 2D-only: they
+## draw the 3D floor and keep running. It lives here, not on VFX, because the
+## scripts that read it already depend on Unit; VFX depends on the view.
+static var looks_2d_off: bool = false
+
 @export var stats: UnitStats
 @export var team: Team = Team.ENEMY
 ## Where the middle of the unit's body is, relative to its feet. Used for
@@ -31,6 +42,11 @@ const HIT_IFRAMES_ID := &"hit_iframes"
 ## i-frames"; the player 0.3 since M1). 0 = none. Other hits in the same
 ## frame are blocked by it too. DoT ticks and procs don't start it.
 @export var post_hit_iframes: float = 0.0
+## Seconds from dying until the node is freed (game time, slowed by hitstop,
+## as the 2D death animation it used to wait for). The 3D view's death goes
+## on after (UnitView.death_linger). The Player isn't freed
+## (Player._play_death()).
+@export var death_free_time: float = 0.33
 
 @export_group("Sounds")
 ## When a hit takes health (AUDIO.md; CombatSounds plays it). The player,
@@ -48,6 +64,10 @@ const HIT_IFRAMES_ID := &"hit_iframes"
 ## mechanism: the unit is in the group view_source). null = UnitView's scene.
 ## Nothing is built without a WorldView (the 2D game, every test).
 @export var view_scene: PackedScene
+## With no model_scene, the placeholder capsule's color, times the unit's
+## modulate (the sandbox dummies' tint). It was the 2D body's main color
+## until the cleanup's C2.
+@export var model_color: Color = Color(0.75, 0.3, 0.3)
 
 @onready var stats_component: StatsComponent = $StatsComponent
 @onready var health: HealthComponent = $HealthComponent
@@ -433,6 +453,8 @@ func _on_hurtbox_hurt(hitbox: Hitbox) -> void:
 ## Every hit that gets through flashes the body white, then fades back over
 ## GameFeel.hit_feel.flash_time (COMBAT C3).
 func _flash() -> void:
+	if Unit.looks_2d_off:
+		return   # the 3D view flashes the model (UnitView)
 	var feel := GameFeel.hit_feel
 	body.modulate = feel.flash_modulate
 	create_tween().tween_property(body, "modulate", Color.WHITE, feel.flash_time)
@@ -544,13 +566,18 @@ func _on_died() -> void:
 	_play_death()
 
 
-## Override for custom death animations.
+## Override for custom death animations. The unit is freed death_free_time
+## after it dies whether the 2D body's animation runs or not (the cleanup's
+## C2: the free used to wait for that animation's end, the same 0.33 s).
 func _play_death() -> void:
-	var tween := create_tween()
-	tween.tween_interval(0.08)
-	tween.tween_property(body, "scale", Vector2(1.5, 0.2), 0.15)
-	tween.parallel().tween_property(body, "modulate:a", 0.0, 0.25)
-	tween.tween_callback(queue_free)
+	if not Unit.looks_2d_off:
+		var tween := create_tween()
+		tween.tween_interval(0.08)
+		tween.tween_property(body, "scale", Vector2(1.5, 0.2), 0.15)
+		tween.parallel().tween_property(body, "modulate:a", 0.0, 0.25)
+	var free_after := create_tween()
+	free_after.tween_interval(death_free_time)
+	free_after.tween_callback(queue_free)
 
 
 # --- Hover ring ---------------------------------------------------------------

@@ -29,6 +29,8 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
+	if Unit.looks_2d_off:
+		return   # the 2D look; the 3D view shows its view (the cleanup's C2)
 	for i in 3:
 		var a := _spin + i * TAU / 3.0
 		var p := Vector2(cos(a) * 9.0, sin(a) * 3.0)

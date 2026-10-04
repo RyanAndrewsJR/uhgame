@@ -86,6 +86,8 @@ func _setup(p_caster: Unit, p_ability: Ability, p_cast: CastContext, origin: Vec
 
 func _ready() -> void:
 	add_to_group(&"view_source")   # its 3D look (3D.md); nothing happens without a WorldView
+	if debug_draw:
+		visibility_layer |= FloorOverlay.DRAWING_VISIBILITY_BIT   # the debug sweep shows on the 3D floor (cleanup C2)
 
 
 ## The scene of its 3D view (view_scene, or the default bolt). Loaded only when
@@ -159,10 +161,11 @@ func _hit(target: Unit) -> void:
 
 
 func _draw() -> void:
-	var up := Vector2(0, -DRAW_HEIGHT_PX)
-	var r := clampf(half_width_px * 0.5, 2.0, 6.0)
-	draw_line(up - direction * r * 3.0, up, Color(ability.icon_color, 0.5), r)
-	draw_circle(up, r, Color(ability.icon_color, 0.95))
+	if not Unit.looks_2d_off:   # the 2D bolt; the 3D view shows ProjectileView
+		var up := Vector2(0, -DRAW_HEIGHT_PX)
+		var r := clampf(half_width_px * 0.5, 2.0, 6.0)
+		draw_line(up - direction * r * 3.0, up, Color(ability.icon_color, 0.5), r)
+		draw_circle(up, r, Color(ability.icon_color, 0.95))
 	if debug_draw:
 		var a := to_local(_last_from)
 		var b := to_local(_last_to)

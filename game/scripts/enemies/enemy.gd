@@ -71,7 +71,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _process(delta: float) -> void:
-	if not is_alive():
+	if not is_alive() or Unit.looks_2d_off:   # the 2D body's look (the cleanup's C2)
 		return
 	# Squishy hop while moving.
 	var moving := movement.get_move_direction() != Vector2.ZERO
@@ -170,6 +170,8 @@ func _can_see_player() -> bool:
 
 
 func _on_windup_started(_target: Unit, windup_time: float) -> void:
+	if Unit.looks_2d_off:
+		return
 	# Crouch before lunging.
 	var tween := create_tween()
 	tween.tween_property(body, "scale", Vector2(1.25, 0.75), windup_time)
@@ -182,6 +184,8 @@ func _on_attack_whiffed(target: Unit) -> void:
 
 
 func _on_attack_landed(target: Unit, _damage: float) -> void:
+	if Unit.looks_2d_off:
+		return
 	var dir := (target.global_position - global_position).normalized()
 	body.scale = Vector2(0.85, 1.2)
 	var tween := create_tween()

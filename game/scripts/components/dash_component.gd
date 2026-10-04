@@ -63,6 +63,8 @@ var _since_dash_end: float = INF
 func _ready() -> void:
 	unit = get_parent() as Unit
 	assert(unit != null, "DashComponent must be a child of a Unit")
+	if debug_draw:
+		visibility_layer |= FloorOverlay.DRAWING_VISIBILITY_BIT   # shows on the 3D floor (the cleanup's C2)
 	# The StatsComponent is set up in Unit._ready(), which runs after ours
 	# (children are ready first), so take the starting charges then.
 	unit.ready.connect(func() -> void: _charges = get_max_charges(), CONNECT_ONE_SHOT)

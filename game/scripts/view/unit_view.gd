@@ -10,7 +10,7 @@ extends EntityView
 ##   (AttackSwing.swing_anim, Ability.cast_anim). They're positioned by the
 ##   swing's or cast's progress, so the strike lands on the hit at any speed;
 ## - the hit flash, the death (finishing after the unit is freed), the dash
-##   afterimages (MovementVFXComponent's numbers) and the post-hit i-frame
+##   afterimages (Dash afterimages, below) and the post-hit i-frame
 ##   blink;
 ## - placeholders without clips squash during a windup and stretch on the hit.
 ## It never changes gameplay state.
@@ -71,8 +71,20 @@ enum Phase { NONE, LEAD_BY_PROGRESS, LEAD_BY_TIME, FOLLOW, DASH }
 
 @export_group("Placeholder")
 ## The capsule's height for a unit with no model_scene (m). 0 = 2.4 x its
-## gameplay radius.
+## gameplay radius. Its color is the unit's model_color.
 @export var capsule_height_m: float = 0.0
+
+@export_group("Dash afterimages")
+## Still copies of the model a dash leaves behind (a unit with a
+## DashComponent), the first at the start point. 0 = none. They were
+## MovementVFXComponent's numbers until the cleanup's C2; the same values.
+@export_range(0, 10) var afterimage_count: int = 4
+## Seconds between them.
+@export var afterimage_interval: float = 0.03
+## Seconds for each to fade out.
+@export var afterimage_fade_time: float = 0.15
+## Their color; alpha = the starting opacity.
+@export var afterimage_color: Color = Color(0.55, 0.85, 1.0, 0.5)
 
 ## The unit (set at setup; may be freed before this view, see EntityView.sim).
 var unit: Unit
@@ -225,23 +237,11 @@ func _build_placeholder() -> void:
 	model_height_m = height
 
 
-## The 2D body's main color (its biggest polygon) times the unit's tint.
+## The capsule's color: the unit's model_color times its tint (modulate, the
+## sandbox dummies'). It was the 2D body's biggest polygon until the
+## cleanup's C2.
 func _body_color() -> Color:
-	var best: Polygon2D = null
-	var best_area := 0.0
-	if unit.body:
-		for node in unit.body.find_children("*", "Polygon2D", true, false):
-			var poly := node as Polygon2D
-			if poly.polygon.is_empty():
-				continue
-			var r := Rect2(poly.polygon[0], Vector2.ZERO)
-			for p in poly.polygon:
-				r = r.expand(p)
-			if r.get_area() > best_area:
-				best = poly
-				best_area = r.get_area()
-	var c := best.color if best else Color(0.75, 0.3, 0.3)
-	return c * unit.modulate
+	return unit.model_color * unit.modulate
 
 
 # --- Sync (physics tick, after the sim) -----------------------------------------------
@@ -578,21 +578,8 @@ func on_sim_exited() -> void:
 
 # --- Dash afterimages ------------------------------------------------------------------------
 
-## The 2D dash's afterimage numbers (MovementVFXComponent), so both looks tune
-## in one place; none without the component or with it off.
-func _vfx_number(property: StringName, fallback: Variant) -> Variant:
-	var vfx := unit.get_node_or_null(^"MovementVFXComponent")
-	if vfx == null or vfx.get(&"enabled") == false:
-		return null
-	var v: Variant = vfx.get(property)
-	return v if v != null else fallback
-
-
 func _start_ghosts() -> void:
-	var count: Variant = _vfx_number(&"afterimage_count", 0)
-	if count == null:
-		return
-	_ghosts_left = int(count)
+	_ghosts_left = afterimage_count
 	_ghost_timer = 0.0
 
 
@@ -602,9 +589,9 @@ func _update_ghosts(delta: float) -> void:
 	_ghost_timer -= delta
 	if _ghost_timer > 0.0:
 		return
-	_ghost_timer = float(_vfx_number(&"afterimage_interval", 0.03))
+	_ghost_timer = afterimage_interval
 	_ghosts_left -= 1
-	_spawn_ghost(_vfx_number(&"afterimage_color", Color(0.55, 0.85, 1.0, 0.5)), float(_vfx_number(&"afterimage_fade_time", 0.15)))
+	_spawn_ghost(afterimage_color, afterimage_fade_time)
 
 
 ## A still copy of the model where it's drawn now, fading out. A rigged model
@@ -650,10 +637,9 @@ func _ghost_material(color: Color) -> StandardMaterial3D:
 ## A rigged model's afterimages: afterimage_count copies of it, made once,
 ## hidden, under the WorldView (they stay where they were left).
 func _build_ghost_pool(scene: PackedScene) -> void:
-	var count: Variant = _vfx_number(&"afterimage_count", 0)
-	if count == null or int(count) <= 0 or _anim == null:
+	if afterimage_count <= 0 or _anim == null:
 		return
-	for i in int(count):
+	for i in afterimage_count:
 		var root := scene.instantiate() as Node3D
 		root.name = "Ghost_%s_%d" % [sim.name, i]
 		root.visible = false

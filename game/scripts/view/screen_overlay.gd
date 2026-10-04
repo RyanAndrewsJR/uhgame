@@ -130,7 +130,9 @@ func _place_bar(unit: Unit, entry: Dictionary) -> void:
 	if not is_instance_valid(bar) or not is_instance_valid(source):
 		return
 	var head := point_over(unit, 1.0)
-	if camera == null or not source.visible or camera.is_position_behind(head):
+	# Hidden from the death on (it read the 2D bar's visible until the
+	# cleanup's C2; the unit hid that bar at its death).
+	if camera == null or not unit.is_alive() or camera.is_position_behind(head):
 		bar.visible = false
 		return
 	bar.visible = true

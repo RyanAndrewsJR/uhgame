@@ -118,6 +118,7 @@ func _ready() -> void:
 	await _test_terrain_in_view()
 	_test_terrain_sandbox()
 	await _test_arcs_and_pillars()
+	await _test_looks_2d_off()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -1175,15 +1176,16 @@ func _test_overlays_in_setup() -> void:
 		bar.position.distance_to(cam.unproject_position(head) - Vector2(0.0, 3.0 + float(bar.get(&"height")))), 0.0, 0.001)
 	source.visible = false
 	screen._process(0.0)
-	_check("the 2D bar hidden (a death): the copy hides", bar.visible, false)
+	_check("the unit's own 2D bar hidden doesn't hide the copy (it follows the unit's death since the cleanup's C2)", bar.visible, true)
 	source.visible = true
-	screen._process(0.0)
-	_check("shown again with it", bar.visible, true)
 	var late := slime_scene.instantiate() as Unit
 	late.position = Vector2(144.0, 80.0)
 	entities.add_child(late)
 	_check("a unit added later gets its bar with its view", screen.bar_of(late) != null, true)
 	var late_bar := screen.bar_of(late)
+	late.health.take_damage(late.health.max_health * 10.0)
+	screen._process(0.0)
+	_check("its death hides its copy", late_bar.visible if late_bar else true, false)
 	late.free()
 	await get_tree().process_frame
 	_check("a unit gone: its bar goes", is_instance_valid(late_bar), false)
@@ -2128,6 +2130,100 @@ func _pillars(view: WorldView) -> Array[Node]:
 		if child.scene_file_path == VFX.PILLAR_VIEW_SCENE:
 			out.append(child)
 	return out
+
+
+# --- The cleanup's C2: the 2D looks off under the view ------------------------------------
+
+func _test_looks_2d_off() -> void:
+	_section("The cleanup's C2: the 2D game's own looks off under the view (Unit.looks_2d_off)")
+	_check("off by default: the 2D game, and every test without a view, runs them", Unit.looks_2d_off, false)
+	var main := Node2D.new()
+	var room := Node2D.new()
+	main.add_child(room)
+	add_child(main)
+	var view := WorldView.new()
+	main.add_child(view)
+	view.hide_sim(main, room)
+	_check("WorldView.hide_sim() turns it on", Unit.looks_2d_off, true)
+	view.free()
+	_check("and the view leaving turns it off again", Unit.looks_2d_off, false)
+	main.free()
+
+	var holder := Node2D.new()
+	add_child(holder)
+	var slime := (load("res://scenes/enemies/slime.tscn") as PackedScene).instantiate() as Enemy
+	slime.passive = true
+	slime.position = Vector2(64.0, 64.0)
+	holder.add_child(slime)
+	var knight := (load("res://scenes/player/player.tscn") as PackedScene).instantiate() as Player
+	knight.position = Vector2(240.0, 64.0)
+	holder.add_child(knight)
+	await get_tree().physics_frame
+	Unit.looks_2d_off = true
+	slime._flash()
+	_check("with it on, a hit doesn't flash the 2D body (UnitView flashes the model)", slime.body.modulate, Color.WHITE)
+	var bob_scale := slime.body.scale
+	slime._process(0.25)
+	_check("the slime's 2D bob doesn't run", slime.body.scale, bob_scale)
+	var side := knight.swing_side
+	var sword_rotation := knight.sword.rotation
+	knight._swing_sword(0.1)
+	_check("a swing still alternates swing_side (the floor drawings' slashes read it); the 2D sword doesn't move",
+		[knight.swing_side, knight.sword.rotation], [-side, sword_rotation])
+	var unit_bar := slime.get_node(^"HealthBar")
+	_check("a unit's own 2D HealthBar doesn't run", unit_bar.call(&"_is_2d_bar_off"), true)
+	var copy := unit_bar.duplicate()
+	holder.add_child(copy)
+	_check("its copy elsewhere (ScreenOverlay's) does", copy.call(&"_is_2d_bar_off"), false)
+	copy.free()
+	var children := holder.get_child_count()
+	VFX.impact(holder, Vector2(10.0, 10.0), Color.WHITE, 40.0, 0.2)
+	VFX.afterimage(slime)
+	knight.get_node(^"MovementVFXComponent").call(&"_on_dash_component_dash_started", Vector2.RIGHT)
+	_check("VFX.impact()'s 2D pillar, VFX.afterimage() and the 2D dash's afterimages and dust aren't made", holder.get_child_count(), children)
+	var projectile := Projectile.new()
+	projectile.debug_draw = true
+	projectile.process_mode = Node.PROCESS_MODE_DISABLED   # no ability: only its _ready matters here
+	holder.add_child(projectile)
+	var move := MovementComponent.new()
+	move.debug_draw_path = true
+	var mover := CharacterBody2D.new()
+	mover.add_child(move)
+	holder.add_child(mover)
+	var bit := FloorOverlay.DRAWING_VISIBILITY_BIT
+	var path_line := move.get(&"_debug_line") as Line2D
+	_check("debug drawings show on the 3D floor (Ryan's pick): a projectile's sweep, the movement path (on the floor-drawing layer)",
+		projectile.visibility_layer & bit != 0 and move.visibility_layer & bit != 0 and path_line != null and path_line.visibility_layer & bit != 0, true)
+	_check("the slime's death_free_time is the 2D squash's length, 0.33 s", slime.death_free_time, 0.33)
+	projectile.free()
+	var death_scale := slime.body.scale
+	slime.health.take_damage(slime.health.max_health * 10.0)
+	for i in 10:
+		await get_tree().physics_frame
+	_check("its death's 2D squash doesn't run", slime.body.scale, death_scale)
+	_check("but the unit is still there before its death_free_time", is_instance_valid(slime), true)
+	for i in 20:
+		await get_tree().physics_frame
+	_check("and freed after it, as when it waited for the squash", is_instance_valid(slime), false)
+	Unit.looks_2d_off = false
+	holder.free()
+
+	var green := (load("res://scenes/enemies/slime.tscn") as PackedScene).instantiate() as Unit
+	var elite := (load("res://scenes/enemies/slime_elite.tscn") as PackedScene).instantiate() as Unit
+	_check("the capsules' colors are data now (model_color): the slime green, the elite purple, their 2D bodies' main colors",
+		[green.model_color, elite.model_color], [Color(0.35, 0.85, 0.4, 1.0), Color(0.62, 0.35, 0.85, 1.0)])
+	var uv := (load("res://scenes/view/unit_view.tscn") as PackedScene).instantiate() as UnitView
+	uv.unit = green
+	green.modulate = Color(1.0, 0.5, 0.5)
+	_check("UnitView's capsule takes it, times the unit's tint (the sandbox dummies')", uv._body_color(), Color(0.35, 0.85, 0.4, 1.0) * Color(1.0, 0.5, 0.5))
+	var mvfx: Script = load("res://scripts/vfx/movement_vfx_component.gd")
+	_check("the 3D dash ghosts' numbers are UnitView's own, the 2D component's values (4, 0.03 s apart, 0.15 s fade, its color)",
+		[uv.afterimage_count, uv.afterimage_interval, uv.afterimage_fade_time, uv.afterimage_color],
+		[mvfx.get_property_default_value(&"afterimage_count"), mvfx.get_property_default_value(&"afterimage_interval"),
+			mvfx.get_property_default_value(&"afterimage_fade_time"), mvfx.get_property_default_value(&"afterimage_color")])
+	uv.free()
+	green.free()
+	elite.free()
 
 
 # --- Helpers ------------------------------------------------------------------------------

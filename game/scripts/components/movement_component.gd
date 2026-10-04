@@ -156,7 +156,10 @@ func _ready() -> void:
 		_debug_line.default_color = Color(0.4, 1.0, 0.5, 0.6)
 		_debug_line.top_level = true
 		_debug_line.z_index = 50
+		_debug_line.visibility_layer |= FloorOverlay.DRAWING_VISIBILITY_BIT   # shows on the 3D floor (the cleanup's C2)
 		add_child(_debug_line)
+	if debug_draw_path or debug_draw:
+		visibility_layer |= FloorOverlay.DRAWING_VISIBILITY_BIT   # (its child line needs it too)
 	if debug_draw:
 		z_index = 60
 

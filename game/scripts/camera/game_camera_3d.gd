@@ -30,9 +30,11 @@ const DEBUG_LAYER := 90
 ## What the camera follows: a Node3D at the player's feet (the player's
 ## UnitView). Freed (the player died): the camera holds.
 var target: Node3D
-## The player whose aiming makes the lean full (its public state). null: no
-## lean at all (a camera with no player only follows).
-var player: Player
+## The player whose aiming makes the lean full (Player.is_aiming_or_acting()).
+## null: no lean at all (a camera with no player only follows). Typed Unit,
+## not Player: a Player type here closed a load cycle (Unit -> its components
+## -> FloorOverlay -> this -> Player, which extends Unit; the cleanup's C2).
+var player: Unit
 ## The room's floor in meters (x and z as a Rect2); the focus stays inside.
 ## Empty: no bounds.
 var bounds_m: Rect2 = Rect2()
@@ -165,13 +167,11 @@ func _update_lead(delta: float) -> void:
 
 
 ## Full lean while the player aims or casts an ability (or winds up a basic
-## attack), read through Player's public state.
+## attack).
 func _is_player_aiming() -> bool:
-	if player == null or not is_instance_valid(player):
+	if player == null or not is_instance_valid(player) or not player.has_method(&"is_aiming_or_acting"):
 		return false
-	return player.aiming_slot != &"" \
-		or player.is_in_state(Player.State.CASTING) \
-		or player.is_in_state(Player.State.ATTACK)
+	return player.call(&"is_aiming_or_acting")
 
 
 func _get_move_lead() -> Vector2:

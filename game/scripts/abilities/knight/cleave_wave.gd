@@ -24,7 +24,8 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 	VFX.slash(caster.get_parent(), VFX.drawing_origin(caster), ctx.direction.angle(), 8.0, 22.0,
 		deg_to_rad(crescent_half_angle_deg), Color(1, 1, 1, 0.85), 0.12, side)
 	for p in Projectile.fire(caster, self, ctx, caster.global_position, ctx.direction):
-		p.add_child(_crescent(p.half_width_px, p.direction))
+		if not Unit.looks_2d_off:   # the 2D look; the 3D view shows the projectile's view
+			p.add_child(_crescent(p.half_width_px, p.direction))
 
 
 ## A crescent the width of the wave, its front on the projectile, facing its

@@ -35,6 +35,8 @@ func _on_health_changed(current: float, maximum: float) -> void:
 
 
 func _process(delta: float) -> void:
+	if _is_2d_bar_off():
+		return
 	if _trail > _current:
 		_trail = move_toward(_trail, _current, _maximum * 0.6 * delta)
 		queue_redraw()
@@ -42,7 +44,16 @@ func _process(delta: float) -> void:
 		_trail = _current
 
 
+## The bar on its unit doesn't run while the 3D view shows the game
+## (Unit.looks_2d_off): ScreenOverlay draws a copy of it over the model, which
+## does (the cleanup's C2).
+func _is_2d_bar_off() -> bool:
+	return Unit.looks_2d_off and get_parent() is Unit
+
+
 func _draw() -> void:
+	if _is_2d_bar_off():
+		return
 	var x := -width * 0.5
 	var ratio := clampf(_current / _maximum, 0.0, 1.0)
 	var trail_ratio := clampf(_trail / _maximum, 0.0, 1.0)

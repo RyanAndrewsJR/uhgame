@@ -24,6 +24,7 @@ static var floor_squash: float = FLOOR_SQUASH_2D
 static var drawings_at_feet: bool = false
 
 
+
 ## impact()'s pillar scene, loaded at its first use and kept: a load() whose
 ## result nobody keeps reads the file again at every hit (1.5–1.9 ms).
 static var _pillar_scene: PackedScene
@@ -119,6 +120,8 @@ static func ring(parent: Node, pos: Vector2, from_radius: float, to_radius: floa
 ## the y-sorted Entities, so it draws behind the unit and above the floor
 ## tiles (a negative z_index drew it under the TileMapLayer, unseen).
 static func afterimage(unit: Unit, color: Color = Color(0.6, 0.8, 1.0, 0.5), duration: float = 0.25) -> void:
+	if Unit.looks_2d_off:
+		return
 	var holder := Node2D.new()
 	holder.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF   # a still image where it's placed
 	holder.global_position = unit.global_position - Vector2(0.0, AFTERIMAGE_SORT_OFFSET)
@@ -145,16 +148,17 @@ static func afterimage(unit: Unit, color: Color = Color(0.6, 0.8, 1.0, 0.5), dur
 ## the game (where this 2D one is hidden with the sim), the view also raises
 ## a PillarView there, `height` px tall as meters (3D.md, P7's 2D-only looks).
 static func impact(parent: Node, pos: Vector2, color: Color, height: float = 60.0, duration: float = 0.25) -> void:
-	var poly := Polygon2D.new()
-	poly.color = color
-	poly.z_index = 21
-	poly.polygon = PackedVector2Array([Vector2(-6, 0), Vector2(-2, -height), Vector2(2, -height), Vector2(6, 0)])
-	poly.position = pos
-	parent.add_child(poly)
-	var tw := poly.create_tween()
-	tw.tween_property(poly, "scale", Vector2(0.2, 1.1), duration)
-	tw.parallel().tween_property(poly, "modulate:a", 0.0, duration)
-	tw.tween_callback(poly.queue_free)
+	if not Unit.looks_2d_off:
+		var poly := Polygon2D.new()
+		poly.color = color
+		poly.z_index = 21
+		poly.polygon = PackedVector2Array([Vector2(-6, 0), Vector2(-2, -height), Vector2(2, -height), Vector2(6, 0)])
+		poly.position = pos
+		parent.add_child(poly)
+		var tw := poly.create_tween()
+		tw.tween_property(poly, "scale", Vector2(0.2, 1.1), duration)
+		tw.parallel().tween_property(poly, "modulate:a", 0.0, duration)
+		tw.tween_callback(poly.queue_free)
 	var view := WorldView.of(parent)
 	if view:
 		var pillar := _new_pillar()

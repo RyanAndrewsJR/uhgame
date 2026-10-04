@@ -11,7 +11,41 @@
 
 ## 3D pivot (3D_PIVOT.md)
 
-### Cleanup C1 – the camera handover: 2026-10-03, Built (awaiting Ryan's check)
+### Cleanup C2 – the 2D looks off under the view: 2026-10-03, Built (awaiting Ryan's check)
+The second of the cleanup's three steps (3D.md, Build order after P-M): the four things that hung on the 2D looks fixed, then the looks switched off under the view. With the flag off, the 2D game plays as before.
+- **The fixes:**
+  - **Death:** `Unit._play_death()` frees the unit on its own tween after the new `death_free_time` (0.33 s, the 2D animation's length), whether the animation runs or not.
+  - **The swing side:** `Player._swing_sword()` flips `swing_side` first, then skips the sword's animation with the looks off.
+  - **Capsule colors:** new `Unit.model_color` (View group), set in `slime.tscn` (0.35, 0.85, 0.4), `slime_elite.tscn` (0.62, 0.35, 0.85) and `player.tscn` (0.32, 0.56, 0.95): their 2D bodies' main colors. `UnitView._body_color()` is `model_color × modulate`.
+  - **Dash ghosts:** UnitView's new export group Dash afterimages (`afterimage_count` 4, `afterimage_interval` 0.03, `afterimage_fade_time` 0.15, `afterimage_color`), MovementVFXComponent's values. `_vfx_number()` is gone.
+  - **Bars:** `ScreenOverlay._place_bar()` hides a copy when its unit dies (`is_alive()`), no longer when the 2D bar hides.
+- **The switch:** static `Unit.looks_2d_off`, set by `WorldView.hide_sim()` and put back in its `_exit_tree()`. Each 2D-only look checks it when it would run (room units are ready before the view sets it). Off under it:
+  - `Unit._flash()` and its death animation;
+  - Player: the blink, flip, bob, sword, glow, dash alpha, swing and cast sword animations, `face()`, its death animation;
+  - Enemy: `_process()` (bob, eyes), the windup crouch, the attack lunge;
+  - `MovementVFXComponent` (deform hooks, physics and process, dash afterimages and dust);
+  - a unit's own HealthBar (`_is_2d_bar_off()`; ScreenOverlay's copies run);
+  - `VFX.impact()`'s 2D polygon, `VFX.afterimage()`;
+  - the projectile's 2D bolt (its debug sweep stays), Cleave Wave's crescent;
+  - `aura.gd`'s, `stun_stars.gd`'s and `staggered_mark.gd`'s `_draw()`.
+- **On the floor** (Ryan's pick): the projectile's debug sweep, `MovementComponent`'s path line and speed graph, `DashComponent`'s charge pips and `AutoAttackComponent`'s aim-help drawing get `FloorOverlay.DRAWING_VISIBILITY_BIT`; so do the test abilities' beams (charged line, vector line).
+- **Found while building:**
+  - **A load cycle.** The switch first lived on `VFX`. stun_stars.gd, newly reading it, closed a chain: stun_stars → VFX → WorldView → GameCamera3D → Audio → CombatSounds → `Player`, which extends `Unit` while Unit was still compiling. Every suite but stats and talents failed to parse.
+    - The switch moved to `Unit`, which every reader already depends on.
+    - `GameCamera3D.player` (C1) is typed `Unit` and asks the new `Player.is_aiming_or_acting()` instead of Player's states.
+  - **Packing hides overrides.** A harness that packs a scene with a changed property inside an instanced sub-scene loses the change unless that instance is editable.
+- **Played** (windowed harness in the tile sandbox, saving off; flag on, then off):
+  - Under the view `Unit.looks_2d_off` is on, and 0 of 3 slimes' 2D bodies changed scale over 2 s; with the flag off, 3 of 3 did.
+  - Three swings: `swing_side` -1, 1, -1 in both.
+  - The dummy was freed 334 ms after dying in both (333 without screenshots).
+  - Screenshots: green slimes, the purple elite, the Knight's blue 3D dash ghosts; a slime's green movement path on the 3D floor.
+  - Frame times without screenshots: median 5.49, p95 7.31, max 8.96 ms.
+- **Tests:** view_test 401 (+17).
+  - New `_test_looks_2d_off()`: the switch's default, set and restore; with it on, no flash, bob, 2D pillar, afterimage or 2D dash ghosts; `swing_side` still flips; a unit's own bar off and its copy on; the debug layers; `death_free_time` 0.33 and the free after it; the capsule colors; the ghost numbers equal to the 2D component's.
+  - P7's bar check now kills a unit instead of hiding the 2D bar.
+- All seven suites: **2,207/2,207** (stats 179, combat 476, abilities 565, audio 110, champions 168, talents 308, view 401). Saves unchanged.
+
+### Cleanup C1 – the camera handover: 2026-10-03, Passed (Ryan's check 2026-10-03)
 The first of the cleanup's three steps (3D.md, Build order after P-M), with Ryan's answers at the start: three steps with the camera first, its tuning on `CameraLook`, and the debug drawings on the floor (in C2).
 - **Mapped first** (a read-only sweep of every 2D placeholder look and what depends on it): nothing in gameplay depends on them, except four things C2 fixes first:
   - a unit is freed by its 2D death tween;

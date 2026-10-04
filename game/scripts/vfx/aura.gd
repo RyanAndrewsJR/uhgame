@@ -43,6 +43,8 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
+	if Unit.looks_2d_off:
+		return   # the 2D look; the 3D view shows its view (the cleanup's C2)
 	var pulse := 0.5 + 0.5 * sin(_t * 10.0)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, 0.55))
 	draw_arc(Vector2.ZERO, radius + pulse * 2.0, 0.0, TAU, 32, Color(color, 0.5 + pulse * 0.4), 2.0)

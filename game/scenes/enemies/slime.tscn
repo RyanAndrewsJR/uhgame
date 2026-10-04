@@ -26,6 +26,7 @@ script = ExtResource("1_enemy")
 stats = ExtResource("6_stats")
 body_center = Vector2(0, -10)
 death_sound = ExtResource("11_death_sound")
+model_color = Color(0.35, 0.85, 0.4, 1)
 
 [node name="Shadow" type="Polygon2D" parent="."]
 color = Color(0, 0, 0, 0.35)

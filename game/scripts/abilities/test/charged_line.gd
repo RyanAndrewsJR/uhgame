@@ -32,6 +32,7 @@ func _flash(caster: Unit, from: Vector2, to: Vector2) -> void:
 	line.default_color = Color(icon_color, 0.8)
 	line.add_point(from)
 	line.add_point(to)
+	line.visibility_layer |= FloorOverlay.DRAWING_VISIBILITY_BIT   # a floor drawing in 3D (the cleanup's C2)
 	caster.get_parent().add_child(line)
 	var tween := line.create_tween()
 	tween.tween_property(line, "modulate:a", 0.0, 0.2)

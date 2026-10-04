@@ -12,7 +12,7 @@
 | `res://scripts/components/dash_component.gd` | `DashComponent`, child of Player. The dash. |
 | `res://scripts/player/player.gd` | Q/W/E/R casting, facing and aim, player states. (The dormant LoL right-click orders were deleted 2026-09-29.) |
 | `res://scripts/camera/game_camera.gd` | Locked follow with aim lead; unlocked edge pan; shake; room bounds. Since the 3D pivot's cleanup C1 it runs only in the 2D game; `game_camera_3d.gd` does the same in 3D, tuned on `CameraLook` (3D.md). |
-| `res://scripts/vfx/movement_vfx_component.gd` | `MovementVFXComponent`, last child of the Player and of slimes. Movement feedback visuals (F3). |
+| `res://scripts/vfx/movement_vfx_component.gd` | `MovementVFXComponent`, last child of the Player and of slimes. Movement feedback visuals (F3). The 2D game's look only: it does nothing while the 3D view shows the game (`Unit.looks_2d_off`, the 3D pivot's cleanup C2), whose dash afterimages are `UnitView`'s (3D.md). |
 
 Visuals are Polygon2D placeholders (`Body`, `SwordPivot`). ~~The plan is 8-direction sprites.~~ With the 3D view each unit gets a model that turns smoothly to its facing (3D.md; Ryan, Q6, confirmed in P0b 2026-10-02).
 

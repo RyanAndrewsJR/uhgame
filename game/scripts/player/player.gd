@@ -485,8 +485,10 @@ func _update_charge_input() -> void:
 func _process(delta: float) -> void:
 	if not is_alive():
 		return
-	# Post-hit i-frames blink (visual only).
-	if has_invulnerability(HIT_IFRAMES_ID):
+	# Post-hit i-frames blink (visual only; the 3D view blinks the model).
+	if Unit.looks_2d_off:
+		pass
+	elif has_invulnerability(HIT_IFRAMES_ID):
 		_blink_time += delta
 		body.visible = fmod(_blink_time, hit_iframes_blink_period) < hit_iframes_blink_period * 0.6
 	elif _blink_time > 0.0:
@@ -511,6 +513,8 @@ func _process(delta: float) -> void:
 	if indicator_slot != &"" or _drawn_indicator_slot != &"":
 		queue_redraw()
 
+	if Unit.looks_2d_off:
+		return   # the rest is the 2D body's and sword's look
 	# Facing and a little walk bob.
 	var dir := movement.get_move_direction()
 	var busy := abilities.casting or attack.is_swing_rooted()
@@ -561,6 +565,13 @@ func _draw() -> void:
 
 
 # --- States -----------------------------------------------------------------------
+
+## True while the player aims or casts an ability or winds up a basic attack:
+## when the camera leans fully (MOVEMENT.md, Architecture 4). GameCamera3D
+## asks this, so it needn't know Player's states.
+func is_aiming_or_acting() -> bool:
+	return aiming_slot != &"" or is_in_state(State.CASTING) or is_in_state(State.ATTACK)
+
 
 func is_in_state(s: State) -> bool:
 	return state == s
@@ -645,6 +656,8 @@ func _update_facing() -> void:
 # --- Visuals ----------------------------------------------------------------------
 
 func face(point: Vector2) -> void:
+	if Unit.looks_2d_off:
+		return
 	var aim := point - sword_pivot.global_position
 	if aim.length() < 0.01:
 		return
@@ -656,6 +669,8 @@ func face(point: Vector2) -> void:
 ## Combo swing visuals (visual only): pull the sword back during the windup,
 ## then slash across the swing's arc at the hit.
 func _on_swing_started(_index: int, direction: Vector2, swing: AttackSwing) -> void:
+	if Unit.looks_2d_off:
+		return
 	face(sword_pivot.global_position + direction * 16.0)
 	if _swing_tween:
 		_swing_tween.kill()
@@ -670,8 +685,9 @@ func _on_swing_landed(index: int, _targets: Array[Unit]) -> void:
 	var swing := attack.get_current_swing()
 	var direction := attack.get_swing_direction()
 	var finisher := index == attack.combo.swings.size() - 1 or index < 0   # the dash-strike (-1) looks heavy too
-	sword.rotation = 0.0
-	_swing_sword(0.1)
+	if not Unit.looks_2d_off:
+		sword.rotation = 0.0
+	_swing_sword(0.1)   # alternates swing_side, which the slash below reads
 	VFX.slash(get_parent(), VFX.drawing_origin(self), direction.angle(), 8.0, attack.get_swing_reach_px(swing),
 		deg_to_rad(swing.arc_deg) * 0.5, Color(1, 1, 1, 0.95 if finisher else 0.75),
 		0.16 if finisher else 0.11, swing_side)
@@ -680,7 +696,8 @@ func _on_swing_landed(index: int, _targets: Array[Unit]) -> void:
 func _on_swing_cancelled() -> void:
 	if _swing_tween:
 		_swing_tween.kill()
-	sword.rotation = 0.0
+	if not Unit.looks_2d_off:
+		sword.rotation = 0.0
 
 
 func _on_cast_started(_slot: StringName, ability: Ability, ctx: CastContext) -> void:
@@ -702,16 +719,22 @@ func _on_cast_finished(_slot: StringName, _ability: Ability) -> void:
 
 ## I-frames read as a see-through body while dashing (visual only).
 func _on_dash_started(_direction: Vector2) -> void:
-	body.modulate.a = 0.5
+	if not Unit.looks_2d_off:
+		body.modulate.a = 0.5
 
 
 func _on_dash_ended() -> void:
-	body.modulate.a = 1.0
+	if not Unit.looks_2d_off:
+		body.modulate.a = 1.0
 
 
-## Sword swing animation (visual only).
+## Alternates swing_side (every swing and aimed cast; the floor drawings'
+## slashes sweep its way, so it flips with the 2D looks off too), then the
+## sword's swing animation (visual only).
 func _swing_sword(duration: float) -> void:
 	swing_side = -swing_side
+	if Unit.looks_2d_off:
+		return
 	var tween := create_tween()
 	sword.rotation = -1.2 * swing_side
 	tween.tween_property(sword, "rotation", 1.2 * swing_side, duration)
@@ -748,6 +771,8 @@ func _on_health_health_changed(current: float, maximum: float) -> void:
 
 
 func _play_death() -> void:
+	if Unit.looks_2d_off:
+		return   # the 3D view plays the death (UnitView)
 	var tween := create_tween()
 	tween.tween_property(body, "rotation", deg_to_rad(90.0), 0.25)
 	tween.parallel().tween_property(body, "modulate", Color(1, 0.3, 0.3, 0.6), 0.25)

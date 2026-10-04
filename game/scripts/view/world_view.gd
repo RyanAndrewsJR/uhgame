@@ -166,6 +166,7 @@ func setup(main: CanvasItem, room: Node2D, p_player: Player, _camera_2d: GameCam
 func _exit_tree() -> void:
 	if _sim_hidden:
 		get_viewport().canvas_cull_mask = _cull_mask_before
+		Unit.looks_2d_off = false
 		_sim_hidden = false
 	if _flat_floor_drawings:
 		VFX.floor_squash = VFX.FLOOR_SQUASH_2D
@@ -192,7 +193,8 @@ func flatten_floor_drawings() -> void:
 ## share a layer with a viewport's mask; P7's FloorOverlay draws from layer
 ## 2), and this viewport's cull mask drops layer 2. Everything the sim spawns
 ## goes under the room, so it's hidden too. The HUD and menus are CanvasLayers
-## and stay. Undone when the WorldView leaves the tree.
+## and stay. The 2D game's own looks stop running (Unit.looks_2d_off; the
+## cleanup's C2). Undone when the WorldView leaves the tree.
 func hide_sim(main: CanvasItem, room: CanvasItem) -> void:
 	main.visibility_layer = 1 | SIM_VISIBILITY_BIT
 	room.visibility_layer = SIM_VISIBILITY_BIT
@@ -204,6 +206,7 @@ func hide_sim(main: CanvasItem, room: CanvasItem) -> void:
 		_cull_mask_before = viewport.canvas_cull_mask
 		_sim_hidden = true
 	viewport.canvas_cull_mask = _cull_mask_before & ~SIM_VISIBILITY_BIT
+	Unit.looks_2d_off = true
 
 
 func _physics_process(_delta: float) -> void:
