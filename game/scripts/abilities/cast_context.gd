@@ -39,6 +39,12 @@ var charge: float:
 ## In a recast sequence: whether the previous part hit something
 ## (Condition LAST_PART_HIT; AB12). False for part 0 and outside a sequence.
 var last_part_hit: bool = false
+## Shared by every part of one recast sequence (LOOT L6): AbilityComponent
+## keeps part 0's dictionary with the sequence and hands it to each later
+## part, so part 0 can leave something for them (Lunge's return reads its
+## start point; any "go back" recast needs the same). A cast outside a
+## sequence (no recasts, a free cast) gets its own empty one.
+var sequence: Dictionary = {}
 ## VECTOR casts (ABILITIES AB13): the start point (world space, clamped to
 ## cast_range and to walls). `point` is the same spot and `direction` caster
 ## -> it, their usual meanings.

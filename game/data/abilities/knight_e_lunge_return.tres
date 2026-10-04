@@ -1,0 +1,40 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="1_iftfj"]
+[ext_resource type="Script" uid="uid://bu056xl0usviw" path="res://scripts/abilities/knight/lunge.gd" id="1_script"]
+[ext_resource type="Curve" path="res://data/curves/curve_dash.tres" id="2_curve"]
+[ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="3_1qhhu"]
+[ext_resource type="Script" uid="uid://effvdqcl7tjf" path="res://scripts/data/conditional_bonus.gd" id="3_bonus"]
+[ext_resource type="Script" uid="uid://b03uhk6wyab30" path="res://scripts/data/status_effect.gd" id="4_status"]
+[ext_resource type="Script" uid="uid://cvwv2nrsbyrah" path="res://scripts/data/stat_modifier.gd" id="5_3anf3"]
+[ext_resource type="Resource" path="res://data/statuses/status_staggered.tres" id="5_staggered"]
+[ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="9_ucinu"]
+[ext_resource type="Resource" path="res://data/sounds/sound_knight_lunge_cast.tres" id="s1_cast_sound"]
+
+[sub_resource type="Resource" id="stagger"]
+script = ExtResource("3_bonus")
+target_statuses = Array[ExtResource("4_status")]([ExtResource("5_staggered")])
+description = "Dash up to {range} units toward the target spot, passing through units and dealing {damage} physical damage ({base_damage} {ratios}) to every enemy you cut through. Recast within {recast_window}s to dash straight back to where you started (through units, hitting nothing). The cooldown starts after the return."
+
+[resource]
+script = ExtResource("1_script")
+dash_curve = ExtResource("2_curve")
+id = &"knight_lunge_return"
+tags = Array[StringName]([&"movement", &"mobility", &"dash", &"melee"])
+display_name = "Homeward Lunge"
+variant_of = &"knight_lunge"
+supported_flags = Array[StringName]([&"lunge_stuns", &"lunge_tackle"])
+description = "Dash up to {range} units toward the target spot, passing through units and dealing {damage} physical damage ({base_damage} {ratios}) to every enemy you cut through. Recast within {recast_window}s to dash straight back to where you started (through units, hitting nothing). The cooldown starts after the return."
+icon_color = Color(0.45, 0.8, 1, 1)
+targeting = 2
+cooldown = 8.0
+recast_count = 1
+recast_window = 2.5
+cast_time = 0.05
+cast_range = 400.0
+base_damage = 50.0
+ad_ratio = 0.5
+hit_shake = 2.5
+conditional_bonuses = Array[ExtResource("3_bonus")]([SubResource("stagger")])
+cast_sound = ExtResource("s1_cast_sound")
+cast_anim = &"1H_Melee_Attack_Stab"

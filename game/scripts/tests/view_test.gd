@@ -123,6 +123,9 @@ func _ready() -> void:
 	await _test_perch()
 	await _test_terrain_in_view()
 	_test_terrain_sandbox()
+	await _test_leap_terrain()
+	await _test_leap_sandbox()
+	await _test_leap_in_view()
 	await _test_arcs_and_pillars()
 	await _test_2d_looks_gone()
 	await _test_model_blink_and_clips()
@@ -1771,6 +1774,10 @@ func _test_airborne_status() -> void:
 	pullers.sort()
 	_check("and only the Knight's Judgement pulls: no enemy knocks up the player in v1 (files: %s)" % [pullers],
 		pullers, ["res://scripts/abilities/ability.gd", "res://scripts/abilities/knight/judgement.gd"])
+	# LOOT L6: a leap is the player's own (3D.md, Leaps): only The Last Verdict's
+	# Judgement Leap calls MovementComponent.leap().
+	var leapers := _files_mentioning("res://scripts/", "movement.leap(")
+	_check("only the Knight's Judgement Leap leaps (files: %s)" % [leapers], leapers, ["res://scripts/abilities/knight/judgement_leap.gd"])
 
 
 ## Every .gd, .tres and .tscn under `dir` (tests and the status itself left
@@ -2045,6 +2052,130 @@ func _test_terrain_sandbox() -> void:
 	_check("a passive dummy on it", dummy != null and dummy.properties.get("passive") == true and Rect2(12, 1, 4, 4).has_point(Vector2(dummy.position.x, dummy.position.z)), true)
 	_check("W is the test Uppercut there", (sandbox.get_node("SandboxAbilities").get(&"test_w") as Ability).id, &"test_uppercut")
 	sandbox.free()
+
+
+# --- Leaps (LOOT L6; 3D.md, Leaps) ----------------------------------------------------------
+
+## The terrain fixture plus a thin wall (x 6..6.25, z 0.5..2.5) and a pit
+## (x 6..7.5, z 5.5..7), for the leap.
+func _leap_layout() -> RoomLayout:
+	var layout := _terrain_layout()
+	var thin := _asset(layout, "ThinWall", Vector3(6.0, 0.0, 0.5))
+	_asset_box(thin, Vector3(0.25, 2.2, 2.0), Vector3(0.125, 1.1, 1.0))
+	_asset_footprint(thin, Footprint.Kind.WALL)
+	var pit := _asset(layout, "Pit", Vector3(6.0, 0.0, 5.5))
+	_asset_footprint(pit, Footprint.Kind.PIT, PackedVector2Array([Vector2(0, 0), Vector2(1.5, 0), Vector2(1.5, 1.5), Vector2(0, 1.5)]))
+	return layout
+
+
+func _test_leap_terrain() -> void:
+	_section("A leap over terrain (LOOT L6; 3D.md, Leaps): over cliffs, a fence, a wall and a pit; the nearest walkable floor")
+	var holder := await _terrain_room(_leap_layout())
+	var room := holder.get_child(0) as Room
+	var slime := (load("res://scenes/enemies/slime.tscn") as PackedScene).instantiate() as Unit
+	slime.set(&"passive", true)
+	room.get_node("Entities").add_child(slime)
+	var mask := slime.collision_mask
+	var seen := {"airborne": true, "mask": 0}
+	var leap := func(from_m: Vector2, to_m: Vector2) -> Vector2:
+		_place(slime, _px(from_m.x, from_m.y))
+		await get_tree().physics_frame
+		slime.movement.leap(_px(to_m.x, to_m.y), 0.3)
+		for i in 25:
+			await get_tree().physics_frame
+			if slime.movement.is_leaping():
+				seen.airborne = seen.airborne and slime.movement.is_airborne()
+				seen.mask = seen.mask | slime.collision_mask
+		return Vector2(Units.px_to_m(slime.global_position.x), Units.px_to_m(slime.global_position.y))
+	var free_there := func(at_m: Vector2) -> bool:
+		return WorldQuery.is_point_free(_px(at_m.x, at_m.y), 14.0, MovementComponent.LEAP_BLOCKING_MASK)
+	var up: Vector2 = await leap.call(Vector2(1.0, 3.5), Vector2(3.5, 3.5))
+	_check("from the floor up onto the plateau (over its cliff): exactly where aimed, at %s" % up, up.distance_to(Vector2(3.5, 3.5)) < 0.01, true)
+	var down: Vector2 = await leap.call(Vector2(3.5, 3.5), Vector2(3.5, 5.9))
+	_check("and down off it: exactly where aimed, at %s" % down, down.distance_to(Vector2(3.5, 5.9)) < 0.01, true)
+	var fence: Vector2 = await leap.call(Vector2(2.5, 7.4), Vector2(2.5, 5.7))
+	_check("over the fence, at %s" % fence, fence.distance_to(Vector2(2.5, 5.7)) < 0.01, true)
+	var wall: Vector2 = await leap.call(Vector2(5.5, 1.5), Vector2(7.0, 1.5))
+	_check("over a wall, at %s" % wall, wall.distance_to(Vector2(7.0, 1.5)) < 0.01, true)
+	var pit: Vector2 = await leap.call(Vector2(6.75, 7.6), Vector2(6.75, 4.8))
+	_check("over a pit, at %s" % pit, pit.distance_to(Vector2(6.75, 4.8)) < 0.01, true)
+	_check("airborne all the while, colliding with nothing; its mask back after", [seen.airborne, seen.mask, slime.collision_mask], [true, 0, mask])
+	var into_pit: Vector2 = await leap.call(Vector2(6.75, 7.6), Vector2(6.75, 6.8))
+	_check("aimed into the pit: on its nearer rim, clear of it (a pit isn't walkable floor), at %s" % into_pit,
+		absf(into_pit.x - 6.75) < 0.05 and into_pit.y > 7.3 and into_pit.y < 7.55 and free_there.call(into_pit), true)
+	var into_wall: Vector2 = await leap.call(Vector2(5.0, 1.5), Vector2(6.2, 1.5))
+	_check("aimed into the thin wall nearer its far face: on the floor past it, not back toward the start, at %s" % into_wall,
+		into_wall.x > 6.6 and into_wall.x < 6.8 and absf(into_wall.y - 1.5) < 0.05 and free_there.call(into_wall), true)
+	var edge_wall: Vector2 = await leap.call(Vector2(8.0, 6.0), Vector2(9.6, 6.0))
+	_check("aimed into the wall at the room's edge: in front of it, inside the room, at %s" % edge_wall,
+		edge_wall.x > 8.45 and edge_wall.x < 8.65 and absf(edge_wall.y - 6.0) < 0.1 and free_there.call(edge_wall), true)
+	var past: Vector2 = await leap.call(Vector2(5.0, 7.0), Vector2(5.0, 9.5))
+	_check("aimed past the room's floor: at its edge, inside, at %s" % past, absf(past.x - 5.0) < 0.05 and past.y > 7.5 and past.y < 7.7, true)
+	var rim: Vector2 = await leap.call(Vector2(1.0, 6.0), Vector2(3.5, 4.95))
+	_check("aimed at the plateau's rim (its ledge strip): on the nearer ground, the floor below, clear of the ledge, at %s" % rim,
+		absf(rim.x - 3.5) < 0.05 and rim.y > 5.35 and rim.y < 5.55 and free_there.call(rim), true)
+	holder.free()
+
+
+func _test_leap_sandbox() -> void:
+	_section("A leap in the 3D sandbox's terrain corner (LOOT L6: where The Last Verdict gets tried)")
+	var sandbox := (load("res://scenes/rooms/sandbox_3d.tscn") as PackedScene).instantiate() as RoomLayout
+	sandbox.get_node("Markers").free()   # the terrain alone: no units, no perch
+	for helper in ["SandboxReactions", "SandboxAbilities", "SandboxAugments", "SandboxTalents", "SandboxLoot"]:
+		if sandbox.has_node(helper):
+			sandbox.get_node(helper).free()
+	var holder := await _terrain_room(sandbox)
+	var room := holder.get_child(0) as Room
+	var slime := (load("res://scenes/enemies/slime.tscn") as PackedScene).instantiate() as Unit
+	slime.set(&"passive", true)
+	room.get_node("Entities").add_child(slime)
+	var leap := func(from_m: Vector2, to_m: Vector2) -> Vector2:
+		_place(slime, _px(from_m.x, from_m.y))
+		await get_tree().physics_frame
+		slime.movement.leap(_px(to_m.x, to_m.y), 0.3)
+		for i in 25:
+			await get_tree().physics_frame
+		return Vector2(Units.px_to_m(slime.global_position.x), Units.px_to_m(slime.global_position.y))
+	var up: Vector2 = await leap.call(Vector2(10.5, 3.0), Vector2(14.0, 3.0))
+	_check("from the floor west of the plateau onto its top: exactly where aimed, at %s" % up, up.distance_to(Vector2(14.0, 3.0)) < 0.01, true)
+	var down: Vector2 = await leap.call(Vector2(14.0, 3.0), Vector2(15.0, 7.0))
+	_check("and off it to the floor south of it, at %s" % down, down.distance_to(Vector2(15.0, 7.0)) < 0.01, true)
+	holder.free()
+
+
+func _test_leap_in_view() -> void:
+	_section("A leap's arc (LOOT L6; 3D.md, Leaps): the line from the start's ground to the landing's, the arc over it")
+	var layout := _terrain_layout()
+	var room := layout.build_sim()
+	var main := Node2D.new()
+	main.add_child(room)
+	add_child(main)
+	var view := WorldView.new()
+	main.add_child(view)
+	view.setup(main, room, null, layout)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var slime := (load("res://scenes/enemies/slime.tscn") as PackedScene).instantiate() as Unit
+	slime.set(&"passive", true)
+	slime.position = _px(1.0, 3.5)
+	room.get_node("Entities").add_child(slime)
+	for i in 3:
+		await get_tree().physics_frame
+	var sv := view.view_of(slime) as UnitView
+	_check_near("before it: on the floor", sv.position.y if sv else -1.0, 0.0, 0.01)
+	slime.movement.leap(_px(3.5, 3.5), 0.6)
+	for i in 18:
+		await get_tree().physics_frame
+	await get_tree().process_frame
+	_check_near("half way (0.3 of 0.6 s): the view half way along the line, 0 m to the top's 1.5 m", sv.position.y if sv else -1.0, 0.75, 0.05)
+	_check_near("and the model at the apex over it (leap_apex_m, 2.5 m)", sv.air_height_m if sv else -1.0, sv.leap_apex_m if sv else 2.5, 0.15)
+	_check_near("what sits over its head rises with it", view.unit_top_m(slime), sv.position.y + sv.air_height_m + sv.model_height_m, 0.01)
+	for i in 24:
+		await get_tree().physics_frame
+	await get_tree().process_frame
+	_check("landed: on the plateau's top (1.5 m), the arc back to 0, no knock-up status",
+		[absf(sv.position.y - 1.5) < 0.01, absf(sv.air_height_m) < 0.01, slime.status_component.has_status(&"airborne")], [true, true, false])
+	main.free()
 
 
 # --- P7's 2D-only looks (after P9) --------------------------------------------------------
@@ -2335,6 +2466,23 @@ func _test_model_blink_and_clips() -> void:
 	var swinging := kv._phase == UnitView.Phase.LEAD_BY_PROGRESS
 	knight.attack.cancel_swing()
 	_check("a cancelled swing ends its clip at once", [swinging, kv._phase, kv._clip], [true, UnitView.Phase.NONE, &""])
+
+	# LOOT L6: a leaping cast (The Last Verdict's Judgement Leap) keeps its clip
+	# until it lands, never the knock-up's stun pose.
+	knight.abilities.add_augment(load("res://data/augments/augment_judgement_leap.tres"), &"view_test_leap")
+	var leap_clip := ab.get_ability(&"r").cast_anim
+	var leap_ok := ab.try_cast(&"r", knight.global_position + Vector2(120.0, 0.0))
+	t1 = Time.get_ticks_msec()
+	while not knight.movement.is_leaping() and Time.get_ticks_msec() - t1 < 2000:
+		await get_tree().physics_frame
+	var held := knight.movement.is_leaping()
+	var stun_pose := false
+	while knight.movement.is_leaping() and Time.get_ticks_msec() - t1 < 3000:
+		await get_tree().process_frame
+		held = held and kv._phase != UnitView.Phase.NONE and anim.assigned_animation == leap_clip
+		stun_pose = stun_pose or anim.current_animation == kv.stun_clip
+	_check("a leaping cast holds its cast_anim (%s) through the leap, never the stun pose" % leap_clip,
+		[leap_ok, held, stun_pose], [true, true, false])
 	holder.free()
 	view.free()
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).

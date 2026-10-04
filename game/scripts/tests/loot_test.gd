@@ -48,6 +48,19 @@ extends Node2D
 ## Arm and Swift Verdict) and its drag (airborne, before the hit, over a fence
 ## and a ledge, stopped by a wall, none on an unstoppable target, Shockwave
 ## around the landing, Executioner).
+## L6: named items, part 2. Homeward Greaves and The Last Verdict, their
+## variants (Homeward Lunge, Judgement Leap) and data; Legendary rolls among
+## four, the Artifact roll; CastContext.sequence shared by a sequence's parts.
+## On a live Knight: the return (to the exact start, through a unit, hitting
+## nothing, inside the window only, after walking away; the cooldown after
+## the sequence) with Tackle, Twin Lunge (the recharge paused during a
+## sequence), Long Lunge and Quick Footing; the leap (where aimed, 0.3 s,
+## rooted for the 0.2 s crouch, airborne with no status and no i-frames, over
+## a unit, a fence, a ledge, a wall and a pit; nothing interrupts it), its
+## hits (the circle, in sight, each target's missing health, the stun, the
+## Fury bonus spent once, Shockwave's ring, Executioner's reset on a kill,
+## Long Arm and Swift Verdict), and in a Room with its navigation: the nearest
+## walkable floor when aimed into a wall, a pit, a fence or past the edge.
 ## Prints PASS/FAIL per check, then a total.
 ## Run headless and it quits with the number of failures as the exit code.
 
@@ -73,6 +86,12 @@ const STATUS_SHIELD: StatusEffect = preload("res://data/statuses/status_shield.t
 const TIDEBREAKER: NamedItem = preload("res://data/items/item_knight_tidebreaker.tres")
 const OATHBOUND_PLATE: NamedItem = preload("res://data/items/item_knight_oathbound_plate.tres")
 const CHAINS_OF_JUDGEMENT: NamedItem = preload("res://data/items/item_knight_chains_of_judgement.tres")
+const HOMEWARD_GREAVES: NamedItem = preload("res://data/items/item_knight_homeward_greaves.tres")
+const LAST_VERDICT: NamedItem = preload("res://data/items/item_knight_last_verdict.tres")
+const LUNGE_RETURN: Ability = preload("res://data/abilities/knight_e_lunge_return.tres")
+const JUDGEMENT_LEAP: Ability = preload("res://data/abilities/knight_r_judgement_leap.tres")
+const AUGMENT_LUNGE_RETURN: AbilityAugment = preload("res://data/augments/augment_lunge_return.tres")
+const AUGMENT_JUDGEMENT_LEAP: AbilityAugment = preload("res://data/augments/augment_judgement_leap.tres")
 const CLEAVE_WAVE: Ability = preload("res://data/abilities/knight_q_cleave_wave.tres")
 const IRON_RESOLVE: Ability = preload("res://data/abilities/knight_w_iron_resolve.tres")
 const JUDGEMENT: Ability = preload("res://data/abilities/knight_r_judgement.tres")
@@ -141,7 +160,7 @@ class ForeignItem extends Item:
 
 
 func _ready() -> void:
-	print("\n=== Loot test (LOOT L1–L5) ===")
+	print("\n=== Loot test (LOOT L1–L6) ===")
 	# First, before anything touches either autoload: a window's close request
 	# saves, and Progress.save() once checked saving_enabled before its lazy
 	# test-scene guard, so a windowed run closed before anything touched
@@ -208,6 +227,13 @@ func _ready() -> void:
 	await _test_undying()
 	await _test_oathbound_plate()
 	await _test_chains_of_judgement()
+	# L6
+	_test_l6_data()
+	await _test_homeward_greaves()
+	await _test_homeward_talents()
+	await _test_last_verdict()
+	await _test_leap_hits()
+	await _test_leap_in_room()
 	Audio.stop_all()
 	Loot.reset(KNIGHT)
 	_check("the real inventory file was never written", _file_stamp(REAL_SAVE), real_before)
@@ -1575,8 +1601,8 @@ func _test_sigil_stacking() -> void:
 
 func _test_named_data() -> void:
 	_section("L5: the Knight's named items, part 1 (LOOT.md, The Knight's named items)")
-	_check("the Knight lists Tidebreaker, Oathbound Plate and Chains of Judgement (L6 adds the other two)",
-		KNIGHT.named_items, [TIDEBREAKER, OATHBOUND_PLATE, CHAINS_OF_JUDGEMENT])
+	_check("the Knight lists his five, in the table's order (L6 added Homeward Greaves and The Last Verdict)",
+		KNIGHT.named_items, [TIDEBREAKER, OATHBOUND_PLATE, HOMEWARD_GREAVES, CHAINS_OF_JUDGEMENT, LAST_VERDICT])
 	var rows := [
 		# item, name, slot, augment id, kind, ability, affix ids
 		[TIDEBREAKER, "Tidebreaker", S.WEAPON, &"cleave_wave", AbilityAugment.Kind.REPLACE, &"knight_cleave",
@@ -1691,27 +1717,28 @@ func _test_named_rolls() -> void:
 			band_ok = band_ok and value >= span.x - affix.step * 0.5 - 0.000001 and value <= span.y + affix.step * 0.5 + 0.000001
 			rolls[item.affix_rolls[k][1]] = true
 	_check("600 Legendaries for the Knight: each one of his named items, its base, its affixes in order, no sigils", shape_ok, true)
-	var even := counts.size() == 3
+	var even := counts.size() == 4
 	for id: StringName in counts:
-		even = even and absf(counts[id] / 600.0 - 1.0 / 3.0) < 0.06
-	_report(even, "each about a third of them (drop weight 1 each)", str(counts))
+		even = even and absf(counts[id] / 600.0 - 1.0 / 4.0) < 0.06
+	_report(even, "each about a quarter of them (drop weight 1 each; four since L6)", str(counts))
 	_check("their values inside the Legendary band (0.55–0.95) of each range", band_ok, true)
 	_check("and rolled, not fixed (many different rolls)", rolls.size() > 100, true)
 	var artifact := ItemRoller.roll_item(R.ARTIFACT, KNIGHT, _table, rng)
-	_check("an Artifact for the Knight (none until L6): an Exotic, with its two sigils", [artifact.rarity, artifact.named, artifact.sigils.size()], [R.EXOTIC, null, 2])
+	_check("an Artifact for the Knight: The Last Verdict (since L6), no sigils", [artifact.rarity, artifact.named, artifact.sigils.size()], [R.ARTIFACT, LAST_VERDICT, 0])
+	var no_artifact := ItemRoller.roll_item(R.ARTIFACT, _knight_without(LAST_VERDICT), _table, rng)
+	_check("for a champion with no Artifact: an Exotic, with its two sigils", [no_artifact.rarity, no_artifact.named, no_artifact.sigils.size()], [R.EXOTIC, null, 2])
 	var nobody := ItemRoller.roll_item(R.LEGENDARY, null, _table, rng)
 	_check("a Legendary with no champion: an Exotic", [nobody.rarity, nobody.named], [R.EXOTIC, null])
 	_check("a Legendary for the Chest slot: Oathbound Plate", ItemRoller.roll_item(R.LEGENDARY, KNIGHT, _table, rng, S.CHEST).named, OATHBOUND_PLATE)
 	var helm := ItemRoller.roll_item(R.LEGENDARY, KNIGHT, _table, rng, S.HELM)
 	_check("a Legendary for the Helm slot (the Knight has none): an Exotic helm", [helm.rarity, helm.named, helm.base.slot], [R.EXOTIC, null, S.HELM])
-	# An Artifact: always its maximum, with no draw (a fixture until L6's The Last Verdict).
-	var verdict := _fixture_artifact()
-	var champ := _knight_with([verdict])
+	# An Artifact: always its maximum, with no draw (The Last Verdict since L6).
+	var verdict := LAST_VERDICT
 	var max_ok := true
 	for i in 50:
-		var item := ItemRoller.roll_item(R.ARTIFACT, champ, _table, rng)
+		var item := ItemRoller.roll_item(R.ARTIFACT, KNIGHT, _table, rng)
 		max_ok = max_ok and item.named == verdict and item.affix_rolls.all(func(p: Array) -> bool: return p[1] == 1.0)
-	_check("50 Artifacts (a fixture): every affix roll 1", max_ok, true)
+	_check("50 Artifacts (The Last Verdict): every affix roll 1", max_ok, true)
 	var state_before := rng.state
 	var made := ItemRoller.make_named(verdict, _table, rng)
 	_check("make_named() of an Artifact draws nothing", rng.state, state_before)
@@ -1948,6 +1975,507 @@ func _test_chains_of_judgement() -> void:
 	_check("without it: no drag (the target stays where it is)", [none.get("hit", false), none.airborne_seen, none.moved < 1.0], [true, false, true])
 
 
+# --- L6: named items, part 2 -------------------------------------------------------
+
+func _test_l6_data() -> void:
+	_section("L6: Homeward Greaves and The Last Verdict (data; CastContext.sequence)")
+	var rows := [
+		# item, name, rarity, slot, augment id, ability, variant, affix ids
+		[HOMEWARD_GREAVES, "Homeward Greaves", R.LEGENDARY, S.BOOTS, &"lunge_return", &"knight_lunge", LUNGE_RETURN,
+			[&"affix_move_speed", &"affix_mobility_cooldown", &"affix_armor"]],
+		[LAST_VERDICT, "The Last Verdict", R.ARTIFACT, S.GLOVES, &"judgement_leap", &"knight_judgement", JUDGEMENT_LEAP,
+			[&"affix_attack_damage", &"affix_crit_chance", &"affix_crit_damage", &"affix_ability_haste"]],
+	]
+	for row: Array in rows:
+		var named: NamedItem = row[0]
+		_check("%s: %s, the Knight's, its slot, a REPLACE of %s by its variant, its fixed affixes, no fixed modifier, weight 1" % [row[1], Item.rarity_to_word(row[2]), row[5]],
+			[named.display_name, named.rarity, named.champion_id, named.base.slot, named.augment.id, named.augment.kind,
+				named.get_ability_id(), named.augment.replacement, named.affixes.map(func(a: Affix) -> StringName: return a.id),
+				named.modifiers.size(), named.drop_weight],
+			[row[1], row[2], &"knight", row[3], row[4], AbilityAugment.Kind.REPLACE, row[5], row[6], row[7], 0, 1.0])
+		_check("%s validates" % row[1], named.get_validation_errors(KNIGHT), PackedStringArray())
+	_check("Homeward Lunge: Lunge's script, a variant of it with one recast in a 2.5 s window, Lunge's flags and tags",
+		[LUNGE_RETURN.id, LUNGE_RETURN.get_script() == LUNGE.get_script(), LUNGE_RETURN.variant_of, LUNGE_RETURN.recast_count,
+			LUNGE_RETURN.recast_window, _plain(LUNGE_RETURN.supported_flags), _plain(LUNGE_RETURN.tags)],
+		[&"knight_lunge_return", true, &"knight_lunge", 1, 2.5, [&"lunge_stuns", &"lunge_tackle"], _plain(LUNGE.tags)])
+	_check("and Lunge's numbers (POINT, 400 range, 8 s, 50 + 50% AD, 0.05 s cast, its speed, its Stagger bonus)",
+		[LUNGE_RETURN.targeting, LUNGE_RETURN.cast_range, LUNGE_RETURN.cooldown, LUNGE_RETURN.base_damage, LUNGE_RETURN.ad_ratio,
+			LUNGE_RETURN.cast_time, LUNGE_RETURN.get(&"dash_speed"), LUNGE_RETURN.conditional_bonuses.size()],
+		[LUNGE.targeting, LUNGE.cast_range, LUNGE.cooldown, LUNGE.base_damage, LUNGE.ad_ratio, LUNGE.cast_time, LUNGE.get(&"dash_speed"), 1])
+	_check("Judgement Leap: its script extends Judgement's; a variant of Judgement, POINT, 500 range, a 0.2 s rooting cast (not a channel), 30 s",
+		[JUDGEMENT_LEAP.id, (JUDGEMENT_LEAP.get_script() as Script).get_base_script() == JUDGEMENT.get_script(), JUDGEMENT_LEAP.variant_of,
+			JUDGEMENT_LEAP.targeting, JUDGEMENT_LEAP.cast_range, JUDGEMENT_LEAP.cast_time, JUDGEMENT_LEAP.roots_during_cast,
+			JUDGEMENT_LEAP.is_channel(), JUDGEMENT_LEAP.cooldown],
+		[&"knight_judgement_leap", true, &"knight_judgement", Ability.Targeting.POINT, 500.0, 0.2, true, false, 30.0])
+	_check("tagged ultimate, area and leap (not dash, not melee); supports Shockwave",
+		[_plain(JUDGEMENT_LEAP.tags), _plain(JUDGEMENT_LEAP.supported_flags)], [[&"ultimate", &"area", &"leap"], [&"judgement_shockwave"]])
+	var fury_rows := func(a: Ability) -> Array:
+		var out: Array = []
+		for b in a.conditional_bonuses:
+			out.append([b.conditions.map(func(c: Condition) -> Array: return [c.kind, c.value]),
+				b.modifiers.map(func(m: StatModifier) -> Array: return [m.stat, m.type, m.value])])
+		return out
+	_check("Judgement's hit: 150 + 100% AD + 20% of missing health, a 0.75 s stun, Judgement's Fury bonus (60+: +0.5 s, +30%), spent on a hit",
+		[JUDGEMENT_LEAP.base_damage, JUDGEMENT_LEAP.ad_ratio, JUDGEMENT_LEAP.get_base_param(&"target_missing_health_ratio"),
+			JUDGEMENT_LEAP.get(&"stun_duration"), fury_rows.call(JUDGEMENT_LEAP), JUDGEMENT_LEAP.get(&"consume_resource_on_bonus")],
+		[150.0, 1.0, 0.2, 0.75, fury_rows.call(JUDGEMENT), true])
+	_check("the leap 0.3 s; the landing circle 220 u; Shockwave's ring 370 u at 50% with a 0.5 s stun",
+		[JUDGEMENT_LEAP.get(&"leap_time"), JUDGEMENT_LEAP.get(&"landing_radius"), JUDGEMENT_LEAP.get(&"flag_shockwave_ring_radius"),
+			JUDGEMENT_LEAP.get(&"flag_shockwave_damage_ratio"), JUDGEMENT_LEAP.get(&"flag_shockwave_stun_duration")],
+		[0.3, 220.0, 370.0, 0.5, 0.5])
+	_check("a new CastContext's sequence: an empty dictionary of its own",
+		[CastContext.new().sequence, is_same(CastContext.new().sequence, CastContext.new().sequence)], [{}, false])
+
+
+func _test_homeward_greaves() -> void:
+	_section("L6: Homeward Greaves (the return to the exact start; the cooldown after the sequence)")
+	Loot.reset(KNIGHT)
+	_dummy_offset = 0.0
+	var p := await _spawn_knight()
+	_equip_named(p, HOMEWARD_GREAVES, 1001)
+	_check("worn, E casts Homeward Lunge; its tooltip has the augment's line",
+		[p.abilities.get_ability(&"e"), LUNGE_RETURN.get_tooltip_plain(p).contains("\nRecast Lunge within 2.5 s to dash back")], [LUNGE_RETURN, true])
+	var origin := p.global_position
+	var d := _dummy_near(p)
+	d.global_position = origin + Vector2(60, 0)
+	d.reset_physics_interpolation()
+	await _frames(2)
+	var casts: Array[CastContext] = []
+	var hit_targets: Array = []
+	var on_cast := func(unit: Unit, _ability: Ability, ctx: CastContext) -> void:
+		if unit == p:
+			casts.append(ctx)
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == p and ctx.ability == LUNGE_RETURN:
+			hit_targets.append(ctx.target)
+	Events.ability_cast.connect(on_cast)
+	Events.unit_hit.connect(on_hit)
+	await _wait_hitstop()
+	p.abilities.try_cast(&"e", origin + Vector2(120, 0), null)
+	await _wait_until(func() -> bool: return casts.size() == 1 and not p.abilities.casting, 60)
+	await _wait_hitstop()
+	_check_near("part 0 is the Lunge: to the aim, 120 px", (p.global_position - origin).x, 120.0, 0.5)
+	_check("it hit the unit in its path, once", hit_targets, [d])
+	_check("then the window: part 1 next, about 2.5 s to press, E still castable, no cooldown running yet",
+		[p.abilities.get_recast_part(&"e"), p.abilities.get_recast_time_left(&"e") > 2.3, p.abilities.is_ready(&"e"), p.abilities.get_cooldown_left(&"e")],
+		[1, true, true, 0.0])
+	var start: Variant = casts[0].sequence.get(&"start")
+	_check("part 0 left its start point in the sequence", start is Vector2 and (start as Vector2).distance_to(origin) < 0.01, true)
+	await _frames(30)
+	_check("half a second into the window: still no cooldown", p.abilities.get_cooldown_left(&"e"), 0.0)
+	var health_before := d.health.current
+	p.abilities.try_cast(&"e", origin + Vector2(200, 50), null)   # the aim doesn't matter
+	await _wait_until(func() -> bool: return casts.size() == 2 and not p.abilities.casting, 60)
+	_check("the recast is part 1, given part 0's sequence (the same dictionary)",
+		[casts[1].part, is_same(casts[1].sequence, casts[0].sequence)], [1, true])
+	_check_near("it dashed back to the exact start, through the unit on the way", p.global_position.distance_to(origin), 0.0, 0.5)
+	_check("hitting nothing (the unit took nothing more)", [hit_targets.size(), d.health.current == health_before], [1, true])
+	await _frames(1)
+	var full := p.abilities.get_cooldown_duration(LUNGE_RETURN)
+	_check("the sequence is over and the cooldown starts now (8 s less the item's mobility cooldown: %.2f s)" % full,
+		[p.abilities.get_recast_part(&"e"), p.abilities.get_cooldown_left(&"e") > full - 0.1, full < 8.0], [0, true, true])
+	_check("so a third press isn't ready", p.abilities.try_cast(&"e", origin + Vector2(50, 0), null), false)
+	Events.ability_cast.disconnect(on_cast)
+	Events.unit_hit.disconnect(on_hit)
+	await _free_dummies()
+	await _free(p)
+
+	# The window running out: no return, the cooldown starts then.
+	var q := await _spawn_knight()
+	q.abilities.add_augment(AUGMENT_LUNGE_RETURN, &"loot_test_return")
+	var q_origin := q.global_position
+	await _wait_hitstop()
+	q.abilities.try_cast(&"e", q_origin + Vector2(100, 0), null)
+	await _wait_until(func() -> bool: return q.abilities.get_recast_part(&"e") == 1 and not q.abilities.casting, 60)
+	await _frames(140)
+	_check("2.33 s after the Lunge: the window is still open", [q.abilities.get_recast_part(&"e"), q.abilities.get_cooldown_left(&"e")], [1, 0.0])
+	await _frames(20)
+	_check("past 2.5 s it closed: the cooldown runs (its whole 8 s, less the few frames since), he stays where the Lunge took him",
+		[q.abilities.get_recast_part(&"e"), q.abilities.get_cooldown_left(&"e") > 7.5, q.global_position.distance_to(q_origin + Vector2(100, 0)) < 0.5],
+		[0, true, true])
+	_check("and a press now isn't ready (no return)", q.abilities.try_cast(&"e", q_origin, null), false)
+	await _free(q)
+
+	# Moved during the window: the return still goes straight to the start.
+	var w := await _spawn_knight()
+	w.abilities.add_augment(AUGMENT_LUNGE_RETURN, &"loot_test_return")
+	var w_origin := w.global_position
+	await _wait_hitstop()
+	w.abilities.try_cast(&"e", w_origin + Vector2(100, 0), null)
+	await _wait_until(func() -> bool: return w.abilities.get_recast_part(&"e") == 1 and not w.abilities.casting, 60)
+	w.movement.displace(Vector2(0.0, 50.0) / 0.25, 0.25)
+	await _wait_until(func() -> bool: return not w.movement.is_displaced(), 60)
+	_check_near("pushed 50 px aside during the window", w.global_position.distance_to(w_origin + Vector2(100, 50)), 0.0, 1.0)
+	w.abilities.try_cast(&"e", w_origin, null)
+	await _wait_until(func() -> bool: return w.abilities.get_recast_part(&"e") == 0 and not w.abilities.casting, 60)
+	_check_near("the return still goes straight back to the start", w.global_position.distance_to(w_origin), 0.0, 0.5)
+	await _free(w)
+
+
+func _test_homeward_talents() -> void:
+	_section("L6: Homeward Greaves with Tackle, Twin Lunge, Long Lunge and Quick Footing")
+	Loot.reset(KNIGHT)
+	_dummy_offset = 0.0
+	# Tackle: part 0 tackles the first enemy (stunned), part 1 returns.
+	var t := await _spawn_knight()
+	t.add_talent(KNIGHT.get_talent(&"knight_tackle"))
+	t.abilities.add_augment(AUGMENT_LUNGE_RETURN, &"loot_test_return")
+	var t_origin := t.global_position
+	var td := _dummy_near(t)
+	td.global_position = t_origin + Vector2(70, 0)
+	td.reset_physics_interpolation()
+	await _frames(2)
+	await _wait_hitstop()
+	t.abilities.try_cast(&"e", t_origin + Vector2(120, 0), null)
+	await _wait_until(func() -> bool: return t.abilities.get_recast_part(&"e") == 1 and not t.abilities.casting, 60)
+	_check_near("with Tackle, part 0 stops at the enemy's edge", (t.global_position - t_origin).x,
+		70.0 - td.get_gameplay_radius_px() - t.get_gameplay_radius_px(), 0.5)
+	_check("and stuns it (Tackle's 0.75 s)", td.status_component.has_status(&"stun"), true)
+	await _wait_hitstop()
+	t.abilities.try_cast(&"e", t_origin, null)
+	await _wait_until(func() -> bool: return t.abilities.get_recast_part(&"e") == 0 and not t.abilities.casting, 60)
+	_check_near("part 1 gets him back out, to the start", t.global_position.distance_to(t_origin), 0.0, 0.5)
+	await _free_dummies()
+	await _free(t)
+
+	# Twin Lunge: two charges, each with its return; the recharge waits out a sequence.
+	var tw := await _spawn_knight()
+	tw.add_talent(KNIGHT.get_talent(&"knight_twin_lunge"))
+	tw.abilities.add_augment(AUGMENT_LUNGE_RETURN, &"loot_test_return")
+	await _frames(1)
+	tw.abilities.reset_cooldown(&"e")   # a talent added mid-run doesn't refill: its second charge now
+	var tw_origin := tw.global_position
+	_check("Twin Lunge reaches the variant through variant_of: 2 charges, 35% shorter (260)",
+		[tw.abilities.get_max_charges(&"e"), LUNGE_RETURN.get_param(tw, &"cast_range")], [2, 260.0])
+	await _wait_hitstop()
+	tw.abilities.try_cast(&"e", tw_origin + Vector2(200, 0), null)
+	await _wait_until(func() -> bool: return tw.abilities.get_recast_part(&"e") == 1 and not tw.abilities.casting, 60)
+	_check_near("the first hop: 260 u (83.2 px)", (tw.global_position - tw_origin).x, Units.to_px(260.0), 0.5)
+	_check("one charge left, the recharge not started during the sequence", [tw.abilities.get_charges(&"e"), tw.abilities.get_cooldown_left(&"e")], [1, 0.0])
+	tw.abilities.try_cast(&"e", tw_origin, null)
+	await _wait_until(func() -> bool: return tw.abilities.get_recast_part(&"e") == 0 and not tw.abilities.casting, 60)
+	_check_near("its return: back at the start", tw.global_position.distance_to(tw_origin), 0.0, 0.5)
+	await _frames(2)
+	_check("the recharge started after it", tw.abilities.get_cooldown_left(&"e") > 0.0, true)
+	tw.abilities.try_cast(&"e", tw_origin + Vector2(0, 200), null)
+	await _wait_until(func() -> bool: return tw.abilities.get_recast_part(&"e") == 1 and not tw.abilities.casting, 60)
+	var paused_at := tw.abilities.get_cooldown_left(&"e")
+	await _frames(30)
+	_check("the second charge's sequence: no charges, and the running recharge pauses during it (ABILITIES' rule)",
+		[tw.abilities.get_charges(&"e"), is_equal_approx(tw.abilities.get_cooldown_left(&"e"), paused_at), (tw.global_position - tw_origin).y > 80.0],
+		[0, true, true])
+	tw.abilities.try_cast(&"e", tw_origin, null)
+	await _wait_until(func() -> bool: return tw.abilities.get_recast_part(&"e") == 0 and not tw.abilities.casting, 60)
+	_check_near("its own return: back at the start again", tw.global_position.distance_to(tw_origin), 0.0, 0.5)
+	await _frames(10)
+	_check("and the recharge runs again", tw.abilities.get_cooldown_left(&"e") < paused_at - 0.1, true)
+	await _free(tw)
+
+	# Long Lunge and Quick Footing: reach both ways, the cooldown.
+	var ll := await _spawn_knight()
+	ll.add_talent(KNIGHT.get_talent(&"knight_long_lunge"))
+	ll.add_talent(KNIGHT.get_talent(&"knight_quick_footing"))
+	ll.abilities.add_augment(AUGMENT_LUNGE_RETURN, &"loot_test_return")
+	var ll_origin := ll.global_position
+	_check("Long Lunge and Quick Footing reach it through variant_of: 500 range, 6 s",
+		[LUNGE_RETURN.get_param(ll, &"cast_range"), LUNGE_RETURN.get_param(ll, &"cooldown")], [500.0, 6.0])
+	await _wait_hitstop()
+	ll.abilities.try_cast(&"e", ll_origin + Vector2(0, -300), null)
+	await _wait_until(func() -> bool: return ll.abilities.get_recast_part(&"e") == 1 and not ll.abilities.casting, 60)
+	_check_near("out the longer 500 u (160 px)", (ll_origin - ll.global_position).y, 160.0, 0.5)
+	ll.abilities.try_cast(&"e", ll_origin, null)
+	await _wait_until(func() -> bool: return ll.abilities.get_recast_part(&"e") == 0 and not ll.abilities.casting, 60)
+	await _frames(1)
+	_check("and all the way back; then the 6 s cooldown",
+		[ll.global_position.distance_to(ll_origin) < 0.5, ll.abilities.get_cooldown_left(&"e") > 5.9, ll.abilities.get_cooldown_left(&"e") <= 6.0], [true, true, true])
+	await _free(ll)
+
+
+func _test_last_verdict() -> void:
+	_section("L6: The Last Verdict: the leap (where aimed, 0.3 s, over everything, nothing interrupts it)")
+	Loot.reset(KNIGHT)
+	var p := await _spawn_knight()
+	_equip_named(p, LAST_VERDICT, 1100)
+	_check("worn, R casts Judgement Leap; its tooltip has the augment's line",
+		[p.abilities.get_ability(&"r"), JUDGEMENT_LEAP.get_tooltip_plain(p).contains("\nJudgement becomes a leap: over anything")], [JUDGEMENT_LEAP, true])
+	var long_arm := KNIGHT.get_talent(&"knight_long_arm")
+	p.add_talent(long_arm)
+	_check("Long Arm reaches the leap through variant_of: 650", JUDGEMENT_LEAP.get_param(p, &"cast_range"), 650.0)
+	p.remove_talent(long_arm)
+	var swift := KNIGHT.get_talent(&"knight_swift_verdict")
+	p.add_talent(swift)
+	_check("Swift Verdict too: a 24 s cooldown", JUDGEMENT_LEAP.get_param(p, &"cooldown"), 24.0)
+	p.remove_talent(swift)
+	await _free(p)
+	var item_leap := await _leap_case(Vector2(120, 0), [], [], &"", 0.0, -1, false, true)
+	_check_near("with the item itself: he lands where aimed", (item_leap.landed as Vector2).distance_to(Vector2(120, 0)), 0.0, 0.5)
+	var open := await _leap_case(Vector2(120, 0))
+	_check("cast at a spot 120 px away", open.cast, true)
+	_check_near("he lands exactly there", (open.landed as Vector2).distance_to(Vector2(120, 0)), 0.0, 0.5)
+	_report(open.frames >= 17 and open.frames <= 19, "0.3 s in the air (18 frames)", "got %d" % open.frames)
+	_check("rooted for the 0.2 s crouch before it", [open.rooted, open.crouch_moved < 0.01], [true, true])
+	_check("airborne while it runs, with no status (it isn't crowd control) and no i-frames", [open.airborne, open.status, open.invulnerable], [true, false, false])
+	_check("colliding with nothing on the way (mask 0); his mask back when he lands", [open.mask_during, open.mask_restored], [0, true])
+	var over := await _leap_case(Vector2(140, 0), [Vector2(40, 0)], [
+		[7, Rect2(Vector2(24, -60), Vector2(6, 120))], [11, Rect2(Vector2(56, -60), Vector2(8, 120))],
+		[1, Rect2(Vector2(76, -60), Vector2(8, 120))], [6, Rect2(Vector2(94, -60), Vector2(20, 120))]])
+	_check_near("over a unit, a fence, a ledge, a wall and a pit at once: he lands exactly where aimed",
+		(over.landed as Vector2).distance_to(Vector2(140, 0)), 0.0, 0.5)
+	var hop := await _leap_case(Vector2.ZERO)
+	_check("aimed at his own feet: a hop in place, 0.3 s", [(hop.landed as Vector2).length() < 0.5, hop.frames >= 17 and hop.frames <= 19], [true, true])
+
+	# Nothing interrupts it: a push and a stun mid-air.
+	var k := await _spawn_knight()
+	k.abilities.add_augment(AUGMENT_JUDGEMENT_LEAP, &"loot_test_leap")
+	var k_origin := k.global_position
+	await _wait_hitstop()
+	k.abilities.try_cast(&"r", k_origin + Vector2(120, 0), null)
+	await _wait_until(func() -> bool: return k.movement.is_leaping(), 60)
+	await _frames(4)
+	var pushed := k.movement.displace(Vector2(0.0, 600.0), 0.2)
+	k.status_component.apply_status(STATUS_STUN, null, 1.0)
+	k.movement.dash(Vector2(-900.0, 0.0), 0.1)
+	await _wait_until(func() -> bool: return not k.movement.is_leaping(), 60)
+	await _frames(2)
+	_check("a push mid-air is dropped, a stun or a dash doesn't stop it: he lands where aimed",
+		[pushed, (k.global_position - k_origin).distance_to(Vector2(120, 0)) < 0.5], [false, true])
+	await _free(k)
+
+
+func _test_leap_hits() -> void:
+	_section("L6: The Last Verdict: the landing (the circle in sight, missing health, the stun, the Fury, Shockwave, Executioner)")
+	# Landing at (100, 0): a dummy 30 px off, a wounded one 60 px off, one 100 px off, one 50 px off behind a wall.
+	var base := await _leap_case(Vector2(100, 0), [Vector2(130, 0), Vector2(100, 60), Vector2(200, 0), Vector2(100, -50)],
+		[[1, Rect2(Vector2(80, -30), Vector2(40, 6))]], &"", 0.0, 1)
+	_check("every enemy within 220 u (70 px) of the landing, in sight, is hit: not the one beyond, nor the one behind a wall",
+		[base.taken[0] > 0.0, base.taken[1] > 0.0, base.taken[2], base.taken[3]], [true, true, -1.0, -1.0])
+	_check("each takes its own missing-health term (the wounded one far more)", base.taken[1] > base.taken[0] * 20.0, true)
+	_check("each is stunned 0.75 s", [base.stun[0], base.stun[1]], [0.75, 0.75])
+	var full := 30.0
+	_check("the cooldown runs (30 s from the cast start) and no Fury was there to spend", [base.cooldown_left > full - 1.0, base.ready, base.fury_after], [true, false, 0.0])
+	var fury := await _leap_case(Vector2(100, 0), [Vector2(130, 0), Vector2(100, 60)], [], &"", 100.0)
+	_check_near("at 60+ Fury: +30% damage", fury.taken[0] / base.taken[0], 1.3, 0.01)
+	_check("and a 1.25 s stun on each; the Fury spent once", [fury.stun[0], fury.stun[1], fury.fury_after < 1.0], [1.25, 1.25, true])
+	var empty := await _leap_case(Vector2(100, 0), [Vector2(300, 0)], [], &"", 100.0)
+	_check("nothing in the circle: nothing hit, the Fury kept", [empty.taken[0], empty.fury_after], [-1.0, 100.0])
+	var low := await _leap_case(Vector2(100, 0), [Vector2(130, 0)], [], &"", 50.0)
+	_check("at 50 Fury: no bonus (the base damage and stun), the Fury kept",
+		[is_equal_approx(low.taken[0], base.taken[0]), low.stun[0], low.fury_after], [true, 0.75, 50.0])
+
+	# Shockwave's take: the ring out to 370 u at 50% and a 0.5 s stun; no missing-health term.
+	var shock := await _leap_case(Vector2(100, 0), [Vector2(130, 0), Vector2(200, 0), Vector2(250, 0), Vector2(100, 40)],
+		[], &"knight_shockwave", 0.0, 3)
+	_check("with Shockwave: the circle as before; the ring (100 px off) hit too; 150 px off not",
+		[shock.taken[0] > 0.0, shock.taken[1] > 0.0, shock.taken[2]], [true, true, -1.0])
+	_check_near("the ring takes 50% of the circle's damage", shock.taken[1] / shock.taken[0], 0.5, 0.01)
+	_check_near("no missing-health term (Shockwave's trade): the wounded one takes the same", shock.taken[3] / shock.taken[0], 1.0, 0.01)
+	_check("stuns: 0.75 s in the circle, 0.5 s in the ring", [shock.stun[0], shock.stun[1]], [0.75, 0.5])
+	var shock_fury := await _leap_case(Vector2(100, 0), [Vector2(130, 0), Vector2(200, 0)], [], &"knight_shockwave", 100.0)
+	_check("with 60+ Fury the bonus reaches both (1.25 s and 1.0 s); the Fury spent once",
+		[shock_fury.stun[0], shock_fury.stun[1], shock_fury.fury_after < 1.0], [1.25, 1.0, true])
+
+	# Executioner: 40% missing health, no stun (0.5 s with the Fury), a kill resets the cooldown.
+	var exe := await _leap_case(Vector2(100, 0), [Vector2(130, 0), Vector2(100, 60)], [], &"knight_executioner", 0.0, 1)
+	_check_near("with Executioner: twice the missing-health damage (40%)",
+		(exe.taken[1] - exe.taken[0]) / (base.taken[1] - base.taken[0]), 2.0, 0.02)
+	_check("no stun; no kill, so the cooldown runs", [exe.stun[0], exe.stun[1], exe.ready], [0.0, 0.0, false])
+	var exe_fury := await _leap_case(Vector2(100, 0), [Vector2(130, 0)], [], &"knight_executioner", 100.0)
+	_check("with 60+ Fury: the Fury's 0.5 s stun", exe_fury.stun[0], 0.5)
+	var exe_kill := await _leap_case(Vector2(100, 0), [Vector2(130, 0)], [], &"knight_executioner", 0.0, -1, true)
+	_check("a kill on landing resets the cooldown (augment_judgement_reset through variant_of): chain leaps",
+		[exe_kill.killed[0], exe_kill.ready], [true, true])
+	var kill := await _leap_case(Vector2(100, 0), [Vector2(130, 0)], [], &"", 0.0, -1, true)
+	_check("(control: the same kill without Executioner leaves the cooldown running)", [kill.killed[0], kill.ready], [true, false])
+
+
+func _test_leap_in_room() -> void:
+	_section("L6: The Last Verdict in a Room: the nearest walkable floor of the room (its navigation)")
+	Loot.reset(KNIGHT)
+	# The room: 400 x 240 px around the Knight; a wall 48 px thick east of him,
+	# a pit west, a fence south. The navigation keeps 12 px from all of it.
+	var pair := await _leap_room([[1, Rect2(60, -40, 48, 80)], [6, Rect2(-100, -10, 40, 20)], [7, Rect2(-50, 70, 100, 6)]])
+	var room: Room = pair[0]
+	var p: Player = pair[1]
+	var origin := p.global_position
+	var land := func(aim: Vector2) -> Vector2:
+		return p.movement.get_leap_landing(origin + aim) - origin
+	var free_at := func(at: Vector2) -> bool:
+		return WorldQuery.is_point_free(origin + at, 11.0, MovementComponent.LEAP_BLOCKING_MASK)
+	var open: Vector2 = land.call(Vector2(-30, -60))
+	_check_near("open floor: exactly where aimed", open.distance_to(Vector2(-30, -60)), 0.0, 0.01)
+	var wall: Vector2 = land.call(Vector2(100, 0))
+	_check("aimed inside the thick wall, nearer its far side: on the floor past it (the nearest walkable floor, not back toward him), at %s" % wall,
+		wall.x > 116.0 and wall.x < 124.0 and absf(wall.y) < 3.0 and free_at.call(wall), true)
+	var pit: Vector2 = land.call(Vector2(-80, 0))
+	_check("aimed into the pit: on its nearest rim, clear of it, at %s" % pit,
+		absf(pit.x + 80.0) < 3.0 and absf(pit.y) > 19.0 and absf(pit.y) < 26.0 and free_at.call(pit), true)
+	var fence: Vector2 = land.call(Vector2(0, 75))
+	_check("aimed onto the fence: just past its nearer side, clear of it, at %s" % fence,
+		absf(fence.x) < 3.0 and fence.y > 84.0 and fence.y < 92.0 and free_at.call(fence), true)
+	var edge: Vector2 = land.call(Vector2(0, -150))
+	_check("aimed past the room's floor: inside the room, at its edge, at %s" % edge,
+		absf(edge.x) < 3.0 and edge.y > -110.0 and edge.y < -104.0, true)
+	# A real cast into the wall.
+	p.abilities.add_augment(AUGMENT_JUDGEMENT_LEAP, &"loot_test_leap")
+	await _wait_hitstop()
+	p.abilities.try_cast(&"r", origin + Vector2(100, 0), null)
+	await _wait_until(func() -> bool: return p.movement.is_leaping(), 60)
+	await _wait_until(func() -> bool: return not p.movement.is_leaping(), 60)
+	await _frames(2)
+	_check("cast into the wall, he lands past it: %s" % (p.global_position - origin),
+		(p.global_position - origin).distance_to(wall) < 0.5, true)
+	room.queue_free()
+	await _frames(2)
+
+
+## The Last Verdict's leap by a fresh Knight (the augment alone, or the item
+## when `with_item`; no crits, `talent_id`, `fury`) aimed at `aim` (relative
+## to him), with dummies at `dummies` (relative; tough, or at 1 health when `frail`; the one
+## at index `wounded` at half health) and `blockers` ([layer, Rect2 relative]).
+## What happened: "landed" (relative), "frames" (physics frames leaping),
+## "rooted" and "crouch_moved" (during the cast time), "airborne", "status"
+## (status_airborne) and "invulnerable" (seen while leaping), "mask_during",
+## "mask_restored", per dummy "taken" (-1 = not hit), "stun" (the stun its hit
+## carried, 0 = none) and "killed", "fury_after", "cooldown_left", "ready".
+func _leap_case(aim: Vector2, dummies: Array = [], blockers: Array = [], talent_id: StringName = &"",
+		fury: float = 0.0, wounded: int = -1, frail: bool = false, with_item: bool = false) -> Dictionary:
+	Loot.reset(KNIGHT)
+	_dummy_offset = 0.0
+	var p := await _spawn_knight()
+	if talent_id != &"":
+		p.add_talent(KNIGHT.get_talent(talent_id))
+	if with_item:
+		_equip_named(p, LAST_VERDICT, 1101)
+	else:
+		p.abilities.add_augment(AUGMENT_JUDGEMENT_LEAP, &"loot_test_leap")
+	p.stats_component.add_modifier(StatModifier.create(&"crit_chance", StatModifier.Type.FLAT, -10.0, &"loot_test_no_crit"))
+	p.resource_pool.decay_per_second = 0.0
+	if fury > 0.0:
+		p.resource_pool.restore(fury)
+	var origin := p.global_position
+	var targets: Array[Enemy] = []
+	for at: Vector2 in dummies:
+		var d := _dummy_near(p, not frail)
+		d.global_position = origin + at
+		d.reset_physics_interpolation()
+		targets.append(d)
+	if wounded >= 0:
+		targets[wounded].health.take_damage(targets[wounded].health.max_health * 0.5)
+	if frail:
+		for d in targets:
+			d.health.take_damage(d.health.max_health - 1.0)   # 1 health left: any hit kills
+	var bodies: Array[Node] = []
+	for b: Array in blockers:
+		var rect: Rect2 = b[1]
+		bodies.append(_blocker(Rect2(origin + rect.position, rect.size), b[0]))
+	await _frames(2)
+	await _wait_hitstop()
+	var mask_before := p.collision_mask
+	var out := {"airborne": false, "status": false, "invulnerable": false, "frames": 0, "rooted": false,
+		"crouch_moved": 0.0, "mask_during": -1}
+	var taken := {}
+	var stuns := {}
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source != p or ctx.ability != JUDGEMENT_LEAP or ctx.blocked:
+			return
+		var k := targets.find(ctx.target)
+		taken[k] = float(taken.get(k, 0.0)) + ctx.taken_damage
+		var stun := 0.0
+		for s in ctx.statuses:
+			if s != null and s.id == &"stun":
+				stun = s.duration
+		stuns[k] = stun
+	Events.unit_hit.connect(on_hit)
+	out["cast"] = p.abilities.try_cast(&"r", origin + aim, null)
+	var started := false
+	for i in 120:
+		await _frames(1)
+		out["status"] = out["status"] or p.status_component.has_status(&"airborne")
+		if p.movement.is_leaping():
+			started = true
+			out["frames"] += 1
+			out["airborne"] = out["airborne"] or p.movement.is_airborne()
+			out["invulnerable"] = out["invulnerable"] or p.is_invulnerable()
+			out["mask_during"] = p.collision_mask
+		elif not started:
+			if p.abilities.casting:
+				out["rooted"] = not p.movement.can_move()
+			out["crouch_moved"] = maxf(out["crouch_moved"], p.global_position.distance_to(origin))
+		elif not p.abilities.casting:
+			break
+	await _frames(2)
+	Events.unit_hit.disconnect(on_hit)
+	out["landed"] = p.global_position - origin
+	out["mask_restored"] = p.collision_mask == mask_before
+	var taken_list: Array[float] = []
+	var stun_list: Array[float] = []
+	var killed_list: Array[bool] = []
+	for k in targets.size():
+		taken_list.append(float(taken.get(k, -1.0)))
+		stun_list.append(float(stuns.get(k, 0.0)))
+		killed_list.append(not is_instance_valid(targets[k]) or not targets[k].is_alive())
+	out["taken"] = taken_list
+	out["stun"] = stun_list
+	out["killed"] = killed_list
+	out["fury_after"] = p.resource_pool.current
+	out["cooldown_left"] = p.abilities.get_cooldown_left(&"r")
+	out["ready"] = p.abilities.is_ready(&"r")
+	for body in bodies:
+		body.queue_free()
+	await _free_dummies()
+	await _free(p)
+	return out
+
+
+## A Room (400 x 240 px around its origin, depth 1) whose Footprints hold
+## `blockers` ([layer, Rect2 local]), baked into its navigation as a real
+## room's are, with a Knight from player.tscn at its origin, once the
+## navigation map has synced: [room, knight].
+func _leap_room(blockers: Array) -> Array:
+	var room := Room.new()
+	room.bounds_px = Rect2(-200, -120, 400, 240)
+	var entities := Node2D.new()
+	entities.name = "Entities"
+	entities.y_sort_enabled = true
+	room.add_child(entities)
+	var footprints := Node2D.new()
+	footprints.name = "Footprints"
+	footprints.add_to_group(&"navigation_source")
+	room.add_child(footprints)
+	for b: Array in blockers:
+		var rect: Rect2 = b[1]
+		var body := StaticBody2D.new()
+		body.collision_layer = 1 << (int(b[0]) - 1)
+		body.collision_mask = 0
+		var shape := CollisionShape2D.new()
+		var box := RectangleShape2D.new()
+		box.size = rect.size
+		shape.shape = box
+		body.add_child(shape)
+		body.position = rect.get_center()
+		footprints.add_child(body)
+	_next_x += 600.0
+	room.position = Vector2(_next_x, 1000.0)
+	add_child(room)
+	var p := await _spawn_in(room)
+	var map := p.get_world_2d().navigation_map
+	for i in 60:
+		if NavigationServer2D.map_get_iteration_id(map) > 0:
+			break
+		await _frames(1)
+	await _frames(2)
+	return [room, p]
+
+
+## Waits up to `max_frames` physics frames for `condition`; true if it held.
+func _wait_until(condition: Callable, max_frames: int) -> bool:
+	for i in max_frames:
+		if condition.call():
+			return true
+		await get_tree().physics_frame
+	return condition.call()
+
+
 # --- Helpers ------------------------------------------------------------------
 
 ## A Knight from player.tscn in the tree (its saved gear equipped at load).
@@ -2100,6 +2628,17 @@ func _knight_with(extra: Array) -> ChampionData:
 	list.append_array(KNIGHT.named_items)
 	for n: NamedItem in extra:
 		list.append(n)
+	c.named_items = list
+	return c
+
+
+## A copy of the Knight without `named` (LOOT L6: a champion with no Artifact).
+func _knight_without(named: NamedItem) -> ChampionData:
+	var c: ChampionData = KNIGHT.duplicate()
+	var list: Array[NamedItem] = []
+	for n in KNIGHT.named_items:
+		if n != named:
+			list.append(n)
 	c.named_items = list
 	return c
 

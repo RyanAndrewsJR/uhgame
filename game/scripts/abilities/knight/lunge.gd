@@ -12,6 +12,12 @@ extends Ability
 ## enemy in its path (picked at the start, in sight, its edge reached), hits
 ## only it and stuns it for flag_tackle_stun_duration (still Staggered). With
 ## nobody in the path it dashes its full length and hits nothing.
+## LOOT L6, the return (Homeward Greaves' variant knight_e_lunge_return,
+## recast_count 1): part 0 is the Lunge above and leaves its start point in
+## the sequence (CastContext.sequence); part 1 dashes straight back to it at
+## the same speed, ghosted (walls and ledges still stop it, as they stop the
+## Lunge), and hits nothing. The slot's cooldown starts when the sequence ends
+## (after the return or when its window runs out; AbilityComponent).
 
 const STATUS_STUN: StatusEffect = preload("res://data/statuses/status_stun.tres")
 
@@ -30,7 +36,11 @@ const STATUS_STUN: StatusEffect = preload("res://data/statuses/status_stun.tres"
 
 
 func execute(caster: Unit, ctx: CastContext) -> void:
+	if ctx.part > 0:
+		await _return(caster, ctx)
+		return
 	var start := caster.global_position
+	ctx.sequence[&"start"] = start   # for the return (a variant with a recast)
 	var offset := ctx.point - start
 	var dist := offset.length()
 	if dist < 1.0:
@@ -78,6 +88,24 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 		if is_instance_valid(u):
 			VFX.impact(u.get_parent(), u.global_position, Color(icon_color, 0.8), 36.0, 0.2)
 	play_hit_feel(hits)
+
+
+## The return (part 1): a ghosted dash straight back to where part 0 started,
+## at the Lunge's speed and curve. No hits, no stun, no shake.
+func _return(caster: Unit, ctx: CastContext) -> void:
+	var start: Variant = ctx.sequence.get(&"start")
+	if not start is Vector2:
+		return
+	var offset: Vector2 = start - caster.global_position
+	var dist := offset.length()
+	if dist < 1.0:
+		return
+	var speed := Units.to_px(dash_speed)
+	caster.movement.dash(offset / dist * speed, dist / speed, true, dash_curve)
+	while caster.movement.is_displaced():
+		await caster.get_tree().physics_frame
+		if not is_instance_valid(caster):
+			return
 
 
 ## Every enemy along the path start -> end, hit_width wide, in sight from the

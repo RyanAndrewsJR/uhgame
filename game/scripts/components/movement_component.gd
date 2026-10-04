@@ -29,6 +29,9 @@ extends Node2D
 ##   A displacement follows a progress Curve (x = time 0-1, y = share of the
 ##   distance 0-1): burst then ease out. The total distance is always
 ##   velocity x duration; only the speed profile changes (MOVEMENT.md F2).
+## - leap() (LOOT L6; 3D.md, Leaps) sends the unit through the air to a
+##   point: over everything, landing on the nearest walkable floor of its
+##   room; nothing interrupts it.
 ## - set_input_direction(dir) is Hades-style direct control (the player's
 ##   WASD): a short ramp up and down, instant turning, sliding along walls.
 ##   While a direction is held it replaces any move_to() order.
@@ -54,6 +57,9 @@ const AIRBORNE_IGNORED_MASK := (1 << 5) | (1 << 6) | (1 << 10)
 ## Where an airborne displacement may not end: inside a wall, a low obstacle
 ## or a ledge. It lands back toward where it started instead.
 const LANDING_BLOCKING_MASK := 1 | (1 << 6) | (1 << 10)
+## Where a leap may not land (LOOT L6; 3D.md, Leaps): the knock-up's layers and
+## pits (6), which aren't walkable floor.
+const LEAP_BLOCKING_MASK := LANDING_BLOCKING_MASK | (1 << 5)
 
 const STATUS_SLOW: StatusEffect = preload("res://data/statuses/status_slow.tres")
 const STATUS_HASTE: StatusEffect = preload("res://data/statuses/status_haste.tres")
@@ -131,6 +137,12 @@ var _ghost_saved_mask: int = -1
 var _displace_from: Vector2 = Vector2.ZERO   # where the running displacement started
 var _displace_dash_cancelable: bool = false
 var _displace_serial: int = 0   # bumped by every displacement start
+## A leap (LOOT L6): the running displacement is one, the body's mask while
+## it runs is 0 (this saved one comes back when it lands), and its two ends.
+var _leaping: bool = false
+var _leap_saved_mask: int = -1
+var _leap_from: Vector2 = Vector2.ZERO
+var _leap_to: Vector2 = Vector2.ZERO
 
 var _stuck_time: float = 0.0
 var _repath_time: float = 0.0
@@ -254,8 +266,11 @@ func can_move() -> bool:
 ## hit's knockback; COMBAT.md). Otherwise a displacement blocks the dash.
 ## The stronger displacement wins (COMBAT.md): if the running one still has
 ## more distance to cover than this one's whole distance, this one is
-## dropped. Returns true if this displacement started.
+## dropped. Nothing interrupts a leap (LOOT L6): dropped while one runs.
+## Returns true if this displacement started.
 func displace(velocity: Vector2, duration: float, curve: Curve = null, dash_cancelable: bool = false) -> bool:
+	if _leaping:
+		return false
 	if is_displaced() and get_displacement_remaining_px() > velocity.length() * duration:
 		return false
 	_end_ghost()
@@ -277,8 +292,10 @@ func get_displacement_remaining_px() -> float:
 ## passes through other units, low obstacles and pits; walls and ledges
 ## still block it, and it slides along them (move_and_slide). `curve` shapes
 ## the speed; null = constant speed. Await `displacement_finished` to know
-## when it's over.
+## when it's over. Not while a leap runs (LOOT L6): ignored.
 func dash(velocity: Vector2, duration: float, ghosted: bool = true, curve: Curve = null) -> void:
+	if _leaping:
+		return
 	_end_ghost()
 	_start_displacement(velocity, duration, curve)
 	if ghosted:
@@ -296,9 +313,108 @@ func is_displaced() -> bool:
 	return _displace_time > 0.0
 
 
-## True while the unit is knocked up (its status tag &"airborne").
+## True while the unit is knocked up (its status tag &"airborne"), or while
+## its own leap runs (LOOT L6; no status: a leap isn't crowd control).
 func is_airborne() -> bool:
-	return _status != null and _status.has_tag(&"airborne")
+	return _leaping or (_status != null and _status.has_tag(&"airborne"))
+
+
+# --- Leaps (LOOT L6; 3D.md, Leaps) ------------------------------------------------
+
+## The leap: a straight move at a steady speed over `duration` to where a leap
+## aimed at `to_px` lands (get_leap_landing(): the nearest walkable floor of
+## the unit's room), colliding with nothing on the way (units, fences,
+## ledges, pits and walls: the body's mask is 0 until it lands), with
+## is_airborne() true while it runs. No status, no i-frames: the ability that
+## leaps roots its caster. While it runs, no other displacement or dash starts
+## (displace() and dash() are dropped). A leap to where the unit stands is a
+## hop in place. Returns the landing point; is_leaping() turns false and
+## displacement_finished is emitted when it lands.
+func leap(to_px: Vector2, duration: float) -> Vector2:
+	var from := body.global_position
+	var landing := get_leap_landing(to_px)
+	var time := maxf(duration, 0.0001)
+	_end_leap_mask()
+	_end_ghost()
+	_start_displacement((landing - from) / time, time, null)
+	_leaping = true
+	_leap_from = from
+	_leap_to = landing
+	_leap_saved_mask = body.collision_mask
+	body.collision_mask = 0
+	return landing
+
+
+## Where a leap aimed at `to_px` lands: `to_px` itself when the body fits
+## there (no wall, low obstacle, ledge or pit under it) on the floor of the
+## unit's room; otherwise the nearest walkable floor of that room (the closest
+## point of its navigation region, which the walls, fences, ledges, pits and
+## the room's edge carve), freed of anything the body still overlaps
+## (WorldQuery.resolve_valid_position()). A unit outside a Room (or before
+## its navigation is ready) gets resolve_valid_position() alone, back toward
+## the unit.
+func get_leap_landing(to_px: Vector2) -> Vector2:
+	var radius := _body_radius()
+	var room := _find_room()
+	var map := body.get_world_2d().navigation_map if body.is_inside_tree() else RID()
+	if room == null or room.nav_region == null or not map.is_valid() or NavigationServer2D.map_get_iteration_id(map) == 0:
+		return WorldQuery.resolve_valid_position(to_px, body.global_position, radius, LEAP_BLOCKING_MASK)
+	var on_floor := NavigationServer2D.region_get_closest_point(room.nav_region.get_rid(), to_px)
+	# The navigation keeps nav_agent_radius from everything it carves, so a
+	# spot that close to it is still on the room's floor.
+	if to_px.distance_to(on_floor) <= room.nav_agent_radius + 0.5 and WorldQuery.is_point_free(to_px, radius, LEAP_BLOCKING_MASK):
+		return to_px
+	return WorldQuery.resolve_valid_position(on_floor, on_floor, radius, LEAP_BLOCKING_MASK)
+
+
+## True while the unit's own leap runs.
+func is_leaping() -> bool:
+	return _leaping
+
+
+## The running leap's start and landing points, its length and its seconds
+## left (for the view's arc; Vector2.ZERO / 0 when no leap runs).
+func get_leap_from() -> Vector2:
+	return _leap_from if _leaping else Vector2.ZERO
+
+
+func get_leap_to() -> Vector2:
+	return _leap_to if _leaping else Vector2.ZERO
+
+
+func get_leap_duration() -> float:
+	return _displace_duration if _leaping else 0.0
+
+
+func get_leap_time_left() -> float:
+	return _displace_time if _leaping else 0.0
+
+
+## The leap is over: the body's mask comes back, and if something now stands
+## where it landed (a door shut), it's moved the shortest way out.
+func _end_leap() -> void:
+	_end_leap_mask()
+	_leaping = false
+	var here := body.global_position
+	var landed := WorldQuery.resolve_valid_position(here, _leap_to, _body_radius(), LEAP_BLOCKING_MASK)
+	if landed != here:
+		body.global_position = landed
+
+
+func _end_leap_mask() -> void:
+	if _leap_saved_mask >= 0:
+		body.collision_mask = _leap_saved_mask
+		_leap_saved_mask = -1
+
+
+## The Room the unit is in (its nearest Room ancestor), or null.
+func _find_room() -> Room:
+	var node := body.get_parent()
+	while node != null:
+		if node is Room:
+			return node
+		node = node.get_parent()
+	return null
 
 
 ## An airborne displacement ended: inside a low obstacle or a ledge's
@@ -334,7 +450,8 @@ func get_displacement_serial() -> int:
 
 ## Ends the running displacement where the unit is now. Only for a caller
 ## ending its own displacement (check get_displacement_serial() first): it
-## doesn't emit displacement_finished, so it must not be used on a dash.
+## doesn't emit displacement_finished, so it must not be used on a dash (or a
+## leap; one stopped anyway lands where it is, LOOT L6).
 func stop_displacement() -> void:
 	if not is_displaced():
 		return
@@ -342,6 +459,9 @@ func stop_displacement() -> void:
 	_displace_dash_cancelable = false
 	body.velocity = Vector2.ZERO
 	_end_ghost()
+	if _leaping:
+		_leap_to = body.global_position
+		_end_leap()
 
 
 func _start_displacement(velocity: Vector2, duration: float, curve: Curve) -> void:
@@ -514,7 +634,9 @@ func _physics_process(delta: float) -> void:
 		if _displace_time <= 0.0:
 			body.velocity = Vector2.ZERO
 			_end_ghost()
-			if airborne:
+			if _leaping:
+				_end_leap()   # LOOT L6: its own landing (picked when it started)
+			elif airborne:
 				_land()
 			if _has_order:
 				_compute_path(_destination)  # Re-path from where we got pushed to.

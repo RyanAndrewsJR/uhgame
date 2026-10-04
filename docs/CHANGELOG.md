@@ -11,7 +11,68 @@
 
 ## Loot (LOOT.md)
 
-### L5 – Named items, part 1: the framework and the FLAGs: 2026-10-03, Built (awaiting Ryan's play test)
+### L6 – Named items, part 2: the REPLACE variants: 2026-10-04, Built (awaiting Ryan's play test)
+- **Data:**
+  - `data/items/item_knight_homeward_greaves.tres` (Legendary, Boots: move speed, mobility cooldown, armor) and `item_knight_last_verdict.tres` (Artifact, Gloves: attack damage, crit chance, crit damage, ability haste, all at their maximum). `knight.tres` lists all five named items in LOOT's table order.
+  - `augment_lunge_return.tres` (REPLACE `ability:knight_lunge` → `knight_e_lunge_return.tres`) and `augment_judgement_leap.tres` (REPLACE `ability:knight_judgement` → `knight_r_judgement_leap.tres`).
+  - `knight_e_lunge_return.tres`: Lunge's .tres with id `knight_lunge_return`, "Homeward Lunge", `variant_of` `knight_lunge`, `recast_count` 1, `recast_window` 2.5.
+  - `knight_r_judgement_leap.tres`: `judgement_leap.gd`, id `knight_judgement_leap`, "Judgement Leap", `variant_of` `knight_judgement`. POINT, INSTANT with a 0.2 s cast time (it roots; not a channel), 500 range, 30 s. Tags `ultimate`, `area`, `leap`; supports `judgement_shockwave`. Judgement's damage, missing-health scaling, stun, Fury bonus, sounds and `cast_anim`.
+- **Code:**
+  - `CastContext.sequence`. AbilityComponent keeps part 0's dictionary with the recast sequence (`_recast[slot].sequence`) and hands it to every later part.
+  - `lunge.gd`: part 0 writes `sequence[&"start"]`; part 1 (`_return()`) dashes straight back to it, ghosted, at the Lunge's speed and curve, with no hits.
+  - `MovementComponent`:
+    - `leap(to_px, duration)`, `get_leap_landing()`, `is_leaping()`, and the getters for the view (`get_leap_from()` / `_to()` / `_duration()` / `_time_left()`).
+    - `LEAP_BLOCKING_MASK` (the knock-up's landing layers plus pits).
+    - `is_airborne()` is also true during a leap.
+    - `displace()` and `dash()` are dropped while a leap runs, and `stop_displacement()` lands a leap where it is.
+  - `judgement_leap.gd` (extends `judgement.gd`):
+    - The leap, then `_landing()`: the circle's hits in sight, each target with its own stun, one crit roll.
+    - Shockwave's ring, then the Fury spent once.
+    - `draw_indicator()`: the range, a line to the real landing spot, the landing circle, and Shockwave's ring when it's on.
+  - `UnitView`:
+    - `leap_apex_m` (2.5 m).
+    - During a leap, `get_height_m()` follows the line from the start's ground to the landing's, and the model's arc rides over it.
+    - The stun pose isn't played for a leap, and a cast clip holds its follow-through until the landing.
+- **Changed during the step:**
+  - **The landing reads the room's navigation.** `WorldQuery.resolve_valid_position()` alone sees only colliders, and nothing past a tile room's outer wall is a collider, so a leap aimed out of the room would have landed outside it. `get_leap_landing()` asks the unit's Room's navigation region for its closest point (`NavigationServer2D.region_get_closest_point()`; one room's region, so it never picks another room). That region is the room's floor less what its walls, fences, ledges and pits carve, 12 px (`nav_agent_radius`) clear of them.
+    - The aimed spot itself is used when the body fits there and it's within that 12 px of the region.
+    - Otherwise the region's closest point is used, and `resolve_valid_position()` then frees the body.
+    - Outside a Room (the unit tests' bare Knights), it's `resolve_valid_position()` alone, back toward the unit.
+  - **Nothing interrupts a leap.** A knockback mid-air would have replaced it, since the stronger-displacement rule compares distances. `displace()` and `dash()` are now refused while one runs.
+  - **The model touches down with the sim.** The view saw the leap end one tick late and eased the last 0.2–0.4 m down afterwards. It now finishes the line and the arc over the landing tick and the one after it, because the view is drawn a tick behind, interpolated. Measured in the real 3D sandbox: 0.22 m at the landing tick, 0 the tick after.
+  - **The L5 checks that assumed no Artifact** (the Knight's list, a third each among three Legendaries, the Artifact's Exotic fallback, the 50-roll fixture) now use the real items: four Legendaries, The Last Verdict, and a copy of the Knight without it for the fallback.
+  - Test notes:
+    - A talent added mid-run doesn't refill charges (Twin Lunge's second charge recharges). The test calls `reset_cooldown()`.
+    - `get_recast_part()` is 1 from part 0's cast start, not from when the window opens.
+- **Measured** (loot and view tests; the probe in the real 3D sandbox):
+  - **The return:** back to the exact start, within 0.5 px. That holds through a unit, after being pushed 50 px aside in the window, after Tackle's stop, for both of Twin Lunge's charges, and with Long Lunge's 160 px.
+  - **The cooldown:** it starts after the return (Homeward Greaves' rolled mobility cooldown in it) or when the window closes (2.33 s in still open, 2.67 s closed); Quick Footing makes it 6 s. With Twin Lunge, the running recharge didn't move during the second charge's sequence.
+  - **The leap:**
+    - Where aimed (within 0.5 px), 18 frames in the air.
+    - Rooted for the crouch; airborne with no status and no i-frames; mask 0, restored on landing.
+    - Over a unit, a fence, a ledge, a wall and a pit in one leap.
+    - A hop in place when aimed at his feet.
+    - A push, a stun and a dash mid-air changed nothing.
+  - **The landing hits:**
+    - Only the 70 px circle in sight is hit.
+    - A wounded dummy takes far more (its own missing-health term); stuns are 0.75 s.
+    - At 60+ Fury: ×1.30 damage, 1.25 s stuns, the Fury spent once. Kept when nothing was hit or below 60.
+    - Shockwave: the ring at ×0.50 with 0.5 s stuns (1.0 s with the Fury), and no missing-health term.
+    - Executioner: ×2.0 missing-health damage and no stun (0.5 s with the Fury); a kill on landing reset the cooldown, and the same kill without Executioner didn't.
+    - Long Arm 650, Swift Verdict 24 s.
+  - **In a Room** (a 48 px wall, a pit, a fence, the edge):
+    - Aimed inside the thick wall, nearer its far side: (120, 0), past it. A real cast landed there too.
+    - The pit: its rim at (−80, 22). The fence: (0, 88), past its nearer side. Past the edge: (0, −108).
+  - **On terrain** (view test; a slime, so the body is 14 px):
+    - Up onto the plateau, down off it, over the fence, a thin wall and a pit: all exact.
+    - Into the pit: its nearer rim. Into a thin wall nearer its far face: past it at x 6.71 m. Into the wall at the room's edge: in front of it. Past the floor: its edge at z 7.63 m. Onto the cliff's rim: the floor below, clear of the ledge.
+    - The real sandbox: from the floor onto the plateau's top (14, 3), and off it to (15, 7).
+  - **The arc:** half way through a 0.6 s leap from the floor onto the plateau, the view stood at 0.75 m with the model 2.5 m over it. It landed at 1.5 m with the arc at 0.
+- **Layout** (the probe, saving off): The Last Verdict highlighted mid-list and equipped ends at y 294 (18 rows; its leap line wraps once), the same worst case as Chains of Judgement; Homeward Greaves ends at 282. The ability bar is at 322.
+- **Smoke run** (`sandbox_main`, `sandbox_main_layout`, `main_layout`, 600 frames each, the saves backed up first): no errors or warnings; all three saves byte-identical after.
+- **Tests:** loot 622/622 (79 new; four L5 checks updated), view 428/428 (20 new: the leap over terrain and in the real sandbox, the arc, the clip, a guard that only Judgement Leap leaps), talents 310/310 (the variant check now covers both new variants: +2). Stats 179/179, combat 474/474, abilities 557/557, audio 110/110, champions 168/168: 2,848/2,848.
+
+### L5 – Named items, part 1: the framework and the FLAGs: 2026-10-03, Passed (Ryan committed it and started L6)
 - **Classes and data:**
   - `NamedItem` (`scripts/data/named_item.gd`): `get_ability_id()`, and `get_validation_errors(champion)` for rarity, champion, base, affixes, the FLAG/REPLACE augment rules (a REPLACE's variant supports every talent FLAG of its ability), `ability:` modifiers only on its own ability, and the champion's other named items (unique ids, one item slot per ability).
   - `ChampionData.named_items` and `get_named_item()`.

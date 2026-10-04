@@ -111,8 +111,9 @@ var _charge_sound_handle: int = 0
 ## VECTOR aim or release windup is going (_end_charge() forgets it).
 var _vector_start: Vector2 = Vector2.INF
 ## Recast sequences: slot -> {next: the next part, left: window seconds,
-## ability}. Created when a part 0 with recasts starts; its window only runs
-## between parts; erased when the sequence ends.
+## ability, last_part_hit, sequence: part 0's CastContext.sequence (LOOT L6),
+## handed to every later part}. Created when a part 0 with recasts starts; its
+## window only runs between parts; erased when the sequence ends.
 var _recast: Dictionary = {}
 var _pending: Dictionary = {}         # queued targeted cast: {slot, target}
 var _pending_repath: float = 0.0
@@ -505,6 +506,7 @@ func _make_context(slot: StringName, ability: Ability, aim: Vector2, charge: flo
 		ctx.target = _condition_target(ability, aim, ctx)
 	if ctx.part > 0 and _recast.has(slot):
 		ctx.last_part_hit = _recast[slot].last_part_hit
+		ctx.sequence = _recast[slot].sequence   # LOOT L6: what part 0 left for the later parts
 	_fill_inputs(ctx, ability)
 	match ability.targeting:
 		Ability.Targeting.SELF:
@@ -928,7 +930,8 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext, precharged: 
 		_charges[slot] = get_charges(slot) - 1
 		_cast_took_charge = true
 		if ability.recast_count > 0:
-			_recast[slot] = {"next": 1, "left": ability.get_param(unit, &"recast_window"), "ability": ability, "last_part_hit": false}
+			_recast[slot] = {"next": 1, "left": ability.get_param(unit, &"recast_window"), "ability": ability, "last_part_hit": false,
+				"sequence": ctx.sequence}
 		elif _cooldown_left[slot] <= 0.0 and _charges[slot] < get_max_charges(slot):
 			_start_recharge(slot, ability)
 		charges_changed.emit(slot, _charges[slot], get_max_charges(slot))

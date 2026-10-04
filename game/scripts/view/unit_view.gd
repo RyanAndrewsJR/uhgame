@@ -56,6 +56,10 @@ enum Phase { NONE, LEAD_BY_PROGRESS, LEAD_BY_TIME, FOLLOW, DASH }
 @export var airborne_apex_m: float = 1.2
 ## The rise and fall over the knock-up's actual duration: 0 at both ends.
 @export var airborne_curve: Curve = preload("res://data/curves/curve_airborne.tres")
+## A leap's apex over the straight line from the ground at its start to the
+## ground at its landing (m; LOOT L6, 3D.md, Leaps), on airborne_curve over
+## the leap's time. High enough to clear a wall (the kit's are 2.2 m).
+@export var leap_apex_m: float = 2.5
 
 @export_group("Hit flash")
 @export var flash_color: Color = Color(1, 1, 1, 1)
@@ -98,6 +102,13 @@ var _air_total := 0.0         # the knock-up's length (s); 0 = not airborne
 var _air_elapsed := 0.0
 var _air_elapsed_prev := 0.0
 var _air_left_prev := 0.0
+# A leap (LOOT L6): its clock, and the ground's height at its two ends.
+var _leap_total := 0.0        # the leap's length (s); 0 = not leaping
+var _leap_elapsed := 0.0
+var _leap_elapsed_prev := 0.0
+var _leap_from_m := 0.0
+var _leap_to_m := 0.0
+var _leap_to_px := Vector2.INF
 
 var _model: Node3D            # turns to the facing (physics tick, interpolated)
 var _anim: AnimationPlayer    # null for a placeholder
@@ -258,6 +269,50 @@ func _on_sync() -> void:
 	_sync_airborne()
 
 
+## Where the view stands: the ground under the unit, except during a leap
+## (LOOT L6): the straight line from the ground at its start (where the view
+## stood) to the ground at its landing (a plateau's top, the floor below a
+## cliff), by the leap's time. The arc over that line is the model's
+## (_update_airborne()). The ground followed underneath is set to the line,
+## so the view lands without a step.
+func get_height_m() -> float:
+	var ground := ground_height_m()
+	var movement := unit.movement if is_instance_valid(unit) else null
+	if movement == null or not movement.is_leaping() or world_view == null:
+		if _leap_total > 0.0 and _leap_elapsed_prev < _leap_total:
+			# The landing tick (the sim landed during it) and the one after:
+			# the line's end and the arc's last stretch to 0 (drawn a tick
+			# behind, interpolated), so the model touches down with the sim.
+			_leap_elapsed_prev = _leap_elapsed
+			_leap_elapsed = _leap_total
+			_ground_m = _leap_to_m
+			return _leap_to_m
+		_leap_total = 0.0
+		_leap_to_px = Vector2.INF
+		return ground
+	if _leap_total <= 0.0 or movement.get_leap_to() != _leap_to_px:
+		# A new leap: from where the view stands now.
+		_leap_from_m = position.y if _leap_total <= 0.0 else get_leap_base_m()
+		_leap_to_px = movement.get_leap_to()
+		_leap_to_m = world_view.ground_height_m(_leap_to_px)
+		_leap_total = movement.get_leap_duration()
+		_leap_elapsed = 0.0
+		_leap_elapsed_prev = 0.0
+	else:
+		_leap_elapsed_prev = _leap_elapsed
+	_leap_elapsed = clampf(_leap_total - movement.get_leap_time_left(), 0.0, _leap_total)
+	var base := get_leap_base_m()
+	_ground_m = base
+	return base
+
+
+## The leap's straight line at its current time (m): the start's ground to
+## the landing's.
+func get_leap_base_m() -> float:
+	var t := clampf(_leap_elapsed / _leap_total, 0.0, 1.0) if _leap_total > 0.0 else 1.0
+	return lerpf(_leap_from_m, _leap_to_m, t)
+
+
 ## The knock-up's clock from the sim (P9): the arc runs over the status's
 ## actual duration. A new knock-up, or one refreshed to a longer time mid-air,
 ## starts a new arc from the model's current height.
@@ -321,7 +376,12 @@ func _process(delta: float) -> void:
 ## (interpolated, so it doesn't step at 60 Hz on a faster screen). A knock-up
 ## that ends early (a death) lands quickly.
 func _update_airborne(delta: float) -> void:
-	if _air_total > 0.0:
+	if _leap_total > 0.0:
+		# A leap (LOOT L6): the arc over its line, by its time between ticks.
+		var leap_elapsed := lerpf(_leap_elapsed_prev, _leap_elapsed, Engine.get_physics_interpolation_fraction())
+		var lt := clampf(leap_elapsed / _leap_total, 0.0, 1.0)
+		air_height_m = leap_apex_m * (airborne_curve.sample(lt) if airborne_curve else 4.0 * lt * (1.0 - lt))
+	elif _air_total > 0.0:
 		var elapsed := lerpf(_air_elapsed_prev, _air_elapsed, Engine.get_physics_interpolation_fraction())
 		var t := clampf(elapsed / _air_total, 0.0, 1.0)
 		var arc := airborne_curve.sample(t) if airborne_curve else 4.0 * t * (1.0 - t)
@@ -371,8 +431,9 @@ func _update_clips(delta: float) -> void:
 			_seek(lerpf(action_start, action_strike, 1.0 - _time_left / _time_total))
 			return
 		Phase.FOLLOW:
-			_time_left -= delta
-			if _time_left <= 0.0:
+			_time_left = maxf(_time_left - delta, 0.0)
+			# A leaping cast (LOOT L6) holds its clip's last frame until it lands.
+			if _time_left <= 0.0 and not unit.movement.is_leaping():
 				_end_action()
 				return
 			_seek(lerpf(action_strike, action_end, 1.0 - _time_left / _time_total))
@@ -403,7 +464,7 @@ func _seek(share: float) -> void:
 func _update_base_clip() -> void:
 	var speed := 1.0
 	var clip := idle_clip
-	if unit.is_stunned() or unit.movement.is_airborne():   # knocked up: the stun pose (P9)
+	if unit.is_stunned() or (unit.movement.is_airborne() and not unit.movement.is_leaping()):   # knocked up: the stun pose (P9); a leap isn't (LOOT L6)
 		clip = stun_clip
 	elif unit.movement.is_displaced():
 		clip = hit_clip

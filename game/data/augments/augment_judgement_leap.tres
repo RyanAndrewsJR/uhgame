@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="AbilityAugment" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ability_augment.gd" id="1_augment"]
+[ext_resource type="Resource" path="res://data/abilities/knight_r_judgement_leap.tres" id="2_leap"]
+
+[resource]
+script = ExtResource("1_augment")
+id = &"judgement_leap"
+kind = 2
+scope = &"ability:knight_judgement"
+replacement = ExtResource("2_leap")
+display_name = "Judgement Leap"
+description = "Judgement becomes a leap: over anything in the way, striking every enemy where you land."

@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="NamedItem" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/named_item.gd" id="1_named"]
+[ext_resource type="Script" path="res://scripts/data/affix.gd" id="2_affix"]
+[ext_resource type="Resource" path="res://data/item_bases/item_base_leather_gloves.tres" id="3_base"]
+[ext_resource type="Resource" path="res://data/affixes/affix_attack_damage.tres" id="4_affix"]
+[ext_resource type="Resource" path="res://data/affixes/affix_crit_chance.tres" id="5_affix"]
+[ext_resource type="Resource" path="res://data/affixes/affix_crit_damage.tres" id="6_affix"]
+[ext_resource type="Resource" path="res://data/affixes/affix_ability_haste.tres" id="7_affix"]
+[ext_resource type="Resource" path="res://data/augments/augment_judgement_leap.tres" id="8_augment"]
+
+[resource]
+script = ExtResource("1_named")
+id = &"knight_last_verdict"
+display_name = "The Last Verdict"
+rarity = 6
+champion_id = &"knight"
+base = ExtResource("3_base")
+affixes = Array[ExtResource("2_affix")]([ExtResource("4_affix"), ExtResource("5_affix"), ExtResource("6_affix"), ExtResource("7_affix")])
+augment = ExtResource("8_augment")
