@@ -804,7 +804,7 @@ Every step: with no cast style changes, scalings, costs, charges, recasts, augme
     - **The view:** no slide (even under WorldView's 64 px snap); onto a plateau at once; an afterimage at the start and a flash at the arrival; the camera glides.
     - **Homeward Greaves:** the return blinks back to the exact start at once (also after walking behind a wall) and hits nothing. Tackle, Twin Lunge, Long Lunge and Quick Footing work as in L6. A rooted recast fails with its cue and the window keeps running.
     - **Tests and play test:** every existing test passes (L6's return checks updated to the blink). Ryan's play test: the return reads as a blink, and the test blink feels right.
-    Built 2026-10-04, see CHANGELOG.md.
+    Built 2026-10-04 and passed Ryan's play test the same day, see CHANGELOG.md.
 
 **Milestone AB-M – augment playground** (after AB13): in the sandbox, `SandboxAugments` with 4 fake items that visibly change the Knight: Lunge stuns (FLAG), Cleave becomes a projectile wave (REPLACE), a Judgement kill resets its cooldown (EVENT + ModifyCooldown), casting Cleave also casts a free Lunge-style dash (CastAbility, at Cleave's effect start). Built 2026-09-28, see CHANGELOG.md.
     **Done means** (passed Ryan's play test, 2026-09-28): keys 1–4 equip and unequip them; the tooltips show each change; unequipping restores the Knight exactly.

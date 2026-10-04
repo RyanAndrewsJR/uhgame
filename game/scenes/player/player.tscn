@@ -23,12 +23,16 @@
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_low_health.tres" id="s1_low_health_sound"]
 [ext_resource type="Resource" path="res://data/champions/knight.tres" id="c1_champion"]
 [ext_resource type="Script" path="res://scripts/components/equipment_component.gd" id="l2_equipment"]
+[ext_resource type="Script" path="res://scripts/components/pickup_component.gd" id="l7_pickup"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_body"]
 radius = 11.0
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hurt"]
 size = Vector2(20, 30)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_pickup"]
+radius = 64.0
 
 [node name="Player" type="CharacterBody2D" unique_id=1398562208]
 collision_layer = 2
@@ -83,6 +87,15 @@ r = ExtResource("13_r")
 
 [node name="EquipmentComponent" type="Node" parent="."]
 script = ExtResource("l2_equipment")
+
+[node name="PickupComponent" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 256
+monitorable = false
+script = ExtResource("l7_pickup")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="PickupComponent"]
+shape = SubResource("CircleShape2D_pickup")
 
 [node name="Hurtbox" type="Area2D" parent="." unique_id=64001934]
 collision_layer = 0

@@ -44,7 +44,7 @@ const GROUND_RAY_M := 50.0
 ## (m above the floor; the Knight is 1.8 m tall).
 const FADE_SIGHT_HEIGHTS_M := [0.0, 0.9, 1.8]
 ## The default view scenes, loaded once when the view starts, so the first
-## stun, aura or projectile of a fight doesn't load one from disk on that
+## stun, aura, projectile or drop of a fight doesn't load one from disk on that
 ## frame (P6: 19–24 ms each). Loaded with load(), not preload(): their
 ## scripts name WorldView, and a preload here would be a cycle.
 const DEFAULT_VIEW_SCENES := [
@@ -53,6 +53,7 @@ const DEFAULT_VIEW_SCENES := [
 	"res://scenes/view/aura_view.tscn",
 	"res://scenes/view/stun_stars_view.tscn",
 	"res://scenes/view/staggered_mark_view.tscn",
+	"res://scenes/view/pickup_view.tscn",
 ]
 
 ## The camera's look (field of view, pitch, width) and the fade's numbers.

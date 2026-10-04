@@ -11,16 +11,20 @@ extends Node
 ##   U             equip or unequip the highlighted item (a swap when its
 ##                 slot is filled; a ring goes in the first empty ring slot)
 ##   K             roll one drop from drop_table at the room's depth with the
-##                 champion's magic find, straight into the inventory (L7
-##                 makes it a pickup at the champion's feet)
+##                 champion's magic find, dropped at the champion's feet as
+##                 pickups (the real path since LOOT L7: they pop, land and
+##                 are collected, the champion standing within its pickup
+##                 radius)
 ##   P             one of each of the champion's named items, into the
 ##                 inventory (LOOT L5; Loot.debug_grant_named_items())
 ##   [ / ]         lower / raise the room's depth (Room.depth, at least 1)
 ## Unlike SandboxTalents it changes the real save (Ryan, 2026-10-01): it's the
 ## only equip screen until UI.md, so gear set here carries into Start run.
-## Rolls go in through Loot.add_item() and equipping through the Player's
-## EquipmentComponent, both saved by the Loot autoload. A scripted harness
-## sets Loot.saving_enabled = false first. room_01 has none of this.
+## Rolls go in through Loot.drop() and the pickup (Loot.collect()), P's
+## through Loot.add_item(), and equipping through the Player's
+## EquipmentComponent, all saved by the Loot autoload. Every pickup (K's or a
+## kill's) moves the cursor to the new item. A scripted harness sets
+## Loot.saving_enabled = false first. room_01 has none of this.
 
 ## The list's plain text and its hints (the keys, scroll marks, the last result).
 const TEXT_COLOR := Color(0.92, 0.92, 0.92)
@@ -59,6 +63,7 @@ func _ready() -> void:
 		layer.add_child(_label)
 	Events.item_equipped.connect(_on_item_changed)
 	Events.item_unequipped.connect(_on_item_changed)
+	Loot.item_picked_up.connect(_on_item_picked_up)
 	var entities := get_parent().get_node_or_null("Entities")
 	if entities != null:
 		entities.child_entered_tree.connect(_on_entity)
@@ -84,6 +89,17 @@ func _on_entity(node: Node) -> void:
 func _on_item_changed(unit: Unit, _item: Item) -> void:
 	if unit == _player:
 		_update_label()
+
+
+## A pickup of this champion's (K's or a kill's): the cursor on the new item.
+func _on_item_picked_up(champion_id: StringName, item: Item) -> void:
+	var champion := get_champion()
+	if champion == null or champion.id != champion_id:
+		return
+	var index := get_items().find(item)
+	if index >= 0:
+		_cursor = index
+	_update_label()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -185,8 +201,11 @@ func toggle(index: int) -> bool:
 
 
 ## K: one roll of drop_table at the room's depth with the champion's magic
-## find, into the champion's inventory (saved). The cursor moves to the last
-## new item. Returns the new items (none when the table's chance misses).
+## find, dropped at the champion's feet as pickups (Loot.drop(), the real
+## path since LOOT L7): each pops, lands 0.3 s later inside the champion's
+## pickup radius and is collected (into the inventory, saved; the cursor
+## moves to it then). Returns the rolled items, not yet in the inventory
+## (none when the table's chance misses).
 func roll_drop() -> Array[Item]:
 	var out: Array[Item] = []
 	var champion := get_champion()
@@ -195,12 +214,11 @@ func roll_drop() -> Array[Item]:
 	out = ItemRoller.roll_drop(drop_table, get_depth(), get_magic_find(), champion, Loot.table, Loot.rng)
 	var names: PackedStringArray = []
 	for item in out:
-		Loot.add_item(champion, item)
 		names.append("%s %s" % [_rarity_name(item), item.get_display_name()])
 	if out.is_empty():
 		_status = "Rolled nothing (depth %d)" % get_depth()
 	else:
-		_cursor = get_items().size() - 1
+		Loot.drop(out, _player.global_position, _player.get_parent())
 		_status = "Rolled %s (depth %d)" % [", ".join(names), get_depth()]
 	_update_label()
 	return out

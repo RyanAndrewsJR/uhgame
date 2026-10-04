@@ -82,7 +82,7 @@ Later hooks, per system: Build order, Later.
 - Latency: keep the project's audio output latency at the default or lower, and say what it is. The default `audio/driver/output_latency` is 15 ms and the project doesn't override it; the real value depends on the OS driver, so the audio test prints `AudioServer.get_output_latency()`.
 
 ## Current code
-The audio code: the `Audio` autoload (registered last), its child `CombatSounds`, `SoundEvent`, `AudioMix` + `audio_mix_default.tres`, `default_bus_layout.tres`, 28 SoundEvents in `data/sounds/` over 40 synthesized placeholder WAVs in `audio/sfx/` (`audio/LICENSES.md`), `audio_test.tscn`. `project.godot` has no `[audio]` section: every audio setting is at its default.
+The audio code: the `Audio` autoload (registered last), its child `CombatSounds`, `SoundEvent`, `AudioMix` + `audio_mix_default.tres`, `default_bus_layout.tres`, 31 SoundEvents in `data/sounds/` over 43 synthesized placeholder WAVs in `audio/sfx/` (`audio/LICENSES.md`), `audio_test.tscn`. `project.godot` has no `[audio]` section: every audio setting is at its default.
 
 What audio hooks into:
 
@@ -166,6 +166,8 @@ Combat (A2):
 
 Abilities and statuses (A3, 16 files): `sound_knight_cleave_cast`, `sound_knight_iron_resolve_cast`, `sound_knight_lunge_cast`, `sound_knight_judgement_cast`, `sound_knight_judgement_hit`, `sound_slime_elite_slam_telegraph` (a rising rumble ~0.65 s; 640 px, HIGH), `sound_slime_elite_slam_hit`, `sound_status_stun_apply`, `sound_status_slow_apply`, `sound_status_haste_apply`, `sound_status_shield_apply`, `sound_status_shield_break` (the shield's expire sound), `sound_knight_low_health` (a loop: its WAV is imported with Loop Mode Forward), `sound_ui_ultimate_ready` (UI bus), `sound_stinger_room_cleared`, `sound_stinger_player_died` (SFX, centered, HIGH).
 - The wind-up plays at the telegraph, which is where the hit lands. The slam lands where the player stood, so its wind-up is always near the player; "heard from off screen" applies to telegraphs placed away from the player (up to 640 px).
+
+Loot (LOOT L7, 3 files, synthesized in a GDScript tool, assigned in `loot_table_default.tres`): `sound_loot_drop` (a short glassy tink, ~0.35 s; a landing Uncommon–Exotic drop, −8 dB), `sound_loot_drop_legendary` (a rising three-note chime over a high shimmer, ~1.1 s; Legendary and Artifact, −4 dB, HIGH, 640 px), `sound_loot_pickup` (a soft rising blip, ~0.16 s; centered, −10 dB).
 
 ## Architecture / contracts
 ### Audio (autoload, `res://scripts/autoload/audio.gd`)
@@ -277,7 +279,7 @@ Every step: with every sound field empty the game plays exactly as before, and t
 2. **A2 – Combat sounds with placeholders.** Built 2026-09-27, see CHANGELOG.md.
 3. **A3 – Abilities and statuses** (the ability, telegraph, ready, status, heartbeat and stinger hooks; Data, Placeholder sounds). Built 2026-09-27, see CHANGELOG.md.
    **Done means** (awaiting play test): each Knight ability has its own cast sound; the elite's wind-up is heard from off screen, stops when the slam lands, and stops at once when the cast is interrupted; Judgement's stun plays its apply sound once; a status loop plays once per unit however many stacks; the heartbeat starts below 25% health and stops above it and at death; R pings when it comes off cooldown; "Room cleared!" and "You died" have stingers.
-- **Later, per system** (each written into that system's build order, pointing here): LOOT (drop by rarity, pickup), CHAMPIONS / NPCS (voice lines; champion sounds onto ChampionData), ENEMIES_AI (enemy attack wind-ups for enemies without a telegraph, whiffs, aggro), WORLD_INTERACTION (impacts, hazard loops), DUNGEONS (music with explore and combat layers, room ambience, the room-clear transition), UI (hover, click, menu open and close, slider ticks), movement with sprites (footsteps on the F3 walk bob).
+- **Later, per system** (each written into that system's build order, pointing here): CHAMPIONS / NPCS (voice lines; champion sounds onto ChampionData), ENEMIES_AI (enemy attack wind-ups for enemies without a telegraph, whiffs, aggro), WORLD_INTERACTION (impacts, hazard loops), DUNGEONS (music with explore and combat layers, room ambience, the room-clear transition), UI (hover, click, menu open and close, slider ticks), movement with sprites (footsteps on the F3 walk bob).
 
 ## Out of scope for now
 The music system (adaptive layers), voice lines, footsteps, final audio assets. Placeholders only.

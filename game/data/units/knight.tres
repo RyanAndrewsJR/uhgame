@@ -11,3 +11,4 @@ attack_damage = 64.0
 base_attack_speed = 0.7
 crit_chance = 0.25
 move_speed = 375.0
+pickup_radius = 200.0

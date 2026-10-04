@@ -11,6 +11,43 @@
 
 ## Loot (LOOT.md)
 
+### L7 – Drops and pickups: 2026-10-04, Built (awaiting Ryan's play test)
+Ryan passed AB15 and started L7 (2026-10-04).
+- **Data:**
+  - `project.godot`: collision layer 9 named `pickup` (written directly while Godot was closed; it shows under Project Settings → General → Layer Names → 2D Physics).
+  - `scenes/loot/pickup.tscn` (an Area2D on layer 9 only, mask 0, not monitoring, not monitorable until it lands, a 6 px circle) and `scenes/view/pickup_view.tscn`.
+  - `player.tscn`: a `PickupComponent` (layer 0, mask 9, a 64 px circle). `knight.tres`: `pickup_radius` 200.
+  - `sound_loot_drop`, `sound_loot_drop_legendary`, `sound_loot_pickup` (`data/sounds/`) over three synthesized WAVs (`audio/sfx/loot_*_01.wav`, a GDScript tool: sines and a little noise; `audio/LICENSES.md` row). `loot_table_default.tres`: Uncommon–Exotic drop with `sound_loot_drop`, Legendary and Artifact with the legendary one, Common silent; `pickup_sound`.
+- **Code:**
+  - `Pickup` (`scripts/loot/pickup.gd`): `hop(from, spot)` / `place(spot)` before it enters the tree, `pick_landing()` / `is_good_landing()`, `landed`, the hop's progress for its view, `debug_draw`.
+  - `PickupComponent` (`scripts/components/pickup_component.gd`): its own circle from `pickup_radius`, followed on `stat_changed`; `Loot.collect()` on `area_entered`; nothing while dead.
+  - `Loot`: `item_picked_up`; the `Events.unit_died` listener (`get_drop_credit()`, `roll_kill_drop()`, the pickups deferred to the frame's end); `drop()`, `get_drop_origin()`, `collect()`, `get_ground_pickups()`, `take_ground_drops()`, `restore_ground_drops()`; `drops_enabled` / `are_drops_enabled()`.
+  - `PickupView` (`scripts/view/pickup_view.gd`): the gem, the bob and turn, the hop's arc, the beam from Legendary up. `WorldView.DEFAULT_VIEW_SCENES` loads its scene at setup.
+  - `hud.gd`: `show_loot_line()`, `get_loot_lines()`, `get_loot_line_color()`, fed by `Loot.item_picked_up`.
+  - `SandboxLoot`: K drops its roll at the Knight's feet through `Loot.drop()`; the cursor follows each pickup.
+- **Changed during the step:**
+  - **Drops are off by themselves in a test scene** (`Loot.drops_enabled`, decided at the first kill, the save guard's way). Seven suites kill slimes with a tracked Knight, and a 10% drop would change their pickups and sound logs from run to run. loot_test and view_test turn drops on where they test them.
+  - **The hop is the view's; the pickups come at the frame's end.** The sim pickup stands at its landing spot from the start and turns monitorable after 0.3 s, so a hopping drop is already where `take_ground_drops()` says it lies. The plan's `land_at(point)` became `hop(from, spot)` and `place(spot)`, called before the pickup enters the tree, so its view's first sync knows the hop. A kill is rolled at once, but its pickups are added deferred, because a death can come inside a hurtbox's physics callback.
+  - **A corpse over a pit drops from the room's navigation** (its closest point, the leap's rule), not from `WorldQuery.push_out()` as planned. `push_out()` only searches out to twice the radius (14 px for a pickup), so a corpse mid-pit would have dropped in it. It's kept for outside a Room.
+  - **Each Player gets its own collect circle.** The scene's shape is shared, so one Knight's radius would have changed every Knight's.
+  - **The HUD's loot lines are centered above the ability bar** (the bottom-left is SandboxTalents' list), six at most.
+  - **No Python on this machine**, so the sounds come from a GDScript tool run headless.
+  - The L3 K checks now wait for the pickups to land and be taken (split so the drop and the pickup are checked apart: 3 more checks). An unrelated stale row in LOOT.md's edge cases (the return was still described as a dash) is fixed.
+- **Measured** (loot and view tests, seeded; the probe in the real 3D sandbox):
+  - **Rates:** 20,000 slime kills dropped 9.79% (the table: 10%). At depth 5: 12.40% (12%). 2,000 elite kills: one item every time, Uncommon or better. With +900% magic find the chance stayed at 9.92%, and 88.3% of drops were Uncommon or better (the formula: 87.1%; 40.5% without).
+  - **The pop:** a landing spot 12–28 px off. A drop at the Knight's feet stays untouched for 0.3 s, then is taken 18 frames after it dropped, into the inventory and the save at once. The Rare's drop sound plays where it landed, then the pickup sound plays centered. A Common is silent, and a Legendary plays the legendary sound.
+  - **Walking:** a drop 130 px off was taken when the Knight's circle met it (69.2 px: his 64 plus its 6). His speed read 120 px/s on every frame from 5 before to 5 after, with no lock and no status.
+  - **The radius:** +100 u made the circle 96 px at once and took a landed drop 85 px off on the next step. Another Knight kept his 64 px, and a dead Knight took nothing.
+  - **Landing:** 300 drops each beside a wall, a fence and a ledge strip: none against them, none past them, 284–286 on the open side, and the rest (all four tries failed) where they dropped. Beside a thin pit: none over it, and 64 hopped across (Open questions). Walled in 8 px around: every drop stayed where it dropped.
+  - **Pits:** from the middle of a 3 m pit in a room, the drops start 12 px past its edge, and 20 of 20 land clear of it. Outside a Room, a point 4 px inside a pit's edge moved out 11 px.
+  - **Ground drops:** three taken, one still hopping at its landing spot, and put back where they lay: landed, collectable, silent, the named one's dict equal. The Knight took each.
+  - **The view:** half way through the hop the view stands 0.60 m over the floor on the line between the two spots. The gem hovered between 0.300 and 0.400 m and turned. A Legendary's beam was hidden while it hopped, then showed 1.25 m tall, orange at 0.55 alpha; an Exotic had none. On the plateau it hopped over the top and landed at 1.5 m. Taken, every view was gone the next frame.
+  - **The real 3D sandbox** (a probe, saving off): the Knight's hits killed the elite and both slimes. The elite's Uncommon Mail Hauberk popped under Entities with its green PickupView; the slimes dropped nothing (seeded). The Knight walked onto it and took it, and the HUD read "Uncommon: Mail Hauberk". K dropped a Longsword at his feet, which he took, and the HUD added its line. The elite's drop sound was dropped `out_of_range`, because the probe killed it from about 15 m away.
+  - **A note on probes:** a probe that quits while a sound plays prints Godot's leak warning at exit (a sound still playing leaks its stream, as loot_test's L5 note says). With `Audio.stop_all()` first, there's none.
+- **Sensitivity:** each key check was broken on purpose once and restored, and each failed: the dummy's credit, the walk-to ray, the pit origin, the radius following the stat, monitorable from the start, the dead guard, the test-scene guard, restoring with a hop, the view's hop path.
+- **Smoke run** (`sandbox_main`, `sandbox_main_layout`, `main_layout`, 600 frames each, the saves backed up first): no errors or warnings; all three saves byte-identical after.
+- **Tests:** loot 706/706 (76 new in the L7 sections, 3 from splitting the L3 K checks), view 457/457 (15 new). Stats 179/179, combat 474/474, abilities 580/580, audio 110/110, champions 168/168, talents 310/310: 2,984/2,984.
+
 ### L6 – Named items, part 2: the REPLACE variants: 2026-10-04, Passed (Ryan committed it; he asked for blinks next, and the return becomes one in ABILITIES AB15)
 - **Data:**
   - `data/items/item_knight_homeward_greaves.tres` (Legendary, Boots: move speed, mobility cooldown, armor) and `item_knight_last_verdict.tres` (Artifact, Gloves: attack damage, crit chance, crit damage, ability haste, all at their maximum). `knight.tres` lists all five named items in LOOT's table order.
@@ -867,7 +904,7 @@ Play test passed (Ryan, 2026-10-01): F5, the pause menu shows the saved cast mod
 
 ## Abilities (ABILITIES.md)
 
-### AB15 – Blinks: 2026-10-04, Built (awaiting Ryan's play test)
+### AB15 – Blinks: 2026-10-04, Passed (Ryan committed it and started LOOT L7)
 Ryan asked for blinks (2026-10-04), and started AB15 with the spec's proposals as written.
 - **Code:**
   - **`MovementComponent`:**

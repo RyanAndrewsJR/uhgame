@@ -73,6 +73,9 @@ extends Node3D
 ## numbers; on the Knight's model (moved here from combat_test and
 ## abilities_test): the post-hit i-frame blink, and the cast and swing clips
 ## positioned by progress (a stun, an instant cast, a cancelled swing).
+## LOOT L7: a drop's PickupView (the gem in its rarity's color, the hop's arc
+## over the floor and onto a plateau's top, the bob and the turn, a
+## Legendary's beam once it lands and none for an Exotic, gone when taken).
 ## Prints PASS/FAIL per check and a total; run headless, it quits with the
 ## number of failures as the exit code.
 
@@ -128,6 +131,7 @@ func _ready() -> void:
 	await _test_leap_in_view()
 	await _test_blink_terrain()
 	await _test_blink_in_view()
+	await _test_pickup_view()
 	await _test_arcs_and_pillars()
 	await _test_2d_looks_gone()
 	await _test_model_blink_and_clips()
@@ -2288,6 +2292,95 @@ func _ghosts(view: WorldView) -> Array[Node]:
 		if String(child.name).begins_with("Ghost") and not child.is_queued_for_deletion():
 			out.append(child)
 	return out
+
+
+# --- Pickups (LOOT L7; LOOT.md, View) ------------------------------------------------------------
+
+func _test_pickup_view() -> void:
+	_section("A drop in the view (LOOT L7; LOOT.md, View): the gem in its rarity's color, the hop's arc, the beam, gone when taken")
+	_check("PickupView's scene loads with the view (no load on the first drop)", WorldView.DEFAULT_VIEW_SCENES.has("res://scenes/view/pickup_view.tscn"), true)
+	var layout := _terrain_layout()
+	var room := layout.build_sim()
+	var main := Node2D.new()
+	main.add_child(room)
+	add_child(main)
+	var view := WorldView.new()
+	main.add_child(view)
+	view.setup(main, room, null, layout)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var table := LootTable.get_default()
+	var entities := room.get_node("Entities")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 8001
+	var common: Array[Item] = [ItemRoller.roll_item(Item.Rarity.COMMON, null, table, rng)]
+	Loot.rng.seed = 8002
+	var pickup: Pickup = Loot.drop(common, _px(7.0, 1.5), entities)[0]
+	var pv := view.view_of(pickup) as PickupView
+	_check("the drop gets its PickupView at once", pv != null, true)
+	if pv == null:
+		main.free()
+		return
+	_check("a small gem in the Common color; no beam below Legendary",
+		[pv.get_color() == table.get_rarity(Item.Rarity.COMMON).color, pv.gem != null, pv.beam == null], [true, true, true])
+	for i in 9:
+		await get_tree().physics_frame
+	var t := pickup.get_hop_progress()
+	var along := pickup.get_hop_from().lerp(pickup.global_position, t)
+	_check_near_v3("mid-hop (%.2f of it): along the line from where it dropped, the arc over the floor" % t,
+		pv.position, Units.to_view(along, pv.hop_apex_m * 4.0 * t * (1.0 - t)), 0.01)
+	_check("(the arc near its top, %.2f m)" % pv.position.y, pv.position.y > 0.5, true)
+	for i in 12:
+		await get_tree().physics_frame
+	_check_near_v3("landed: on the floor at its spot", pv.position, Units.to_view(pickup.global_position, 0.0), 0.01)
+	var heights: Array[float] = []
+	var turns: Array[float] = []
+	for i in 60:
+		await get_tree().physics_frame
+		heights.append(pv.pivot.position.y)
+		turns.append(pv.pivot.rotation.y)
+	_check("the gem hovers 0.35 m up, bobbing by up to 0.05 m (%.3f–%.3f m over 1 s)" % [heights.min(), heights.max()],
+		[heights.min() >= 0.299, heights.max() <= 0.401, heights.max() - heights.min() > 0.03], [true, true, true])
+	_check("and turns slowly", absf(turns[turns.size() - 1] - turns[0]) > 0.3, true)
+	# A Legendary: its beam once it lands. An Exotic: none.
+	var named: Array[Item] = [ItemRoller.make_named(load("res://data/items/item_knight_tidebreaker.tres"), table, rng)]
+	var lp: Pickup = Loot.drop(named, _px(7.0, 3.0), entities)[0]
+	var lv := view.view_of(lp) as PickupView
+	_check("a Legendary: a beam, hidden while it hops", [lv != null and lv.beam != null, lv != null and lv.is_beam_shown()], [true, false])
+	for i in 22:
+		await get_tree().physics_frame
+	if lv != null and lv.beam != null:
+		var orange := table.get_rarity(Item.Rarity.LEGENDARY).color
+		_check("landed: the beam shows, 1.25 m tall, orange at 0.55, drawn with PillarView's shader",
+			[lv.is_beam_shown(), (lv.beam.mesh as CylinderMesh).height, lv.beam.get_instance_shader_parameter(&"color"),
+			(lv.beam.material_override as ShaderMaterial).shader == preload("res://scripts/view/pillar.gdshader")],
+			[true, 1.25, Color(orange, 0.55), true])
+		_check("and the gem is orange", lv.get_color() == orange, true)
+	var exotic: Array[Item] = [ItemRoller.roll_item(Item.Rarity.EXOTIC, null, table, rng)]
+	var ep: Pickup = Loot.drop(exotic, _px(8.0, 1.5), entities)[0]
+	for i in 22:
+		await get_tree().physics_frame
+	var ev := view.view_of(ep) as PickupView
+	_check("an Exotic: no beam", ev != null and ev.beam == null and not ev.is_beam_shown(), true)
+	# On the plateau: its arc over the top, landing on it.
+	var up: Array[Item] = [ItemRoller.roll_item(Item.Rarity.RARE, null, table, rng)]
+	var top_pickup: Pickup = Loot.drop(up, _px(3.5, 3.5), entities)[0]
+	var tv := view.view_of(top_pickup) as PickupView
+	for i in 9:
+		await get_tree().physics_frame
+	var tt := top_pickup.get_hop_progress()
+	_check_near("a drop on the plateau: mid-hop over its top (1.5 m plus the arc)", tv.position.y if tv else -1.0,
+		PLATEAU_TOP + (tv.hop_apex_m if tv else 0.6) * 4.0 * tt * (1.0 - tt), 0.01)
+	for i in 12:
+		await get_tree().physics_frame
+	_check_near("landed on the top", tv.position.y if tv else -1.0, PLATEAU_TOP, 0.01)
+	# Taken: gone at once.
+	var views: Array = [pv, lv, ev, tv]
+	Loot.take_ground_drops(room)
+	await get_tree().physics_frame
+	await get_tree().process_frame
+	_check("taken: every drop's view is gone the next frame", views.all(func(v: Variant) -> bool: return not is_instance_valid(v)), true)
+	main.free()
 
 
 # --- P7's 2D-only looks (after P9) --------------------------------------------------------

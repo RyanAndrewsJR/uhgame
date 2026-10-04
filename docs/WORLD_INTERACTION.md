@@ -28,7 +28,7 @@ Example: an Akshan-style swing is an ability that asks `WorldQuery` for a grappl
 | 6 | pit | chasms (`Pits` TileMapLayer): block walking only, not dashes, other displacements (knockback, blink, pull, swing) or projectiles | planned; a layout's pit footprints are on it since P8 and carved from the navigation, but nothing masks it until the pit step (Ryan, 2026-10-03) |
 | 7 | low_obstacle | fences, rubble: block walking, not projectiles | exists (3D pivot P8: a layout's low-obstacle footprints; the fence in the room kit) |
 | 8 | interactable | chests, doors, shrines, NPC talk zones; with DUNGEONS: checkpoints, levers, braziers, statues, collectibles opened like chests | planned |
-| 9 | pickup | dropped loot, gold, potions; with DUNGEONS: collectibles picked up like loot | planned |
+| 9 | pickup | dropped loot, gold, potions; with DUNGEONS: collectibles picked up like loot | built (LOOT L7, 2026-10-04): `Pickup` on it, `PickupComponent` masks it |
 | 10 | hazard | traps, damaging floors; with DUNGEONS: pressure plates, each theme's signature hazards, "dark rooms" *(proposed there)* | planned |
 | 11 | ledge | cliff edges, derived from the walkable ground at room load (3D.md, Terrain and height): block walking and dashes, not projectiles or line of sight | exists (3D pivot P9: `RoomLayout.derive_ledges()`, one `Ledges` body per room built in 3D; Ryan, 2026-10-01) |
 

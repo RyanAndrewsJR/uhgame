@@ -53,7 +53,7 @@ Existing `UnitStats` fields keep their names. New ones get added to `UnitStats`.
 | `life_steal` | 0 | 0 / 1 | × damage taken by the target; basic attacks only *(proposed; built that way in COMBAT C8)*. 0 for every unit (zero sustain; the Knight's 0.01 of 2026-09-28 was reverted 2026-09-29) |
 | `tenacity` | 0 | 0 / 0.8 | crowd control duration × (1 − tenacity) for statuses tagged `cc` |
 | `knockback_resistance` | 0 | 0 / 1 | displacement distance × (1 − value); bosses 1 (WORLD_INTERACTION.md). Approved 2026-09-30 (WORLD_INTERACTION.md, Knockback). Registry entry only; **not on UnitStats** until the knockback work |
-| `pickup_radius` | 0 | - / - | LoL units. The planned value is 200 (64 px); set per unit when pickups exist (LOOT.md) |
+| `pickup_radius` | 0 | - / - | LoL units. The Knight has 200 (64 px) since LOOT L7; `PickupComponent` follows it live (LOOT.md) |
 | `magic_find` | 0 | 0 / - | LOOT.md |
 | `gold_find` | 0 | 0 / - | |
 | `incoming_damage` | 1 | 0 / - | multiplier on damage after mitigation (the result is "damage taken"). Reductions are negative PERCENT_MULT modifiers, so they multiply (two 20% = × 0.64) |

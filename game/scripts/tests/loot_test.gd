@@ -64,6 +64,18 @@ extends Node2D
 ## ABILITIES AB15: Homeward Greaves' return is a blink (at the start by the
 ## cast's 3 frames, never in between, over a wall; a rooted recast fails with
 ## its cue and the window keeps running); its Stagger line is Lunge's.
+## L7: drops and pickups. Layer 9, pickup.tscn, the Knight's PickupComponent and
+## pickup_radius, the sounds on the loot table; kills' rates (a slime 10%, at
+## depth 5 12%, the elite always one item, magic find shifting only the
+## rarities); the kill credit (the tracked player's last hit; not a dummy, the
+## same team, another unit or no source; drops off by themselves in a test
+## scene); the pop (12–28 px, collectable after 0.3 s, taken within two steps,
+## the drop and pickup sounds, the save at once); walking through a drop with
+## no stop; the radius following the stat, each Knight's own circle, a dead
+## Knight taking nothing; landing spots by a wall, a fence, a ledge and a pit,
+## walled in, a corpse over a pit (the room's navigation; push_out() outside a
+## Room); ground drops taken and put back; the HUD's loot lines. K drops
+## pickups at the Knight's feet (the L3 checks wait for them).
 ## Prints PASS/FAIL per check, then a total.
 ## Run headless and it quits with the number of failures as the exit code.
 
@@ -102,6 +114,11 @@ const PLAYER_SCENE: PackedScene = preload("res://scenes/player/player.tscn")
 const KNIGHT: ChampionData = preload("res://data/champions/knight.tres")
 const REAL_SAVE := "user://inventory.cfg"
 const SCRATCH_SAVE := "user://loot_test_scratch.cfg"
+const PICKUP_SCENE: PackedScene = preload("res://scenes/loot/pickup.tscn")
+const HUD_SCENE: PackedScene = preload("res://scenes/ui/hud.tscn")
+const SOUND_LOOT_DROP: SoundEvent = preload("res://data/sounds/sound_loot_drop.tres")
+const SOUND_LOOT_DROP_LEGENDARY: SoundEvent = preload("res://data/sounds/sound_loot_drop_legendary.tres")
+const SOUND_LOOT_PICKUP: SoundEvent = preload("res://data/sounds/sound_loot_pickup.tres")
 
 const ROLLS := 100000
 const R := Item.Rarity
@@ -163,7 +180,7 @@ class ForeignItem extends Item:
 
 
 func _ready() -> void:
-	print("\n=== Loot test (LOOT L1–L6) ===")
+	print("\n=== Loot test (LOOT L1–L7) ===")
 	# First, before anything touches either autoload: a window's close request
 	# saves, and Progress.save() once checked saving_enabled before its lazy
 	# test-scene guard, so a windowed run closed before anything touched
@@ -238,6 +255,17 @@ func _ready() -> void:
 	await _test_last_verdict()
 	await _test_leap_hits()
 	await _test_leap_in_room()
+	# L7
+	_test_l7_data()
+	await _test_drop_rates()
+	await _test_kill_drops()
+	await _test_pickup_pop()
+	await _test_pickup_walk()
+	await _test_pickup_radius()
+	await _test_landing_terrain()
+	await _test_drop_over_pit()
+	await _test_ground_drops()
+	await _test_hud_loot_line()
 	Audio.stop_all()
 	Loot.reset(KNIGHT)
 	_check("the real inventory file was never written", _file_stamp(REAL_SAVE), real_before)
@@ -1151,15 +1179,21 @@ func _test_sandbox_loot() -> void:
 	_check("the list is a RichTextLabel that never takes the mouse (attack clicks pass)",
 		label != null and label.mouse_filter == Control.MOUSE_FILTER_IGNORE, true)
 
-	# K
+	# K (since L7 a drop at the Knight's feet, taken when it lands)
 	Loot.rng.seed = 3030
 	var first := sl.roll_drop()
 	var record := Loot.get_inventory(KNIGHT)
-	_check("K: one item from the elite table, into the inventory with uid 1",
-		[first.size(), record.items.size(), first[0].uid if first.size() == 1 else -1], [1, 1, 1])
-	_check("the cursor on it, the result said", [sl.get_cursor(), sl.get_status().begins_with("Rolled ")], [0, true])
+	var on_ground := Loot.get_ground_pickups(room)
+	_check("K: one item from the elite table, dropped at the Knight's feet as a pickup (not in the inventory yet)",
+		[first.size(), on_ground.size(), on_ground[0].item == first[0] if on_ground.size() == 1 else false, on_ground[0].get_hop_from() == p.global_position if on_ground.size() == 1 else false, record.items.size()],
+		[1, 1, true, true, 0])
+	_check("the result said", sl.get_status().begins_with("Rolled "), true)
+	await _wait_until(func() -> bool: return record.items.size() == 1, 30)
+	_check("it lands and the Knight takes it: in the inventory with uid 1", [record.items.size(), first[0].uid], [1, 1])
+	_check("the cursor on it", sl.get_cursor(), 0)
 	for i in 5:
 		sl.roll_drop()
+	await _wait_until(func() -> bool: return record.items.size() == 6, 30)
 	var rarities_ok := true
 	for item in record.items:
 		rarities_ok = rarities_ok and item.rarity >= R.UNCOMMON and (item.rarity <= R.EXOTIC or (item.named != null and item.named.champion_id == KNIGHT.id))
@@ -1201,6 +1235,7 @@ func _test_sandbox_loot() -> void:
 		[plain < 30, found >= 30], [true, true])
 	p.stats_component.remove_modifiers_from(&"loot_test_mf")
 	sl.drop_table = ELITE
+	Loot.take_ground_drops(room)   # the rate checks' drops, before they land
 
 	# U
 	Loot.reset(KNIGHT)
@@ -1281,7 +1316,9 @@ func _test_sandbox_loot_keys() -> void:
 	for i in 3:
 		_press(KEY_K)
 	var items := Loot.get_inventory(KNIGHT).items
-	_check("K three times: three items, the cursor on the last", [items.size(), sl.get_cursor()], [3, 2])
+	_check("K three times: three drops at the Knight's feet", Loot.get_ground_pickups(room).size(), 3)
+	await _wait_until(func() -> bool: return items.size() == 3, 30)
+	_check("they land and he takes them: three items, the cursor on the last", [items.size(), sl.get_cursor()], [3, 2])
 	_press(KEY_J)
 	_check("J: down (wraps to the top)", sl.get_cursor(), 0)
 	_press(KEY_J, true)
@@ -1317,6 +1354,7 @@ func _test_sandbox_loot_saves() -> void:
 	Loot.saving_enabled = true
 	Loot.rng.seed = 6060
 	var rolled := sl.roll_drop()
+	await _wait_until(func() -> bool: return Loot.get_inventory(KNIGHT).items.size() == 1, 30)
 	var after_roll := _read_scratch()
 	sl.toggle(0)
 	var after_equip := _read_scratch()
@@ -2541,6 +2579,508 @@ func _wait_until(condition: Callable, max_frames: int) -> bool:
 			return true
 		await get_tree().physics_frame
 	return condition.call()
+
+
+# --- L7: drops and pickups --------------------------------------------------------
+
+func _test_l7_data() -> void:
+	_section("L7: layer 9, the pickup, the collector, the Knight's radius, the sounds")
+	_check("collision layer 9 is named pickup", ProjectSettings.get_setting("layer_names/2d_physics/layer_9", ""), "pickup")
+	var pickup: Pickup = PICKUP_SCENE.instantiate()
+	var shape := pickup.get_node_or_null("CollisionShape2D") as CollisionShape2D
+	var circle := shape.shape as CircleShape2D if shape != null else null
+	_check("pickup.tscn: on layer 9 only, masking nothing, not monitoring, not collectable before it lands, a 6 px circle",
+		[pickup.collision_layer, pickup.collision_mask, pickup.monitoring, pickup.monitorable, circle.radius if circle else -1.0],
+		[256, 0, false, false, 6.0])
+	_check("it pops 12–28 px over 0.3 s; its view is PickupView's scene",
+		[pickup.pop_time, pickup.pop_distance_min_px, pickup.pop_distance_max_px, pickup.get_view_scene().resource_path],
+		[0.3, 12.0, 28.0, "res://scenes/view/pickup_view.tscn"])
+	pickup.free()
+	var player: Player = PLAYER_SCENE.instantiate()
+	var pc := player.get_node_or_null("PickupComponent") as PickupComponent
+	_check("player.tscn has a PickupComponent: on no layer, masking layer 9 only, never collectable itself",
+		[pc != null, pc.collision_layer if pc else -1, pc.collision_mask if pc else -1, pc.monitorable if pc else true],
+		[true, 0, 256, false])
+	player.free()
+	_check("knight.tres: pickup_radius 200 u (64 px)", [KNIGHT_STATS.pickup_radius, Units.to_px(KNIGHT_STATS.pickup_radius)], [200.0, 64.0])
+	var drop_sounds: Array = []
+	for r in 7:
+		drop_sounds.append(_table.get_rarity(r as Item.Rarity).drop_sound)
+	_check("the drop sounds: none for Common, sound_loot_drop for Uncommon–Exotic, the brighter one for Legendary and Artifact",
+		drop_sounds == [null, SOUND_LOOT_DROP, SOUND_LOOT_DROP, SOUND_LOOT_DROP, SOUND_LOOT_DROP, SOUND_LOOT_DROP_LEGENDARY, SOUND_LOOT_DROP_LEGENDARY], true)
+	_check("the pickup sound: sound_loot_pickup, centered, on SFX",
+		[_table.pickup_sound == SOUND_LOOT_PICKUP, SOUND_LOOT_PICKUP.positional, SOUND_LOOT_PICKUP.bus], [true, false, SoundEvent.Bus.SFX])
+	_check("both drop sounds are positional, on SFX",
+		[SOUND_LOOT_DROP.positional, SOUND_LOOT_DROP.bus, SOUND_LOOT_DROP_LEGENDARY.positional, SOUND_LOOT_DROP_LEGENDARY.bus],
+		[true, SoundEvent.Bus.SFX, true, SoundEvent.Bus.SFX])
+	var files_ok := true
+	for sound: SoundEvent in [SOUND_LOOT_DROP, SOUND_LOOT_DROP_LEGENDARY, SOUND_LOOT_PICKUP]:
+		files_ok = files_ok and sound.variations.size() == 1 and sound.variations[0] is AudioStreamWAV
+	_check("each has its one synthesized file (audio/sfx/loot_*_01.wav)", files_ok, true)
+	_check("the loot table still validates", _join(_table.get_validation_errors()), "")
+
+
+func _test_drop_rates() -> void:
+	_section("L7: how often kills drop (a kill's own roll, seeded): the tables' rates")
+	var p := await _spawn_knight()
+	var slime: Enemy = SLIME_SCENE.instantiate()
+	var elite: Enemy = SLIME_ELITE_SCENE.instantiate()
+	var deep := Room.new()
+	deep.depth = 5
+	var deep_slime: Enemy = SLIME_SCENE.instantiate()
+	deep.add_child(deep_slime)
+	var n := 20000
+	Loot.rng.seed = 7001
+	var hits := 0
+	for i in n:
+		hits += 0 if Loot.roll_kill_drop(slime, p).is_empty() else 1
+	_check_rate("a slime's kill drops at the regular table's 10% (20,000 kills, depth 1)", hits, n, 0.1)
+	hits = 0
+	for i in n:
+		hits += 0 if Loot.roll_kill_drop(deep_slime, p).is_empty() else 1
+	_check_rate("in a Room at depth 5: 10% x (1 + 0.05 x 4) = 12%", hits, n, 0.12)
+	var always := true
+	var uncommon_up := true
+	for i in 2000:
+		var got := Loot.roll_kill_drop(elite, p)
+		always = always and got.size() == 1
+		uncommon_up = uncommon_up and (got.is_empty() or got[0].rarity >= R.UNCOMMON)
+	_check("the elite's kill always drops one item, Uncommon or better (2,000 kills)", [always, uncommon_up], [true, true])
+	# Magic find is the killer's: the rarities shift, the chance doesn't.
+	p.stats_component.add_modifiers([StatModifier.create(&"magic_find", StatModifier.Type.FLAT, 9.0, &"loot_test_mf")])
+	Loot.rng.seed = 7002
+	hits = 0
+	var better := 0
+	for i in n:
+		var got := Loot.roll_kill_drop(slime, p)
+		if not got.is_empty():
+			hits += 1
+			better += 1 if got[0].rarity > R.COMMON else 0
+	_check_rate("the killer's +900% magic find leaves the chance at 10%", hits, n, 0.1)
+	var weights := REGULAR.get_weights(1, 9.0, _table)
+	var share := 1.0 - weights[0] / _sum(weights)
+	_check_rate("and shifts the rarities: %.1f%% Uncommon or better (40.5%% without)" % (share * 100.0), better, hits, share)
+	p.stats_component.remove_modifiers_from(&"loot_test_mf")
+	slime.free()
+	elite.free()
+	deep.free()
+	await _free(p)
+
+
+func _test_kill_drops() -> void:
+	_section("L7: a kill drops through the kill credit (the tracked player's last hit)")
+	Loot.reset(KNIGHT)
+	_check("drops are off by themselves in a test scene", Loot.are_drops_enabled(), false)
+	Loot.drops_enabled = true
+	_check("a test turns them on", Loot.are_drops_enabled(), true)
+	var setup := await _sandbox_room()
+	var room: Room = setup[0]
+	var p: Player = setup[2]
+	var entities := room.get_node("Entities")
+	var elite := _enemy_in(room, SLIME_ELITE_SCENE, Vector2(120, 0))
+	var at := elite.global_position
+	Loot.rng.seed = 7101
+	var ctx := _kill(p, elite)
+	_check("the Knight's hit kills the elite", ctx.killed, true)
+	_check("no pickup inside the hit itself (it's added at the end of the frame)", Loot.get_ground_pickups(room).size(), 0)
+	await _wait_until(func() -> bool: return not Loot.get_ground_pickups(room).is_empty(), 5)
+	var pickups := Loot.get_ground_pickups(room)
+	_check("then one pickup (the elite table drops one item), in the room's Entities",
+		[pickups.size(), pickups[0].get_parent() == entities if pickups.size() > 0 else false], [1, true])
+	if pickups.size() > 0:
+		_check("it hops from the corpse; its item is Uncommon or better",
+			[pickups[0].get_hop_from().distance_to(at) < 0.01, pickups[0].item.rarity >= R.UNCOMMON], [true, true])
+	Loot.take_ground_drops(room)
+	var dummy_kill := _kill(p, _enemy_in(room, SLIME_ELITE_SCENE, Vector2(-120, 0), true))
+	await _frames(3)
+	_check("a training dummy (an elite) killed by the Knight: no drop", [dummy_kill.killed, Loot.get_ground_pickups(room).size()], [true, 0])
+	# Who gets the credit, case by case, through the listener on
+	# Events.unit_died (each an elite: a credited kill always drops).
+	var friend := _enemy_in(room, SLIME_ELITE_SCENE, Vector2(0, 120))
+	friend.team = p.team
+	var other := _enemy_in(room, SLIME_SCENE, Vector2(0, -120))
+	var target := _enemy_in(room, SLIME_ELITE_SCENE, Vector2(120, 120))
+	var cases := [
+		["a unit of the Knight's own team, killed by him", friend, p],
+		["a kill by another unit (a slime's hit)", target, other],
+		["a kill with no source", target, null],
+	]
+	for c: Array in cases:
+		var kill := _death(c[2], c[1])
+		Events.unit_died.emit(c[1], kill)
+		await _frames(2)
+		_check("no drop: %s" % c[0], [Loot.get_drop_credit(c[1], kill), Loot.get_ground_pickups(room).size()], [null, 0])
+	var credited := _death(p, target)
+	_check("the same elite killed by the Knight: his credit", Loot.get_drop_credit(target, credited) == p, true)
+	Loot.drops_enabled = false
+	Events.unit_died.emit(target, credited)
+	await _frames(2)
+	_check("with drops off: nothing", Loot.get_ground_pickups(room).size(), 0)
+	Loot.drops_enabled = true
+	Events.unit_died.emit(target, credited)
+	await _wait_until(func() -> bool: return not Loot.get_ground_pickups(room).is_empty(), 5)
+	_check("on again: its drop", Loot.get_ground_pickups(room).size(), 1)
+	Loot.drops_enabled = false
+	room.queue_free()
+	await _frames(1)
+
+
+func _test_pickup_pop() -> void:
+	_section("L7: a drop pops, lands 0.3 s later, and the Knight standing there takes it")
+	Loot.reset(KNIGHT)
+	var setup := await _sandbox_room()
+	var room: Room = setup[0]
+	var p: Player = setup[2]
+	var entities := room.get_node("Entities")
+	var record := Loot.get_inventory(KNIGHT)
+	var item := _item(&"item_base_iron_helm", R.RARE, [[&"affix_armor", 0.5]], 0)
+	var at := p.global_position
+	Loot.rng.seed = 7201
+	Audio.clear_log()
+	var picked: Array = []
+	var on_pick := func(champion_id: StringName, it: Item) -> void: picked.append([champion_id, it])
+	Loot.item_picked_up.connect(on_pick)
+	var start := Engine.get_physics_frames()
+	var dropped := Loot.drop(_items([item]), at, entities)
+	var pickup: Pickup = dropped[0] if dropped.size() == 1 else null
+	var landings := [0]
+	pickup.landed.connect(func() -> void: landings[0] += 1)
+	var spot := pickup.global_position
+	var away := spot.distance_to(at)
+	_check("one pickup, standing at its landing spot at once, %.1f px from where it dropped (12–28)" % away,
+		[dropped.size(), away >= 12.0 and away <= 28.0], [1, true])
+	_check("it hops from the drop point and isn't collectable yet (progress 0, monitorable off)",
+		[pickup.get_hop_from() == at, pickup.get_hop_progress(), pickup.is_landed(), pickup.monitorable], [true, 0.0, false, false])
+	await _frames(12)
+	_check("0.2 s in: still hopping, inside the Knight's 64 px and untouched",
+		[is_instance_valid(pickup), pickup.is_landed(), record.items.size()], [true, false, 0])
+	var took := await _wait_until(func() -> bool: return not picked.is_empty(), 30)
+	var frames := Engine.get_physics_frames() - start
+	_check("it lands at 0.3 s and is taken within two physics steps (%d frames; 18–21)" % frames, [took, frames >= 18 and frames <= 21], [true, true])
+	_check("its landed signal, once", landings[0], 1)
+	Loot.item_picked_up.disconnect(on_pick)
+	_check("into the Knight's inventory at once, uid 1",
+		[record.items.size(), record.items[0] == item if record.items.size() > 0 else false, item.uid], [1, true, 1])
+	_check("item_picked_up once, with the Knight's id and the item", picked, [[&"knight", item]])
+	await _frames(1)
+	_check("the pickup is gone", is_instance_valid(pickup), false)
+	_check("the sounds: the Rare's drop sound where it landed, then the pickup sound, centered", _loot_sounds(spot),
+		[["sound_loot_drop.tres", true, true], ["sound_loot_pickup.tres", false, true]])
+	# A Common lands silently; a Legendary with the brighter sound.
+	Audio.clear_log()
+	var common := _item(&"item_base_band", R.COMMON, [[&"affix_attack_damage", 0.5]], 0)
+	var legendary := ItemRoller.make_named(TIDEBREAKER, _table, _rng(7202))
+	Loot.drop(_items([common, legendary]), at, entities)
+	await _wait_until(func() -> bool: return record.items.size() == 3, 30)
+	var drops := _loot_sounds(Vector2.INF).filter(func(row: Array) -> bool: return String(row[0]).begins_with("sound_loot_drop"))
+	_check("a Common lands silently, a Legendary with sound_loot_drop_legendary", drops.map(func(row: Array) -> String: return row[0]),
+		["sound_loot_drop_legendary.tres"])
+	_check("both taken", record.items.size(), 3)
+	# In the save at once.
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH_SAVE))
+	Loot.save_path = SCRATCH_SAVE
+	Loot.saving_enabled = true
+	var saved := _item(&"item_base_pendant", R.UNCOMMON, [[&"affix_magic_find", 0.3], [&"affix_damage", 0.6]], 0)
+	Loot.drop(_items([saved]), at, entities)
+	await _wait_until(func() -> bool: return record.items.size() == 4, 30)
+	var after := _read_scratch()
+	Loot.saving_enabled = false
+	Loot.save_path = Loot.SAVE_PATH
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH_SAVE))
+	_check("a pickup is in the save at once (a scratch file)",
+		after != null and after.items.size() == 4 and after.items[3].to_dict() == saved.to_dict(), true)
+	room.queue_free()
+	await _frames(1)
+
+
+func _test_pickup_walk() -> void:
+	_section("L7: walking past a drop takes it, with no key and no stop")
+	Loot.reset(KNIGHT)
+	var setup := await _sandbox_room()
+	var room: Room = setup[0]
+	var p: Player = setup[2]
+	var item := _item(&"item_base_leather_boots", R.UNCOMMON, [[&"affix_move_speed", 0.5], [&"affix_armor", 0.5]], 0)
+	Loot.rng.seed = 7301
+	var pickup: Pickup = Loot.drop(_items([item]), p.global_position + Vector2(130, 0), room.get_node("Entities"))[0]
+	await _frames(25)
+	_check("landed 130 px off (outside the 64 px circle): not taken",
+		[is_instance_valid(pickup), pickup.is_landed(), Loot.get_inventory(KNIGHT).items.size()], [true, true, 0])
+	var spot := pickup.global_position
+	var seen := {"frame": -1, "gap": INF}
+	var on_pick := func(_id: StringName, _it: Item) -> void:
+		seen.frame = Engine.get_physics_frames()
+		seen.gap = p.global_position.distance_to(spot)
+	Loot.item_picked_up.connect(on_pick)
+	var speeds := {}   # physics frame -> the Knight's speed
+	Input.action_press(&"move_right")
+	for i in 90:
+		await get_tree().physics_frame
+		speeds[Engine.get_physics_frames()] = p.velocity.length()
+		if seen.frame >= 0 and Engine.get_physics_frames() > seen.frame + 6:
+			break
+	Input.action_release(&"move_right")
+	Loot.item_picked_up.disconnect(on_pick)
+	_check("walking right, the Knight takes it on his way", [seen.frame >= 0, Loot.get_inventory(KNIGHT).items.has(item)], [true, true])
+	_check("when his circle reaches it: %.1f px off (64 px plus its own 6)" % seen.gap, seen.gap <= 70.5 and seen.gap >= 60.0, true)
+	var around: Array[float] = []
+	for frame: int in speeds:
+		if absi(frame - int(seen.frame)) <= 5:
+			around.append(speeds[frame])
+	var walk := Units.to_px(KNIGHT_STATS.move_speed)
+	var steady := not around.is_empty() and around.all(func(s: float) -> bool: return absf(s - walk) < 0.5)
+	_check("no stop: his speed stays %.0f px/s from 5 frames before it to 5 after (%s)" % [walk, around], steady, true)
+	_check("no move lock and no status from it", [p.movement.can_move(), p.status_component.get_status_ids()], [true, [] as Array[StringName]])
+	room.queue_free()
+	await _frames(1)
+
+
+func _test_pickup_radius() -> void:
+	_section("L7: the collect circle is the pickup_radius stat, followed live; a dead champion takes nothing")
+	Loot.reset(KNIGHT)
+	var other := await _spawn_knight()
+	var setup := await _sandbox_room()
+	var room: Room = setup[0]
+	var p: Player = setup[2]
+	var pc := p.get_node("PickupComponent") as PickupComponent
+	_check_near("the Knight: 64 px (200 u)", pc.get_radius_px(), 64.0, 0.001)
+	var band := _item(&"item_base_band", R.COMMON, [[&"affix_crit_chance", 0.5]], 0)
+	Loot.restore_ground_drops(room, [{"item": band.to_dict(), "pos": p.global_position + Vector2(-85, 0)}])
+	await _frames(3)
+	_check("a landed drop 85 px off: out of reach", [Loot.get_ground_pickups(room).size(), Loot.get_inventory(KNIGHT).items.size()], [1, 0])
+	p.stats_component.add_modifier(StatModifier.create(&"pickup_radius", StatModifier.Type.FLAT, 100.0, &"loot_test_reach"))
+	_check_near("+100 u: 96 px at once", pc.get_radius_px(), 96.0, 0.001)
+	await _frames(3)
+	_check("and the grown circle takes it", [Loot.get_ground_pickups(room).size(), Loot.get_inventory(KNIGHT).items.size()], [0, 1])
+	_check_near("another Knight keeps his own 64 px (each has its own circle)", (other.get_node("PickupComponent") as PickupComponent).get_radius_px(), 64.0, 0.001)
+	p.stats_component.remove_modifiers_from(&"loot_test_reach")
+	_check_near("removed: 64 px again", pc.get_radius_px(), 64.0, 0.001)
+	p.health.take_damage(p.health.current + 10.0)
+	await _frames(1)
+	Loot.restore_ground_drops(room, [{"item": band.to_dict(), "pos": p.global_position + Vector2(10, 0)}])
+	await _frames(5)
+	_check("the Knight dead: a drop at his feet stays on the ground",
+		[p.is_alive(), Loot.get_ground_pickups(room).size(), Loot.get_inventory(KNIGHT).items.size()], [false, 1, 1])
+	room.queue_free()
+	await _free(other)
+
+
+func _test_landing_terrain() -> void:
+	_section("L7: a drop lands where the player could walk to it: not past or against a wall, a fence or a cliff's edge, never over a pit")
+	var probe: Pickup = PICKUP_SCENE.instantiate()
+	# A strip 8–12 px right of the drop point, 200 px tall: a landing 12–28 px
+	# away to the right would be against it (its 6 px circle) or past it.
+	for row: Array in [[1, "a wall"], [7, "a fence"], [11, "a ledge (a cliff's edge)"], [6, "a pit"]]:
+		_next_x += 400.0
+		var origin := Vector2(_next_x, -3000.0)
+		var strip := _blocker(Rect2(origin + Vector2(8.0, -100.0), Vector2(4.0, 200.0)), row[0])
+		await _frames(2)
+		var rng := _rng(7400 + int(row[0]))
+		var against := 0
+		var past := 0
+		var open := 0
+		for i in 300:
+			var x := probe.pick_landing(origin, rng).x - origin.x
+			if x >= 12.0 + 6.0:
+				past += 1
+			elif x > 8.0 - 6.0:
+				against += 1
+			elif x != 0.0:
+				open += 1
+		if row[0] == 6:
+			_check("next to %s: 300 drops, none over it (%d); one may hop across it (%d did: only walls, fences and cliff edges block the way); %d on the open side" % [row[1], against, past, open],
+				[against, past > 0, open > 150], [0, true, true])
+		else:
+			_check("next to %s: 300 drops, none against it (%d) nor past it (%d); %d on the open side, the rest where they dropped" % [row[1], against, past, open],
+				[against, past, open > 200], [0, 0, true])
+		strip.queue_free()
+	# Walled in 8 px around: every try fails, so it lands where it dropped.
+	_next_x += 400.0
+	var boxed := Vector2(_next_x, -3000.0)
+	var walls: Array[Node] = [
+		_blocker(Rect2(boxed + Vector2(-12, -12), Vector2(24, 4)), 1), _blocker(Rect2(boxed + Vector2(-12, 8), Vector2(24, 4)), 1),
+		_blocker(Rect2(boxed + Vector2(-12, -8), Vector2(4, 16)), 1), _blocker(Rect2(boxed + Vector2(8, -8), Vector2(4, 16)), 1)]
+	await _frames(2)
+	var rng := _rng(7450)
+	var home := true
+	for i in 50:
+		home = home and probe.pick_landing(boxed, rng) == boxed
+	_check("walled in 8 px around: 50 drops, each where it dropped (four tries, then the origin)", home, true)
+	for w in walls:
+		w.queue_free()
+	# Loot.drop() itself picks by these rules.
+	_next_x += 400.0
+	var origin := Vector2(_next_x, -3000.0)
+	var wall := _blocker(Rect2(origin + Vector2(8.0, -100.0), Vector2(4.0, 200.0)), 1)
+	await _frames(2)
+	Loot.rng.seed = 7460
+	var many: Array[Item] = []
+	for i in 40:
+		many.append(_item(&"item_base_band", R.COMMON, [[&"affix_attack_damage", 0.5]], 0))
+	var dropped := Loot.drop(many, origin, self)
+	var ok := dropped.size() == 40
+	for pk in dropped:
+		ok = ok and pk.global_position.x - origin.x <= 2.0
+	_check("Loot.drop(): 40 drops by a wall, all on the open side", ok, true)
+	for pk in dropped:
+		pk.queue_free()
+	wall.queue_free()
+	probe.free()
+	await _frames(1)
+
+
+func _test_drop_over_pit() -> void:
+	_section("L7: a unit that died over a pit drops on the floor outside it")
+	var setup := await _leap_room([[6, Rect2(-48, -48, 96, 96)]])   # a 3 m pit in the room's middle
+	var room: Room = setup[0]
+	var p: Player = setup[1]
+	_place_unit(p, room.global_position + Vector2(160, 100))   # far, so nothing's taken
+	await _frames(2)
+	var center := room.global_position
+	var pit := Rect2(center + Vector2(-48, -48), Vector2(96, 96))
+	var origin := Loot.get_drop_origin(center, room)
+	_check("from the pit's middle, the drops start on the room's nearest walkable floor: past the navigation's 12 px margin, at %s" % (origin - center),
+		[pit.grow(10.0).has_point(origin), pit.grow(14.0).has_point(origin)], [false, true])
+	Loot.rng.seed = 7501
+	var many: Array[Item] = []
+	for i in 20:
+		many.append(_item(&"item_base_band", R.COMMON, [[&"affix_attack_damage", 0.5]], 0))
+	var dropped := Loot.drop(many, center, room.get_node("Entities"))
+	var over := 0
+	var from_edge := true
+	for pk in dropped:
+		over += 0 if WorldQuery.is_point_free(pk.global_position, pk.get_radius(), Pickup.PIT_MASK) else 1
+		from_edge = from_edge and pk.get_hop_from() == origin
+	_check("20 drops: none over the pit, each hopping from that spot", [dropped.size(), over, from_edge], [20, 0, true])
+	room.queue_free()
+	# Outside a Room: the nearest point outside the pit (WorldQuery.push_out()).
+	_next_x += 400.0
+	var loose := _blocker(Rect2(Vector2(_next_x, -4000.0), Vector2(64, 64)), 6)
+	await _frames(2)
+	var inside := loose.global_position + Vector2(28, 0)   # 4 px inside its right edge
+	var out := Loot.get_drop_origin(inside, self)
+	_check("outside a Room, 4 px inside a pit's edge: out to the nearest point a pickup clears it (%.1f px)" % out.distance_to(inside),
+		[WorldQuery.is_point_free(out, 6.0, Pickup.PIT_MASK), out.distance_to(inside) <= 11.0], [true, true])
+	_check("a drop point not over a pit stays", Loot.get_drop_origin(inside + Vector2(40, 0), self), inside + Vector2(40, 0))
+	loose.queue_free()
+	await _frames(1)
+
+
+func _test_ground_drops() -> void:
+	_section("L7: ground drops taken off a room and put back where they lay (DUNGEONS D1's rebuilds)")
+	Loot.reset(KNIGHT)
+	var setup := await _sandbox_room()
+	var room: Room = setup[0]
+	var p: Player = setup[2]
+	_place_unit(p, room.global_position + Vector2(150, 150))   # out of reach
+	await _frames(2)
+	var entities := room.get_node("Entities")
+	var rare := _item(&"item_base_iron_helm", R.RARE, [[&"affix_armor", 0.4], [&"affix_max_health", 0.7], [&"affix_tenacity", 0.2]], 0)
+	var named := ItemRoller.make_named(TIDEBREAKER, _table, _rng(7601))
+	var exotic := ItemRoller.roll_item(R.EXOTIC, KNIGHT, _table, _rng(7602))
+	Loot.rng.seed = 7603
+	var first := Loot.drop(_items([rare, named]), room.global_position + Vector2(-60, 0), entities)
+	await _frames(25)
+	var hopping: Pickup = Loot.drop(_items([exotic]), room.global_position + Vector2(60, 0), entities)[0]
+	var spots := [first[0].global_position, first[1].global_position, hopping.global_position]
+	_check("two landed, one still hopping", [first[0].is_landed(), first[1].is_landed(), hopping.is_landed()], [true, true, false])
+	var drops := Loot.take_ground_drops(room)
+	_check("taken: one entry each, its item's dict and where it lies (the hopping one at its landing spot)",
+		drops.map(func(d: Dictionary) -> Array: return [d.item, d.pos]),
+		[[rare.to_dict(), spots[0]], [named.to_dict(), spots[1]], [exotic.to_dict(), spots[2]]])
+	_check("none left on the ground", Loot.get_ground_pickups(room).size(), 0)
+	await _frames(1)
+	_check("the pickups are freed", [is_instance_valid(first[0]), is_instance_valid(first[1]), is_instance_valid(hopping)], [false, false, false])
+	Audio.clear_log()
+	var back := Loot.restore_ground_drops(room, drops)
+	_check("put back: three pickups in the room's Entities, each where it lay",
+		back.map(func(pk: Pickup) -> Array: return [pk.get_parent() == entities, pk.global_position]),
+		[[true, spots[0]], [true, spots[1]], [true, spots[2]]])
+	_check("landed and collectable at once (no hop)",
+		back.map(func(pk: Pickup) -> Array: return [pk.is_landed(), pk.monitorable, pk.get_hop_progress()]),
+		[[true, true, 1.0], [true, true, 1.0], [true, true, 1.0]])
+	_check("the same items (the named one read through the Knight, the sigils kept)",
+		back.map(func(pk: Pickup) -> Dictionary: return pk.item.to_dict()), [rare.to_dict(), named.to_dict(), exotic.to_dict()])
+	await _frames(25)
+	_check("put back silently (no drop sound)", _loot_sounds(Vector2.INF).size(), 0)
+	for spot: Vector2 in spots:   # (one stand can reach two: they're freed as he goes)
+		_place_unit(p, spot)
+		await _frames(3)
+	_check("the Knight walks over them and takes each", Loot.get_inventory(KNIGHT).items.size(), 3)
+	var none := Loot.restore_ground_drops(room, [{"item": {"base": "item_base_nope", "rarity": "rare"}, "pos": Vector2.ZERO}, {"item": rare.to_dict()}, "junk"])
+	_check("an item the data doesn't know, an entry without a spot, junk: each skipped (warnings)", [none.size(), Loot.get_ground_pickups(room).size()], [0, 0])
+	room.queue_free()
+	await _frames(1)
+
+
+func _test_hud_loot_line() -> void:
+	_section("L7: the HUD's loot line: the rarity and the name in the rarity's color, 2 s")
+	var hud: Node = HUD_SCENE.instantiate()
+	add_child(hud)
+	await _frames(1)
+	var rare := _item(&"item_base_iron_helm", R.RARE, [[&"affix_armor", 0.5]], 0)
+	var named := ItemRoller.make_named(TIDEBREAKER, _table, _rng(7701))
+	Loot.item_picked_up.emit(KNIGHT.id, rare)
+	_check("a pickup: \"Rare: Iron Helm\", in the Rare color",
+		[hud.call(&"get_loot_lines"), hud.call(&"get_loot_line_color", "Rare: Iron Helm")],
+		[PackedStringArray(["Rare: Iron Helm"]), _table.get_rarity(R.RARE).color])
+	Loot.item_picked_up.emit(KNIGHT.id, named)
+	_check("a second goes under it: \"Legendary: Tidebreaker\", in orange",
+		[hud.call(&"get_loot_lines"), hud.call(&"get_loot_line_color", "Legendary: Tidebreaker")],
+		[PackedStringArray(["Rare: Iron Helm", "Legendary: Tidebreaker"]), _table.get_rarity(R.LEGENDARY).color])
+	for i in 6:
+		hud.call(&"show_loot_line", "Line %d" % i, Color.WHITE)
+	_check("six at most: the oldest go", hud.call(&"get_loot_lines"),
+		PackedStringArray(["Line 0", "Line 1", "Line 2", "Line 3", "Line 4", "Line 5"]))
+	await _frames(160)
+	_check("gone after 2 s and the fade", (hud.call(&"get_loot_lines") as PackedStringArray).size(), 0)
+	hud.queue_free()
+	await _frames(1)
+
+
+## A typed list of items (Loot.drop() takes Array[Item]).
+func _items(list: Array) -> Array[Item]:
+	var out: Array[Item] = []
+	for item: Item in list:
+		out.append(item)
+	return out
+
+
+## An enemy from `scene` in `room`'s Entities, `offset` from the room's origin
+## (`passive`: a training dummy).
+func _enemy_in(room: Room, scene: PackedScene, offset: Vector2, passive: bool = false) -> Enemy:
+	var e: Enemy = scene.instantiate()
+	e.passive = passive
+	room.get_node("Entities").add_child(e)
+	_place_unit(e, room.global_position + offset)
+	return e
+
+
+## A killing hit's context from `source` (null: none) on `target`, for
+## Events.unit_died.
+func _death(source: Variant, target: Unit) -> HitContext:
+	var ctx := HitContext.new()
+	ctx.source = source
+	ctx.target = target
+	ctx.killed = true
+	return ctx
+
+
+func _place_unit(unit: Node2D, at: Vector2) -> void:
+	unit.global_position = at
+	unit.reset_physics_interpolation()
+
+
+## The loot sounds in Audio's log, oldest first: [file, positional, played at
+## `spot` (always true when not positional)].
+func _loot_sounds(spot: Vector2) -> Array:
+	var rows: Array = []
+	for e: Dictionary in Audio.get_log():
+		var file := String(e.event).get_file()
+		if not file.begins_with("sound_loot"):
+			continue
+		var positional: bool = e.positional
+		rows.append([file, positional, not positional or (spot.is_finite() and (e.position as Vector2).distance_to(spot) < 0.5)])
+	return rows
 
 
 # --- Helpers ------------------------------------------------------------------
