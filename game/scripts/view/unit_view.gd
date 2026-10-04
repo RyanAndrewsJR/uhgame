@@ -2,7 +2,7 @@ class_name UnitView
 extends EntityView
 ## One unit's 3D look (3D.md, The generic view mechanism, UnitView). Shows:
 ## - the model: Unit.model_scene, or a placeholder capsule sized from
-##   gameplay_radius and tinted like the 2D body, with a nub showing its facing;
+##   gameplay_radius and in the unit's model_color, with a nub showing its facing;
 ## - turning: smooth, toward the unit's facing (a Player's facing; an enemy's
 ##   walk, or the target it winds up at);
 ## - the base clips (idle, run, dash, hit, stun, death), named below;
@@ -337,7 +337,7 @@ func _set_flash(amount: float) -> void:
 			geo.set_instance_shader_parameter(&"flash", amount)
 
 
-## The post-hit i-frames blink the model, as the 2D body blinks (Player.hit_iframes_blink_period).
+## The post-hit i-frames blink the model (Player.hit_iframes_blink_period; the 2D body blinked the same way until the cleanup's C3).
 func _update_blink(delta: float) -> void:
 	if unit.has_invulnerability(Unit.HIT_IFRAMES_ID):
 		var period: float = sim.get(&"hit_iframes_blink_period") if sim.get(&"hit_iframes_blink_period") != null else 0.1

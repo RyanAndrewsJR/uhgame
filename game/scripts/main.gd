@@ -1,6 +1,7 @@
 extends Node2D
-## Game root: loads a room, spawns the player, wires up the camera and HUD.
-## To play a different room, drag another room scene into `room_scene`.
+## Game root: loads a room, spawns the player, adds the 3D view and wires up
+## the HUD. To play a different room, drag another room scene into
+## `room_scene`.
 
 @export var room_scene: PackedScene = preload("res://scenes/rooms/room_01.tscn")
 @export var player_scene: PackedScene = preload("res://scenes/player/player.tscn")
@@ -8,14 +9,8 @@ extends Node2D
 ## Stingers (AUDIO.md): with "Room cleared!" and "You died". null = silent.
 @export var room_cleared_sound: SoundEvent
 @export var player_died_sound: SoundEvent
-## The 3D view (docs/3D.md), on by default since the 3D pivot's milestone
-## (P-M): Main adds a WorldView, the 2D world is hidden from the screen and the
-## room shows in 3D through GameCamera3D. Off is the rollback: exactly the 2D
-## game (a room built in 3D then shows only its flat 2D shapes).
-@export var use_3d_view: bool = true
 
 @onready var hud: CanvasLayer = $HUD
-@onready var camera: Camera2D = $Camera
 
 var room: Room
 ## The room built in 3D when room_scene is one (a RoomLayout, docs/3D.md,
@@ -24,7 +19,9 @@ var room: Room
 var layout: RoomLayout
 var player: Player
 var pause_menu: PauseMenu
-## The 3D view, or null while use_3d_view is off.
+## The 3D view (docs/3D.md): it hides the 2D sim from the screen and shows
+## the room through GameCamera3D. Always on since the 3D pivot's cleanup C3
+## (the flag `use_3d_view` and the 2D game went then).
 var world_view: WorldView
 var _game_over := false
 
@@ -52,22 +49,9 @@ func _ready() -> void:
 		(enemy as Enemy).died.connect(_on_enemy_died)
 	hud.set_enemies_left(get_tree().get_nodes_in_group("enemies").size())
 
-	_setup_camera()
-
-	if use_3d_view:
-		world_view = WorldView.new()
-		add_child(world_view)
-		world_view.setup(self, room, player, camera, layout)
-		# The 3D camera does the 2D camera's job (the cleanup's C1): it stays
-		# here, off, for the 2D game (the flag off) until the cleanup's C3.
-		camera.enabled = false
-		camera.process_mode = Node.PROCESS_MODE_DISABLED
-	elif layout:
-		# Without the view a room built in 3D shows only its footprints' flat
-		# 2D look.
-		push_warning("Main: %s is a room built in 3D; turn on use_3d_view to see it" % layout.name)
-		layout.free()
-		layout = null
+	world_view = WorldView.new()
+	add_child(world_view)
+	world_view.setup(self, room, player, layout)
 
 	pause_menu = pause_menu_scene.instantiate()
 	add_child(pause_menu)
@@ -76,8 +60,7 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if not is_instance_valid(player):
 		return
-	# The camera the player sees: the 3D one under the view (cleanup C1).
-	var camera_locked: bool = world_view.camera.locked if world_view and world_view.camera else camera.locked
+	var camera_locked: bool = world_view.camera != null and world_view.camera.locked
 	hud.set_info("AD %d   AS %.2f   MS %d   Range %d   |   Camera %s (Y)" % [
 		roundi(player.stats_component.get_stat(&"attack_damage")),
 		player.attack.get_attack_speed(),
@@ -95,13 +78,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		# Esc pauses. An Esc that cancels an aimed ability never gets here:
 		# Player handles it first (deeper in the tree) and marks it handled.
 		pause_menu.open()
-
-
-func _setup_camera() -> void:
-	# A tile room's used tiles; a room built in 3D gives its walkable floor.
-	camera.bounds = room.get_bounds_px()
-	camera.target = player
-	camera.snap_to_target()
 
 
 func _on_enemy_died(enemy: Enemy) -> void:

@@ -11,8 +11,10 @@ extends Node2D
 ## step, walking out of the recovery, and RANGED turning it all off. The
 ## combo sections run last: they end by killing the Knight.
 ## C3: hit feel (hitstop and shake per tier, kills, longest-wins hitstops,
-## the flash; abilities and enemy hits unchanged).
-## C4: getting hit (post-hit i-frames and their blink, a slime's 12 px push
+## the `damaged` signal the 3D model's flash reads; abilities and enemy hits
+## unchanged). The shake spy is a Camera3D (the 2D camera went in the 3D
+## pivot's cleanup C3; the flash and blink themselves are view_test's).
+## C4: getting hit (post-hit i-frames and the blink's period, a slime's 12 px push
 ## that a dash can cut short, whiffs out of reach, the 0.25 s slime windup,
 ## the stronger knockback winning).
 ## C5: the elite slime's telegraphed slam (numbers, the telegraph, a hit,
@@ -650,7 +652,6 @@ func _test_hit_feel_data() -> void:
 	var f := GameFeel.hit_feel
 	_check("hitstop light / heavy / kill = 0.03 / 0.06 / 0.08", [f.light_hitstop, f.heavy_hitstop, f.kill_hitstop], [0.03, 0.06, 0.08])
 	_check("shake light / heavy / kill = 0 / 2 / 3 px", [f.light_shake, f.heavy_shake, f.kill_shake], [0.0, 2.0, 3.0])
-	_check("flash 0.06 s", f.flash_time, 0.06)
 	_check("combo feel: LIGHT / LIGHT / HEAVY",
 		[knight.attack.combo.swings[0].feel, knight.attack.combo.swings[1].feel, knight.attack.combo.swings[2].feel],
 		[HitContext.Feel.LIGHT, HitContext.Feel.LIGHT, HitContext.Feel.HEAVY])
@@ -754,26 +755,32 @@ func _test_feel_unchanged_for_abilities() -> void:
 	dummy.queue_free()
 
 
+## The hit flash is the 3D model's (UnitView, on `damaged`; view_test checks
+## it): every hit that gets through emits `damaged` once, a blocked hit none.
+## (It flashed the 2D body until the 3D pivot's cleanup C3.)
 func _test_flash() -> void:
-	_section("C3: the hit flash")
+	_section("C3: the hit flash's signal")
 	await _hitstop_over()
 	var dummy := _dummy_at(Vector2(40, 0))
 	await _frames(1)
+	var flashes := [0]
+	dummy.damaged.connect(func(_amount: float, _source: Unit) -> void: flashes[0] += 1)
 	dummy.take_damage(5.0, knight)
-	_check("white at the hit", dummy.body.modulate, GameFeel.hit_feel.flash_modulate)
-	var t0 := _game_time
-	await _wait_until(func() -> bool: return _game_time - t0 >= 0.07, 20)
-	_check("back to normal after 0.06 s", dummy.body.modulate, Color.WHITE)
+	_check("a hit that gets through emits damaged once (the model flashes on it)", flashes[0], 1)
+	dummy.add_invulnerability(&"test")
+	dummy.take_damage(5.0, knight)
+	dummy.remove_invulnerability(&"test")
+	_check("a blocked hit emits none: no flash", flashes[0], 1)
 	dummy.queue_free()
 
 
-## A camera that records GameFeel.shake() amounts.
-func _spy_camera() -> Camera2D:
+## A camera that records GameFeel.shake() amounts: a Camera3D, as the 3D
+## view's GameCamera3D is (GameFeel.shake() shakes the current Camera3D).
+func _spy_camera() -> Camera3D:
 	var script := GDScript.new()
-	script.source_code = "extends Camera2D\nvar on_shake: Callable\nfunc shake(amount: float) -> void:\n\ton_shake.call(amount)\n"
+	script.source_code = "extends Camera3D\nvar on_shake: Callable\nfunc shake(amount: float) -> void:\n\ton_shake.call(amount)\n"
 	script.reload()
-	var cam := Camera2D.new()
-	cam.process_callback = Camera2D.CAMERA2D_PROCESS_PHYSICS   # what interpolation needs
+	var cam := Camera3D.new()
 	cam.set_script(script)
 	cam.set("on_shake", func(amount: float) -> void: _shakes.append(amount))
 	add_child(cam)
@@ -1033,16 +1040,13 @@ func _test_post_hit_iframes() -> void:
 	_check("the first hit lands", [first.blocked, first.taken_damage], [false, 50.0])
 	_check("a second hit in the same frame is blocked", second.blocked, true)
 	_check("i-frames on", knight.has_invulnerability(Unit.HIT_IFRAMES_ID), true)
-	var hidden_seen := false
 	var t0 := _game_time
 	while knight.has_invulnerability(Unit.HIT_IFRAMES_ID) and _game_time - t0 < 1.0:
 		await get_tree().process_frame
-		if not knight.body.visible:
-			hidden_seen = true
 	_check_near("they last 0.3 s", _game_time - t0, 0.3, 0.05)
-	_check("the Knight blinks meanwhile", hidden_seen, true)
-	await get_tree().process_frame
-	_check("and shows again after", knight.body.visible, true)
+	# The blink is the 3D model's (UnitView reads the period; view_test checks
+	# it). It blinked the 2D body until the 3D pivot's cleanup C3.
+	_check("the Knight's blink period: 0.1 s (the model shows 60% of it)", knight.hit_iframes_blink_period, 0.1)
 	var third := _hit(knight, 50.0, HitContext.DamageType.TRUE)
 	_check("then hits land again", third.blocked, false)
 	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)

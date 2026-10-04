@@ -9,8 +9,8 @@ extends Camera3D
 ## Locked, it leans toward the mouse (the aim lean: dead zone, curve, easing,
 ## full while the player aims, casts or swings). Also GameFeel.shake().
 ## Since the cleanup's C1 (Ryan, 2026-10-03) it computes all of this itself,
-## tuned on its CameraLook; the 2D GameCamera only runs in the 2D game (the
-## flag off). The lean, pan and shake are in screen px of the 640x360 canvas,
+## tuned on its CameraLook (the 2D GameCamera it took them from went in the
+## cleanup's C3). The lean, pan and shake are in screen px of the 640x360 canvas,
 ## so the same share of the screen moves this camera as moved the 2D one.
 ## Bounds: the focus (where the camera looks, after the lean or a pan) never
 ## leaves the room's floor; near an edge the void past the walls shows (Ryan,

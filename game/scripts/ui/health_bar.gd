@@ -1,15 +1,18 @@
 extends Node2D
 ## LoL-style health bar floating above a unit, with a tick every 100 HP and
-## a lighter "recent damage" chunk that drains away after a hit.
+## a lighter "recent damage" chunk that drains away after a hit. The 3D
+## view's ScreenOverlay draws a copy of each unit's bar over its model; the
+## HealthBar node on a unit holds that bar's settings (width, height, color,
+## ticks) and never draws there (Ryan, the 3D pivot's cleanup C3).
 
 @export var width: float = 36.0
 @export var height: float = 4.0
 @export var fill_color: Color = Color(0.85, 0.2, 0.2)
 @export var hp_per_tick: float = 100.0
 
-## The HealthComponent it shows; null = its parent's (a bar on its unit). Set
-## before it enters the tree for a bar elsewhere: the 3D view's copy on its
-## ScreenOverlay (3D.md).
+## The HealthComponent it shows; null = its parent's. Set before it enters
+## the tree for a bar elsewhere: the 3D view's copy on its ScreenOverlay
+## (3D.md).
 var health: HealthComponent
 
 var _current: float = 1.0
@@ -19,6 +22,8 @@ var _trail: float = 1.0
 
 func _ready() -> void:
 	z_index = 90
+	if _is_2d_bar_off():
+		return
 	if health == null:
 		health = get_parent().get_node_or_null("HealthComponent") as HealthComponent
 	if health:
@@ -44,11 +49,10 @@ func _process(delta: float) -> void:
 		_trail = _current
 
 
-## The bar on its unit doesn't run while the 3D view shows the game
-## (Unit.looks_2d_off): ScreenOverlay draws a copy of it over the model, which
-## does (the cleanup's C2).
+## The bar on its unit is only the settings ScreenOverlay copies: it doesn't
+## run or draw (since the cleanup's C2 under the view; always since C3).
 func _is_2d_bar_off() -> bool:
-	return Unit.looks_2d_off and get_parent() is Unit
+	return get_parent() is Unit
 
 
 func _draw() -> void:

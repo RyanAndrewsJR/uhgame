@@ -54,7 +54,6 @@ extends Resource
 ## On each enemy whose hit got through, rotated attacker -> enemy;
 ## setup(attacker, hit) on its root if it has one. null = nothing.
 @export var impact_vfx: PackedScene
-## An animation on the attacker's Body/AnimationPlayer, positioned each tick
-## to the swing's progress x its length. Empty, no such player or no such
-## animation = nothing.
+## A clip of the attacker's 3D model (UnitView), positioned each frame to the
+## swing's progress (3D.md, Animation). Empty or no such clip = nothing.
 @export var swing_anim: StringName = &""

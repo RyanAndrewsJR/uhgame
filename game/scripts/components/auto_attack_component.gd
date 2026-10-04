@@ -116,10 +116,6 @@ var _swing_landed: bool = false        # its hit has happened (recovery)
 var _swing_windup_left: float = 0.0
 var _swing_left: float = 0.0           # until the swing ends
 var _swing_total: float = 0.0          # the swing's whole length at its speed (swing progress)
-## AB14 swing_anim: the AnimationPlayer positioned by the swing's progress,
-## and the animation (null / &"" when none is playing for a swing).
-var _swing_anim_player: AnimationPlayer
-var _swing_anim_name: StringName = &""
 var _swing_fresh: bool = false         # started this physics frame
 var _next_swing_index: int = 0
 ## The swing running is the combo's dash_strike (COMBAT C12). Its index is
@@ -231,7 +227,7 @@ func get_swing_direction() -> Vector2:
 
 ## ABILITIES AB14: how far the running swing is, 0 (start) to 1 (it ends):
 ## the time since it started ÷ its length at the combo speed. 0 when not
-## swinging. The swing's swing_anim follows it.
+## swinging. The 3D view positions the model's swing_anim by it (UnitView).
 func get_swing_progress() -> float:
 	if _swing == null or _swing_total <= 0.0:
 		return 0.0
@@ -288,9 +284,9 @@ func try_swing(direction: Vector2, dash_strike: bool = false) -> bool:
 	if combo.attack_style == AttackCombo.AttackStyle.MELEE:
 		_start_melee_step(swing, _swing_windup_left)
 	Audio.play_on(swing.swing_sound, unit, swing.sound_pitch)   # whiffs included (AUDIO.md)
-	# AB14 hooks (nothing while empty): swing_vfx now, swing_anim positioned by swing progress.
+	# AB14 hook (nothing while empty): swing_vfx now. The 3D view positions the
+	# model's swing_anim by swing progress (UnitView).
 	VFX.spawn_scene(swing.swing_vfx, unit, unit.global_position, _swing_direction.angle(), [unit, swing])
-	_start_swing_anim(swing)
 	swing_started.emit(index, _swing_direction, swing)
 	return true
 
@@ -309,7 +305,6 @@ func cancel_swing(keep_combo_if_landed: bool = false) -> void:
 		_pause_left = _swing.pause_after / get_swing_speed()   # its hit happened
 	var next := _get_index_after_swing()
 	_stop_step()
-	_stop_swing_anim()   # AB14: a cancelled swing stops its swing_anim
 	_end_swing()
 	if landed and keep_combo_if_landed:
 		_next_swing_index = next
@@ -506,7 +501,6 @@ func _update_combo(delta: float) -> void:
 		_since_hit += delta
 		_update_walk_cancel()
 	_swing_left -= delta
-	_update_swing_anim()   # AB14
 	if _swing_landed and _swing_left <= SWING_TIME_EPSILON:
 		_finish_swing()
 
@@ -664,10 +658,6 @@ func _land_swing() -> void:
 
 
 func _finish_swing() -> void:
-	if is_instance_valid(_swing_anim_player) and _swing_anim_player.assigned_animation == _swing_anim_name:
-		_swing_anim_player.seek(_swing_anim_player.get_animation(_swing_anim_name).length, true)   # AB14: ends on its last frame
-	_swing_anim_player = null
-	_swing_anim_name = &""
 	_pause_left = _swing.pause_after / get_swing_speed()
 	_next_swing_index = _get_index_after_swing()
 	_combo_reset_left = combo.combo_reset_time
@@ -681,36 +671,6 @@ func _get_index_after_swing() -> int:
 	if _is_dash_strike:
 		return _dash_strike_resume
 	return (_swing_index + 1) % combo.swings.size()
-
-
-## AB14 swing_anim at swing start: on the attacker's Body/AnimationPlayer,
-## not on its own clock but positioned to the swing's progress x its length
-## each tick (_update_swing_anim()), so it follows attack_speed exactly.
-## Nothing while swing_anim is empty or the unit has no such animation.
-func _start_swing_anim(swing: AttackSwing) -> void:
-	_stop_swing_anim()
-	if swing.swing_anim == &"" or unit.body == null:
-		return
-	var player := unit.body.get_node_or_null(^"AnimationPlayer") as AnimationPlayer
-	if player == null or not player.has_animation(swing.swing_anim):
-		return
-	_swing_anim_player = player
-	_swing_anim_name = swing.swing_anim
-	player.play(swing.swing_anim, -1.0, 0.0)   # speed 0: swing progress positions it
-	player.seek(0.0, true)
-
-
-func _update_swing_anim() -> void:
-	if not is_instance_valid(_swing_anim_player) or _swing_anim_player.assigned_animation != _swing_anim_name:
-		return
-	_swing_anim_player.seek(get_swing_progress() * _swing_anim_player.get_animation(_swing_anim_name).length, true)
-
-
-func _stop_swing_anim() -> void:
-	if is_instance_valid(_swing_anim_player) and _swing_anim_player.assigned_animation == _swing_anim_name:
-		_swing_anim_player.stop()
-	_swing_anim_player = null
-	_swing_anim_name = &""
 
 
 func _end_swing() -> void:

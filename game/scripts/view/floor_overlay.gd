@@ -2,7 +2,7 @@ class_name FloorOverlay
 extends SubViewport
 ## The floor drawings under the 3D view (docs/3D.md, Floor drawings; 3D pivot
 ## P7). Telegraphs, the player's ability indicators, the hover ring, swing
-## arcs and rings are drawn by their own 2D nodes, exactly as in the 2D game.
+## arcs and rings are drawn by their own 2D nodes, as in the old 2D game.
 ## This viewport shares the sim's World2D and draws what's on canvas
 ## visibility layer 3 ("floor drawings") into a texture, in sim px; the
 ## floor's shader (floor_drawings.gdshader) lays that texture on the walkable
@@ -15,8 +15,8 @@ extends SubViewport
 ## Canvas visibility layer 3, "floor drawings" (its bit). A 2D node with it
 ## draws on the 3D floor. Its ancestors are on layer 2 ("sim"), which this
 ## viewport draws too: only the room's root and its Entities are on layer 2,
-## and they draw nothing themselves. The 2D game draws every layer, so the bit
-## changes nothing there.
+## and they draw nothing themselves. Without a view (the tests) every layer
+## draws, so the bit changes nothing there.
 const DRAWING_VISIBILITY_BIT := 1 << 2
 ## After GameCamera3D (10) has moved this frame.
 const PROCESS_PRIORITY := 25

@@ -2,9 +2,9 @@ extends Node3D
 ## 3D pivot P2 test (docs/3D.md, Build order): open
 ## res://scenes/tests/view_test.tscn and press F6.
 ## Checks the 3D view's logic without drawing anything: the px <-> m mapping
-## (Units), WorldView's physics priority, Main's use_3d_view switch (on by
-## default since P-M, left on by both main scenes; the hub's run plays
-## room_01's layout), and the floor
+## (Units), WorldView's physics priority, Main always showing the view (the
+## flag use_3d_view and the 2D camera gone since the cleanup's C3; the hub's
+## run plays room_01's layout), and the floor
 ## pick on a fixed camera at the default look (perspective, 30° field of
 ## view, 50° pitch, 28 m wide) over a 1 m floor grid with a raised plateau:
 ## the screen center, round trips, the plateau top, the exact shared vertices
@@ -14,8 +14,8 @@ extends Node3D
 ## both projections), RoomView on a fixture tile room (walls, floor, the
 ## environment and key light), the fade (what blocks the view, the fade's
 ## pace) and hiding the 2D world (and restoring it).
-## P4: GameCamera3D (GameCamera's lean, centering, pan and shake as the same
-## share of the screen, bounds, the follow pace) and the listener (it follows
+## P4: GameCamera3D (the old GameCamera's lean, centering, pan and shake as
+## the same share of the screen, bounds, the follow pace) and the listener (it follows
 ## the focus; Audio's reach and panning scale with the view, and go back).
 ## P5: the aim's view side: the plane past the floor, a model's box on screen,
 ## the unit under a screen point (by its model, nearest box wins, the accept
@@ -31,11 +31,11 @@ extends Node3D
 ## default look and its texel size, kept in the room and on whole texels, a
 ## sim point landing on the texel the floor's shader reads, following the
 ## camera; what draws into it: telegraphs, rings, slashes, a unit's own
-## drawing, and not its body; true circles under the view), WorldView's setup
-## of both overlays, the screen overlay (a unit's health bar over its model,
-## fed by its health, hidden with its 2D bar, gone with it; a damage number
-## over the model that stays where it appeared, and the 2D path without a
-## view), and VFX.spawn_scene() with a Node3D root.
+## drawing, and not its HealthBar; true circles under the view), WorldView's
+## setup of both overlays, the screen overlay (a unit's health bar over its
+## model, fed by its health, hidden at its death, gone with it; a damage
+## number over the model that stays where it appeared, and the path without
+## a view), and VFX.spawn_scene() with a Node3D root.
 ## P8: rooms built in 3D. On a fixture layout built here: build_sim() (each
 ## footprint's collider on its kind's layer, in px; a derived wall outline;
 ## the markers in Entities with their properties; the spawn; a helper node
@@ -62,11 +62,17 @@ extends Node3D
 ## floor, the top and the ramp, a unit's view standing on the plateau, the
 ## knock-up's arc, the floor drawings' window covering lower floor; the 3D
 ## sandbox's terrain corner; no enemy knocks up the player.
-## P7's 2D-only looks (after P9): swing arcs center on the body in the 2D game
-## and on the feet under the view, every VFX.slash() call through
+## P7's 2D-only looks (after P9): swing arcs center on the body without a
+## view and on the feet under it, every VFX.slash() call through
 ## VFX.drawing_origin(); the view warms up the pillar's shader at setup;
 ## VFX.impact()'s PillarView standing on the ground, its height, its shader,
-## its fade, gone after its duration; nothing 3D without a view.
+## its fade, gone after its duration; nothing without a view.
+## The cleanup's C3 (the 2D looks deleted): no 2D look nodes or scripts left,
+## the HealthBar only as the overlay's settings, swing_side, the debug
+## drawings on the floor, death_free_time, model_color and the dash ghosts'
+## numbers; on the Knight's model (moved here from combat_test and
+## abilities_test): the post-hit i-frame blink, and the cast and swing clips
+## positioned by progress (a stun, an instant cast, a cancelled swing).
 ## Prints PASS/FAIL per check and a total; run headless, it quits with the
 ## number of failures as the exit code.
 
@@ -118,7 +124,8 @@ func _ready() -> void:
 	await _test_terrain_in_view()
 	_test_terrain_sandbox()
 	await _test_arcs_and_pillars()
-	await _test_looks_2d_off()
+	await _test_2d_looks_gone()
+	await _test_model_blink_and_clips()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -165,17 +172,25 @@ func _test_world_view() -> void:
 
 
 func _test_main_switch() -> void:
-	_section("Main.use_3d_view")
+	_section("Main always shows the 3D view (the cleanup's C3: use_3d_view and the 2D camera went)")
 	var script: Script = load("res://scripts/main.gd")
-	_check("the export exists and is on by default (the milestone, P-M)", script.get_property_default_value(&"use_3d_view"), true)
-	for path in ["res://scenes/main.tscn", "res://scenes/sandbox_main.tscn"]:
+	var main_props: Array[String] = []
+	for p in script.get_script_property_list():
+		main_props.append(String(p["name"]))
+	_check("main.gd has no use_3d_view and no 2D camera any more", [main_props.has("use_3d_view"), main_props.has("camera"), main_props.has("world_view")], [false, false, true])
+	var main_state := (load("res://scenes/main.tscn") as PackedScene).get_state()
+	var node_names: Array[String] = []
+	for i in main_state.get_node_count():
+		node_names.append(String(main_state.get_node_name(i)))
+	_check("main.tscn has no Camera node (GameCamera's)", node_names.has("Camera"), false)
+	var set_flag: Array[String] = []
+	for path in ["res://scenes/main.tscn", "res://scenes/sandbox_main.tscn", "res://scenes/main_layout.tscn", "res://scenes/sandbox_main_layout.tscn"]:
 		var state := (load(path) as PackedScene).get_state()
-		var turned_off := false
 		for i in state.get_node_property_count(0):
-			if state.get_node_property_name(0, i) == &"use_3d_view" and state.get_node_property_value(0, i) == false:
-				turned_off = true
-		_check("%s doesn't turn it off, so it plays in 3D" % path.get_file(), turned_off, false)
-	_check("sandbox_main_3d.tscn (the 3D sandbox to play, P3) turns it on", _turns_3d_on("res://scenes/sandbox_main_3d.tscn"), true)
+			if state.get_node_property_name(0, i) == &"use_3d_view":
+				set_flag.append(path.get_file())
+	_check("no play scene sets the old flag (%s)" % [set_flag], set_flag.is_empty(), true)
+	_check("sandbox_main_3d.tscn (the same as sandbox_main.tscn since P-M) is gone", ResourceLoader.exists("res://scenes/sandbox_main_3d.tscn"), false)
 	var hub_script: Script = load("res://scripts/ui/hub.gd")
 	_check("the hub's Start run plays room_01's layout, its Sandbox the tile sandbox (Ryan, P-M)",
 		[hub_script.get_property_default_value(&"run_scene"), hub_script.get_property_default_value(&"sandbox_scene")],
@@ -185,14 +200,6 @@ func _test_main_switch() -> void:
 	for i in hub_state.get_node_property_count(0):
 		hub_overrides = hub_overrides or hub_state.get_node_property_name(0, i) in [&"run_scene", &"sandbox_scene"]
 	_check("and hub.tscn doesn't override them", hub_overrides, false)
-
-
-func _turns_3d_on(path: String) -> bool:
-	var state := (load(path) as PackedScene).get_state()
-	for i in state.get_node_property_count(0):
-		if state.get_node_property_name(0, i) == &"use_3d_view" and state.get_node_property_value(0, i) == true:
-			return true
-	return false
 
 
 # --- P3: CameraLook, RoomView, the fade, hiding the 2D world -------------------------------------
@@ -395,12 +402,8 @@ func _test_game_camera_3d() -> void:
 			look.aim_lead_smoothing, look.aim_lead_idle_scale, look.aim_lead_hold_time, look.move_lead_px,
 			look.edge_pan_speed_px, look.edge_margin_px, look.shake_decay_px, look.aim_lead_curve.resource_path, look.debug_draw],
 		[10.0, 80.0, 0.35, 0.9, 0.6, 4.0, 0.5, 0.75, 0.0, 420.0, 6.0, 30.0, "res://data/curves/curve_camera_lead.tres", false])
-	var game_camera: Script = load("res://scripts/camera/game_camera.gd")
-	_check("and they're GameCamera's defaults (main.tscn sets none of its own)",
-		[game_camera.get_property_default_value(&"aim_lead"), game_camera.get_property_default_value(&"edge_pan_speed"),
-			game_camera.get_property_default_value(&"edge_margin"), game_camera.get_property_default_value(&"shake_decay"),
-			game_camera.get_property_default_value(&"aim_lead_dead_zone"), game_camera.get_property_default_value(&"aim_lead_hold_time")],
-		[look.aim_lead_px, look.edge_pan_speed_px, look.edge_margin_px, look.shake_decay_px, look.aim_lead_dead_zone, look.aim_lead_hold_time])
+	_check("GameCamera is gone (the cleanup's C3): CameraLook is the one place these are tuned",
+		ResourceLoader.exists("res://scripts/camera/game_camera.gd"), false)
 	_check_near("follow smoothing: GameCamera's speed 10 at 60 ticks is 10.94 per second", GameCamera3D.follow_rate_per_second(10.0, 60), 10.9393, 0.0001)
 	_check_near("28 m across a 640 px wide screen: 0.04375 m per screen px", GameCamera3D.meters_per_screen_px(look, 640.0), 0.04375, 0.000001)
 	_check_near("sounds reach 1.4 times as far: the view's 896 px over the 640 px screen", GameCamera3D.view_distance_scale(look, 640.0), 1.4, 0.000001)
@@ -761,7 +764,7 @@ func _test_views() -> void:
 		var torus := (av.find_child("Ring", true, false) as MeshInstance3D).mesh as TorusMesh
 		_check_near("as wide as the 2D ring (0.8 x the gameplay radius: 0.44 m)", (torus.inner_radius + torus.outer_radius) * 0.5, 0.44, 0.0001)
 		_check_near_v3("on the floor under the unit", av.position, FOCUS, 0.0001)
-	await get_tree().process_frame   # the aura moves itself behind the body, deferred
+	await get_tree().process_frame
 	aura.free()
 	await get_tree().process_frame
 	_check("the aura gone: its ring goes", is_instance_valid(av), false)
@@ -772,7 +775,7 @@ func _test_views() -> void:
 	_check("a stun's stars get their view", stars != null, true)
 	if stars:
 		_check_near("over the unit's model (its 1.32 m, + 0.2 m)", stars.position.y, host_view.model_height_m + 0.2, 0.0001)
-		_check_near("above its feet, not where the 2D stars are drawn (north of it)", Vector2(stars.position.x, stars.position.z).distance_to(Vector2(FOCUS.x, FOCUS.z)), 0.0, 0.0001)
+		_check_near("above its feet (where the unit stands)", Vector2(stars.position.x, stars.position.z).distance_to(Vector2(FOCUS.x, FOCUS.z)), 0.0, 0.0001)
 	host.status_component.apply_status(load("res://data/statuses/status_staggered.tres"), null, 5.0)
 	var mark := view.view_of(host.find_child("StaggeredMark", true, false))
 	_check("Staggered's mark gets its view, over the model (+ 0.3 m)", mark != null and is_equal_approx(mark.position.y, host_view.model_height_m + 0.3), true)
@@ -1094,8 +1097,8 @@ func _test_floor_drawings_layers() -> void:
 	_check("VFX.ring() and VFX.slash() draw on the floor too (layers 1 and 3)",
 		ring.size() == 1 and slash.size() == 1 and (ring[0] as CanvasItem).visibility_layer == 1 | 4 and (slash[0] as CanvasItem).visibility_layer == 1 | 4, true)
 	_check("a unit's own drawing (its hover ring, the player's indicators) is a floor drawing", slime.visibility_layer, 1 | 4)
-	_check("its 2D body and health bar aren't: the overlay culls them",
-		(slime.body.visibility_layer & mask) == 0 and ((slime.get_node("HealthBar") as CanvasItem).visibility_layer & mask) == 0, true)
+	_check("its HealthBar (the overlay's settings) isn't: the overlay culls it; it has no 2D body (the cleanup's C3)",
+		((slime.get_node("HealthBar") as CanvasItem).visibility_layer & mask) == 0 and slime.get_node_or_null(^"Body") == null, true)
 
 	_check_near("without the view, floor circles are squashed 0.55 (the 2D game's 3/4 look)", VFX.floor_squash, 0.55, 0.0)
 	_check_near("so is a ring's outline", _ring_height(entities), 0.55, 0.0001)
@@ -1148,7 +1151,7 @@ func _test_overlays_in_setup() -> void:
 	entities.add_child(slime)
 	var view := WorldView.new()
 	main.add_child(view)
-	view.setup(main, room, null, null)
+	view.setup(main, room, null)
 	var cam := view.camera
 	var screen := view.screen_overlay
 	_check("WorldView.of() finds it from any sim node (the group world_view)", WorldView.of(slime) == view, true)
@@ -1162,7 +1165,7 @@ func _test_overlays_in_setup() -> void:
 	# The health bar.
 	var bar := screen.bar_of(slime)
 	var source := slime.get_node("HealthBar") as Node2D
-	_check("a unit there at setup got its health bar: a copy of its 2D HealthBar (its width, its color)",
+	_check("a unit there at setup got its health bar: a copy of its HealthBar's settings (its width, its color)",
 		bar != null and is_equal_approx(float(bar.get(&"width")), float(source.get(&"width"))) and bar.get(&"fill_color") == source.get(&"fill_color"), true)
 	if bar == null:
 		main.free()
@@ -1176,7 +1179,7 @@ func _test_overlays_in_setup() -> void:
 		bar.position.distance_to(cam.unproject_position(head) - Vector2(0.0, 3.0 + float(bar.get(&"height")))), 0.0, 0.001)
 	source.visible = false
 	screen._process(0.0)
-	_check("the unit's own 2D bar hidden doesn't hide the copy (it follows the unit's death since the cleanup's C2)", bar.visible, true)
+	_check("the unit's HealthBar node hidden doesn't hide the copy (it follows the unit's death since the cleanup's C2)", bar.visible, true)
 	source.visible = true
 	var late := slime_scene.instantiate() as Unit
 	late.position = Vector2(144.0, 80.0)
@@ -1500,7 +1503,7 @@ func _test_layout_in_view() -> void:
 	add_child(main)
 	var view := WorldView.new()
 	main.add_child(view)
-	view.setup(main, room, null, null, layout)
+	view.setup(main, room, null, layout)
 	_check("the layout moves under the WorldView as the room's look (no RoomView)",
 		layout.get_parent() == view and view.layout == layout and view.room_view == null, true)
 	var pick := layout.get_node_or_null("FloorPick") as StaticBody3D
@@ -1613,8 +1616,8 @@ func _test_real_layouts() -> void:
 		for i in state.get_node_property_count(0):
 			props[state.get_node_property_name(0, i)] = state.get_node_property_value(0, i)
 		var room_scene: PackedScene = props.get(&"room_scene")
-		_check("%s plays %s with the 3D view on" % [String(pair[0]).get_file(), String(pair[1]).get_file()],
-			props.get(&"use_3d_view", false) == true and room_scene != null and room_scene.resource_path == pair[1], true)
+		_check("%s plays %s (in 3D, as every Main does since the cleanup's C3)" % [String(pair[0]).get_file(), String(pair[1]).get_file()],
+			not props.has(&"use_3d_view") and room_scene != null and room_scene.resource_path == pair[1], true)
 
 	for path in ["res://scenes/player/player.tscn", "res://scenes/enemies/slime.tscn", "res://scenes/enemies/slime_elite.tscn"]:
 		var unit := (load(path) as PackedScene).instantiate() as CollisionObject2D
@@ -1981,7 +1984,7 @@ func _test_terrain_in_view() -> void:
 	add_child(main)
 	var view := WorldView.new()
 	main.add_child(view)
-	view.setup(main, room, null, null, layout)
+	view.setup(main, room, null, layout)
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	_check_near("the ground under the floor: 0 m (a downward ray on the floor layer)", view.ground_height_m(_px(1.0, 1.0)), 0.0, 0.01)
@@ -2062,16 +2065,16 @@ func _test_arcs_and_pillars() -> void:
 	slime.position = _px(3.5, 3.5)
 	entities.add_child(slime)
 	await get_tree().physics_frame
-	_check("the 2D game: swing arcs center on the body's center, for its 3/4 look",
+	_check("without a view (the tests): swing arcs center on the body's center (the old 2D game's 3/4 look)",
 		[VFX.drawings_at_feet, VFX.drawing_origin(slime)], [false, slime.get_center()])
 	var children_before := entities.get_child_count()
 	VFX.impact(entities, _px(3.5, 3.5), Color(1.0, 0.9, 0.4, 0.95), 90.0, 0.35)
-	_check("without a view, VFX.impact() makes only its 2D pillar (nothing in 3D)",
-		[entities.get_child_count() - children_before, get_tree().get_nodes_in_group(&"world_view").size()], [1, 0])
+	_check("without a view, VFX.impact() makes nothing (its 2D pillar went in the cleanup's C3)",
+		[entities.get_child_count() - children_before, get_tree().get_nodes_in_group(&"world_view").size()], [0, 0])
 
 	var view := WorldView.new()
 	main.add_child(view)
-	view.setup(main, room, null, null, layout)
+	view.setup(main, room, null, layout)
 	var warm_up := _pillars(view)
 	_check("setting up the view draws one invisible pillar, so its shader compiles while the room loads (not on the first hit)",
 		warm_up.size() == 1 and is_zero_approx((warm_up[0].call(&"get_color") as Color).a), true)
@@ -2121,7 +2124,7 @@ func _test_arcs_and_pillars() -> void:
 		await get_tree().physics_frame
 	_check("each frees itself when its 0.35 s are over", _pillars(view).size(), 0)
 	main.free()
-	_check("when the view goes, the 2D game's looks come back", [VFX.drawings_at_feet, VFX.floor_squash], [false, VFX.FLOOR_SQUASH_2D])
+	_check("when the view goes, the drawings' no-view settings come back", [VFX.drawings_at_feet, VFX.floor_squash], [false, VFX.FLOOR_SQUASH_2D])
 
 
 func _pillars(view: WorldView) -> Array[Node]:
@@ -2132,22 +2135,23 @@ func _pillars(view: WorldView) -> Array[Node]:
 	return out
 
 
-# --- The cleanup's C2: the 2D looks off under the view ------------------------------------
+# --- The cleanup's C3: the 2D looks deleted ------------------------------------------------
 
-func _test_looks_2d_off() -> void:
-	_section("The cleanup's C2: the 2D game's own looks off under the view (Unit.looks_2d_off)")
-	_check("off by default: the 2D game, and every test without a view, runs them", Unit.looks_2d_off, false)
-	var main := Node2D.new()
-	var room := Node2D.new()
-	main.add_child(room)
-	add_child(main)
-	var view := WorldView.new()
-	main.add_child(view)
-	view.hide_sim(main, room)
-	_check("WorldView.hide_sim() turns it on", Unit.looks_2d_off, true)
-	view.free()
-	_check("and the view leaving turns it off again", Unit.looks_2d_off, false)
-	main.free()
+func _test_2d_looks_gone() -> void:
+	_section("The cleanup's C3: the 2D looks deleted")
+	var left: Array[String] = []
+	for path in ["res://scenes/player/player.tscn", "res://scenes/enemies/slime.tscn", "res://scenes/enemies/slime_elite.tscn"]:
+		var u := (load(path) as PackedScene).instantiate()
+		for n: String in ["Body", "Shadow", "SwordPivot", "MovementVFXComponent"]:
+			if u.get_node_or_null(NodePath(n)) != null:
+				left.append("%s/%s" % [path.get_file(), n])
+		u.free()
+	_check("no unit scene has a 2D look node left: Body, Shadow, SwordPivot, MovementVFXComponent (left: %s)" % [left], left.is_empty(), true)
+	_check("their scripts are gone: GameCamera, MovementVFXComponent",
+		[ResourceLoader.exists("res://scripts/camera/game_camera.gd"), ResourceLoader.exists("res://scripts/vfx/movement_vfx_component.gd")], [false, false])
+	var vfx_methods: Array[String] = []
+	for m in (load("res://scripts/vfx/vfx.gd") as Script).get_script_method_list():
+		vfx_methods.append(String(m["name"]))
 
 	var holder := Node2D.new()
 	add_child(holder)
@@ -2159,28 +2163,17 @@ func _test_looks_2d_off() -> void:
 	knight.position = Vector2(240.0, 64.0)
 	holder.add_child(knight)
 	await get_tree().physics_frame
-	Unit.looks_2d_off = true
-	slime._flash()
-	_check("with it on, a hit doesn't flash the 2D body (UnitView flashes the model)", slime.body.modulate, Color.WHITE)
-	var bob_scale := slime.body.scale
-	slime._process(0.25)
-	_check("the slime's 2D bob doesn't run", slime.body.scale, bob_scale)
-	var side := knight.swing_side
-	var sword_rotation := knight.sword.rotation
-	knight._swing_sword(0.1)
-	_check("a swing still alternates swing_side (the floor drawings' slashes read it); the 2D sword doesn't move",
-		[knight.swing_side, knight.sword.rotation], [-side, sword_rotation])
+	_check("no Unit.body, no 2D flash in HitFeel, no VFX.afterimage()",
+		[&"body" in slime, &"flash_time" in GameFeel.hit_feel, &"flash_modulate" in GameFeel.hit_feel, vfx_methods.has("afterimage")], [false, false, false, false])
 	var unit_bar := slime.get_node(^"HealthBar")
-	_check("a unit's own 2D HealthBar doesn't run", unit_bar.call(&"_is_2d_bar_off"), true)
+	_check("a unit's HealthBar only holds the bar's settings (Ryan): it doesn't run or draw on its unit", unit_bar.call(&"_is_2d_bar_off"), true)
 	var copy := unit_bar.duplicate()
 	holder.add_child(copy)
 	_check("its copy elsewhere (ScreenOverlay's) does", copy.call(&"_is_2d_bar_off"), false)
 	copy.free()
-	var children := holder.get_child_count()
-	VFX.impact(holder, Vector2(10.0, 10.0), Color.WHITE, 40.0, 0.2)
-	VFX.afterimage(slime)
-	knight.get_node(^"MovementVFXComponent").call(&"_on_dash_component_dash_started", Vector2.RIGHT)
-	_check("VFX.impact()'s 2D pillar, VFX.afterimage() and the 2D dash's afterimages and dust aren't made", holder.get_child_count(), children)
+	var side := knight.swing_side
+	knight._swing_sword(0.1)
+	_check("a swing still alternates swing_side (the floor drawings' slashes read it)", knight.swing_side, -side)
 	var projectile := Projectile.new()
 	projectile.debug_draw = true
 	projectile.process_mode = Node.PROCESS_MODE_DISABLED   # no ability: only its _ready matters here
@@ -2192,38 +2185,155 @@ func _test_looks_2d_off() -> void:
 	holder.add_child(mover)
 	var bit := FloorOverlay.DRAWING_VISIBILITY_BIT
 	var path_line := move.get(&"_debug_line") as Line2D
-	_check("debug drawings show on the 3D floor (Ryan's pick): a projectile's sweep, the movement path (on the floor-drawing layer)",
+	_check("debug drawings show on the 3D floor (Ryan's pick, C2): a projectile's sweep, the movement path (on the floor-drawing layer)",
 		projectile.visibility_layer & bit != 0 and move.visibility_layer & bit != 0 and path_line != null and path_line.visibility_layer & bit != 0, true)
-	_check("the slime's death_free_time is the 2D squash's length, 0.33 s", slime.death_free_time, 0.33)
 	projectile.free()
-	var death_scale := slime.body.scale
+	_check("the slime's death_free_time is the old 2D squash's length, 0.33 s", slime.death_free_time, 0.33)
 	slime.health.take_damage(slime.health.max_health * 10.0)
 	for i in 10:
 		await get_tree().physics_frame
-	_check("its death's 2D squash doesn't run", slime.body.scale, death_scale)
-	_check("but the unit is still there before its death_free_time", is_instance_valid(slime), true)
+	_check("a dead unit is still there before its death_free_time", is_instance_valid(slime), true)
 	for i in 20:
 		await get_tree().physics_frame
-	_check("and freed after it, as when it waited for the squash", is_instance_valid(slime), false)
-	Unit.looks_2d_off = false
+	_check("and freed after it", is_instance_valid(slime), false)
 	holder.free()
 
 	var green := (load("res://scenes/enemies/slime.tscn") as PackedScene).instantiate() as Unit
 	var elite := (load("res://scenes/enemies/slime_elite.tscn") as PackedScene).instantiate() as Unit
-	_check("the capsules' colors are data now (model_color): the slime green, the elite purple, their 2D bodies' main colors",
+	_check("the capsules' colors are data (model_color, C2): the slime green, the elite purple",
 		[green.model_color, elite.model_color], [Color(0.35, 0.85, 0.4, 1.0), Color(0.62, 0.35, 0.85, 1.0)])
 	var uv := (load("res://scenes/view/unit_view.tscn") as PackedScene).instantiate() as UnitView
 	uv.unit = green
 	green.modulate = Color(1.0, 0.5, 0.5)
 	_check("UnitView's capsule takes it, times the unit's tint (the sandbox dummies')", uv._body_color(), Color(0.35, 0.85, 0.4, 1.0) * Color(1.0, 0.5, 0.5))
-	var mvfx: Script = load("res://scripts/vfx/movement_vfx_component.gd")
-	_check("the 3D dash ghosts' numbers are UnitView's own, the 2D component's values (4, 0.03 s apart, 0.15 s fade, its color)",
-		[uv.afterimage_count, uv.afterimage_interval, uv.afterimage_fade_time, uv.afterimage_color],
-		[mvfx.get_property_default_value(&"afterimage_count"), mvfx.get_property_default_value(&"afterimage_interval"),
-			mvfx.get_property_default_value(&"afterimage_fade_time"), mvfx.get_property_default_value(&"afterimage_color")])
+	_check("the dash ghosts' numbers are UnitView's own, the old 2D component's values (4, 0.03 s apart, 0.15 s fade, its color)",
+		[uv.afterimage_count, uv.afterimage_interval, uv.afterimage_fade_time, uv.afterimage_color], [4, 0.03, 0.15, Color(0.55, 0.85, 1.0, 0.5)])
 	uv.free()
 	green.free()
 	elite.free()
+
+
+## On the Knight's model (UnitView): the post-hit i-frame blink (from
+## combat_test) and the cast and swing clips positioned by progress (from
+## abilities_test's AB14 checks, which positioned an AnimationPlayer under the
+## 2D Body until the cleanup's C3).
+func _test_model_blink_and_clips() -> void:
+	_section("The cleanup's C3: the Knight's model blinks, and plays its cast and swing clips by progress")
+	var view := WorldView.new()
+	add_child(view)
+	view.camera = _aim_camera(view, FOCUS)
+	view.watch_sim()
+	var holder := Node2D.new()
+	add_child(holder)
+	var knight := (load("res://scenes/player/player.tscn") as PackedScene).instantiate() as Player
+	knight.position = Units.to_sim(FOCUS)
+	holder.add_child(knight)
+	var kv := view.view_of(knight) as UnitView
+	var anim: AnimationPlayer = kv._anim if kv else null
+	if anim == null:
+		_check("the Knight's view has its model's AnimationPlayer", false, true)
+		holder.free()
+		view.free()
+		return
+	await get_tree().physics_frame
+
+	# The post-hit i-frames' blink.
+	knight.take_damage(10.0)
+	var hidden_seen := false
+	var t0 := Time.get_ticks_msec()
+	while knight.has_invulnerability(Unit.HIT_IFRAMES_ID) and Time.get_ticks_msec() - t0 < 2000:
+		await get_tree().process_frame
+		if not kv._model.visible:
+			hidden_seen = true
+	_check("the model blinks during the post-hit i-frames", hidden_seen, true)
+	await get_tree().process_frame
+	_check("and shows again after", kv._model.visible, true)
+
+	# Cleave's cast_anim: start to strike by the cast's progress, then the follow-through.
+	var ab := knight.abilities
+	var clip := ab.q.cast_anim
+	knight.resource_pool.restore(1000.0)   # Fury starts empty
+	var cast_ok := ab.try_cast(&"q", knight.global_position + Vector2(60.0, 0.0))
+	var in_step := cast_ok and kv._phase == UnitView.Phase.LEAD_BY_PROGRESS
+	var samples := 0
+	var reached := 0.0
+	while ab.casting and samples < 30:
+		await get_tree().physics_frame
+		if not ab.casting:
+			break
+		kv._update_clips(0.0)
+		var share := anim.current_animation_position / anim.get_animation(clip).length
+		var lo := lerpf(kv.action_start, kv.action_strike, kv._progress_prev)
+		var hi := lerpf(kv.action_start, kv.action_strike, kv._progress_cur)
+		in_step = in_step and anim.assigned_animation == clip and is_zero_approx(anim.get_playing_speed()) \
+			and share >= lo - 0.0001 and share <= hi + 0.0001
+		reached = maxf(reached, kv._progress_cur)
+		samples += 1
+	_check("Cleave's cast_anim: the model holds its clip and the view positions it by the cast's progress, start to strike (%d ticks)" % samples,
+		in_step and samples >= 8 and reached > 0.5, true)
+	for i in 3:
+		await get_tree().process_frame
+	var follow_share := anim.current_animation_position / anim.get_animation(clip).length
+	_check("the effect starts: the clip follows through from its strike frame toward its end",
+		kv._phase == UnitView.Phase.FOLLOW and follow_share >= kv.action_strike - 0.0001 and follow_share <= kv.action_end + 0.0001, true)
+	await get_tree().create_timer(kv.cast_follow_through + 0.15).timeout
+	_check("then the base clip again (idle)", [kv._phase, anim.current_animation], [UnitView.Phase.NONE, kv.idle_clip])
+
+	ab.reset_cooldown(&"q")
+	knight.resource_pool.restore(1000.0)
+	var recast := ab.try_cast(&"q", knight.global_position + Vector2(60.0, 0.0))
+	for i in 3:
+		await get_tree().physics_frame
+	var leading := ab.casting and kv._phase == UnitView.Phase.LEAD_BY_PROGRESS
+	knight.apply_stun(1.0)
+	await get_tree().create_timer(kv.cast_follow_through + 0.15).timeout
+	_check("a stun interrupts the cast: its clip follows through, then the stun pose",
+		[recast, leading, ab.casting, kv._phase, anim.current_animation], [true, true, false, UnitView.Phase.NONE, kv.stun_clip])
+	knight.status_component.clear()
+
+	knight.resource_pool.restore(1000.0)
+	ab.try_cast(&"w", knight.global_position)
+	_check("no cast time (Iron Resolve): its clip leads by time (instant_cast_lead), not progress",
+		[kv._phase, anim.assigned_animation], [UnitView.Phase.LEAD_BY_TIME, ab.w.cast_anim])
+	await get_tree().create_timer(kv.instant_cast_lead + kv.cast_follow_through + 0.15).timeout
+
+	# The combo's first swing: start, strike at the hit, end, by swing progress.
+	var t1 := Time.get_ticks_msec()
+	while not knight.attack.can_swing() and Time.get_ticks_msec() - t1 < 2000:
+		await get_tree().physics_frame
+	var swing_clip := knight.attack.combo.swings[0].swing_anim
+	var swing_ok := knight.attack.try_swing(Vector2.RIGHT)
+	in_step = swing_ok and kv._phase == UnitView.Phase.LEAD_BY_PROGRESS and anim.assigned_animation == swing_clip
+	samples = 0
+	while knight.attack.is_swinging() and samples < 40:
+		await get_tree().physics_frame
+		if not knight.attack.is_swinging():
+			break
+		kv._update_clips(0.0)
+		var share := anim.current_animation_position / anim.get_animation(swing_clip).length
+		var lo := UnitView.action_clip_share(kv._progress_prev, kv._hit_share, kv.action_start, kv.action_strike, kv.action_end)
+		var hi := UnitView.action_clip_share(kv._progress_cur, kv._hit_share, kv.action_start, kv.action_strike, kv.action_end)
+		in_step = in_step and anim.assigned_animation == swing_clip and share >= lo - 0.0001 and share <= hi + 0.0001
+		samples += 1
+	_check("the swing_anim: positioned by swing progress, its strike frame on the hit (%d ticks)" % samples, in_step and samples >= 10, true)
+	for i in 3:
+		await get_tree().process_frame
+	_check("the swing over: the base clip again", kv._phase, UnitView.Phase.NONE)
+	t1 = Time.get_ticks_msec()
+	while not knight.attack.can_swing() and Time.get_ticks_msec() - t1 < 2000:
+		await get_tree().physics_frame
+	knight.attack.try_swing(Vector2.RIGHT)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var swinging := kv._phase == UnitView.Phase.LEAD_BY_PROGRESS
+	knight.attack.cancel_swing()
+	_check("a cancelled swing ends its clip at once", [swinging, kv._phase, kv._clip], [true, UnitView.Phase.NONE, &""])
+	holder.free()
+	view.free()
+	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).
+	Audio.stop_all()
+	for i in 10:
+		await get_tree().process_frame
 
 
 # --- Helpers ------------------------------------------------------------------------------

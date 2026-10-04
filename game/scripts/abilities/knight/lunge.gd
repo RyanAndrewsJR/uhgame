@@ -5,7 +5,7 @@ extends Ability
 ## AbilityUtil.along_segment() + line of sight for who's on the path,
 ## hit_units() for the hits (one crit roll, the cast's context: a free cast's
 ## hits keep their chain depth), play_hit_feel() for the shake (hit_shake in
-## the .tres). The afterimages and impact VFX are Lunge's own.
+## the .tres). The impact VFX are Lunge's own.
 ## FLAG augment &"lunge_stuns" (ABILITIES AB-M): every enemy it hits is also
 ## stunned (status_stun for flag_stun_duration, as a status of the hit).
 ## FLAG &"lunge_tackle" (TALENTS T3, Tackle): the dash stops at the first
@@ -48,12 +48,9 @@ func execute(caster: Unit, ctx: CastContext) -> void:
 	if dist >= 1.0:
 		caster.movement.dash(offset / dist * speed, duration, true, dash_curve)
 
-	# Afterimage trail while dashing.
-	var frame := 0
+	# Wait out the dash (its 2D afterimage trail went in the 3D pivot's
+	# cleanup C3).
 	while caster.movement.is_displaced():
-		if frame % 2 == 0:
-			VFX.afterimage(caster, Color(icon_color, 0.45))
-		frame += 1
 		await caster.get_tree().physics_frame
 		if not is_instance_valid(caster):
 			return

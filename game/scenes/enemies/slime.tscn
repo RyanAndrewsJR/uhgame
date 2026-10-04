@@ -7,7 +7,6 @@
 [ext_resource type="Script" path="res://scripts/components/auto_attack_component.gd" id="5_attack"]
 [ext_resource type="Resource" path="res://data/units/slime.tres" id="6_stats"]
 [ext_resource type="Script" path="res://scripts/ui/health_bar.gd" id="7_bar"]
-[ext_resource type="Script" path="res://scripts/vfx/movement_vfx_component.gd" id="8_movement_vfx"]
 [ext_resource type="Script" path="res://scripts/components/stats_component.gd" id="9_stats_component"]
 [ext_resource type="Script" path="res://scripts/components/status_component.gd" id="10_status_component"]
 [ext_resource type="Resource" path="res://data/sounds/sound_slime_death.tres" id="11_death_sound"]
@@ -27,30 +26,6 @@ stats = ExtResource("6_stats")
 body_center = Vector2(0, -10)
 death_sound = ExtResource("11_death_sound")
 model_color = Color(0.35, 0.85, 0.4, 1)
-
-[node name="Shadow" type="Polygon2D" parent="."]
-color = Color(0, 0, 0, 0.35)
-polygon = PackedVector2Array(-15, 0, -11, -3, 0, -4, 11, -3, 15, 0, 11, 3, 0, 4, -11, 3)
-
-[node name="Body" type="Node2D" parent="."]
-
-[node name="Blob" type="Polygon2D" parent="Body"]
-color = Color(0.35, 0.85, 0.4, 1)
-polygon = PackedVector2Array(-16, 0, -16, -8, -12, -16, -5, -21, 5, -21, 12, -16, 16, -8, 16, 0)
-
-[node name="Shine" type="Polygon2D" parent="Body"]
-color = Color(0.7, 1, 0.72, 0.8)
-polygon = PackedVector2Array(-10, -15, -6, -18, -4, -16, -8, -13)
-
-[node name="Eyes" type="Node2D" parent="Body"]
-
-[node name="EyeL" type="Polygon2D" parent="Body/Eyes"]
-color = Color(0.08, 0.15, 0.08, 1)
-polygon = PackedVector2Array(-7, -12, -3, -12, -3, -7, -7, -7)
-
-[node name="EyeR" type="Polygon2D" parent="Body/Eyes"]
-color = Color(0.08, 0.15, 0.08, 1)
-polygon = PackedVector2Array(3, -12, 7, -12, 7, -7, 3, -7)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_body")
@@ -93,8 +68,3 @@ collision_mask = 1
 position = Vector2(0, -32)
 script = ExtResource("7_bar")
 width = 30.0
-
-[node name="MovementVFXComponent" type="Node2D" parent="."]
-script = ExtResource("8_movement_vfx")
-walk_bob_px = 0.0
-reversal_dust = false

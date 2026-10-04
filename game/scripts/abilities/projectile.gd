@@ -12,14 +12,13 @@ extends Node2D
 ## damage snapshotted at fire and have no source (no kill credit, no crit, no
 ## on-hit), like a DoT whose applier is gone.
 ##
-## Visual: a drawn bolt in the ability's icon_color (VFX only). debug_draw
-## shows each frame's swept capsule.
+## Visual: the 3D view's ProjectileView, a bolt in the ability's icon_color
+## (its 2D bolt went in the 3D pivot's cleanup C3). debug_draw shows each
+## frame's swept capsule, on the 3D floor.
 
 ## Walls stop the projectile's core, a small circle (not its full width), so
 ## a wide projectile doesn't catch on corners it visibly clears.
 const WALL_RADIUS_PX := 2.0
-## Drawn this far above the feet line it travels on (visual only).
-const DRAW_HEIGHT_PX := 10.0
 
 @export var debug_draw: bool = false
 ## Its 3D look (3D.md, The generic view mechanism; the projectile is in the
@@ -161,11 +160,6 @@ func _hit(target: Unit) -> void:
 
 
 func _draw() -> void:
-	if not Unit.looks_2d_off:   # the 2D bolt; the 3D view shows ProjectileView
-		var up := Vector2(0, -DRAW_HEIGHT_PX)
-		var r := clampf(half_width_px * 0.5, 2.0, 6.0)
-		draw_line(up - direction * r * 3.0, up, Color(ability.icon_color, 0.5), r)
-		draw_circle(up, r, Color(ability.icon_color, 0.95))
 	if debug_draw:
 		var a := to_local(_last_from)
 		var b := to_local(_last_to)

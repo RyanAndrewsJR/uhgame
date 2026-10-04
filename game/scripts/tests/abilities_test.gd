@@ -52,8 +52,10 @@ extends Node2D
 ## node pass and between frames, a cast chained from another's end); cast
 ## progress and the cast speed; telegraphs following their cast; the
 ## presentation hooks empty (nothing happens) and filled (a test hook scene:
-## cast, impact, projectile, free cast, swing; blocked hits skipped); cast_anim
-## and swing_anim positioned by progress, stopped by a cancel.
+## cast, impact, projectile, free cast, swing; blocked hits skipped). The
+## clips (cast_anim, swing_anim) are the 3D model's: view_test checks them
+## (they moved there in the 3D pivot's cleanup C3, with the 2D Body). The
+## shake spy is a Camera3D (GameFeel.shake()).
 ## The Knight's own crit_chance and life_steal are held at 0 by a test
 ## baseline, so damage checks are exact.
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
@@ -220,7 +222,6 @@ func _ready() -> void:
 	await _test_ab14_telegraph()
 	await _test_ab14_hooks_empty()
 	await _test_ab14_hooks_fire()
-	await _test_ab14_anims()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).
@@ -2606,13 +2607,13 @@ func _test_untargetable_enemy_ai() -> void:
 
 # --- AB11 -----------------------------------------------------------------------
 
-## A camera that records GameFeel.shake() amounts (as in combat_test).
-func _spy_camera() -> Camera2D:
+## A camera that records GameFeel.shake() amounts (as in combat_test): a
+## Camera3D, as the 3D view's GameCamera3D is.
+func _spy_camera() -> Camera3D:
 	var script := GDScript.new()
-	script.source_code = "extends Camera2D\nvar on_shake: Callable\nfunc shake(amount: float) -> void:\n\ton_shake.call(amount)\n"
+	script.source_code = "extends Camera3D\nvar on_shake: Callable\nfunc shake(amount: float) -> void:\n\ton_shake.call(amount)\n"
 	script.reload()
-	var cam := Camera2D.new()
-	cam.process_callback = Camera2D.CAMERA2D_PROCESS_PHYSICS
+	var cam := Camera3D.new()
 	cam.set_script(script)
 	cam.set("on_shake", func(amount: float) -> void: _shakes.append(amount))
 	add_child(cam)
@@ -3932,8 +3933,8 @@ func _test_abm_cleave_wave() -> void:
 	ab.try_cast(&"q", knight.global_position + Vector2(300, 0))
 	await _wait_until(func() -> bool: return not _projectiles().is_empty(), 30)
 	var waves := _projectiles()
-	_check("after the 0.2 s cast time: one wave flies, its crescent on it",
-		[waves.size(), waves[0].get_child_count() > 0 if waves.size() == 1 else false], [1, true])
+	_check("after the 0.2 s cast time: one wave flies, with no 2D crescent on it (the 3D view shows it; the cleanup's C3)",
+		[waves.size(), waves[0].get_child_count() == 0 if waves.size() == 1 else false], [1, true])
 	await _wait_until(func() -> bool: return _projectiles().is_empty(), 120)
 	_check("it passes through both dummies: 124.8 each (80 + 0.7 x 64), tagged projectile",
 		[hits.size(), hits.map(func(h: HitContext) -> float: return h.raw_damage), hits.all(func(h: HitContext) -> bool: return h.has_tag(&"projectile"))],
@@ -4382,8 +4383,8 @@ func _test_ab14_telegraph() -> void:
 func _test_ab14_hooks_empty() -> void:
 	_section("AB14: presentation hooks empty: nothing happens")
 	# Since 3D pivot P6 (Ryan, 2026-10-03) the Knight's clip hooks name his
-	# placeholder model's clips (KayKit's; 3D.md, Animation). The 2D units have
-	# no AnimationPlayer, so the 2D game plays nothing for them. The VFX hooks
+	# placeholder model's clips (KayKit's; 3D.md, Animation); the 3D view plays
+	# them on the model (view_test). The VFX hooks
 	# stay empty until the art pass.
 	var empty := true
 	for a: Ability in [CLEAVE, IRON_RESOLVE, LUNGE, JUDGEMENT, SLAM, CLEAVE_WAVE, VECTOR_WALL]:
@@ -4541,103 +4542,6 @@ func _ab14_combo_with_first(first: AttackSwing) -> AttackCombo:
 	swings[0] = first
 	combo.swings = swings
 	return combo
-
-
-func _test_ab14_anims() -> void:
-	_section("AB14: cast_anim and swing_anim follow progress")
-	await _reset_knight()
-	var ab := knight.abilities
-	var original_q := ab.q
-	var original_w := ab.w
-	var original_r := ab.r
-	var player := AnimationPlayer.new()
-	player.name = "AnimationPlayer"
-	var lib := AnimationLibrary.new()
-	var cast_anim := Animation.new()
-	cast_anim.length = 1.0
-	var swing_anim := Animation.new()
-	swing_anim.length = 0.5
-	lib.add_animation(&"test_cast", cast_anim)
-	lib.add_animation(&"test_swing", swing_anim)
-	player.add_animation_library(&"", lib)
-	knight.body.add_child(player)
-
-	var cleave: Ability = CLEAVE.duplicate()
-	cleave.cast_anim = &"test_cast"
-	ab.q = cleave
-	ab.reset_cooldown(&"q")
-	await _frames(1)
-	var at_effect: Array[float] = []
-	var on_cast := func(u: Unit, _a: Ability, _c: CastContext) -> void:
-		if u == knight:
-			at_effect.append(player.current_animation_position)
-	Events.ability_cast.connect(on_cast)
-	ab.try_cast(&"q", knight.global_position + Vector2(60, 0))
-	var in_step := player.assigned_animation == "test_cast" and is_zero_approx(player.current_animation_position)
-	var samples := 0
-	while at_effect.is_empty() and samples < 30:
-		await _frames(1)
-		if at_effect.is_empty():
-			var ok := player.assigned_animation == "test_cast" \
-				and is_equal_approx(player.current_animation_position, ab.get_cast_progress() * cast_anim.length)
-			if not ok:
-				print("    tick %d: %s at %s, progress %s" % [samples, player.assigned_animation, player.current_animation_position, ab.get_cast_progress()])
-			in_step = in_step and ok
-			samples += 1
-	_check("Cleave's cast_anim: its position = progress x its length every tick (%d ticks)" % samples, in_step and samples >= 10, true)
-	_check("at the effect start it's at its last frame", at_effect.size() == 1 and at_effect[0] == 1.0, true)
-	Events.ability_cast.disconnect(on_cast)
-
-	await _reset_knight()
-	var dummy := _dummy_at(Vector2(60, 0))
-	var judgement: Ability = JUDGEMENT.duplicate()
-	judgement.cast_anim = &"test_cast"
-	ab.r = judgement
-	ab.reset_cooldown(&"r")
-	await _frames(1)
-	ab.try_cast(&"r", dummy.global_position, dummy)
-	await _frames(10)
-	_check("mid-channel it's playing", [player.current_animation, player.current_animation_position > 0.0], [&"test_cast", true])
-	knight.apply_stun(0.1)
-	_check("a stun interrupts the cast: the cast_anim stops", player.is_playing(), false)
-	ab.r = original_r
-	dummy.queue_free()
-
-	await _reset_knight()
-	var iron: Ability = IRON_RESOLVE.duplicate()
-	iron.cast_anim = &"test_cast"
-	ab.w = iron
-	ab.reset_cooldown(&"w")
-	ab.try_cast(&"w", knight.global_position)
-	_check("no cast time (Iron Resolve): it plays on its own at the cast speed",
-		[player.is_playing(), player.current_animation, player.get_playing_speed()], [true, &"test_cast", 1.0])
-	ab.w = original_w
-	ab.q = original_q
-
-	await _reset_knight()
-	var original_combo := knight.attack.combo
-	var swing: AttackSwing = COMBO_KNIGHT.swings[0].duplicate()
-	swing.swing_anim = &"test_swing"
-	knight.attack.combo = _ab14_combo_with_first(swing)
-	await _wait_until(func() -> bool: return knight.attack.can_swing(), 60)
-	knight.attack.try_swing(Vector2.RIGHT)
-	in_step = player.assigned_animation == "test_swing"
-	samples = 0
-	while knight.attack.is_swinging() and samples < 40:
-		await _frames(1)
-		if knight.attack.is_swinging():
-			in_step = in_step and is_equal_approx(player.current_animation_position, knight.attack.get_swing_progress() * swing_anim.length)
-			samples += 1
-	_check("the swing_anim: its position = swing progress x its length every tick (%d ticks)" % samples, in_step and samples >= 10, true)
-	_check("the swing ended: at its last frame", is_equal_approx(player.current_animation_position, swing_anim.length), true)
-	await _wait_until(func() -> bool: return knight.attack.can_swing(), 60)
-	knight.attack.try_swing(Vector2.RIGHT)
-	await _frames(2)
-	knight.attack.cancel_swing()
-	_check("a cancelled swing stops its swing_anim", player.is_playing(), false)
-	knight.attack.combo = original_combo
-	player.queue_free()
-	await _reset_knight()
 
 
 # --- Helpers ------------------------------------------------------------------

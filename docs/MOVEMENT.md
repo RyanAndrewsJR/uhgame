@@ -11,10 +11,10 @@
 | `res://scripts/player/player_input.gd` | `PlayerInput`, child of Player. Reads WASD, dash and attack each physics frame; owns the input buffer. |
 | `res://scripts/components/dash_component.gd` | `DashComponent`, child of Player. The dash. |
 | `res://scripts/player/player.gd` | Q/W/E/R casting, facing and aim, player states. (The dormant LoL right-click orders were deleted 2026-09-29.) |
-| `res://scripts/camera/game_camera.gd` | Locked follow with aim lead; unlocked edge pan; shake; room bounds. Since the 3D pivot's cleanup C1 it runs only in the 2D game; `game_camera_3d.gd` does the same in 3D, tuned on `CameraLook` (3D.md). |
-| `res://scripts/vfx/movement_vfx_component.gd` | `MovementVFXComponent`, last child of the Player and of slimes. Movement feedback visuals (F3). The 2D game's look only: it does nothing while the 3D view shows the game (`Unit.looks_2d_off`, the 3D pivot's cleanup C2), whose dash afterimages are `UnitView`'s (3D.md). |
+| `res://scripts/camera/game_camera_3d.gd` | Locked follow with aim lead; unlocked edge pan; shake; room bounds, tuned on `CameraLook` (3D.md). The 2D `game_camera.gd` did this until the 3D pivot's cleanup C1 and was deleted in C3. |
+| ~~`res://scripts/vfx/movement_vfx_component.gd`~~ | `MovementVFXComponent`, the 2D movement feedback visuals (F3): off under the 3D view since the cleanup's C2, deleted in C3 (2026-10-03). The dash afterimages are `UnitView`'s (3D.md); the dust waits for the art pass. |
 
-Visuals are Polygon2D placeholders (`Body`, `SwordPivot`). ~~The plan is 8-direction sprites.~~ With the 3D view each unit gets a model that turns smoothly to its facing (3D.md; Ryan, Q6, confirmed in P0b 2026-10-02).
+Visuals were Polygon2D placeholders (`Body`, `SwordPivot`) until the 3D pivot's cleanup C3 deleted them. ~~The plan is 8-direction sprites.~~ With the 3D view each unit gets a model that turns smoothly to its facing (3D.md; Ryan, Q6, confirmed in P0b 2026-10-02).
 
 **Player size** (`player.tscn`, `knight.tres`):
 - Collider: `CircleShape2D`, radius **11 px** (22 px wide), centered on the feet (the Player's origin). Set in the scene, not from stats. Collision layer 2, mask 7 (world, player, enemies).
@@ -62,7 +62,7 @@ The LoL actions `move` / `stop` / `attack_move` (were right mouse / S / A) and `
 | `player.gd` right-click move, attack-move, stop, select; `AutoAttackComponent.attack_move()` | Deleted 2026-09-29 (dormant since step 1; movement steps passed Ryan's play test). |
 | `click_marker.gd` and main.gd's marker wiring | Deleted 2026-09-29 with right-click move. |
 | `player.gd` League-style windup handlers (sword pull-back and slash on `windup_started` / `attack_landed`, the ATTACK state and facing from a League windup) | Deleted 2026-09-29: dormant since COMBAT C2 (the Knight only swings the combo). `Player.State.ATTACK` is the rooted combo swing only. |
-| `game_camera.gd` lock toggle, edge pan, shake, bounds | Kept. Aim lead added (Architecture, 4). |
+| `game_camera.gd` lock toggle, edge pan, shake, bounds | Kept. Aim lead added (Architecture, 4). Replaced by `GameCamera3D` in the 3D pivot's cleanup C1, deleted in C3 (2026-10-03). |
 | `AbilityComponent` Q/W/E/R slots | Unchanged. W is on right mouse. |
 | Aim cancel (`player.gd`) | Right mouse used to cancel an aimed ability; it now casts W. Esc (`ui_cancel`) cancels. Esc while not aiming opens the pause menu (`main.gd`, `PauseMenu`); an Esc that cancels an aim is marked handled, so it doesn't also pause. |
 | `AutoAttackComponent` | Kept. Enemies use its League-style attack. The Knight uses its combo mode (COMBAT C2): left mouse swings toward the cursor. The Knight's League-style orders (right-click, A-click) were deleted 2026-09-29. |
@@ -89,7 +89,7 @@ The LoL actions `move` / `stop` / `attack_move` (were right mouse / S / A) and `
   1. **Casting:** toward the cast's aim, locked at cast start (DIRECTION/POINT: the aim point; UNIT: the target). SELF casts don't change facing.
   2. **Attacking:** a combo swing's aim, locked at swing start, while the swing roots (COMBAT C2).
   3. **Dashing:** the dash direction.
-  4. **Aiming an ability** (hold-to-aim): toward the cursor. The sword follows the cursor too.
+  4. **Aiming an ability** (hold-to-aim): toward the cursor. (The 2D sword followed it too, until the 3D pivot's cleanup C3.)
   5. **Walking:** the move direction.
   6. **Standing still:** keeps the last facing.
 - `Player.get_aim_point()` = `get_global_mouse_position()`. `Player.get_aim_direction()` is the unit vector from the player's feet (where abilities cast from) to it, or `facing` when the cursor is on the player.
@@ -141,7 +141,7 @@ The LoL actions `move` / `stop` / `attack_move` (were right mouse / S / A) and `
    | `IDLE` | none of the above |
 
    While dead, the state stops updating.
-4. **Camera** (`game_camera.gd`; aim lead reworked in F4): while locked, the camera leans toward the cursor, but only once the cursor leaves a dead zone.
+4. **Camera** (`game_camera.gd`, since the 3D pivot's cleanup C1 `game_camera_3d.gd`; aim lead reworked in F4): while locked, the camera leans toward the cursor, but only once the cursor leaves a dead zone.
    - **In 3D (3D.md, P4):** `GameCamera3D` shows the game through a fixed-angle camera: perspective, 30° field of view, 50° pitch, 28 m wide (`CameraLook`; Ryan after P0b, 2026-10-02). Everything below carries over: the lean is measured in screen space, so the same share of the screen moves the 3D focus; lock, centering, edge pan, bounds, shake and `snap_to_target()` work as here. North–south distances look 23% shorter than east–west at 50° (accepted, Q11). Built in P4 (2026-10-02, see CHANGELOG.md). `GameCamera3D` reads this camera's lock, lean, shake and pan settings, so they're still tuned here. Two differences:
      - **Bounds:** in 3D they keep the camera's focus on the room's floor, and the void past the walls shows near an edge (Ryan, P4). The view is about the sandbox's size, so the 2D rule below would freeze it.
      - **The lean:** it puts the Knight exactly the lean's screen px off the center, as here.
@@ -161,7 +161,7 @@ Goal: closer to Hades. Dashes and knockback burst and then ease out, frames are 
 
 ### F1: Smooth frames
 - `project.godot`: `physics/common/physics_interpolation` on; `rendering/2d/snap/snap_2d_transforms_to_pixel` off. Physics stays at 60 Hz. (Godot turns `physics_jitter_fix` off by itself when interpolation is on.)
-- Camera: `process_callback` = Physics on the Camera node in `main.tscn` (Godot forces this when interpolation is on and warns otherwise). The follow logic in `game_camera.gd` stays in `_process`.
+- Camera (the 2D `GameCamera`, deleted in the 3D pivot's cleanup C3; `GameCamera3D` follows in `_process` with its own interpolation off, 3D.md): `process_callback` = Physics on the Camera node in `main.tscn` (Godot forces this when interpolation is on and warns otherwise). The follow logic in `game_camera.gd` stays in `_process`.
 - `GameCamera.snap_to_target()` calls `reset_physics_interpolation()` before `reset_smoothing()`, and again after the first physics tick. Without it the camera slides in from the top-left corner at every scene start.
 - **Teleports:** anything that moves a node instantly (respawn, blink) must call `reset_physics_interpolation()` on it, or it visibly slides to the new spot.
 - Sprites can sit half a game pixel off the tile grid. They stay sharp (nearest filtering).
@@ -186,6 +186,7 @@ Goal: closer to Hades. Dashes and knockback burst and then ease out, frames are 
 - **Done means:** moving the cursor inside the dead zone doesn't move the camera; flicking the cursor corner to corner moves the camera over about half a second, with no whip; walking without aiming barely leans; holding an aimed ability toward an off-screen dummy leans fully; F1 smoothness is unchanged.
 
 ### F3: Movement feedback (VFX only, never changes gameplay state)
+**Deleted in the 3D pivot's cleanup C3 (2026-10-03)** with the 2D bodies it deformed: the 3D view's dash afterimages are `UnitView`'s (same numbers); the stretches, squashes and dust wait for the art pass. What F3 built:
 - `MovementVFXComponent`, the last child of `player.tscn` and `slime.tscn`. `enabled` turns everything off; every number is an export (groups Dash, Walking, Displacement, Dust). It reads the components' signals and public state and never changes gameplay state. Dust uses its own random generator, so slime wander rolls don't change. It works on today's Polygon2D placeholders and on 8-direction sprites later.
 - **How the Body is deformed:** only while the frame is drawn. It applies the deformation on `RenderingServer.frame_pre_draw` and undoes it on `frame_post_draw`, so code that writes `body.scale` / `body.position` (player flip and bob, slime squash, death tweens) never sees it, and player.gd, enemy.gd and unit.gd are unchanged. While enabled, the Body's own physics interpolation is off, or the deformation only shows partly; the unit itself stays interpolated, so F1 smoothness is unchanged. Deformation pivots on the feet (`deform_pivot`), so the feet stay on the shadow. The Shadow and the sword are never deformed.
 - **Dash:** stretch 1.25 × 0.8 (along × across the dash) held 0.06 s, eases back over 0.08 s; squash 0.9 × 1.1 when the dash ends, held 0.05 s, eases back over 0.08 s. 4 afterimages 0.03 s apart (the first at the start point), each fading over 0.15 s: flat cyan silhouettes (`afterimage_color`, 50%) drawn as one shape (a CanvasGroup), so they can't be mistaken for the half see-through player; `afterimage_silhouette = false` gives tinted copies instead. Each is placed where the unit was at the start of its physics frame, so it never shows up ahead of the player. They're copies of the Body, so sprites work too (as a still frame). A dust puff (6 specks flying 14 px back, flattened ×0.5 onto the floor, 0.3 s) at the start.

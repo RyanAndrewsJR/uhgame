@@ -4,8 +4,11 @@ extends CharacterBody2D
 ## auto-attacks, damage numbers and hover highlighting.
 ##
 ## Expected children: StatsComponent, HealthComponent, AutoAttackComponent,
-## MovementComponent, Body (Node2D with the visuals), optional Hurtbox,
-## HealthBar, AbilityComponent, ResourceComponent and StatusComponent.
+## MovementComponent, optional Hurtbox, HealthBar, AbilityComponent,
+## ResourceComponent and StatusComponent. The unit has no look of its own:
+## the 3D view shows it (UnitView; 3D.md). Its HealthBar never draws on it:
+## it holds the bar's settings, which the view's ScreenOverlay copies (the
+## 2D bodies, sword and movement effects went in the 3D pivot's cleanup C3).
 ##
 ## `stats` is the base UnitStats; `stats_component` holds the live values
 ## (base + modifiers, STATS.md).
@@ -22,17 +25,6 @@ const HURTBOX_KNOCKBACK_TIME := 0.12
 ## Invulnerability id of the post-hit i-frames.
 const HIT_IFRAMES_ID := &"hit_iframes"
 
-## The 2D game's own looks (the placeholder bodies and sword, their flashes,
-## bobs and death tweens, the 2D movement effects, VFX.impact()'s 2D pillar,
-## VFX.afterimage(), the 2D drawings of projectiles, auras, stun stars and
-## marks, a unit's own HealthBar) don't run while this is true: the 3D view
-## shows the game and hides the 2D world (WorldView.hide_sim() sets it and
-## puts it back; 3D.md, the cleanup's C2). Floor drawings (VFX.slash(),
-## VFX.ring(), Telegraph, the indicators, the hover ring) aren't 2D-only: they
-## draw the 3D floor and keep running. It lives here, not on VFX, because the
-## scripts that read it already depend on Unit; VFX depends on the view.
-static var looks_2d_off: bool = false
-
 @export var stats: UnitStats
 @export var team: Team = Team.ENEMY
 ## Where the middle of the unit's body is, relative to its feet. Used for
@@ -42,9 +34,9 @@ static var looks_2d_off: bool = false
 ## i-frames"; the player 0.3 since M1). 0 = none. Other hits in the same
 ## frame are blocked by it too. DoT ticks and procs don't start it.
 @export var post_hit_iframes: float = 0.0
-## Seconds from dying until the node is freed (game time, slowed by hitstop,
-## as the 2D death animation it used to wait for). The 3D view's death goes
-## on after (UnitView.death_linger). The Player isn't freed
+## Seconds from dying until the node is freed (game time, slowed by hitstop;
+## the length of the old 2D death animation). The 3D view's death goes on
+## after (UnitView.death_linger). The Player isn't freed
 ## (Player._play_death()).
 @export var death_free_time: float = 0.33
 
@@ -62,7 +54,7 @@ static var looks_2d_off: bool = false
 @export var model_scene: PackedScene
 ## The 3D view WorldView builds for this unit (3D.md, The generic view
 ## mechanism: the unit is in the group view_source). null = UnitView's scene.
-## Nothing is built without a WorldView (the 2D game, every test).
+## Nothing is built without a WorldView (the tests other than view_test).
 @export var view_scene: PackedScene
 ## With no model_scene, the placeholder capsule's color, times the unit's
 ## modulate (the sandbox dummies' tint). It was the 2D body's main color
@@ -73,7 +65,6 @@ static var looks_2d_off: bool = false
 @onready var health: HealthComponent = $HealthComponent
 @onready var attack: AutoAttackComponent = $AutoAttackComponent
 @onready var movement: MovementComponent = $MovementComponent
-@onready var body: Node2D = $Body
 ## Optional: only units with abilities have one.
 @onready var abilities: AbilityComponent = get_node_or_null("AbilityComponent")
 ## Optional: mana/energy/fury (ResourceComponent). Named resource_pool so it
@@ -107,8 +98,7 @@ func _ready() -> void:
 	add_to_group("units")
 	add_to_group(&"view_source")   # its 3D look (3D.md); nothing happens without a WorldView
 	# Its own drawing (the hover ring, the player's ability indicators) is a
-	# floor drawing: under the 3D view it shows on the floor (FloorOverlay);
-	# its children (the 2D body, the bar) don't. Nothing changes in 2D.
+	# floor drawing: the 3D view shows it on the floor (FloorOverlay).
 	visibility_layer |= FloorOverlay.DRAWING_VISIBILITY_BIT
 	assert(stats != null, "%s has no UnitStats assigned" % name)
 	stats_component.setup(stats, movement)
@@ -227,8 +217,9 @@ func make_hit_context(amount: float, source: Unit = null) -> HitContext:
 ## The defender's half of the hit pipeline (COMBAT.md, Architecture). Starts
 ## from ctx.raw_damage (HitPipeline.resolve() fills it in). In order:
 ## i-frames (and untargetable), mitigation, incoming_damage, shields, health,
-## the number and flash, knockback, statuses, feel, events, the source's
-## on-hit effects, post-hit i-frames. Interactables use the same method name.
+## the number (the 3D view flashes the model on `damaged`), knockback,
+## statuses, feel, events, the source's on-hit effects, post-hit i-frames.
+## Interactables use the same method name.
 func on_hit(ctx: HitContext) -> void:
 	if not _alive or is_invulnerable():
 		ctx.blocked = true
@@ -250,7 +241,6 @@ func on_hit(ctx: HitContext) -> void:
 	ctx.killed = not _alive
 	damaged.emit(ctx.taken_damage, ctx.source)
 	_spawn_hit_number(ctx)
-	_flash()
 	if ctx.knockback_px > 0.0 and _alive and not is_unstoppable():   # unstoppable: the hit lands, no knockback (AB10)
 		_apply_knockback(ctx)
 	if _alive and status_component:   # statuses after the damage (COMBAT C9)
@@ -450,16 +440,6 @@ func _on_hurtbox_hurt(hitbox: Hitbox) -> void:
 	on_hit(ctx)
 
 
-## Every hit that gets through flashes the body white, then fades back over
-## GameFeel.hit_feel.flash_time (COMBAT C3).
-func _flash() -> void:
-	if Unit.looks_2d_off:
-		return   # the 3D view flashes the model (UnitView)
-	var feel := GameFeel.hit_feel
-	body.modulate = feel.flash_modulate
-	create_tween().tween_property(body, "modulate", Color.WHITE, feel.flash_time)
-
-
 ## The number for a hit that got through (COMBAT.md, Damage numbers): size by
 ## amount (log steps), crits bigger with their own look, color by damage type
 ## (red on the player), DoT ticks smaller and merged per target. The part a
@@ -514,8 +494,10 @@ func _make_number(amount: float, style: DamageNumberStyle) -> Label:
 
 func _add_number(n: Label) -> void:
 	var lift := _stack_lift(n)
-	# Under the 3D view the number goes on its screen overlay, over the model
-	# (3D.md, ScreenOverlay); the path below is the 2D game's.
+	# The number goes on the 3D view's screen overlay, over the model (3D.md,
+	# ScreenOverlay). Without a view (only the tests run without one) it goes
+	# next to the unit in the sim's 2D world, unseen, where the tests read it
+	# (Ryan, the cleanup's C3).
 	var view := WorldView.of(self)
 	if view != null and view.screen_overlay != null:
 		view.screen_overlay.add_number(n, self, lift)
@@ -560,21 +542,13 @@ func _on_died() -> void:
 	collision_mask = 0
 	if has_node("Hurtbox"):
 		$Hurtbox.set_deferred("monitoring", false)
-	if has_node("HealthBar"):
-		$HealthBar.visible = false
 	died.emit(self)
 	_play_death()
 
 
-## Override for custom death animations. The unit is freed death_free_time
-## after it dies whether the 2D body's animation runs or not (the cleanup's
-## C2: the free used to wait for that animation's end, the same 0.33 s).
+## The unit is freed death_free_time after it dies; the 3D view plays the
+## death (UnitView). Override to keep a unit (Player._play_death()).
 func _play_death() -> void:
-	if not Unit.looks_2d_off:
-		var tween := create_tween()
-		tween.tween_interval(0.08)
-		tween.tween_property(body, "scale", Vector2(1.5, 0.2), 0.15)
-		tween.parallel().tween_property(body, "modulate:a", 0.0, 0.25)
 	var free_after := create_tween()
 	free_after.tween_interval(death_free_time)
 	free_after.tween_callback(queue_free)

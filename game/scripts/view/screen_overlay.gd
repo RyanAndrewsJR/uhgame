@@ -1,10 +1,11 @@
 class_name ScreenOverlay
 extends CanvasLayer
 ## Damage numbers and health bars over the 3D view (docs/3D.md,
-## ScreenOverlay; 3D pivot P7). They're the 2D game's own: the DamageNumber
-## Label a unit makes (Unit._add_number() hands it here while a WorldView
-## shows the game) and a copy of the unit's 2D HealthBar. They're drawn in the
-## 640x360 canvas like the HUD, so they keep their 2D size, and each is placed
+## ScreenOverlay; 3D pivot P7): the DamageNumber Label a unit makes
+## (Unit._add_number() hands it here while a WorldView shows the game) and a
+## copy of the unit's HealthBar node, which holds the bar's settings and never
+## draws on the unit (the cleanup's C3). They're drawn in the 640x360 canvas
+## like the HUD, so they keep the old 2D game's size, and each is placed
 ## every frame where its 3D point shows on screen
 ## (Camera3D.unproject_position(), the same canvas space). Under the HUD.
 
@@ -27,7 +28,7 @@ var camera: Camera3D
 ## (the Label inside it) stays where the number appeared in the world, as a
 ## number in the 2D world does.
 var _numbers: Array[Dictionary] = []
-## Unit -> {"bar": Node2D (the copy), "source": CanvasItem (the 2D bar)}. Keys
+## Unit -> {"bar": Node2D (the copy), "source": CanvasItem (the unit's HealthBar)}. Keys
 ## can be freed nodes: read them untyped and check is_instance_valid() first.
 var _bars: Dictionary = {}
 
@@ -57,10 +58,10 @@ func add_number(n: Label, unit: Unit, lift_px: float = 0.0) -> void:
 	_place(holder, point)
 
 
-## Shows `unit`'s health bar over its view: a copy of its 2D HealthBar (the
-## same look and exports), fed by its HealthComponent, shown while the 2D bar
-## is (Unit hides it at death), gone with the unit. A unit without a
-## HealthBar gets none.
+## Shows `unit`'s health bar over its view: a copy of its HealthBar node (its
+## settings: width, height, color, ticks), fed by its HealthComponent, shown
+## while the unit is alive, gone with the unit. A unit without a HealthBar
+## gets none.
 func add_bar(unit: Unit) -> void:
 	if unit == null or _bars.has(unit) or unit.health == null:
 		return
@@ -131,7 +132,7 @@ func _place_bar(unit: Unit, entry: Dictionary) -> void:
 		return
 	var head := point_over(unit, 1.0)
 	# Hidden from the death on (it read the 2D bar's visible until the
-	# cleanup's C2; the unit hid that bar at its death).
+	# cleanup's C2).
 	if camera == null or not unit.is_alive() or camera.is_position_behind(head):
 		bar.visible = false
 		return

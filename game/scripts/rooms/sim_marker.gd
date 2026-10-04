@@ -7,7 +7,7 @@ extends Marker3D
 ## this marker stands (Units.to_sim()), names it after the marker, and sets
 ## `properties` on it (e.g. passive: true for a training dummy). In the
 ## editor it shows the scene's look: a unit's model_scene, else a capsule as
-## wide as its gameplay radius, tinted like its 2D body, with the marker's
+## wide as its gameplay radius, in its model_color, with the marker's
 ## name over it. Nothing it shows is saved into the scene.
 
 ## The 2D sim scene to place.
@@ -108,9 +108,13 @@ func _rebuild_preview() -> void:
 	add_child(_preview, false, Node.INTERNAL_MODE_BACK)
 
 
-## The sim scene's 2D body color (its biggest polygon), as UnitView tints
-## its capsule; grey without one.
+## A unit's model_color, as UnitView colors its capsule (since the 3D
+## pivot's cleanup C3, when the units' 2D bodies went); for another sim
+## scene, the color of its biggest 2D polygon; grey without one.
 static func _body_color(probe: Node) -> Color:
+	var model_color: Variant = probe.get(&"model_color") if &"model_color" in probe else null
+	if model_color is Color:
+		return model_color
 	var best: Polygon2D = null
 	var best_area := 0.0
 	for node in probe.find_children("*", "Polygon2D", true, false):

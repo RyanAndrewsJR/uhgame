@@ -11,7 +11,44 @@
 
 ## 3D pivot (3D_PIVOT.md)
 
-### Cleanup C2 – the 2D looks off under the view: 2026-10-03, Built (awaiting Ryan's check)
+### Cleanup C3 – the 2D looks deleted: 2026-10-03, Built (awaiting Ryan's check)
+The last of the cleanup's three steps (3D.md, Build order after P-M), on the exact list Ryan OK'd, with his two answers: a unit's `HealthBar` stays as the bar's settings; the damage-number path without a view stays for the tests.
+- **Deleted:**
+  - **Scenes:** each unit's `Shadow` and `Body` (its shapes; the elite's overrides on them), the Player's `SwordPivot`/`Sword`, the `MovementVFXComponent` nodes; `main.tscn`'s `Camera` node; `use_3d_view = true` in `main_layout.tscn` and `sandbox_main_layout.tscn`; `sandbox_main_3d.tscn`.
+  - **Scripts:** `game_camera.gd` and `movement_vfx_component.gd` (with their `.uid` files).
+  - **Unit:** `body`, `looks_2d_off`, `_flash()`, the death squash (`_play_death()` only frees after `death_free_time`), hiding its own HealthBar at death.
+  - **Player:** `sword_pivot`, `sword`, the blink, flip, bob and glow in `_process()`, `face()`, `_on_swing_started()`, `_on_swing_cancelled()`, `_on_dash_started()`, `_on_dash_ended()`, the sword tweens (`_swing_sword()` only flips `swing_side`), the death tilt (`_play_death()` is empty: the Player isn't freed).
+  - **Enemy:** `_process()` (hop, eyes), the windup crouch and the attack lunge with their three signal connections, and `_bob_time` (one `randf()` fewer at `_ready()`).
+  - **VFX:** `afterimage()` (Lunge only waits out its dash now) and `AFTERIMAGE_SORT_OFFSET`, `impact()`'s 2D polygon (nothing without a view). The projectile's bolt and `DRAW_HEIGHT_PX`, Cleave Wave's `_crescent()`, the 2D drawing of `aura.gd` (it keeps its lifetime and what AuraView reads), `stun_stars.gd` and `staggered_mark.gd` (both now only view sources).
+  - **The AB14 2D clip players:** `AbilityComponent`'s `_get_cast_anim_player()`, `_start/_update/_finish/_stop_cast_anim()`, and `AutoAttackComponent`'s `_start/_update/_stop_swing_anim()`, which looked for an `AnimationPlayer` under `Body` (none ever existed).
+  - **Data:** `HitFeel.flash_time` and `flash_modulate` (and in `hit_feel_default.tres`).
+  - **Main:** `use_3d_view`, `camera`, `_setup_camera()`, the no-view branch; Main always adds the WorldView. `WorldView.setup()` lost its unused camera parameter. `GameFeel.shake()` lost its Camera2D fallback.
+- **Kept:** `HealthBar` on each unit, which only holds the bar's settings and never runs or draws there (`_is_2d_bar_off()`: on a Unit); `Unit._add_number()`'s no-view path; `Player.hit_iframes_blink_period` (UnitView reads it).
+- **Changed:** `SimMarker._body_color()` takes a unit's `model_color` (a scene that isn't a unit: its biggest polygon's, as before).
+- **Tests:** 2,203/2,203 (stats 179, combat 474, abilities 557, audio 110, champions 168, talents 308, view 407), three rounds in parallel, no leaks.
+  - **combat −2:** the HitFeel flash data check went; the flash's two checks became the `damaged` signal the model's flash reads (once per hit, none when blocked); the blink's two became one check of its period.
+  - **abilities −8:** the eight AB14 clip checks moved to `view_test`; Cleave Wave's wave check now expects no crescent.
+  - **Both:** the shake spies are Camera3Ds.
+  - **view +6 (401 → 407):** Main's flag checks became "always the view" checks; the GameCamera-defaults check became "it's gone"; C2's section became C3's. It checks:
+    - no 2D look nodes or scripts left, no `Unit.body`, HitFeel flash or `VFX.afterimage()`;
+    - the HealthBar as settings, `swing_side`, the debug drawings, death and freeing, `model_color`, the ghost numbers.
+    
+    And new, on the Knight's model:
+    - the blink;
+    - Cleave's clip positioned by cast progress, its follow-through, then idle;
+    - a stun's follow-through, then the stun pose;
+    - Iron Resolve's clip leading by time;
+    - the swing clip by swing progress, the swing's end, a cancelled swing.
+- **Played** (windowed harness in the tile sandbox, saving off):
+  - 7 units, none with a 2D look node, all with a bar on the overlay;
+  - `swing_side` -1, 1, -1; Q, W, E and R all cast; the Knight's model blinked after a hit and showed again;
+  - the dummy's bar hid at its death and it was freed after 333–334 ms;
+  - the hub's flow (Start run → hub → Sandbox → hub) ran, the canvas mask restored.
+  - Screenshots: the 3D dash ghosts and the bars over every unit. Every edited scene opens in a headless editor with no errors, and SimMarker's previews take each unit's `model_color`.
+- **Frame times** (no screenshots, the same harness, two runs each): C3 median 5.55 ms, p95 6.8–7.0, max 10.1–12.5; the C2 build median 5.55–5.58, p95 6.7–7.3, max 10.6–12.7. Frames over 8 ms are spread over every phase in both, so they aren't any one event.
+- **Found:** the COMBAT.md numbers list says the hit flash lasts 0.06 s; the model's flash (`UnitView.flash_time`) has been 0.12 s since P6. Left for Ryan.
+
+### Cleanup C2 – the 2D looks off under the view: 2026-10-03, Passed
 The second of the cleanup's three steps (3D.md, Build order after P-M): the four things that hung on the 2D looks fixed, then the looks switched off under the view. With the flag off, the 2D game plays as before.
 - **The fixes:**
   - **Death:** `Unit._play_death()` frees the unit on its own tween after the new `death_free_time` (0.33 s, the 2D animation's length), whether the animation runs or not.

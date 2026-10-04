@@ -44,17 +44,13 @@ func get_hitstop_left() -> float:
 	return maxf(_hitstop_until_ms - Time.get_ticks_msec(), 0) / 1000.0
 
 
-## Shakes the current camera: the 3D view's GameCamera3D when it shows the
-## game (the cleanup's C1), else a current Camera2D with a shake() (the 2D
-## game, and the tests' spy cameras).
+## Shakes the current camera: the 3D view's GameCamera3D (since the cleanup's
+## C1), or a test's spy Camera3D, when it has a shake(). The 2D camera it
+## used to fall back to went in the cleanup's C3.
 func shake(amount: float) -> void:
 	var cam_3d := get_viewport().get_camera_3d()
 	if cam_3d and cam_3d.has_method(&"shake"):
 		cam_3d.call(&"shake", amount)
-		return
-	var cam := get_viewport().get_camera_2d()
-	if cam and cam.has_method("shake"):
-		cam.shake(amount)
 
 
 ## A hit's hitstop and shake by its tier (HitContext.feel; a kill uses the

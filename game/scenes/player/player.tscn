@@ -14,7 +14,6 @@
 [ext_resource type="Resource" path="res://data/abilities/knight_r_judgement.tres" id="13_r"]
 [ext_resource type="Script" path="res://scripts/player/player_input.gd" id="14_input"]
 [ext_resource type="Script" path="res://scripts/components/dash_component.gd" id="15_dash"]
-[ext_resource type="Script" path="res://scripts/vfx/movement_vfx_component.gd" id="16_movement_vfx"]
 [ext_resource type="Script" path="res://scripts/components/stats_component.gd" id="17_stats_component"]
 [ext_resource type="Script" path="res://scripts/components/resource_component.gd" id="18_resource_component"]
 [ext_resource type="Resource" path="res://data/combos/combo_knight.tres" id="19_combo"]
@@ -43,23 +42,6 @@ hurt_sound = ExtResource("21_hurt_sound")
 low_health_sound = ExtResource("s1_low_health_sound")
 champion = ExtResource("c1_champion")
 model_color = Color(0.32, 0.56, 0.95, 1)
-
-[node name="Shadow" type="Polygon2D" parent="." unique_id=27522859]
-color = Color(0, 0, 0, 0.35)
-polygon = PackedVector2Array(-12, 0, -9, -3, 0, -4, 9, -3, 12, 0, 9, 3, 0, 4, -9, 3)
-
-[node name="Body" type="Node2D" parent="." unique_id=717559283]
-
-[node name="Torso" type="Polygon2D" parent="Body" unique_id=1439840026]
-color = Color(0.32, 0.56, 0.95, 1)
-polygon = PackedVector2Array(-9, -22, 9, -22, 10, -2, 6, 0, -6, 0, -10, -2)
-
-[node name="Head" type="Polygon2D" parent="Body" unique_id=1485716795]
-color = Color(0.45, 0.68, 1, 1)
-polygon = PackedVector2Array(-7, -33, 7, -33, 8, -22, -8, -22)
-
-[node name="Eye" type="Polygon2D" parent="Body" unique_id=7967742]
-polygon = PackedVector2Array(2, -30, 5, -30, 5, -26, 2, -26)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1281297545]
 shape = SubResource("CircleShape2D_body")
@@ -108,18 +90,9 @@ script = ExtResource("3_hurtbox")
 position = Vector2(0, -15)
 shape = SubResource("RectangleShape2D_hurt")
 
-[node name="SwordPivot" type="Node2D" parent="." unique_id=911642853]
-position = Vector2(0, -14)
-
-[node name="Sword" type="Polygon2D" parent="SwordPivot" unique_id=1482157386]
-color = Color(0.85, 0.85, 0.9, 1)
-polygon = PackedVector2Array(12, -2, 34, -2, 37, 0, 34, 2, 12, 2)
-
 [node name="HealthBar" type="Node2D" parent="." unique_id=693053145]
 position = Vector2(0, -44)
 script = ExtResource("8_bar")
 width = 40.0
 fill_color = Color(0.3, 0.85, 0.35, 1)
 
-[node name="MovementVFXComponent" type="Node2D" parent="."]
-script = ExtResource("16_movement_vfx")

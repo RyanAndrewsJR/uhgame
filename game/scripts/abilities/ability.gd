@@ -248,9 +248,9 @@ const DAMAGE_NUMBER_STYLE_PATH := "res://data/damage_number_styles/damage_number
 ## Played on each unit a hit of this ability gets through to (hit_units(),
 ## Projectile), rotated caster -> target (play_impact_vfx()). null = nothing.
 @export var impact_vfx: PackedScene
-## An animation on the caster's Body/AnimationPlayer, positioned each tick to
-## the cast's progress x its length, so it ends exactly at the effect start
-## (AbilityComponent). Empty, no such player or no such animation = nothing.
+## A clip of the caster's 3D model (UnitView), positioned each frame to the
+## cast's progress, so it ends exactly at the effect start (3D.md, Animation).
+## Empty or no such clip = nothing.
 @export var cast_anim: StringName = &""
 
 static var _placeholder_regex: RegEx

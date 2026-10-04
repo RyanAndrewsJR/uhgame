@@ -2,28 +2,24 @@ class_name VFX
 ## Quick placeholder effects built from shapes and tweens. Everything here
 ## cleans itself up. Swap for real particles/sprites later.
 
-## afterimage() sorts this far above the unit's feet (px), so y-sorting draws
-## it just behind the unit (MovementVFXComponent uses the same offset).
-const AFTERIMAGE_SORT_OFFSET := 0.02
-## How much the 2D game squashes a floor circle north-south for its 3/4 look.
+## How much the old 2D game squashed a floor circle north-south for its 3/4
+## look; still the value without a view (the tests).
 const FLOOR_SQUASH_2D := 0.55
 ## impact()'s pillar in the 3D view (3D.md, P7's 2D-only looks).
 const PILLAR_VIEW_SCENE := "res://scenes/view/pillar_view.tscn"
 
 ## Floor circles drawn by 2D nodes (ring(), the hover ring) are squashed
-## north-south by this: FLOOR_SQUASH_2D in the 2D game; 1 (true circles)
-## while the 3D view shows the game, whose camera foreshortens the floor
-## itself (WorldView sets it and puts it back; 3D.md, Floor drawings).
+## north-south by this: FLOOR_SQUASH_2D without a view (the tests); 1 (true
+## circles) while the 3D view shows the game, whose camera foreshortens the
+## floor itself (WorldView sets it and puts it back; 3D.md, Floor drawings).
 static var floor_squash: float = FLOOR_SQUASH_2D
 
 ## Where floor drawings around a unit (swing arcs) are centered, through
-## drawing_origin(): false in the 2D game, its body's center for its 3/4
-## look; true while the 3D view shows the game, its feet, where the drawings
+## drawing_origin(): false without a view (the tests), its body's center (the
+## old 2D game's 3/4 look); true while the 3D view shows the game, its feet, where the drawings
 ## lie on the floor and where a swing's cone starts (WorldView sets it and
 ## puts it back; 3D.md, Floor drawings).
 static var drawings_at_feet: bool = false
-
-
 
 ## impact()'s pillar scene, loaded at its first use and kept: a load() whose
 ## result nobody keeps reads the file again at every hit (1.5–1.9 ms).
@@ -115,50 +111,10 @@ static func ring(parent: Node, pos: Vector2, from_radius: float, to_radius: floa
 	tw.tween_callback(line.queue_free)
 
 
-## A fading copy of the unit's body shapes (dash trails). Like the F3 dash
-## afterimages (MovementVFXComponent), it sorts just above the unit's feet in
-## the y-sorted Entities, so it draws behind the unit and above the floor
-## tiles (a negative z_index drew it under the TileMapLayer, unseen).
-static func afterimage(unit: Unit, color: Color = Color(0.6, 0.8, 1.0, 0.5), duration: float = 0.25) -> void:
-	if Unit.looks_2d_off:
-		return
-	var holder := Node2D.new()
-	holder.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF   # a still image where it's placed
-	holder.global_position = unit.global_position - Vector2(0.0, AFTERIMAGE_SORT_OFFSET)
-	var ghost := Node2D.new()
-	ghost.position = Vector2(0.0, AFTERIMAGE_SORT_OFFSET)
-	ghost.scale = unit.body.scale
-	holder.add_child(ghost)
-	for child in unit.body.get_children():
-		var src := child as Polygon2D
-		if src == null:
-			continue
-		var p := Polygon2D.new()
-		p.polygon = src.polygon
-		p.position = src.position
-		p.color = color
-		ghost.add_child(p)
-	unit.get_parent().add_child(holder)
-	var tw := holder.create_tween()
-	tw.tween_property(ghost, "modulate:a", 0.0, duration)
-	tw.tween_callback(holder.queue_free)
-
-
-## Vertical light pillar / impact flash at a point. While the 3D view shows
-## the game (where this 2D one is hidden with the sim), the view also raises
-## a PillarView there, `height` px tall as meters (3D.md, P7's 2D-only looks).
+## Vertical light pillar / impact flash at a point: the 3D view raises a
+## PillarView there, `height` px tall as meters (3D.md, P7's 2D-only looks).
+## Nothing without a view (its 2D polygon went in the cleanup's C3).
 static func impact(parent: Node, pos: Vector2, color: Color, height: float = 60.0, duration: float = 0.25) -> void:
-	if not Unit.looks_2d_off:
-		var poly := Polygon2D.new()
-		poly.color = color
-		poly.z_index = 21
-		poly.polygon = PackedVector2Array([Vector2(-6, 0), Vector2(-2, -height), Vector2(2, -height), Vector2(6, 0)])
-		poly.position = pos
-		parent.add_child(poly)
-		var tw := poly.create_tween()
-		tw.tween_property(poly, "scale", Vector2(0.2, 1.1), duration)
-		tw.parallel().tween_property(poly, "modulate:a", 0.0, duration)
-		tw.tween_callback(poly.queue_free)
 	var view := WorldView.of(parent)
 	if view:
 		var pillar := _new_pillar()

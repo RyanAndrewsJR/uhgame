@@ -1,7 +1,7 @@
 class_name WorldView
 extends Node3D
-## The 3D view (docs/3D.md): under Main when `Main.use_3d_view` is on, it
-## holds the environment, the key light, the camera, the room's look and
+## The 3D view (docs/3D.md): under Main (always, since the 3D pivot's cleanup
+## C3; the tests other than view_test never build one), it holds the environment, the key light, the camera, the room's look and
 ## every view, and keeps them in step with the 2D sim. The view never changes
 ## gameplay state.
 ## P2: its place in the tree, its physics priority and the floor pick.
@@ -92,9 +92,9 @@ func _init() -> void:
 	add_to_group(&"world_view")
 
 
-## The WorldView showing the game `node` is in, or null (the 2D game, and
-## every test that doesn't build one): how sim code reaches the view (a
-## damage number, a 3D presentation-hook scene).
+## The WorldView showing the game `node` is in, or null (every test that
+## doesn't build one): how sim code reaches the view (a damage number, a 3D
+## presentation-hook scene).
 static func of(node: Node) -> WorldView:
 	if node == null or not node.is_inside_tree():
 		return null
@@ -104,13 +104,12 @@ static func of(node: Node) -> WorldView:
 ## Main calls this once, right after adding the WorldView: hides the 2D world,
 ## builds the room's look, every view and the camera, and gives the player
 ## its aim through this view. The camera keeps its focus on the room's floor
-## (Room.get_bounds_px()) and leans for `p_player`. `_camera_2d` (Main's
-## GameCamera) is no longer read since the cleanup's C1: the 3D camera
-## computes its lock, lean, pan and shake itself (it goes in C3).
-## `p_layout` is the room built in 3D whose sim `room` is (P8): it moves under
-## this view as the room's look, with its floor pick; null for a tile room,
-## whose look RoomView makes from its Tiles.
-func setup(main: CanvasItem, room: Node2D, p_player: Player, _camera_2d: GameCamera = null, p_layout: RoomLayout = null) -> void:
+## (Room.get_bounds_px()) and leans for `p_player`. `p_layout` is the room
+## built in 3D whose sim `room` is (P8): it moves under this view as the
+## room's look, with its floor pick; null for a tile room, whose look
+## RoomView makes from its Tiles. (Until the cleanup's C3 a 2D camera came
+## before `p_layout`; the 3D camera has done its job since C1.)
+func setup(main: CanvasItem, room: Node2D, p_player: Player, p_layout: RoomLayout = null) -> void:
 	player = p_player
 	if player:
 		player.world_view = self
@@ -166,7 +165,6 @@ func setup(main: CanvasItem, room: Node2D, p_player: Player, _camera_2d: GameCam
 func _exit_tree() -> void:
 	if _sim_hidden:
 		get_viewport().canvas_cull_mask = _cull_mask_before
-		Unit.looks_2d_off = false
 		_sim_hidden = false
 	if _flat_floor_drawings:
 		VFX.floor_squash = VFX.FLOOR_SQUASH_2D
@@ -177,10 +175,11 @@ func _exit_tree() -> void:
 
 
 ## Floor circles drawn by 2D nodes (the hover ring, VFX.ring()) become true
-## circles while this view shows the game: the 2D game squashes them for its
-## 3/4 look, and here the camera foreshortens the floor itself
-## (VFX.floor_squash). Swing arcs center on a unit's feet, not its 2D body's
-## center (VFX.drawings_at_feet). Undone when the WorldView leaves the tree.
+## circles while this view shows the game: without a view (the tests) they're
+## squashed for the old 2D game's 3/4 look, and here the camera foreshortens
+## the floor itself (VFX.floor_squash). Swing arcs center on a unit's feet,
+## not its body's center (VFX.drawings_at_feet). Undone when the WorldView
+## leaves the tree.
 func flatten_floor_drawings() -> void:
 	VFX.floor_squash = 1.0
 	VFX.drawings_at_feet = true
@@ -193,8 +192,9 @@ func flatten_floor_drawings() -> void:
 ## share a layer with a viewport's mask; P7's FloorOverlay draws from layer
 ## 2), and this viewport's cull mask drops layer 2. Everything the sim spawns
 ## goes under the room, so it's hidden too. The HUD and menus are CanvasLayers
-## and stay. The 2D game's own looks stop running (Unit.looks_2d_off; the
-## cleanup's C2). Undone when the WorldView leaves the tree.
+## and stay. Undone when the WorldView leaves the tree. (The sim has no 2D
+## looks of its own since the cleanup's C3; what's hidden is its debug and
+## floor drawings, which FloorOverlay draws on the floor.)
 func hide_sim(main: CanvasItem, room: CanvasItem) -> void:
 	main.visibility_layer = 1 | SIM_VISIBILITY_BIT
 	room.visibility_layer = SIM_VISIBILITY_BIT
@@ -206,7 +206,6 @@ func hide_sim(main: CanvasItem, room: CanvasItem) -> void:
 		_cull_mask_before = viewport.canvas_cull_mask
 		_sim_hidden = true
 	viewport.canvas_cull_mask = _cull_mask_before & ~SIM_VISIBILITY_BIT
-	Unit.looks_2d_off = true
 
 
 func _physics_process(_delta: float) -> void:

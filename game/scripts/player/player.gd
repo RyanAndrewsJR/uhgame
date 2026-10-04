@@ -51,8 +51,8 @@ const ABILITY_ACTIONS := {&"q": "ability_q", &"w": "ability_w", &"e": "ability_e
 @export var target_forgiveness: float = 14.0
 ## Shows the current State name above the player.
 @export var debug_draw: bool = false
-## Post-hit i-frames read as a blink: the body shows for 60% of each period
-## (seconds). Visual only.
+## Post-hit i-frames read as a blink: the 3D view shows the model for 60% of
+## each period (seconds; UnitView reads it). Visual only.
 @export var hit_iframes_blink_period: float = 0.1
 
 @export_group("Low health")
@@ -62,8 +62,6 @@ const ABILITY_ACTIONS := {&"q": "ability_q", &"w": "ability_w", &"e": "ability_e
 @export_range(0.15, 0.35) var low_health_fraction: float = 0.25
 @export_group("")
 
-@onready var sword_pivot: Node2D = $SwordPivot
-@onready var sword: Polygon2D = $SwordPivot/Sword
 @onready var dash: DashComponent = $DashComponent
 @onready var player_input: PlayerInput = $PlayerInput
 
@@ -84,21 +82,17 @@ var state: State = State.IDLE
 ## animation layer will pick one of 8 sprites from this (MOVEMENT.md).
 var facing: Vector2 = Vector2.RIGHT
 ## The 3D view showing this player (3D.md, The floor pick and aim), set by
-## WorldView; null without one (the 2D game, every test). With it, the aim is
+## WorldView; null without one (the tests other than view_test). With it, the aim is
 ## the floor under the cursor, and the enemy under the cursor is picked on
 ## screen by its model.
 var world_view: WorldView
 
 var _hovered_enemy: Unit
-var _walk_time: float = 0.0
 ## Where the current cast was aimed, locked at cast start (INF = none).
 var _cast_face_point: Vector2 = Vector2.INF
-var _blink_time: float = 0.0
 var _low_health_handle: int = 0
 ## The talents attached now, in the order added (TALENTS.md).
 var _active_talents: Array[Talent] = []
-## The sword pull-back tween of the current swing's windup.
-var _swing_tween: Tween
 
 
 func _ready() -> void:
@@ -109,13 +103,9 @@ func _ready() -> void:
 	if champion != null:
 		_attach_champion()
 	add_to_group("player")
-	attack.swing_started.connect(_on_swing_started)
 	attack.swing_landed.connect(_on_swing_landed)
-	attack.swing_cancelled.connect(_on_swing_cancelled)
 	abilities.cast_started.connect(_on_cast_started)
 	abilities.cast_finished.connect(_on_cast_finished)
-	dash.dash_started.connect(_on_dash_started)
-	dash.dash_ended.connect(_on_dash_ended)
 	health.health_changed.connect(_on_health_health_changed)
 	cast_mode = Settings.get_cast_mode()
 	Settings.setting_changed.connect(_on_settings_setting_changed)
@@ -482,18 +472,9 @@ func _update_charge_input() -> void:
 		_release_charge()
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	if not is_alive():
 		return
-	# Post-hit i-frames blink (visual only; the 3D view blinks the model).
-	if Unit.looks_2d_off:
-		pass
-	elif has_invulnerability(HIT_IFRAMES_ID):
-		_blink_time += delta
-		body.visible = fmod(_blink_time, hit_iframes_blink_period) < hit_iframes_blink_period * 0.6
-	elif _blink_time > 0.0:
-		_blink_time = 0.0
-		body.visible = true
 	# Hover highlight + cursor.
 	var enemy := _enemy_under_mouse()
 	if enemy != _hovered_enemy:
@@ -512,29 +493,6 @@ func _process(delta: float) -> void:
 	# so it never stays on screen (a safety net next to charge_ended).
 	if indicator_slot != &"" or _drawn_indicator_slot != &"":
 		queue_redraw()
-
-	if Unit.looks_2d_off:
-		return   # the rest is the 2D body's and sword's look
-	# Facing and a little walk bob.
-	var dir := movement.get_move_direction()
-	var busy := abilities.casting or attack.is_swing_rooted()
-	if not busy and dir != Vector2.ZERO:
-		sword_pivot.rotation = dir.angle()
-		if absf(dir.x) > 0.05:
-			body.scale.x = signf(dir.x)
-	# While aiming (or charging up) an ability, the sword points at the cursor
-	# (matches facing); during a charge-up's release windup, at the locked aim.
-	if indicator_slot != &"":
-		face(get_indicator_aim())
-	if dir != Vector2.ZERO:
-		_walk_time += delta * 14.0
-		body.position.y = -absf(sin(_walk_time)) * 2.0
-	else:
-		_walk_time = 0.0
-		body.position.y = move_toward(body.position.y, 0.0, delta * 20.0)
-
-	# Sword glows while an empowered attack is ready.
-	sword.color = Color(1, 0.85, 0.4) if attack.is_empowered() else Color(0.85, 0.85, 0.9)
 
 
 func _draw() -> void:
@@ -655,60 +613,25 @@ func _update_facing() -> void:
 
 # --- Visuals ----------------------------------------------------------------------
 
-func face(point: Vector2) -> void:
-	if Unit.looks_2d_off:
-		return
-	var aim := point - sword_pivot.global_position
-	if aim.length() < 0.01:
-		return
-	sword_pivot.rotation = aim.angle()
-	if absf(aim.x) > 0.05:
-		body.scale.x = signf(aim.x)
-
-
-## Combo swing visuals (visual only): pull the sword back during the windup,
-## then slash across the swing's arc at the hit.
-func _on_swing_started(_index: int, direction: Vector2, swing: AttackSwing) -> void:
-	if Unit.looks_2d_off:
-		return
-	face(sword_pivot.global_position + direction * 16.0)
-	if _swing_tween:
-		_swing_tween.kill()
-	_swing_tween = create_tween()
-	_swing_tween.tween_property(sword, "rotation", -0.9 * swing_side,
-		swing.windup / attack.get_swing_speed() * 0.8)
-
-
+## The combo swing's slash across its arc at the hit (a floor drawing; the 3D
+## view plays the swing on the model).
 func _on_swing_landed(index: int, _targets: Array[Unit]) -> void:
-	if _swing_tween:
-		_swing_tween.kill()
 	var swing := attack.get_current_swing()
 	var direction := attack.get_swing_direction()
 	var finisher := index == attack.combo.swings.size() - 1 or index < 0   # the dash-strike (-1) looks heavy too
-	if not Unit.looks_2d_off:
-		sword.rotation = 0.0
 	_swing_sword(0.1)   # alternates swing_side, which the slash below reads
 	VFX.slash(get_parent(), VFX.drawing_origin(self), direction.angle(), 8.0, attack.get_swing_reach_px(swing),
 		deg_to_rad(swing.arc_deg) * 0.5, Color(1, 1, 1, 0.95 if finisher else 0.75),
 		0.16 if finisher else 0.11, swing_side)
 
 
-func _on_swing_cancelled() -> void:
-	if _swing_tween:
-		_swing_tween.kill()
-	if not Unit.looks_2d_off:
-		sword.rotation = 0.0
-
-
 func _on_cast_started(_slot: StringName, ability: Ability, ctx: CastContext) -> void:
 	match ability.targeting:
 		Ability.Targeting.DIRECTION, Ability.Targeting.POINT:
 			_cast_face_point = ctx.point
-			face(ctx.point)
 		Ability.Targeting.UNIT:
 			if is_instance_valid(ctx.target):
 				_cast_face_point = ctx.target.global_position
-				face(ctx.target.get_center())
 	if ability.targeting != Ability.Targeting.SELF:
 		_swing_sword(maxf(ability.cast_time, 0.1))
 
@@ -717,28 +640,11 @@ func _on_cast_finished(_slot: StringName, _ability: Ability) -> void:
 	_cast_face_point = Vector2.INF
 
 
-## I-frames read as a see-through body while dashing (visual only).
-func _on_dash_started(_direction: Vector2) -> void:
-	if not Unit.looks_2d_off:
-		body.modulate.a = 0.5
-
-
-func _on_dash_ended() -> void:
-	if not Unit.looks_2d_off:
-		body.modulate.a = 1.0
-
-
-## Alternates swing_side (every swing and aimed cast; the floor drawings'
-## slashes sweep its way, so it flips with the 2D looks off too), then the
-## sword's swing animation (visual only).
-func _swing_sword(duration: float) -> void:
+## Alternates swing_side, every swing and aimed cast: the floor drawings'
+## slashes sweep its way. (It swung the 2D sword too, over `_duration`, until
+## the 3D pivot's cleanup C3.)
+func _swing_sword(_duration: float) -> void:
 	swing_side = -swing_side
-	if Unit.looks_2d_off:
-		return
-	var tween := create_tween()
-	sword.rotation = -1.2 * swing_side
-	tween.tween_property(sword, "rotation", 1.2 * swing_side, duration)
-	tween.tween_property(sword, "rotation", 0.0, 0.08)
 
 
 # --- Damage / death -------------------------------------------------------------
@@ -751,7 +657,6 @@ func on_hit(ctx: HitContext) -> void:
 
 
 func _on_died() -> void:
-	body.visible = true  # In case it died mid-blink.
 	aiming_slot = &""
 	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
 	Audio.stop(_low_health_handle)
@@ -770,9 +675,7 @@ func _on_health_health_changed(current: float, maximum: float) -> void:
 		_low_health_handle = 0
 
 
+## The Player isn't freed at death (Unit frees other units); the 3D view
+## plays the death (UnitView).
 func _play_death() -> void:
-	if Unit.looks_2d_off:
-		return   # the 3D view plays the death (UnitView)
-	var tween := create_tween()
-	tween.tween_property(body, "rotation", deg_to_rad(90.0), 0.25)
-	tween.parallel().tween_property(body, "modulate", Color(1, 0.3, 0.3, 0.6), 0.25)
+	pass
