@@ -7,6 +7,15 @@
 ## How to read this doc
 Same as COMBAT.md: MUST (never change without asking Ryan), TARGET (start value and allowed range), FREE (your call; tiebreaker: VISION.md's decision priorities).
 
+## How to add a sound
+Sounds are data: a file, a `SoundEvent` .tres around it, and a slot that holds the SoundEvent. Everything below is done in the Godot editor; nothing needs code unless the last bullet says so. (Variants, cues and `consume_sound` are A4: designed and approved 2026-10-04, not built yet; Conditional audio below.)
+1. **Import the file.** Drop it into `audio/sfx/` (short sounds: WAV, 16-bit 44.1 kHz, mono if it plays positioned in the world) or `audio/music/` / `audio/ambience/` (OGG Vorbis). Name it after the SoundEvent it will belong to, without `sound_`, plus a number: `audio/sfx/knight_ring_out_01.wav`. Add its row to `audio/LICENSES.md` (CC0 only for placeholders). **A loop:** click the file in the FileSystem dock → Import dock (next to Scene) → WAV: Loop Mode = Forward; OGG: Loop on → Reimport.
+2. **Create the SoundEvent.** FileSystem dock → right-click `data/sounds/` → Create New → Resource… → type `SoundEvent` → Create → name it `sound_<category>_<name>.tres` (File layout, Naming; CONVENTIONS.md). In the Inspector: Variations → Add Element → drag the file(s) from the FileSystem dock (2–3 files for anything heard often).
+3. **Set it up** (Inspector, same resource): `bus` (SFX for gameplay, UI for menus, Music, Ambience, Voice), `volume_db`, `pitch_scale`, `pitch_jitter` and `volume_jitter_db` (the variation), `priority` (HIGH for anything about the player's danger), `positional` and `max_distance_px` (the range; telegraphs 640), `max_instances` / `min_interval` (spam limits), `loop` (only with a looping file).
+4. **Assign it to a slot.** Open the owner's .tres (an ability in `data/abilities/`, a status in `data/statuses/`, the combo in `data/combos/` → Swings → the swing, a HitFeel, a ChampionData) → the "Sounds" group → drag the SoundEvent onto the slot (`cast_sound`, `hit_sound`, `swing_sound`, `apply_sound`...; Hooks lists every slot). Run the sandbox (F6 on `sandbox_main.tscn`); the audition tool (Z, A5) plays it without a fight.
+5. **Make it change with the game's state** (A4): on the SoundEvent → Variants → Add Element → New SoundVariant → `mode` (REPLACE plays instead of this sound, ADD plays on top) → `sound` (drag another SoundEvent) → Conditions → Add Element → New Condition → `kind` and its fields (the same `Condition` abilities use: ABILITIES.md, Conditions; e.g. SELF_HAS_STATUS, `status_tag` `edge`, `min_stacks` 10). **Timed to a motion** (A4): the swing or ability → Sound Cues → Add Element → New SoundCue → `progress` (0–1 of the swing or cast) and `sound`.
+6. **What needs code:** a new place a sound can fire (a new slot on a class, e.g. an impact on every `execute()`), a new `Condition` kind, or a new owner (a system with no sound slots yet). A new sound on an existing slot, a variant, a cue or a status's end sound never does.
+
 ## Player experience
 Every hit has a crunch you feel as much as see; the finisher and kills land heavier, and crits ring out. You hear an elite winding up before you see it, and a heartbeat tells you you're low without looking at the health bar. Packs die in one satisfying burst, not a wall of overlapping noise. The mix stays readable in chaos: what matters to you (your hits, your danger) is always on top.
 
@@ -40,6 +49,14 @@ Every hit has a crunch you feel as much as see; the finisher and kills land heav
 - Volume is the player's choice: Master, Music, SFX, UI, Ambience, Voice sliders live in the Settings autoload (saved to `user://settings.cfg`) and the Esc pause menu.
 - Tests can check audio without hearing it: the Audio autoload keeps a log of what played, what was dropped and why.
 
+### Conditional audio rules (A4; approved 2026-10-04, not built; Conditional audio below)
+- Sounds are authored as data in the Inspector, never as code per sound: a sound that changes with the game's state is a `SoundVariant` on its SoundEvent, gated by the same `Condition` resource abilities, augments, reaction rules and the enemy AI use (ABILITIES.md, Conditions). No second condition system.
+- **Audio reflects state and never decides it.** A variant reads conditions; it never applies a status, spends a resource or starts a cast. Whatever makes the state (a stack, an empower) is gameplay data elsewhere.
+- **Every conditional state that matters in play has a visual tell too** (a status's `vfx`, a swing's `swing_vfx`, the HUD): never audio-only, as for every other sound (Principle 2). VFX and audio never change gameplay state (COMBAT.md).
+- Variants and cues are sounds like any other: each one obeys its own SoundEvent's instance limits, priority and the SFX voice cap, and is logged.
+- **Additive:** a SoundEvent with no variants, a swing or ability with no cues and a status with no `consume_sound` play exactly as before A4 (one exception, written into A4's data: the shield's break moves to `consume_sound`, so it still plays when the shield is used up).
+- Tests check variants through the audio log ("given this condition, this variant played"), seeded, with no view (CONVENTIONS.md, Testing).
+
 ## Hooks
 Optional fields on existing classes, all null (silent) by default. Every SoundEvent field on another class ends in `_sound`.
 
@@ -60,11 +77,15 @@ Optional fields on existing classes, all null (silent) by default. Every SoundEv
 | `Ability.ready_sound` | `AbilityComponent.cooldown_finished(slot, ability)` (the Knight's R) | AbilityComponent | the event's bus, centered |
 | `Ability.charge_sound` | a loop (the SoundEvent's `loop` on) on the caster from `charge_started` until release, cancel or interrupt (ABILITIES.md) | AbilityComponent (`play_on`, stopped by handle) | SFX, caster (centered for the player) |
 | `StatusEffect.apply_sound` / `loop_sound` | `Events.status_applied` | CombatSounds | SFX, the unit (loop follows it) |
-| `StatusEffect.expire_sound` | `Events.status_removed` (unit alive) | CombatSounds | SFX, the unit |
+| `StatusEffect.expire_sound` | `Events.status_removed` (unit alive). From A4: `Events.status_ended` with reason EXPIRED, CLEANSED or REMOVED | CombatSounds | SFX, the unit |
+| `StatusEffect.consume_sound` (A4, not built) | `Events.status_ended` with reason CONSUMED: an empower used up by its swing or cast, a shield used up by damage. null = silent on a use-up | CombatSounds | SFX, the unit |
+| `AttackSwing.sound_cues` (A4, not built) | each cue as the swing's progress passes its `progress` (follows `attack_speed`) | AutoAttackComponent | SFX, the attacker |
+| `Ability.sound_cues` (A4, not built) | each cue as the cast's progress passes it (AB14; follows cast speed) | AbilityComponent | SFX, the caster |
+| `SoundEvent.variants` (A4, not built) | wherever the SoundEvent plays: resolved by Audio from the caller's `SoundContext` | Audio | the variant's own |
 | `Player.low_health_sound`, `low_health_fraction` (0.25) | `HealthComponent.health_changed` | Player | SFX, centered, loop |
 | `main.gd` `room_cleared_sound` / `player_died_sound` | `_on_enemy_died()` / `_on_player_died()` | main.gd | SFX, centered (FREE) |
 
-Later hooks, per system: Build order, Later.
+Later hooks, per system: Build order, Later. Conditional sounds (variants, cues, a status's end reason): Conditional audio.
 
 ## Numbers (TARGET: start, range)
 - Pitch jitter ±5% (0–10%); volume jitter ±1 dB (0–3).
@@ -106,11 +127,12 @@ What audio hooks into:
 | `project.godot` | Autoloads GameFeel, Events, WorldQuery, Settings, Reactions, Audio. |
 
 ## Data (Resources)
-Names checked against CONVENTIONS.md: `Audio`, `SoundEvent`, `AudioMix` and `CombatSounds` are reserved there.
+Names checked against CONVENTIONS.md: `Audio`, `SoundEvent`, `AudioMix` and `CombatSounds` are reserved there. A4–A5's names (`SoundVariant`, `SoundCue`, `SoundContext`, `StatusEffect.EndReason`, `Events.status_ended`, `SandboxAudio`; later `UISoundSet`) were approved by Ryan 2026-10-04 and are reserved there.
 
 ### SoundEvent (Resource, `res://scripts/data/sound_event.gd`; files `res://data/sounds/sound_<category>_<name>.tres`)
 | Field | Type | Default | Notes |
 |---|---|---|---|
+| `variants` (A4, not built) | `Array[SoundVariant]` | `[]` | Sounds that play instead of this one (REPLACE) or on top (ADD) when their conditions pass (Conditional audio). Empty = as today. |
 | `variations` | `Array[AudioStream]` | `[]` | One or more files. Wrapped once (cached) in an `AudioStreamRandomizer` with `PLAYBACK_RANDOM_NO_REPEATS`: never the same file twice in a row when there are 2+. Empty, or every entry null = no usable audio (warn once, silent). |
 | `volume_db` | `float` | 0.0 | |
 | `pitch_scale` | `float` | 1.0 | Base pitch; multiplied by the caller's pitch (combo pitch). |
@@ -181,6 +203,7 @@ Registered after Settings (it reads it in `_ready()`). Process mode Always, so i
   - `play_at(event, position, source, pitch, priority)`: at a world point. Centered when `source` is the Player or the event isn't positional.
   - `play_on(event, node, pitch, priority)`: follows the node every physics frame and stops when the node leaves the tree (`tree_exiting`). Centered when the node is the Player or the event isn't positional. Every loop on a unit or telegraph uses it. A node that isn't in the tree plays nothing (logged dropped `no_owner`).
   - `stop(handle)`: stopping 0 or an ended handle does nothing. `stop_all_on(node)`. `stop_all()`: every SFX, Ambience and Voice sound; clears the instance-limit history and the pack burst window; Music and UI keep playing. `is_playing(handle)`.
+  - (A4, not built) Each play method takes an optional last argument `context: SoundContext` (self, target, cast); the event's variants resolve before the play checks (Conditional audio).
   - `get_log()`, `clear_log()`, `get_player(handle)` (tests and debugging), `get_bus_base_db(bus)` (the layout level), `get_listener_position()` (the current AudioListener2D's position if there is one, the 3D camera's focus; else the screen center in world space); `distance_scale` (1; the 3D camera sets it, see Rules).
 - **A play call, in order:**
   1. Null event: return 0, nothing logged.
@@ -192,7 +215,7 @@ Registered after Settings (it reads it in `_ready()`). Process mode Always, so i
 - **Real time:** limits and the pack burst window use `Time.get_ticks_msec()`; fades use real delta (`delta / Engine.time_scale`, like GameCamera3D's lean and pan). Nothing touches `AudioServer.playback_speed_scale`.
 - **Pause:** players on SFX, Ambience and Voice are `PROCESS_MODE_PAUSABLE` (they pause with the tree and resume after); Music and UI players are `PROCESS_MODE_ALWAYS`. Audio watches `get_tree().paused` every frame: while paused, Music fades to `pause_music_duck_db` and its low-pass turns on; unpausing fades back. Any tree pause does this, not only the menu.
 - **Volumes:** on `_ready()` and on `Settings.setting_changed`, each bus's dB = its layout level + `linear_to_db(Settings.get_volume(bus))`; a slider at 0 mutes the bus.
-- **Log:** one entry per play, drop, stop and steal (a sound that ends on its own isn't an entry): `time_ms`, `frame`, `event` (resource path, or the name of an unsaved event), `sound` (the SoundEvent), `handle`, `result` (`played`, `dropped`, `stopped`, `stolen`), `reason`, `bus`, `priority`, `positional`, `position`. Keeps the last `mix.log_size`.
+- **Log:** one entry per play, drop, stop and steal (a sound that ends on its own isn't an entry): `time_ms`, `frame`, `event` (resource path, or the name of an unsaved event), `sound` (the SoundEvent), `handle`, `result` (`played`, `dropped`, `stopped`, `stolen`), `reason`, `bus`, `priority`, `positional`, `position`; from A4 also `variant_of` and `mode` (Conditional audio). Keeps the last `mix.log_size`.
 - **debug_draw:** a CanvasLayer list, top-left, of the last `mix.debug_lines` entries (`sound_hit_light  SFX  HIGH  played`); dropped and stolen ones in red with their reason; each line fades after `debug_line_time`.
 
 ### CombatSounds (Node, `res://scripts/audio/combat_sounds.gd`; a child of Audio, created in `Audio._ready()`)
@@ -220,6 +243,112 @@ Listens to Events; the only place hit, death and status sounds are played. `rese
 - **Settings**: `get_volume(bus) -> float` (0–1), `set_volume(bus, value)`; keys `&"volume_master"`, `&"volume_music"`... emitted through `setting_changed`; saved as whole percents (0–100) in an `[audio]` section (the "words" rule is for enums).
 - **PauseMenu**: six sliders (0–100, step 5) with their percent, one per bus, above Resume.
 
+## Conditional audio (A4–A5; designed and approved 2026-10-04, not built)
+Ryan's goal: a sound that changes with the game's state is data in the Inspector ("dials and switches"), never code per sound. Any ability, swing, status, and later UI element, can have one, gated by the same `Condition` resource abilities and augments use. Rules: Rules, Conditional audio rules. Ryan approved the design, its defaults and its names on 2026-10-04 (DECISIONS.md, Audio).
+
+**What already works with no new code:** a combo of 3 swings with 3 sounds, or 4 swings with 4 sounds. Each combo step is its own `AttackSwing` (`AttackCombo.swings`), and each has its own `swing_sound` and `hit_sound` (A2). The Knight shares one swing sound between swings 1–2 at two pitches; another champion can give every step its own.
+
+### SoundVariant (Resource, `res://scripts/data/sound_variant.gd`; inline in the SoundEvent that uses it)
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `conditions` | `Array[Condition]` | `[]` | all must pass (AND, `Condition.all_met()`); an empty list always passes |
+| `sound` | `SoundEvent` | null | what plays. A REPLACE variant with no sound silences the base in that state |
+| `mode` | `SoundVariant.Mode` | `REPLACE` (the default; Ryan, 2026-10-04) | `REPLACE`: plays instead of the base sound. `ADD`: plays on top of whatever plays |
+
+New field on **SoundEvent**: `variants: Array[SoundVariant]` (`[]`). Empty = the sound plays exactly as today.
+
+**Resolution, when the sound starts** (in Audio, the one place sounds play):
+1. The main sound: the first REPLACE variant, in list order, whose conditions all pass; none = the base SoundEvent.
+2. Layers: every ADD variant whose conditions pass, in list order, on top of the main sound.
+3. One level only (Ryan, 2026-10-04): a variant's own SoundEvent's `variants` aren't resolved (like Conditions: no nesting). Stack several variants on one sound instead.
+4. Each resolved sound then goes through its own play checks (instance limit, range, voice cap; Architecture, A play call). A dropped main sound doesn't fall back to the base, and layers try on their own.
+5. Loops resolve once, when they start. A loop doesn't switch variants mid-play when the state changes; its owner restarts it if it needs to (none does today).
+6. The caller's pitch (the combo pitch) and priority apply to the main sound and every layer.
+7. Handles: `play*()` returns the main sound's handle; the layers are tied to it, so `stop(handle)` stops them too, and a `play_on()` layer follows the same node.
+8. Log: each entry also has `variant_of` (the base SoundEvent's name when a variant played, else empty) and `mode` (`base`, `replace`, `add`), so a test reads "given this condition, this variant played".
+
+### SoundContext (RefCounted, `res://scripts/audio/sound_context.gd`)
+A condition needs units to check (`Condition.is_met(self_unit, target, cast)`), so the owner says what it has: `self_unit: Unit`, `target: Unit`, `cast: CastContext` (any may be null). One context object, not a longer argument list (CONVENTIONS.md, Context objects at every seam). It's an optional last argument of `play()`, `play_at()` and `play_on()`; with none, only variants with no conditions apply (`is_met()` fails with no self unit). The brain's `SituationContext` is never passed, so RESPECT and the other situation kinds are false in a sound.
+
+What each call site can give:
+
+| Sound | self | target | cast |
+|---|---|---|---|
+| `AttackSwing.swing_sound` and the swing's cues | the attacker | the aimed enemy (the melee assist target), else null | null |
+| hit sounds: `AttackSwing.hit_sound`, `Ability.hit_sound`, HitFeel's tier, the crit layer, `shield_absorb_sound` | `ctx.source` | the unit hit | `HitContext.cast` (null for swings) |
+| `Ability.cast_sound`, the ability's cues, `charge_sound`, `telegraph_sound` | the caster | `ctx.target` (a UNIT target, or the condition target when the ability needs one) | the CastContext |
+| `Ability.ready_sound`, `DashComponent.dash_sound` | the unit | null | null |
+| `Unit.hurt_sound` | the hurt unit | `ctx.source` | `HitContext.cast` |
+| `Unit.death_sound` | the dead unit (its statuses are already cleared at death) | `ctx.source` | null |
+| `pack_burst_sound` | none (several units): only variants with no conditions | | |
+| status `apply_sound`, `loop_sound`, `expire_sound`, `consume_sound` | the unit carrying the status | the status's source (who applied it), if alive | null |
+| `Player.low_health_sound`, the stingers | the Player | null | null |
+| loot and enemy sounds (LOOT L7, ENEMIES_AI AI2) | the dropping or alerted unit | null | null |
+| UI sounds (later, UI.md) | the tracked Player | null | null |
+
+**When a hit's variants are checked:** CombatSounds plays a hit sound on `Events.unit_hit`, after the hit's own statuses (`Unit.on_hit` applies them before the events) and after `Reactions` (connected to `unit_hit` before Audio, so its rules run first). A variant on a hit sound sees the state *after* that hit and its reaction rules.
+
+### SoundCue (Resource, `res://scripts/data/sound_cue.gd`; inline)
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `progress` | `float` | 0.0 | 0–1 of the swing or cast where it plays |
+| `sound` | `SoundEvent` | null | variants resolve as for any sound |
+
+- **Why cues:** the Knight's clips are positioned by progress (`UnitView` seeks a swing's `swing_anim` and a cast's `cast_anim` to the progress each tick: 3D.md; COMBAT.md, AttackSwing), not played, so call-method tracks on the animation can't be trusted to fire. Cues are timed on the same progress the clip follows.
+- New fields: `AttackSwing.sound_cues: Array[SoundCue]` and `Ability.sound_cues: Array[SoundCue]` (`[]`, export group "Sounds"). `swing_sound` and `cast_sound` stay, as the cue at progress 0, so today's data needs no change.
+- **Swings:** AutoAttackComponent plays each cue on the tick the swing's progress (`get_swing_progress()`: time since the swing started ÷ its length at its speed) reaches or passes its `progress`, in order. Swing progress follows `attack_speed` and the combo's `speed_scale`, and it runs in game time (hitstop slows it with the swing), so a cue stays on its frame of the motion. A cue at 0 plays at swing start, after `swing_sound`. The dash-strike swing has its own cues.
+- **Casts:** AbilityComponent plays each cue as the cast's progress (AB14, `_advance_cast_time()`) passes it, so cues follow cast speed. A cast with no cast time (and a free cast, progress 1 at once) plays every cue at cast start, in order. CHARGE_UP and VECTOR count from release, like the progress. Each recast part plays its own ability's cues.
+- **How many:** no cap; the audition tool warns past 4 cues on one swing or cast, so a motion doesn't turn into sound spam (Ryan, 2026-10-04).
+- **Cancelled or interrupted** (a dash, a move cancel, a stun, death, a swing cut after its hit): cues not yet reached never play. One-shots already started play out. A cue whose SoundEvent loops stops when its swing or cast ends, however it ends.
+- League-style enemy attacks aren't swings and have no cues (ENEMIES_AI.md).
+
+### Why a status ended (A4)
+`status_removed` fires the same way when a status times out, is used up, is cleansed, ends at death, or its source takes it back, so today `expire_sound` can't tell them apart. Every removal path in the code (checked 2026-10-04):
+
+| Path | Reason |
+|---|---|
+| its time runs out (`StatusComponent._physics_process`) | `EXPIRED` |
+| an empower used by its swing (`AutoAttackComponent._use_up_empowers()`) or cast (`AbilityComponent`, effect start); a shield's last stack used up by damage | `CONSUMED` |
+| `remove_statuses_with_tags()`: a cleanse (`RemoveStatusesByTagGameplayEffect`), unstoppable ending every cc | `CLEANSED` |
+| `clear()` at death | `DIED` |
+| anything else: a speed modifier removed, leaving a perch, an item's bundle unequipped, a form replaced by another, an airborne that couldn't start | `REMOVED` |
+
+- `StatusEffect.EndReason` (enum on StatusEffect, like `StackRule`): `EXPIRED`, `CONSUMED`, `CLEANSED`, `DIED`, `REMOVED`. Ryan's list plus `REMOVED`, because the code has removal paths that are none of the four.
+- `StatusComponent.remove_status(id, reason := EndReason.REMOVED)`: an optional parameter, so every caller today keeps working; the paths above pass theirs.
+- **A separate signal, not a changed one:** `StatusComponent.status_ended(effect, reason)` and `Events.status_ended(unit, status, reason)`, emitted right after `status_removed`, which stays exactly as it is.
+  - Not new arguments on `status_removed`: changing a signal's argument count breaks every callable already connected to it (AutoAttackComponent, CombatSounds, the tests).
+  - Not a field on the status: a `StatusEffect` is a shared Resource (one .tres for every unit that carries it), so a reason written there would be overwritten by another unit's removal in the same frame and is no one unit's state (CONVENTIONS.md, Components own their state).
+  - Not a "last reason" field on StatusComponent: it would only be right during the emit; a listener running at the end of the frame (like the pack burst) would read the wrong one.
+- CombatSounds keeps stopping the loop on `status_removed` and plays the end sound on `status_ended`: `CONSUMED` → `consume_sound`; `EXPIRED`, `CLEANSED`, `REMOVED` → `expire_sound` (as today); `DIED` → nothing (as today).
+- New field `StatusEffect.consume_sound` (null). With no fallback to `expire_sound` (Ryan, 2026-10-04): an empower that rings and sheathes must be able to stay quiet when it's used up. The only status with an end sound today, the shield, gets `consume_sound` = `sound_status_shield_break` in A4's data, so its break still plays when it's used up (and on a timeout, through `expire_sound`).
+- Later, if needed: a `cleanse_sound`, and a STATUS_ENDED reaction trigger with a reason filter (COMBAT.md, ReactionRule); not part of A4.
+
+### Example: the ring-out (an illustration; the Knight's kit doesn't change)
+Ryan's example, as data only, for a made-up champion with a 4-hit combo and a stacking status tagged `edge` (one stack per hit; the stacks are gameplay, granted by a HIT reaction rule as today):
+1. **Four swings, four sounds:** `AttackCombo.swings` holds four AttackSwings, each with its own `swing_sound` and `hit_sound` (works today).
+2. **The ring-out:** swing 4's `hit_sound` (`sound_x_finisher_hit`) has one SoundVariant: REPLACE, conditions [SELF_HAS_STATUS, `status_tag` `edge`, `min_stacks` 10], sound `sound_x_ring_out`. 10 or more stacks: the ring-out plays instead of the normal finisher hit.
+3. **The empower that hit grants** is a status `status_x_ringing` (tags `empower`, `buff`; `empower_consumed_by` ABILITY_CAST, 4 s): `apply_sound` = the ring's start, `loop_sound` = the sword ringing while it's up, `expire_sound` = the sheath (it timed out: EXPIRED), `consume_sound` = the big impact (the next cast used it up: CONSUMED). Its `vfx` is the visual tell (the blade glowing).
+4. **The big impact goes on `consume_sound`, not on a variant of the next ability's sound:**
+   - A SELF_HAS_STATUS variant on the next ability's `hit_sound` would never pass: the cast uses up its empowers at the effect start, before its hits land (ABILITIES.md, Empowers).
+   - On its `cast_sound` it would play at cast start, before the empower is used, so a dash-cancelled cast (which keeps the empower) would play the big impact for nothing. Audio would claim something that didn't happen.
+   - `consume_sound` plays exactly when the empower is used up. If a variant on the ability's own sound is wanted later, it needs a new condition kind reading the cast's used empowers (`cast.empowers`; Open questions).
+5. **Order on the 4th hit:** the ring-out's condition is checked after that hit's reaction rules (When a hit's variants are checked). If the rule that grants the empower also spends the 10 stacks, gate the ring-out on the empower instead (SELF_HAS_STATUS `ringing`, 1).
+6. **Not audio, and not data today:** "the 4th hit grants the empower" needs a HIT reaction rule that knows which swing hit. An AttackSwing has no tags today, so that half needs a small COMBAT addition (proposed there: `AttackSwing.hit_tags`, e.g. `finisher`) or a script. Conflicts, and COMBAT.md, Open questions.
+
+### UI sounds (for UI.md; Build order, Later)
+- A sound set per UI element type (`UISoundSet`, a Resource; the name approved 2026-10-04, built with UI.md): `hover_sound`, `press_sound`, `open_sound`, `close_sound`, all SoundEvents on the UI bus (non-positional; they keep playing while paused). Variants work as anywhere, with the tracked Player as `self` (e.g. a different press sound when an ability can't be afforded).
+- **Hover:** on `mouse_entered` the element plays `hover_sound` and keeps the handle; on `mouse_exited` or a press it calls `Audio.stop(handle)`. A press may play its own `press_sound`. Keyboard and controller focus come with UI.md.
+
+### The audition tool (A5): SandboxAudio on Z
+A sandbox-only node (`res://scripts/rooms/sandbox_audio.gd`, in `sandbox.tscn` and `sandbox_3d.tscn`, never room_01), in the style of the other sandbox tools: **Z** opens and closes a mouse panel like SandboxBrains' N panel. Z is free: it isn't an input action, no sandbox script reads it, and no doc plans it (M is the map, V the ally stance, Tab the companion slot). A click on the panel also swings, as on N's panel (MOVEMENT.md, Clicks on the HUD).
+- Three lists: the SoundEvents in `data/sounds/`, the abilities in `data/abilities/`, the statuses in `data/statuses/`.
+- A sound: its variants with their conditions in words, whether each passes now (self = the Knight, target = the enemy nearest the cursor), which one resolves (the REPLACE winner and the ADD layers), Play (the resolved sound on the Knight; Shift: at the nearest enemy) and Play base (no variants).
+- An ability or a swing: its sound slots and cues, each with Play.
+- A status: its four sounds with Play, Apply to the Knight, a **stack count** (0–20; it applies or removes stacks so SELF_HAS_STATUS variants can be heard at any count) and End as EXPIRED / CONSUMED / CLEANSED (so each end sound can be heard).
+- A warning on any swing or ability with more than 4 cues.
+- The last 8 entries of the audio log (with `variant_of`) at the bottom.
+- It only calls Audio, StatusComponent and AbilityComponent's public methods; it never changes saved data.
+
 ## How each edge case is handled
 | Edge case | Handling |
 |---|---|
@@ -237,6 +366,12 @@ Listens to Events; the only place hit, death and status sounds are played. `rese
 | A missing or empty file | Warns once per SoundEvent, logged dropped `no_audio`, silent. |
 | A positional one-shot beyond `max_distance_px` | Not started, logged `out_of_range`; it takes no voice. |
 | The voice cap is full | The lowest-priority, oldest SFX sound is stopped for a higher-priority one; otherwise the new one is dropped. Logged either way. |
+| A variant whose sound is dropped (A4) | Its own limits apply; a dropped REPLACE winner doesn't fall back to the base, and ADD layers try on their own. Logged with `variant_of`. |
+| A sound played with no context (A4) | Only variants with no conditions apply; every condition fails without a self unit. |
+| A swing or cast cancelled before a cue (A4) | The cue never plays; one-shots already started play out; a looping cue stops with the swing or cast. |
+| A cast with no cast time, or a free cast (A4) | Every cue plays at cast start, in progress order. |
+| An empower used up vs timed out (A4) | `status_ended` says CONSUMED (`consume_sound`) or EXPIRED (`expire_sound`); the loop stops either way (`status_removed`). |
+| A status ending at death (A4) | `status_ended` with DIED: no end sound, as today. |
 
 ## Godot behavior this relies on
 Written from knowledge of Godot 4.0–4.5; checked where marked in Godot 4.7.2 headless (A1, A2). A difference goes into this section and DECISIONS.md.
@@ -279,9 +414,13 @@ Every step: with every sound field empty the game plays exactly as before, and t
 
 1. **A1 – Plumbing.** Built 2026-09-27, see CHANGELOG.md.
 2. **A2 – Combat sounds with placeholders.** Built 2026-09-27, see CHANGELOG.md.
-3. **A3 – Abilities and statuses** (the ability, telegraph, ready, status, heartbeat and stinger hooks; Data, Placeholder sounds). Built 2026-09-27, see CHANGELOG.md.
-   **Done means** (awaiting play test): each Knight ability has its own cast sound; the elite's wind-up is heard from off screen, stops when the slam lands, and stops at once when the cast is interrupted; Judgement's stun plays its apply sound once; a status loop plays once per unit however many stacks; the heartbeat starts below 25% health and stops above it and at death; R pings when it comes off cooldown; "Room cleared!" and "You died" have stingers.
-- **Later, per system** (each written into that system's build order, pointing here): CHAMPIONS / NPCS (voice lines; champion sounds onto ChampionData), ENEMIES_AI (enemy attack wind-ups for enemies without a telegraph, whiffs, aggro; the alert bark is built, AI2), WORLD_INTERACTION (impacts, hazard loops), DUNGEONS (music with explore and combat layers, room ambience, the room-clear transition), UI (hover, click, menu open and close, slider ticks), movement with sprites (footsteps on the F3 walk bob).
+3. **A3 – Abilities and statuses** (the ability, telegraph, ready, status, heartbeat and stinger hooks; Data, Placeholder sounds). Built 2026-09-27, passed Ryan's play test 2026-09-30, see CHANGELOG.md.
+   **Done means:** each Knight ability has its own cast sound; the elite's wind-up is heard from off screen, stops when the slam lands, and stops at once when the cast is interrupted; Judgement's stun plays its apply sound once; a status loop plays once per unit however many stacks; the heartbeat starts below 25% health and stops above it and at death; R pings when it comes off cooldown; "Room cleared!" and "You died" have stingers.
+4. **A4 – Conditional audio** (approved 2026-10-04; not started): `SoundVariant`, `SoundEvent.variants`, `SoundContext` (the optional last argument of `play()` / `play_at()` / `play_on()`; every call site in the context table passes its own), resolution in Audio with layers tied to the main handle and `variant_of` / `mode` in the log; `SoundCue`, `AttackSwing.sound_cues` (AutoAttackComponent) and `Ability.sound_cues` (AbilityComponent); `StatusEffect.EndReason`, `remove_status(id, reason)` with each removal path passing its reason, `StatusComponent.status_ended` and `Events.status_ended`, `StatusEffect.consume_sound`, CombatSounds' end sounds by reason; `status_shield.tres` gets `consume_sound` = its break. Placeholder data only for the tests (no champion's kit changes).
+   **Done means:** with no variants, cues or `consume_sound` set, every sound plays exactly as before (audio test, combat test and every suite unchanged). The audio test covers: a REPLACE variant gated on SELF_HAS_STATUS with `min_stacks` 10 plays at 10 stacks and the base at 9; an ADD variant layers on top and stops with the main handle; the first passing REPLACE wins; a variant on a hit sound sees the hit's statuses; a sound with no context plays only condition-free variants; a variant's dropped sound doesn't fall back; cues on a swing play at their progress, at double attack speed sooner, and a dash in the windup skips the rest; cues on a cast follow its progress and all play at once with no cast time; a status ending by each reason plays the right end sound (EXPIRED expire, CONSUMED consume, CLEANSED expire, DIED nothing), an empower used by a cast plays `consume_sound` and one timing out `expire_sound`; the shield's break still plays when it's used up. Every check is seeded and reads the log. Ryan's play test: the sandbox sounds as before.
+5. **A5 – The audition tool** (approved 2026-10-04; not started, after A4): `SandboxAudio` on Z (Conditional audio, The audition tool), in `sandbox.tscn` and `sandbox_3d.tscn`.
+   **Done means:** Z opens the panel; every SoundEvent, ability and status is listed; a variant gated on a stack count resolves and plays as the stack control crosses its threshold; a status's four sounds play, and End as EXPIRED / CONSUMED / CLEANSED plays the matching end sound; the log lines show `variant_of`; Z closes it; nothing is saved. Ryan's play test: he hears every variant and end sound without a fight.
+- **Later, per system** (each written into that system's build order, pointing here): CHAMPIONS / NPCS (voice lines; champion sounds onto ChampionData), ENEMIES_AI (enemy attack wind-ups for enemies without a telegraph, whiffs, aggro; the alert bark is built, AI2), WORLD_INTERACTION (impacts, hazard loops), DUNGEONS (music with explore and combat layers, room ambience, the room-clear transition), UI (hover, click, menu open and close, slider ticks: a sound set per element type, the hover stopped by its handle on mouse-exit or a press; Conditional audio, UI sounds), movement with sprites (footsteps on the F3 walk bob).
 
 ## Out of scope for now
 The music system (adaptive layers), voice lines, footsteps, final audio assets. Placeholders only.
@@ -294,6 +433,8 @@ The music system (adaptive layers), voice lines, footsteps, final audio assets. 
 - Voice lines: how often, and which events (CHAMPIONS.md).
 - **Voice-over for story scenes** (VISION.md, Pillar 5; 2026-10-02): how much is voiced is NARRATIVE.md's. Here: dialogue on the Voice bus; whether dialogue ducks Music, SFX and Ambience while it plays, and by how much; what happens when a line and combat overlap (and whether a line pauses with the tree like the rest of Voice).
 - **Per-dungeon music** (2026-10-02): does each dungeon get its own music (its story's theme), on top of the explore and combat layers? (DUNGEONS.md, NARRATIVE.md.)
-- The champion sounds (hurt, death, low health) move onto ChampionData in CHAMPIONS CH1 (`hurt_sound`, `death_sound`, `low_health_sound`, copied onto Unit and Player at load). Until then they're exports on Unit and Player, set in `player.tscn`.
+- ~~The champion sounds (hurt, death, low health) move onto ChampionData in CHAMPIONS CH1.~~ Done: CH1 (built 2026-09-29) holds `hurt_sound`, `death_sound` and `low_health_sound` on ChampionData and copies them onto Unit and Player at load (CHAMPIONS.md). `DashComponent.dash_sound` stays on the scene until a second champion needs its own.
 - A sound for a hit the dash dodged? Blocked hits emit no event today.
+- ~~Conditional audio (A4–A5): the default mode, nesting, cues per swing, the names, a consume fallback, the audition key.~~ Answered by Ryan 2026-10-04 (two rounds, each as proposed): REPLACE by default; no nesting (one level); no cap on cues, a warning past 4; every name approved; no fallback to `expire_sound` (the shield's break moves to `consume_sound` in A4); the big impact on the empower's `consume_sound`; the audition tool on Z; per-swing hit tags noted in COMBAT.md as proposed, not in A4.
+- A condition kind reading what a cast used up (e.g. CAST_USED_EMPOWER with a status tag, reading `cast.empowers`), so a variant on an ability's own sound can follow an empower: not needed for the ring-out (it uses `consume_sound`); add it when a sound needs it (ABILITIES.md, Conditions).
 - A missed slam is silent after its wind-up: `Ability.hit_sound` plays only when the cast lands on someone. An impact sound on every `execute()` (the slam hitting the ground) would need a new hook (ABILITIES.md).
