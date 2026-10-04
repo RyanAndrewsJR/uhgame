@@ -2900,12 +2900,9 @@ func _test_landing_terrain() -> void:
 				against += 1
 			elif x != 0.0:
 				open += 1
-		if row[0] == 6:
-			_check("next to %s: 300 drops, none over it (%d); one may hop across it (%d did: only walls, fences and cliff edges block the way); %d on the open side" % [row[1], against, past, open],
-				[against, past > 0, open > 150], [0, true, true])
-		else:
-			_check("next to %s: 300 drops, none against it (%d) nor past it (%d); %d on the open side, the rest where they dropped" % [row[1], against, past, open],
-				[against, past, open > 200], [0, 0, true])
+		# A pit stops the hop too (Ryan, 2026-10-04, at L-M), like the others.
+		_check("next to %s: 300 drops, none against it (%d) nor past it (%d); %d on the open side, the rest where they dropped" % [row[1], against, past, open],
+			[against, past, open > 200], [0, 0, true])
 		strip.queue_free()
 	# Walled in 8 px around: every try fails, so it lands where it dropped.
 	_next_x += 400.0

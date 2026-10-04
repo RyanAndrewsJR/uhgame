@@ -482,6 +482,20 @@ func get_scaling_damage(caster: Unit, target: Node, charge: float = 1.0, cast: C
 
 # --- Conditions (ABILITIES AB12) -------------------------------------------------
 
+## The shape tags of an ability that moves its caster: a rooted (or stunned)
+## caster can't cast it (roots are roots; Ryan, 2026-10-04).
+const MOVEMENT_TAGS: Array[StringName] = [&"dash", &"leap", &"blink"]
+
+
+## True for an ability that moves its caster (tagged dash, leap or blink):
+## AbilityComponent fails its press while the caster is rooted ("Rooted").
+func moves_caster() -> bool:
+	for tag in MOVEMENT_TAGS:
+		if tags.has(tag):
+			return true
+	return false
+
+
 ## The script's one-off cast check, ANDed with cast_conditions (part 0) or
 ## recast_conditions (later parts, ctx.part). True by default. Override for
 ## logic data can't express (the escape hatch).

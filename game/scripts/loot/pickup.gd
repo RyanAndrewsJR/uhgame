@@ -24,7 +24,8 @@ const PICKUP_LAYER := 1 << 8
 ## What a landing spot must be walkable from the drop's origin across: walls
 ## (1), low obstacles (7) and ledges (11), the layers that block walking.
 const WALK_BLOCKING_MASK := 1 | (1 << 6) | (1 << 10)
-## Pits (6): a landing spot is never over one.
+## Pits (6): a landing spot is never over one, nor across one (Ryan,
+## 2026-10-04, at L-M: a pit between a corpse and its drop stops the hop).
 const PIT_MASK := 1 << 5
 ## A landing spot is tried in this many random directions, else the origin.
 const LANDING_TRIES := 4
@@ -106,8 +107,8 @@ func release_hold(unit: Unit) -> void:
 
 ## A landing spot `pop_distance_min_px`–`pop_distance_max_px` from `origin`
 ## in a random direction that the player could walk to from the origin: no
-## wall, fence or cliff edge between them, and the pickup's circle clear of
-## those and of pits. LANDING_TRIES directions, else `origin` itself. Uses
+## wall, fence, cliff edge or pit between them, and the pickup's circle clear
+## of those. LANDING_TRIES directions, else `origin` itself. Uses
 ## only WorldQuery, so it works before the pickup is in the tree.
 func pick_landing(origin: Vector2, rng: RandomNumberGenerator) -> Vector2:
 	for i in LANDING_TRIES:
@@ -117,10 +118,11 @@ func pick_landing(origin: Vector2, rng: RandomNumberGenerator) -> Vector2:
 	return origin
 
 
-## True when `spot` could be walked to from `origin` and the pickup lies
-## there clear of walls, fences, ledges and pits.
+## True when nothing lies between `origin` and `spot` that a player couldn't
+## walk across (a wall, a fence, a cliff edge, a pit) and the pickup lies
+## there clear of them.
 func is_good_landing(origin: Vector2, spot: Vector2) -> bool:
-	return WorldQuery.has_line_of_sight(origin, spot, WALK_BLOCKING_MASK) \
+	return WorldQuery.has_line_of_sight(origin, spot, WALK_BLOCKING_MASK | PIT_MASK) \
 		and WorldQuery.is_point_free(spot, get_radius(), WALK_BLOCKING_MASK | PIT_MASK)
 
 

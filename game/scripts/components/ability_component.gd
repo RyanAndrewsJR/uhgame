@@ -73,7 +73,10 @@ const FAIL_NO_TARGET := "no target"
 const FAIL_NO_RESOURCE := "not enough resource"
 const FAIL_SILENCED := "silenced"
 ## A cast or recast condition (or the script's custom check) fails (AB12).
+## Also an ability that moves its caster while it's rooted (2026-10-04).
 const FAIL_CONDITION := "condition"
+## The fail text of an ability that moves its caster, pressed while rooted.
+const ROOTED_FAIL_TEXT := "Rooted"
 ## A VECTOR start point is swept from the caster with this small core against
 ## walls (like a projectile's), so it stops at a wall's face (AB13).
 const VECTOR_WALL_RADIUS_PX := 2.0
@@ -353,9 +356,14 @@ func get_aim_hint() -> Vector2:
 ## a first cast, recast_conditions for the next part, and the script's
 ## can_cast_custom(). `aim` (INF = the aim hint) and `target` (a UNIT cast's
 ## chosen target; null = the condition target near the aim) as for try_cast().
+## An ability that moves its caster (Ability.moves_caster()) also fails while
+## the caster is rooted or stunned (roots are roots; Ryan, 2026-10-04): the
+## press fails at once with its cue and the slot greys, like any condition.
 func conditions_pass(slot: StringName, aim: Vector2 = Vector2.INF, target: Unit = null) -> bool:
 	var ability := get_ability(slot)
 	if ability == null:
+		return false
+	if _rooted_out(ability):
 		return false
 	var ctx := _make_condition_context(slot, ability, aim, target)
 	return Condition.all_met(ability.get_conditions_for_part(ctx.part), unit, ctx.target, ctx) \
@@ -368,6 +376,8 @@ func get_condition_fail_text(slot: StringName) -> String:
 	var ability := get_ability(slot)
 	if ability == null:
 		return ""
+	if _rooted_out(ability):
+		return ROOTED_FAIL_TEXT
 	var ctx := _make_condition_context(slot, ability, Vector2.INF, null)
 	var failed := Condition.first_failed(ability.get_conditions_for_part(ctx.part), unit, ctx.target, ctx)
 	if failed != null:
@@ -375,6 +385,11 @@ func get_condition_fail_text(slot: StringName) -> String:
 	if not ability.can_cast_custom(unit, ctx):
 		return ability.get_custom_fail_text()
 	return ""
+
+
+## True when `ability` moves its caster and the caster is rooted or stunned.
+func _rooted_out(ability: Ability) -> bool:
+	return ability.moves_caster() and unit != null and unit.is_dash_blocked()
 
 
 func _make_condition_context(slot: StringName, ability: Ability, aim: Vector2, target: Unit) -> CastContext:

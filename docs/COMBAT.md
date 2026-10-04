@@ -225,7 +225,7 @@ The hit feel per tier, held by `GameFeel.hit_feel`: `light_hitstop` 0.03, `heavy
 - `stack_rule`: `REFRESH_LONGER` (keep the longer remaining time; the stun), `REFRESH` (restart, with the new numbers and source), `STACK` (add a stack up to `max_stacks`, each with its own time; at max the one closest to running out restarts), `IGNORE`
 - `get_source_id()` = `&"status_<id>"`, `is_cc()`, `is_dot()`
 - `modifiers: Array[StatModifier]` (slows and hastes are `move_speed` modifiers)
-- `blocks_move`, `blocks_attack`, `blocks_cast`, `blocks_dash` (stun: all four; root: move and dash; silence: cast)
+- `blocks_move`, `blocks_attack`, `blocks_cast`, `blocks_dash` (stun: all four; root: move and dash; silence: cast). `blocks_dash` stops every move of the unit's own, not just the dash key: abilities that move their caster fail ("Rooted"), `dash()`, `leap()` and `blink()` refuse, and a swing doesn't step; forced movement still moves it (roots are roots, Ryan 2026-10-04; ABILITIES.md, Roots).
 - DoT: `tick_interval` (0 = none), `tick_damage`, `tick_ad_ratio`, `tick_damage_type` (MAGIC default). Damage is snapshotted from the applier's stats when applied (a new stack or refresh takes a new snapshot for every stack).
 - `shield_amount`: damage it absorbs after mitigation and `incoming_damage`, per application (each stack has its own); 0 = not a shield (`is_shield()`). Used up = that stack ends (the status with its last stack). REFRESH restores the full amount, REFRESH_LONGER keeps the bigger one. Template: `data/statuses/status_shield.tres` (100, 3 s, tags `shield` + `buff`, REFRESH).
 - `vfx: PackedScene` (visuals only)

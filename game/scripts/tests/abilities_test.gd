@@ -80,6 +80,7 @@ const SLAM: Ability = preload("res://data/abilities/slime_elite_q_slam.tres")
 const HUD_SCENE: PackedScene = preload("res://scenes/ui/hud.tscn")
 const COST_SOURCE := &"item_test_costs"
 const TRIPLE_STEP: Ability = preload("res://data/abilities/test_q_triple_step.tres")
+const JUDGEMENT_LEAP_ABILITY: Ability = preload("res://data/abilities/knight_r_judgement_leap.tres")
 const CHARGED_LINE: Ability = preload("res://data/abilities/test_q_charged_line.tres")
 ## A looping SoundEvent to stand in for a charging sound (AB6 exits).
 const LOOP_SOUND: SoundEvent = preload("res://data/sounds/sound_knight_low_health.tres")
@@ -239,6 +240,7 @@ func _ready() -> void:
 	await _test_ab15_blink()
 	await _test_ab15_refusals()
 	await _test_ab15_test_blink()
+	await _test_roots_hold_still()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).
@@ -4683,6 +4685,92 @@ func _test_ab15_refusals() -> void:
 	_check("rooted: is_blink_blocked(), refused", [mv.is_blink_blocked(), mv.blink(at + Vector2(0, 100)), knight.global_position == at], [true, false, true])
 	knight.status_component.remove_status(root.id)
 	_check("the root gone: it blinks", [mv.is_blink_blocked(), mv.blink(at + Vector2(0, 100))], [false, true])
+	await _reset_knight()
+
+
+func _test_roots_hold_still() -> void:
+	_section("Roots are roots (Ryan, 2026-10-04, at LOOT L-M): a rooted unit's own dashes, leaps, blinks and swing steps are refused")
+	await _reset_knight()
+	var ab := knight.abilities
+	var mv := knight.movement
+	var own_q := ab.q
+	var own_r := ab.r
+	knight.resource_pool.restore(1000.0)
+	for slot: StringName in [&"q", &"e", &"r"]:
+		ab.reset_cooldown(slot)
+	_check("the abilities that move their caster are those tagged dash, leap or blink",
+		[LUNGE.moves_caster(), TRIPLE_STEP.moves_caster(), BLINK.moves_caster(), JUDGEMENT_LEAP_ABILITY.moves_caster(), CLEAVE.moves_caster(), JUDGEMENT.moves_caster()],
+		[true, true, true, true, false, false])
+	var root := _root_status()
+	knight.status_component.apply_status(root, null)
+	var at := knight.global_position
+	_check("rooted: MovementComponent.is_dash_blocked() and Unit.is_dash_blocked()", [mv.is_dash_blocked(), knight.is_dash_blocked()], [true, true])
+	var reasons: Array = []
+	var on_fail := func(_slot: StringName, reason: String) -> void: reasons.append(reason)
+	ab.cast_failed.connect(on_fail)
+	var lunged := ab.try_cast(&"e", at + Vector2(100, 0))
+	_check("Lunge: the press fails with its cue (a condition: \"Rooted\"); no cooldown; the slot greys",
+		[lunged, reasons, ab.get_condition_fail_text(&"e"), ab.get_cooldown_left(&"e"), ab.get_fail_reason(&"e")],
+		[false, [AbilityComponent.FAIL_CONDITION], "Rooted", 0.0, AbilityComponent.FAIL_CONDITION])
+	ab.q = TRIPLE_STEP
+	ab.r = JUDGEMENT_LEAP_ABILITY
+	ab.reset_cooldown(&"q")
+	ab.reset_cooldown(&"r")
+	reasons.clear()
+	_check("Triple Step and Judgement Leap: the same", [ab.try_cast(&"q", at + Vector2(100, 0)), ab.try_cast(&"r", at + Vector2(100, 0)), reasons],
+		[false, false, [AbilityComponent.FAIL_CONDITION, AbilityComponent.FAIL_CONDITION]])
+	ab.q = own_q
+	ab.r = own_r
+	ab.cast_failed.disconnect(on_fail)
+	_check("Cleave still casts (it doesn't move him)", ab.try_cast(&"q", at + Vector2(40, 0)), true)
+	await _wait_until(func() -> bool: return not ab.casting, 60)
+	await _frames(5)
+	mv.dash(Vector2(400, 0), 0.25)
+	var landing := mv.leap(at + Vector2(0, 120), 0.3)
+	await _frames(20)
+	_check("MovementComponent.dash() and leap() refuse too (a free cast's move): he hasn't moved; the leap returns where he stands",
+		[knight.global_position.distance_to(at) < 0.5, mv.is_leaping(), landing == at], [true, false, true])
+	ab.try_cast_free(LUNGE, at + Vector2(100, 0), null, &"roots_test")
+	await _frames(20)
+	_check("a free Lunge (no conditions) still goes nowhere", knight.global_position.distance_to(at) < 0.5, true)
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _frames(25)
+	_check("a swing: it swings in place (no step)", knight.global_position.distance_to(at) < 0.5, true)
+	mv.displace(Vector2(300, 0), 0.2)
+	await _frames(20)
+	_check("forced movement still moves him (a knockback: %.0f px)" % knight.global_position.distance_to(at), knight.global_position.distance_to(at) > 30.0, true)
+	knight.status_component.remove_status(root.id)
+	await _reset_knight()
+	at = knight.global_position
+	mv.dash(Vector2(600, 0), 0.2)
+	await _frames(2)
+	knight.status_component.apply_status(root, null)
+	await _wait_until(func() -> bool: return not mv.is_displaced(), 60)
+	_check("a dash already running when the root lands finishes (%.0f px)" % knight.global_position.distance_to(at), knight.global_position.distance_to(at) > 100.0, true)
+	knight.status_component.remove_status(root.id)
+	await _reset_knight()
+	at = knight.global_position
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _frames(25)
+	var stepped := knight.global_position.distance_to(at)
+	_check("unrooted, the same swing steps (%.1f px)" % stepped, stepped > 1.0, true)
+	await _reset_knight()
+	knight.resource_pool.restore(1000.0)
+	_check("the root gone: Lunge casts", ab.try_cast(&"e", knight.global_position + Vector2(100, 0)), true)
+	await _reset_knight()
+	# Rooted during Judgement Leap's 0.2 s crouch: the leap is refused at its
+	# effect, and it lands in place.
+	ab.r = JUDGEMENT_LEAP_ABILITY
+	ab.reset_cooldown(&"r")
+	knight.resource_pool.restore(1000.0)
+	at = knight.global_position
+	var cast := ab.try_cast(&"r", at + Vector2(150, 0))
+	await _frames(2)
+	knight.status_component.apply_status(root, null)
+	await _frames(40)
+	_check("rooted in Judgement Leap's crouch: it lands where he stands", [cast, knight.global_position.distance_to(at) < 0.5, mv.is_leaping()], [true, true, false])
+	knight.status_component.remove_status(root.id)
+	ab.r = own_r
 	await _reset_knight()
 
 

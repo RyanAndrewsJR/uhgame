@@ -543,7 +543,9 @@ func _start_melee_step(swing: AttackSwing, duration: float) -> void:
 		var room := to.length() - unit.get_pathing_radius_px() - target.get_pathing_radius_px()
 		step_len = clampf(step_len, 0.0, maxf(room, 0.0))
 	_assist_target = target
-	if step_len > 0.01:
+	# Rooted or stunned: the swing stays where it stands (roots are roots,
+	# 2026-10-04); the aim still snaps to the target.
+	if step_len > 0.01 and not unit.is_dash_blocked():
 		var time := maxf(duration, 0.01)
 		# A stronger displacement already running (a knockback) keeps going and
 		# the step is dropped; then there's no step of ours to stop later.

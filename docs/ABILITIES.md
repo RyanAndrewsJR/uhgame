@@ -112,7 +112,15 @@ A **blink** moves a unit to a point instantly: no travel, no time in the air (Le
   - `MovementComponent.is_blink_blocked()` (a root or a stun) is what blinking abilities check in `can_cast_custom()`, with the fail text "Rooted". A free cast doesn't run that check, so a caller that casts a blink for free checks it first (SandboxAbilities does).
   - Ending a running displacement emits `displacement_finished`, so a dash ends through DashComponent as usual (`stop_displacement()` doesn't, and would have left the dash running).
   - Stopping at walls, the first wall is found by sweeping a 2 px core (`BLINK_WALL_CORE_PX`), as AB13's VECTOR start is, so a unit already touching a wall can still blink away from it.
-  - A blink inside a cast follows the cast's timing: Homeward Lunge's return keeps Lunge's 0.05 s cast time (3 ticks from the press).
+  - A blink inside a cast follows the cast's timing: Homeward Lunge's return keeps Lunge's 0.05 s cast time (3 ticks from the press). Ryan kept it at L-M (2026-10-04).
+
+### Roots (MUST: Ryan, 2026-10-04, at LOOT L-M: "roots are roots. You shouldn't be able to move at all until it ends."; built the same day)
+- **A rooted unit can't move itself at all** while the root lasts (a root: a status with `blocks_move` and `blocks_dash`, COMBAT.md; a stun includes it): no walking (as before), no dash (as before), and now:
+  - **An ability that moves its caster** (`Ability.moves_caster()`: tagged `dash`, `leap` or `blink`, `Ability.MOVEMENT_TAGS`) fails its press the way a condition does (AB12): at once, with its cue, not buffered, no cost or cooldown spent, and its slot greys while the root lasts (fail text "Rooted", `AbilityComponent.ROOTED_FAIL_TEXT`). The Knight's Lunge (and Homeward Lunge) and Judgement Leap, the test Triple Step and blinks.
+  - **The movement itself refuses** (`MovementComponent.is_dash_blocked()`, the same as `Unit.is_dash_blocked()`): `dash()` and `leap()` do nothing, as `blink()` already didn't, so a free cast (which skips conditions) goes nowhere either. A leap refused at its effect (rooted during Judgement Leap's 0.2 s crouch) leaves the caster where it stands, and the landing hits there.
+  - **A basic attack swing doesn't step**: it swings in place, its aim still snapping to the target.
+- **Not stopped:** forced movement (a knockback, a pull, a drag) still moves a rooted unit, and a dash or leap already running when the root lands finishes (League's rule; a stun that should stop one would be its own call).
+- Abilities that don't move their caster cast as usual while rooted (Cleave, Iron Resolve, Judgement's strike).
 
 ### Ultimates
 - Per champion: the ultimate uses a cooldown (League) or a meter charged by dealing and taking damage (Hades), Ryan's pick. The Knight uses a cooldown (Judgement: 30 s, CHAMPIONS.md). The meter is designed in CHAMPIONS.md when a champion first uses one; this doc only needs the slot to support "ready when the meter is full" instead of a cooldown (`ready_mode` METER, reserved here, built with the meter).
@@ -821,8 +829,8 @@ Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modi
 
 ## Open questions
 - ~~Blinks: Claude's proposals~~ (the API and `blinked`, the refusals, no status or i-frames, the tag, enemies may blink, the view's look, the test blink on B): approved when Ryan started AB15 (2026-10-04).
-- Should a recast part have its own cast time? Homeward Lunge's return keeps Lunge's 0.05 s (3 ticks) before the blink. *(proposed: only if Ryan's play test finds the return late)*
-- Should a root also block the dashes (Lunge, Triple Step) as it will block blinks? *(proposed: not now; with ENEMIES_AI's roots, when a root first comes from an enemy)*
+- ~~Should a recast part have its own cast time?~~ Answered (Ryan, 2026-10-04, at LOOT L-M): no. Homeward Lunge's return keeps Lunge's 0.05 s (3 ticks) before the blink.
+- ~~Should a root also block the dashes (Lunge, Triple Step) as it blocks blinks?~~ Answered (Ryan, 2026-10-04, at LOOT L-M): "roots are roots. You shouldn't be able to move at all until it ends." Built the same day (Roots, under Blinks).
 - Ultimate meter details (CHAMPIONS.md, when a champion first uses one).
 - The element tag list.
 - Can a recast part be dash-cancelled separately?

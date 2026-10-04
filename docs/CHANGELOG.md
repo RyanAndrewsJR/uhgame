@@ -11,6 +11,11 @@
 
 ## Loot (LOOT.md)
 
+### L-M – A looting session: 2026-10-04, Passed (Ryan's play test; LOOT is done)
+Ryan played the milestone from a nearly empty inventory (his inventory and progress backed up first, beside the saves in `backups/`) and passed it. He answered the open questions along with it: a pit between a corpse and its drop stops the hop; the leap's look works; Shockwave's tooltip line on Judgement Leap stays for now (real champions are coming soon); Homeward Lunge's return keeps its cast time; roots are roots (Abilities, below).
+- **Built after it (the pit):** `Pickup.is_good_landing()` casts its ray on pits too (`WALK_BLOCKING_MASK | PIT_MASK`). loot_test's pit row now checks what the others do: of 300 drops beside a 4 px pit, none over it, none across it, the rest on the open side or where they dropped (L7 had measured 64 hopping across).
+- **Tests** (with the roots change): loot 750/750 (the pit check rewritten, no new checks), abilities 593/593 (13 new). Stats 179/179, combat 474/474, audio 110/110, champions 168/168, talents 310/310, view 457/457: 3,041/3,041. Smoke runs clean; the saves (backed up again first: the L-M play had changed them) byte-identical.
+
 ### L7b – Dropping and trashing items, sorting: 2026-10-04, Passed (Ryan committed it and started L-M)
 Ryan asked to drop and trash items (2026-10-04), answered four questions (inventories stay unlimited; drop back on the ground, held until you walk away; trash for good, a second press for Unique and up; the spec first), committed the spec, and started L7b with Claude's proposals as written plus sorting on O.
 - **Code:**
@@ -926,6 +931,22 @@ Results: stats 179/179, combat 460/460 (one more check), abilities 563/563 (four
 Play test passed (Ryan, 2026-10-01): F5, the pause menu shows the saved cast mode and volumes; a change survives a restart.
 
 ## Abilities (ABILITIES.md)
+
+### Roots are roots: 2026-10-04, Built (awaiting Ryan's play test)
+Ryan's answer at LOOT L-M to AB15's question (should a root also block dashes): "roots are roots. You shouldn't be able to move at all until it ends." He also kept Homeward Lunge's 0.05 s cast time (no per-part cast time).
+- **Code:**
+  - `Ability.MOVEMENT_TAGS` (`dash`, `leap`, `blink`) and `moves_caster()`.
+  - `AbilityComponent`: `conditions_pass()` fails such an ability while its caster is rooted or stunned (`Unit.is_dash_blocked()`), the AB12 way: at once, with its cue, not buffered, the slot greyed. `get_condition_fail_text()` gives `ROOTED_FAIL_TEXT` ("Rooted").
+  - `MovementComponent.is_dash_blocked()` (`is_blink_blocked()` now returns it); `dash()` and `leap()` refuse while it's true, as `blink()` already did, and a refused leap returns where the unit stands.
+  - `AutoAttackComponent`: a swing's step is skipped while rooted.
+- **Measured** (abilities test, a test root with `blocks_move` and `blocks_dash`; the game has no root status of its own yet):
+  - **Refused:** Lunge, Triple Step and Judgement Leap failed with `FAIL_CONDITION` ("Rooted") and no cooldown; Cleave still cast.
+  - **No movement:** `dash()` and `leap()` moved nothing, and the leap returned his spot. A free Lunge went nowhere. A swing stayed put (unrooted, the same swing steps 6 px).
+  - **Not stopped:** a knockback still moved him 60 px, and a dash already running when the root landed finished its 120 px.
+  - **Edge case:** rooted during Judgement Leap's crouch, he landed where he stood.
+  - The root gone, Lunge cast again.
+- **Sensitivity:** each check was broken on purpose once and restored, and each failed: the press check, `dash()`'s refusal, `leap()`'s refusal, the swing step.
+- **Tests:** abilities 593/593 (13 new); the rest as in LOOT L-M's entry above: 3,041/3,041.
 
 ### AB15 – Blinks: 2026-10-04, Passed (Ryan committed it and started LOOT L7)
 Ryan asked for blinks (2026-10-04), and started AB15 with the spec's proposals as written.

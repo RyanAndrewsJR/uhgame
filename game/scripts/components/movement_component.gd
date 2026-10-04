@@ -300,9 +300,10 @@ func get_displacement_remaining_px() -> float:
 ## passes through other units, low obstacles and pits; walls and ledges
 ## still block it, and it slides along them (move_and_slide). `curve` shapes
 ## the speed; null = constant speed. Await `displacement_finished` to know
-## when it's over. Not while a leap runs (LOOT L6): ignored.
+## when it's over. Not while a leap runs (LOOT L6), nor while the unit is
+## rooted or stunned (is_dash_blocked(); roots are roots, 2026-10-04): ignored.
 func dash(velocity: Vector2, duration: float, ghosted: bool = true, curve: Curve = null) -> void:
-	if _leaping:
+	if _leaping or is_dash_blocked():
 		return
 	_end_ghost()
 	_start_displacement(velocity, duration, curve)
@@ -337,8 +338,12 @@ func is_airborne() -> bool:
 ## leaps roots its caster. While it runs, no other displacement or dash starts
 ## (displace() and dash() are dropped). A leap to where the unit stands is a
 ## hop in place. Returns the landing point; is_leaping() turns false and
-## displacement_finished is emitted when it lands.
+## displacement_finished is emitted when it lands. Refused while the unit is
+## rooted or stunned (is_dash_blocked(); roots are roots, 2026-10-04): no
+## leap starts, and it returns where the unit stands.
 func leap(to_px: Vector2, duration: float) -> Vector2:
+	if is_dash_blocked():
+		return body.global_position
 	var from := body.global_position
 	var landing := get_leap_landing(to_px)
 	var time := maxf(duration, 0.0001)
@@ -444,11 +449,19 @@ func blink(to_px: Vector2, through_walls: bool = true) -> bool:
 	return true
 
 
-## True while a blink would be refused for a status: a root or a stun (the
-## statuses that block dashing; Unit.is_dash_blocked()). A leap and a
-## knock-up refuse it too (is_airborne()).
-func is_blink_blocked() -> bool:
+## True while a status holds the unit where it stands: a root or a stun (the
+## statuses that block dashing; Unit.is_dash_blocked()). Roots are roots
+## (Ryan, 2026-10-04): the unit's own dashes, leaps and blinks are refused
+## then, as walking is; forced movement (a knockback, a pull) still moves it,
+## and one already running finishes.
+func is_dash_blocked() -> bool:
 	return _status != null and (_status.has_tag(&"stun") or _status.blocks_dash())
+
+
+## True while a blink would be refused for a status (is_dash_blocked()). A
+## leap and a knock-up refuse it too (is_airborne()).
+func is_blink_blocked() -> bool:
+	return is_dash_blocked()
 
 
 ## Where a blink aimed at `to_px` would land (for indicators and AI plans).
