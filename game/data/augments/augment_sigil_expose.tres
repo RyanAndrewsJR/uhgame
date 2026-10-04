@@ -1,10 +1,11 @@
-[gd_resource type="Resource" script_class="AbilityAugment" format=3]
+[gd_resource type="Resource" script_class="AbilityAugment" format=3 uid="uid://ddwyruqxv1l3u"]
 
-[ext_resource type="Script" path="res://scripts/data/ability_augment.gd" id="1_augment"]
-[ext_resource type="Script" path="res://scripts/data/reaction_rule.gd" id="2_rule"]
-[ext_resource type="Script" path="res://scripts/data/apply_status_gameplay_effect.gd" id="3_status"]
-[ext_resource type="Script" path="res://scripts/data/gameplay_effect.gd" id="4_effect"]
-[ext_resource type="Resource" path="res://data/statuses/status_exposed.tres" id="5_exposed"]
+[ext_resource type="Script" uid="uid://wnhx8l8oou7k" path="res://scripts/data/ability_augment.gd" id="1_augment"]
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="2_5n6x8"]
+[ext_resource type="Script" uid="uid://4jx6fbr85xri" path="res://scripts/data/reaction_rule.gd" id="2_rule"]
+[ext_resource type="Script" uid="uid://dmrsclaw152j6" path="res://scripts/data/apply_status_gameplay_effect.gd" id="3_status"]
+[ext_resource type="Script" uid="uid://bnt28s0u3qkaw" path="res://scripts/data/gameplay_effect.gd" id="4_effect"]
+[ext_resource type="Resource" uid="uid://bv33ssagrnm3o" path="res://data/statuses/status_exposed.tres" id="5_exposed"]
 
 [sub_resource type="Resource" id="expose"]
 script = ExtResource("3_status")

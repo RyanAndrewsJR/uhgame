@@ -1,9 +1,10 @@
-[gd_resource type="Resource" script_class="AbilityAugment" format=3]
+[gd_resource type="Resource" script_class="AbilityAugment" format=3 uid="uid://dp3hbknyqksuh"]
 
-[ext_resource type="Script" path="res://scripts/data/ability_augment.gd" id="1_augment"]
-[ext_resource type="Script" path="res://scripts/data/reaction_rule.gd" id="2_rule"]
-[ext_resource type="Script" path="res://scripts/data/deal_damage_gameplay_effect.gd" id="3_damage"]
-[ext_resource type="Script" path="res://scripts/data/gameplay_effect.gd" id="4_effect"]
+[ext_resource type="Script" uid="uid://wnhx8l8oou7k" path="res://scripts/data/ability_augment.gd" id="1_augment"]
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="2_qxyfe"]
+[ext_resource type="Script" uid="uid://4jx6fbr85xri" path="res://scripts/data/reaction_rule.gd" id="2_rule"]
+[ext_resource type="Script" uid="uid://ih85im21qmcl" path="res://scripts/data/deal_damage_gameplay_effect.gd" id="3_damage"]
+[ext_resource type="Script" uid="uid://bnt28s0u3qkaw" path="res://scripts/data/gameplay_effect.gd" id="4_effect"]
 
 [sub_resource type="Resource" id="lightning"]
 script = ExtResource("3_damage")
@@ -14,7 +15,6 @@ tags = Array[StringName]([&"lightning"])
 [sub_resource type="Resource" id="on_hit"]
 script = ExtResource("2_rule")
 id = &"sigil_storm_strike"
-trigger = 1
 chance = 0.15
 effects = Array[ExtResource("4_effect")]([SubResource("lightning")])
 chain_limit = 2

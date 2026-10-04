@@ -1,9 +1,9 @@
-[gd_resource type="Resource" script_class="EnemyData" format=3]
+[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://wd72b5ji5375"]
 
-[ext_resource type="Script" path="res://scripts/data/enemy_ability_slot.gd" id="1_wtxja"]
+[ext_resource type="Script" uid="uid://bgwd8lmpkp36g" path="res://scripts/data/enemy_ability_slot.gd" id="1_wtxja"]
 [ext_resource type="Resource" path="res://data/abilities/slime_elite_q_slam.tres" id="2_apfph"]
 [ext_resource type="Resource" path="res://data/enemy_behaviors/enemy_behavior_brute.tres" id="3_hxwqn"]
-[ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="4_bbqio"]
+[ext_resource type="Script" uid="uid://cguop83exi7gy" path="res://scripts/data/enemy_data.gd" id="4_bbqio"]
 [ext_resource type="Resource" path="res://data/units/slime_elite.tres" id="5_ydf3l"]
 
 [sub_resource type="Resource" id="Resource_6yaba"]

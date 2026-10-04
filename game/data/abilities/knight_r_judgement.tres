@@ -1,5 +1,6 @@
 [gd_resource type="Resource" format=3 uid="uid://dlwftnjvwcsk0"]
 
+[ext_resource type="Script" uid="uid://dqnryfnfjqenh" path="res://scripts/data/ai_use.gd" id="1_rwmyx"]
 [ext_resource type="Script" uid="uid://bak88ay0ax4ie" path="res://scripts/abilities/knight/judgement.gd" id="1_script"]
 [ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="2_scaling"]
 [ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="3_ln7e1"]

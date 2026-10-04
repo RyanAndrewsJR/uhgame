@@ -1,18 +1,8 @@
-[gd_resource type="Resource" script_class="AudioMix" format=3]
+[gd_resource type="Resource" script_class="AudioMix" format=3 uid="uid://ma65vnprc5np"]
 
-[ext_resource type="Script" path="res://scripts/data/audio_mix.gd" id="1_mix"]
+[ext_resource type="Script" uid="uid://va2ly86ggf5b" path="res://scripts/data/audio_mix.gd" id="1_mix"]
 [ext_resource type="Resource" path="res://data/sounds/sound_death_pack_burst.tres" id="2_burst"]
 
 [resource]
 script = ExtResource("1_mix")
-voice_cap = 32
-pause_music_duck_db = -6.0
-pause_low_pass = true
-pause_low_pass_hz = 1200.0
-duck_fade_time = 0.15
 pack_burst_sound = ExtResource("2_burst")
-pack_burst_count = 3
-pack_burst_window = 0.1
-log_size = 256
-debug_lines = 10
-debug_line_time = 3.0

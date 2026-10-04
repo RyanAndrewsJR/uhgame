@@ -1,6 +1,7 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" format=3 uid="uid://bubwr6orcxir7"]
 
-[ext_resource type="Script" path="res://scripts/abilities/knight/judgement_leap.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://dqnryfnfjqenh" path="res://scripts/data/ai_use.gd" id="1_5unea"]
+[ext_resource type="Script" uid="uid://n4tucstmb8om" path="res://scripts/abilities/knight/judgement_leap.gd" id="1_script"]
 [ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="2_scaling"]
 [ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="3_ln7e1"]
 [ext_resource type="Script" uid="uid://b03uhk6wyab30" path="res://scripts/data/status_effect.gd" id="6_rwmyx"]
@@ -50,8 +51,8 @@ script = ExtResource("1_script")
 id = &"knight_judgement_leap"
 tags = Array[StringName]([&"ultimate", &"area", &"leap"])
 display_name = "Judgement Leap"
-variant_of = &"knight_judgement"
 supported_flags = Array[StringName]([&"judgement_shockwave"])
+variant_of = &"knight_judgement"
 description = "Leap to a spot up to {range} units away, over anything in the way, and strike every enemy within {landing_radius} units of where you land for {damage} physical damage ({base_damage} {ratios}), stunning them for {stun_duration}s."
 icon_color = Color(1, 0.35, 0.3, 1)
 targeting = 2

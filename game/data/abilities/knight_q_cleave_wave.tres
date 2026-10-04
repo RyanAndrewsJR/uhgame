@@ -1,5 +1,6 @@
 [gd_resource type="Resource" format=3 uid="uid://b46uglcydylt1"]
 
+[ext_resource type="Script" uid="uid://dqnryfnfjqenh" path="res://scripts/data/ai_use.gd" id="1_3g44i"]
 [ext_resource type="Script" uid="uid://bb2qyelou27yv" path="res://scripts/abilities/knight/cleave_wave.gd" id="1_script"]
 [ext_resource type="Script" uid="uid://b03uhk6wyab30" path="res://scripts/data/status_effect.gd" id="7_nsmss"]
 [ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="8_3g44i"]
