@@ -77,6 +77,13 @@ enum Phase { NONE, LEAD_BY_PROGRESS, LEAD_BY_TIME, FOLLOW, DASH }
 @export var flash_time: float = 0.12
 @export_range(0.0, 1.0) var flash_strength: float = 0.8
 
+@export_group("Poses")
+## ENEMIES_AI AI1: an enemy's pose (its tell: Enemy.get_pose(), the look from
+## its PoseSet) is blended in over this long (s): a capsule leans (+ toward
+## its target), squashes and shows a rim; a model will play the pose's clip
+## (the art pass).
+@export var pose_blend_time: float = 0.08
+
 @export_group("Death")
 ## How long the view stays after the unit is freed: its death clip, or the
 ## placeholder's squash (s).
@@ -153,6 +160,11 @@ var _ghost_next := 0
 var _model_root: Node3D       # the model's own root (scaled), under _model
 var _overlay: ShaderMaterial  # the flash overlay (hit flash, blink flash)
 var _blink_snap := false      # a blink happened: snap and flash at the next sync
+var _pose_lean := 0.0         # degrees, blended toward the pose's look (ENEMIES_AI AI1)
+var _pose_squash := 1.0
+var _pose_rim := Color(1, 1, 1, 0)
+var _pose_pulse_t := 0.0
+var _rim_shown := Color(1, 1, 1, 0)   # what the overlay's rim channel holds now
 
 
 func _on_setup() -> void:
@@ -382,6 +394,13 @@ func _facing() -> Vector2:
 	var facing: Variant = sim.get(&"facing")
 	if facing is Vector2:
 		return facing
+	# An enemy whose brain runs faces its target, even while it strafes
+	# around it (ENEMIES_AI AI1: Enemy.get_face_point()).
+	if sim.has_method(&"get_face_point"):
+		var point: Vector2 = sim.call(&"get_face_point")
+		var to_point := point - sim.global_position if point != Vector2.INF else Vector2.ZERO
+		if to_point.length() > 0.01:
+			return to_point.normalized()
 	if _face_px != Vector2.INF and (_windup_left > 0.0 or (unit.abilities and unit.abilities.casting)):
 		return (_face_px - sim.global_position).normalized()
 	var v := (sim as CharacterBody2D).velocity
@@ -402,6 +421,7 @@ func _process(delta: float) -> void:
 	_update_airborne(delta)
 	_update_blink(delta)
 	_update_ghosts(delta)
+	_update_pose(delta)
 	if _anim:
 		_update_clips(delta)
 	else:
@@ -633,9 +653,63 @@ func _update_placeholder(delta: float) -> void:
 		lift = absf(sin(_bob)) * 0.06
 	else:
 		_bob = 0.0
+	# The pose's squash on top (ENEMIES_AI AI1): height down, width up.
+	var pose_width := 1.0 + (1.0 - _pose_squash) * 0.5
+	squash *= Vector3(pose_width, _pose_squash, pose_width)
 	var k := 1.0 - exp(-30.0 * delta)
 	_body.scale = _body.scale.lerp(squash, k)
 	_body.position.y = lerpf(_body.position.y, lift, k)
+	# The pose's lean about the capsule's base: + tilts its top toward its
+	# front (+z), which faces its target while its brain runs.
+	_body.rotation.x = deg_to_rad(_pose_lean)
+
+
+# --- Poses (ENEMIES_AI AI1) --------------------------------------------------------------
+
+## The look of the pose the sim shows now (Enemy.get_pose() in its
+## PoseSet), or null: no pose, or a unit without poses (the Player).
+func _target_pose_look() -> PoseLook:
+	if not sim.has_method(&"get_pose"):
+		return null
+	var pose: StringName = sim.call(&"get_pose")
+	if pose == &"":
+		return null
+	var pose_set := sim.call(&"get_pose_set") as PoseSet
+	return pose_set.get_look(pose) if pose_set != null else null
+
+
+## Blends toward the pose's look (pose_blend_time), and shows its rim on the
+## overlay's second channel, pulsing at its rate; the hit flash wins while it
+## plays. The lean and the squash are applied by _update_placeholder() (a
+## model's clip comes with the art pass).
+func _update_pose(delta: float) -> void:
+	var look := _target_pose_look()
+	var k := 1.0 - exp(-3.0 * delta / maxf(pose_blend_time, 0.001))
+	_pose_lean = lerpf(_pose_lean, look.lean_deg if look else 0.0, k)
+	_pose_squash = lerpf(_pose_squash, look.squash if look else 1.0, k)
+	_pose_rim = _pose_rim.lerp(look.rim_color if look else Color(_pose_rim, 0.0), k)
+	_pose_pulse_t += delta
+	var alpha := _pose_rim.a
+	var pulse_hz := look.pulse_hz if look else 0.0
+	if pulse_hz > 0.0:
+		alpha *= 0.55 + 0.45 * sin(_pose_pulse_t * TAU * pulse_hz)
+	if _flash > 0.0:
+		alpha = 0.0
+	_set_rim(Color(_pose_rim.r, _pose_rim.g, _pose_rim.b, alpha if alpha > 0.004 else 0.0))
+
+
+func _set_rim(rim: Color) -> void:
+	if rim.is_equal_approx(_rim_shown):
+		return
+	_rim_shown = rim
+	for geo: GeometryInstance3D in _geos:
+		if is_instance_valid(geo):
+			geo.set_instance_shader_parameter(&"rim", rim)
+
+
+## The pose's blended look now (view_test): {lean_deg, squash, rim}.
+func get_pose_look_now() -> Dictionary:
+	return {"lean_deg": _pose_lean, "squash": _pose_squash, "rim": _rim_shown}
 
 
 # --- Hit, death ----------------------------------------------------------------------------
@@ -651,6 +725,9 @@ func _on_died(_unit: Unit) -> void:
 	_death_t = 0.0
 	_phase = Phase.NONE
 	_model.visible = true
+	_set_rim(Color(1, 1, 1, 0))   # a pose's rim goes with the death
+	if _body:
+		_body.rotation.x = 0.0
 	if _anim and _anim.has_animation(death_clip):
 		_anim.speed_scale = 1.0
 		_anim.play(death_clip, 0.08)

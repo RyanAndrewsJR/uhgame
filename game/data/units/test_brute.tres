@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="UnitStats" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/unit_stats.gd" id="1_8t7aq"]
+
+[resource]
+script = ExtResource("1_8t7aq")
+attack_damage = 26.0
+attack_range = 125.0
+base_attack_speed = 0.7
+attack_windup = 0.2
+move_speed = 300.0
+gameplay_radius = 70.0
+pathing_radius = 50.0

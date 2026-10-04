@@ -3699,6 +3699,7 @@ func _test_ab13_enemy() -> void:
 	t.queue_free()
 
 	var elite: Enemy = ELITE_SCENE.instantiate()
+	elite.data = null   # the naive cast loop: an elite with no EnemyData plays as before (ENEMIES_AI AI1)
 	elite.passive = true
 	add_child(elite)
 	_place(elite, k + Vector2(120, 0))
@@ -3774,6 +3775,7 @@ func _test_enemy_skips_failing_slot() -> void:
 	focus.status_tag = &"test_focus"
 	needs_focus.cast_conditions = [focus]
 	var elite: Enemy = ELITE_SCENE.instantiate()
+	elite.data = null   # the naive cast loop: an elite with no EnemyData plays as before (ENEMIES_AI AI1)
 	elite.passive = true
 	add_child(elite)
 	_place(elite, knight.global_position + Vector2(60, 0))

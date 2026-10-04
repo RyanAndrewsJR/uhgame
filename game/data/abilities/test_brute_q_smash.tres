@@ -1,0 +1,27 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ai_use.gd" id="1_w5byr"]
+[ext_resource type="Script" path="res://scripts/data/condition.gd" id="2_sv26k"]
+[ext_resource type="Script" path="res://scripts/data/charge_scaling.gd" id="3_fky27"]
+[ext_resource type="Script" path="res://scripts/data/conditional_bonus.gd" id="4_hjgpv"]
+[ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_hit.tres" id="5_05mma"]
+[ext_resource type="Script" path="res://scripts/data/damage_scaling.gd" id="6_75m3n"]
+[ext_resource type="Script" path="res://scripts/abilities/slime/slam.gd" id="7_rig8k"]
+[ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_telegraph.tres" id="8_f5x1f"]
+
+[resource]
+script = ExtResource("7_rig8k")
+radius_px = 64.0
+knockback_px = 24.0
+id = &"test_brute_smash"
+tags = Array[StringName]([&"area", &"core"])
+display_name = "Smash"
+description = "Marks a {radius_px} px circle where the target stands, fills it over {cast_time} s, then smashes: {damage} physical damage and a {knockback_px} px push to everyone inside."
+icon_color = Color(1, 0.45, 0.2, 1)
+targeting = 2
+cast_time = 0.7
+cast_range = 250.0
+resets_auto_attack = false
+base_damage = 80.0
+hit_sound = ExtResource("5_05mma")
+telegraph_sound = ExtResource("8_f5x1f")

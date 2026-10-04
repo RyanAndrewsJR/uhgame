@@ -1286,7 +1286,7 @@ func _test_elite_ai() -> void:
 	await _reset_knight()
 	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
 	knight.health.heal(10000.0)
-	var elite := _spawn_elite(knight.global_position + Vector2(70, 0), false)
+	var elite := _spawn_elite(knight.global_position + Vector2(70, 0), false, true)
 	await _wait_until(func() -> bool: return elite.abilities.casting, 90)
 	_check("it aggroes and casts the slam", elite.abilities.casting, true)
 	var telegraph := _find_telegraph()
@@ -1368,8 +1368,12 @@ func _test_telegraph_on_death() -> void:
 	await _frames(2)
 
 
-func _spawn_elite(pos: Vector2, passive: bool) -> Enemy:
+## `naive`: no EnemyData, so no brain: the old routine and its naive cast
+## loop (ENEMIES_AI AI1; C5's checks are about that loop).
+func _spawn_elite(pos: Vector2, passive: bool, naive: bool = false) -> Enemy:
 	var elite: Enemy = ELITE_SCENE.instantiate()
+	if naive:
+		elite.data = null
 	elite.passive = passive
 	add_child(elite)
 	_place(elite, pos)

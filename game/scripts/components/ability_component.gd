@@ -1385,6 +1385,19 @@ func reset_cooldown(slot: StringName) -> void:
 		_finish_recharge(slot, get_ability(slot))
 
 
+## Spends every charge of the slot and starts its recharge, as if it had just
+## been cast (no cast, no cost, no effect): a test hook for the enemies test
+## and the sandbox's brain scenarios (ENEMIES_AI AI1). Nothing during a
+## recast sequence.
+func start_cooldown(slot: StringName) -> void:
+	var ability := get_ability(slot)
+	if ability == null or _recast.has(slot):
+		return
+	_charges[slot] = 0
+	charges_changed.emit(slot, 0, get_max_charges(slot))
+	_start_recharge(slot, ability)
+
+
 func _is_recharging(slot: StringName) -> bool:
 	return get_ability(slot) != null and not _recast.has(slot) \
 		and get_charges(slot) < get_max_charges(slot) and _cooldown_left.get(slot, 0.0) > 0.0

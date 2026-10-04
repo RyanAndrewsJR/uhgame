@@ -24,6 +24,7 @@ Settings="*res://scripts/autoload/settings.gd"
 Reactions="*res://scripts/autoload/reactions.gd"
 Progress="*res://scripts/autoload/progress.gd"
 Loot="*res://scripts/autoload/loot.gd"
+Brains="*res://scripts/autoload/brains.gd"
 Audio="*res://scripts/autoload/audio.gd"
 
 [display]

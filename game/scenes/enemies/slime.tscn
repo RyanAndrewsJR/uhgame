@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://scripts/components/stats_component.gd" id="9_stats_component"]
 [ext_resource type="Script" path="res://scripts/components/status_component.gd" id="10_status_component"]
 [ext_resource type="Resource" path="res://data/sounds/sound_slime_death.tres" id="11_death_sound"]
+[ext_resource type="Resource" path="res://data/enemies/enemy_slime.tres" id="12_data"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_body"]
 radius = 14.0
@@ -26,6 +27,7 @@ stats = ExtResource("6_stats")
 body_center = Vector2(0, -10)
 death_sound = ExtResource("11_death_sound")
 model_color = Color(0.35, 0.85, 0.4, 1)
+data = ExtResource("12_data")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_body")

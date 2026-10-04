@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/enemy_ability_slot.gd" id="1_wtxja"]
+[ext_resource type="Resource" path="res://data/abilities/slime_elite_q_slam.tres" id="2_apfph"]
+[ext_resource type="Resource" path="res://data/enemy_behaviors/enemy_behavior_brute.tres" id="3_hxwqn"]
+[ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="4_bbqio"]
+[ext_resource type="Resource" path="res://data/units/slime_elite.tres" id="5_ydf3l"]
+
+[sub_resource type="Resource" id="Resource_6yaba"]
+script = ExtResource("1_wtxja")
+ability = ExtResource("2_apfph")
+
+[resource]
+script = ExtResource("4_bbqio")
+id = &"slime_elite"
+display_name = "Elite Slime"
+rank = 2
+behavior = ExtResource("3_hxwqn")
+stats = ExtResource("5_ydf3l")
+abilities = Array[ExtResource("1_wtxja")]([SubResource("Resource_6yaba")])
+model_color = Color(0.62, 0.35, 0.85, 1)

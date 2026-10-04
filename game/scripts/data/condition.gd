@@ -22,6 +22,7 @@ enum Kind {
 	ENEMIES_IN_RANGE,       ## >= count living enemies of self within radius (tagged status_tag if set).
 	RESOURCE_AT_LEAST,      ## Self's resource pool >= value; a unit without a pool fails.
 	LAST_PART_HIT,          ## In a recast sequence, the previous part hit something (reads the cast).
+	RESPECT,                ## The brain's situation: its respect (0-1) compared with value (ENEMIES_AI AI1).
 }
 
 enum Comparison {
@@ -38,10 +39,10 @@ enum Comparison {
 @export var status_tag: StringName = &""
 ## SELF_ / TARGET_HAS_STATUS.
 @export var min_stacks: int = 1
-## The *_HEALTH_PERCENT kinds and TARGET_DISTANCE.
+## The *_HEALTH_PERCENT kinds, TARGET_DISTANCE and RESPECT.
 @export var comparison: Comparison = Comparison.AT_LEAST
 ## *_HEALTH_PERCENT: 0-1 of max health. TARGET_DISTANCE: LoL units, edge to
-## edge. RESOURCE_AT_LEAST: the amount.
+## edge. RESOURCE_AT_LEAST: the amount. RESPECT: 0-1.
 @export var value: float = 0.0
 ## ENEMIES_IN_RANGE: at least this many.
 @export var count: int = 1
@@ -53,12 +54,19 @@ enum Comparison {
 
 
 ## The kind's check, then negate. `cast` is the CastContext when there is one
-## (LAST_PART_HIT reads it); null otherwise.
-func is_met(self_unit: Unit, target: Unit, cast: CastContext = null) -> bool:
+## (LAST_PART_HIT reads it); null otherwise. `situation` is an enemy brain's
+## SituationContext when an AI use rule is checked (ENEMIES_AI AI1); the
+## situation kinds (RESPECT) read it, and without one they're false, even
+## when negated (a cast condition, a reaction rule). The other kinds ignore it.
+func is_met(self_unit: Unit, target: Unit, cast: CastContext = null, situation: SituationContext = null) -> bool:
 	if not is_instance_valid(self_unit):
 		return false
 	if is_target_kind() and (not is_instance_valid(target) or not target.is_alive()):
 		return false   # no target: false, even when negated
+	if is_situation_kind():
+		if situation == null:
+			return false   # no situation: false, even when negated
+		return _check_situation(situation) != negate
 	return _check(self_unit, target, cast) != negate
 
 
@@ -68,18 +76,24 @@ func is_target_kind() -> bool:
 	return kind == Kind.TARGET_HAS_STATUS or kind == Kind.TARGET_HEALTH_PERCENT or kind == Kind.TARGET_DISTANCE
 
 
+## A kind that reads a brain's SituationContext (RESPECT; later THREATENED
+## and TARGET_WHIFFED, ENEMIES_AI AI3 and AI6).
+func is_situation_kind() -> bool:
+	return kind == Kind.RESPECT
+
+
 ## All of `conditions` pass (AND). An empty list passes.
-static func all_met(conditions: Array[Condition], self_unit: Unit, target: Unit, cast: CastContext = null) -> bool:
+static func all_met(conditions: Array[Condition], self_unit: Unit, target: Unit, cast: CastContext = null, situation: SituationContext = null) -> bool:
 	for c in conditions:
-		if c != null and not c.is_met(self_unit, target, cast):
+		if c != null and not c.is_met(self_unit, target, cast, situation):
 			return false
 	return true
 
 
 ## The first of `conditions` that fails (for its fail_text), or null.
-static func first_failed(conditions: Array[Condition], self_unit: Unit, target: Unit, cast: CastContext = null) -> Condition:
+static func first_failed(conditions: Array[Condition], self_unit: Unit, target: Unit, cast: CastContext = null, situation: SituationContext = null) -> Condition:
 	for c in conditions:
-		if c != null and not c.is_met(self_unit, target, cast):
+		if c != null and not c.is_met(self_unit, target, cast, situation):
 			return c
 	return null
 
@@ -110,6 +124,15 @@ func _check(self_unit: Unit, target: Unit, cast: CastContext) -> bool:
 			return self_unit.resource_pool != null and self_unit.resource_pool.current >= value
 		Kind.LAST_PART_HIT:
 			return cast != null and cast.last_part_hit
+	return false
+
+
+## RESPECT: the party's respect as the situation saw it (0-1, before the
+## enemy's respect_weight slider: the same for every enemy).
+func _check_situation(situation: SituationContext) -> bool:
+	match kind:
+		Kind.RESPECT:
+			return _compare(situation.respect)
 	return false
 
 

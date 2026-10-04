@@ -5,6 +5,7 @@
 [ext_resource type="Script" path="res://scripts/components/ability_component.gd" id="3_abilities"]
 [ext_resource type="Resource" path="res://data/abilities/slime_elite_q_slam.tres" id="4_slam"]
 [ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_death.tres" id="5_death_sound"]
+[ext_resource type="Resource" path="res://data/enemies/enemy_slime_elite.tres" id="6_data"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_elite"]
 radius = 19.0
@@ -14,6 +15,7 @@ stats = ExtResource("2_stats")
 body_center = Vector2(0, -14)
 death_sound = ExtResource("5_death_sound")
 model_color = Color(0.62, 0.35, 0.85, 1)
+data = ExtResource("6_data")
 
 [node name="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_elite")

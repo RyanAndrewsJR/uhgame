@@ -135,6 +135,7 @@ func _ready() -> void:
 	await _test_arcs_and_pillars()
 	await _test_2d_looks_gone()
 	await _test_model_blink_and_clips()
+	_test_enemy_poses()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -2701,6 +2702,64 @@ func _test_model_blink_and_clips() -> void:
 	Audio.stop_all()
 	for i in 10:
 		await get_tree().process_frame
+
+
+# --- Enemy poses (ENEMIES_AI AI1; Tells) -----------------------------------------------------
+
+## UnitView's pose hooks: an enemy's pose (its brain's tell) leans and
+## squashes its capsule and shows its rim on the overlay's second channel,
+## blended in over pose_blend_time; the hit flash wins over the rim; no pose,
+## no look. The brain's pose is set by hand (no player here to fight), and the
+## view's frame is called directly so the enemy's own tick doesn't run.
+func _test_enemy_poses() -> void:
+	_section("Enemy poses (ENEMIES_AI AI1): lean, squash, rim")
+	var view := WorldView.new()
+	add_child(view)
+	view.camera = _aim_camera(view, FOCUS)
+	view.watch_sim()
+	var brute := (load("res://scenes/enemies/test_brute.tscn") as PackedScene).instantiate() as Enemy
+	brute.position = Units.to_sim(FOCUS)
+	add_child(brute)
+	var bv := view.view_of(brute) as UnitView
+	var body := bv.find_child("Body", true, false) as Node3D
+	var capsule := bv.find_child("Capsule", true, false) as GeometryInstance3D
+	var brain := brute.get_brain()
+	_check("the brute has a view, a capsule and a brain", [bv != null, body != null, brain != null], [true, true, true])
+	if bv == null or body == null or brain == null:
+		view.free()
+		brute.free()
+		return
+	_check("no pose: no look", [brute.get_pose(), bv.get_pose_look_now().lean_deg], [&"", 0.0])
+	brute.ai = Enemy.AI.AGGRO   # its brain counts as running (the tick that would drop it doesn't run)
+	brain.set(&"_pose", &"crouch")
+	_check("the enemy shows its brain's pose, from its pose set", [brute.get_pose(), brute.get_pose_set().get_look(&"crouch").squash], [&"crouch", 0.8])
+	bv._process(0.02)
+	var partway: float = bv.get_pose_look_now().lean_deg
+	_check("blended in: part way after 0.02 s", partway > 1.0 and partway < 14.0, true)
+	for i in 30:
+		bv._process(0.02)
+	_check_near("crouch: leaning 15° toward its front", bv.get_pose_look_now().lean_deg, 15.0, 0.05)
+	_check_near("the capsule tilts about its base", body.rotation.x, deg_to_rad(15.0), 0.002)
+	_check_near("squashed to 0.8 tall", body.scale.y, 0.8, 0.01)
+	_check_near("and wider (1.1)", body.scale.x, 1.1, 0.01)
+	brain.set(&"_pose", &"draw_back")
+	for i in 30:
+		bv._process(0.02)
+	var rim: Color = capsule.get_instance_shader_parameter(&"rim")
+	_check("draw_back: an orange rim on the overlay (pulsing)", [rim.a > 0.0, rim.r > rim.b], [true, true])
+	brute.damaged.emit(5.0, null)
+	bv._process(0.01)
+	rim = capsule.get_instance_shader_parameter(&"rim")
+	_check("the hit flash wins: no rim while it plays", [float(capsule.get_instance_shader_parameter(&"flash")) > 0.0, rim.a], [true, 0.0])
+	brain.set(&"_pose", &"")
+	for i in 40:
+		bv._process(0.02)
+	rim = capsule.get_instance_shader_parameter(&"rim")
+	_check_near("no pose again: upright", bv.get_pose_look_now().lean_deg, 0.0, 0.05)
+	_check("and no rim", rim.a, 0.0)
+	brute.ai = Enemy.AI.IDLE
+	brute.free()
+	view.free()
 
 
 # --- Helpers ------------------------------------------------------------------------------

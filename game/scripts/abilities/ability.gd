@@ -253,11 +253,22 @@ const DAMAGE_NUMBER_STYLE_PATH := "res://data/damage_number_styles/damage_number
 ## Empty or no such clip = nothing.
 @export var cast_anim: StringName = &""
 
+@export_group("AI")
+## What the AI uses this ability for (ENEMIES_AI.md, Intents; AI1): each use
+## an intent tag, use rules and a weight. Empty = one `damage` use with no
+## rules (get_ai_uses()). The aim and the value come from get_ai_plan().
+@export var ai_uses: Array[AIUse] = []
+## How much enemies hold back while this is ready on a champion (ENEMIES_AI.md,
+## Respect; Ryan, I2). −1 = derived from its role tag (+1 if it applies crowd
+## control; EnemyAITable.get_respect_value()); set it for the outliers.
+@export var respect_value: float = -1.0
+
 ## pull_airborne()'s knock-up (loaded at its first use, LOOT L5).
 const AIRBORNE_STATUS_PATH := "res://data/statuses/status_airborne.tres"
 static var _airborne_template: StatusEffect
 static var _placeholder_regex: RegEx
 static var _base_params: Dictionary = {}   # StringName -> true (is_base_param())
+static var _default_ai_uses: Array[AIUse] = []   # one `damage` use, no rules (get_ai_uses())
 var _role_warned: bool = false
 var _warned_placeholders: Dictionary = {}   # placeholder key -> true (warned once)
 
@@ -832,3 +843,68 @@ func get_ai_vector(caster: Unit, target: Unit) -> Dictionary:
 		"start": target.global_position,
 		"direction": to_target.normalized() if to_target.length() > 0.01 else Vector2.RIGHT,
 	}
+
+
+# --- AI (ENEMIES_AI.md AI1; ALLIES.md, An AI method per ability) --------------------
+
+## What the AI may use this ability for: ai_uses, or (none set) one `damage`
+## use with no rules, so an ability nobody tagged still gets cast.
+func get_ai_uses() -> Array[AIUse]:
+	if not ai_uses.is_empty():
+		return ai_uses
+	if _default_ai_uses.is_empty():
+		_default_ai_uses.append(AIUse.make(&"damage"))
+	return _default_ai_uses
+
+
+## The intents of the uses whose rules pass for `caster` against `target` in
+## `situation`.
+func get_passing_intents(caster: Unit, target: Unit, situation: SituationContext) -> Array[StringName]:
+	var out: Array[StringName] = []
+	for use in get_ai_uses():
+		if use != null and not out.has(use.intent) and use.passes(caster, target, situation):
+			out.append(use.intent)
+	return out
+
+
+## "My best use right now, and how good is it?" (ALLIES.md; abilities
+## propose, brains decide). The brain asks only castable slots (their
+## get_fail_reason() empty) and fills in the plan's slot. The shared default
+## (built in ENEMIES_AI AI1; AL4 adds the Knight's): the situation's target
+## where it stands now (no leading: an enemy's shot can be walked out of),
+## within cast_range of the caster's center and in sight unless the ability
+## ignores walls (as the naive loop did); a SELF ability aims at the caster;
+## a VECTOR ability's line from get_ai_vector(). Its intents are the passing
+## uses', its value 1. null = no good use now (no target, out of range, no
+## sight, or no use passes). Override where an ability needs its own aim or
+## value.
+func get_ai_plan(caster: Unit, situation: SituationContext) -> CastPlan:
+	if situation == null or not is_instance_valid(caster):
+		return null
+	var target := situation.target_unit
+	var plan := CastPlan.new()
+	plan.ability = self
+	if targeting == Targeting.SELF:
+		plan.point = caster.global_position
+	else:
+		if not is_instance_valid(target) or not target.is_targetable():
+			return null
+		var range_px := Units.to_px(get_param(caster, &"cast_range"))
+		if caster.global_position.distance_to(target.global_position) > range_px:
+			return null
+		if not can_reach_through_walls(caster.global_position, target):
+			return null
+		plan.target = target
+		plan.point = target.global_position
+		var to_target := target.global_position - caster.global_position
+		plan.direction = to_target.normalized() if to_target.length() > 0.01 else Vector2.RIGHT
+		if cast_style == CastStyle.VECTOR:
+			var v := get_ai_vector(caster, target)
+			plan.vector_start = v.start
+			plan.vector_direction = v.direction
+	plan.intents = get_passing_intents(caster, target, situation)
+	if plan.intents.is_empty():
+		return null
+	plan.value = 1.0
+	plan.reason = "default plan"
+	return plan

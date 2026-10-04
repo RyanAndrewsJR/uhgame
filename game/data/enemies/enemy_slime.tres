@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/enemy_ability_slot.gd" id="1_kddlh"]
+[ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="2_dacri"]
+[ext_resource type="Resource" path="res://data/units/slime.tres" id="3_mqple"]
+
+[resource]
+script = ExtResource("2_dacri")
+id = &"slime"
+display_name = "Slime"
+rank = 0
+stats = ExtResource("3_mqple")
+model_color = Color(0.35, 0.85, 0.4, 1)

@@ -1,0 +1,90 @@
+[gd_resource type="Resource" script_class="PoseSet" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/pose_look.gd" id="1_ttykm"]
+[ext_resource type="Script" path="res://scripts/data/pose_set.gd" id="2_v8hyr"]
+
+[sub_resource type="Resource" id="Resource_fgdym"]
+script = ExtResource("1_ttykm")
+lean_deg = -5.0
+
+[sub_resource type="Resource" id="Resource_rgu8v"]
+script = ExtResource("1_ttykm")
+lean_deg = 15.0
+squash = 0.8
+
+[sub_resource type="Resource" id="Resource_mwiah"]
+script = ExtResource("1_ttykm")
+lean_deg = -15.0
+squash = 1.1
+rim_color = Color(1, 0.55, 0.15, 0.85)
+pulse_hz = 6.0
+
+[sub_resource type="Resource" id="Resource_grkk2"]
+script = ExtResource("1_ttykm")
+lean_deg = 10.0
+
+[sub_resource type="Resource" id="Resource_ejg0a"]
+script = ExtResource("1_ttykm")
+lean_deg = -20.0
+
+[sub_resource type="Resource" id="Resource_ywrhu"]
+script = ExtResource("1_ttykm")
+rim_color = Color(1, 1, 1, 0.9)
+pulse_hz = 4.0
+
+[sub_resource type="Resource" id="Resource_0cbmv"]
+script = ExtResource("1_ttykm")
+lean_deg = -15.0
+
+[sub_resource type="Resource" id="Resource_t044k"]
+script = ExtResource("1_ttykm")
+lean_deg = 10.0
+rim_color = Color(1, 0.2, 0.15, 0.75)
+
+[sub_resource type="Resource" id="Resource_tkby7"]
+script = ExtResource("1_ttykm")
+squash = 0.85
+
+[sub_resource type="Resource" id="Resource_gcybp"]
+script = ExtResource("1_ttykm")
+rim_color = Color(1, 0.4, 0.3, 0.5)
+pulse_hz = 1.0
+
+[sub_resource type="Resource" id="Resource_623qs"]
+script = ExtResource("1_ttykm")
+lean_deg = -10.0
+squash = 0.92
+
+[sub_resource type="Resource" id="Resource_yyhyg"]
+script = ExtResource("1_ttykm")
+lean_deg = -25.0
+squash = 1.15
+rim_color = Color(1, 0.3, 0.1, 0.95)
+pulse_hz = 8.0
+
+[sub_resource type="Resource" id="Resource_lmsph"]
+script = ExtResource("1_ttykm")
+squash = 1.15
+
+[sub_resource type="Resource" id="Resource_8uet0"]
+script = ExtResource("1_ttykm")
+lean_deg = -10.0
+
+[resource]
+script = ExtResource("2_v8hyr")
+poses = Dictionary[StringName, ExtResource("1_ttykm")]({
+&"alert": SubResource("Resource_lmsph"),
+&"breather": SubResource("Resource_623qs"),
+&"cornered": SubResource("Resource_t044k"),
+&"crouch": SubResource("Resource_rgu8v"),
+&"draw_back": SubResource("Resource_mwiah"),
+&"finish": SubResource("Resource_yyhyg"),
+&"guard": SubResource("Resource_ywrhu"),
+&"hold": SubResource("Resource_fgdym"),
+&"pressure": SubResource("Resource_gcybp"),
+&"recoil": SubResource("Resource_ejg0a"),
+&"return": SubResource("Resource_8uet0"),
+&"sidestep": SubResource("Resource_tkby7"),
+&"stalk": SubResource("Resource_grkk2"),
+&"step_back": SubResource("Resource_0cbmv")
+})
