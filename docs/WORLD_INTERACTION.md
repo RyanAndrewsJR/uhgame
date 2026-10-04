@@ -17,7 +17,7 @@
 
 Example: an Akshan-style swing is an ability that asks `WorldQuery` for a grappleable wall, then calls `movement.orbit(...)`.
 
-## Collision layers (1–5 exist; add 6+ as systems need them)
+## Collision layers (1–7 and 11 are named in `project.godot`; add the others as systems need them)
 | # | Name | What's on it | Status |
 |---|---|---|---|
 | 1 | world | walls, pillars (tiles with collision) | exists |
@@ -90,11 +90,12 @@ A puzzle element (a brazier, a lever, a plate, a cracked wall, a collapsing brid
 - One rule for all units: any displacement (dash, knockback, blink, swing) that ends with the unit's feet **8 px or more** inside a pit makes it fall. Less than 8 px snaps it back to the edge.
 - **Every displacement ignores the pit layer while it runs**, the exemption a ghosted `dash()` already has: `displace()` (knockback, swing steps), `blink()`, `pull_to()` and `orbit()` take layer 6 out of the unit's `collision_mask` when they start and put it back when they end (any way they end), keeping every other bit (so knockback still slides along walls and stops on units). Otherwise a pit edge would stop the unit like a wall and no push could ever carry it the 8 px the rule needs. `blink()`'s endpoint check (`resolve_valid_position`) resolves walls only and leaves pits to the 8 px rule, for the same reason. Walking keeps the pit layer: a unit never walks into a pit.
 - **The player falls:** takes 5% of max health (can't drop below 1 health), then respawns on the last safe tile (the last floor tile the player stood fully on).
-- **An enemy falls:** it dies, the kill goes to whoever caused the displacement (Kill credit), and its drops land on the nearest floor tile. **Bosses never fall;** they snap to the edge.
+- **An enemy falls:** it dies, the kill goes to whoever caused the displacement (Kill credit), and its drops land on the nearest walkable point outside the pit (a room built in 3D has no tiles; *(proposed, LOOT sync)* `WorldQuery.push_out()`, LOOT.md, Pickups). **Bosses never fall;** they snap to the edge.
 - Pit tiles have no navigation polygon, so enemies never path into them. (Today `Room._bake_navigation()` only carves colliders on layer 1 from the `navigation_source` group, so whatever builds pits has to add them to that bake.)
 - Pits get their own TileMapLayer, `Pits`, with physics on layer 6. Floor and walls stay on `Tiles`. **In a layout** (3D.md, Rooms) a pit is an asset (a hole in the floor) whose `Footprint` is kind PIT (layer 6); the bake leaves it out the same way.
 - **Pit-drops are not pits** *(proposed in DUNGEONS.md)*: a pit-drop that leads to a wing's lower floor is a `FloorLink` (kind `DROP`), not a pit footprint. The party goes down with a fade and takes no damage; an enemy knocked into one falls as into a pit (it dies, kill credit as above). Every other pit keeps the rules above.
 - **Knocked up** (3D.md, Terrain and height 1a): an airborne, displaced unit also drops the low-obstacle and ledge layers (7, 11), so a knock-up can carry an enemy over a fence, off a cliff or into a pit (the pit rule applies where it lands). Inside a low obstacle or a ledge's footprint, `resolve_valid_position()` puts it on the nearest floor on the side it came from; a body only overlapping one (its center clear) stays on the ground its center is over (the P9 fix). No fall damage for now (Ryan, 2026-10-01).
+- **Leaping** (3D.md, Leaps; Ryan, 2026-10-03): a champion's own leap goes over everything, walls and pits included, and lands on the nearest walkable floor of the room to its aimed point, so it never lands in a pit (a pit isn't walkable floor).
 
 ## Hazards (approved by Ryan 2026-09-30)
 A `Hazard` is an Area2D scene on layer 10 with:

@@ -146,7 +146,7 @@ What the player earns across all champions, beyond each champion's own progress.
 
 ## Scope
 - **In:** single-player, hand-painted stylized 3D at native resolution (League-style); UI and window designed for 1920×1080 and scaling to the player's monitor; multiple champions (Knight first), hand-made rooms stitched into dungeons, gear with affixes and augments.
-- **Camera and world (3D_PIVOT.md, Givens):** a fixed-angle camera that follows the player and never rotates; no jumping; real terrain height (stairs, ramps, hills, plateaus) on a gameplay floor that stays flat; knock-ups; floors that overlap are separate rooms, joined by stairs or doors.
+- **Camera and world (3D_PIVOT.md, Givens):** a fixed-angle camera that follows the player and never rotates; no jumping (no jump key: abilities can still leap, the champion airborne like Pantheon's or Galio's ultimate; Ryan, 2026-10-03); real terrain height (stairs, ramps, hills, plateaus) on a gameplay floor that stays flat; knock-ups; floors that overlap are separate rooms, joined by stairs or doors.
 - **Out for now:** multiplayer/co-op, PvP, open world, procedural room geometry. *(assumed)* Shuffled contents in fixed, hand-made layouts are in (DUNGEONS.md): what stands in a space changes each run, the space never does. A wing's scale is dense, hand-built spaces, not an open world.
 - **Out for now (decided):** gamepad. Keyboard and mouse only for now.
 

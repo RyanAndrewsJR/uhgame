@@ -191,7 +191,7 @@ The four kinds, all in:
 ### The champion lens and champion quest lines (MUST; Ryan 2026-10-03)
 - **The same for everyone:** the layout, the enemies, the main quests.
 - **Changes per champion:** codex entries, NPC dialogue and some scenes. NARRATIVE.md writes them; the data carries per-champion variants over a shared text.
-- **One champion quest line per wing** for each champion, "medium-small": about 10–15 minutes. It **reuses wing space**: an existing room, a hidden door, a special encounter or a small puzzle; at most a small new alcove. It pays out a **unique named reward** plus codex entries.
+- **One champion quest line per wing** for each champion, "medium-small": about 10–15 minutes. It **reuses wing space**: an existing room, a hidden door, a special encounter or a small puzzle; at most a small new alcove. It pays out a **one-of-a-kind named reward** (not the Unique rarity) plus codex entries.
 - Quest lines are written **only for champions that exist**. A champion added later adds its lines as an update.
 - **The content cost, per champion** (the counting is fixed; the hours per line are measured in the slice, D9):
   - one line per wing: **2–3 lines per champion at the first release** (one dungeon), about **24** at 8 dungeons of 3 wings;
@@ -328,7 +328,7 @@ One payload, shared by collectibles, quests and fixed chests: `kind` (`CODEX`, `
 | Keys, checkpoint unlocks | the run | *(proposed)*: a new run starts at the entrance (I2) |
 
 ### Runtime classes (`res://scripts/dungeons/`)
-- **`WingRun`** (RefCounted): one run. `dungeon`, `wing`, `difficulty_tier`, `seed`, `rng`, `slot_picks` (content slot id → scene or empty), `dead` (ids dead for good), `fodder_dead` (content slot id → its stretch), `states` (world states), `found_checkpoints`, `last_checkpoint`, `floor_id`, `revealed` (the map per floor), quest progress, the party. `to_dict()` / `from_dict()` for a resume.
+- **`WingRun`** (RefCounted): one run. `dungeon`, `wing`, `difficulty_tier`, `seed`, `rng`, `slot_picks` (content slot id → scene or empty), `dead` (ids dead for good), `fodder_dead` (content slot id → its stretch), `states` (world states), `found_checkpoints`, `last_checkpoint`, `floor_id`, `revealed` (the map per floor), quest progress, the party, *(proposed, LOOT sync)* `ground_drops` (floor id → the drops still on its ground: LOOT's `Loot.take_ground_drops()` / `restore_ground_drops()`). `to_dict()` / `from_dict()` for a resume.
 - **`DungeonProgress`** (RefCounted): the saved record for one dungeon.
 
 ## Architecture / contracts
@@ -375,8 +375,8 @@ Audio hooks: see AUDIO.md. To add when built (synthesized placeholders until rea
 | A wipe with an ally | Both respawn at the checkpoint at full health (ALLIES.md) |
 | A puzzle half done when you die | Its states stay; a puzzle may author its own reset |
 | Resting with enemies on you | Not allowed while in combat (I2) |
-| Drops on the ground when you change floors | Kept for the run *(proposed)* |
-| Drops on the ground when you die | They stay (LOOT.md) |
+| Drops on the ground when you change floors | Kept for the run, each where it lay (Ryan, 2026-10-03; LOOT.md) |
+| Drops on the ground when you die, rest or fast travel | The rebuild puts them back where they lay (Ryan, 2026-10-03: the run remembers each floor's ground drops; leaving the run loses them; LOOT.md) |
 | A pit-drop vs a pit | A pit-drop is a `FloorLink` (kind DROP): the party goes down with a fade, no damage *(proposed)*. A pit footprint keeps WORLD_INTERACTION's fall rule, and an enemy knocked into a drop falls as into a pit |
 | The ally downed at a floor change | Comes along, still downed, next to the player *(proposed)* |
 | The companion consumed at a floor change | The imprint carries on *(proposed)* |
@@ -394,14 +394,14 @@ Audio hooks: see AUDIO.md. To add when built (synthesized placeholders until rea
 
 ## Build order (proposed; one step per request)
 **Before D1:**
-- 3D pivot P-M (the view on by default), and the **P-spike** (3D.md, Wing scale), which decides one sim Room per floor or per space.
+- 3D pivot P-M (the view on by default; passed 2026-10-03), and the **P-spike** (3D.md, Wing scale), which decides one sim Room per floor or per space.
 - WORLD_INTERACTION's approved pieces that have no build slot yet: interactables (layer 8), Hazards (layer 10 and the hazard triggers), `IMPACT` and `ImpactContext`, destructibles, `SurfaceTags` on footprints, and the pit step (every wing has pits).
 - ENEMIES_AI's first steps (aggro and packs); LOOT L1–L7 (chests, drops and pickups).
 
 Every step: the Knight's abilities, talents, enemies chasing and the HUD still work, and the sandbox and today's Start run play as before until D1 moves Start run to the wing pick. Logs go in CHANGELOG.md (the Dungeons section); this doc keeps one line per built step.
 
 0. **D0 – Authoring cost (a measurement, no code).** A few spaces of each kind built with the P8 kit (a corridor, a hall, an arena, a vertical space with a plateau and stairs), each timed from empty to validated and playable. **Done means:** hours per space by kind (and per prefab), in CHANGELOG.md; Ryan sets the slice's total-hours cap, and its space count follows (I9).
-1. **D1 – Wing data and floors.** `DungeonData`, `WingData`, floors, the `Dungeons` autoload and `WingRun`, Main playing a run's floors, `FloorLink` and the fade, each floor's state kept across floor changes, the hub's functional wing pick; `res://scenes/tests/dungeons_test.tscn` + `scripts/tests/dungeons_test.gd` and a fixture wing (two floors, three spaces). **Done means:** a run starts from the hub; stairs and a pit-drop change floors with a fade; what you killed is still dead when you come back; Back to hub ends the run; every other suite is unchanged.
+1. **D1 – Wing data and floors.** `DungeonData`, `WingData`, floors, the `Dungeons` autoload and `WingRun`, Main playing a run's floors, `FloorLink` and the fade, each floor's state kept across floor changes (its ground drops too, through LOOT L7's `take_ground_drops()` / `restore_ground_drops()`), the hub's functional wing pick; `res://scenes/tests/dungeons_test.tscn` + `scripts/tests/dungeons_test.gd` and a fixture wing (two floors, three spaces). **Done means:** a run starts from the hub; stairs and a pit-drop change floors with a fade; what you killed is still dead when you come back; Back to hub ends the run; every other suite is unchanged.
 2. **D2 – Checkpoints.** `Checkpoint` (find, rest, travel), the hybrid respawn rule and stretches, the death respawn, the ally and companion hooks, quitting mid-wing (I2). **Done means:** death keeps every kill; a rest brings back exactly its stretch's fodder; elites and bosses stay dead; travel goes to any found checkpoint on any floor; a wipe brings the ally back.
 3. **D3 – Content slots and the shuffle.** `ContentSlot`, `ContentPool`, the seed, packs, elites, events, chests with their tables (LOOT.md), the depth. **Done means:** seeded tests: the same seed gives the same picks; picks match the weights within 1% over many rolls; groups fill exactly; tier ranges hold; a rest doesn't reroll.
 4. **D4 – Arenas, doors and bosses.** `Arena`, `Door`, waves, sealing and clearing, the boss set-piece hooks, the final-wing lock, the clear (unlocks, clear XP, the counted run). **Done means:** an arena seals, runs its waves and opens; dying inside follows I8; a boss clear opens the wings and the next tier.
@@ -453,7 +453,8 @@ Procedural geometry (VISION.md, Scope); seamless streaming between floors (v1); 
 
 ### Also open (not in this interview)
 - **Hand-placed named gear vs LOOT's named items.** LOOT's named items are Legendary or Artifact and belong to one champion, but a secret's chest holds one fixed item and "goes to the picking champion". Options: (a) the chest holds a different named item per champion (content cost per champion per secret); (b) *(proposed)* a new kind of named item that fits any champion: a named Unique or Exotic with a fixed name, fixed sigils and fixed affixes (`NamedItem` with no `champion_id`), so every champion finds the same thing there.
-- **The champion quest line's "unique named reward":** a named item of that champion's (power for that champion only, allowed), or a named cosmetic or title? At 8 dungeons of 3 wings, items would be about 24 per champion, against the Knight's 5 today.
+- **Leaps and gating** (3D.md, Leaps; Ryan, 2026-10-03: a leap goes over walls): a wall thinner than a champion's leap range (the Knight's artifact: 5 m) doesn't keep that champion out, so a secret or a locked door's far side that must hold is a separate room or space, or farther than any leap reaches. Which (per secret, or a rule for every gate) is decided with the layouts.
+- **The champion quest line's "one-of-a-kind named reward"** (written "unique named reward" before the LOOT sync; "Unique" is a rarity): a named item of that champion's (power for that champion only, allowed), or a named cosmetic or title? At 8 dungeons of 3 wings, items would be about 24 per champion, against the Knight's 5 today.
 - **The pacing in runs:** TALENTS' assumed run (about 20 minutes, 100 kills) set "every talent in about 29 runs", LOOT's "a legendary every 3 runs", COMPANIONS' eggs (3 runs) and bond (about 4.4 runs to bond 5). A wing is 45–90 minutes, 2–4.5 times that. Per-kill rates keep the hours the same if kill density matches, but the run counts shrink; every "runs" number should be re-measured against a wing in the slice.
 - **What's revealed on the map:** kept per run, or kept forever (per account or per champion)?
 - **Doors, room locking and room transitions** (WORLD_INTERACTION.md, Open questions) are answered here (doors, arenas, floor links); WORLD_INTERACTION.md can point to this doc.

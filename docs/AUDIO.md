@@ -266,7 +266,7 @@ game/
   scripts/data/sound_event.gd, audio_mix.gd
   scenes/tests/audio_test.tscn + scripts/tests/audio_test.gd
 ```
-- **Naming:** `sound_<category>_<name>` (`sound_hit_heavy`, `sound_knight_cleave_cast`, `sound_slime_death`, `sound_status_stun_apply`). Categories: `hit`, `death`, `shield`, `status`, `stinger`, `ui`, `music`, `ambience`, or a champion or enemy name. Audio files take the SoundEvent's name without `sound_`, plus a variation number: `audio/sfx/hit_light_01.wav`.
+- **Naming:** `sound_<category>_<name>` (`sound_hit_heavy`, `sound_knight_cleave_cast`, `sound_slime_death`, `sound_status_stun_apply`). Categories: `hit`, `death`, `shield`, `status`, `stinger`, `ui`, `music`, `ambience`, `loot` (LOOT.md: drops and pickups, from L7), or a champion or enemy name. Audio files take the SoundEvent's name without `sound_`, plus a variation number: `audio/sfx/hit_light_01.wav`.
 - **Formats:** WAV (16-bit, 44.1 kHz) for short SFX, mono for anything positional; OGG Vorbis for music and ambience loops (imported with Loop on). Other import settings stay at their defaults.
 - **Licenses:** every third-party file has a row in `audio/LICENSES.md` (file, source URL, author, license). Placeholders are CC0 only (e.g. Kenney). A file without a row isn't committed.
 

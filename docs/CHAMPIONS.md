@@ -33,7 +33,7 @@ What exists before CH1 (the rest is Data and Architecture):
 ### What a champion is (MUST)
 - A `ChampionData` resource ties together: identity (id, name, class), a base stats reference (`UnitStats`), a resource type and its rhythm (MANA / ENERGY / FURY / NONE), four ability slots Q / W / E / R (one clear identity per kit: three abilities and an ultimate), the default basic attack combo, a passive, the champion's sounds, and the champion level fields.
 - Slots are fixed and never remixed between champions or reassigned by the player. REPLACE augments and forms (ABILITIES.md) still change what's active in a slot; that's part of a build, not a slot choice.
-- The champion's combo is its default until weapons exist (a champion's combo will come from its equipped weapon, limited by its class; COMBAT.md, Open questions; LOOT.md).
+- The champion's combo is its own until weapons change combos: LOOT's weapons (from L1) don't in this build (Ryan, 2026-10-01; LOOT.md, Item slots), and whether a champion's combo will come from its equipped weapon, limited by its class, stays COMBAT.md's open question.
 - `champion_class` (the Knight: `bruiser`) is the "class" the COMBAT decisions already use for dash-strike power and which weapons a champion can wield (name approved by Ryan, 2026-09-29). It isn't a role tag: role tags are ability roles (`generator`, `core`...).
 
 ### Champion level (MUST; a hook only)
@@ -60,7 +60,7 @@ What exists before CH1 (the rest is Data and Architecture):
 - Every heal goes through the one heal path, `Unit.heal()` (clamped to max health, no overheal, a green number only for what was actually healed). There's no second heal path.
 
 ### Dungeon content per champion (DUNGEONS.md; MUST, Ryan 2026-10-03)
-- **One champion quest line per wing.** Every champion has one quest line of its own in every wing: "medium-small", about 10–15 minutes, reusing the wing's space (an existing room, a hidden door, a special encounter or a small puzzle; at most a small new alcove), paying out a unique named reward plus codex entries.
+- **One champion quest line per wing.** Every champion has one quest line of its own in every wing: "medium-small", about 10–15 minutes, reusing the wing's space (an existing room, a hidden door, a special encounter or a small puzzle; at most a small new alcove), paying out a one-of-a-kind named reward (not the Unique rarity) plus codex entries.
 - **A champion ships with its lines.** Quest lines are written only for champions that exist; a champion added later adds one line per existing wing, as an update. The cost per champion: 2–3 lines at the first release (one dungeon of 2–3 wings), about 24 at 8 dungeons of 3 wings; the cap and what one line contains are in DUNGEONS.md (The champion lens).
 - **The lens:** the layout, enemies and main quests are the same for every champion; codex entries, NPC dialogue and some scenes have per-champion variants (NARRATIVE.md writes them).
 - **Recommendations read the kit:** a wing's "Recommended for" matches a champion's `champion_class` and its four abilities' tags (DUNGEONS.md, Recommended for). *(proposed, DUNGEONS.md)* If a wing ever favors something no class or ability tag says, `ChampionData` gets a `kit_tags` list then. Every champion can clear every wing either way.
@@ -352,4 +352,4 @@ Raised by VISION.md's 2026-10-02 update (nothing proposed yet):
 - **Bio:** where a champion's background and lore live (ChampionData, the codex) and where the player reads it (the hub's champion pick, the codex). With NARRATIVE.md.
 - **Voice lines:** which events get one, how often, and whether a champion has lines in story scenes; out of scope here today (AUDIO.md, NARRATIVE.md).
 - **The story lens:** each dungeon's story has shared core beats plus a champion lens (VISION.md, Pillar 5). What a champion's lens needs from its data (lines, codex entries, scene variants) is set by NARRATIVE.md. DUNGEONS.md (2026-10-03) fixes its scope: the same layout, enemies and main quests for all; per-champion codex entries, NPC dialogue and some scenes; one quest line per champion per wing (Dungeon content per champion).
-- **The champion quest line's "unique named reward"** (DUNGEONS.md, Also open): one of this champion's named items, or a named cosmetic or title?
+- **The champion quest line's "one-of-a-kind named reward"** (DUNGEONS.md, Also open; not the Unique rarity): one of this champion's named items, or a named cosmetic or title?

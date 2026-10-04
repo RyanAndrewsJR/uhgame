@@ -360,10 +360,10 @@ STATS step 7 (the F3 overlay) comes after M1. For every step: no errors; the Kni
 - **A swing counts once its hit has landed** (Rules, Basic attack). Built 2026-09-27, see CHANGELOG.md (awaiting play test).
 
 ## Out of scope
-Items and affixes (LOOT.md); ability costs, recasts and augments (ABILITIES.md); enemy AI beyond one telegraphed attack (ENEMIES_AI.md); elite affixes; pits; controller support.
+Items and affixes (LOOT.md); ability costs, recasts and augments (ABILITIES.md); enemy AI beyond one telegraphed attack (ENEMIES_AI.md); elite modifiers (DUNGEONS.md; "affix" is an item's line); pits; controller support.
 
 ## Open questions
-- Weapons: a champion's combo will come from its equipped weapon, and its class limits which weapons it can wield (e.g. a bruiser like Darus can't use daggers); bruiser weapons are heavier, diver and rogue weapons snappier. Today the combo is set on AutoAttackComponent (LOOT.md / CHAMPIONS.md).
+- Weapons: a champion's combo will come from its equipped weapon, and its class limits which weapons it can wield (e.g. a bruiser like Darus can't use daggers); bruiser weapons are heavier, diver and rogue weapons snappier. Today the combo comes from the champion (`ChampionData.combo`, copied onto AutoAttackComponent at load; CHAMPIONS.md), and LOOT's weapons don't change it in this build (LOOT.md, Item slots).
 - Ranged basic attacks: design later (RANGED combos only get walk-cancel for now).
 - What attack_speed means for enemies (AutoAttackComponent).
 - Sustain caps (life steal cap? regen during combat?).

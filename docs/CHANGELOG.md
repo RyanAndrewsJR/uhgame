@@ -11,7 +11,7 @@
 
 ## 3D pivot (3D_PIVOT.md)
 
-### Cleanup C3 – the 2D looks deleted: 2026-10-03, Built (awaiting Ryan's check)
+### Cleanup C3 – the 2D looks deleted: 2026-10-03, Passed
 The last of the cleanup's three steps (3D.md, Build order after P-M), on the exact list Ryan OK'd, with his two answers: a unit's `HealthBar` stays as the bar's settings; the damage-number path without a view stays for the tests.
 - **Deleted:**
   - **Scenes:** each unit's `Shadow` and `Body` (its shapes; the elite's overrides on them), the Player's `SwordPivot`/`Sword`, the `MovementVFXComponent` nodes; `main.tscn`'s `Camera` node; `use_3d_view = true` in `main_layout.tscn` and `sandbox_main_layout.tscn`; `sandbox_main_3d.tscn`.
@@ -1271,6 +1271,9 @@ Add StatsComponent to player.tscn and slime.tscn. `Unit._ready()` wires it up. *
 **Passed** (Ryan, 2026-09-27).
 
 ## Talents (TALENTS.md)
+
+### Milestone T-M – A Knight's talent career: 2026-10-03, Passed
+Ryan's play test of the talent loop from TALENTS.md's Build order (the first unlock within the first runs, tiers reading as choices, two loadouts playing differently) passed, reported 2026-10-03 after the 3D pivot's cleanup. A play test only: nothing was built or changed for it.
 
 ### T5 – The hub (functional): 2026-09-30, Passed
 - **Hub** (`scenes/ui/hub.tscn`, `scripts/ui/hub.gd`, built in code): the header ("Knight   Level 2: 30 / 1000 XP   Talents 1 / 1"; "Level 12 (max)" at the top), the talent screen, a detail line (the hovered talent's description), Start run (`main.tscn`), Sandbox (`sandbox_main.tscn`), Clear talents, and the debug row (+1 level, +100 uses, +100 kills, Unlock all, Reset; `debug_tools` on in `hub.tscn`). `project.godot`'s main scene is the hub (F5).

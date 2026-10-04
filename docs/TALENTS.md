@@ -319,7 +319,7 @@ Every step: the Knight's abilities, enemies chasing and the HUD still work; with
    **Done means:** at the hub the Knight's 20 talents show their state and live requirement lines; clicking adds and removes within the rules; Start run plays with exactly that loadout; Back to hub keeps the progress; quitting and relaunching keeps it.
 
 **Milestone T-M – A Knight's talent career** (after T5): from a reset champion, Ryan plays a few real sessions (and the debug tools for the long tail): the first unlock comes within the first run or two; every tier reads as a choice between ways to play; two loadouts make the Knight play differently.
-**Done means:** Ryan's play test: the loop reads (what to do to unlock, what's active, why something can't be picked) and the talents change how the Knight plays, not just his numbers.
+**Done means:** Ryan's play test: the loop reads (what to do to unlock, what's active, why something can't be picked) and the talents change how the Knight plays, not just his numbers. **Passed Ryan's play test (reported 2026-10-03), see CHANGELOG.md.**
 
 ## Out of scope
 Talents for other champions (written with each champion, under the authoring rule); talent REPLACEs, talent-granted forms, multi-slot REPLACE and keystones (decided no); a respec cost (no currency yet); the polished hub, icons and champion select (UI.md, the art pass); run structure and the clear bonus (DUNGEONS.md); enemy tags (ENEMIES_AI.md); full save slots, cloud saves and save migration (PROGRESSION.md); talents changing the Fury rhythm, the basic attack or the dash (no group).
