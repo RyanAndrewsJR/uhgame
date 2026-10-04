@@ -328,7 +328,7 @@ One payload, shared by collectibles, quests and fixed chests: `kind` (`CODEX`, `
 | Keys, checkpoint unlocks | the run | *(proposed)*: a new run starts at the entrance (I2) |
 
 ### Runtime classes (`res://scripts/dungeons/`)
-- **`WingRun`** (RefCounted): one run. `dungeon`, `wing`, `difficulty_tier`, `seed`, `rng`, `slot_picks` (content slot id → scene or empty), `dead` (ids dead for good), `fodder_dead` (content slot id → its stretch), `states` (world states), `found_checkpoints`, `last_checkpoint`, `floor_id`, `revealed` (the map per floor), quest progress, the party, *(proposed, LOOT sync)* `ground_drops` (floor id → the drops still on its ground: LOOT's `Loot.take_ground_drops()` / `restore_ground_drops()`). `to_dict()` / `from_dict()` for a resume.
+- **`WingRun`** (RefCounted): one run. `dungeon`, `wing`, `difficulty_tier`, `seed`, `rng`, `slot_picks` (content slot id → scene or empty), `dead` (ids dead for good), `fodder_dead` (content slot id → its stretch), `states` (world states), `found_checkpoints`, `last_checkpoint`, `floor_id`, `revealed` (the map per floor), quest progress, the party, (LOOT sync, approved 2026-10-03) `ground_drops` (floor id → the drops still on its ground: LOOT's `Loot.take_ground_drops()` / `restore_ground_drops()`). `to_dict()` / `from_dict()` for a resume.
 - **`DungeonProgress`** (RefCounted): the saved record for one dungeon.
 
 ## Architecture / contracts
