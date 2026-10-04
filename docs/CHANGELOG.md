@@ -1424,6 +1424,7 @@ Docs only; no code or tests changed (the baseline stays 2,589/2,589).
   - COMPANIONS.md: kindling and companion drops onto `EnemyData` (AI7); enemies never see companions.
   - 3D.md: pose hooks on `UnitView`; the perched sniper; melee enemy attacks tagged `melee` (proposed); sleeping in AI7.
   - CLAUDE.md: the Docs index, Current status, Future docs.
+- **Follow-up (2026-10-04):** Ryan confirmed spawn-in and kept waves deferred. ENEMIES_AI.md (Spawning; the conflict note answered), DUNGEONS.md (Fights: one group per arena; the arena edge case; its proposal 4 and its ENEMIES_AI note), DECISIONS.md (one Enemies row) and CLAUDE.md updated.
 - **Not edited (proposed in ENEMIES_AI.md, Conflicts and notes):** CONVENTIONS.md (the names, the word "rank"), TALENTS.md and LOOT.md (their stand-ins retiring in AI7), VISION.md (Open question 7 answered). PROMPTS.md has no interview queue to update.
 
 ## Movement (MOVEMENT.md)

@@ -214,10 +214,10 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 - **Spacing:** brained enemies keep 1 m apart while holding *(proposed)*. Fodder surrounds its target in a ring, about 0.6 m apart (Ryan, I6; Groups).
 - Paths use `MovementComponent.move_to()` (NavigationServer2D), re-planned at most every 0.25 s. A target on a navmesh island (a perch: 3D.md) is reached by its walk-up route if one exists; otherwise melee holds at the nearest reachable spot and releases its token, and the pack's ranged members poke: no unanswerable player either.
 
-### Spawning (MUST: placed packs and ambushes; Ryan 2026-10-03. Spawn-in kept, to confirm)
+### Spawning (MUST: placed packs and ambushes, Ryan 2026-10-03; spawn-in confirmed and waves deferred, Ryan 2026-10-04)
 - **Placed packs:** enemies placed in a space (a pack scene through a content slot or a marker: DUNGEONS.md), idle until they notice you.
 - **Ambushes:** enemies emerge from hidden spots, or on a trigger (the party entering an area, a world state such as a chest opened). *(proposed)* They emerge after a floor telegraph (0.6 s) at each spot and aggro at once on the nearest party member. In DUNGEONS.md an ambush is the scene of an EVENT content slot.
-- **Spawn-in (kept; flagged for Ryan):** DUNGEONS.md's sealed arenas and boss rooms depend on enemies that spawn in with a telegraph and instant aggro. Ryan didn't pick arena waves or reinforcements, so this doc keeps **spawn-in as a basic kind** (an arena's enemies appear together, once, when it seals) and **defers waves and mid-fight reinforcements**.
+- **Spawn-in** (confirmed by Ryan, 2026-10-04): DUNGEONS.md's sealed arenas and boss rooms depend on enemies that spawn in with a telegraph and instant aggro, so **spawn-in is a basic kind**: an arena's enemies appear together, once, when it seals. **Arena waves and mid-fight reinforcements stay deferred** (Ryan): not built, and not in any build step until he reopens them.
 - Every spawn gets party scaling, the difficulty tier and its elite modifiers at spawn (ALLIES.md, DUNGEONS.md), so nothing heals or refills mid-fight.
 
 ### Elite modifiers (MUST: data that changes behavior; Ryan 2026-10-03)
@@ -607,7 +607,7 @@ Arena waves and mid-fight reinforcements (deferred; Spawning); habit reading for
 13. **Ranged roles' regular attacks:** basic attacks in COMBAT's chip band; telegraphed abilities in the elite band's lower part. No new band (COMBAT.md's bands stay unchanged).
 
 ### Conflicts and notes for Ryan (found 2026-10-03)
-- **Arena spawn-in vs waves:** DUNGEONS.md proposes arena waves (`ArenaWave`, `next_wave_at`); Ryan didn't pick waves or reinforcements. This doc keeps spawn-in (one group at the seal) and defers waves; DUNGEONS' wave proposal is marked waiting on Ryan.
+- ~~**Arena spawn-in vs waves:** DUNGEONS.md proposes arena waves (`ArenaWave`, `next_wave_at`); Ryan didn't pick waves or reinforcements. This doc keeps spawn-in (one group at the seal) and defers waves; DUNGEONS' wave proposal is marked waiting on Ryan.~~ Answered (Ryan, 2026-10-04): spawn-in confirmed (one group at the seal); waves and reinforcements stay deferred. DUNGEONS.md updated.
 - **Data intents vs ALLIES' script-only AI:** ALLIES' decision ("one AI method per ability ... replaces the brief's data hints") and this brief's data intent tags both stand: the data says what for and when, the script says how and how good. ALLIES' `engage` intent is renamed `gap_close`, and `get_ai_plan()`'s `sense` is the `SituationContext`.
 - **"Rank" vs "enemy tier":** CONVENTIONS.md's vocabulary calls elite and boss enemy tiers; this doc proposes "rank". CONVENTIONS isn't edited until Ryan picks.
 - **Where elite modifiers are defined:** COMBAT.md's Out of scope and CONVENTIONS.md's vocabulary point to DUNGEONS.md; DUNGEONS.md says ENEMIES_AI defines them. Now: the format here, the count in DUNGEONS. COMBAT's pointer is fixed; CONVENTIONS' waits for the names.
