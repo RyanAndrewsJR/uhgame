@@ -22,6 +22,7 @@
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_dash.tres" id="22_dash_sound"]
 [ext_resource type="Resource" path="res://data/sounds/sound_knight_low_health.tres" id="s1_low_health_sound"]
 [ext_resource type="Resource" path="res://data/champions/knight.tres" id="c1_champion"]
+[ext_resource type="Script" path="res://scripts/components/equipment_component.gd" id="l2_equipment"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_body"]
 radius = 11.0
@@ -79,6 +80,9 @@ q = ExtResource("10_q")
 w = ExtResource("11_w")
 e = ExtResource("12_e")
 r = ExtResource("13_r")
+
+[node name="EquipmentComponent" type="Node" parent="."]
+script = ExtResource("l2_equipment")
 
 [node name="Hurtbox" type="Area2D" parent="." unique_id=64001934]
 collision_layer = 0

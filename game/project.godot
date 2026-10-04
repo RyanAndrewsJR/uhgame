@@ -23,6 +23,7 @@ WorldQuery="*res://scripts/autoload/world_query.gd"
 Settings="*res://scripts/autoload/settings.gd"
 Reactions="*res://scripts/autoload/reactions.gd"
 Progress="*res://scripts/autoload/progress.gd"
+Loot="*res://scripts/autoload/loot.gd"
 Audio="*res://scripts/autoload/audio.gd"
 
 [display]

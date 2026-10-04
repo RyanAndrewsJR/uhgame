@@ -10,6 +10,15 @@ extends Node2D
 ## until L5, the Artifact's band drawing nothing); an item's modifiers
 ## (accepted by a real StatsComponent, removed exactly), its tooltip lines and
 ## its to_dict() round trip; the drop table by unit.
+## L2: equipping, the inventory and the save. The keep-current switch on
+## HealthComponent and ResourceComponent; EquipmentComponent on the Knight
+## (exact stats under item_<uid>, events, swaps, both ring slots, every
+## can_equip() refusal, augments on and off, no heal from a live swap, a load
+## that starts full); ChampionInventory (uids, the record, the save's round
+## trip through a ConfigFile's text, unreadable entries kept raw, the empty
+## materials bucket); the Loot autoload (the test-scene guard, the equip
+## listener, a save to a scratch file, the real file untouched); the Player
+## equipping its saved gear at load.
 ## Prints PASS/FAIL per check, then a total.
 ## Run headless and it quits with the number of failures as the exit code.
 
@@ -22,6 +31,10 @@ const SLIME_SCENE: PackedScene = preload("res://scenes/enemies/slime.tscn")
 const SLIME_ELITE_SCENE: PackedScene = preload("res://scenes/enemies/slime_elite.tscn")
 const AUGMENT_LUNGE_STUNS: AbilityAugment = preload("res://data/augments/augment_lunge_stuns.tres")
 const AUGMENT_JUDGEMENT_RESET: AbilityAugment = preload("res://data/augments/augment_judgement_reset.tres")
+const PLAYER_SCENE: PackedScene = preload("res://scenes/player/player.tscn")
+const KNIGHT: ChampionData = preload("res://data/champions/knight.tres")
+const REAL_SAVE := "user://inventory.cfg"
+const SCRATCH_SAVE := "user://loot_test_scratch.cfg"
 
 const ROLLS := 100000
 const R := Item.Rarity
@@ -71,10 +84,25 @@ const AFFIX_ROWS := [
 var _passed: int = 0
 var _failed: int = 0
 var _table: LootTable
+var _next_x: float = 0.0
+
+
+## An item that belongs to another champion (named items come in L5).
+class ForeignItem extends Item:
+	func get_champion_id() -> StringName:
+		return &"mage"
 
 
 func _ready() -> void:
-	print("\n=== Loot test (LOOT L1) ===")
+	print("\n=== Loot test (LOOT L1–L2) ===")
+	# Latch both save guards off first: Progress.save() runs on a window's
+	# close request and checks saving_enabled before its lazy test-scene guard,
+	# so a windowed run closed before anything touched Progress wrote an
+	# empty progress.cfg (2026-10-03, the L1 run).
+	Progress.get_progress(KNIGHT)
+	Loot.get_inventory(KNIGHT)
+	var real_before := _file_stamp(REAL_SAVE)
+	var progress_before := _file_stamp("user://progress.cfg")
 	_table = LootTable.get_default()
 	_test_rarities()
 	_test_bases()
@@ -95,6 +123,22 @@ func _ready() -> void:
 	_test_tooltip_lines()
 	_test_round_trip()
 	_test_drop_table_by_unit()
+	# L2
+	_test_gain_switch()
+	await _test_equip_basics()
+	await _test_swaps_and_rings()
+	await _test_can_equip()
+	await _test_equip_augments()
+	await _test_no_heal()
+	_test_inventory_record()
+	_test_inventory_save()
+	await _test_loot_autoload()
+	await _test_player_loads_gear()
+	Loot.reset(KNIGHT)
+	_check("the real inventory file was never written", _file_stamp(REAL_SAVE), real_before)
+	_check("nor the real progress file", _file_stamp("user://progress.cfg"), progress_before)
+	_check("both saves are off in this test scene", [Progress.saving_enabled, Loot.saving_enabled], [false, false])
+	await _frames(2)
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -638,7 +682,392 @@ func _test_drop_table_by_unit() -> void:
 	other.free()
 
 
+# --- L2: equipping, the inventory, the save ----------------------------------
+
+func _test_gain_switch() -> void:
+	_section("L2: the keep-current switch (HealthComponent, ResourceComponent)")
+	var hc := HealthComponent.new()
+	add_child(hc)
+	hc.setup(100.0)
+	hc.take_damage(60.0)
+	hc.set_max_health(150.0)
+	_check("on (the default): a raised max adds to current (40 -> 90)", hc.current, 90.0)
+	hc.set_gain_on_max_raise(false)
+	hc.set_max_health(200.0)
+	_check("off: a raised max leaves current (90)", hc.current, 90.0)
+	hc.set_max_health(80.0)
+	_check("off: a lowered max still clamps (80)", hc.current, 80.0)
+	hc.set_gain_on_max_raise(true)
+	hc.set_max_health(100.0)
+	_check("back on: gains again (80 -> 100)", hc.current, 100.0)
+	hc.free()
+	var rc := ResourceComponent.new()
+	add_child(rc)
+	rc.setup(100.0)
+	rc.try_spend(60.0)
+	rc.set_max_resource(150.0)
+	_check("resource, on: gains (40 -> 90)", rc.current, 90.0)
+	rc.set_gain_on_max_raise(false)
+	rc.set_max_resource(200.0)
+	_check("resource, off: no gain (90)", rc.current, 90.0)
+	rc.set_gain_on_max_raise(true)
+	rc.set_max_resource(250.0)
+	_check("resource, back on: gains (90 -> 140)", rc.current, 140.0)
+	rc.free()
+
+
+func _test_equip_basics() -> void:
+	_section("L2: equipping and unequipping")
+	Loot.reset(KNIGHT)
+	var p := await _spawn_knight()
+	_check("player.tscn has an EquipmentComponent", p.equipment != null, true)
+	_check("8 equipment slots", EquipmentComponent.SLOTS.size(), 8)
+	_check("an empty inventory: nothing worn at spawn", p.equipment.get_equipped().size(), 0)
+	var before := _all_values(p.stats_component)
+	var helm := _item(&"item_base_iron_helm", R.RARE, [[&"affix_max_health", 0.5], [&"affix_armor", 0.5], [&"affix_ability_haste", 0.5]], 7)
+	var seen := _listen()
+	_check("equip() succeeds", p.equipment.equip(helm), true)
+	_check("it's in the helm slot", [p.equipment.get_item(&"helm") == helm, p.equipment.get_slot_of(helm)], [true, &"helm"])
+	var mods := p.stats_component.get_modifiers_from(&"item_7")
+	_check("its 4 modifiers (implicit + 3 affixes) are on, under item_7", mods.size(), 4)
+	var expected := before.duplicate()
+	for mod in helm.get_modifiers(_table):
+		expected[mod.stat] = expected[mod.stat] + mod.value
+	_check("max health, armor and ability haste rose by exactly its values",
+		[p.stats_component.get_stat(&"max_health"), p.stats_component.get_stat(&"armor"), p.stats_component.get_stat(&"ability_haste")],
+		[expected[&"max_health"], expected[&"armor"], expected[&"ability_haste"]])
+	_check("Events.item_equipped(unit, item)", _log_rows(seen, p), [["on", 7]])
+	var off := p.equipment.unequip(&"helm")
+	_check("unequip() returns it", off == helm, true)
+	_check("every stat back exactly", _all_values(p.stats_component), before)
+	_check("nothing left under item_7", p.stats_component.get_modifiers_from(&"item_7").size(), 0)
+	_check("Events.item_unequipped(unit, item)", _log_rows(seen, p), [["on", 7], ["off", 7]])
+	_check("unequipping an empty slot returns null, no event", [p.equipment.unequip(&"helm") == null, seen.size()], [true, 2])
+	_unlisten(seen)
+	await _free(p)
+
+
+func _test_swaps_and_rings() -> void:
+	_section("L2: swaps and the two ring slots")
+	var p := await _spawn_knight()
+	var before := _all_values(p.stats_component)
+	var helm_a := _item(&"item_base_iron_helm", R.COMMON, [[&"affix_armor", 0.2]], 11)
+	var helm_b := _item(&"item_base_iron_helm", R.RARE, [[&"affix_armor", 0.9], [&"affix_magic_find", 0.4], [&"affix_tenacity", 0.1]], 12)
+	p.equipment.equip(helm_a)
+	var seen := _listen()
+	_check("equipping a second helm swaps", p.equipment.equip(helm_b), true)
+	_check("the helm slot holds the new one", p.equipment.get_item(&"helm") == helm_b, true)
+	_check("the old one's modifiers are gone, the new one's on",
+		[p.stats_component.get_modifiers_from(&"item_11").size(), p.stats_component.get_modifiers_from(&"item_12").size()], [0, 4])
+	_check("events: the old one off, then the new one on", _log_rows(seen, p), [["off", 11], ["on", 12]])
+	var rings: Array[Item] = []
+	for uid in [21, 22, 23]:
+		rings.append(_item(&"item_base_band", R.UNCOMMON, [[&"affix_attack_damage", 0.5], [&"affix_crit_chance", 0.5]], uid))
+	p.equipment.equip(rings[0])
+	p.equipment.equip(rings[1])
+	_check("two rings fill ring_1 and ring_2", [p.equipment.get_slot_of(rings[0]), p.equipment.get_slot_of(rings[1])], [&"ring_1", &"ring_2"])
+	p.equipment.equip(rings[2])
+	_check("a third ring replaces ring 1", [p.equipment.get_slot_of(rings[2]), p.equipment.get_slot_of(rings[0])], [&"ring_1", &""])
+	var count := seen.size()
+	_check("equipping a worn ring again changes nothing", [p.equipment.equip(rings[1]), p.equipment.get_slot_of(rings[1]), seen.size()], [true, &"ring_2", count])
+	_check("a worn ring can't move to the other ring slot", p.equipment.can_equip(rings[1], &"ring_1"), "already equipped (ring_2)")
+	_check("an unworn ring can be put in ring 2 by name (a swap)", [p.equipment.equip(rings[0], &"ring_2"), p.equipment.get_slot_of(rings[1])], [true, &""])
+	_unlisten(seen)
+	for slot in EquipmentComponent.SLOTS:
+		p.equipment.unequip(slot)
+	_check("everything off: every stat back exactly", _all_values(p.stats_component), before)
+	await _free(p)
+
+
+func _test_can_equip() -> void:
+	_section("L2: can_equip() refusals")
+	var p := await _spawn_knight()
+	var helm := _item(&"item_base_iron_helm", R.COMMON, [[&"affix_armor", 0.5]], 31)
+	var ring := _item(&"item_base_band", R.COMMON, [[&"affix_attack_damage", 0.5]], 32)
+	var twin := _item(&"item_base_leather_boots", R.COMMON, [[&"affix_armor", 0.5]], 31)
+	var foreign := ForeignItem.new()
+	foreign.uid = 33
+	foreign.rarity = R.RARE
+	foreign.base = _table.get_base(&"item_base_pendant")
+	_check("no item", p.equipment.can_equip(null), "no item")
+	_check("a helm in the boots slot", p.equipment.can_equip(helm, &"boots"), "a Helm can't go in the boots slot")
+	_check("a ring in the amulet slot", p.equipment.can_equip(ring, &"amulet"), "a Ring can't go in the amulet slot")
+	_check("a slot that doesn't exist", p.equipment.can_equip(helm, &"belt"), "no equipment slot 'belt'")
+	_check("another champion's item", p.equipment.can_equip(foreign), "Mage only")
+	p.equipment.equip(helm)
+	_check("another worn item with the same uid", p.equipment.can_equip(twin), "another equipped item has uid 31")
+	_check("a refused equip() returns false and changes nothing",
+		[p.equipment.equip(helm, &"boots"), p.equipment.equip(foreign), p.equipment.equip(twin), p.equipment.get_equipped().size()], [false, false, false, 1])
+	_check("a fitting item: no reason", p.equipment.can_equip(ring), "")
+	await _free(p)
+
+
+func _test_equip_augments() -> void:
+	_section("L2: an item's augments go on and off with it")
+	var p := await _spawn_knight()
+	# The sigil pool is L4's; any EVENT and FLAG augment shows the hook works.
+	var item := _item(&"item_base_pendant", R.EXOTIC, [], 41)
+	item.sigils = [AUGMENT_JUDGEMENT_RESET, AUGMENT_LUNGE_STUNS]
+	var lunge := p.abilities.get_ability(&"e")
+	p.equipment.equip(item)
+	_check("its EVENT augment's rule is on the unit", _rule_sources(p).has(&"augment_judgement_reset"), true)
+	_check("its FLAG is on Lunge", p.abilities.get_flags(lunge).has(&"lunge_stuns"), true)
+	p.equipment.unequip(&"amulet")
+	_check("unequipped: the rule is gone", _rule_sources(p).has(&"augment_judgement_reset"), false)
+	_check("unequipped: the FLAG is gone", p.abilities.get_flags(lunge).has(&"lunge_stuns"), false)
+	await _free(p)
+
+
+func _test_no_heal() -> void:
+	_section("L2: a live swap never heals; a load starts full")
+	var p := await _spawn_knight()
+	var base_max := p.health.max_health
+	var helm := _item(&"item_base_iron_helm", R.RARE, [[&"affix_max_health", 0.5]], 51)
+	var bonus := 40.0 + helm.get_affix_value(0, _table)
+	p.health.take_damage(p.health.current - 300.0)
+	p.equipment.equip(helm)
+	_check("equip at 300: the max rises, health stays 300", [p.health.max_health, p.health.current], [base_max + bonus, 300.0])
+	p.equipment.unequip(&"helm")
+	p.equipment.equip(helm)
+	_check("off and on again: still 300 (no heal from a swap)", p.health.current, 300.0)
+	p.health.heal(10000.0)
+	var full := p.health.current
+	var bigger := _item(&"item_base_iron_helm", R.RARE, [[&"affix_max_health", 1.0]], 52)
+	p.equipment.equip(bigger)
+	_check("a full-health swap to more health: health kept, not raised", [p.health.current, p.health.max_health > full], [full, true])
+	var smaller := _item(&"item_base_iron_helm", R.COMMON, [[&"affix_armor", 0.5]], 53)
+	p.equipment.equip(smaller)
+	_check("a swap to less health: clamped to the new max", p.health.current, base_max + 40.0)
+	p.equipment.unequip(&"helm")
+	_check("unequipped at full: clamped to the bare max", p.health.current, base_max)
+	p.equipment.equip(helm)
+	_check("and putting one back doesn't refill", p.health.current, base_max)
+	var raise := StatModifier.create(&"max_health", StatModifier.Type.FLAT, 10.0, &"test_raise")
+	p.stats_component.add_modifier(raise)
+	_check("after a swap the switch is back on: another source's raise still adds", p.health.current, base_max + 10.0)
+	p.stats_component.remove_modifiers_from(&"test_raise")
+	p.equipment.unequip(&"helm")
+	p.health.take_damage(p.health.current - 300.0)
+	p.equipment.equip(helm, &"", false)
+	_check("keep_current false (a load): the raise adds to current", p.health.current, 300.0 + bonus)
+	await _free(p)
+
+
+func _test_inventory_record() -> void:
+	_section("L2: ChampionInventory")
+	var inv := ChampionInventory.create(KNIGHT)
+	_check("a new record: champion, next uid, empty lists", [inv.champion_id, inv.next_uid, inv.items.size(), inv.equipped.size()], [&"knight", 1, 0, 0])
+	_check("the materials bucket: empty and typed (StringName -> int)", [inv.materials.size(), inv.materials.is_typed()], [0, true])
+	var rng := _rng(1111)
+	var uids: Array = []
+	for i in 3:
+		uids.append(inv.add(ItemRoller.roll_item(R.RARE, KNIGHT, _table, rng)))
+	_check("add() hands out uids 1, 2, 3", [uids, inv.next_uid], [[1, 2, 3], 4])
+	_check("get_item()", [inv.get_item(2) == inv.items[1], inv.get_item(9) == null], [true, true])
+	inv.set_equipped(&"helm", 2)
+	_check("set_equipped / get_equipped_item / get_equipped_slot", [inv.get_equipped_item(&"helm") == inv.items[1], inv.get_equipped_slot(2)], [true, &"helm"])
+	inv.clear_equipped(&"helm")
+	_check("clear_equipped", [inv.get_equipped_item(&"helm") == null, inv.get_equipped_slot(2)], [true, &""])
+
+
+func _test_inventory_save() -> void:
+	_section("L2: the inventory save (ConfigFile text)")
+	var inv := ChampionInventory.create(KNIGHT)
+	var rng := _rng(2222)
+	for i in 20:
+		inv.add(ItemRoller.roll_item((i % 5) as Item.Rarity, KNIGHT, _table, rng))
+	inv.set_equipped(&"weapon", 3)
+	inv.set_equipped(&"ring_2", 5)
+	var back := _through_text(inv)
+	var same := back != null and back.items.size() == 20
+	for i in mini(inv.items.size(), back.items.size() if back != null else 0):
+		same = same and back.items[i].to_dict() == inv.items[i].to_dict() and _mod_rows(back.items[i]) == _mod_rows(inv.items[i])
+	_check("20 items come back with their uids, rolls and values", same, true)
+	_check("next uid and the equipped set", [back.next_uid, back.equipped], [21, {&"weapon": 3, &"ring_2": 5}])
+	_check("the materials bucket comes back empty", [back.materials.size(), back.materials.is_typed()], [0, true])
+	var cfg := ConfigFile.new()
+	inv.write_to(cfg)
+	_check("the save holds next_uid, items, equipped and materials", cfg.get_section_keys("knight"), PackedStringArray(["next_uid", "items", "equipped", "materials"]))
+	_check("no section: null", ChampionInventory.read_from(ConfigFile.new(), KNIGHT, _table) == null, true)
+	# Entries the data no longer knows (expect warnings).
+	var good := _item(&"item_base_band", R.COMMON, [[&"affix_attack_damage", 0.3]], 1).to_dict()
+	var gone := {"uid": 9, "base": "item_base_gone", "rarity": "rare", "affixes": [], "sigils": []}
+	var broken := ConfigFile.new()
+	broken.set_value("knight", "next_uid", 2)
+	broken.set_value("knight", "items", [good, gone, "garbage"])
+	broken.set_value("knight", "equipped", {"helm": 9, "belt": 1, "chest": 1})
+	broken.set_value("knight", "materials", {})
+	var read := ChampionInventory.read_from(broken, KNIGHT, _table)
+	_check("an unknown base or a non-item entry isn't loaded but is kept raw", [read.items.size(), read.get_unreadable_count()], [1, 2])
+	_check("its uid stays taken (next uid 10)", read.next_uid, 10)
+	_check("equipped: an unreadable item and a bad slot dropped, a real one kept", read.equipped, {&"chest": 1})
+	var again := ConfigFile.new()
+	read.write_to(again)
+	var written: Array = again.get_value("knight", "items")
+	_check("the raw entries are written back unchanged", [written.has(gone), written.has("garbage"), written.size()], [true, true, 3])
+	var dup := ConfigFile.new()
+	dup.set_value("knight", "items", [good, good])
+	var deduped := ChampionInventory.read_from(dup, KNIGHT, _table)
+	_check("a duplicate uid gets a new one", [deduped.items[0].uid, deduped.items[1].uid, deduped.next_uid], [1, 2, 3])
+
+
+func _test_loot_autoload() -> void:
+	_section("L2: the Loot autoload")
+	Loot.reset(KNIGHT)
+	_check("a test scene turned saving off", Loot.saving_enabled, false)
+	var record := Loot.get_inventory(KNIGHT)
+	_check("get_inventory() returns the same record", Loot.get_inventory(KNIGHT) == record, true)
+	var p := await _spawn_knight()
+	_check("the Knight is tracked", Loot.get_tracked_player() == p, true)
+	var helm := ItemRoller.roll_item(R.RARE, KNIGHT, _table, _rng(3333), Item.Slot.HELM)
+	var uid := Loot.add_item(KNIGHT, helm)
+	_check("add_item() puts it in the record with a uid", [uid, record.get_item(uid) == helm], [1, true])
+	p.equipment.equip(helm)
+	_check("equipping a record's item saves the slot", record.equipped, {&"helm": uid})
+	p.equipment.unequip(&"helm")
+	_check("unequipping clears it", record.equipped, {})
+	var loose := _item(&"item_base_iron_helm", R.COMMON, [], 999)
+	p.equipment.equip(loose)
+	_check("an item not in the record isn't remembered", record.equipped, {})
+	p.equipment.unequip(&"helm")
+	p.equipment.equip(helm)
+	# A save to a scratch file, then read back the way a new session would.
+	Loot.save_path = SCRATCH_SAVE
+	Loot.saving_enabled = true
+	Loot.save()
+	Loot.saving_enabled = false
+	Loot.save_path = Loot.SAVE_PATH
+	var cfg := ConfigFile.new()
+	var err := cfg.load(SCRATCH_SAVE)
+	var read := ChampionInventory.read_from(cfg, KNIGHT, _table) if err == OK else null
+	_check("Loot.save() writes the record (read back from a scratch file)",
+		[err, read != null and read.items.size() == 1 and read.items[0].to_dict() == helm.to_dict(), read.equipped if read != null else null],
+		[OK, true, {&"helm": uid}])
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH_SAVE))
+	Loot.reset(KNIGHT)
+	_check("reset() empties the record", Loot.get_inventory(KNIGHT).items.size(), 0)
+	await _free(p)
+	_check("the Knight freed: no tracked player", Loot.get_tracked_player() == null, true)
+
+
+func _test_player_loads_gear() -> void:
+	_section("L2: the Player equips its saved gear at load")
+	Loot.reset(KNIGHT)
+	var record := Loot.get_inventory(KNIGHT)
+	var rng := _rng(4444)
+	var helm := ItemRoller.roll_item(R.RARE, KNIGHT, _table, rng, Item.Slot.HELM)
+	var ring := ItemRoller.roll_item(R.UNCOMMON, KNIGHT, _table, rng, Item.Slot.RING)
+	record.add(helm)
+	record.add(ring)
+	record.set_equipped(&"helm", helm.uid)
+	record.set_equipped(&"ring_2", ring.uid)
+	record.set_equipped(&"boots", ring.uid)   # a ring in the boots slot (expect a warning)
+	record.set_equipped(&"gloves", 999)       # no such item (expect a warning)
+	var bare := await _spawn_knight_with_empty_record()
+	var bare_max := bare.health.max_health
+	await _free(bare)
+	var p := await _spawn_knight()
+	_check("the saved helm and ring are worn", [p.equipment.get_item(&"helm") == helm, p.equipment.get_item(&"ring_2") == ring], [true, true])
+	_check("slots the gear refuses are left empty", [p.equipment.get_item(&"boots"), p.equipment.get_item(&"gloves")], [null, null])
+	_check("and dropped from the record", record.equipped, {&"helm": helm.uid, &"ring_2": ring.uid})
+	var helm_health := 0.0
+	for mod in helm.get_modifiers(_table):
+		if mod.stat == &"max_health":
+			helm_health += mod.value
+	_check("the champion spawns full, with the helm's health in the max",
+		[p.health.max_health, p.health.current], [bare_max + helm_health, bare_max + helm_health])
+	await _free(p)
+
+
 # --- Helpers ------------------------------------------------------------------
+
+## A Knight from player.tscn in the tree (its saved gear equipped at load).
+func _spawn_knight() -> Player:
+	var p: Player = PLAYER_SCENE.instantiate()
+	add_child(p)
+	_next_x += 400.0
+	p.global_position = Vector2(_next_x, 0)
+	p.reset_physics_interpolation()
+	await _frames(2)
+	return p
+
+
+## A Knight spawned while its record is set aside (the bare max health).
+func _spawn_knight_with_empty_record() -> Player:
+	var record := Loot.get_inventory(KNIGHT)
+	var kept := record.equipped.duplicate()
+	record.equipped.clear()
+	var p := await _spawn_knight()
+	record.equipped = kept
+	return p
+
+
+func _free(node: Node) -> void:
+	node.queue_free()
+	await _frames(1)
+
+
+func _frames(n: int) -> void:
+	for i in n:
+		await get_tree().physics_frame
+
+
+## An item from ids: `affixes` is [[affix id, roll], ...].
+func _item(base_id: StringName, rarity: Item.Rarity, affixes: Array, uid: int) -> Item:
+	var item := Item.new()
+	item.uid = uid
+	item.rarity = rarity
+	item.base = _table.get_base(base_id)
+	for pair: Array in affixes:
+		item.affix_rolls.append([_table.get_affix(pair[0]), pair[1]])
+	return item
+
+
+## Starts recording Events.item_equipped / item_unequipped: [kind, unit, item].
+func _listen() -> Array:
+	var seen: Array = []
+	var on := func(unit: Unit, item: Item) -> void: seen.append(["on", unit, item])
+	var off := func(unit: Unit, item: Item) -> void: seen.append(["off", unit, item])
+	Events.item_equipped.connect(on)
+	Events.item_unequipped.connect(off)
+	set_meta(&"listen_on", on)
+	set_meta(&"listen_off", off)
+	return seen
+
+
+func _unlisten(_log: Array) -> void:
+	Events.item_equipped.disconnect(get_meta(&"listen_on"))
+	Events.item_unequipped.disconnect(get_meta(&"listen_off"))
+
+
+## The recorded events for `unit` as [kind, uid].
+func _log_rows(seen: Array, unit: Unit) -> Array:
+	var rows: Array = []
+	for e: Array in seen:
+		if e[1] == unit:
+			rows.append([e[0], (e[2] as Item).uid])
+	return rows
+
+
+func _rule_sources(unit: Unit) -> Array:
+	return unit.get_reaction_rule_entries().map(func(e: Array) -> StringName: return e[1])
+
+
+## The record written to a ConfigFile, as text, and read back.
+func _through_text(inv: ChampionInventory) -> ChampionInventory:
+	var cfg := ConfigFile.new()
+	inv.write_to(cfg)
+	var cfg2 := ConfigFile.new()
+	cfg2.parse(cfg.encode_to_text())
+	return ChampionInventory.read_from(cfg2, KNIGHT, _table)
+
+
+## Whether a file exists and when it was last written ([] = no file).
+func _file_stamp(path: String) -> Array:
+	if not FileAccess.file_exists(path):
+		return []
+	return [FileAccess.get_modified_time(path)]
+
 
 ## A Rare Longsword (uid 42): AD roll 0.5, crit chance roll 1.0, core damage roll 0.0.
 func _manual_item() -> Item:

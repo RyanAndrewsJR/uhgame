@@ -41,6 +41,7 @@ var current: float
 
 var _stats: StatsComponent = null
 var _since_combat: float = INF   # seconds (game time) since the last hit dealt or taken
+var _gain_on_max_raise: bool = true
 
 
 func _ready() -> void:
@@ -105,12 +106,19 @@ func restore(amount: float) -> void:
 	resource_changed.emit(current, max_resource)
 
 
-## A raised max adds the difference to current (not for starts_empty); a
-## lowered max clamps it.
+## While `on` is false, a raised max doesn't add to current (LOOT.md,
+## Equipping: EquipmentComponent turns it off around a live gear swap, so a
+## swap never refills). On by default.
+func set_gain_on_max_raise(on: bool) -> void:
+	_gain_on_max_raise = on
+
+
+## A raised max adds the difference to current (not for starts_empty, nor
+## while set_gain_on_max_raise() turned it off); a lowered max clamps it.
 func set_max_resource(maximum: float) -> void:
 	var gained := maximum - max_resource
 	max_resource = maximum
-	if gained > 0.0 and not starts_empty:
+	if gained > 0.0 and not starts_empty and _gain_on_max_raise:
 		current += gained
 	current = clampf(current, 0.0, max_resource)
 	resource_changed.emit(current, max_resource)

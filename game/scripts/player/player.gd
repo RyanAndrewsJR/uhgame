@@ -64,6 +64,8 @@ const ABILITY_ACTIONS := {&"q": "ability_q", &"w": "ability_w", &"e": "ability_e
 
 @onready var dash: DashComponent = $DashComponent
 @onready var player_input: PlayerInput = $PlayerInput
+## The items this player wears (LOOT L2); null in a scene without one.
+@onready var equipment: EquipmentComponent = get_node_or_null(^"EquipmentComponent")
 
 ## Which ability is being aimed (QUICK_WITH_INDICATOR), or &"".
 var aiming_slot: StringName = &""
@@ -168,6 +170,32 @@ func _attach_champion() -> void:
 		champion.passive.apply_to(self, champion.get_passive_source_id(), get_left_out_passive_stats())
 	for talent in _active_talents:
 		talent.apply_to(self, talent.get_source_id())
+	_attach_equipment()
+
+
+## The champion's saved gear (LOOT L2), after its talents, as a load
+## (keep_current false), so the champion spawns full. Equipping here also
+## tracks this Player for the inventory's save. A saved slot the gear refuses
+## (the data changed) is dropped from the record, with a warning.
+func _attach_equipment() -> void:
+	if equipment == null:
+		return
+	var record := Loot.track(self, champion)
+	var dropped := false
+	for slot in EquipmentComponent.SLOTS:
+		if not record.equipped.has(slot):
+			continue
+		var uid: int = record.equipped[slot]
+		var item := record.get_item(uid)
+		var reason := "no item %d" % uid if item == null else equipment.can_equip(item, slot)
+		if reason != "":
+			push_warning("%s's saved %s (%d) can't be equipped: %s; dropped" % [champion.id, slot, uid, reason])
+			record.clear_equipped(slot)
+			dropped = true
+			continue
+		equipment.equip(item, slot, false)
+	if dropped:
+		Loot.save()
 
 
 ## The talents attached now (TALENTS.md), in the order added.

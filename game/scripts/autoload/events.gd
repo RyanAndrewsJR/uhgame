@@ -26,3 +26,10 @@ signal status_removed(unit: Unit, status: StatusEffect)
 ## cancelled or interrupted before its effect. Reaction rules' ABILITY_CAST.
 @warning_ignore("unused_signal")
 signal ability_cast(unit: Unit, ability: Ability, ctx: CastContext)
+## An item was put on a unit (LOOT L2, EquipmentComponent): its modifiers and
+## augments are on it, under item.get_source_id(). The inventory's save listens.
+@warning_ignore("unused_signal")
+signal item_equipped(unit: Unit, item: Item)
+## An item was taken off a unit: everything it gave is gone.
+@warning_ignore("unused_signal")
+signal item_unequipped(unit: Unit, item: Item)

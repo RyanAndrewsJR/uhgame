@@ -15,6 +15,7 @@ signal died
 var current: float
 
 var _stats: StatsComponent = null
+var _gain_on_max_raise: bool = true
 
 
 func _ready() -> void:
@@ -34,14 +35,22 @@ func set_stats_component(stats: StatsComponent) -> void:
 	stats.stat_changed.connect(_on_stats_component_stat_changed)
 
 
-## A raised max adds the difference to current; a lowered max clamps it.
+## While `on` is false, a raised max doesn't add to current (LOOT.md,
+## Equipping: EquipmentComponent turns it off around a live gear swap, so a
+## swap never heals). On by default.
+func set_gain_on_max_raise(on: bool) -> void:
+	_gain_on_max_raise = on
+
+
+## A raised max adds the difference to current (unless set_gain_on_max_raise()
+## turned that off); a lowered max clamps it.
 func set_max_health(maximum: float) -> void:
 	var gained := maximum - max_health
 	max_health = maximum
 	if is_dead():
 		health_changed.emit(current, max_health)
 		return
-	if gained > 0.0:
+	if gained > 0.0 and _gain_on_max_raise:
 		current += gained
 	current = minf(current, max_health)
 	health_changed.emit(current, max_health)
