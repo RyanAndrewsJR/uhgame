@@ -11,7 +11,7 @@
 
 ## Loot (LOOT.md)
 
-### L7b – Dropping and trashing items, sorting: 2026-10-04, Built (awaiting Ryan's play test)
+### L7b – Dropping and trashing items, sorting: 2026-10-04, Passed (Ryan committed it and started L-M)
 Ryan asked to drop and trash items (2026-10-04), answered four questions (inventories stay unlimited; drop back on the ground, held until you walk away; trash for good, a second press for Unique and up; the spec first), committed the spec, and started L7b with Claude's proposals as written plus sorting on O.
 - **Code:**
   - `ChampionInventory.remove(uid)`.
