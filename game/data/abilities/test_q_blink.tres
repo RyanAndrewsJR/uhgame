@@ -1,0 +1,15 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/abilities/test/blink.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"test_blink"
+tags = Array[StringName]([&"mobility", &"blink"])
+display_name = "Blink"
+description = "Blink to a spot up to {range} units away, over walls."
+icon_color = Color(0.65, 0.55, 1, 1)
+targeting = 2
+cooldown = 1.0
+cast_time = 0.0
+cast_range = 400.0

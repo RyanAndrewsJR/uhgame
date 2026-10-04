@@ -9,6 +9,9 @@ extends Node
 ## - 3D pivot P9: test_w puts one on W (the 3D sandbox's Uppercut).
 ## - AB13: test_elite_w puts an ability on the elite Elite1's W (the VECTOR
 ##   wall, test_w_vector_wall.tres).
+## - AB15: B blinks the Knight toward the cursor (test_blink, over walls),
+##   Shift+B with the blink that stops at walls (test_blink_sight); free
+##   casts, no cooldown.
 ## The Knight's real numbers are CHAMPIONS.md's; room_01 has none of this.
 
 const SOURCE_ID := &"sandbox_demo"
@@ -39,6 +42,33 @@ const SOURCE_ID := &"sandbox_demo"
 ## An ability to put on the sandbox elite Elite1's W (e.g.
 ## res://data/abilities/test_w_vector_wall.tres). null = none.
 @export var test_elite_w: Ability
+## ABILITIES AB15: B casts this blink for free toward the cursor (raw keys,
+## read only in this sandbox script; B is unbound elsewhere). null = no key.
+@export var test_blink: Ability = preload("res://data/abilities/test_q_blink.tres")
+## Shift+B: the blink that stops at walls.
+@export var test_blink_sight: Ability = preload("res://data/abilities/test_q_blink_sight.tres")
+
+var _player: Player
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	var key := event as InputEventKey
+	if key == null or not key.pressed or key.echo or key.physical_keycode != KEY_B:
+		return
+	blink_toward_aim(key.shift_pressed)
+	get_viewport().set_input_as_handled()
+
+
+## AB15: the test blink (or, `stop_at_walls`, the one that stops at walls)
+## cast for free by the sandbox's Knight toward his aim. False if there's no
+## Knight or it's refused (rooted, stunned, mid-leap).
+func blink_toward_aim(stop_at_walls: bool = false) -> bool:
+	var ability := test_blink_sight if stop_at_walls else test_blink
+	if ability == null or not is_instance_valid(_player) or not _player.is_alive():
+		return false
+	if not ability.can_cast_custom(_player, null):
+		return false
+	return _player.abilities.try_cast_free(ability, _player.get_aim_point(), null, SOURCE_ID)
 
 
 func _ready() -> void:
@@ -68,6 +98,7 @@ func _give_costs(node: Node) -> void:
 		return
 	if not player.is_node_ready():
 		await player.ready   # its StatsComponent is set up in Unit._ready()
+	_player = player
 	player.stats_component.remove_modifiers_from(SOURCE_ID)   # never twice
 	if test_q != null:
 		player.abilities.q = test_q

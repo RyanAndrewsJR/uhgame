@@ -867,6 +867,54 @@ Play test passed (Ryan, 2026-10-01): F5, the pause menu shows the saved cast mod
 
 ## Abilities (ABILITIES.md)
 
+### AB15 – Blinks: 2026-10-04, Built (awaiting Ryan's play test)
+Ryan asked for blinks (2026-10-04), and started AB15 with the spec's proposals as written.
+- **Code:**
+  - **`MovementComponent`:**
+    - `blink(to_px, through_walls := true) -> bool` and the signal `blinked(from, to)`.
+    - `get_blink_landing()`: over walls, the leap's rule; stopping at walls, the aim cut at the first wall by a 2 px core sweep (`BLINK_WALL_CORE_PX`), then the same rule, kept in sight of the start.
+    - `is_blink_blocked()`: a root or a stun, read from the StatusComponent as `Unit.is_dash_blocked()` does.
+    - A blink ends the unit's running displacement and emits `displacement_finished`, so a dash ends through DashComponent as usual. It re-paths a move order and resets the body's physics interpolation. It's refused during a leap or a knock-up (`is_airborne()`) and while blocked.
+  - **`lunge.gd`:** part 1 is `movement.blink(start)`. `can_cast_custom()` refuses part 1 while the Knight can't blink, with the fail text "Rooted".
+  - **`knight_e_lunge_return.tres`:** the tag `blink` and the new text. `augment_lunge_return.tres`: the new text.
+  - **The test blinks:** `scripts/abilities/test/blink.gd` (`through_walls`, the root check, an indicator at the real landing), `test_q_blink.tres` and `test_q_blink_sight.tres`.
+  - **`SandboxAbilities`:** B / Shift+B cast them for free toward the cursor, through `blink_toward_aim()`. Its exports `test_blink` and `test_blink_sight` default to the two files, so neither sandbox scene changed.
+  - **`UnitView`:**
+    - `blink_afterimage_fade` (0.25 s) and `blink_flash_color` (white).
+    - On `blinked`: an afterimage where the model is drawn (the start), then at the next sync `reset_physics_interpolation()`, the ground height snapped, and the flash in `blink_flash_color`. A hit's flash sets `flash_color` back.
+- **Changed during the step:**
+  - **An L6 slip fixed.** L6 made `knight_e_lunge_return.tres` from Lunge's file with a sed that replaced every `description` line, the Stagger bonus's included. Homeward Lunge's tooltip showed its whole description again where "Staggers enemies hit for 2s." belongs. Restored; loot_test now checks the line matches Lunge's.
+  - **A blink ends a dash with `displacement_finished`.** `stop_displacement()` doesn't emit it, and DashComponent ends the dash only on it, so a blink mid-dash would have left the dash running forever. Checked: with the emit removed, the abilities test's mid-dash check fails.
+  - **The view needs its own snap.** WorldView's 64 px teleport snap misses a short blink.
+    - Measured from a node's `_process` in the real 3D sandbox: without UnitView's reset, a 0.7 m blink was drawn sliding over one tick (x 4.58, 4.87, 5.16 m), and with it, it snapped.
+    - A test coroutine's `get_global_transform_interpolated()` returns the plain transform, so view_test reads the drawn position through a watcher node's `_process`. The check fails with the reset removed.
+  - **The cast-level root check matters.** With it removed, the rooted recast was accepted, the blink refused, and the return was spent with the Knight still out (three loot_test checks fail).
+- **Measured:**
+  - **The primitive:** at the aim on open floor in the same tick (no frame waited); `blinked` once.
+    - No status, no i-frames.
+    - Over a wall 8 px thick, exact. Stopping at it, x 34.75 px for a wall face at 46 px (the body clear). Still across a fence, a ledge and a pit, exact.
+    - Mid-dash, the dash ended and the mask came back. After a knockback, it stayed put.
+    - Refused mid-leap (the leap still landed), knocked up, and rooted.
+  - **The test blink on Q:** at the aim clamped to 128 px, at once, with its 1 s cooldown. Rooted, the press failed with `"condition"`, no move and no cooldown. B and Shift+B through the viewport cast the two test blinks for free, landing where `get_blink_landing()` said; rooted, B did nothing.
+  - **Homeward Lunge:**
+    - Over a wall between the Knight and his start, he's back at the start by the cast's 3 frames, never in between, with one blink.
+    - Rooted, the recast failed and the window kept running; after the root, the recast worked inside it.
+    - The L6 return checks (Tackle, Twin Lunge, Long Lunge, Quick Footing, after a push, the cooldown) pass unchanged.
+  - **On terrain** (view test):
+    - Onto the plateau, off it, and over the thin wall: exact.
+    - Stopping at walls: on the thin wall's near side (5.54 m for its face at 6.0 m), still up the cliff and over the fence.
+  - **In the view:**
+    - The afterimage at once at the start, (1.0, 3.5) m.
+    - The next tick the view stood on the plateau's top at 1.5 m (no rise). It flashed in `blink_flash_color`; the afterimage was gone in 0.25 s, and a later hit flashed in `flash_color`.
+    - A short 0.7 m blink was never drawn between its ends.
+    - The Knight's blink showed one of his model's pooled afterimages.
+  - **The probe** (`sandbox_main_layout`, the real Player, the view and the camera; saving off):
+    - The return moved the drawn Knight from x 11.0 to 8.0 m with no frame between, 3 ticks after the press (Lunge's 0.05 s cast time).
+    - The camera glided after it over about 10 ticks (8.68 → 6.28 m).
+    - B blinked 4 m toward the cursor, the same way.
+- **Smoke run** (`sandbox_main`, `sandbox_main_layout`, `main_layout`, 600 frames each; the saves backed up first, new since Ryan's L6 play test at 01:06): no errors or warnings; all three saves byte-identical after.
+- **Tests:** abilities 580/580 (23 new), view 442/442 (14 new), loot 627/627 (5 new; three L6 checks reworded for the blink). Stats 179/179, combat 474/474, audio 110/110, champions 168/168, talents 310/310: 2,890/2,890.
+
 ### AB14b – the old timer's extra tick removed: 2026-09-29, Passed
 `AbilityComponent.CAST_TIME_EPSILON` (0.0001 s): the cast-time countdown is done at `_cast_time_left <= CAST_TIME_EPSILON` instead of `<= 0`, the rule the swings already use (`SWING_TIME_EPSILON`). A cast time that is an exact number of ticks now takes exactly that many.
 

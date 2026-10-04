@@ -58,6 +58,14 @@ extends Node2D
 ## shake spy is a Camera3D (GameFeel.shake()).
 ## The Knight's own crit_chance and life_steal are held at 0 by a test
 ## baseline, so damage checks are exact.
+## AB15: blinks. The test blinks' data; MovementComponent.blink() (the same
+## tick, the blinked signal, no status or i-frames, over a wall, stopping
+## short of one with through_walls off while still crossing a fence, a ledge
+## and a pit, the leap's landing rule, ending a dash and a knockback);
+## refused during a leap, a knock-up and a root; the test blink in a slot
+## (clamped to its range, a rooted press failing with its cue) and on
+## SandboxAbilities' B / Shift+B. The terrain and the view are view_test's;
+## Homeward Greaves' return is loot_test's.
 ## Prints PASS/FAIL per check, then a total. Run headless and it quits with
 ## the number of failures as the exit code.
 
@@ -94,6 +102,10 @@ const SANDBOX_AUGMENTS: Script = preload("res://scripts/rooms/sandbox_augments.g
 const HOOK_PROBE: Script = preload("res://scripts/tests/hook_vfx_probe.gd")
 const COMBO_KNIGHT: AttackCombo = preload("res://data/combos/combo_knight.tres")
 const ARENA := Vector2(-2000, 0)
+const BLINK: Ability = preload("res://data/abilities/test_q_blink.tres")
+const BLINK_SIGHT: Ability = preload("res://data/abilities/test_q_blink_sight.tres")
+const STATUS_AIRBORNE: StatusEffect = preload("res://data/statuses/status_airborne.tres")
+const SANDBOX_ABILITIES: Script = preload("res://scripts/rooms/sandbox_abilities.gd")
 
 
 ## Runs `fn` once from its own _physics_process (AB14: a cast started in the
@@ -222,6 +234,11 @@ func _ready() -> void:
 	await _test_ab14_telegraph()
 	await _test_ab14_hooks_empty()
 	await _test_ab14_hooks_fire()
+	print("\n=== Abilities test (ABILITIES AB15) ===")
+	_test_ab15_data()
+	await _test_ab15_blink()
+	await _test_ab15_refusals()
+	await _test_ab15_test_blink()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).
@@ -4563,6 +4580,195 @@ func _pool_baseline(p: Player) -> void:
 	]
 	p.stats_component.add_modifiers(mods)
 	pool.restore(1000.0)
+
+
+# --- AB15 -----------------------------------------------------------------------
+
+func _test_ab15_data() -> void:
+	_section("AB15: the test blinks' data")
+	_check("test_blink: POINT, 400 range, no cast time, 1 s, tags mobility and blink (role mobility), over walls",
+		[BLINK.id, BLINK.targeting, BLINK.cast_range, BLINK.cast_time, BLINK.cooldown, BLINK.tags, BLINK.get_role(), BLINK.get(&"through_walls")],
+		[&"test_blink", Ability.Targeting.POINT, 400.0, 0.0, 1.0, [&"mobility", &"blink"] as Array[StringName], &"mobility", true])
+	_check("test_blink_sight: the same script and numbers, stopping at walls",
+		[BLINK_SIGHT.id, BLINK_SIGHT.get_script() == BLINK.get_script(), BLINK_SIGHT.cast_range, BLINK_SIGHT.cast_time, BLINK_SIGHT.tags, BLINK_SIGHT.get(&"through_walls")],
+		[&"test_blink_sight", true, 400.0, 0.0, BLINK.tags, false])
+
+
+func _test_ab15_blink() -> void:
+	_section("AB15: MovementComponent.blink() (ABILITIES, Blinks)")
+	await _reset_knight()
+	var mv := knight.movement
+	var from := knight.global_position
+	var seen: Array = []
+	var on_blink := func(a: Vector2, b: Vector2) -> void: seen.append([a, b])
+	mv.blinked.connect(on_blink)
+	var tags_before := knight.status_component.get_tags().size()
+	var ok := mv.blink(from + Vector2(100, 0))
+	_check("on open floor: it's there at once, in the same tick (no frame waited)",
+		[ok, knight.global_position.distance_to(from + Vector2(100, 0)) < 0.01], [true, true])
+	_check("blinked(from, to), once", seen.size() == 1 and (seen[0][0] as Vector2).distance_to(from) < 0.01
+		and (seen[0][1] as Vector2).distance_to(from + Vector2(100, 0)) < 0.01, true)
+	_check("no status, no i-frames, not displaced", [knight.status_component.get_tags().size() == tags_before, knight.is_invulnerable(), mv.is_displaced()], [true, false, false])
+
+	_place(knight, ARENA)
+	var wall := _wall_at(ARENA + Vector2(50, 0), Vector2(8, 200))
+	await _frames(1)
+	mv.blink(ARENA + Vector2(100, 0))
+	_check_near("over a wall in the way (over walls by default)", knight.global_position.distance_to(ARENA + Vector2(100, 0)), 0.0, 0.01)
+	_place(knight, ARENA)
+	await _frames(1)
+	var short := mv.get_blink_landing(ARENA + Vector2(100, 0), false)
+	mv.blink(ARENA + Vector2(100, 0), false)
+	var off := knight.global_position - ARENA
+	_check("stopping at walls: short of it, the body clear of its face (46 px), where get_blink_landing() said, at %s" % off,
+		[knight.global_position.is_equal_approx(short), off.x < 46.0 - 10.5, off.x > 30.0, absf(off.y) < 1.0], [true, true, true, true])
+	wall.queue_free()
+	_place(knight, ARENA)
+	var crossed: Array[StaticBody2D] = [_block_at(ARENA + Vector2(30, 0), Vector2(6, 200), 7),
+		_block_at(ARENA + Vector2(55, 0), Vector2(8, 200), 11), _block_at(ARENA + Vector2(80, 0), Vector2(20, 200), 6)]
+	await _frames(1)
+	mv.blink(ARENA + Vector2(120, 0), false)
+	_check_near("stopping at walls, it still crosses a fence, a ledge and a pit", knight.global_position.distance_to(ARENA + Vector2(120, 0)), 0.0, 0.01)
+	for b in crossed:
+		b.queue_free()
+	var same := true
+	for p: Vector2 in [ARENA + Vector2(60, 30), ARENA + Vector2(-80, 10), ARENA + Vector2(0, -140)]:
+		same = same and mv.get_blink_landing(p) == mv.get_leap_landing(p)
+	_check("over walls it lands by the leap's rule (get_leap_landing())", same, true)
+
+	# It ends the unit's own running displacement.
+	await _reset_knight()
+	var walking_mask := knight.collision_mask
+	var dashed := knight.dash.try_dash(Vector2.RIGHT)
+	await _frames(2)
+	var dashing := dashed and knight.dash.is_dashing() and mv.is_displaced() and knight.collision_mask != walking_mask
+	var at := knight.global_position
+	mv.blink(at + Vector2(0, 80))
+	_check("mid-dash: the dash ends (displacement_finished: DashComponent sees it), the ghost mask comes back",
+		[dashing, mv.is_displaced(), knight.dash.is_dashing(), knight.collision_mask == walking_mask], [true, false, false, true])
+	await _frames(10)
+	var after_dash := knight.global_position.distance_to(at + Vector2(0, 80))
+	_report(after_dash < 4.0, "and the dash doesn't carry on (at most the walk's ramp-down after a dash)", "moved %.2f px" % after_dash)
+	await _reset_knight()
+	mv.displace(Vector2(600, 0), 0.3)
+	await _frames(2)
+	var pushed := mv.is_displaced()
+	var mid := knight.global_position
+	mv.blink(mid + Vector2(0, -60))
+	await _frames(10)
+	_check("a knockback: it ends, and the unit stays where it blinked",
+		[pushed, mv.is_displaced(), knight.global_position.distance_to(mid + Vector2(0, -60)) < 0.5], [true, false, true])
+	mv.blinked.disconnect(on_blink)
+	await _reset_knight()
+
+
+func _test_ab15_refusals() -> void:
+	_section("AB15: a blink is refused during a leap, a knock-up and a root")
+	await _reset_knight()
+	var mv := knight.movement
+	var from := knight.global_position
+	mv.leap(from + Vector2(120, 0), 0.3)
+	await _frames(3)
+	var mid := knight.global_position
+	_check("mid-leap: refused, nothing moves", [mv.blink(from + Vector2(0, 100)), knight.global_position == mid], [false, true])
+	await _wait_until(func() -> bool: return not mv.is_leaping(), 60)
+	_check_near("and the leap lands where it was going", knight.global_position.distance_to(from + Vector2(120, 0)), 0.0, 0.5)
+	await _reset_knight()
+	var at := knight.global_position
+	knight.status_component.apply_status(STATUS_AIRBORNE, null, 0.5)
+	_check("knocked up: refused (the arc keeps its shape)", [mv.blink(at + Vector2(0, 100)), knight.global_position == at], [false, true])
+	knight.status_component.remove_status(&"airborne")
+	var root := _root_status()
+	knight.status_component.apply_status(root, null)
+	_check("rooted: is_blink_blocked(), refused", [mv.is_blink_blocked(), mv.blink(at + Vector2(0, 100)), knight.global_position == at], [true, false, true])
+	knight.status_component.remove_status(root.id)
+	_check("the root gone: it blinks", [mv.is_blink_blocked(), mv.blink(at + Vector2(0, 100))], [false, true])
+	await _reset_knight()
+
+
+func _test_ab15_test_blink() -> void:
+	_section("AB15: the test blink, in a slot and on SandboxAbilities' B / Shift+B")
+	await _reset_knight()
+	var ab := knight.abilities
+	var own_q := ab.q
+	ab.q = BLINK
+	var from := knight.global_position
+	var cast := ab.try_cast(&"q", from + Vector2(300, 0))
+	_check("on Q: at the aim clamped to 400 u (128 px), at once (no cast time); its 1 s cooldown runs",
+		[cast, knight.global_position.distance_to(from + Vector2(128, 0)) < 0.01, ab.get_cooldown_left(&"q") > 0.9], [true, true, true])
+	await _wait_until(func() -> bool: return ab.is_ready(&"q") and not ab.casting, 90)
+	var root := _root_status()
+	knight.status_component.apply_status(root, null)
+	var reasons: Array = []
+	var on_fail := func(_slot: StringName, reason: String) -> void: reasons.append(reason)
+	ab.cast_failed.connect(on_fail)
+	var at := knight.global_position
+	var rooted_cast := ab.try_cast(&"q", at + Vector2(-100, 0))
+	ab.cast_failed.disconnect(on_fail)
+	_check("rooted: the press fails with its cue (a condition: \"Rooted\"), nothing moves, no cooldown",
+		[rooted_cast, reasons, BLINK.get_custom_fail_text(), knight.global_position == at, ab.get_cooldown_left(&"q")],
+		[false, [AbilityComponent.FAIL_CONDITION], "Rooted", true, 0.0])
+	knight.status_component.remove_status(root.id)
+	ab.q = own_q
+
+	var sa: Node = SANDBOX_ABILITIES.new()
+	sa.set(&"demo_costs", false)
+	sa.set(&"demo_charges", false)
+	add_child(sa)
+	await sa.call(&"_give_costs", knight)   # what it does for the sandbox's Knight: it keeps him
+	_check("SandboxAbilities' B and Shift+B blinks are the two test blinks", [sa.get(&"test_blink"), sa.get(&"test_blink_sight")], [BLINK, BLINK_SIGHT])
+	var casts: Array = []
+	var on_cast := func(unit: Unit, ability: Ability, _ctx: CastContext) -> void:
+		if unit == knight:
+			casts.append(ability)
+	Events.ability_cast.connect(on_cast)
+	var range_px := Units.to_px(400.0)
+	var b_from := knight.global_position
+	var b_expected := knight.movement.get_blink_landing(b_from + (knight.get_aim_point() - b_from).limit_length(range_px))
+	_press_key(KEY_B, false)
+	_check("B: the test blink, cast for free toward the aim, landing where get_blink_landing() said",
+		[casts, knight.global_position.distance_to(b_expected) < 0.01, knight.global_position.distance_to(b_from) > 1.0], [[BLINK], true, true])
+	var s_from := knight.global_position
+	var s_expected := knight.movement.get_blink_landing(s_from + (knight.get_aim_point() - s_from).limit_length(range_px), false)
+	_press_key(KEY_B, true)
+	_check("Shift+B: the one that stops at walls", [casts, knight.global_position.distance_to(s_expected) < 0.01], [[BLINK, BLINK_SIGHT], true])
+	knight.status_component.apply_status(root, null)
+	var r_from := knight.global_position
+	_press_key(KEY_B, false)
+	_check("rooted, B does nothing", [casts.size(), knight.global_position == r_from], [2, true])
+	knight.status_component.remove_status(root.id)
+	Events.ability_cast.disconnect(on_cast)
+	sa.queue_free()
+	await _reset_knight()
+
+
+## A root: blocks moving and dashing (COMBAT.md), 5 s.
+func _root_status() -> StatusEffect:
+	var root := _status(&"test_root", [&"cc", &"root", &"debuff"] as Array[StringName], 5.0)
+	root.blocks_move = true
+	root.blocks_dash = true
+	return root
+
+
+## A StaticBody2D like _wall_at() on collision layer `layer` (7 = low
+## obstacles, 11 = ledges, 6 = pits).
+func _block_at(pos: Vector2, size: Vector2, layer: int) -> StaticBody2D:
+	var body := _wall_at(pos, size)
+	body.collision_layer = 1 << (layer - 1)
+	return body
+
+
+## One key press pushed through the viewport, as a player's arrives.
+func _press_key(keycode: Key, shift: bool) -> void:
+	var ev := InputEventKey.new()
+	ev.physical_keycode = keycode
+	ev.keycode = keycode
+	ev.shift_pressed = shift
+	ev.pressed = true
+	get_viewport().push_input(ev)
+	var up := ev.duplicate() as InputEventKey
+	up.pressed = false
+	get_viewport().push_input(up)
 
 
 func _reset_knight() -> void:

@@ -10,4 +10,4 @@ kind = 2
 scope = &"ability:knight_lunge"
 replacement = ExtResource("2_return")
 display_name = "Homeward Lunge"
-description = "Recast Lunge within 2.5 s to dash back to where it started. Its cooldown starts after the return."
+description = "Recast Lunge within 2.5 s to blink back to where it started. Its cooldown starts after the return."

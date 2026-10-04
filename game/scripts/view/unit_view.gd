@@ -12,7 +12,9 @@ extends EntityView
 ## - the hit flash, the death (finishing after the unit is freed), the dash
 ##   afterimages (Dash afterimages, below) and the post-hit i-frame
 ##   blink;
-## - placeholders without clips squash during a windup and stretch on the hit.
+## - placeholders without clips squash during a windup and stretch on the hit;
+## - a blink (ABILITIES AB15): an afterimage where it started, a snap to where
+##   it landed, a flash there.
 ## It never changes gameplay state.
 
 const FLASH_SHADER := preload("res://scripts/view/flash_overlay.gdshader")
@@ -60,6 +62,14 @@ enum Phase { NONE, LEAD_BY_PROGRESS, LEAD_BY_TIME, FOLLOW, DASH }
 ## ground at its landing (m; LOOT L6, 3D.md, Leaps), on airborne_curve over
 ## the leap's time. High enough to clear a wall (the kit's are 2.2 m).
 @export var leap_apex_m: float = 2.5
+
+@export_group("Blink")
+## A blink (ABILITIES AB15; 3D.md, 1e): how long the still afterimage it
+## leaves where the model was takes to fade (s), in afterimage_color. 0 = none.
+@export var blink_afterimage_fade: float = 0.25
+## The model's flash where a blink arrives (the hit flash's overlay in this
+## color). Alpha 0 = none.
+@export var blink_flash_color: Color = Color(1, 1, 1, 1)
 
 @export_group("Hit flash")
 @export var flash_color: Color = Color(1, 1, 1, 1)
@@ -141,6 +151,8 @@ var _ghost_timer := 0.0
 var _ghost_pool: Array[Dictionary] = []   # a rigged model's: {"root", "anim", "material", "tween"}
 var _ghost_next := 0
 var _model_root: Node3D       # the model's own root (scaled), under _model
+var _overlay: ShaderMaterial  # the flash overlay (hit flash, blink flash)
+var _blink_snap := false      # a blink happened: snap and flash at the next sync
 
 
 func _on_setup() -> void:
@@ -158,6 +170,7 @@ func _on_setup() -> void:
 	overlay.set_shader_parameter(&"flash_color", flash_color)
 	for geo: GeometryInstance3D in _geos:
 		geo.material_overlay = overlay
+	_overlay = overlay
 	_connect_signals()
 	var f := _facing()
 	_yaw = atan2(f.x, f.y) if f != Vector2.ZERO else 0.0
@@ -173,6 +186,7 @@ func _connect_signals() -> void:
 	unit.attack.windup_started.connect(_on_windup_started)
 	unit.attack.attack_landed.connect(_on_attack_landed)
 	unit.attack.windup_cancelled.connect(_on_windup_cancelled)
+	unit.movement.blinked.connect(_on_blinked)
 	if unit.abilities:
 		unit.abilities.cast_started.connect(_on_cast_started)
 		unit.abilities.cast_finished.connect(_on_cast_finished)
@@ -267,6 +281,28 @@ func _on_sync() -> void:
 	_progress_prev = _progress_cur
 	_progress_cur = _sim_progress()
 	_sync_airborne()
+	if _blink_snap:
+		# AB15: the view stands where the blink landed now (sync() just set
+		# it): no slide from the start, and the model flashes there.
+		_blink_snap = false
+		reset_physics_interpolation()
+		if blink_flash_color.a > 0.0:
+			_overlay.set_shader_parameter(&"flash_color", blink_flash_color)
+			_flash = 1.0
+			_set_flash(flash_strength)
+
+
+## A blink (ABILITIES AB15; 3D.md, 1e): a still afterimage where the model is
+## drawn now (the blink's start: the view hasn't followed yet), and at the next
+## sync the view snaps to the landing, its ground height with it (onto a
+## plateau at once, not rising at ground_speed_m_per_s), and the model flashes.
+func _on_blinked(_from: Vector2, _to: Vector2) -> void:
+	if _dead:
+		return
+	if blink_afterimage_fade > 0.0:
+		_spawn_ghost(afterimage_color, blink_afterimage_fade)
+	_blink_snap = true
+	_ground_m = INF   # the next ground read snaps
 
 
 ## Where the view stands: the ground under the unit, except during a leap
@@ -605,6 +641,7 @@ func _update_placeholder(delta: float) -> void:
 # --- Hit, death ----------------------------------------------------------------------------
 
 func _on_damaged(_amount: float, _source: Unit) -> void:
+	_overlay.set_shader_parameter(&"flash_color", flash_color)   # a blink may have tinted it
 	_flash = 1.0
 	_set_flash(flash_strength)
 

@@ -126,6 +126,8 @@ func _ready() -> void:
 	await _test_leap_terrain()
 	await _test_leap_sandbox()
 	await _test_leap_in_view()
+	await _test_blink_terrain()
+	await _test_blink_in_view()
 	await _test_arcs_and_pillars()
 	await _test_2d_looks_gone()
 	await _test_model_blink_and_clips()
@@ -2178,6 +2180,116 @@ func _test_leap_in_view() -> void:
 	main.free()
 
 
+# --- Blinks (ABILITIES AB15; 3D.md, 1e) -------------------------------------------------------
+
+func _test_blink_terrain() -> void:
+	_section("A blink over terrain (ABILITIES AB15; 3D.md, 1e): over walls, or stopping at them; cliffs, fences")
+	var holder := await _terrain_room(_leap_layout())
+	var room := holder.get_child(0) as Room
+	var slime := (load("res://scenes/enemies/slime.tscn") as PackedScene).instantiate() as Unit
+	slime.set(&"passive", true)
+	room.get_node("Entities").add_child(slime)
+	var blink := func(from_m: Vector2, to_m: Vector2, through_walls: bool) -> Vector2:
+		_place(slime, _px(from_m.x, from_m.y))
+		await get_tree().physics_frame
+		slime.movement.blink(_px(to_m.x, to_m.y), through_walls)
+		await get_tree().physics_frame
+		return Vector2(Units.px_to_m(slime.global_position.x), Units.px_to_m(slime.global_position.y))
+	var up: Vector2 = await blink.call(Vector2(1.0, 3.5), Vector2(3.5, 3.5), true)
+	_check("from the floor onto the plateau, at once: exactly where aimed, at %s" % up, up.distance_to(Vector2(3.5, 3.5)) < 0.01, true)
+	var down: Vector2 = await blink.call(Vector2(3.5, 3.5), Vector2(3.5, 5.9), true)
+	_check("and off it, at %s" % down, down.distance_to(Vector2(3.5, 5.9)) < 0.01, true)
+	var over: Vector2 = await blink.call(Vector2(5.0, 1.5), Vector2(7.0, 1.5), true)
+	_check("over the thin wall, at %s" % over, over.distance_to(Vector2(7.0, 1.5)) < 0.01, true)
+	var short: Vector2 = await blink.call(Vector2(5.0, 1.5), Vector2(7.0, 1.5), false)
+	_check("stopping at walls: on its near side, clear of it (x < 6 m less the body), at %s" % short,
+		short.x > 5.45 and short.x < 5.6 and absf(short.y - 1.5) < 0.05, true)
+	var cliff: Vector2 = await blink.call(Vector2(1.0, 3.5), Vector2(3.5, 3.5), false)
+	_check("stopping at walls, it still goes up the cliff (a ledge isn't a wall), at %s" % cliff, cliff.distance_to(Vector2(3.5, 3.5)) < 0.01, true)
+	var fence: Vector2 = await blink.call(Vector2(2.5, 7.4), Vector2(2.5, 5.7), false)
+	_check("and over the fence, at %s" % fence, fence.distance_to(Vector2(2.5, 5.7)) < 0.01, true)
+	holder.free()
+
+
+func _test_blink_in_view() -> void:
+	_section("A blink in the view (ABILITIES AB15; 3D.md, 1e): the snap, the ground, the afterimage, the flash")
+	var layout := _terrain_layout()
+	var room := layout.build_sim()
+	var main := Node2D.new()
+	main.add_child(room)
+	add_child(main)
+	var view := WorldView.new()
+	main.add_child(view)
+	view.setup(main, room, null, layout)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var slime := (load("res://scenes/enemies/slime.tscn") as PackedScene).instantiate() as Unit
+	slime.set(&"passive", true)
+	slime.position = _px(1.0, 3.5)
+	room.get_node("Entities").add_child(slime)
+	for i in 3:
+		await get_tree().physics_frame
+	var sv := view.view_of(slime) as UnitView
+	var ghosts_before := _ghosts(view).size()
+	slime.movement.blink(_px(3.5, 3.5))
+	var ghosts := _ghosts(view)
+	var ghost_at := Vector3.INF
+	if ghosts.size() > ghosts_before:
+		var mesh := ghosts[ghosts.size() - 1].get_child(0) as Node3D
+		ghost_at = mesh.global_position if mesh else Vector3.INF
+	_check("at once, an afterimage where the model was (1, 0, 3.5), at %s" % ghost_at,
+		ghost_at.is_finite() and Vector2(ghost_at.x, ghost_at.z).distance_to(Vector2(1.0, 3.5)) < 0.05, true)
+	await get_tree().physics_frame
+	await get_tree().process_frame
+	_check_near_v3("the next tick the view stands where it landed, on the plateau's top (no rise at 8 m/s)", sv.position, Vector3(3.5, 1.5, 3.5), 0.01)
+	_check_near_v3("and it's drawn there (no slide from the start)", sv.get_global_transform_interpolated().origin, Vector3(3.5, 1.5, 3.5), 0.01)
+	_check("the model flashes in blink_flash_color", [sv._flash > 0.5, sv._overlay.get_shader_parameter(&"flash_color") == sv.blink_flash_color], [true, true])
+	for i in 20:
+		await get_tree().physics_frame
+	_check("the afterimage fades and goes (0.25 s)", _ghosts(view).size(), ghosts_before)
+	# A short blink, under WorldView's own 64 px teleport snap: only UnitView's
+	# reset keeps it from sliding. The drawn position is read from a real
+	# _process (a test coroutine reads the plain transform; measured in AB15:
+	# without the reset the model slid 0.7 m over one tick).
+	var watcher := _drawn_watcher(sv)
+	await get_tree().process_frame
+	(watcher.get(&"drawn") as Array).clear()
+	slime.movement.blink(_px(2.8, 3.5))
+	for i in 4:
+		await get_tree().physics_frame
+	var drawn: Array = watcher.get(&"drawn")
+	var between := drawn.filter(func(p: Vector3) -> bool: return absf(p.x - 3.5) > 0.01 and absf(p.x - 2.8) > 0.01)
+	_check("a short blink (0.7 m) is never drawn between its ends (UnitView's own snap; %d frames drawn)" % drawn.size(),
+		[drawn.size() >= 4, between.size(), absf((drawn.back() as Vector3).x - 2.8) < 0.01 if not drawn.is_empty() else false], [true, 0, true])
+	watcher.free()
+	slime.take_damage(1.0)
+	_check("a hit afterwards flashes in the hit's flash_color again", sv._overlay.get_shader_parameter(&"flash_color") == sv.flash_color, true)
+	main.free()
+
+
+## A node recording `target`'s drawn (interpolated) position from its own
+## _process, in `drawn`. get_global_transform_interpolated() read from a test
+## coroutine returns the plain transform (measured in AB15).
+func _drawn_watcher(target: Node3D) -> Node:
+	var src := GDScript.new()
+	src.source_code = "extends Node\nvar target: Node3D\nvar drawn: Array = []\nfunc _process(_delta: float) -> void:\n\tif is_instance_valid(target):\n\t\tdrawn.append(target.get_global_transform_interpolated().origin)\n"
+	src.reload()
+	var watcher := Node.new()
+	watcher.set_script(src)
+	add_child(watcher)
+	watcher.set(&"target", target)
+	return watcher
+
+
+## The placeholder afterimages (UnitView._spawn_ghost()) under the view.
+func _ghosts(view: WorldView) -> Array[Node]:
+	var out: Array[Node] = []
+	for child in view.get_children():
+		if String(child.name).begins_with("Ghost") and not child.is_queued_for_deletion():
+			out.append(child)
+	return out
+
+
 # --- P7's 2D-only looks (after P9) --------------------------------------------------------
 
 func _test_arcs_and_pillars() -> void:
@@ -2483,6 +2595,13 @@ func _test_model_blink_and_clips() -> void:
 		stun_pose = stun_pose or anim.current_animation == kv.stun_clip
 	_check("a leaping cast holds its cast_anim (%s) through the leap, never the stun pose" % leap_clip,
 		[leap_ok, held, stun_pose], [true, true, false])
+
+	# ABILITIES AB15: a blink leaves one of the rigged model's pooled afterimages.
+	await get_tree().physics_frame
+	var shown_before := kv._ghost_pool.filter(func(g: Dictionary) -> bool: return (g["root"] as Node3D).visible).size()
+	var blinked := knight.movement.blink(knight.global_position + Vector2(80.0, 0.0))
+	var shown := kv._ghost_pool.filter(func(g: Dictionary) -> bool: return (g["root"] as Node3D).visible).size()
+	_check("the Knight's blink shows one pooled afterimage of his model", [blinked, shown - shown_before], [true, 1])
 	holder.free()
 	view.free()
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).

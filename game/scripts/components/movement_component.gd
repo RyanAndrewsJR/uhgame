@@ -32,6 +32,8 @@ extends Node2D
 ## - leap() (LOOT L6; 3D.md, Leaps) sends the unit through the air to a
 ##   point: over everything, landing on the nearest walkable floor of its
 ##   room; nothing interrupts it.
+## - blink() (ABILITIES AB15, Blinks) moves the unit to a point at once, by
+##   the same landing rule; over walls unless told to stop at them.
 ## - set_input_direction(dir) is Hades-style direct control (the player's
 ##   WASD): a short ramp up and down, instant turning, sliding along walls.
 ##   While a direction is held it replaces any move_to() order.
@@ -40,6 +42,9 @@ extends Node2D
 signal destination_reached
 signal order_cancelled
 signal displacement_finished
+## A blink moved the unit from `from` to `to` at once (ABILITIES AB15): the
+## view snaps (UnitView).
+signal blinked(from: Vector2, to: Vector2)
 
 const STEER_ANGLES := [0.0, 15.0, -15.0, 30.0, -30.0, 45.0, -45.0, 65.0, -65.0, 90.0, -90.0, 120.0, -120.0]
 const STEER_SPEEDS := [1.0, 0.5]
@@ -60,6 +65,9 @@ const LANDING_BLOCKING_MASK := 1 | (1 << 6) | (1 << 10)
 ## Where a leap may not land (LOOT L6; 3D.md, Leaps): the knock-up's layers and
 ## pits (6), which aren't walkable floor.
 const LEAP_BLOCKING_MASK := LANDING_BLOCKING_MASK | (1 << 5)
+## A blink that stops at walls (ABILITIES AB15) sweeps this small core from
+## the unit to find the first wall, like AB13's VECTOR start clamp.
+const BLINK_WALL_CORE_PX := 2.0
 
 const STATUS_SLOW: StatusEffect = preload("res://data/statuses/status_slow.tres")
 const STATUS_HASTE: StatusEffect = preload("res://data/statuses/status_haste.tres")
@@ -405,6 +413,65 @@ func _end_leap_mask() -> void:
 	if _leap_saved_mask >= 0:
 		body.collision_mask = _leap_saved_mask
 		_leap_saved_mask = -1
+
+
+# --- Blinks (ABILITIES AB15, Blinks; 3D.md, 1e) -------------------------------------
+
+## The blink: the unit is at once where a blink aimed at `to_px` lands
+## (get_blink_landing()): no travel, no status, no i-frames, no hits. It ends
+## the unit's own running displacement first (a dash, a knockback, a swing
+## step; displacement_finished is emitted, so a dash ends as usual). A move
+## order re-paths from the new spot; held input keeps walking. The body's
+## physics interpolation is reset and `blinked` is emitted for the view.
+## Refused (false, nothing moves) during a leap, a knock-up (is_airborne())
+## and while dash-blocked (a root or a stun; League's roots stop Flash).
+func blink(to_px: Vector2, through_walls: bool = true) -> bool:
+	if is_airborne() or is_blink_blocked():
+		return false
+	var from := body.global_position
+	var landing := get_blink_landing(to_px, through_walls)
+	if is_displaced():
+		_displace_time = 0.0
+		_displace_dash_cancelable = false
+		body.velocity = Vector2.ZERO
+		_end_ghost()
+		displacement_finished.emit()
+	body.global_position = landing
+	body.reset_physics_interpolation()
+	if _has_order:
+		_compute_path(_destination)
+	blinked.emit(from, landing)
+	return true
+
+
+## True while a blink would be refused for a status: a root or a stun (the
+## statuses that block dashing; Unit.is_dash_blocked()). A leap and a
+## knock-up refuse it too (is_airborne()).
+func is_blink_blocked() -> bool:
+	return _status != null and (_status.has_tag(&"stun") or _status.blocks_dash())
+
+
+## Where a blink aimed at `to_px` would land (for indicators and AI plans).
+## Over walls (`through_walls`): the leap's rule, get_leap_landing(): the
+## aimed spot when the body fits there on the room's floor, else the nearest
+## walkable floor of the room. Stopping at walls: the aim is first cut at the
+## first wall (layer 1) on the straight line from the unit (a small core
+## swept, as AB13's VECTOR start is, so a unit already touching a wall can
+## still blink away from it); fences, ledges and pits are still crossed. Then
+## the same rule, and never out of sight of where it started (else back
+## toward the unit).
+func get_blink_landing(to_px: Vector2, through_walls: bool = true) -> Vector2:
+	if through_walls:
+		return get_leap_landing(to_px)
+	var from := body.global_position
+	var point := to_px
+	var wall := WorldQuery.shape_sweep(from, to_px, BLINK_WALL_CORE_PX)
+	if not wall.is_empty():
+		point = wall.position
+	var landing := get_leap_landing(point)
+	if not WorldQuery.has_line_of_sight(from, landing):
+		landing = WorldQuery.resolve_valid_position(point, from, _body_radius(), LEAP_BLOCKING_MASK)
+	return landing
 
 
 ## The Room the unit is in (its nearest Room ancestor), or null.

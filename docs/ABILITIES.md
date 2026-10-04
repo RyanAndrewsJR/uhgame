@@ -98,7 +98,7 @@ A **blink** moves a unit to a point instantly: no travel, no time in the air (Le
   - **Over walls by default**, with a switch per ability to stop at walls instead (`through_walls`). Over walls, it crosses everything a leap does. Stopping at walls, it ends at the last free spot short of a wall (layer 1) on the straight line from the unit; it still crosses fences, ledges and pits, as a teleport would.
   - **It lands on the nearest walkable floor of the unit's room**, by the leap's rule (`MovementComponent.get_leap_landing()`: the aimed spot when the body fits there, else the nearest point of the room's navigation, freed of what the body overlaps). So a blink never ends inside a wall, a fence or a pit, or outside the room. Stopping at walls, it also never ends out of sight of where it started.
   - **Homeward Greaves' return is a blink** (LOOT.md): an instant blink back to where the Lunge started, instead of the L6 dash.
-- **The rest** *(proposed, 2026-10-04; Ryan reviews it before AB15)*:
+- **The rest** (Claude's proposals, approved when Ryan started AB15, 2026-10-04):
   - `MovementComponent.blink(to_px: Vector2, through_walls: bool = true) -> bool` moves the body at once and returns false if refused. It also calls `reset_physics_interpolation()` (CLAUDE.md, teleports) and emits the new signal `blinked(from: Vector2, to: Vector2)` for the view.
     - It ends the unit's own running displacement first: a dash (its ghost mask comes back), a knockback, a swing step.
     - A move order re-paths from the new spot, and held input keeps walking.
@@ -108,6 +108,11 @@ A **blink** moves a unit to a point instantly: no travel, no time in the air (Le
   - **Ability tag `blink`** (a shape tag, like `dash` and `leap`): `tag:blink` scopes reach it, and an ABILITY_CAST rule can answer "when you blink". There's no blink event of its own.
   - **Enemies may blink** (unlike the leap): a blink moves only its user and isn't crowd control on anyone. The view_test guard on `leap()` stays; there's none on `blink()`.
   - **Level design** (3D.md, 1e): a wall thinner than a blink's range doesn't keep a blinker out, as for leaps. Gated spaces are separate rooms or out of range.
+- **As built (AB15, 2026-10-04):**
+  - `MovementComponent.is_blink_blocked()` (a root or a stun) is what blinking abilities check in `can_cast_custom()`, with the fail text "Rooted". A free cast doesn't run that check, so a caller that casts a blink for free checks it first (SandboxAbilities does).
+  - Ending a running displacement emits `displacement_finished`, so a dash ends through DashComponent as usual (`stop_displacement()` doesn't, and would have left the dash running).
+  - Stopping at walls, the first wall is found by sweeping a 2 px core (`BLINK_WALL_CORE_PX`), as AB13's VECTOR start is, so a unit already touching a wall can still blink away from it.
+  - A blink inside a cast follows the cast's timing: Homeward Lunge's return keeps Lunge's 0.05 s cast time (3 ticks from the press).
 
 ### Ultimates
 - Per champion: the ultimate uses a cooldown (League) or a meter charged by dealing and taking damage (Hades), Ryan's pick. The Knight uses a cooldown (Judgement: 30 s, CHAMPIONS.md). The meter is designed in CHAMPIONS.md when a champion first uses one; this doc only needs the slot to support "ready when the meter is full" instead of a cooldown (`ready_mode` METER, reserved here, built with the meter).
@@ -501,7 +506,7 @@ All take the usual `apply(target, source, trigger_ctx)`; the source id is the ru
 - AB13: `test_vector_line` (`test/vector_line.gd`, `test_q_vector_line.tres`): a Viktor E-style line. VECTOR, POINT, `cast_range` 500 u (160 px start range), `vector_length` 500 u (160 px), `vector_width` 75 u (24 px), `vector_min_drag_px` 8, a 0.2 s release windup (`cast_time`), `overhold_time` 2 s FIRE, `roots_during_cast` off and `cast_move_speed_multiplier` 0.6 (aiming slows, doesn't root), `dash_cancelable`, `hit_shake` 2.5 and `hit_hitstop` 0.04, 60 + 50% AD MAGIC on every enemy along the line (`along_segment()`, in sight from the start point, one hit each through `hit_units()`), cooldown 3 s, tags `core` `line` `vector`. All numbers are placeholders.
 - AB13: `test_vector_wall` (`test/vector_wall.gd`, `test_w_vector_wall.tres`), an enemy test ability: VECTOR, POINT, the same range, length and width, a 0.7 s cast time with a `Telegraph.line()`, 100 PHYSICAL along the line (in sight from the start point, through `hit_units()`), `resets_auto_attack` off, `hit_shake` 3 and `hit_hitstop` 0.06 (the slam's), cooldown 6 s, tags `core` `line` `vector`; its `get_ai_vector()` lays the line across the elite → player direction, centered on the player (a wall across the escape path). The start is clamped to `cast_range` as at a press, so with the player near the edge of the range the wall sits a little toward the elite (at 160 px it still covers the player). Put on the sandbox elite's W by `SandboxAbilities.test_elite_w`, which `sandbox.tscn` sets. The sandbox's `test_q` is empty since AB-M (set it to `test_vector_line` in the Inspector to try the line).
 - 3D pivot P9: `test_uppercut` (`test/uppercut.gd`, `test_w_uppercut.tres`), the player's test knock-up: DIRECTION, a 2 m cone (`cast_range` 200 u, 50° half-angle), 30 + 30% AD physical, `hit_knockback_px` 64 over 0.25 s and `status_airborne` for `airborne_duration` (0.75 s) on every enemy hit, tags `core` `area` `cone` `melee`, cooldown 2 s, 0.15 s cast. On W in the 3D sandbox only (`SandboxAbilities.test_w`); not part of any kit.
-- AB15 *(proposed, 2026-10-04)*: `test_blink` (`test/blink.gd`, `test_q_blink.tres`), the player's test blink:
+- AB15 (built 2026-10-04): `test_blink` (`test/blink.gd`, `test_q_blink.tres`), the player's test blink:
   - POINT, `cast_range` 400 u (128 px, Flash's), no cast time, cooldown 1 s, no damage, tags `mobility` `blink`.
   - A `through_walls` export (on); `test_q_blink_sight.tres` is the same with it off.
   - `can_cast_custom()` fails while the caster is dash-blocked (fail text "Rooted").
@@ -799,6 +804,7 @@ Every step: with no cast style changes, scalings, costs, charges, recasts, augme
     - **The view:** no slide (even under WorldView's 64 px snap); onto a plateau at once; an afterimage at the start and a flash at the arrival; the camera glides.
     - **Homeward Greaves:** the return blinks back to the exact start at once (also after walking behind a wall) and hits nothing. Tackle, Twin Lunge, Long Lunge and Quick Footing work as in L6. A rooted recast fails with its cue and the window keeps running.
     - **Tests and play test:** every existing test passes (L6's return checks updated to the blink). Ryan's play test: the return reads as a blink, and the test blink feels right.
+    Built 2026-10-04, see CHANGELOG.md.
 
 **Milestone AB-M – augment playground** (after AB13): in the sandbox, `SandboxAugments` with 4 fake items that visibly change the Knight: Lunge stuns (FLAG), Cleave becomes a projectile wave (REPLACE), a Judgement kill resets its cooldown (EVENT + ModifyCooldown), casting Cleave also casts a free Lunge-style dash (CastAbility, at Cleave's effect start). Built 2026-09-28, see CHANGELOG.md.
     **Done means** (passed Ryan's play test, 2026-09-28): keys 1–4 equip and unequip them; the tooltips show each change; unequipping restores the Knight exactly.
@@ -814,14 +820,8 @@ Not build steps. Each is data once 2+ kits use it (Data or script, above).
 Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modifiers, unit reaction rules, statuses, empowers and an optional script, all under a source id like `passive_knight`, built on this toolkit); items and affix rolls (LOOT.md); enemy AI choosing abilities (ENEMIES_AI.md, written 2026-10-03: the brain, intents, use rules; this doc keeps only the fields it adds to Ability and Condition); ability ranks (none, replaced by talents: Ability ranks); talents (TALENTS.md, built on augments); summons; ability slot swapping by the player (decided no, 2026-09-29: slots are fixed, VISION.md, Build variety; REPLACE augments and forms still change what's active in a slot); TOGGLE and SUSTAINED cast styles (not planned: Cast styles); the ultimate meter (CHAMPIONS.md).
 
 ## Open questions
-- **Blinks** (2026-10-04; Ryan's three calls are in Blinks): Claude's proposals there are for Ryan to review before AB15:
-  - the API and the `blinked` signal;
-  - it ends the unit's own displacement, and is refused during a leap, a knock-up or a root (checked in `can_cast_custom()`);
-  - no status, i-frames or hits;
-  - the tag `blink`, with no event of its own;
-  - enemies may blink;
-  - the view's snap, afterimage and flash, with the camera gliding (3D.md, 1e);
-  - the test blink on B / Shift+B.
+- ~~Blinks: Claude's proposals~~ (the API and `blinked`, the refusals, no status or i-frames, the tag, enemies may blink, the view's look, the test blink on B): approved when Ryan started AB15 (2026-10-04).
+- Should a recast part have its own cast time? Homeward Lunge's return keeps Lunge's 0.05 s (3 ticks) before the blink. *(proposed: only if Ryan's play test finds the return late)*
 - Should a root also block the dashes (Lunge, Triple Step) as it will block blinks? *(proposed: not now; with ENEMIES_AI's roots, when a root first comes from an enemy)*
 - Ultimate meter details (CHAMPIONS.md, when a champion first uses one).
 - The element tag list.

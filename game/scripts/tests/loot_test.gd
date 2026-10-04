@@ -61,6 +61,9 @@ extends Node2D
 ## Fury bonus spent once, Shockwave's ring, Executioner's reset on a kill,
 ## Long Arm and Swift Verdict), and in a Room with its navigation: the nearest
 ## walkable floor when aimed into a wall, a pit, a fence or past the edge.
+## ABILITIES AB15: Homeward Greaves' return is a blink (at the start by the
+## cast's 3 frames, never in between, over a wall; a rooted recast fails with
+## its cue and the window keeps running); its Stagger line is Lunge's.
 ## Prints PASS/FAIL per check, then a total.
 ## Run headless and it quits with the number of failures as the exit code.
 
@@ -230,6 +233,7 @@ func _ready() -> void:
 	# L6
 	_test_l6_data()
 	await _test_homeward_greaves()
+	await _test_homeward_blink()
 	await _test_homeward_talents()
 	await _test_last_verdict()
 	await _test_leap_hits()
@@ -1994,10 +1998,10 @@ func _test_l6_data() -> void:
 				named.modifiers.size(), named.drop_weight],
 			[row[1], row[2], &"knight", row[3], row[4], AbilityAugment.Kind.REPLACE, row[5], row[6], row[7], 0, 1.0])
 		_check("%s validates" % row[1], named.get_validation_errors(KNIGHT), PackedStringArray())
-	_check("Homeward Lunge: Lunge's script, a variant of it with one recast in a 2.5 s window, Lunge's flags and tags",
+	_check("Homeward Lunge: Lunge's script, a variant of it with one recast in a 2.5 s window, Lunge's flags and tags plus blink (AB15: the return is one)",
 		[LUNGE_RETURN.id, LUNGE_RETURN.get_script() == LUNGE.get_script(), LUNGE_RETURN.variant_of, LUNGE_RETURN.recast_count,
 			LUNGE_RETURN.recast_window, _plain(LUNGE_RETURN.supported_flags), _plain(LUNGE_RETURN.tags)],
-		[&"knight_lunge_return", true, &"knight_lunge", 1, 2.5, [&"lunge_stuns", &"lunge_tackle"], _plain(LUNGE.tags)])
+		[&"knight_lunge_return", true, &"knight_lunge", 1, 2.5, [&"lunge_stuns", &"lunge_tackle"], _plain(LUNGE.tags) + [&"blink"]])
 	_check("and Lunge's numbers (POINT, 400 range, 8 s, 50 + 50% AD, 0.05 s cast, its speed, its Stagger bonus)",
 		[LUNGE_RETURN.targeting, LUNGE_RETURN.cast_range, LUNGE_RETURN.cooldown, LUNGE_RETURN.base_damage, LUNGE_RETURN.ad_ratio,
 			LUNGE_RETURN.cast_time, LUNGE_RETURN.get(&"dash_speed"), LUNGE_RETURN.conditional_bonuses.size()],
@@ -2034,7 +2038,7 @@ func _test_homeward_greaves() -> void:
 	var p := await _spawn_knight()
 	_equip_named(p, HOMEWARD_GREAVES, 1001)
 	_check("worn, E casts Homeward Lunge; its tooltip has the augment's line",
-		[p.abilities.get_ability(&"e"), LUNGE_RETURN.get_tooltip_plain(p).contains("\nRecast Lunge within 2.5 s to dash back")], [LUNGE_RETURN, true])
+		[p.abilities.get_ability(&"e"), LUNGE_RETURN.get_tooltip_plain(p).contains("\nRecast Lunge within 2.5 s to blink back")], [LUNGE_RETURN, true])
 	var origin := p.global_position
 	var d := _dummy_near(p)
 	d.global_position = origin + Vector2(60, 0)
@@ -2068,7 +2072,7 @@ func _test_homeward_greaves() -> void:
 	await _wait_until(func() -> bool: return casts.size() == 2 and not p.abilities.casting, 60)
 	_check("the recast is part 1, given part 0's sequence (the same dictionary)",
 		[casts[1].part, is_same(casts[1].sequence, casts[0].sequence)], [1, true])
-	_check_near("it dashed back to the exact start, through the unit on the way", p.global_position.distance_to(origin), 0.0, 0.5)
+	_check_near("it blinked back to the exact start (AB15), past the unit on the way", p.global_position.distance_to(origin), 0.0, 0.5)
 	_check("hitting nothing (the unit took nothing more)", [hit_targets.size(), d.health.current == health_before], [1, true])
 	await _frames(1)
 	var full := p.abilities.get_cooldown_duration(LUNGE_RETURN)
@@ -2110,6 +2114,69 @@ func _test_homeward_greaves() -> void:
 	await _wait_until(func() -> bool: return w.abilities.get_recast_part(&"e") == 0 and not w.abilities.casting, 60)
 	_check_near("the return still goes straight back to the start", w.global_position.distance_to(w_origin), 0.0, 0.5)
 	await _free(w)
+
+
+## ABILITIES AB15 (Ryan, 2026-10-04): the return is a blink.
+func _test_homeward_blink() -> void:
+	_section("AB15: Homeward Greaves' return is a blink (instant, over walls; refused while rooted)")
+	_check("Homeward Lunge's Stagger line is Lunge's (L6 had overwritten it with the ability's description)",
+		LUNGE_RETURN.conditional_bonuses[0].description, LUNGE.conditional_bonuses[0].description)
+	Loot.reset(KNIGHT)
+	var p := await _spawn_knight()
+	p.abilities.add_augment(AUGMENT_LUNGE_RETURN, &"loot_test_return")
+	var origin := p.global_position
+	await _wait_hitstop()
+	p.abilities.try_cast(&"e", origin + Vector2(100, 0), null)
+	await _wait_until(func() -> bool: return p.abilities.get_recast_part(&"e") == 1 and not p.abilities.casting, 60)
+	var out_at := p.global_position
+	var wall := _blocker(Rect2(origin + Vector2(46, -60), Vector2(8, 120)), 1)
+	await _frames(1)
+	var blinks: Array = []
+	var on_blink := func(a: Vector2, b: Vector2) -> void: blinks.append([a, b])
+	p.movement.blinked.connect(on_blink)
+	var path: Array[Vector2] = []
+	p.abilities.try_cast(&"e", origin, null)
+	for i in 8:
+		await _frames(1)
+		path.append(p.global_position)
+	p.movement.blinked.disconnect(on_blink)
+	var arrived := path.find_custom(func(v: Vector2) -> bool: return v.distance_to(origin) < 0.5)
+	var never_between := path.all(func(v: Vector2) -> bool: return v.distance_to(origin) < 0.5 or v.distance_to(out_at) < 0.5)
+	_check("over a wall between him and the start: at the start, by the cast's 0.05 s (3 frames), never in between (one blink)",
+		[arrived >= 0 and arrived <= 3, never_between, blinks.size()], [true, true, 1])
+	wall.queue_free()
+	await _free(p)
+
+	# Rooted in the window: the recast fails with its cue, and the window keeps running.
+	var r := await _spawn_knight()
+	r.abilities.add_augment(AUGMENT_LUNGE_RETURN, &"loot_test_return")
+	var r_origin := r.global_position
+	await _wait_hitstop()
+	r.abilities.try_cast(&"e", r_origin + Vector2(100, 0), null)
+	await _wait_until(func() -> bool: return r.abilities.get_recast_part(&"e") == 1 and not r.abilities.casting, 60)
+	var root := StatusEffect.new()
+	root.id = &"loot_test_root"
+	root.tags = [&"cc", &"root", &"debuff"] as Array[StringName]
+	root.blocks_move = true
+	root.blocks_dash = true
+	root.duration = 5.0
+	r.status_component.apply_status(root, null)
+	var reasons: Array = []
+	var on_fail := func(_slot: StringName, reason: String) -> void: reasons.append(reason)
+	r.abilities.cast_failed.connect(on_fail)
+	var left_before := r.abilities.get_recast_time_left(&"e")
+	var pressed := r.abilities.try_cast(&"e", r_origin, null)
+	r.abilities.cast_failed.disconnect(on_fail)
+	await _frames(12)
+	_check("rooted: the recast fails with its cue (a condition: \"Rooted\"); he stays out",
+		[pressed, reasons, r.global_position.distance_to(r_origin + Vector2(100, 0)) < 0.5], [false, [AbilityComponent.FAIL_CONDITION], true])
+	_check("and the window keeps running (part 1 still next, its time going down)",
+		[r.abilities.get_recast_part(&"e"), r.abilities.get_recast_time_left(&"e") < left_before - 0.1], [1, true])
+	r.status_component.remove_status(root.id)
+	r.abilities.try_cast(&"e", r_origin, null)
+	await _wait_until(func() -> bool: return r.abilities.get_recast_part(&"e") == 0 and not r.abilities.casting, 60)
+	_check_near("the root gone, inside the window: back to the start", r.global_position.distance_to(r_origin), 0.0, 0.5)
+	await _free(r)
 
 
 func _test_homeward_talents() -> void:
