@@ -5,8 +5,9 @@ class_name ItemRoller
 ## RandomNumberGenerator, so a seeded rng gives the same items every time
 ## (tests; COMPANIONS' rolls reuse roll_rarity()). A band with equal ends
 ## (the Artifact's) draws nothing.
-## LOOT L1. Named items (Legendary / Artifact) come in L5; until then, and for
-## a champion with none of the rolled rarity, the item is an Exotic.
+## LOOT L1 (sigils in the pool since L4). Named items (Legendary / Artifact)
+## come in L5; until then, and for a champion with none of the rolled rarity,
+## the item is an Exotic.
 
 
 ## A rarity rolled from `drop_table`'s weights at `depth` with `magic_find`.
@@ -48,7 +49,8 @@ static func roll_item(rarity: Item.Rarity, _champion: ChampionData, table: LootT
 		var k := maxi(pick_weighted(weights, rng), 0)
 		item.affix_rolls.append([pool[k], roll_in_band(def, rng)])
 		pool.remove_at(k)
-	# Sigils, never the same one twice.
+	# Sigils, each with the same odds, never the same one twice (an Exotic's
+	# two are always different).
 	var sigil_pool: Array[AbilityAugment] = []
 	for sigil in t.sigils:
 		if sigil != null:

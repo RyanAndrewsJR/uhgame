@@ -7,8 +7,8 @@ extends RefCounted
 ## The roll is saved, not the value: each affix keeps a 0–1 roll and its value
 ## is recomputed from the current data (Affix.get_value() inside the rarity's
 ## band), so a retune of an affix range or a band reaches every item already
-## owned. LOOT L1; named items (Legendary / Artifact) come in L5, the sigil
-## names in L4.
+## owned. LOOT L1; the sigil names and tooltip lines L4; named items
+## (Legendary / Artifact) come in L5.
 
 enum Slot { WEAPON, HELM, CHEST, GLOVES, BOOTS, RING, AMULET }
 enum Rarity { COMMON, UNCOMMON, RARE, UNIQUE, EXOTIC, LEGENDARY, ARTIFACT }
@@ -39,9 +39,20 @@ func get_slot() -> Slot:
 	return base.slot if base != null else Slot.WEAPON
 
 
-## The base's name. (L4 adds " of <suffixes>" for an item's sigils.)
+## The base's name, plus " of " and its sigils' name suffixes (LOOT L4):
+## "Iron Helm of Storms", "Band of the Hunt and Ruin". A sigil without a
+## suffix adds nothing.
 func get_display_name() -> String:
-	return base.display_name if base != null else "?"
+	var base_name := base.display_name if base != null else "?"
+	var suffixes: PackedStringArray = []
+	for sigil in sigils:
+		if sigil != null and sigil.name_suffix != "":
+			suffixes.append(sigil.name_suffix)
+	if suffixes.is_empty():
+		return base_name
+	var last := suffixes[suffixes.size() - 1]
+	suffixes.remove_at(suffixes.size() - 1)
+	return "%s of %s" % [base_name, last if suffixes.is_empty() else "%s and %s" % [", ".join(suffixes), last]]
 
 
 func get_color(table: LootTable) -> Color:
@@ -98,8 +109,16 @@ func get_tooltip_lines(table: LootTable) -> PackedStringArray:
 	for i in affix_rolls.size():
 		lines.append((affix_rolls[i][0] as Affix).get_line(get_affix_value(i, table)))
 	for sigil in sigils:
-		lines.append(sigil.get_tooltip_line())
+		if sigil != null:
+			lines.append(get_sigil_line(sigil))
 	return lines
+
+
+## A sigil's tooltip line: "Storm Strike: <its description>" (just the name,
+## or the id, without a description).
+static func get_sigil_line(sigil: AbilityAugment) -> String:
+	var label := sigil.display_name if sigil.display_name != "" else String(sigil.id)
+	return "%s: %s" % [label, sigil.description] if sigil.description != "" else label
 
 
 ## What the inventory save keeps (LOOT.md, Inventory and saving): ids and

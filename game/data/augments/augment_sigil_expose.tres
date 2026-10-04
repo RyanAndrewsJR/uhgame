@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="AbilityAugment" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ability_augment.gd" id="1_augment"]
+[ext_resource type="Script" path="res://scripts/data/reaction_rule.gd" id="2_rule"]
+[ext_resource type="Script" path="res://scripts/data/apply_status_gameplay_effect.gd" id="3_status"]
+[ext_resource type="Script" path="res://scripts/data/gameplay_effect.gd" id="4_effect"]
+[ext_resource type="Resource" path="res://data/statuses/status_exposed.tres" id="5_exposed"]
+
+[sub_resource type="Resource" id="expose"]
+script = ExtResource("3_status")
+status = ExtResource("5_exposed")
+
+[sub_resource type="Resource" id="on_cc"]
+script = ExtResource("2_rule")
+id = &"sigil_expose"
+trigger = 4
+required_status_tags = Array[StringName]([&"cc"])
+effects = Array[ExtResource("4_effect")]([SubResource("expose")])
+chain_limit = 2
+
+[resource]
+script = ExtResource("1_augment")
+id = &"sigil_expose"
+kind = 1
+rules = Array[ExtResource("2_rule")]([SubResource("on_cc")])
+display_name = "Expose"
+description = "Crowd control you apply also Exposes the enemy for 3 s: it takes 15% more damage."
+name_suffix = "Ruin"

@@ -6,7 +6,7 @@
 
 ## How to read this doc
 Same as TALENTS.md: MUST (never change without asking Ryan), TARGET (start value and allowed range), FREE (your call; tiebreaker: VISION.md's decision priorities). Ryan's spec of 2026-10-01 is MUST. Claude's proposals were answered by Ryan the same day: all approved, with two changes (an Exotic gets a second sigil instead of better rolls; an Artifact's affixes are always at their maximum) and a new word for the Unique / Exotic effect, **sigil** (Open questions). All numbers are TARGET placeholders until the play tests.
-**Status:** L1 (items: data and rolling) and L2 (equipping, the inventory and the save) passed, L3 (SandboxLoot: equipping by hand) built, 2026-10-03, see CHANGELOG.md; L4–L7 and L-M not started (no sigils, named items, drops or pickups yet). **Synced 2026-10-03** with the 3D pivot (its cleanup C3 deleted the 2D looks), COMPANIONS.md, ALLIES.md and DUNGEONS.md, with Ryan's four answers (leaps go over everything, ally kills drop everything, a wing's floors remember their ground drops, the drag lifts its target) and Claude's proposals, marked (LOOT sync) and approved by Ryan the same day, an ally's kill counting as the champion's kill (Open questions, The LOOT sync).
+**Status:** L1 (items: data and rolling), L2 (equipping, the inventory and the save) and L3 (SandboxLoot: equipping by hand) passed, L4 (sigils) built, 2026-10-03, see CHANGELOG.md; L5–L7 and L-M not started (no named items, drops or pickups yet). **Synced 2026-10-03** with the 3D pivot (its cleanup C3 deleted the 2D looks), COMPANIONS.md, ALLIES.md and DUNGEONS.md, with Ryan's four answers (leaps go over everything, ally kills drop everything, a wing's floors remember their ground drops, the drag lifts its target) and Claude's proposals, marked (LOOT sync) and approved by Ryan the same day, an ally's kill counting as the champion's kill (Open questions, The LOOT sync).
 
 ## Player experience
 A slime dies and something pops out of it: a grey gem, a green one, now and then a blue one. A moment later it's yours, without breaking stride, the way Hades hands you obols: no key, no menu, no stopping. Most drops are numbers: a helm with more health, a ring with crit. Further up the ladder a purple item carries a sigil ("lightning strikes", "a burst of speed on a kill"), and a teal one carries two. Then, every few runs, an orange beam: a Knight-only legendary that changes an ability. Cleave becomes a wave, Lunge gets a way back, Judgement drags its target to you. One gold beam is the chase: an artifact, always perfect, that turns Judgement into a leap. Everything you pick up is kept, for that champion, forever, and you can put it on whenever you like, mid-fight included.
@@ -42,6 +42,7 @@ A slime dies and something pops out of it: a grey gem, a green one, now and then
 - **Built in L1 (2026-10-03):** `Item`, `ItemRarity`, `ItemBase`, `Affix`, `LootTable` (`loot_table_default.tres`), `DropTable` (regular, elite), `ItemRoller`, the 7 bases and 15 affixes, `loot_test.tscn`.
 - **Built in L2 (2026-10-03):** `EquipmentComponent` on `player.tscn` (`Player.equipment`), `Events.item_equipped` / `item_unequipped`, `set_gain_on_max_raise()` on HealthComponent and ResourceComponent, `ChampionInventory`, the `Loot` autoload (`user://inventory.cfg`), the Player equipping its saved gear at load. Nothing puts items in an inventory or on a player in play yet (SandboxLoot is L3; drops L7), so the game plays as before.
 - **Built in L3 (2026-10-03):** `SandboxLoot` in both sandboxes (the list; J / Shift+J, U, K, P, [ / ]), `Room.depth` and `RoomLayout.depth` (copied by `build_sim()`), `Loot.get_depth()`. Gear set in the sandbox is saved and worn in Start run; with an empty inventory the game plays as before.
+- **Built in L4 (2026-10-03):** the sigil pool (`augment_sigil_storm_strike.tres`, `augment_sigil_bloodrush.tres`, `augment_sigil_expose.tres` in `loot_table_default.tres`), `status_bloodrush.tres`, `status_exposed.tres`, `AbilityAugment.name_suffix`, the " of <suffixes>" names, the sigil tooltip lines. Unique items roll one sigil, Exotic two different ones.
 
 ## Rules
 ### Rarities (MUST: the ladder and what each has, Ryan 2026-10-01; counts and bands TARGET; colors FREE)
@@ -164,6 +165,15 @@ Against TALENTS' assumed run (96 regular kills, 4 elites) at depth 1 with no mag
 
 - Each is one `data/augments/augment_sigil_<name>.tres` (EVENT, empty scope). The Knight triggers all three: every hit (Storm Strike), kills (Bloodrush), Judgement's stun, Iron Resolve's slow and Tackle's stun (Expose; Staggered isn't `cc`, so Lunge alone doesn't).
 - Item names (FREE): a base's name plus "of" and its sigils' suffixes: "Iron Helm of Storms" (Unique), "Band of the Hunt and Ruin" (Exotic). With three sigils there are three Exotic pairs.
+- **As built (L4, 2026-10-03):**
+  - A sigil's suffix is `AbilityAugment.name_suffix` (new, empty for every other augment), so a sigil is authored in one file. Validation needs one on every sigil in the pool.
+  - An Exotic's name lists its suffixes in its sigils' rolled order ("Iron Helm of Ruin and the Hunt").
+  - Each sigil is picked with the same odds.
+  - A sigil's tooltip line is "Name: description" ("Bloodrush: A kill gives you +30% move speed for 2 s."). The descriptions are plain text, like every augment's, so a retune of their numbers edits the text too.
+  - **Chain limit 2 on all three rules**, so a sigil answers what its wearer causes one link into a chain: a free cast's hits (Cleave's free Lunge), a kill by a Storm Strike bolt, crowd control applied by another reaction. None of them can feed itself: a bolt is a proc (coefficient 0), Bloodrush isn't crowd control, and neither is Exposed.
+  - `status_bloodrush` plays Iron Resolve's haste sound when it lands (`sound_status_haste_apply`).
+  - Neither the bolt nor Exposed has a look of its own yet. The bolt shows as its magic damage number, and Exposed shows only as bigger numbers. A look would be view work: a bolt pillar like `VFX.impact()`'s, an Exposed mark like Staggered's.
+  - An item rolled before L4 keeps no sigils: the save keeps what was rolled, and sigils are never added later.
 
 ## The Knight's named items (names placeholder; numbers TARGET)
 Five items, one per ability plus the artifact (approved by Ryan 2026-10-01). Each changes how its ability is used, not just its numbers. All keep the kit's shared pieces (Staggered, Cleave's heal, the Fury payoff), and each works with every Knight talent.
@@ -249,7 +259,7 @@ The global rules, held by `Loot.table`.
 | `rarities` | `Array[ItemRarity]` | 7, in `Item.Rarity` order (validated) |
 | `item_bases` | `Array[ItemBase]` | the 7 bases |
 | `affixes` | `Array[Affix]` | the random affix pool |
-| `sigils` | `Array[AbilityAugment]` | the sigil pool (3 EVENT augments; at least 2, validated). Empty until L4, which validation allows: Unique and Exotic roll without sigils until then |
+| `sigils` | `Array[AbilityAugment]` | the sigil pool (3 EVENT augments; at least 2, each with a `name_suffix`, validated; filled in L4). An empty pool also validates: its Unique and Exotic items roll without sigils |
 | `drop_table_by_unit` | `Dictionary` (StringName → DropTable) | **temporary, until ENEMIES_AI.md**: `{&"slime": regular, &"slime_elite": elite}` |
 | `default_drop_table` | `DropTable` | a non-passive enemy not in the map |
 | `pickup_sound` | `SoundEvent` | on collect |
@@ -359,6 +369,8 @@ Built with drops and pickups (L7), with synthesized placeholders like AUDIO.md's
 |---|---|
 | Two items with the same sigil | One sigil (the augment id counts once); unequipping either keeps it while the other is on. Their stats both apply |
 | An Exotic's two sigils | Always different (the roller never picks one twice); both fire, each on its own trigger |
+| A kill by a Storm Strike bolt; crowd control applied by another reaction; a free cast's hits | Bloodrush, Expose and Storm Strike still fire: one link into a chain is within their chain limit (2). Two links deep, they don't (L4) |
+| A Unique or Exotic rolled before L4 | No sigils: the save keeps what was rolled; sigils are never added later (L4) |
 | Storm Strike's lightning | A `proc`-tagged hit (COMBAT.md): can't crit, coefficient 0, so no HIT rule (Storm Strike included) and no on-hit fires from it |
 | Expose on a status that isn't cc (Staggered) | Doesn't fire (`required_status_tags` [`cc`]). Exposed isn't cc, so it can't loop |
 | Bloodrush with Iron Resolve's haste | Different status ids; both PERCENT_ADD move speed, summed (STATS.md) |
@@ -402,7 +414,7 @@ Every step: the Knight's abilities, talents, enemies chasing and the HUD still w
    **Done means:** an equipped item changes exactly its stats under `item_<uid>` and unequipping restores them exactly; a swap replaces; rings fill both slots; a swap at partial health doesn't heal and a spawn with gear starts full; a save and reload keeps items, uids, the equipped set and the empty materials bucket; an unreadable entry survives a save; tests never write the real file; with nothing equipped every suite is unchanged.
 3. **L3 – SandboxLoot: equipping by hand.** The list, J / Shift+J, U, K (into the inventory), P (a no-op until L5), [ / ], the tooltip lines; `Room.depth` (and (LOOT sync) `RoomLayout.depth`; SandboxLoot in both sandboxes). Built 2026-10-03, see CHANGELOG.md.
    **Done means:** Ryan rolls a few items in the sandbox, equips and swaps them and feels the stats (crit, attack speed, move speed); the list shows what's on; quitting and relaunching keeps it; Start run plays with that gear.
-4. **L4 – Sigils.** The three sigil augments, `status_bloodrush`, `status_exposed`, Unique rolling one sigil and Exotic two different ones, the " of <suffixes>" names, the sigil lines in tooltips.
+4. **L4 – Sigils.** The three sigil augments, `status_bloodrush`, `status_exposed`, Unique rolling one sigil and Exotic two different ones, the " of <suffixes>" names, the sigil lines in tooltips. Built 2026-10-03, see CHANGELOG.md.
    **Done means:** each sigil does what its row says (a check each), never from a `proc`-tagged hit; an Exotic always has two different sigils and both fire; the same sigil from two items is one; unequipping removes it; Ryan's play test: each one is felt in the sandbox, and an Exotic reads as two effects.
 5. **L5 – Named items, part 1: the framework and the FLAGs.** `NamedItem` + validation, `ChampionData.named_items`, Legendary and Artifact rolls from the champion's list (Exotic fallback; an Artifact's affixes at their maximum with no draw), the one-copy and shared-slot rules; Tidebreaker (the existing Cleave Wave), Oathbound Plate (`iron_resolve_undying`, `status_undying`, the `undying` rule in `Unit.on_hit()`), Chains of Judgement (`judgement_drag`, airborne); `ItemRoller.make_named()`; SandboxLoot's P.
    **Done means:** each item validates and does what its row says with every Knight talent in its group; a Legendary's affixes vary inside its band and an Artifact's are always the maximum; Undying keeps the Knight at 1 health through a killing blow and ends on time; the drag brings the target to the Knight before the hit, over a fence and off a plateau (stopped by a wall), and skips an unstoppable one; Ryan's play test (the 3D sandbox's terrain corner for the drag): each feels like a different way to use its ability.

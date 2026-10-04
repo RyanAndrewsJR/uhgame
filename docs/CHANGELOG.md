@@ -11,7 +11,42 @@
 
 ## Loot (LOOT.md)
 
-### L3 – SandboxLoot: equipping by hand: 2026-10-03, Built (awaiting Ryan's play test)
+### L4 – Sigils: 2026-10-03, Built (awaiting Ryan's play test)
+- **Data:**
+  - `data/augments/augment_sigil_storm_strike.tres`: HIT, chance 0.15 (× the hit's proc coefficient), a `DealDamageGameplayEffect` of 30 + 40% AD magic, tagged `lightning`.
+  - `augment_sigil_bloodrush.tres`: UNIT_DIED, effect target OTHER (the killer), applies `status_bloodrush`.
+  - `augment_sigil_expose.tres`: STATUS_APPLIED with `required_status_tags` [`cc`], applies `status_exposed`.
+  - All three are EVENT augments with an empty scope and owner SOURCE, with chain limit 2.
+  - `data/statuses/status_bloodrush.tres`: move speed PERCENT_ADD +0.3, 2 s, REFRESH, tag `buff`, Iron Resolve's haste sound on apply.
+  - `status_exposed.tres`: `incoming_damage` PERCENT_MULT +0.15, 3 s, REFRESH, tags `exposed`, `debuff`.
+  - `loot_table_default.tres` lists the three as its `sigils`.
+- **Code:**
+  - `AbilityAugment.name_suffix` (new export; empty for every other augment).
+  - `Item.get_display_name()` adds " of " and the suffixes, in rolled order.
+  - `Item.get_tooltip_lines()` writes a sigil as "Name: description" (static `Item.get_sigil_line()`).
+  - `LootTable` validation needs a `name_suffix` on each sigil.
+  - The roller was unchanged: it already picked one or two different sigils, each with the same odds.
+- **Changed during the step (decided while building, recorded in DECISIONS):**
+  - Where the suffix lives: a field on AbilityAugment, so a sigil is one file.
+  - Chain limit 2 rather than the default 1. A Storm Strike bolt's kill still counts for Bloodrush, a reaction's crowd control still Exposes, and a free cast's hits can call a bolt. None loops: a bolt is a proc, and neither Bloodrush nor Exposed is crowd control. The test checks one link deep and not two.
+- **Measured (seeded):**
+  - Storm Strike called a bolt on 1,000 plain hits at about 15% and at about 7.5% with coefficient 0.5. It never fired on 300 proc hits, 300 hits by another unit, or after unequipping.
+  - Exposed took a hit's damage ×1.15 against the same stunned target.
+  - Bloodrush's +30% and a real Iron Resolve haste summed exactly.
+  - 3,000 Uniques: every sigil on about a third. 3,000 Exotics: always two different, all three pairs seen.
+- **Layout** (the L3 probe, saving off): an Exotic with two sigil lines highlighted mid-list ends at y 294 (18 rows, the Expose line wrapping once). The longest pair with a wrapped status line would end near 318, still above the ability bar (322). L5's named items need another look.
+- **Not built (no look):** the bolt shows only as its magic number, and Exposed only as bigger numbers (LOOT.md, The sigil pool, As built).
+- **Your save:** the 7 items from the L3 play test (one Unique, one Exotic) load and save back byte-identical. The Unique and the Exotic stay without sigils, because they were rolled before L4.
+- **Smoke run** (`sandbox_main`, `sandbox_main_layout`, `main_layout`, 600 frames each, the saves backed up first): no errors or warnings; `inventory.cfg`, `progress.cfg` and `settings.cfg` came back byte-identical.
+- **Tests:** loot 445/445, 59 new:
+  - the sigils' data and statuses; validation (a missing suffix; an empty pool still valid)
+  - the rolls, names, tooltip lines and the save
+  - Storm Strike, Bloodrush and Expose on a live Knight, including a real Iron Resolve and a real Judgement
+  - the same sigil from two items as one; an Exotic's two both firing; unequipping
+  
+  L1's checks were updated for the filled pool: Unique 1 sigil, Exotic 2 different. Stats 179/179, combat 474/474, abilities 557/557, audio 110/110, champions 168/168, talents 308/308, view 407/407 (unchanged, run in parallel): 2,648/2,648.
+
+### L3 – SandboxLoot: equipping by hand: 2026-10-03, Passed (Ryan committed it and started L4)
 - **SandboxLoot** (`scripts/rooms/sandbox_loot.gd`, new; a `SandboxLoot` node in `sandbox.tscn` and `sandbox_3d.tscn`, which `build_sim()` moves into the Room like the other helpers): the list on the right, under SandboxAugments' four lines. It shows the keys, then `Inventory N   Depth D   MF +M%`, then the items as `> [Slot] Name  Rarity  ON` in their rarity colors (6 at a time, scrolling around the cursor, with "(N above)" / "(N below)"), then the highlighted item's tooltip lines and what the last key did. Keys, read raw (no input action): **J** / **Shift+J** move the cursor (held J repeats), **U** equips or unequips (a swap when the slot is filled; a ring goes in the first empty ring slot), **K** rolls `ItemRoller.roll_drop()` from its `drop_table` export (default `drop_table_elite.tres`) at the room's depth with the champion's live `magic_find`, into the inventory through `Loot.add_item()` (cursor on the new item), **P** says "No named items yet (LOOT L5)", **[** / **]** lower / raise `Room.depth` (never below 1). Public for tests: `get_items()`, `get_rows()`, `toggle()`, `roll_drop()`, `grant_named_items()`, `change_depth()`, `move_cursor()`, `get_cursor()`, `get_status()`, `get_room()`, `get_depth()`, `get_magic_find()`, `get_champion()`. It changes the real save (Ryan, 2026-10-01): K saves through `add_item()`, U through the Loot autoload's equip listener.
 - **Room.depth** (`room.gd`, export, 1, at least 1) and **RoomLayout.depth** (`room_layout.gd`, export, 1), copied onto the Room by `build_sim()`. **`Loot.get_depth(node)`**: the nearest Room's depth, from the node or above it (a depth below 1 counts as 1); 1 with no Room.
 - **Changed during the step:**

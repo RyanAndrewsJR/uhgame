@@ -27,6 +27,16 @@ extends Node2D
 ## L5), [ / ] (depth, never below 1), the keys through the viewport; a
 ## respawned Knight wearing what was set; K and U saving at once (a scratch
 ## file).
+## L4: sigils. The three sigil augments and their rules, status_bloodrush and
+## status_exposed; Unique rolling one sigil and Exotic two different ones
+## (3,000 each), the " of <suffix>" names, the sigil tooltip lines, the save
+## keeping sigil ids. On a live Knight: Storm Strike's rate (x the proc
+## coefficient; never from a proc hit or another unit's hit) and its bolt;
+## Bloodrush on a kill (summed with Iron Resolve's haste, refreshed, one link
+## into a chain but not two); Expose from the Knight's stun and slow and a
+## real Judgement (x1.15 damage taken), not from Staggered or another unit's
+## stun; the same sigil from two items as one; an Exotic's two both firing;
+## unequipping removing each.
 ## Prints PASS/FAIL per check, then a total.
 ## Run headless and it quits with the number of failures as the exit code.
 
@@ -39,6 +49,14 @@ const SLIME_SCENE: PackedScene = preload("res://scenes/enemies/slime.tscn")
 const SLIME_ELITE_SCENE: PackedScene = preload("res://scenes/enemies/slime_elite.tscn")
 const AUGMENT_LUNGE_STUNS: AbilityAugment = preload("res://data/augments/augment_lunge_stuns.tres")
 const AUGMENT_JUDGEMENT_RESET: AbilityAugment = preload("res://data/augments/augment_judgement_reset.tres")
+const SIGIL_STORM_STRIKE: AbilityAugment = preload("res://data/augments/augment_sigil_storm_strike.tres")
+const SIGIL_BLOODRUSH: AbilityAugment = preload("res://data/augments/augment_sigil_bloodrush.tres")
+const SIGIL_EXPOSE: AbilityAugment = preload("res://data/augments/augment_sigil_expose.tres")
+const STATUS_BLOODRUSH: StatusEffect = preload("res://data/statuses/status_bloodrush.tres")
+const STATUS_EXPOSED: StatusEffect = preload("res://data/statuses/status_exposed.tres")
+const STATUS_STUN: StatusEffect = preload("res://data/statuses/status_stun.tres")
+const STATUS_SLOW: StatusEffect = preload("res://data/statuses/status_slow.tres")
+const STATUS_STAGGERED: StatusEffect = preload("res://data/statuses/status_staggered.tres")
 const PLAYER_SCENE: PackedScene = preload("res://scenes/player/player.tscn")
 const KNIGHT: ChampionData = preload("res://data/champions/knight.tres")
 const REAL_SAVE := "user://inventory.cfg"
@@ -93,6 +111,8 @@ var _passed: int = 0
 var _failed: int = 0
 var _table: LootTable
 var _next_x: float = 0.0
+var _dummy_offset: float = 0.0
+var _dummies: Array[Node] = []
 
 
 ## An item that belongs to another champion (named items come in L5).
@@ -102,7 +122,7 @@ class ForeignItem extends Item:
 
 
 func _ready() -> void:
-	print("\n=== Loot test (LOOT L1–L3) ===")
+	print("\n=== Loot test (LOOT L1–L4) ===")
 	# First, before anything touches either autoload: a window's close request
 	# saves, and Progress.save() once checked saving_enabled before its lazy
 	# test-scene guard, so a windowed run closed before anything touched
@@ -153,6 +173,14 @@ func _ready() -> void:
 	await _test_sandbox_loot()
 	await _test_sandbox_loot_keys()
 	await _test_sandbox_loot_saves()
+	# L4
+	_test_sigil_data()
+	_test_sigil_rolls()
+	await _test_storm_strike()
+	await _test_bloodrush()
+	await _test_expose()
+	await _test_sigil_stacking()
+	Audio.stop_all()
 	Loot.reset(KNIGHT)
 	_check("the real inventory file was never written", _file_stamp(REAL_SAVE), real_before)
 	_check("nor the real progress file", _file_stamp("user://progress.cfg"), progress_before)
@@ -186,7 +214,7 @@ func _test_rarities() -> void:
 	for def in _table.rarities:
 		fixed.append(def.has_fixed_roll())
 	_check("only the Artifact's band is fixed", fixed, [false, false, false, false, false, false, true])
-	_check("the sigil pool is empty until L4", _table.sigils.size(), 0)
+	_check("the sigil pool (L4): Storm Strike, Bloodrush, Expose", _table.sigils, [SIGIL_STORM_STRIKE, SIGIL_BLOODRUSH, SIGIL_EXPOSE])
 
 
 func _test_bases() -> void:
@@ -347,10 +375,16 @@ func _test_validation_drop_tables() -> void:
 
 
 func _test_validation_sigils() -> void:
-	_section("Validation: the sigil pool (checked now, filled in L4)")
+	_section("Validation: the sigil pool")
 	var t := _copy_table()
 	t.sigils = [_sigil(&"sigil_a"), _sigil(&"sigil_b")]
-	_check("two EVENT sigils with one rule each are valid", t.get_validation_errors(), PackedStringArray())
+	_check("two EVENT sigils with one rule and a name suffix each are valid", t.get_validation_errors(), PackedStringArray())
+	t.sigils = []
+	_check("an empty pool is valid (Unique and Exotic roll without sigils)", t.get_validation_errors(), PackedStringArray())
+	var nameless := _sigil(&"sigil_n")
+	nameless.name_suffix = " "
+	t.sigils = [nameless, _sigil(&"sigil_b")]
+	_check_error("a sigil without a name suffix (L4)", _join(t.get_validation_errors()), "needs a name_suffix")
 	t.sigils = [_sigil(&"sigil_a")]
 	_check_error("one sigil for an Exotic's two", _join(t.get_validation_errors()), "fewer than the 2")
 	t.sigils = [AUGMENT_LUNGE_STUNS, _sigil(&"sigil_b")]
@@ -469,7 +503,8 @@ func _test_item_rolls() -> void:
 		for i in 4000:
 			var item := ItemRoller.roll_item(r, null, _table, rng)
 			seen_bases[item.base.id] = true
-			other_ok = other_ok and item.rarity == r and item.uid == 0 and item.sigils.is_empty()
+			other_ok = other_ok and item.rarity == r and item.uid == 0 and item.sigils.size() == def.sigil_count
+			other_ok = other_ok and (item.sigils.size() < 2 or item.sigils[0] != item.sigils[1])
 			counts_ok = counts_ok and item.affix_rolls.size() == def.affix_count
 			var ids := {}
 			for k in item.affix_rolls.size():
@@ -490,7 +525,7 @@ func _test_item_rolls() -> void:
 		_check("%s: only affixes the slot allows" % label, slots_ok, true)
 		_report(band_ok, "%s: every value inside its band (%s–%s) of its range" % [label, def.roll_min, def.roll_max], detail)
 		_check("%s: every value a multiple of its step" % label, step_ok, true)
-		_check("%s: rarity kept, uid 0, no sigils (L4)" % label, other_ok, true)
+		_check("%s: rarity kept, uid 0, %d sigil(s), never the same twice" % [label, def.sigil_count], other_ok, true)
 	_check("every base was rolled", seen_bases.size(), 7)
 	var pairs := 0
 	for row: Array in AFFIX_ROWS:
@@ -552,7 +587,7 @@ func _test_item_values() -> void:
 	]), true)
 	var base_mod: StatModifier = item.base.implicits[0]
 	_check("the implicit is a copy (the base's own is untouched)", mods[0] != base_mod and base_mod.source_id == &"", true)
-	_check("no augments (no sigils yet)", item.get_augments().size(), 0)
+	_check("no augments (a Rare has no sigils)", item.get_augments().size(), 0)
 	_check("fits any champion", item.get_champion_id(), &"")
 	# The roll is saved, not the value: a retune reaches an item already owned.
 	var retuned: Affix = _table.get_affix(&"affix_attack_damage").duplicate()
@@ -1234,6 +1269,276 @@ func _test_sandbox_loot_saves() -> void:
 	await _frames(1)
 
 
+# --- L4: sigils -----------------------------------------------------------------
+
+func _test_sigil_data() -> void:
+	_section("L4: the three sigils and their statuses (LOOT.md, The sigil pool)")
+	var rows := [
+		# sigil, name, suffix, trigger, effect target, chance, required status tags
+		[SIGIL_STORM_STRIKE, "Storm Strike", "Storms", ReactionRule.Trigger.HIT, ReactionRule.EffectTarget.AFFECTED, 0.15, []],
+		[SIGIL_BLOODRUSH, "Bloodrush", "the Hunt", ReactionRule.Trigger.UNIT_DIED, ReactionRule.EffectTarget.OTHER, 1.0, []],
+		[SIGIL_EXPOSE, "Expose", "Ruin", ReactionRule.Trigger.STATUS_APPLIED, ReactionRule.EffectTarget.AFFECTED, 1.0, [&"cc"]],
+	]
+	for row: Array in rows:
+		var sigil: AbilityAugment = row[0]
+		var rule: ReactionRule = sigil.rules[0] if sigil.rules.size() == 1 else null
+		_check("%s: an EVENT augment, empty scope (any champion), named %s, suffix '%s', described, one rule" % [sigil.id, row[1], row[2]],
+			[sigil.kind, sigil.scope, sigil.display_name, sigil.name_suffix, sigil.description != "", rule != null],
+			[AbilityAugment.Kind.EVENT, &"", row[1], row[2], true, true])
+		if rule == null:
+			continue
+		_check("%s's rule: its trigger, the owner's own events (SOURCE), its effect target, chance, status tags, any ability, chain limit 2" % sigil.id,
+			[rule.trigger, rule.owner_role, rule.effect_target, rule.chance, _plain(rule.required_status_tags), rule.required_ability_scope, rule.chain_limit],
+			[row[3], ReactionRule.OwnerRole.SOURCE, row[4], row[5], row[6], &"", 2])
+	var bolt := SIGIL_STORM_STRIKE.rules[0].effects[0] as DealDamageGameplayEffect
+	_check("Storm Strike's lightning: 30 + 40% AD, magic, tagged lightning",
+		[bolt.base_damage, bolt.ad_ratio, bolt.damage_type, _plain(bolt.tags)] if bolt != null else [],
+		[30.0, 0.4, HitContext.DamageType.MAGIC, [&"lightning"]])
+	var rush := SIGIL_BLOODRUSH.rules[0].effects[0] as ApplyStatusGameplayEffect
+	var expose := SIGIL_EXPOSE.rules[0].effects[0] as ApplyStatusGameplayEffect
+	_check("Bloodrush applies status_bloodrush, Expose status_exposed (each for its own duration)",
+		[rush != null and rush.status == STATUS_BLOODRUSH and rush.duration < 0.0, expose != null and expose.status == STATUS_EXPOSED and expose.duration < 0.0],
+		[true, true])
+	_check("status_bloodrush: its own id (never Iron Resolve's), a 2 s buff, refreshed",
+		[STATUS_BLOODRUSH.id, _plain(STATUS_BLOODRUSH.tags), STATUS_BLOODRUSH.duration, STATUS_BLOODRUSH.stack_rule],
+		[&"bloodrush", [&"buff"], 2.0, StatusEffect.StackRule.REFRESH])
+	_check("... +30% move speed (increased)", _status_mod_rows(STATUS_BLOODRUSH), [[&"move_speed", StatModifier.Type.PERCENT_ADD, 0.3, &""]])
+	_check("status_exposed: a 3 s debuff tagged exposed, never cc (so it can't Expose itself), refreshed",
+		[STATUS_EXPOSED.id, _plain(STATUS_EXPOSED.tags), STATUS_EXPOSED.duration, STATUS_EXPOSED.stack_rule, STATUS_EXPOSED.is_cc()],
+		[&"exposed", [&"exposed", &"debuff"], 3.0, StatusEffect.StackRule.REFRESH, false])
+	_check("... +15% damage taken (more)", _status_mod_rows(STATUS_EXPOSED), [[&"incoming_damage", StatModifier.Type.PERCENT_MULT, 0.15, &""]])
+
+
+func _test_sigil_rolls() -> void:
+	_section("L4: Unique and Exotic roll their sigils; names, tooltips, the save")
+	var rng := _rng(4404)
+	var counts := {}
+	var unique_ok := true
+	for i in 3000:
+		var item := ItemRoller.roll_item(R.UNIQUE, null, _table, rng)
+		unique_ok = unique_ok and item.sigils.size() == 1
+		if item.sigils.size() == 1:
+			counts[item.sigils[0].id] = int(counts.get(item.sigils[0].id, 0)) + 1
+	_check("3,000 Uniques: one sigil each", unique_ok, true)
+	var even := counts.size() == 3
+	for id: StringName in counts:
+		even = even and absf(counts[id] / 3000.0 - 1.0 / 3.0) < 0.03
+	_report(even, "each sigil on about a third of them (the same odds)", str(counts))
+	var pairs := {}
+	var exotic_ok := true
+	for i in 3000:
+		var item := ItemRoller.roll_item(R.EXOTIC, null, _table, rng)
+		exotic_ok = exotic_ok and item.sigils.size() == 2 and item.sigils[0] != item.sigils[1]
+		if item.sigils.size() == 2:
+			var ids: Array = [String(item.sigils[0].id), String(item.sigils[1].id)]
+			ids.sort()
+			pairs["+".join(ids)] = true
+	_check("3,000 Exotics: two different sigils each", exotic_ok, true)
+	_check("all three pairs come up", pairs.size(), 3)
+	var helm := _item(&"item_base_iron_helm", R.UNIQUE, [[&"affix_max_health", 0.5]], 1)
+	helm.sigils = [SIGIL_STORM_STRIKE]
+	var band := _item(&"item_base_band", R.EXOTIC, [[&"affix_crit_chance", 0.5]], 2)
+	band.sigils = [SIGIL_BLOODRUSH, SIGIL_EXPOSE]
+	_check("a Unique's name: its base of its sigil's suffix", helm.get_display_name(), "Iron Helm of Storms")
+	_check("an Exotic's: both suffixes, in its sigils' order", band.get_display_name(), "Band of the Hunt and Ruin")
+	_check("a Rare's: its base alone", _manual_item().get_display_name(), "Longsword")
+	var lines := band.get_tooltip_lines(_table)
+	_check("the tooltip: the name first, then one line per sigil last (name: description)",
+		[lines[0], lines[lines.size() - 2], lines[lines.size() - 1]],
+		["Band of the Hunt and Ruin", "Bloodrush: " + SIGIL_BLOODRUSH.description, "Expose: " + SIGIL_EXPOSE.description])
+	_check("its augments are its sigils", band.get_augments(), [SIGIL_BLOODRUSH, SIGIL_EXPOSE])
+	var d := band.to_dict()
+	var back := Item.from_dict(d, _table)
+	_check("saved as sigil ids, read back as the same sigils and name",
+		[d["sigils"], back != null and back.sigils == band.sigils, back.get_display_name() if back != null else ""],
+		[["sigil_bloodrush", "sigil_expose"], true, "Band of the Hunt and Ruin"])
+
+
+func _test_storm_strike() -> void:
+	_section("L4: Storm Strike (the Knight's hits: 15% x the proc coefficient; a 30 + 40% AD magic bolt)")
+	Loot.reset(KNIGHT)
+	_dummy_offset = 0.0
+	var p := await _spawn_knight()
+	var dummy := _dummy_near(p)
+	var helm := _item(&"item_base_iron_helm", R.UNIQUE, [], 101)
+	helm.sigils = [SIGIL_STORM_STRIKE]
+	p.equipment.equip(helm)
+	_check("worn: its rule is on the Knight once, under augment_sigil_storm_strike", _rule_sources(p).count(&"augment_sigil_storm_strike"), 1)
+	Reactions.rng.seed = 4141
+	var bolts := _bolts_from(p, dummy, 1000, 1.0)
+	_report(absi(bolts.size() - 150) <= 45, "1,000 hits (coefficient 1): about 15% call a bolt", "got %d" % bolts.size())
+	var bolt: HitContext = bolts[0] if not bolts.is_empty() else null
+	_check("a bolt: from the Knight onto the hit enemy, 30 + 40% AD, magic",
+		[bolt.source == p, bolt.target == dummy, bolt.base_damage, bolt.ad_ratio, bolt.damage_type] if bolt != null else [],
+		[true, true, 30.0, 0.4, HitContext.DamageType.MAGIC])
+	_check("a proc: tagged proc and lightning, can't crit, coefficient 0 (so a bolt never calls a bolt)",
+		[bolt.has_tag(&"proc"), bolt.has_tag(&"lightning"), bolt.can_crit, bolt.proc_coefficient] if bolt != null else [],
+		[true, true, false, 0.0])
+	var half := _bolts_from(p, dummy, 1000, 0.5)
+	_report(absi(half.size() - 75) <= 32, "1,000 hits at coefficient 0.5: about 7.5%", "got %d" % half.size())
+	_check("300 proc-tagged hits from the Knight (on-hit damage, a bolt itself): never", _bolts_from(p, dummy, 300, 0.0, true).size(), 0)
+	var other := _dummy_near(p)
+	_check("300 hits from another unit: never (only the wearer's own hits)", _bolts_from(other, dummy, 300, 1.0).size(), 0)
+	p.equipment.unequip(&"helm")
+	_check("unequipped: the rule is gone", _rule_sources(p).has(&"augment_sigil_storm_strike"), false)
+	_check("and 300 hits call nothing", _bolts_from(p, dummy, 300, 1.0).size(), 0)
+	await _free_dummies()
+	await _free(p)
+
+
+func _test_bloodrush() -> void:
+	_section("L4: Bloodrush (a kill: +30% move speed for 2 s, refreshed)")
+	Loot.reset(KNIGHT)
+	_dummy_offset = 0.0
+	var p := await _spawn_knight()
+	var statuses := p.status_component
+	var ring := _item(&"item_base_band", R.UNIQUE, [], 102)
+	ring.sigils = [SIGIL_BLOODRUSH]
+	var base_speed := p.stats_component.get_stat(&"move_speed")
+	_kill(p, _dummy_near(p, false))
+	_check("without it a kill gives nothing", statuses.has_status(&"bloodrush"), false)
+	p.equipment.equip(ring)
+	_kill(p, _dummy_near(p, false))
+	var rushed := p.stats_component.get_stat(&"move_speed")
+	_check("worn: a kill puts Bloodrush on the Knight, 2 s left", [statuses.has_status(&"bloodrush"), statuses.get_time_left(&"bloodrush")], [true, 2.0])
+	_check("its +30% move speed (increased) under status_bloodrush, and the Knight is faster",
+		[_mod_rows_from(p, &"status_bloodrush"), rushed > base_speed], [[[&"move_speed", StatModifier.Type.PERCENT_ADD, 0.3, &""]], true])
+	# With Iron Resolve's haste (a real cast): two ids, both kept, summed.
+	p.resource_pool.restore(1000.0)
+	p.abilities.try_cast(&"w", p.global_position, null)
+	for i in 30:
+		if statuses.has_status(&"iron_resolve"):
+			break
+		await _frames(1)
+	var both := p.stats_component.get_stat(&"move_speed")
+	statuses.remove_status(&"bloodrush")
+	var haste_only := p.stats_component.get_stat(&"move_speed")
+	_check("with Iron Resolve's haste (cast for real): both on, their bonuses summed",
+		[statuses.has_status(&"iron_resolve"), is_equal_approx(both - base_speed, (rushed - base_speed) + (haste_only - base_speed))], [true, true])
+	statuses.remove_status(&"iron_resolve")
+	# Refreshed by the next kill.
+	_kill(p, _dummy_near(p, false))
+	await _wait_hitstop()
+	await _frames(30)
+	var waned := statuses.get_time_left(&"bloodrush")
+	_kill(p, _dummy_near(p, false))
+	_check("the next kill refreshes it to 2 s", [waned < 1.9, statuses.get_time_left(&"bloodrush")], [true, 2.0])
+	# A kill a reaction caused (a bolt's, one link deep) counts; two links deep doesn't.
+	statuses.remove_status(&"bloodrush")
+	var victim := _dummy_near(p, false)
+	Reactions.run_at_depth(1, func() -> void: _kill(p, victim))
+	_check("a kill one link into a chain (a sigil's bolt) still rushes (chain limit 2)", statuses.has_status(&"bloodrush"), true)
+	statuses.remove_status(&"bloodrush")
+	var deeper := _dummy_near(p, false)
+	Reactions.run_at_depth(2, func() -> void: _kill(p, deeper))
+	_check("two links deep: no", statuses.has_status(&"bloodrush"), false)
+	_kill(_dummy_near(p), _dummy_near(p, false))
+	_check("another unit's kill: nothing for the Knight", statuses.has_status(&"bloodrush"), false)
+	p.equipment.unequip(&"ring_1")
+	_kill(p, _dummy_near(p, false))
+	_check("unequipped: a kill gives nothing", statuses.has_status(&"bloodrush"), false)
+	await _free_dummies()
+	await _free(p)
+
+
+func _test_expose() -> void:
+	_section("L4: Expose (crowd control the Knight applies: Exposed for 3 s, +15% damage taken)")
+	Loot.reset(KNIGHT)
+	_dummy_offset = 0.0
+	var p := await _spawn_knight()
+	var amulet := _item(&"item_base_pendant", R.UNIQUE, [], 103)
+	amulet.sigils = [SIGIL_EXPOSE]
+	var plain := _dummy_near(p)
+	plain.status_component.apply_status(STATUS_STUN, p)
+	_check("without it a stun doesn't Expose", plain.status_component.has_status(&"exposed"), false)
+	p.equipment.equip(amulet)
+	var applied := [0]
+	var count := func(_unit: Unit, status: StatusEffect) -> void:
+		if status.id == &"exposed":
+			applied[0] += 1
+	Events.status_applied.connect(count)
+	var d := _dummy_near(p)
+	d.status_component.apply_status(STATUS_STUN, p)
+	Events.status_applied.disconnect(count)
+	_check("worn: the Knight's stun Exposes, for 3 s, from the Knight",
+		[d.status_component.has_status(&"exposed"), d.status_component.get_time_left(&"exposed"), d.status_component.get_source(&"exposed") == p],
+		[true, 3.0, true])
+	_check("once (Exposed isn't cc, so it never Exposes again)", applied[0], 1)
+	_check("the enemy's incoming damage x1.15", d.stats_component.get_stat(&"incoming_damage"), 1.15)
+	var exposed_hit := _hit_from(p, d, 100.0).taken_damage
+	d.status_component.remove_status(&"exposed")
+	var same_hit := _hit_from(p, d, 100.0).taken_damage
+	_check_near("the same hit on it, still stunned: 15% more while Exposed", exposed_hit / same_hit if same_hit > 0.0 else 0.0, 1.15, 0.0001)
+	var slowed := _dummy_near(p)
+	slowed.status_component.apply_status(STATUS_SLOW, p)
+	_check("the Knight's slow (cc): Exposed", slowed.status_component.has_status(&"exposed"), true)
+	var staggered := _dummy_near(p)
+	staggered.status_component.apply_status(STATUS_STAGGERED, p)
+	_check("Staggered (not cc): not Exposed", staggered.status_component.has_status(&"exposed"), false)
+	var theirs := _dummy_near(p)
+	theirs.status_component.apply_status(STATUS_STUN, _dummy_near(p))
+	var nobody := _dummy_near(p)
+	nobody.status_component.apply_status(STATUS_STUN, null)
+	_check("another unit's stun, or one from no one: not Exposed",
+		[theirs.status_component.has_status(&"exposed"), nobody.status_component.has_status(&"exposed")], [false, false])
+	# A real Judgement: its stun Exposes.
+	var judged := _dummy_near(p)
+	judged.global_position = p.global_position + Vector2(60, 0)
+	judged.reset_physics_interpolation()
+	await _frames(1)
+	p.resource_pool.restore(1000.0)
+	await _wait_hitstop()
+	p.abilities.try_cast(&"r", judged.global_position, judged)
+	for i in 200:
+		if judged.status_component.has_status(&"stun"):
+			break
+		await _frames(1)
+	_check("a real Judgement: its stun lands and Exposes",
+		[judged.status_component.has_status(&"stun"), judged.status_component.has_status(&"exposed")], [true, true])
+	p.equipment.unequip(&"amulet")
+	var after := _dummy_near(p)
+	after.status_component.apply_status(STATUS_STUN, p)
+	_check("unequipped: a stun doesn't Expose", after.status_component.has_status(&"exposed"), false)
+	await _free_dummies()
+	await _free(p)
+
+
+func _test_sigil_stacking() -> void:
+	_section("L4: the same sigil twice is one; an Exotic's two both fire; unequipping removes")
+	Loot.reset(KNIGHT)
+	_dummy_offset = 0.0
+	var p := await _spawn_knight()
+	var helm := _item(&"item_base_iron_helm", R.UNIQUE, [], 111)
+	helm.sigils = [SIGIL_STORM_STRIKE]
+	var ring := _item(&"item_base_band", R.UNIQUE, [], 112)
+	ring.sigils = [SIGIL_STORM_STRIKE]
+	p.equipment.equip(helm)
+	p.equipment.equip(ring)
+	_check("two items with Storm Strike: its rule once (the augment id counts once)", _rule_sources(p).count(&"augment_sigil_storm_strike"), 1)
+	Reactions.rng.seed = 4242
+	var bolts := _bolts_from(p, _dummy_near(p), 1000, 1.0)
+	_report(absi(bolts.size() - 150) <= 45, "still about 15% of 1,000 hits, not 30%", "got %d" % bolts.size())
+	p.equipment.unequip(&"helm")
+	_check("one taken off: the other keeps it", _rule_sources(p).count(&"augment_sigil_storm_strike"), 1)
+	p.equipment.unequip(&"ring_1")
+	_check("both off: gone", _rule_sources(p).count(&"augment_sigil_storm_strike"), 0)
+	var exotic := _item(&"item_base_pendant", R.EXOTIC, [], 113)
+	exotic.sigils = [SIGIL_BLOODRUSH, SIGIL_EXPOSE]
+	p.equipment.equip(exotic)
+	_check("an Exotic: both its sigils' rules on",
+		[_rule_sources(p).count(&"augment_sigil_bloodrush"), _rule_sources(p).count(&"augment_sigil_expose")], [1, 1])
+	var stunned := _dummy_near(p)
+	stunned.status_component.apply_status(STATUS_STUN, p)
+	_kill(p, _dummy_near(p, false))
+	_check("both fire, each on its own trigger (a stun Exposes, a kill rushes)",
+		[stunned.status_component.has_status(&"exposed"), p.status_component.has_status(&"bloodrush")], [true, true])
+	p.equipment.unequip(&"amulet")
+	_check("unequipped: both rules gone",
+		[_rule_sources(p).has(&"augment_sigil_bloodrush"), _rule_sources(p).has(&"augment_sigil_expose")], [false, false])
+	await _free_dummies()
+	await _free(p)
+
+
 # --- Helpers ------------------------------------------------------------------
 
 ## A Knight from player.tscn in the tree (its saved gear equipped at load).
@@ -1283,6 +1588,92 @@ func _spawn_in(room: Room) -> Player:
 	p.reset_physics_interpolation()
 	await _frames(2)
 	return p
+
+
+## A passive slime (a training dummy) near `p`, each in its own spot. `tough`:
+## a million more health, so no test hit kills it. _free_dummies() frees them.
+func _dummy_near(p: Unit, tough: bool = true) -> Enemy:
+	var d: Enemy = SLIME_SCENE.instantiate()
+	d.passive = true
+	add_child(d)
+	_dummy_offset += 36.0
+	d.global_position = p.global_position + Vector2(_dummy_offset, 90.0)
+	d.reset_physics_interpolation()
+	if tough:
+		d.stats_component.add_modifier(StatModifier.create(&"max_health", StatModifier.Type.FLAT, 1000000.0, &"loot_test_tough"))
+	_dummies.append(d)
+	return d
+
+
+func _free_dummies() -> void:
+	for d in _dummies:
+		if is_instance_valid(d):
+			d.queue_free()
+	_dummies.clear()
+	await _frames(1)
+
+
+## A plain hit of `amount` (physical, no crit, proc coefficient 1).
+func _hit_from(source: Unit, target: Unit, amount: float) -> HitContext:
+	var ctx := HitContext.new()
+	ctx.source = source
+	ctx.target = target
+	ctx.base_damage = amount
+	ctx.damage_type = HitContext.DamageType.PHYSICAL
+	ctx.can_crit = false
+	return HitPipeline.resolve(ctx)
+
+
+## A hit that kills anything not tough.
+func _kill(source: Unit, target: Unit) -> HitContext:
+	return _hit_from(source, target, 1000000.0)
+
+
+## `n` hits of 1 from `source` on `target` at proc coefficient `coefficient`
+## (or proc-tagged hits, `as_procs`): the lightning bolts they called.
+func _bolts_from(source: Unit, target: Unit, n: int, coefficient: float, as_procs: bool = false) -> Array[HitContext]:
+	var bolts: Array[HitContext] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.has_tag(&"lightning"):
+			bolts.append(ctx)
+	Events.unit_hit.connect(on_hit)
+	for i in n:
+		var ctx: HitContext
+		if as_procs:
+			ctx = HitPipeline.make_proc(source, target, 1.0)
+		else:
+			ctx = HitContext.new()
+			ctx.source = source
+			ctx.target = target
+			ctx.base_damage = 1.0
+			ctx.can_crit = false
+			ctx.proc_coefficient = coefficient
+		HitPipeline.resolve(ctx)
+	Events.unit_hit.disconnect(on_hit)
+	return bolts
+
+
+## Waits (up to 2 s) for GameFeel's real-time hitstop to end, so game time runs.
+func _wait_hitstop() -> void:
+	for i in 120:
+		if not GameFeel.is_hitstop_active():
+			return
+		await get_tree().physics_frame
+
+
+func _status_mod_rows(status: StatusEffect) -> Array:
+	var rows: Array = []
+	for mod in status.modifiers:
+		rows.append([mod.stat, mod.type, mod.value, mod.scope])
+	return rows
+
+
+## The unit's modifiers under `source_id`, as [stat, type, value, scope] rows.
+func _mod_rows_from(unit: Unit, source_id: StringName) -> Array:
+	var rows: Array = []
+	for mod in unit.stats_component.get_modifiers_from(source_id):
+		rows.append([mod.stat, mod.type, mod.value, mod.scope])
+	return rows
 
 
 ## One key press pushed through the viewport, as a player's arrives.
@@ -1453,6 +1844,7 @@ func _sigil(id: StringName) -> AbilityAugment:
 	s.id = id
 	s.kind = AbilityAugment.Kind.EVENT
 	s.rules = [ReactionRule.new()]
+	s.name_suffix = String(id).trim_prefix("sigil_").capitalize()
 	return s
 
 

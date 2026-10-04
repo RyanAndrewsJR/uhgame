@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="AbilityAugment" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ability_augment.gd" id="1_augment"]
+[ext_resource type="Script" path="res://scripts/data/reaction_rule.gd" id="2_rule"]
+[ext_resource type="Script" path="res://scripts/data/deal_damage_gameplay_effect.gd" id="3_damage"]
+[ext_resource type="Script" path="res://scripts/data/gameplay_effect.gd" id="4_effect"]
+
+[sub_resource type="Resource" id="lightning"]
+script = ExtResource("3_damage")
+base_damage = 30.0
+ad_ratio = 0.4
+tags = Array[StringName]([&"lightning"])
+
+[sub_resource type="Resource" id="on_hit"]
+script = ExtResource("2_rule")
+id = &"sigil_storm_strike"
+trigger = 1
+chance = 0.15
+effects = Array[ExtResource("4_effect")]([SubResource("lightning")])
+chain_limit = 2
+
+[resource]
+script = ExtResource("1_augment")
+id = &"sigil_storm_strike"
+kind = 1
+rules = Array[ExtResource("2_rule")]([SubResource("on_hit")])
+display_name = "Storm Strike"
+description = "Your hits have a 15% chance to call lightning on the target: 30 + 40% AD magic damage."
+name_suffix = "Storms"

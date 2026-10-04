@@ -29,6 +29,10 @@
 [ext_resource type="Resource" path="res://data/affixes/affix_basic_attack_damage.tres" id="32_affix"]
 [ext_resource type="Resource" path="res://data/affixes/affix_mobility_cooldown.tres" id="33_affix"]
 [ext_resource type="Resource" path="res://data/affixes/affix_magic_find.tres" id="34_affix"]
+[ext_resource type="Script" path="res://scripts/data/ability_augment.gd" id="8_augment"]
+[ext_resource type="Resource" path="res://data/augments/augment_sigil_storm_strike.tres" id="40_sigil"]
+[ext_resource type="Resource" path="res://data/augments/augment_sigil_bloodrush.tres" id="41_sigil"]
+[ext_resource type="Resource" path="res://data/augments/augment_sigil_expose.tres" id="42_sigil"]
 
 [sub_resource type="Resource" id="rarity_common"]
 script = ExtResource("2_rarity")
@@ -102,6 +106,7 @@ script = ExtResource("1_table")
 rarities = Array[ExtResource("2_rarity")]([SubResource("rarity_common"), SubResource("rarity_uncommon"), SubResource("rarity_rare"), SubResource("rarity_unique"), SubResource("rarity_exotic"), SubResource("rarity_legendary"), SubResource("rarity_artifact")])
 item_bases = Array[ExtResource("3_base")]([ExtResource("10_base"), ExtResource("11_base"), ExtResource("12_base"), ExtResource("13_base"), ExtResource("14_base"), ExtResource("15_base"), ExtResource("16_base")])
 affixes = Array[ExtResource("4_affix")]([ExtResource("20_affix"), ExtResource("21_affix"), ExtResource("22_affix"), ExtResource("23_affix"), ExtResource("24_affix"), ExtResource("25_affix"), ExtResource("26_affix"), ExtResource("27_affix"), ExtResource("28_affix"), ExtResource("29_affix"), ExtResource("30_affix"), ExtResource("31_affix"), ExtResource("32_affix"), ExtResource("33_affix"), ExtResource("34_affix")])
+sigils = Array[ExtResource("8_augment")]([ExtResource("40_sigil"), ExtResource("41_sigil"), ExtResource("42_sigil")])
 drop_table_by_unit = Dictionary[StringName, ExtResource("5_drop")]({
 &"slime": ExtResource("6_regular"),
 &"slime_elite": ExtResource("7_elite")

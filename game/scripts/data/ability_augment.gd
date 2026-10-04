@@ -30,6 +30,9 @@ enum Kind { FLAG, EVENT, REPLACE }
 @export var display_name: String = ""
 ## The tooltip line ("Lunge stuns for 0.5 s.").
 @export_multiline var description: String = ""
+## A sigil's part of an item's name (LOOT.md, The sigil pool; LOOT L4):
+## "Storms" makes "Iron Helm of Storms". Empty for every other augment.
+@export var name_suffix: String = ""
 
 
 ## The source id its EVENT rules are added under on the unit.

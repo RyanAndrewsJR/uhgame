@@ -435,6 +435,7 @@ Planned (ENEMIES_AI.md, AI1–AI6): the kinds `THREATENED`, `TARGET_WHIFFED` and
 | `rules` | `Array[ReactionRule]` | EVENT: added as unit rules while active |
 | `replacement` | `Ability` | REPLACE: the variant (its `variant_of` = the replaced id) |
 | `display_name`, `description` | `String` | the tooltip line ("Lunge stuns for 0.5 s.") |
+| `name_suffix` | `String` | a sigil's part of an item's name ("Storms" → "Iron Helm of Storms"; LOOT.md, The sigil pool; added in LOOT L4). Empty for every other augment. |
 
 ### ReactionRule (additions, `res://scripts/data/reaction_rule.gd`)
 - Trigger `ABILITY_CAST` (added last in the enum): from `Events.ability_cast(unit, ability, ctx)`. The affected unit is the cast's target (`ctx.target`; null for non-UNIT casts without a condition target), the other unit is the caster, so a unit rule with `owner_role` SOURCE (default) means "when I cast", and `effect_target` OTHER hits the caster. `trigger_ctx` = the CastContext. Effects that need an affected unit do nothing when it's null.

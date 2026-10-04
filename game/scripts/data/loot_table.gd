@@ -15,8 +15,9 @@ const RARITY_COUNT := 7
 @export var item_bases: Array[ItemBase] = []
 ## The random affix pool (Common–Exotic).
 @export var affixes: Array[Affix] = []
-## The sigil pool (Unique 1, Exotic 2): EVENT augments. Empty until LOOT L4,
-## so Unique and Exotic roll without sigils until then.
+## The sigil pool (Unique 1, Exotic 2): EVENT augments, each picked with the
+## same odds. Filled in LOOT L4 (Storm Strike, Bloodrush, Expose); an empty
+## pool still validates, and its Unique and Exotic items roll without sigils.
 @export var sigils: Array[AbilityAugment] = []
 ## Temporary, until ENEMIES_AI.md decides where enemy data lives (the same
 ## stand-in as ChampionLeveling.xp_by_unit): the dead unit's UnitStats file
@@ -190,6 +191,8 @@ func _check_sigils(errors: PackedStringArray) -> void:
 			errors.append("%s: its scope must be empty or tag: (a sigil fits every champion)" % label)
 		if sigil.rules.size() != 1 or sigil.rules[0] == null:
 			errors.append("%s: holds exactly one reaction rule" % label)
+		if sigil.name_suffix.strip_edges() == "":
+			errors.append("%s: needs a name_suffix (an item with it is \"<base> of <suffix>\")" % label)
 		if ids.has(sigil.id):
 			errors.append("two sigils with the id '%s'" % sigil.id)
 		ids[sigil.id] = true
