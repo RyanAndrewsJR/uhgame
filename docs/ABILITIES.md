@@ -382,9 +382,11 @@ What it does, step by step:
   5. When it ends, by a break or by running out, vanish.gd (listening to Events.status_removed for vanish on her;
      Ryan) applies an empower for her next 3 basic attacks (several uses: new):
      - lasted under 4 s: empower_vanish, +10% AD (empower_ad_ratio 0.10, in the swing's own hit);
-     - lasted 4 s or more, a full 5 s included: empower_vanish_full, +15% AD dealt as TRUE damage
-       (empower_ad_ratio 0.15; new: an empower damage type).
-     Both last 5 s (proposed). The swing that takes the third use also gives her 2 Blades, once however many
+     - lasted 4 s or more, a full 5 s included: empower_vanish_full, +15% AD, and the whole swing (its own
+       damage and the bonus) deals TRUE damage (Ryan, 2026-10-04; empower_ad_ratio 0.15, empower_damage_type
+       TRUE, new).
+     Both last 5 s (proposed). While Vanish or either empower is on, a new chain of her basic attack is her
+     4-swing cycle (Ryan, 2026-10-04; the statuses' combo_override, new; CHAMPIONS.md, Combo: two cycles). The swing that takes the third use also gives her 2 Blades, once however many
      enemies it hits (Ryan; proposed: after either empower). A one-off in vanish.gd.
 Supported augment flags: none yet
 Sounds (AUDIO.md): none yet
@@ -395,7 +397,7 @@ Caster dies mid-cast / mid-effect: interrupted. Dead while stealthed: Vanish cle
   empower follows (a dead unit takes no status).
 Tooltip template (proposed): "Vanish for 5s: enemies lose track of you, and you regain 15 more energy a second.
   Casting, attacking or dashing reveals you. When it ends, your next 3 basic attacks deal 10% AD bonus damage, or
-  15% AD true damage if you stayed hidden 4s or more, and the third gives you 2 Blades."
+  deal true damage with 15% AD bonus damage if you stayed hidden 4s or more, and the third gives you 2 Blades."
 Extra tunables: full_after 4.0 s, empower_blades 2.
 ```
 
@@ -405,7 +407,9 @@ Extra tunables: full_after 4.0 s, empower_blades 2.
 | A natural 5 s expiry | It lasted 5 s, so it counts as 4 s or more: the full empower (Ryan). |
 | A break at exactly 4.0 s | Counts as 4 s or more (with the status timer's 0.0001 s tolerance). |
 | When an act ends it *(proposed)* | At the act's start: a cast at its cast start (`cast_started`, once the press is accepted, so she's seen during its cast time), a swing at its start, a dash at its start. A free cast (an item's) and taking damage don't end it. |
-| The swing that ends it | Is the empower's first use: the empower goes on at the break, and a swing reads its empowers at its hit moment (Empowers). |
+| The swing that ends it | Is the empower's first use: the empower goes on at the break, and a swing reads its empowers at its hit moment (Empowers). It's also swing 1 of her 4-swing cycle (the stealth was on when the chain started). |
+| Vanish cast mid-chain | Her next swing is swing 1 of the 4-swing cycle, wherever the old chain was *(proposed)*. |
+| The empower's 3 uses end inside the 4-swing cycle | The cycle runs to its end: swing 4, its finisher, still comes *(proposed: a cycle picked at a chain's start runs to its end)*. |
 | A swing that whiffs | Uses nothing (an empower is used by a swing that hits). |
 | The empower's 5 s run out before 3 hits | It ends with its uses left; no Blades. |
 | Hit, or stunned, while stealthed | Stealth stays: only her own acts end it. It isn't untargetable: a cast already aimed at her, area hits and DoTs still land. |
@@ -421,7 +425,7 @@ Cost: 15      Cooldown: 7 s
 Cast time: 0.5 s      Range: cast_range 600 u (192 px, 6 m) = the throw's flight (proposed)
 Movement during the cast: roots_during_cast off, cast_move_speed_multiplier 0.6, dash_cancelable on (proposed)
 Damage: ad_ratio 0.30 on the first hit, +0.05 per bounce (Ryan); PHYSICAL (proposed); blocked by walls
-Projectile: a bounce projectile (new): projectile_bounces 3 (proposed: 4 hits in all), bounce_range 400 u (128 px,
+Projectile: a bounce projectile (new): projectile_bounces 3 (4 hits in all: Ryan, 2026-10-04), bounce_range 400 u (128 px,
   4 m, proposed), projectile_speed 1500 u/s (480 px/s, proposed), projectile_width 60 u (the default), one crit roll
 Conditional bonuses: (no conditions) → target_statuses status_inevitable_demise: each hit adds a stack
 Named scaling inputs: bounce (set by the bounce projectile for each hit: bounces so far ÷ projectile_bounces) →
@@ -553,7 +557,7 @@ Extra tunables: strike_interval 0.15 s, arc_radius 300 u, heal_max_health_ratio 
   heal_ad_ratio 0.05, fear_duration 1.5 s.
 ```
 
-**The Stalker timing** (the REPLACE ending; *(proposed)*). Ryan: R's first cast consumes Stalker, and a REPLACE ends with its status, which could turn the slot back into the base R while the variant's recast window is open. The rule: Stalker is consumed at the variant's part 0 effect start (`execute()`, after ABILITY_CAST), not at its cast start, so a part 0 interrupted in its cast time is refunded and keeps Stalker. Its REPLACE goes with it, but the recast stays the variant's for its whole window: an open recast sequence keeps the ability that opened it (Augments: "the recast window stays with the ability that opened it"; `AbilityComponent.get_ability()` returns the sequence's ability before any REPLACE, checked in `ability_component.gd`). The slot shows the base R again, on its 40 s cooldown, when the sequence ends. Ryan's other example (consume it when the variant's recast ends or its window closes) works with the same sequence rule, but keeps a form on her for those 3 s with nothing left for it to do.
+**The Stalker timing** (the REPLACE ending; Claude's proposal, approved by Ryan 2026-10-04). Ryan: R's first cast consumes Stalker, and a REPLACE ends with its status, which could turn the slot back into the base R while the variant's recast window is open. The rule: Stalker is consumed at the variant's part 0 effect start (`execute()`, after ABILITY_CAST), not at its cast start, so a part 0 interrupted in its cast time is refunded and keeps Stalker. Its REPLACE goes with it, but the recast stays the variant's for its whole window: an open recast sequence keeps the ability that opened it (Augments: "the recast window stays with the ability that opened it"; `AbilityComponent.get_ability()` returns the sequence's ability before any REPLACE, checked in `ability_component.gd`). The slot shows the base R again, on its 40 s cooldown, when the sequence ends. Ryan's other example (consume it when the variant's recast ends or its window closes) works with the same sequence rule, but keeps a form on her for those 3 s with nothing left for it to do.
 
 | Edge case (the Stalker) | Handling |
 |---|---|
@@ -1125,8 +1129,9 @@ Not build steps. Each is data once 2+ kits use it (Data or script, above).
   - **A kit heal of "the higher of a percent of max health or a flat amount"** (her R's recast: max(5%, 100); the Stalker's: max(10%, 150) + 5% AD): one kit, so a one-off in her R scripts through `Unit.heal()` (Data or script), not data. If a second kit wants it, `HealGameplayEffect` (today `amount` + `max_health_ratio` × max health, a sum) gets a "the higher of" switch.
   - **The fear status** (the Stalker's recast; not built: it needs COMBAT.md (Status effects, Fear) and ENEMIES_AI.md (Fear) work): `status_fear.tres` (id `fear`, tags `cc`, `fear`, `debuff`), `blocks_attack`, `blocks_cast`, `blocks_dash`; it doesn't block walking but takes it over: the unit walks away from the status's source at its own move speed, along its navigation (a cornered one stops at the wall), and can't act. Being `cc`, tenacity shortens it, unstoppable refuses it and a `cc` cleanse removes it. While feared, an enemy's brain doesn't decide (it rests as under `is_cc_blocked()`: its token released, a commit broken off). Bosses refuse it (Ryan): a `StatusEffect.refused_by_tags` (the status isn't applied to a unit carrying any of them) and a permanent status tagged `boss` that ENEMIES_AI's rank rules give every boss. Enemies don't fear the player in v1 (as with knock-ups).
   - **An empower that carries several uses** (her W's 3 attacks). Checked in the code: a swing that uses an empower removes the whole status (`AutoAttackComponent._use_up_empowers()` calls `remove_status()`), and `StatusEffect` has no uses field. `StatusEffect.empower_uses` (default 1, today's behavior): each swing (or cast) that uses it takes one use; the status ends with its last use or its duration. The 2 Blades on the last use are a one-off in `vanish.gd`.
-  - **An empower damage type** (her W's TRUE bonus): an empower's bonus goes into the swing's own hit (`HitPipeline.add_empowers()`), so it takes the swing's damage type. `StatusEffect.empower_damage_type`, defaulting to "the hit's own" (today's behavior); any other type deals the bonus as its own hit right after the swing's hit on each enemy: that type, the swing's crit roll, tagged `empowered`, triggering no on-hit, no HIT rules and no post-hit i-frames (built like on-hit damage, COMBAT.md).
-  - **The finisher hit tag** (her detonation): COMBAT.md's `AttackSwing.hit_tags` (Ryan, 2026-10-04: "noted for later, built when a champion needs it"; Korsavil is that champion). Her combo's last swing gets `finisher`, added to its hits, so the detonation is a HIT rule (data). A dash-strike isn't the finisher.
+  - **An empower damage type** (her W's TRUE swings): an empower's bonus goes into the swing's own hit (`HitPipeline.add_empowers()`), so it takes the swing's damage type. `StatusEffect.empower_damage_type`, defaulting to "the hit's own" (today's behavior); any other type makes **the whole empowered hit** that type, the swing's own damage and the bonus (Ryan, 2026-10-04: the full Vanish's swings are wholly TRUE; a bonus split off as its own hit was not chosen). One hit, one number, the usual crit and on-hit.
+  - **The finisher hit tag** (her detonation): COMBAT.md's `AttackSwing.hit_tags` (Ryan, 2026-10-04: "noted for later, built when a champion needs it"; Korsavil is that champion). The last swing of each of her two cycles gets `finisher`, added to its hits, so the detonation is a HIT rule (data). A dash-strike isn't a finisher.
+  - **A status that swaps the basic attack combo** (her two cycles; Ryan, 2026-10-04: 3 swings normally, 4 from Vanish): `StatusEffect.combo_override` (an `AttackCombo`). AutoAttackComponent picks the combo when a chain starts (its first swing): a status's `combo_override` while one is on (the newest, if several), else the unit's own; the chain keeps that combo to its finisher, its reset or a forced reset, even if the status ends inside it. Her `status_vanish` and both Vanish empowers carry `combo_korsavil_vanish.tres`; a Vanish restarts her chain. A champion's dash-strike stays its own combo's.
   - **A recast part's own targeting** (her R): every press of a UNIT ability, recast parts included, needs a targetable enemy within range and sight (`AbilityComponent.try_cast()`, checked), so R's recast (a blink back) and the Stalker's (a blink to a point) couldn't be pressed on empty ground. `Ability.recast_targeting`: the targeting of every part after the first, defaulting to "the same as `targeting`", so every ability stays as it is. R: SELF; the Stalker: POINT.
 
 ## Out of scope
