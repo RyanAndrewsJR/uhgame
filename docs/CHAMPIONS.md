@@ -171,6 +171,172 @@ Damage: 150 + 100% AD + 20% of the target's missing health, PHYSICAL; stun 0.75 
 Conditional bonuses: RESOURCE_AT_LEAST 60 → base_damage +30%, ad_ratio +30%, stun_duration +0.5 s; then consumes all Fury
 ```
 
+## Korsavil
+An assassin who gathers Blades, throws them through packs and cashes in what they marked. **Designed 2026-10-04, nothing built:** no data, script or build step exists. Ryan's decisions are MUST (Ryan, 2026-10-04); Claude's picks are marked *(proposed)* and listed in Open questions (Korsavil). Her ability sheets are in ABILITIES.md (Korsavil); the toolkit pieces she needs that don't exist yet are in ABILITIES.md, Later toolkit pieces. Units: League units, 100 u = 1 m = 32 px.
+
+### Player experience
+You pick Korsavil at the hub. She starts every fight with a full yellow bar and two dashes. Q sets Blades spinning around her, one more each second, and the more she holds the faster she moves and the less damage she takes. Her thrown knife (E) ricochets through a pack, and every enemy it cuts gives her another Blade. Recast Q and every Blade flies at the cursor: land all four and her ultimate changes for 10 seconds. Every Blade that lands marks its enemy with Inevitable Demise, damage over time that grows with the marks, and at eight marks her next finisher detonates them. When a fight turns, she Vanishes (W): the enemies on her lose her, and the longer she stays hidden, the harder her next three attacks hit. Her ultimate blinks her onto a target to strike, then lets her blink back out with a heal.
+
+### Identity
+- `id` `&"korsavil"`, `display_name` "Korsavil", `champion_class` `&"assassin"` (Ryan, 2026-10-04) *(proposed word: CONVENTIONS' class list doesn't have `assassin` yet; it has `rogue` and `diver`)*.
+- Resource: ENERGY (Ryan, 2026-10-04; Energy, below).
+- Stats: `data/units/korsavil.tres` (new). Health lower than the Knight's 650, in 450–550 (Ryan, 2026-10-04): **500** *(proposed)*. Every other stat is TBD (Ryan's call later). `dash_charges` stays 1 there: the second dash is the passive's (below).
+- Combo: TBD (Open questions, Korsavil 8): melee or ranged, how many swings, which one is the finisher, and her class's dash-strike power (COMBAT.md, Basic attack). The detonation needs the finisher's hit tag (Passive, below).
+- Role tags: E `generator`, R `ultimate` (Ryan, 2026-10-04); Q `core` (it spends the Blades) and W `defensive` *(proposed)*.
+- Walls: her blinks go over walls (the blink's default, ABILITIES.md, Blinks); her Blades, knife and half circle don't hit through them *(proposed: no ability of hers `ignores_walls`)*.
+- Ultimate: a cooldown (40 s), not a meter.
+- Sounds: none yet. Audio hooks: see AUDIO.md.
+
+### Passive (name TBD)
+Three parts, all under the source id `passive_korsavil` (Ryan, 2026-10-04).
+1. **Two dashes:** `dash_charges` 2 (MOVEMENT.md, Dash: a charge returns every 0.35 s, and every dash carries its i-frames). *(proposed)* A FLAT +1 `dash_charges` StatModifier in the passive's `modifiers`; the alternative is 2 on her UnitStats. Either needs no new code: DashComponent reads the stat, and a raised max recharges up to it (STATS.md, Current code). The difference: from the passive she loads with one charge and gets the second 0.35 s later (the passive attaches after `Unit._ready()`, when DashComponent has taken its starting charges), and a talent or form could take it away; from UnitStats she loads with both.
+2. **Inevitable Demise** (`status_inevitable_demise`, below): every Blade that hits an enemy adds one stack: each of Q's recast Blades and each E hit (bounce) that gets through. Its damage over 5 s is a replacing tier: 5 / 8 / 10 / 12% AD at 2 / 4 / 6 / 8 stacks; only the current tier applies, the tiers don't add up. A new Blade restarts the 5 s (Ryan, 2026-10-04). The stacks ride Q's and E's hits (their hit statuses, like Lunge's Staggered); the passive is what cashes them in.
+3. **Detonation:** at 8 stacks, her next basic attack finisher (the last swing of her combo) that hits the enemy consumes its 8 stacks and replaces them with a fresh DoT of 25% AD in total over 5 s (`status_demise_detonation`), and she gains +10% movement speed while it runs, 5 s (`status_detonation_haste`) (Ryan, 2026-10-04). Built as data *(proposed)*, two unit rules in the passive:
+   - `reaction_korsavil_detonation`: trigger HIT, `required_hit_tags` [`finisher`] (a swing's hit tag, not built: COMBAT.md's `AttackSwing.hit_tags`, which waits for a champion that needs it; Korsavil is that champion), `conditions` [TARGET_HAS_STATUS `inevitable_demise`, min 8], effect target AFFECTED: `RemoveStatusesByTagGameplayEffect` [`inevitable_demise`], then `ApplyStatusGameplayEffect` `status_demise_detonation`.
+   - `reaction_korsavil_detonation_haste`: trigger STATUS_APPLIED, `required_status_tags` [`demise_detonation`], owner SOURCE ("when I apply…"), effect target OTHER (her): `ApplyStatusGameplayEffect` `status_detonation_haste`; `chain_limit` 2, since it fires one link below the first rule. Chaining off the applied DoT (rather than a second HIT rule) keeps the order fixed: a second HIT rule could run after the first had removed the stacks and fail its condition.
+   - A finisher that hits several enemies at 8 stacks detonates each of them (one HIT event each).
+- Tooltip *(proposed)*: "You have two dashes. Your Blades mark enemies with Inevitable Demise, damage over 5 seconds that grows at 2, 4, 6 and 8 marks. At 8 marks your next finisher detonates them into a fresh wound (25% AD over 5 seconds), and you move 10% faster while it bleeds."
+
+### Energy (Korsavil's resource)
+A steady pool, full when a fight starts and refilling on its own: spending is paced by the regen, not built by hitting (Ryan, 2026-10-04). This answers this doc's open item on energy's rhythm (Resource rhythms: mana and energy get their numbers with their first champion; mana stays open).
+
+| Number | Value | Where |
+|---|---|---|
+| `max_resource` | 100 | `korsavil.tres` (UnitStats) |
+| `resource_regen` | 10 per second | `korsavil.tres` |
+| Starts | full | ChampionData `resource_starts_empty` false (the default) |
+| Decay | none | `resource_decay_per_second` 0 (the default) |
+| Costs | Q 25 (its recast 0), W 45, E 15, R 50 (its recast 0) | each ability's `resource_cost`; the recasts' `recast_resource_cost` 0 (the default) |
+| During Vanish | +15 per second (25 in all) | `status_vanish`'s `resource_regen` FLAT +15 |
+
+Rhythm: from a full bar she can open with Q, E and R (90) and has W 3.5 s later; all four (135) take the bar plus 3.5 s of regen. E (15 every 7 s) is nearly free; W is the cast that empties the bar, and a full Vanish pays it back (Open questions, Korsavil, Balance flags). The HUD bar is yellow (ENERGY; ABILITIES.md, HUD). No ability reads RESOURCE_AT_LEAST, so the bar has no tick.
+
+### Blades
+Blades are a count she holds: the stacks of `status_blade` on her, 0–4 (Ryan, 2026-10-04). Her kit's "slash lists" are steps by Blades or stacks held, never ability ranks (there are none: Ability ranks).
+- **Gained:** +1 each second while Q's orbit lasts (6 s); +1 per E hit (bounce) that gets through; +2 from W's third empowered attack; +2 from the base R's recast (after its strike landed).
+- **Spent:** Q's recast sends every held Blade.
+- **Kept:** they stay until spent; they don't vanish when Q's orbit ends. A gain past 4 is lost.
+- **Read by:** Q's orbit (damage reduction and speed by Blades held, only while the orbit lasts), Q's recast (how many fly and how hard each hits) and its condition (at least 1 *(proposed)*). Held outside the orbit, Blades give nothing until Q is cast.
+
+### Status: Blade (`res://data/statuses/status_blade.tres`)
+| Field | Value |
+|---|---|
+| `id` / `display_name` | `&"blade"` / "Blade" |
+| `tags` | `blade`, `buff` *(proposed: `blade` is what Q's recast condition and the orbit's scalings read)* |
+| `duration` | −1: until spent (Ryan, 2026-10-04) |
+| `stack_rule` / `max_stacks` | STACK / 4 (Ryan, 2026-10-04). A gain at 4 is lost: as built, a STACK status at max whose stacks all last until removed changes nothing on a new application (checked in `StatusComponent.apply_status()`), though the call still returns true and emits `status_applied` |
+| `modifiers`, `blocks_*`, DoT, shield, `reaction_rules`, `augments`, empower fields | none. Blades give nothing by themselves: Q's orbit reads their count (`status_bladesinger`, below) |
+| Applied by | Korsavil to herself: Q's orbit (+1 a second), E's hits (+1 each), W's third empowered attack (+2), the base R's recast (+2) |
+| Removed by | Q's recast (every Blade, at its effect start); her death (statuses clear) |
+| `vfx` | one blade circling her per Blade (FREE look). It must be readable: the player plays around the count (clarity) |
+| Audio | Audio hooks: see AUDIO.md |
+
+### Status: Inevitable Demise (`res://data/statuses/status_inevitable_demise.tres`)
+| Field | Value |
+|---|---|
+| `id` / `display_name` | `&"inevitable_demise"` / "Inevitable Demise" |
+| `tags` | `inevitable_demise`, `debuff`. **Not** `cc` *(proposed)*: a mark that deals damage, like Staggered a marker: tenacity doesn't shorten it, unstoppable doesn't refuse it |
+| `stack_rule` / `max_stacks` | STACK / 8 (Ryan, 2026-10-04): one stack per Blade that hits the enemy |
+| `duration` | 5 s, and a new Blade restarts the 5 s (Ryan, 2026-10-04). *(proposed)* Every stack shares that one timer and they end together: a new stack rule, `STACK_SHARED` (ABILITIES.md, Later toolkit pieces). As built, STACK gives each stack its own time and at max restarts only the one closest to running out, so a new Blade wouldn't restart the rest (Open questions, Korsavil 2) |
+| Damage | the replacing tier (Ryan, 2026-10-04): the current tier's total over each 5 s it lasts, 5 / 8 / 10 / 12% AD at 2 / 4 / 6 / 8 stacks. *(proposed)* Odd counts use the tier below and 1 stack deals nothing; a tick every 0.5 s, PHYSICAL; her AD snapshotted at each new stack (COMBAT.md's DoT rule); a new stack doesn't delay the next tick. As built, a DoT deals its tick × stacks, which can't make these tiers: the stack table is new (ABILITIES.md, Later toolkit pieces: `tick_ad_ratio` 0.01 with [0, 0.5, 0.5, 0.8, 0.8, 1.0, 1.0, 1.2]) |
+| Consumed by | the detonation (Passive, above): removed, and `status_demise_detonation` applied in its place |
+| `vfx` | a mark over the enemy that shows its count (FREE look, e.g. eight pips that fill). It must be readable: the player needs to see who's at 8 |
+| Dispellable | as Staggered: only by a cleanse naming `debuff` or `inevitable_demise`; nothing cleanses enemies today |
+| Source | Korsavil (DoT kill credit is hers, COMBAT.md) |
+| Audio | Audio hooks: see AUDIO.md |
+
+### Status: Umbral Stalker (`res://data/statuses/status_umbral_stalker.tres`)
+| Field | Value |
+|---|---|
+| `id` / `display_name` | `&"umbral_stalker"` / "Umbral Stalker" |
+| `tags` | `form`, `buff` (Ryan, 2026-10-04). As a form, applying it removes any other form on her (one form at a time, ABILITIES.md; she has no other) |
+| `duration` | 10 s (Ryan, 2026-10-04) |
+| `stack_rule` | REFRESH *(proposed)*: another 4-Blade recast restarts it, and its augment stays on (no slot flicker) |
+| `augments` | one REPLACE, `augment_spectral_stalker.tres` *(proposed name)*: scope `ability:korsavil_spectral`, replacement `korsavil_r_spectral_stalker.tres` (id `korsavil_spectral_stalker`, `variant_of` `korsavil_spectral`; Ryan, 2026-10-04) |
+| Applied by | Q's recast when all 4 Blades hit (Ryan, 2026-10-04); *(proposed)* counting Blades whose hits got through, on any enemies |
+| Consumed by | R's first cast (Ryan, 2026-10-04); *(proposed)* at the variant's first part's effect start, with its recast staying the variant's (ABILITIES.md, Korsavil: the Stalker timing) |
+| `vfx` | a shadowed look on her (FREE) |
+| Audio | Audio hooks: see AUDIO.md |
+
+### Status: Vanish (`res://data/statuses/status_vanish.tres`)
+| Field | Value |
+|---|---|
+| `id` / `display_name` | `&"vanish"` / "Vanish" |
+| `tags` | `stealth`, `buff` (Ryan, 2026-10-04): a copy of ALLIES' `status_stealth` (ALLIES AL1 plans that file; whichever comes first creates it). The enemies' target pick already reads the `stealth` tag (ENEMIES_AI AI2, built): a stealthed champion is never picked, and one already picked is dropped |
+| `duration` | 5 s (Ryan, 2026-10-04) |
+| `stack_rule` | REFRESH *(proposed)* |
+| `modifiers` | `resource_regen` FLAT +15 (Ryan, 2026-10-04) |
+| Ends early | when she casts an ability, makes a basic attack or dashes (Ryan, 2026-10-04). New: a status that ends when its holder acts (ABILITIES.md, Later toolkit pieces). A dash isn't an ability, and no reaction trigger sees it |
+| When it ends | `vanish.gd` gives the empower for her next 3 basic attacks (ABILITIES.md, Korsavil W) |
+| `vfx` | she turns half see-through, like the dash (FREE look): the player still sees her |
+| Audio | Audio hooks: see AUDIO.md |
+
+### Other statuses her kit needs *(proposed names)*
+| Status | What | Fields |
+|---|---|---|
+| `status_bladesinger` | Q's orbit | tags `bladesinger`, `buff`; 6 s; REFRESH; two StatScalings on the Blades' count (`incoming_damage` PERCENT_MULT −0.20 and `move_speed` PERCENT_ADD +0.20 at 4 Blades, linear: 5% per Blade). Needs the stack-count input (ABILITIES.md, Later toolkit pieces) |
+| `status_demise_detonation` | the detonation's DoT | tags `demise_detonation`, `debuff`; 5 s; REFRESH (a second detonation restarts it with a new snapshot); a tick every 0.5 s, `tick_ad_ratio` 0.025 (25% AD over 10 ticks), PHYSICAL |
+| `status_detonation_haste` | her speed while it runs | tags `haste`, `buff`; 5 s; REFRESH (a second detonation restarts it: never +20%); `move_speed` PERCENT_ADD +0.10 |
+| `empower_vanish`, `empower_vanish_full` (`status_empower_vanish.tres`, `status_empower_vanish_full.tres`) | W's empower after a short / a full Vanish | tags `empower`, `buff`; BASIC_ATTACK_HIT; 3 uses (new); 5 s; `empower_ad_ratio` 0.10 / 0.15, the full one as TRUE damage (new) (ABILITIES.md, Korsavil W) |
+| `status_fear` | the Stalker's fear | ABILITIES.md, Later toolkit pieces (the fear status) |
+
+### The numbers
+| | Q Bladesinger | W Vanish | E Blade Dance | R Spectral (placeholder name) |
+|---|---|---|---|---|
+| Role | `core` *(proposed)* | `defensive` *(proposed)* | `generator` | `ultimate` |
+| Cost (energy) | 25, its recast 0 | 45 | 15 | 50, its recast 0 |
+| Cooldown | 10 s | 12 s | 7 s | 40 s |
+| Cast time | 0.25 s, each part | 0.25 s | 0.5 s | 0.25 s, each part |
+| Targeting, range | SELF; the Blades fly 6 m (600 u, 192 px) in a 90° spread *(proposed: metres)* | SELF | DIRECTION, 6 m *(proposed)* | UNIT, 11 m (1100 u, 352 px) *(metres proposed)* |
+| Damage | each Blade 80 / 90 / 100 / 110% AD at 1 / 2 / 3 / 4 Blades sent | none; then 3 empowered attacks: +10% AD, or +15% AD as TRUE damage after 4 s or more | 30% AD, +5% per bounce: 30 / 35 / 40 / 45% *(proposed: 4 hits in all)* | 60% then 100% AD; the Stalker 20 / 35 / 70% AD, its recast 120% AD |
+| Also | a 6 s orbit: per Blade −5% damage taken and +5% movement speed; all 4 hit → Umbral Stalker, 10 s | 5 s stealth, +15 energy a second; the 3rd empowered attack +2 Blades | each hit: +1 Blade, +1 Demise stack | recast (3 s *(proposed)*): blink back, heal max(5% max health, 100), +2 Blades. The Stalker's recast: blink to a point, fear 1.5 s (not bosses), heal max(10% max health, 150) + 5% AD |
+
+Passive: two dashes; Demise 5 / 8 / 10 / 12% AD per 5 s at 2 / 4 / 6 / 8 stacks (max 8); at 8, a finisher detonates: 25% AD over 5 s and +10% movement speed for 5 s. Energy: 100, 10 a second, starts full, no decay. Health: 500 *(proposed)*.
+
+### ChampionData (`res://data/champions/korsavil.tres`)
+| Field | Korsavil |
+|---|---|
+| `id` | `&"korsavil"` |
+| `display_name` | "Korsavil" |
+| `champion_class` | `&"assassin"` *(proposed word)* |
+| `stats` | `data/units/korsavil.tres` (new): health 500 *(proposed)*, `max_resource` 100, `resource_regen` 10; the rest TBD |
+| `resource_type` | ENERGY |
+| `resource_starts_empty` | false (the default) |
+| `resource_decay_per_second` / `resource_decay_delay` | 0 / 0 (the defaults) |
+| `modifiers` | none |
+| `q`, `w`, `e`, `r` | `korsavil_q_bladesinger.tres`, `korsavil_w_vanish.tres`, `korsavil_e_blade_dance.tres`, `korsavil_r_spectral.tres` *(proposed file names)* |
+| `combo` | TBD (`combo_korsavil.tres`) |
+| `passive` | inline, name TBD: the `dash_charges` modifier and the two detonation rules (no script) |
+| `hurt_sound`, `death_sound`, `low_health_sound` | none yet |
+| `champion_level` / `champion_xp` | 1 / 0 |
+| `model_scene` | empty (a placeholder capsule) until a model exists |
+
+### What she waits on
+- **Toolkit pieces** (ABILITIES.md, Later toolkit pieces, each *(proposed; built when Korsavil is)*): the bounce projectile (E), a status that ends when its holder acts (W), numbers that follow a stack count (Q's orbit, Demise's tiers), stacks that share one timer (Demise), an empower with several uses and an empower damage type (W), the finisher hit tag (the detonation), a recast part's own targeting (R), the fear status (the Stalker), the "higher of" heal (R; a script one-off).
+- **Other docs (open dependencies; not edited here):**
+  - **The search** (ENEMIES_AI.md): enemies chasing her when she Vanishes lose her and search, a simulated look-around at her last known spot (not a real vision cone) for 3 s *(proposed)*, then go back (Ryan, 2026-10-04). A new enemy behavior, not built. Today ALLIES' pick only drops a stealthed target (ENEMIES_AI AI2, built), and a pack with nobody else to pick walks home after 6 s with nothing in reach.
+  - **The fear** (COMBAT.md and ENEMIES_AI.md): the status, the flee and bosses ignoring it. Not built.
+  - **Stealth's break rule** (ALLIES.md): whether ALLIES' `status_stealth` ends when its holder acts, as Vanish does.
+- A combo (her swings and finisher), base stats, a model and sounds.
+
+### Korsavil's kit edge cases
+Ability-level cases (Q's recast with 0 Blades, Vanish's own cast, its 5 s expiry, E with no next target, R's recast while rooted, the Stalker revert, fear on an unstoppable enemy) are in ABILITIES.md, Korsavil.
+
+| Edge case | Handling |
+|---|---|
+| A Blade gained at 4 | Lost (Status: Blade). An E hit still adds its Demise stack. |
+| Two of Q's Blades hit one enemy | Two Demise stacks, one per Blade that hits. |
+| Demise at 8 and another Blade lands | No 9th stack; the shared 5 s restarts and the snapshot is retaken. |
+| A Blade's hit kills the enemy | No stack on the dead (statuses skip a target the hit killed). |
+| The detonating finisher kills its target | No detonation and no speed *(proposed)*: a killing hit clears the target's statuses before its HIT event (COMBAT.md, `Unit.on_hit()`, step 3), so the rule's TARGET_HAS_STATUS reads nothing, and a DoT on a dead unit would deal nothing. Nothing carries to another enemy. |
+| A finisher at 8 stacks blocked by i-frames | Nothing: a blocked hit fires no HIT event. The stacks wait, their 5 s still running. |
+| The detonation's +10% speed and Q's | They add: both are PERCENT_ADD `move_speed` (+10% and up to +20%: +30% in all), then the soft caps (STATS.md, move_speed special rules). A second detonation within 5 s restarts the haste (REFRESH), never +20%. *(proposed)* The haste keeps its 5 s even if the enemy dies before its DoT ends. |
+| A detonation on an enemy whose detonation DoT still runs | The new one replaces it (REFRESH: a fresh 25% AD over 5 s, a new snapshot); the old one's undealt part is lost. New Blades build Demise again from 0 meanwhile. |
+| The enemy holding Demise turns untargetable | New Blades are blocked (no new stacks); the DoT keeps ticking (untargetable lets DoT ticks through). |
+| Korsavil dies | Her statuses clear: the Blades, the orbit, Vanish (no empower: a dead unit takes no status) and Stalker. The DoTs she applied keep ticking on her snapshot, with her kill credit while she exists (COMBAT.md, DoT). |
+| Umbral Stalker gained while R's cooldown runs | The slot shows the variant on R's running cooldown (a REPLACE keeps the slot's charges and timer); if Stalker's 10 s end first, it's lost unused. |
+| Umbral Stalker gained while the base R's recast window is open | The window keeps the base R's recast (a recast sequence keeps its ability); R's 40 s cooldown starts when it ends, so Stalker usually runs out unused. |
+
 ## Data (Resources)
 Names checked against CONVENTIONS.md (reserved names, vocabulary).
 
@@ -345,7 +511,7 @@ Claude's proposals from the approved plan (written in above as *(proposed)*; Rya
 Still open:
 - The ultimate meter (Hades-style), when a champion first uses one.
 - Fury on checkpoint respawn (DUNGEONS.md; proposed: reset to 0). DUNGEONS.md (2026-10-03) carries the same proposal for a respawn and for a rest at a checkpoint.
-- Other resource types' rhythms (energy, mana) with their first champion.
+- ~~Other resource types' rhythms (energy, mana) with their first champion.~~ Energy answered with Korsavil (Ryan, 2026-10-04): max 100, regen 10/s, starts full, no decay (Korsavil, Energy). Mana still comes with its first champion.
 - Unbroken's final name.
 
 Raised by VISION.md's 2026-10-02 update (nothing proposed yet):
@@ -354,3 +520,26 @@ Raised by VISION.md's 2026-10-02 update (nothing proposed yet):
 - **Voice lines:** which events get one, how often, and whether a champion has lines in story scenes; out of scope here today (AUDIO.md, NARRATIVE.md).
 - **The story lens:** each dungeon's story has shared core beats plus a champion lens (VISION.md, Pillar 5). What a champion's lens needs from its data (lines, codex entries, scene variants) is set by NARRATIVE.md. DUNGEONS.md (2026-10-03) fixes its scope: the same layout, enemies and main quests for all; per-champion codex entries, NPC dialogue and some scenes; one quest line per champion per wing (Dungeon content per champion).
 - **The champion quest line's "one-of-a-kind named reward"** (DUNGEONS.md, Also open; not the Unique rarity): one of this champion's named items, or a named cosmetic or title?
+
+Korsavil (designed 2026-10-04; Claude's proposals, written in above and in ABILITIES.md, Korsavil, as *(proposed)*; Ryan can overrule any):
+1. **The draft's ranges and widths read as metres:** Q's Blades fly 6 m (600 u, 192 px) in a 90° spread (`projectile_spread_deg` 30 between neighbors, so fewer Blades fly closer together), E's throw 6 m, R 11 m (1100 u, 352 px). Also: Q's Blades and E's knife at 1,500 u/s (480 px/s), the toolkit's 60 u width.
+2. **Demise's stack lifetime:** 5 s on one timer every stack shares, restarted by each new Blade (a new stack rule, `STACK_SHARED`), since STACK restarts only one stack and "a new Blade restarts the 5 s" would mean nothing for the rest. Also: odd counts use the tier below (1 stack deals nothing); a tick every 0.5 s; the tiers through a stack table on the DoT; Demise and the detonation deal PHYSICAL damage; Demise isn't `cc`.
+3. **The third empowered attack gives 2 Blades** after a short Vanish as well as a full one. Also: the empower lasts 5 s, and the swing that breaks Vanish is its first use.
+4. **TRUE damage on a basic attack:** an empower adds its bonus into the swing's own hit, of the swing's damage type. Proposed: the bonus is its own TRUE hit right after the swing's hit (a new `empower_damage_type`), with the swing's crit roll and no on-hit; the alternative is giving the whole empowered swing a damage type. Also read: "+10% / +15% AD" as bonus damage on the swing (`empower_ad_ratio` 0.10 / 0.15), not +10% to her attack damage stat.
+5. **E's bounce count, step and targeting:** "up to 4 bounces" read as 4 hits in all (the first and 3 bounces) at 30 / 35 / 40 / 45% AD, so one full E fills her 4 Blades (the other reading: 4 bounces after the first hit, a fifth at 50%); every hit gives a Blade and a Demise stack, the first included; DIRECTION, 6 m; the next bounce goes to the nearest enemy in sight of the one just hit, not hit yet, within 4 m (400 u, 128 px), homing (so it can't be dodged); a bounce whose target dies or turns untargetable ends the knife.
+6. **R's heals and recast window:** max(5% max health, 100); the Stalker's read as max(10% max health, 150) + 5% AD on top (the AD part is small: 3 at 64 AD, the Knight's); the window 3 s (the default). Also: she lands just behind the target; 0.15 s between strikes; a recast whose blink a root refuses at its effect still heals and gives its Blades where she stands (as Judgement Leap's landing hits where a refused leap leaves it); the Stalker's recast needs a landed strike too (LAST_PART_HIT, so its heal is earned: Principles 4), blinks to the aim point within 11 m and hits a half circle of 3 m (300 u, 96 px) in front of her along the blink's direction, fearing every enemy it hits; the Stalker's recast gives no Blades (Ryan gave them to the base R's).
+7. **The Stalker timing:** Stalker is consumed at the variant's first part's effect start; the recast window that part opens stays the variant's (an open recast sequence keeps the ability that opened it), and the slot shows the base R again when it ends (ABILITIES.md, Korsavil).
+8. **Still Ryan's to decide:** the class word (`assassin`, not yet in CONVENTIONS' list), her combo (melee or ranged, how many swings, which one is the finisher, the class's dash-strike power), base stats (health 500 proposed; the rest TBD), the passive's name, her fantasy line, the R's name ("Spectral" is a placeholder: the draft's name is cut off).
+9. **The search's length** (ENEMIES_AI.md's, not built): 3 s of looking around her last known spot.
+10. **Q:** role `core`, W role `defensive` (W also tagged `buff`); the orbit ends with the recast (the orbit is the recast window); the recast needs at least 1 Blade (`recast_conditions` SELF_HAS_STATUS `blade` min 1, fail text "No Blades"); "all 4 hit" counts Blades whose hits got through, on any enemies; each Blade deals the step (80–110% AD), so four Blades into one enemy deal 440% AD (the other reading: the step is the volley's total); PHYSICAL.
+11. **Movement during casts:** Q and W don't root (she walks at full speed), E walks at 0.6 and a dash cancels it, R roots for its 0.25 s.
+12. **What ends Vanish, and when:** a cast at its start (`cast_started`), a swing at its start, a dash at its start; a free cast and taking damage don't; the cast that applied it never does.
+13. **The second dash in the passive** (FLAT +1 `dash_charges` under `passive_korsavil`), not 2 on her UnitStats: she loads with one charge and gets the second 0.35 s later.
+14. **The detonation:** two unit rules (HIT on the `finisher` tag with TARGET_HAS_STATUS at least 8, then STATUS_APPLIED for the speed); a killing finisher detonates nothing and gives no speed; the speed keeps its own 5 s (REFRESH, never +20%) even if the enemy dies first, and adds to Q's before the soft caps.
+15. **Names:** the statuses `status_bladesinger`, `status_demise_detonation`, `status_detonation_haste`, `empower_vanish` / `empower_vanish_full`; `augment_spectral_stalker`; the ability ids and files and the scripts in `scripts/abilities/korsavil/` (ABILITIES.md, Korsavil); the rules `reaction_korsavil_detonation` and `reaction_korsavil_detonation_haste`; the named inputs `blades` and `bounce`; the tags `blade`, `inevitable_demise`, `bladesinger`, `demise_detonation`, `fear` and the hit tag `finisher`; the toolkit fields (ABILITIES.md, Later toolkit pieces).
+
+Balance flags (recorded, not changed; Ryan's call):
+- The full 8-stack payoff (25% AD over 5 s) and Demise's top tier (12% AD over 5 s at 8 stacks) are smaller than one E (30% AD, +5% per bounce).
+- W costs 45 but returns up to 75 energy (15 a second for 5 s), so a held Vanish is energy-positive.
+- The flat heals (100 and 150) are about 20% and 30% of 500 health; the percent side only wins above 2,000 / 1,500 max health.
+- W's 12 s cooldown and E's 0.5 s cast time sit outside ABILITIES' 3–10 s and 0.15–0.3 s guides (guides, not rules).

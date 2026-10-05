@@ -290,6 +290,284 @@ Tooltip template: "Sweep your sword in a wide arc in front of you, dealing {dama
 Extra tunables: cone_half_angle_deg 60. (The old `knockback` export was deleted after AB-M passed, 2026-09-28.)
 ```
 
+### Korsavil (designed 2026-10-04; nothing built)
+Her four abilities and the Stalker variant, from Ryan's decisions (Ryan, 2026-10-04). Claude's picks are marked *(proposed)* and listed in CHAMPIONS.md, Open questions (Korsavil), which also holds her passive, statuses, Energy and Blades. Lines at their default are left out. "New" marks a toolkit piece that doesn't exist yet (Later toolkit pieces). The draft's ranges read as metres *(proposed)*: 100 u = 1 m = 32 px.
+
+**Q's steps by Blades: a script-set named input (the existing piece chosen).** How many Blades fly and how hard each hits (80 / 90 / 100 / 110% AD at 1 / 2 / 3 / 4 Blades sent) come from a named input, `blades` = Blades held ÷ 4, which `bladesinger.gd` sets on the recast's cast at its effect start, before it spends them (Conditions: "an ability script can set any other"); `ChargeScaling` entries read it. A conditional bonus on SELF_HAS_STATUS `blade` with a minimum stack count can't do it: bonuses are checked at each hit, and every Blade lands after the recast has spent the Blades, so the condition would read 0. The orbit's damage reduction and speed aren't ability params but her stats while the orbit lasts, so they follow the Blades' count through the new stack-count input (Later toolkit pieces).
+
+```
+Name / Champion / Slot / id: Bladesinger / Korsavil / Q / korsavil_bladesinger  (korsavil_q_bladesinger.tres, korsavil/bladesinger.gd)
+Role tag / other tags: core (proposed: it spends the Blades) / projectile
+Cast style: INSTANT
+Targeting: SELF (Ryan). The recast fires along the cast's direction: a SELF cast still carries caster → cursor
+  in ctx.direction (only ctx.point is set to the caster; AbilityComponent._make_context(), checked)
+Cost: 25 (recast 0)      Cooldown: 10 s
+Recasts: recast_count 1, recast_window 6 s = the orbit (Ryan). Part 0: the orbit. Part 1: every held Blade at the aim.
+Cast time: 0.25 s, each part (a recast part has no cast time of its own)
+Range: cast_range 600 u (192 px, 6 m) = a Blade's flight (proposed)
+Movement during the cast: roots_during_cast off (proposed: she walks at full speed through both parts)
+Damage (part 1, each Blade): ad_ratio 1.10 at 4 Blades (the blades input below), PHYSICAL (proposed), blocked by walls
+Projectiles (part 1): projectile_count follows the blades input (1–4); projectile_spread_deg 30 (proposed: 4 Blades
+  cover 90°); projectile_speed 1500 u/s (480 px/s, proposed); projectile_width 60 u (19 px, the default); pierce 0
+Recast conditions: SELF_HAS_STATUS blade, min_stacks 1, fail text "No Blades" (proposed)
+Conditional bonuses: (no conditions) → target_statuses status_inevitable_demise: each Blade that hits adds a stack
+  (as Lunge's Staggered)
+Named scaling inputs: blades (script-set at part 1's effect start: Blades held ÷ 4) → ad_ratio, min_fraction 0.636
+  (7/11), linear: 0.80 / 0.90 / 1.00 / 1.10 at 1 / 2 / 3 / 4 Blades; projectile_count (full 4), min_fraction 0,
+  linear: 1 / 2 / 3 / 4
+Presentation hooks: empty (AB14)
+What it does, step by step:
+  Part 0 (the orbit)
+  1. Cast start: cast_sound; 0.25 s, walking.
+  2. Effect: status_bladesinger (6 s) on herself; the recast window opens (6 s) at the same moment.
+  3. While it lasts: one Blade each second of game time, the first at 1 s (a one-off in bladesinger.gd; a gain
+     at 4 is lost); per Blade held, damage taken −5% and movement speed +5% (incoming_damage × 0.95 / 0.90 / 0.85
+     / 0.80 and move_speed +5 / 10 / 15 / 20% at 1 / 2 / 3 / 4 Blades: status_bladesinger's two StatScalings on
+     the Blades' count, new).
+  Part 1 (the recast)
+  4. Effect start: sets blades on the cast, then removes status_blade (every Blade is spent) and
+     status_bladesinger (the orbit is the recast window, so it ends with the recast; proposed).
+  5. Projectile.fire() along ctx.direction from her feet: one Blade per Blade spent, 30° apart, one crit roll for
+     the cast; each hit through from_ability() with the cast (its damage from blades, a Demise stack on the enemy).
+  6. bladesinger.gd counts this cast's hits that get through (Events.unit_hit whose ctx.cast is this cast, not
+     blocked); the 4th applies status_umbral_stalker (10 s) to her, once (Ryan; proposed: Blades whose hits got
+     through, on any enemies).
+Supported augment flags: none yet
+Sounds (AUDIO.md): none yet
+Walls: each Blade stops at a wall (the shared projectile).
+World: no movement method, no displacement.
+Stunned mid-cast: either part is interrupted at once and refunded; part 1 keeps its window time and the Blades
+  (they're spent only at the effect).
+Caster dies mid-cast / mid-effect: interrupted; her statuses clear (the Blades, the orbit). Blades already flying
+  keep going (Projectiles: her snapshot once she's freed).
+Tooltip template (proposed): "Blades orbit you for {recast_window}s, one more each second, up to 4. While they
+  orbit, each Blade reduces damage taken by 5% and gives 5% movement speed. Recast: hurl every Blade toward the
+  cursor, each dealing 80% to 110% AD physical damage, more the more you send. If all four hit, become an Umbral
+  Stalker for 10s."
+Extra tunables: blade_interval 1.0 s, stalker_hits 4.
+```
+
+| Edge case (Q) | Handling |
+|---|---|
+| The recast with 0 Blades | The recast condition fails: the fail cue (reason "condition", text "No Blades"), nothing spent, not buffered; the window keeps running (a failing recast condition doesn't end it). If it runs out, the orbit ends and the 10 s cooldown starts. |
+| Q cast while holding 4 Blades (from E, W or R) | The orbit starts at full reduction and speed; each second's Blade is lost; the recast works as soon as the window opens. |
+| The window runs out without a recast | The orbit ends with it; the Blades stay (Ryan: they don't vanish with the orbit) and give nothing until the next Q. |
+| Fewer than 4 Blades sent | No Stalker, whatever they hit. |
+| Two Blades into one enemy | Both count toward the 4, and both add a Demise stack. |
+| A Blade blocked (i-frames) or flying through an untargetable enemy | No hit: no stack, not counted toward Stalker. |
+| Stalker gained while it's already on | REFRESH: 10 s again; the slot doesn't flicker. |
+| The hold-to-aim cast mode | A SELF ability casts on press in QUICK_WITH_INDICATOR (Cast mode), so the recast shows no aim preview there; it fires toward the cursor at the press. *(proposed)* Fine while QUICK is the default; if not, Q's targeting becomes DIRECTION and part 0 ignores the aim. |
+| Enemies that dodge (ENEMIES_AI.md, Dodging) | Each Blade is a skillshot projectile: elites and bosses may sidestep it. |
+
+```
+Name / Champion / Slot / id: Vanish / Korsavil / W / korsavil_vanish  (korsavil_w_vanish.tres, korsavil/vanish.gd)
+Role tag / other tags: defensive (proposed) / buff (proposed, as Iron Resolve)
+Cast style: INSTANT
+Targeting: SELF (Ryan)
+Cost: 45      Cooldown: 12 s
+Cast time: 0.25 s      Range: self
+Movement during the cast: roots_during_cast off (proposed)
+What it does, step by step:
+  1. Cast start: cast_sound; 0.25 s, walking.
+  2. Effect (in execute(), after its own ABILITY_CAST): status_vanish on herself (5 s; tags stealth, buff;
+     resource_regen FLAT +15, so 25 energy a second). vanish.gd starts counting how long it lasts in game time
+     (the clock the status timer runs on).
+  3. While it lasts: enemies never pick her as a new target, and one already on her drops her (ALLIES' pick,
+     built in ENEMIES_AI AI2 for the stealth tag). Ryan's design: enemies chasing her lose her and search, a
+     simulated look-around at her last known spot (not a real vision cone) for 3 s (proposed), then go back.
+     The search is a new enemy behavior, ENEMIES_AI's, not built: an open dependency (CHAMPIONS.md, Korsavil).
+     Until it exists, a pack with nobody else to pick walks home after 6 s with nothing in reach.
+  4. It ends early the moment she casts an ability, makes a basic attack or dashes (Ryan; new: a status that
+     ends when its holder acts).
+  5. When it ends, by a break or by running out, vanish.gd (listening to Events.status_removed for vanish on her;
+     Ryan) applies an empower for her next 3 basic attacks (several uses: new):
+     - lasted under 4 s: empower_vanish, +10% AD (empower_ad_ratio 0.10, in the swing's own hit);
+     - lasted 4 s or more, a full 5 s included: empower_vanish_full, +15% AD dealt as TRUE damage
+       (empower_ad_ratio 0.15; new: an empower damage type).
+     Both last 5 s (proposed). The swing that takes the third use also gives her 2 Blades, once however many
+     enemies it hits (Ryan; proposed: after either empower). A one-off in vanish.gd.
+Supported augment flags: none yet
+Sounds (AUDIO.md): none yet
+Walls: nothing hits.
+World: none.
+Stunned mid-cast: interrupted at once and refunded: no stealth.
+Caster dies mid-cast / mid-effect: interrupted. Dead while stealthed: Vanish clears with her statuses, and no
+  empower follows (a dead unit takes no status).
+Tooltip template (proposed): "Vanish for 5s: enemies lose track of you, and you regain 15 more energy a second.
+  Casting, attacking or dashing reveals you. When it ends, your next 3 basic attacks deal 10% AD bonus damage, or
+  15% AD true damage if you stayed hidden 4s or more, and the third gives you 2 Blades."
+Extra tunables: full_after 4.0 s, empower_blades 2.
+```
+
+| Edge case (W) | Handling |
+|---|---|
+| Vanish's own cast event breaking its own stealth | Can't: the status goes on in `execute()`, after W's own `ability_cast` (flow step 10), and only acts that start after it's on end it *(proposed: the cast that applied a status never ends it)*. |
+| A natural 5 s expiry | It lasted 5 s, so it counts as 4 s or more: the full empower (Ryan). |
+| A break at exactly 4.0 s | Counts as 4 s or more (with the status timer's 0.0001 s tolerance). |
+| When an act ends it *(proposed)* | At the act's start: a cast at its cast start (`cast_started`, once the press is accepted, so she's seen during its cast time), a swing at its start, a dash at its start. A free cast (an item's) and taking damage don't end it. |
+| The swing that ends it | Is the empower's first use: the empower goes on at the break, and a swing reads its empowers at its hit moment (Empowers). |
+| A swing that whiffs | Uses nothing (an empower is used by a swing that hits). |
+| The empower's 5 s run out before 3 hits | It ends with its uses left; no Blades. |
+| Hit, or stunned, while stealthed | Stealth stays: only her own acts end it. It isn't untargetable: a cast already aimed at her, area hits and DoTs still land. |
+| An enemy mid-windup or mid-cast on her | Its attack or cast plays out where it was aimed; its pick drops her as today (ENEMIES_AI.md). |
+| The third use at 4 Blades | The 2 Blades are lost. |
+
+```
+Name / Champion / Slot / id: Blade Dance / Korsavil / E / korsavil_blade_dance  (korsavil_e_blade_dance.tres, korsavil/blade_dance.gd)
+Role tag / other tags: generator (Ryan: it builds Blades) / projectile
+Cast style: INSTANT
+Targeting: DIRECTION (proposed)
+Cost: 15      Cooldown: 7 s
+Cast time: 0.5 s      Range: cast_range 600 u (192 px, 6 m) = the throw's flight (proposed)
+Movement during the cast: roots_during_cast off, cast_move_speed_multiplier 0.6, dash_cancelable on (proposed)
+Damage: ad_ratio 0.30 on the first hit, +0.05 per bounce (Ryan); PHYSICAL (proposed); blocked by walls
+Projectile: a bounce projectile (new): projectile_bounces 3 (proposed: 4 hits in all), bounce_range 400 u (128 px,
+  4 m, proposed), projectile_speed 1500 u/s (480 px/s, proposed), projectile_width 60 u (the default), one crit roll
+Conditional bonuses: (no conditions) → target_statuses status_inevitable_demise: each hit adds a stack
+Named scaling inputs: bounce (set by the bounce projectile for each hit: bounces so far ÷ projectile_bounces) →
+  ad_ratio, full 0.45, min_fraction 0.667 (2/3), linear: 0.30 / 0.35 / 0.40 / 0.45 on hits 1 / 2 / 3 / 4
+Presentation hooks: empty (AB14)
+What it does, step by step:
+  1. Cast start: cast_sound; 0.5 s, walking at 0.6; a dash cancels it (refunded).
+  2. Effect: a knife along ctx.direction from her feet, out to 600 u; the first enemy it touches is hit.
+  3. From the enemy hit it flies on to the nearest enemy in sight of that one, within 400 u, that this knife
+     hasn't hit yet (proposed), homing on it; up to 3 bounces.
+  4. Each hit that gets through: its damage by the bounce input, a Demise stack on the enemy, and 1 Blade to her
+     (Ryan; blade_dance.gd, per hit).
+  5. The knife ends after its 4th hit, with no next enemy, at a wall, or at the end of its range with no first hit.
+Supported augment flags: none yet
+Sounds (AUDIO.md): none yet
+Walls: the throw and every bounce stop at walls; a bounce only picks an enemy in sight of the one just hit.
+World: no displacement.
+Stunned mid-cast: interrupted at once and refunded.
+Caster dies mid-cast / mid-effect: interrupted. A knife already flying keeps bouncing on her snapshot
+  (Projectiles) and gives no Blades once she's freed.
+Tooltip template (proposed): "Throw a knife that deals {damage} physical damage and bounces to up to 3 more
+  enemies, 5% AD more each time. Every enemy it hits gives you a Blade and a mark of Inevitable Demise."
+```
+
+| Edge case (E) | Handling |
+|---|---|
+| A bounce with no next target | The knife ends there; its earlier hits keep their Blades and stacks. |
+| The throw hits nothing | No bounce, no Blade. |
+| The next enemy dies or turns untargetable in flight | The knife ends without that hit *(proposed)*; it doesn't pick another. |
+| Fewer enemies than bounces | It never goes back to an enemy it has hit, so it ends early. |
+| A hit blocked by i-frames | No damage, Blade or stack; *(proposed)* the knife still bounces on from that enemy. |
+| A Blade gained at 4 | Lost; the Demise stack still lands. |
+| Enemies that dodge (ENEMIES_AI.md, Dodging) | The throw is a skillshot an elite may sidestep; a bounce homes, so it can't be dodged, like a UNIT cast *(proposed)*. |
+
+```
+Name / Champion / Slot / id: Spectral (a placeholder: the draft's name is cut off) / Korsavil / R / korsavil_spectral
+  (korsavil_r_spectral.tres, korsavil/spectral.gd)
+Role tag / other tags: ultimate / blink (Ryan)
+Cast style: INSTANT
+Targeting: UNIT (Ryan). The recast: SELF (proposed; new: a recast part's own targeting. Today every press of a UNIT
+  ability, its recasts included, needs a targetable enemy in range and sight: AbilityComponent.try_cast(), checked)
+Cost: 50 (recast 0)      Cooldown: 40 s
+Recasts: recast_count 1, recast_window 3 s (proposed: the default). Part 0: blink and strike twice. Part 1: blink
+  back, heal, 2 Blades.
+Cast time: 0.25 s, each part      Range: cast_range 1100 u (352 px, 11 m)
+Movement during the cast: roots (the default; proposed)
+Damage (part 0): ad_ratio 1.0, PHYSICAL (proposed); strike 1 at hit_units()' damage_ratio 0.6 (60% AD), strike 2 at
+  1.0 (100% AD) (Ryan); one crit roll for both (hit_units()' crit_roll)
+Cast conditions: can_cast_custom() fails while is_blink_blocked(), fail text "Rooted", for every part (Roots, as
+  every blinking ability)
+Recast conditions: LAST_PART_HIT (Ryan: a recast only if the strike lands; either strike counts)
+Presentation hooks: empty (AB14)
+What it does, step by step:
+  Part 0
+  1. Out of range or sight: she walks until both hold (UNIT, as Judgement). Cast start: cast_sound; rooted 0.25 s.
+  2. Effect: her position into ctx.sequence[&"start"] (as Homeward Lunge), then blink() to the spot just behind the
+     target, on its far side from her (proposed), over walls, by the leap's landing rule.
+  3. Strike 1 (hit_units(), damage_ratio 0.6); 0.15 s later (proposed), strike 2 at 1.0 if the target is still a
+     target.
+  Part 1 (the recast: within 3 s, only after a landed strike)
+  4. Cast start: 0.25 s (Ryan, 2026-10-04 at LOOT L-M: a recast part has no cast time of its own).
+  5. Effect: blink() back to sequence[&"start"] (Homeward Greaves' return, LOOT.md), then a heal of
+     max(5% max health, 100) through Unit.heal() (a one-off in spectral.gd) and 2 Blades to her (Ryan).
+Supported augment flags: none yet
+Sounds (AUDIO.md): none yet
+Walls: part 0 needs sight to start (UNIT); both blinks go over walls (through_walls on, the default).
+World: blink() twice; the target isn't moved.
+Stunned mid-cast: either part is interrupted at once and refunded; part 1 keeps its window time.
+Caster dies mid-cast / mid-effect: interrupted; between the strikes, strike 2 doesn't happen.
+Tooltip template (proposed): "Blink to an enemy and strike twice, for 60% then 100% AD physical damage. If a strike
+  lands, recast within {recast_window}s to blink back to where you started, heal for 5% of your max health (at
+  least 100) and gain 2 Blades."
+Extra tunables: strike_interval 0.15 s, heal_max_health_ratio 0.05, heal_min 100, return_blades 2.
+```
+
+| Edge case (R) | Handling |
+|---|---|
+| The recast while rooted | Fails with "Rooted" (Roots: an ability tagged `blink` fails like a condition: nothing spent, not buffered); the window keeps running. If the root outlasts it: no return, no heal, no Blades. |
+| Rooted during the recast's 0.25 s cast time | A root doesn't stop a cast, so the effect runs and the blink refuses (`blink()` returns false): she stays where she is; *(proposed)* the heal and the Blades still come, as Judgement Leap's landing hits where a refused leap leaves it. |
+| Part 0 while rooted | "Rooted": nothing spent. |
+| The target dies or turns untargetable during the cast time | The effect finds no target: no blink, no strike, nothing refunded (the effect started); the recast never passes its condition, the window runs out, then the 40 s cooldown *(proposed; as Judgement misses a target that leaves its sight)*. |
+| Strike 1 kills the target | Strike 2 has nothing to hit; a strike landed, so the recast works. |
+| Both strikes blocked (i-frames) | No hit: the recast never passes its condition. |
+| The recast pressed with an enemy under the cursor | It blinks back all the same (its targeting is SELF). |
+| Umbral Stalker gained while this recast window is open | The window keeps this recast (a sequence keeps its ability); R's 40 s cooldown starts when it ends, so Stalker usually runs out unused (CHAMPIONS.md, Korsavil). |
+
+```
+Name / Champion / Slot / id: Spectral Stalker (a placeholder) / Korsavil / R, a REPLACE variant / korsavil_spectral_stalker
+  (korsavil_r_spectral_stalker.tres, korsavil/spectral_stalker.gd); variant_of korsavil_spectral (Ryan)
+Granted by: status_umbral_stalker (10 s; tags form, buff) holding augment_spectral_stalker (REPLACE, scope
+  ability:korsavil_spectral) (Ryan; the augment's name proposed)
+Role tag / other tags: ultimate / blink, area (proposed: area for the recast's half circle)
+Cast style: INSTANT
+Targeting: UNIT. The recast: POINT, clamped to cast_range (proposed; the new recast targeting)
+Cost: 50 (recast 0)      Cooldown: 40 s (the slot's)
+Recasts: recast_count 1, recast_window 3 s (proposed). Part 0: blink and strike three times. Part 1: blink to the
+  aim, the half circle.
+Cast time: 0.25 s, each part      Range: cast_range 1100 u (352 px, 11 m), for the target and the recast's point
+  (proposed)
+Movement during the cast: roots (proposed)
+Damage: part 0 ad_ratio 1.0 at damage_ratio 0.2 / 0.35 / 0.7 (20 / 35 / 70% AD; Ryan), one crit roll; part 1 1.2
+  × AD (120%; Ryan) on each enemy in the half circle; PHYSICAL (proposed)
+Cast conditions: "Rooted", as R, for every part
+Recast conditions: LAST_PART_HIT (proposed: as R, so its heal is earned by landing it; CHAMPIONS.md, Principles 4)
+Presentation hooks: empty (AB14)
+What it does, step by step:
+  Part 0
+  1. As R's part 0: walks into range and sight, 0.25 s rooted, then the blink behind the target.
+  2. Effect start: removes status_umbral_stalker (Stalker is consumed: the Stalker timing, below).
+  3. Three strikes 0.15 s apart (proposed): 20%, 35%, 70% AD, each if the target is still a target.
+  Part 1 (within 3 s, only after a landed strike)
+  4. Cast start 0.25 s; effect: blink() to the aim point (over walls, by the leap's landing rule).
+  5. Every enemy in a half circle in front of her along the blink's direction, 300 u (96 px, 3 m) (proposed), in
+     sight of where she landed: 120% AD, and each one the hit gets through to gets status_fear for 1.5 s (Ryan;
+     new), which bosses refuse (Ryan).
+  6. A heal of max(10% max health, 150) + 5% of her AD (Ryan's draft; proposed reading) through Unit.heal(), a
+     one-off in its script. No Blades (Ryan gives them to the base R's recast only).
+Supported augment flags: none yet
+Sounds (AUDIO.md): none yet
+Walls: part 0 needs sight (UNIT); the blinks go over walls; the half circle hits only enemies in sight of her
+  landing spot.
+World: blink() twice; no displacement (a feared enemy's flee is its own walking).
+Stunned mid-cast: either part is interrupted at once and refunded; a refunded part 0 keeps Stalker.
+Caster dies mid-cast / mid-effect: interrupted; strikes not made yet don't happen.
+Tooltip template (proposed): "Blink to an enemy and strike three times, for 20%, 35% and 70% AD physical damage.
+  If a strike lands, recast within {recast_window}s to blink to a point, dealing 120% AD physical damage in front
+  of you and fearing enemies for 1.5s (not bosses), and heal for 10% of your max health (at least 150) plus 5% AD."
+Extra tunables: strike_interval 0.15 s, arc_radius 300 u, heal_max_health_ratio 0.10, heal_min 150,
+  heal_ad_ratio 0.05, fear_duration 1.5 s.
+```
+
+**The Stalker timing** (the REPLACE ending; *(proposed)*). Ryan: R's first cast consumes Stalker, and a REPLACE ends with its status, which could turn the slot back into the base R while the variant's recast window is open. The rule: Stalker is consumed at the variant's part 0 effect start (`execute()`, after ABILITY_CAST), not at its cast start, so a part 0 interrupted in its cast time is refunded and keeps Stalker. Its REPLACE goes with it, but the recast stays the variant's for its whole window: an open recast sequence keeps the ability that opened it (Augments: "the recast window stays with the ability that opened it"; `AbilityComponent.get_ability()` returns the sequence's ability before any REPLACE, checked in `ability_component.gd`). The slot shows the base R again, on its 40 s cooldown, when the sequence ends. Ryan's other example (consume it when the variant's recast ends or its window closes) works with the same sequence rule, but keeps a form on her for those 3 s with nothing left for it to do.
+
+| Edge case (the Stalker) | Handling |
+|---|---|
+| Stalker's REPLACE ends while the variant's recast window is open | The Stalker timing, above: the recast is still the variant's. |
+| Stalker's 10 s run out during part 0's cast time | The cast keeps the variant (a running cast keeps the ability it started with), and so do its sequence and recast. |
+| Part 0 interrupted (a stun in its 0.25 s) | Refunded; Stalker stays while its 10 s last. |
+| Fear on an unstoppable enemy | Refused: fear is `cc`, and unstoppable refuses new cc. The 120% AD hit still lands. |
+| Fear on a boss | Refused (Ryan: bosses ignore it; how, in Later toolkit pieces, the fear status). The hit lands. |
+| Fear on an elite | Shortened by its tenacity (20%: 1.2 s; ENEMIES_AI.md, Poise). |
+| Fear on a stunned or rooted enemy | Applied; the enemy flees for what's left once it can move *(proposed)*. |
+| The recast while rooted | "Rooted"; the window keeps running (as R). |
+| The aim point in a wall, a pit or past the room's floor | The leap's landing rule: the nearest walkable floor of the room (Blinks). |
+| No enemy in the half circle | The blink and the heal still happen. |
+
 ## Numbers (TARGET: start, range)
 - Player cast times: movement and quick strikes 0.0–0.1 s; strikes 0.15–0.3 s; ultimates up to 0.5 s.
 - Cooldowns: non-ultimate abilities 3–10 s; ultimates 30–60 s (shorter than League, for run pacing); a companion's command 25–50 s, never shortened by ability haste (Ryan, 2026-10-03; COMPANIONS.md).
@@ -835,6 +1113,21 @@ Not build steps. Each is data once 2+ kits use it (Data or script, above).
 - A held status: cc that pins a unit to an anchor (blocked by unstoppable), plus a holding status with stacks on the caster.
 - Displace with a max distance, an optional speed Curve (.tres) and a "landed" signal (early on walls).
 - Example use: capture-and-throw abilities (Tahm Kench, Singed E style).
+- **Korsavil's pieces** (CHAMPIONS.md, Korsavil; designed 2026-10-04). Each is *(proposed; built when Korsavil is)*; the field and value names are proposals too.
+  - **A bounce projectile** (her E): a `Projectile` that, after a hit, flies on to the nearest enemy (of its team's foes, as `enemies_of_team()`) within `bounce_range` (LoL units) of the unit it hit, in sight of that unit and not yet hit by this projectile, homing on it, up to `projectile_bounces` times (a scoped param, so "+1 bounce" is an item modifier). Each hit sets the named input `bounce` (bounces so far ÷ `projectile_bounces`), so damage that grows or falls per bounce is data (a `ChargeScaling` on it). It ends with no next enemy, at a wall, at the end of its range with no first hit, or when the enemy it homes on dies or turns untargetable. A per-hit callback lets the ability's script act on each hit that gets through (her Blades). One crit roll for the cast, as today.
+  - **A status that ends when its holder acts** (her W; ALLIES' `status_stealth` will want the same): `StatusEffect.ends_on_cast`, `ends_on_swing`, `ends_on_dash` (bools). StatusComponent ends the status when its unit starts a cast (`AbilityComponent.cast_started`; a free cast doesn't count), starts a swing (`AutoAttackComponent.swing_started`) or starts a dash (`DashComponent.dash_started`, a local signal: a dash isn't an ability, and no reaction trigger sees it). A cast that started before the status was applied never ends it. The end is an ordinary removal (`status_removed`).
+  - **Numbers that follow a stack count** (her Q's orbit, Demise's tiers). Checked in the code: a status's `modifiers` already scale with its own stacks (one copy per stack, `StatusComponent._sync_modifiers()`), and its DoT deals its tick × stacks. That isn't enough here: Q's reduction and speed sit on the orbit but follow another status's count (the Blades, which outlive the orbit); per-stack copies of a PERCENT_MULT compound (four −5% copies make × 0.815, not × 0.80); and Demise's damage is a replacing tier, not × stacks. So:
+    - a `StatScaling` input `self_status_stacks`: the holder's stacks of `status_tag` ÷ `max_stacks` (two new StatScaling fields), 0–1, through the usual curve. Q's orbit: `incoming_damage` PERCENT_MULT −0.20 and `move_speed` PERCENT_ADD +0.20 on `blade` ÷ 4, linear: exactly 5% per Blade;
+    - `StatusEffect.stat_scalings`, added under the status's source id while it's on (`Unit.add_stat_scaling()`) and removed with it;
+    - the unit refreshes its scalings when its StatusComponent applies or removes a status (deferred, as on `health_changed` today, its only trigger now);
+    - for DoTs, `StatusEffect.tick_by_stacks` (an array: entry n − 1 is the multiplier on one tick at n stacks, in place of × n; empty = today's × stacks). Demise: `tick_ad_ratio` 0.01 every 0.5 s with [0, 0.5, 0.5, 0.8, 0.8, 1.0, 1.0, 1.2] = 0 / 5 / 5 / 8 / 8 / 10 / 10 / 12% AD per 5 s at 1–8 stacks.
+  - **Stacks that share one timer** (Demise): a stack rule `STACK_SHARED`: an application adds a stack (up to `max_stacks`) and restarts the one timer every stack shares; at max it only restarts it; the stacks end together. A new stack doesn't reset a DoT's tick clock. STACK as built gives each stack its own time and at max restarts only the one closest to running out.
+  - **A kit heal of "the higher of a percent of max health or a flat amount"** (her R's recast: max(5%, 100); the Stalker's: max(10%, 150) + 5% AD): one kit, so a one-off in her R scripts through `Unit.heal()` (Data or script), not data. If a second kit wants it, `HealGameplayEffect` (today `amount` + `max_health_ratio` × max health, a sum) gets a "the higher of" switch.
+  - **The fear status** (the Stalker's recast; not built: it needs COMBAT.md and ENEMIES_AI.md work): `status_fear.tres` (id `fear`, tags `cc`, `fear`, `debuff`), `blocks_attack`, `blocks_cast`, `blocks_dash`; it doesn't block walking but takes it over: the unit walks away from the status's source at its own move speed, along its navigation (a cornered one stops at the wall), and can't act. Being `cc`, tenacity shortens it, unstoppable refuses it and a `cc` cleanse removes it. While feared, an enemy's brain doesn't decide (it rests as under `is_cc_blocked()`: its token released, a commit broken off). Bosses refuse it (Ryan): a `StatusEffect.refused_by_tags` (the status isn't applied to a unit carrying any of them) and a permanent status tagged `boss` that ENEMIES_AI's rank rules give every boss. Enemies don't fear the player in v1 (as with knock-ups).
+  - **An empower that carries several uses** (her W's 3 attacks). Checked in the code: a swing that uses an empower removes the whole status (`AutoAttackComponent._use_up_empowers()` calls `remove_status()`), and `StatusEffect` has no uses field. `StatusEffect.empower_uses` (default 1, today's behavior): each swing (or cast) that uses it takes one use; the status ends with its last use or its duration. The 2 Blades on the last use are a one-off in `vanish.gd`.
+  - **An empower damage type** (her W's TRUE bonus): an empower's bonus goes into the swing's own hit (`HitPipeline.add_empowers()`), so it takes the swing's damage type. `StatusEffect.empower_damage_type`, defaulting to "the hit's own" (today's behavior); any other type deals the bonus as its own hit right after the swing's hit on each enemy: that type, the swing's crit roll, tagged `empowered`, triggering no on-hit, no HIT rules and no post-hit i-frames (built like on-hit damage, COMBAT.md).
+  - **The finisher hit tag** (her detonation): COMBAT.md's `AttackSwing.hit_tags` (Ryan, 2026-10-04: "noted for later, built when a champion needs it"; Korsavil is that champion). Her combo's last swing gets `finisher`, added to its hits, so the detonation is a HIT rule (data). A dash-strike isn't the finisher.
+  - **A recast part's own targeting** (her R): every press of a UNIT ability, recast parts included, needs a targetable enemy within range and sight (`AbilityComponent.try_cast()`, checked), so R's recast (a blink back) and the Stalker's (a blink to a point) couldn't be pressed on empty ground. `Ability.recast_targeting`: the targeting of every part after the first, defaulting to "the same as `targeting`", so every ability stays as it is. R: SELF; the Stalker: POINT.
 
 ## Out of scope
 Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modifiers, unit reaction rules, statuses, empowers and an optional script, all under a source id like `passive_knight`, built on this toolkit); items and affix rolls (LOOT.md); enemy AI choosing abilities (ENEMIES_AI.md, written 2026-10-03: the brain, intents, use rules; this doc keeps only the fields it adds to Ability and Condition); ability ranks (none, replaced by talents: Ability ranks); talents (TALENTS.md, built on augments); summons; ability slot swapping by the player (decided no, 2026-09-29: slots are fixed, VISION.md, Build variety; REPLACE augments and forms still change what's active in a slot); TOGGLE and SUSTAINED cast styles (not planned: Cast styles); the ultimate meter (CHAMPIONS.md).
@@ -854,3 +1147,4 @@ Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modi
 - The "on end" augment event (`ability_finished`): when something needs it.
 - Conditions: will we ever need OR, or do scripts cover it?
 - Do conditional bonuses show in tooltips always, or only while active? *(AB12 starts with always)*
+- Korsavil (designed 2026-10-04): her proposals are in CHAMPIONS.md, Open questions (Korsavil); the toolkit pieces she needs are in Later toolkit pieces, each *(proposed; built when Korsavil is)*.
