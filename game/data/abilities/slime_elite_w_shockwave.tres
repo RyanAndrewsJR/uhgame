@@ -1,0 +1,35 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/abilities/enemy/shockwave.gd" id="1_script"]
+[ext_resource type="Script" path="res://scripts/data/ai_use.gd" id="2_use"]
+[ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_hit.tres" id="3_hit"]
+[ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_telegraph.tres" id="4_telegraph"]
+
+[sub_resource type="Resource" id="use_damage"]
+script = ExtResource("2_use")
+intent = &"damage"
+weight = 1.1
+
+[sub_resource type="Resource" id="use_cc"]
+script = ExtResource("2_use")
+intent = &"cc"
+
+[resource]
+script = ExtResource("1_script")
+radius_px = 96.0
+knockback_px = 48.0
+hitstop = 0.05
+shake = 2.5
+id = &"slime_elite_shockwave"
+tags = Array[StringName]([&"core", &"area"])
+display_name = "Shockwave"
+description = "Fills a {radius_px} px circle around itself over {cast_time} s, then bursts: {damage} physical damage and a {knockback_px} px push away to everyone inside."
+icon_color = Color(0.95, 0.6, 0.3, 1)
+targeting = 0
+cooldown = 8.0
+cast_time = 0.6
+resets_auto_attack = false
+base_damage = 40.0
+hit_sound = ExtResource("3_hit")
+telegraph_sound = ExtResource("4_telegraph")
+ai_uses = Array[ExtResource("2_use")]([SubResource("use_damage"), SubResource("use_cc")])

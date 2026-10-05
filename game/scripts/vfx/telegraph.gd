@@ -7,7 +7,8 @@ extends Node2D
 ## Drawn as a true circle (not squashed for the 3/4 view), so it matches the
 ## hit area exactly. Placed on the room's floor, under every unit. A line
 ## (ABILITIES AB13, VECTOR casts) is a band from its start whose fill grows
-## along its length.
+## along its length. A cone (ENEMIES_AI AI3d) is a fan from its origin whose
+## fill grows outward.
 ## A telegraph that belongs to a cast fills with the cast's progress
 ## (set_progress(), ABILITIES AB14); one without a cast uses its own clock.
 
@@ -22,6 +23,10 @@ var color: Color = THREAT_COLOR
 var line_vector: Vector2 = Vector2.ZERO
 ## A line telegraph's full width, px.
 var width_px: float = 0.0
+## A cone telegraph (cone(), ENEMIES_AI AI3d): where it points, and half its
+## angle in radians (0 = not a cone). Its length is radius_px.
+var cone_direction: Vector2 = Vector2.RIGHT
+var cone_half_angle: float = 0.0
 
 var _elapsed: float = 0.0
 var _sound_handle: int = 0
@@ -64,6 +69,22 @@ static func line(anchor: Node2D, start: Vector2, end: Vector2, width: float, tim
 	t.color = tint
 	_add_to_floor(anchor, t)
 	t.global_position = start
+	return t
+
+
+## A cone telegraph from `origin` (world space) along `direction`, `radius`
+## px long and `half_angle` radians to each side, that fills outward over
+## `time` seconds (ENEMIES_AI AI3d: the enemy ability library's cleave arc).
+## `anchor` as for circle().
+static func cone(anchor: Node2D, origin: Vector2, direction: Vector2, radius: float, half_angle: float, time: float, tint: Color = THREAT_COLOR) -> Telegraph:
+	var t := Telegraph.new()
+	t.radius_px = radius
+	t.cone_direction = direction.normalized() if direction.length() > 0.001 else Vector2.RIGHT
+	t.cone_half_angle = maxf(half_angle, 0.01)
+	t.duration = maxf(time, 0.01)
+	t.color = tint
+	_add_to_floor(anchor, t)
+	t.global_position = origin
 	return t
 
 
@@ -143,6 +164,9 @@ func _draw() -> void:
 	if line_vector != Vector2.ZERO:
 		_draw_line_shape()
 		return
+	if cone_half_angle > 0.0:
+		_draw_cone_shape()
+		return
 	if _finishing:
 		draw_circle(Vector2.ZERO, radius_px, Color(color, 0.6 * clampf(_flash / 0.12, 0.0, 1.0)))
 		return
@@ -162,6 +186,30 @@ func _draw_line_shape() -> void:
 	var outline := _band(1.0)
 	outline.append(outline[0])
 	draw_polyline(outline, Color(color, 0.9), 1.0)
+
+
+## The cone: a fan from its origin, the fill growing outward.
+func _draw_cone_shape() -> void:
+	if _finishing:
+		draw_colored_polygon(_fan(radius_px), Color(color, 0.6 * clampf(_flash / 0.12, 0.0, 1.0)))
+		return
+	draw_colored_polygon(_fan(radius_px), Color(color, 0.12))
+	var filled := radius_px * get_progress()
+	if filled >= 1.0:   # a fan smaller than a pixel can't be drawn
+		draw_colored_polygon(_fan(filled), Color(color, 0.35))
+	var outline := _fan(radius_px)
+	outline.append(outline[0])
+	draw_polyline(outline, Color(color, 0.9), 1.0)
+
+
+## The fan's points out to `r` px (local): the origin, then the arc.
+func _fan(r: float) -> PackedVector2Array:
+	var steps := 16
+	var start := cone_direction.angle() - cone_half_angle
+	var pts := PackedVector2Array([Vector2.ZERO])
+	for i in steps + 1:
+		pts.append(Vector2.from_angle(start + 2.0 * cone_half_angle * i / steps) * r)
+	return pts
 
 
 ## The band's corners from the start to `fraction` of its length (local).

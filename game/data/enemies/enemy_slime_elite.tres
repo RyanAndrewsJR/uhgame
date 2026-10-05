@@ -5,10 +5,22 @@
 [ext_resource type="Resource" path="res://data/enemy_behaviors/enemy_behavior_brute.tres" id="3_hxwqn"]
 [ext_resource type="Script" uid="uid://cguop83exi7gy" path="res://scripts/data/enemy_data.gd" id="4_bbqio"]
 [ext_resource type="Resource" path="res://data/units/slime_elite.tres" id="5_ydf3l"]
+[ext_resource type="Resource" path="res://data/abilities/slime_elite_w_shockwave.tres" id="6_shockwave"]
+[ext_resource type="Resource" path="res://data/abilities/slime_elite_e_big_hit.tres" id="7_big_hit"]
 
 [sub_resource type="Resource" id="Resource_6yaba"]
 script = ExtResource("1_wtxja")
 ability = ExtResource("2_apfph")
+
+[sub_resource type="Resource" id="slot_w"]
+script = ExtResource("1_wtxja")
+slot = &"w"
+ability = ExtResource("6_shockwave")
+
+[sub_resource type="Resource" id="slot_e"]
+script = ExtResource("1_wtxja")
+slot = &"e"
+ability = ExtResource("7_big_hit")
 
 [resource]
 script = ExtResource("4_bbqio")
@@ -17,5 +29,5 @@ display_name = "Elite Slime"
 rank = 2
 behavior = ExtResource("3_hxwqn")
 stats = ExtResource("5_ydf3l")
-abilities = Array[ExtResource("1_wtxja")]([SubResource("Resource_6yaba")])
+abilities = Array[ExtResource("1_wtxja")]([SubResource("Resource_6yaba"), SubResource("slot_w"), SubResource("slot_e")])
 model_color = Color(0.62, 0.35, 0.85, 1)

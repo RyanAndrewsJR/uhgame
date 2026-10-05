@@ -638,8 +638,11 @@ func _apply_decision(d: BrainDecision, now: float) -> void:
 		if d.intent == COMMIT:
 			_start_commit(now)
 		intent_changed.emit(d.intent)
-	if d.intent == ESCAPE and d.plan == null and not _escaping:
-		_start_escape_walk(now)
+	if d.intent == ESCAPE:
+		if d.plan != null:
+			_escaping = false   # its escape ability is the escape: a walk after it gets its own 2 s (AI3d)
+		elif not _escaping:
+			_start_escape_walk(now)
 	_pending_plan = d.plan
 	_decision = d
 	_update_pose(now)

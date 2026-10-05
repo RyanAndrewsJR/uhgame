@@ -5,10 +5,22 @@
 [ext_resource type="Resource" path="res://data/enemy_behaviors/enemy_behavior_brute.tres" id="3_o8fod"]
 [ext_resource type="Script" uid="uid://cguop83exi7gy" path="res://scripts/data/enemy_data.gd" id="4_p5ogv"]
 [ext_resource type="Resource" path="res://data/units/test_brute.tres" id="5_6ospw"]
+[ext_resource type="Resource" path="res://data/abilities/test_brute_w_cleave_arc.tres" id="6_cleave_arc"]
+[ext_resource type="Resource" path="res://data/abilities/test_brute_e_charge.tres" id="7_charge"]
 
 [sub_resource type="Resource" id="Resource_4a4ds"]
 script = ExtResource("1_k4115")
 ability = ExtResource("2_x3odr")
+
+[sub_resource type="Resource" id="slot_w"]
+script = ExtResource("1_k4115")
+slot = &"w"
+ability = ExtResource("6_cleave_arc")
+
+[sub_resource type="Resource" id="slot_e"]
+script = ExtResource("1_k4115")
+slot = &"e"
+ability = ExtResource("7_charge")
 
 [resource]
 script = ExtResource("4_p5ogv")
@@ -16,5 +28,5 @@ id = &"test_brute"
 display_name = "Test Brute"
 behavior = ExtResource("3_o8fod")
 stats = ExtResource("5_6ospw")
-abilities = Array[ExtResource("1_k4115")]([SubResource("Resource_4a4ds")])
+abilities = Array[ExtResource("1_k4115")]([SubResource("Resource_4a4ds"), SubResource("slot_w"), SubResource("slot_e")])
 model_color = Color(0.85, 0.45, 0.25, 1)

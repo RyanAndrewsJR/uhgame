@@ -7,6 +7,7 @@
 [ext_resource type="Resource" path="res://data/enemy_behaviors/enemy_behavior_caster.tres" id="5_behavior"]
 [ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="6_data"]
 [ext_resource type="Resource" path="res://data/units/test_caster.tres" id="7_stats"]
+[ext_resource type="Resource" path="res://data/abilities/test_caster_r_snare.tres" id="8_snare"]
 
 [sub_resource type="Resource" id="slot_q"]
 script = ExtResource("1_slot")
@@ -22,6 +23,11 @@ script = ExtResource("1_slot")
 slot = &"e"
 ability = ExtResource("4_blink")
 
+[sub_resource type="Resource" id="slot_r"]
+script = ExtResource("1_slot")
+slot = &"r"
+ability = ExtResource("8_snare")
+
 [resource]
 script = ExtResource("6_data")
 id = &"test_caster_elite"
@@ -29,6 +35,6 @@ display_name = "Elite Test Caster"
 rank = 2
 behavior = ExtResource("5_behavior")
 stats = ExtResource("7_stats")
-abilities = Array[ExtResource("1_slot")]([SubResource("slot_q"), SubResource("slot_w"), SubResource("slot_e")])
+abilities = Array[ExtResource("1_slot")]([SubResource("slot_q"), SubResource("slot_w"), SubResource("slot_e"), SubResource("slot_r")])
 model_color = Color(0.6, 0.45, 1, 1)
 detect_range = 850.0

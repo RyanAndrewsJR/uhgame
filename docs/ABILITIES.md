@@ -121,6 +121,7 @@ A **blink** moves a unit to a point instantly: no travel, no time in the air (Le
   - **A basic attack swing doesn't step**: it swings in place, its aim still snapping to the target.
 - **Not stopped:** forced movement (a knockback, a pull, a drag) still moves a rooted unit, and a dash or leap already running when the root lands finishes (League's rule; a stun that should stop one would be its own call).
 - Abilities that don't move their caster cast as usual while rooted (Cleave, Iron Resolve, Judgement's strike).
+- **The game's root status:** `status_root.tres` (ENEMIES_AI AI3d, 2026-10-04: id `root`, 1 s, tags `cc`, `root`, `debuff`, `blocks_move` and `blocks_dash`), first used by the enemy library's snare. Tests that built their own root keep it.
 
 ### Ultimates
 - Per champion: the ultimate uses a cooldown (League) or a meter charged by dealing and taking damage (Hades), Ryan's pick. The Knight uses a cooldown (Judgement: 30 s, CHAMPIONS.md). The meter is designed in CHAMPIONS.md when a champion first uses one; this doc only needs the slot to support "ready when the meter is full" instead of a cooldown (`ready_mode` METER, reserved here, built with the meter).
@@ -221,7 +222,7 @@ Targeting and indicators; cast styles; shapes (cone, line, circle, line of sight
 | Movement methods | `MovementComponent.dash()`, `displace()`, `leap()` (LOOT L6), `blink()` (AB15) (later `pull_to()`) | abilities never set position themselves (WORLD_INTERACTION.md) | any caller; displacements carry no source id (kill credit for impacts is WORLD_INTERACTION's) |
 | Projectiles | `Projectile` (`res://scripts/abilities/projectile.gd`), `Projectile.fire()` | skillshots, waves, bolts | fired with an Ability resource and a `CastContext` whose `source_id` names the item or passive (free casts set it) |
 | Ground areas | `Hazard` *(proposed, WORLD_INTERACTION.md)* | fire trails, oil pools | a Hazard's `source` Unit; planned there |
-| Telegraphs | `Telegraph.circle()`, `Telegraph.line()` (AB13), `Ability.on_cast_started()`, `CastContext.telegraph` | the floor warning during a cast time | through an ability's cast |
+| Telegraphs | `Telegraph.circle()`, `Telegraph.line()` (AB13), `Telegraph.cone()` (ENEMIES_AI AI3d), `Ability.on_cast_started()`, `CastContext.telegraph` | the floor warning during a cast time | through an ability's cast |
 | Reaction rules and GameplayEffects | `Unit.add_reaction_rule(rule, source_id)`, `Reactions.add_world_rule(rule, source_id)`; trigger ABILITY_CAST; the four new effects | "when X, do Y" | `source_id` on add, removed with `remove_reaction_rules_from(source_id)` |
 | Augments | `AbilityAugment`, `AbilityComponent.add_augment(augment, source_id)` / `remove_augments_from(source_id)`; `StatusEffect.augments` | behavior changes and forms | `source_id` on add; a status's augments use `&"status_<id>"` |
 | Tooltips | `Ability.get_tooltip(caster)`, `get_tooltip_plain(caster)` | what the player reads | shows augment lines with their source's text |

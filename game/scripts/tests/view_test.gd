@@ -2398,8 +2398,8 @@ func _test_arcs_and_pillars() -> void:
 			if line.contains("VFX.slash(") and not line.strip_edges().begins_with("#"):
 				calls += 1
 				through_origin += 1 if line.contains("VFX.drawing_origin(") else 0
-	_check("every VFX.slash() call centers on VFX.drawing_origin() (the Player's swings, Cleave, Cleave Wave, Judgement, the Uppercut)",
-		[calls, through_origin], [5, 5])
+	_check("every VFX.slash() call centers on VFX.drawing_origin() (the Player's swings, Cleave, Cleave Wave, Judgement, the Uppercut; since ENEMIES_AI AI3d the enemy library's cleave arc)",
+		[calls, through_origin], [6, 6])
 
 	var layout := _terrain_layout()
 	var room := layout.build_sim()

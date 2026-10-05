@@ -1413,6 +1413,32 @@ Docs only; no code or tests changed.
 
 ## Enemies AI (ENEMIES_AI.md)
 
+### AI3d – The enemy ability library, part 1, and full kits: 2026-10-04, Built (awaiting Ryan's play test)
+Ryan committed the Duels and odds design and started AI3d first of its three steps. Before building he answered four questions, each as Claude proposed: re-kit the elite slime (slam, shockwave, big hit); more enemy slots come with bosses (AI6); the test kits as proposed; the stab at 30 damage (35 broke the telegraph rule).
+- **Built:**
+  - **The library:** 14 templates in `data/abilities/enemy/` (all of the starter list but the pool, which waits for Hazards). New scripts in `scripts/abilities/enemy/`: `cleave_arc.gd`, `dash_strike.gd` (the charge and the flurry), `shockwave.gd` (extends the slam), `hop_away.gd`. Existing scripts serve the other archetypes where they are (not moved).
+  - **New pieces:** `Telegraph.cone()` (a fan whose fill grows outward), and `status_root.tres` (the snare's 1 s root: the bolt with an always-on conditional bonus).
+  - **Caps:** `RankRules.min_abilities`, and the AI table's caps by Ryan's table (min–max 0–0, 2–3, 3–5, 4–6).
+  - **Kits:** the test brute (smash, cleave arc, charge), skirmisher (leap, stab, flurry), caster (bolt, lobbed orb, blink away), elite caster (bolt, guard, blink away, snare) and the elite slime (slam, shockwave, big hit), each its own copies of the templates, with weights ordering each kit.
+- **Found while building** (in ENEMIES_AI.md):
+  - An escape ability now ends a walk under way. A blink after a walk had started kept the walk's clock, so the next walk was cornered at 1.43 s (seen with the caster's new 1 s orb).
+  - The big hit reaches 350 u, past the shockwave's circle, so the elite slime opens with it.
+  - The five-brutes token test holds the Knight unstoppable: their charges and cleave arcs could push him out of a brute's leash.
+  - The elite slime is placed only in the sandboxes: room_01 has never had one, so room_01 is unchanged.
+  - view_test's swing-arc guard now counts six `VFX.slash()` calls (the cleave arc's, through `VFX.drawing_origin()`).
+  - Enemies keep four slots until AI6.
+- **Tests:** enemies 338/338 (33 new; 305 before, with the TEMP's 24), on 4 parallel runs and 5 more before the last check was added.
+  - The new checks cover the templates, the telegraph rule over every template and EnemyData (and a breach it catches), the kits, bands and respect values, and `status_root`.
+  - They also cover the plans and areas of the cleave arc, charge, shockwave and hop, and their casts hitting what the telegraph shows: in front and not behind, each champion on the band once, the push, the 4 m miss, a root of about 1 s, a 3 m hop.
+  - And the brains with their kits: the brute charges in from its band and uses more than one ability, the elite slime opens with its big hit, the elite caster snares, and the regular caster pokes with its bolt and its orb.
+  - Changed expectations: the AI table's caps (min and max), and the elite caster's kit count (4).
+  - **All suites 3,392/3,392:** stats 180, combat 474, abilities 593, audio 110, champions 168, talents 310, view 469, loot 750, enemies 338.
+- **Sensitivity:** five breaks (the dash's once-each, the cone's angle, the shockwave's reach, the hop's direction, the escape walk's end) failed 8 checks; the originals were restored and diff-checked. In that broken run the fodder ring's "every one keeps hitting" check also failed once (a slime with 0 hits). None of the breaks touch fodder, and it passed on all 9 clean runs; it's AI3's chaotic fodder test.
+- **Smoke** (scratch `ai3d_harness.gd`, saving off; `sandbox_main`, `sandbox_main_layout`, `main_layout`): no script errors.
+  - In the mixed pack and the Shift+H enemies, the brute charged and cleaved, the skirmisher leapt and used its flurry, and the elite caster snared.
+  - The elite slime cast its big hit with the Knight's kit up in one of two 15 s runs (it holds most of the time, as a brute should).
+  - The saves were byte-identical.
+
 ### Design addition – Duels and odds: 2026-10-04, Docs only (Ryan's answers applied)
 Docs only; no code or tests changed. Ryan's design addition: most fights are 1v1 or 2v1 and rarely more than 5–7 enemies, so each enemy must be smarter and stronger. Added to ENEMIES_AI.md, nothing built rewritten:
 - Principle 10; the Goal/feel rows (think rates, pressing, heavy hits, telegraphs); Kits (Ryan's 3–5 abilities and no passives, Claude's recommended table, the enemy ability library with a 15-archetype starter list); Duels and odds (the full effective-respect and pressure terms, confidence and the key ability, cautious, `spend_eagerness`, the crowded episode and derived answers, smell blood, odds and the press with its fairness limits, `aim_lead`); the reaction-time rule (Knowledge); boss passives (Bosses); think rate by rank with a 200-a-second budget (Performance); the five sliders with role starts, tests and overlay lines (seventeen in all); the later list; data rows, architecture notes, edge cases; build steps **AI3b** (the duel), **AI3c** (odds and think rates; AI2's token code reopened) and **AI3d** (the library and full kits), with AI1–AI8 not renumbered; boss passives join AI6.

@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="StatusEffect" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/status_effect.gd" id="1_status"]
+
+[resource]
+script = ExtResource("1_status")
+id = &"root"
+display_name = "Rooted"
+tags = Array[StringName]([&"cc", &"root", &"debuff"])
+duration = 1.0
+stack_rule = 0
+blocks_move = true
+blocks_dash = true

@@ -20,6 +20,8 @@ jitter = 1.5
 
 [sub_resource type="Resource" id="Resource_db0wg"]
 script = ExtResource("1_tp8sr")
+max_abilities = 3
+min_abilities = 2
 brain_adjust = SubResource("Resource_6g70d")
 
 [sub_resource type="Resource" id="Resource_2debi"]
@@ -28,7 +30,8 @@ rank = 2
 can_dodge = true
 token_cost = 2
 tenacity = 0.2
-max_abilities = 3
+max_abilities = 5
+min_abilities = 3
 
 [sub_resource type="Resource" id="Resource_sq8i8"]
 script = ExtResource("2_vigi2")
@@ -41,7 +44,8 @@ rank = 3
 can_dodge = true
 token_cost = 0
 tenacity = 0.4
-max_abilities = -1
+max_abilities = 6
+min_abilities = 4
 brain_adjust = SubResource("Resource_sq8i8")
 
 [resource]

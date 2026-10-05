@@ -1,0 +1,29 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/abilities/slime/slam.gd" id="1_script"]
+[ext_resource type="Script" path="res://scripts/data/ai_use.gd" id="2_use"]
+[ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_hit.tres" id="3_hit"]
+[ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_telegraph.tres" id="4_telegraph"]
+
+[sub_resource type="Resource" id="use_damage"]
+script = ExtResource("2_use")
+intent = &"damage"
+
+[resource]
+script = ExtResource("1_script")
+radius_px = 64.0
+knockback_px = 24.0
+id = &"enemy_smash"
+tags = Array[StringName]([&"core", &"area"])
+display_name = "Smash"
+description = "Marks a {radius_px} px circle where the target stands, fills it over {cast_time} s, then smashes: {damage} physical damage and a {knockback_px} px push to everyone inside."
+icon_color = Color(1, 0.45, 0.2, 1)
+targeting = 2
+cooldown = 5.0
+cast_time = 0.7
+cast_range = 250.0
+resets_auto_attack = false
+base_damage = 80.0
+hit_sound = ExtResource("3_hit")
+telegraph_sound = ExtResource("4_telegraph")
+ai_uses = Array[ExtResource("2_use")]([SubResource("use_damage")])

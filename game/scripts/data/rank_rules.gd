@@ -16,9 +16,13 @@ extends Resource
 ## A FLAT `tenacity` modifier given at spawn under &"enemy_rank" (elite 0.2,
 ## boss 0.4: 20% and 40% shorter crowd control; Ryan, I8). 0 = none.
 @export_range(0.0, 1.0) var tenacity: float = 0.0
-## The most abilities an enemy of this rank may have (fodder 0, regular 2,
-## elite 3; −1 = any). The enemies test checks every EnemyData.
+## The most abilities an enemy of this rank may have (−1 = any). The enemies
+## test checks every EnemyData. Since AI3d (Ryan, 2026-10-04: Kits): fodder
+## 0, regular 3, elite 5, boss 6 (AI1's were 0, 2, 3, any).
 @export var max_abilities: int = 2
+## The fewest it should have (AI3d: fodder 0, regular 2, elite 3, boss 4);
+## the enemies test warns about an EnemyData below it.
+@export var min_abilities: int = 0
 ## Its slider multipliers (a regular: reaction × 1.3, jitter × 1.5, punish
 ## greed × 0.5; a boss: reaction × 0.85, jitter × 0.7). null = none.
 @export var brain_adjust: BrainAdjust

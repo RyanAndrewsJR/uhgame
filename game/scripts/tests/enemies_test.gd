@@ -48,6 +48,16 @@ extends Node2D
 ##   health; the skirmisher stalking, leaping in when the kit drops, hitting,
 ##   hopping out and resetting; a missed gap-closer keeping the commit going;
 ##   Shift+H and the mixed pack.
+## Step AI3d, the enemy ability library and full kits:
+## - the 14 templates (a shared script each, one role tag, their uses); every
+##   enemy ability telegraphed at least 0.6 s unless it's a quick chip hit;
+##   the test enemies' and the elite slime's kits from the library, inside
+##   their rank's band; the root status; respect values;
+## - the new archetypes' plans and effect areas (cleave arc, charge,
+##   shockwave, hop away), and their casts hitting what the telegraph shows;
+##   the snare's root;
+## - the brains using the kits: the brute charges in, the elite slime opens
+##   with its big hit, the elite caster snares.
 ## TEMP, the enemy attack speed test multiplier (DECISIONS.md, Testing): off
 ## by default; at x1.0 every number is today's exactly; at x1.5 with keep DPS
 ## the same damage per second over 10 s, more swings, the windup floor; the
@@ -90,6 +100,34 @@ const GUARD: Ability = preload("res://data/abilities/test_caster_w_guard.tres")
 const ESCAPE_BLINK: Ability = preload("res://data/abilities/test_caster_e_blink.tres")
 const TEST_BOLT: Ability = preload("res://data/abilities/test_q_bolt.tres")
 const JUDGEMENT_LEAP: Ability = preload("res://data/abilities/knight_r_judgement_leap.tres")
+# AI3d
+const LIBRARY_DIR := "res://data/abilities/enemy/"
+## The library's archetypes (ENEMIES_AI.md, Kits; the pool waits for
+## WORLD_INTERACTION's Hazards): each template's script, role tag and the
+## intents of its uses.
+const LIBRARY := {
+	"smash": ["res://scripts/abilities/slime/slam.gd", &"core", [&"damage"]],
+	"cleave_arc": ["res://scripts/abilities/enemy/cleave_arc.gd", &"core", [&"damage", &"zone"]],
+	"charge": ["res://scripts/abilities/enemy/dash_strike.gd", &"mobility", [&"gap_close"]],
+	"shockwave": ["res://scripts/abilities/enemy/shockwave.gd", &"core", [&"damage", &"cc"]],
+	"leap": ["res://scripts/abilities/test_skirmisher/leap.gd", &"mobility", [&"gap_close"]],
+	"stab": ["res://scripts/abilities/slime/slam.gd", &"core", [&"damage"]],
+	"hop_away": ["res://scripts/abilities/enemy/hop_away.gd", &"mobility", [&"escape"]],
+	"flurry": ["res://scripts/abilities/enemy/dash_strike.gd", &"core", [&"damage", &"punish"]],
+	"bolt": ["res://scripts/abilities/test/bolt.gd", &"core", [&"poke"]],
+	"lobbed_orb": ["res://scripts/abilities/slime/slam.gd", &"core", [&"poke", &"zone"]],
+	"snare": ["res://scripts/abilities/test/bolt.gd", &"core", [&"poke", &"cc"]],
+	"blink_away": ["res://scripts/abilities/test_caster/escape_blink.gd", &"mobility", [&"escape"]],
+	"guard": ["res://scripts/abilities/test_caster/guard.gd", &"defensive", [&"defend"]],
+	"big_hit": ["res://scripts/abilities/slime/slam.gd", &"ultimate", [&"damage", &"punish", &"finish"]],
+}
+const HOP: Ability = preload("res://data/abilities/enemy/enemy_hop_away.tres")
+const STATUS_ROOT: StatusEffect = preload("res://data/statuses/status_root.tres")
+## Every enemy ability's telegraph is at least this long (ENEMIES_AI.md, Kits)...
+const TELEGRAPH_MIN := 0.6
+## ...unless it's in COMBAT's chip band: at most this share of the target's
+## max health (the Knight's 650: 32.5).
+const CHIP_SHARE := 0.05
 ## Where the fights happen, away from the origin.
 const ARENA := Vector2(3000, 0)
 
@@ -101,7 +139,7 @@ var _failed: int = 0
 
 
 func _ready() -> void:
-	print("\n=== Enemies test (ENEMIES_AI AI1–AI3) ===")
+	print("\n=== Enemies test (ENEMIES_AI AI1–AI3d) ===")
 	Progress.get_progress(KNIGHT)   # the save guards latch off first (a test scene)
 	Loot.get_inventory(KNIGHT)
 	Brains.rng.seed = 20261004
@@ -161,6 +199,14 @@ func _ready() -> void:
 	await _test_gap_closer_commit()
 	await _test_sandbox_ai3()
 
+	# AI3d: the enemy ability library and full kits.
+	_test_ai3d_library()
+	_test_ai3d_telegraph_rule()
+	_test_ai3d_kits()
+	await _test_ai3d_plans()
+	await _test_ai3d_casts()
+	await _test_ai3d_brains()
+
 	# TEMP: the enemy attack speed test multiplier (DECISIONS.md, Testing).
 	await _test_temp_attack_speed()
 
@@ -180,9 +226,9 @@ func _test_table() -> void:
 	var rows: Array = []
 	for rank in [EnemyData.Rank.FODDER, EnemyData.Rank.REGULAR, EnemyData.Rank.ELITE, EnemyData.Rank.BOSS]:
 		var r := t.get_rank_rules(rank)
-		rows.append([r.has_brain, r.can_dodge, r.token_cost, r.tenacity, r.max_abilities])
-	_check("fodder / regular / elite / boss: brain, dodge, token cost, tenacity (I8), max abilities",
-		rows, [[false, false, 0, 0.0, 0], [true, false, 1, 0.0, 2], [true, true, 2, 0.2, 3], [true, true, 0, 0.4, -1]])
+		rows.append([r.has_brain, r.can_dodge, r.token_cost, r.tenacity, r.min_abilities, r.max_abilities])
+	_check("fodder / regular / elite / boss: brain, dodge, token cost, tenacity (I8), abilities min–max (AI3d, Ryan: Kits)",
+		rows, [[false, false, 0, 0.0, 0, 0], [true, false, 1, 0.0, 2, 3], [true, true, 2, 0.2, 3, 5], [true, true, 0, 0.4, 4, 6]])
 	var regular := t.get_rank_rules(EnemyData.Rank.REGULAR).brain_adjust
 	var boss := t.get_rank_rules(EnemyData.Rank.BOSS).brain_adjust
 	_check("the regular's adjust: reaction × 1.3, jitter × 1.5, punish greed × 0.5",
@@ -232,6 +278,8 @@ func _test_enemy_data_files() -> void:
 		var count := data.get_abilities_at(5).size()
 		if rules.max_abilities >= 0 and count > rules.max_abilities:
 			problems.append("%s: %d abilities, rank allows %d" % [f, count, rules.max_abilities])
+		if count < rules.min_abilities:   # AI3d (Kits): a warning, as for overrides
+			print("  WARN  %s has %d abilities, under its rank's %d" % [f, count, rules.min_abilities])
 		if rules.has_brain != (data.behavior != null):
 			problems.append("%s: a brain rank needs a behavior, fodder none" % f)
 		if data.stats == null or data.id == &"":
@@ -1349,6 +1397,11 @@ func _test_five_brutes() -> void:
 	await _reset_knight()
 	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
 	_spend_kit()
+	# The Knight unstoppable, so their hits don't push him about (AB10): since
+	# AI3d's kits (the charge, the cleave arc) five brutes' pushes could carry
+	# him out of a brute's leash in 15 s, and the leash isn't under test here.
+	var steady := _tag_status(&"test_unstoppable", [&"unstoppable"] as Array[StringName])
+	knight.status_component.apply_status(steady)
 	var brutes: Array[Enemy] = []
 	for i in 5:
 		brutes.append(_spawn(BRUTE_SCENE, knight.global_position + Vector2.from_angle(TAU * i / 5.0) * 150.0, false))
@@ -1385,6 +1438,7 @@ func _test_five_brutes() -> void:
 		if streak > 1:
 			stray += 1
 	Events.unit_damaged.disconnect(on_damaged)
+	knight.status_component.remove_status(steady.id)
 	_check("all five aggroed on him", brutes.all(func(b: Enemy) -> bool: return b.ai == Enemy.AI.AGGRO and b.get_target() == knight), true)
 	_check("never more than two tokens held, never more than two committing (15 s; got %d / %d)" % [max_holders, max_committing],
 		[max_holders, max_committing <= 2], [2, true])
@@ -1516,9 +1570,9 @@ func _test_ai3_data() -> void:
 		[CASTER_DATA.rank, _slot_ability(CASTER_DATA, &"q") == CASTER_BOLT, _slot_ability(CASTER_DATA, &"e") == ESCAPE_BLINK, _intents(CASTER_BOLT), _intents(ESCAPE_BLINK), CASTER_DATA.detect_range],
 		[EnemyData.Rank.REGULAR, true, true, [&"poke"], [&"escape"], 850.0])
 	var rule: Condition = GUARD.ai_uses[0].conditions[0] if not GUARD.ai_uses.is_empty() and not GUARD.ai_uses[0].conditions.is_empty() else null
-	_check("the elite test caster: Bolt, Guard on W (defend, only when THREATENED within 1 s), Blink away",
+	_check("the elite test caster: Bolt, Guard on W (defend, only when THREATENED within 1 s), Blink away (and since AI3d a Snare on R: 4)",
 		[CASTER_ELITE_DATA.rank, _slot_ability(CASTER_ELITE_DATA, &"w") == GUARD, _intents(GUARD), rule.kind if rule else -1, rule.value if rule else 0.0, CASTER_ELITE_DATA.abilities.size()],
-		[EnemyData.Rank.ELITE, true, [&"defend"], Condition.Kind.THREATENED, 1.0, 3])
+		[EnemyData.Rank.ELITE, true, [&"defend"], Condition.Kind.THREATENED, 1.0, 4])
 	var t := Brains.table
 	_check("scores: defend .9, escape .75, retreat .7", [t.get_intent_score(&"defend"), t.get_intent_score(&"escape"), t.get_intent_score(&"retreat")], [0.9, 0.75, 0.7])
 	_check("a caught caster walks away 2 s at most, then squares up for 3 s", [t.escape_walk_time, t.cornered_time], [2.0, 3.0])
@@ -1983,6 +2037,382 @@ func _intents(ability: Ability) -> Array:
 	for use in ability.get_ai_uses():
 		out.append(use.intent)
 	return out
+
+
+# --- AI3d: the enemy ability library and full kits ---------------------------------------
+
+func _test_ai3d_library() -> void:
+	_section("AI3d: the enemy ability library: one template per archetype, each on a shared script")
+	var files: Array = []
+	for f in DirAccess.open(LIBRARY_DIR).get_files():
+		if f.ends_with(".tres"):
+			files.append(f.trim_suffix(".tres"))
+	files.sort()
+	var expected: Array = []
+	for k: String in LIBRARY:
+		expected.append("enemy_" + k)
+	expected.sort()
+	_check("14 templates in data/abilities/enemy/ (the pool waits for Hazards)", files, expected)
+	var rows: Array = []
+	var want: Array = []
+	for k: String in LIBRARY:
+		var a: Ability = load(LIBRARY_DIR + "enemy_%s.tres" % k)
+		var info: Array = LIBRARY[k]
+		rows.append([k, a.id, a.get_script().resource_path, a.get_role(), _intents(a)])
+		want.append([k, StringName("enemy_" + k), info[0], info[1], info[2]])
+	_check("each: its id, its shared script, one role tag, the starter list's uses", rows, want)
+
+
+## The step's rule (ENEMIES_AI.md, Kits): every enemy ability telegraphs at
+## least 0.6 s, unless it's faster than the reaction time on purpose and in
+## the chip band.
+func _test_ai3d_telegraph_rule() -> void:
+	_section("AI3d: every enemy ability telegraphs at least 0.6 s, unless it's a quick chip hit")
+	var library: Array = []
+	for k: String in LIBRARY:
+		library.append(load(LIBRARY_DIR + "enemy_%s.tres" % k))
+	_check("every template keeps the rule", _telegraph_breaches(library), [])
+	var kits: Array = []
+	for f in DirAccess.open(ENEMY_DATA_DIR).get_files():
+		if f.ends_with(".tres"):
+			kits.append_array((load(ENEMY_DATA_DIR + f) as EnemyData).get_abilities_at(5).values())
+	_check("so does every ability of every EnemyData (%d)" % kits.size(), _telegraph_breaches(kits), [])
+	_check("the rule can fail: 35 damage in 0.35 s breaks it (chip is 32.5); 30 in 0.35 s doesn't; 120 in 0.6 s doesn't",
+		[_telegraph_breaches([_bare_ability(0.35, 35.0)]).size(), _telegraph_breaches([_bare_ability(0.35, 30.0)]).size(),
+			_telegraph_breaches([_bare_ability(0.6, 120.0)]).size()], [1, 0, 0])
+	_check("a leap's flight counts: 0.5 s cast + 0.4 s flight", _telegraph_time(LEAP), 0.9)
+
+
+func _test_ai3d_kits() -> void:
+	_section("AI3d: the kits, built from the library (Ryan, 2026-10-04): regulars 2–3, elites 3–5")
+	var datas: Array[EnemyData] = [BRUTE_DATA, SKIRMISHER_DATA, CASTER_DATA, CASTER_ELITE_DATA, ELITE_DATA]
+	var rows: Array = []
+	for data in datas:
+		var ids: Array = []
+		for slot in AbilityComponent.SLOTS:
+			var a := _slot_ability(data, slot)
+			ids.append(a.id if a != null else &"")
+		rows.append(ids)
+	_check("by slot (q, w, e, r): the brute's smash, cleave arc, charge; the skirmisher's leap, stab, flurry; the caster's bolt, orb, blink; the elite caster's bolt, guard, blink, snare; the elite slime's slam, shockwave, big hit",
+		rows, [
+			[&"test_brute_smash", &"test_brute_cleave_arc", &"test_brute_charge", &""],
+			[&"test_skirmisher_leap", &"test_skirmisher_stab", &"test_skirmisher_flurry", &""],
+			[&"test_caster_bolt", &"test_caster_lobbed_orb", &"test_caster_blink", &""],
+			[&"test_caster_bolt", &"test_caster_guard", &"test_caster_blink", &"test_caster_snare"],
+			[&"slime_elite_slam", &"slime_elite_shockwave", &"slime_elite_big_hit", &""]])
+	var library_scripts := {}
+	for k: String in LIBRARY:
+		library_scripts[(LIBRARY[k] as Array)[0]] = true
+	var outside: Array = []
+	var bands: Array = []
+	for data in datas:
+		var rules := Brains.table.get_rank_rules(data.rank)
+		var abilities: Array = data.get_abilities_at(5).values()
+		bands.append(abilities.size() >= rules.min_abilities and abilities.size() <= rules.max_abilities)
+		for a: Ability in abilities:
+			if not library_scripts.has(a.get_script().resource_path):
+				outside.append(a.id)
+	_check("none authored from scratch: every one runs a library script", outside, [])
+	_check("each kit inside its rank's band", bands, [true, true, true, true, true])
+	_check("the stab: 30 damage now, in the chip band (Ryan)", STAB.base_damage, 30.0)
+	var t := Brains.table
+	var big_hit := _slot_ability(ELITE_DATA, &"e")
+	var shockwave := _slot_ability(ELITE_DATA, &"w")
+	_check("respect: the big hit 4 (ultimate), the snare 3 (its root counts +1), the shockwave 2 (a push isn't a status), the charge 2, the hop 2",
+		[t.get_respect_value(big_hit), t.get_respect_value(_slot_ability(CASTER_ELITE_DATA, &"r")), t.get_respect_value(shockwave),
+			t.get_respect_value(_slot_ability(BRUTE_DATA, &"e")), t.get_respect_value(HOP)], [4.0, 3.0, 2.0, 2.0, 2.0])
+	_check("the elite slime's weights: big hit 1.3, shockwave 1.1, slam 1 (the big hit first when it's up)",
+		[big_hit.ai_uses[0].weight, shockwave.ai_uses[0].weight, SLAM.get_ai_uses()[0].weight], [1.3, 1.1, 1.0])
+	_check("status_root: 1 s, tags cc, root, debuff; it blocks moving and dashing, not attacking or casting (roots are roots)",
+		[STATUS_ROOT.id, STATUS_ROOT.duration, STATUS_ROOT.tags == ([&"cc", &"root", &"debuff"] as Array[StringName]),
+			STATUS_ROOT.blocks_move, STATUS_ROOT.blocks_dash, STATUS_ROOT.blocks_attack, STATUS_ROOT.blocks_cast],
+		[&"root", 1.0, true, true, true, false, false])
+
+
+func _test_ai3d_plans() -> void:
+	_section("AI3d: the new archetypes' plans and the areas they show")
+	await _reset_knight()
+	var home := knight.global_position
+	var brute := _spawn(BRUTE_SCENE, home + Vector2(-64, 0), true)
+	var slime := _spawn(ELITE_SCENE, home + Vector2(0, -64), true)
+	await _frames(2)
+	var s := SituationContext.new()
+	s.has_target = true
+	s.target_unit = knight
+	var arc := _slot_ability(BRUTE_DATA, &"w")
+	var charge := _slot_ability(BRUTE_DATA, &"e")
+	var shockwave := _slot_ability(ELITE_DATA, &"w")
+	var alone := arc.get_ai_plan(brute, s)
+	var friend := _friend(home + Vector2(0, 40))
+	await _frames(2)
+	var two := arc.get_ai_plan(brute, s)
+	friend.queue_free()
+	_place(brute, home + Vector2(-128, 0))
+	var arc_far := arc.get_ai_plan(brute, s)
+	var charge_near := charge.get_ai_plan(brute, s)
+	_place(brute, home + Vector2(-224, 0))
+	var charge_far := charge.get_ai_plan(brute, s)
+	_check("the cleave arc at 2 m: damage alone, + zone with a second champion beside him; none at 4 m",
+		[alone.intents if alone else [], two.intents if two else [], arc_far == null],
+		[[&"damage"] as Array[StringName], [&"damage", &"zone"] as Array[StringName], true])
+	_check("the charge: a gap-closer at 4 m, none at 7 m (its 6 m range)",
+		[charge_near.intents if charge_near else [], charge_far == null], [[&"gap_close"] as Array[StringName], true])
+	var wave_near := shockwave.get_ai_plan(slime, s)
+	_place(slime, home + Vector2(0, -128))
+	var wave_far := shockwave.get_ai_plan(slime, s)
+	_check("the shockwave: only with him inside its circle (2 m yes, 4 m no)",
+		[wave_near.intents if wave_near else [], wave_far == null], [[&"damage", &"cc"] as Array[StringName], true])
+	_place(brute, home + Vector2(-64, 0))
+	var hop := HOP.get_ai_plan(brute, s)
+	var hop_ok := hop != null and absf(hop.point.distance_to(brute.global_position) - Units.to_px(300.0)) < 0.5 \
+		and (hop.point - brute.global_position).normalized().dot(Vector2.LEFT) > 0.999
+	_check("hop away: its whole 300 u straight away from him, an escape", [hop_ok, hop.intents if hop else []], [true, [&"escape"] as Array[StringName]])
+	# The areas they show (the ally brain will read enemy casts this way).
+	var ctx := CastContext.new()
+	ctx.direction = Vector2.RIGHT
+	ctx.point = brute.global_position + Vector2(160, 0)
+	var arc_area := arc.get_effect_area(brute, ctx)
+	var charge_area := charge.get_effect_area(brute, ctx)
+	var wave_area := shockwave.get_effect_area(slime, ctx)
+	_check("areas: the arc a cone from it (60° each side, its 250 u reach); the charge its band to the end; the shockwave a circle on itself; the hop none",
+		[arc_area.kind, arc_area.origin == brute.global_position, is_equal_approx(rad_to_deg(arc_area.half_angle), 60.0), is_equal_approx(arc_area.range, Units.to_px(250.0)),
+			charge_area.kind, charge_area.to == ctx.point, charge_area.half_width, wave_area.kind, wave_area.center == slime.global_position, wave_area.radius,
+			HOP.get_effect_area(brute, ctx).kind],
+		[&"cone", true, true, true, &"segment", true, 19.0, &"circle", true, 96.0, &"none"])
+	# Where a dash strike ends: past the aim, capped, short of a wall.
+	var origin := home + Vector2(0, 700)
+	var short: Vector2 = charge.call(&"get_dash_end", origin, origin + Vector2(128, 0))
+	var long: Vector2 = charge.call(&"get_dash_end", origin, origin + Vector2(400, 0))
+	var wall := _wall_at(origin + Vector2(110, 0), Vector2(20, 200))
+	await _frames(2)
+	var walled: Vector2 = charge.call(&"get_dash_end", origin, origin + Vector2(128, 0))
+	wall.queue_free()
+	_check("the charge ends 1 m past the aim (160 of 128 px), at most 6 m (192 px), short of a wall (%.0f px; its face at 100)" % (walled.x - origin.x),
+		[roundi(short.x - origin.x), roundi(long.x - origin.x), walled.x - origin.x <= 100.0 and walled.x - origin.x >= 90.0], [160, 192, true])
+	brute.queue_free()
+	slime.queue_free()
+	await _frames(2)
+
+
+func _test_ai3d_casts() -> void:
+	_section("AI3d: the new archetypes hit what their telegraphs show")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	var hits := {}   # "<ability id>><unit instance id>" -> hits
+	var count_hit := func(ctx: HitContext) -> void:
+		if ctx.ability != null and is_instance_valid(ctx.target):
+			var key := "%s>%d" % [ctx.ability.id, ctx.target.get_instance_id()]
+			hits[key] = int(hits.get(key, 0)) + 1
+	Events.unit_damaged.connect(count_hit)
+	var home := knight.global_position
+	# The cleave arc: in front he's hit, behind it he isn't.
+	var brute := _spawn(BRUTE_SCENE, home + Vector2(-64, 0), true)
+	await _frames(2)
+	brute.abilities.try_cast(&"w", knight.global_position)
+	await _frames(2)
+	var cast_ctx := brute.abilities.get_cast_context()
+	var tele: Telegraph = cast_ctx.telegraph if cast_ctx != null else null
+	_check("the cleave arc's telegraph: a cone toward him, 60° to each side",
+		[tele != null, tele != null and is_equal_approx(rad_to_deg(tele.cone_half_angle), 60.0), tele != null and tele.cone_direction.dot(Vector2.RIGHT) > 0.99],
+		[true, true, true])
+	var before := knight.global_position
+	await _wait_until(func() -> bool: return not brute.abilities.casting, 90)
+	await _frames(12)   # the push plays out
+	_check("in front of it: hit once, pushed (%.0f px)" % knight.global_position.distance_to(before),
+		[_hits_of(hits, &"test_brute_cleave_arc", knight), knight.global_position.distance_to(before) > 8.0], [1, true])
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID) and not knight.movement.is_displaced(), 60)
+	_place(knight, brute.global_position + Vector2(-64, 0))   # behind it
+	brute.abilities.reset_cooldown(&"w")
+	await _frames(2)
+	brute.abilities.try_cast(&"w", brute.global_position + Vector2(64, 0))
+	await _wait_until(func() -> bool: return not brute.abilities.casting, 90)
+	await _frames(2)
+	_check("behind it: missed", _hits_of(hits, &"test_brute_cleave_arc", knight), 1)
+	# The charge: along its band, everyone on it once, nobody beside it.
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	_place(knight, home)
+	_place(brute, home + Vector2(-128, 0))
+	var on_line := _friend(home + Vector2(-64, 0))
+	var beside := _friend(home + Vector2(-64, 70))
+	await _frames(2)
+	var start := brute.global_position
+	brute.abilities.try_cast(&"e", knight.global_position)
+	await _frames(2)
+	cast_ctx = brute.abilities.get_cast_context()
+	tele = cast_ctx.telegraph if cast_ctx != null else null
+	_check("the charge's telegraph: a band 38 px wide, 1 m past where he stands (160 px)",
+		[tele != null and roundi(tele.line_vector.length()) == 160, tele.width_px if tele else 0.0], [true, 38.0])
+	await _wait_until(func() -> bool: return not brute.abilities.casting, 90)
+	await _wait_until(func() -> bool: return not brute.movement.is_displaced(), 60)
+	await _frames(2)
+	_check("it charges along it (%.0f of 160 px): him and the friend on the line hit once each, the one beside it not" % brute.global_position.distance_to(start),
+		[absf(brute.global_position.distance_to(start) - 160.0) < 12.0, _hits_of(hits, &"test_brute_charge", knight),
+			_hits_of(hits, &"test_brute_charge", on_line), _hits_of(hits, &"test_brute_charge", beside)], [true, 1, 1, 0])
+	on_line.queue_free()
+	beside.queue_free()
+	var root: StatusEffect = STATUS_ROOT.duplicate()
+	root.duration = -1.0
+	brute.status_component.apply_status(root)
+	brute.abilities.reset_cooldown(&"e")
+	_check("rooted, it can't charge (a dash: roots are roots)", brute.abilities.get_fail_reason(&"e", knight.global_position) != "", true)
+	brute.status_component.remove_status(root.id)
+	brute.queue_free()
+	# The shockwave: around itself, pushing him away.
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID) and not knight.movement.is_displaced(), 60)
+	_place(knight, home)
+	var slime := _spawn(ELITE_SCENE, home + Vector2(-64, 0), true)
+	await _frames(2)
+	var d0 := knight.global_position.distance_to(slime.global_position)
+	slime.abilities.try_cast(&"w", slime.global_position)
+	await _wait_until(func() -> bool: return not slime.abilities.casting, 90)
+	await _frames(15)
+	var d1 := knight.global_position.distance_to(slime.global_position)
+	_check("the shockwave 2 m from him: hit once, pushed away from it (%.0f to %.0f px)" % [d0, d1],
+		[_hits_of(hits, &"slime_elite_shockwave", knight), d1 > d0 + 30.0], [1, true])
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID) and not knight.movement.is_displaced(), 60)
+	_place(knight, slime.global_position + Vector2(128, 0))
+	slime.abilities.reset_cooldown(&"w")
+	await _frames(2)
+	slime.abilities.try_cast(&"w", slime.global_position)
+	await _wait_until(func() -> bool: return not slime.abilities.casting, 90)
+	await _frames(2)
+	_check("4 m from him: missed", _hits_of(hits, &"slime_elite_shockwave", knight), 1)
+	slime.queue_free()
+	# The snare: a skillshot that roots him for 1 s.
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID) and not knight.movement.is_displaced(), 60)
+	_place(knight, home)
+	var caster := _spawn(CASTER_ELITE_SCENE, home + Vector2(-250, 0), true)
+	await _frames(2)
+	caster.abilities.try_cast(&"r", knight.global_position)
+	await _wait_until(func() -> bool: return knight.status_component.has_tag(&"root"), 240)
+	var rooted := knight.status_component.has_tag(&"root")
+	var no_dash := knight.is_dash_blocked()
+	var t0 := Brains.get_time()
+	await _wait_until(func() -> bool: return not knight.status_component.has_tag(&"root"), 120)
+	_check("the snare roots him, no dash either, for about 1 s (%.2f s)" % (Brains.get_time() - t0),
+		[rooted, no_dash, absf(Brains.get_time() - t0 - 1.0) < 0.15], [true, true, true])
+	caster.queue_free()
+	# Hop away: a quick dash straight away from him (on a brute, for the test).
+	var hopper_data: EnemyData = BRUTE_DATA.duplicate()
+	var slot := EnemyAbilitySlot.new()
+	slot.slot = &"r"
+	slot.ability = HOP
+	hopper_data.abilities = [BRUTE_DATA.abilities[0], slot]
+	var hopper := BRUTE_SCENE.instantiate() as Enemy
+	hopper.data = hopper_data
+	hopper.passive = true
+	entities.add_child(hopper)
+	_place(hopper, home + Vector2(-64, 0))
+	await _frames(2)
+	var hs := SituationContext.new()
+	hs.has_target = true
+	hs.target_unit = knight
+	var plan := HOP.get_ai_plan(hopper, hs)
+	var h0 := hopper.global_position
+	hopper.abilities.try_cast(&"r", plan.point)
+	await _wait_until(func() -> bool: return not hopper.abilities.casting and not hopper.movement.is_displaced(), 60)
+	await _frames(2)
+	_check("hop away: 3 m straight away from him (%.0f px)" % hopper.global_position.distance_to(h0),
+		[absf(hopper.global_position.distance_to(h0) - Units.to_px(300.0)) < 8.0, (hopper.global_position - h0).normalized().dot(Vector2.LEFT) > 0.99], [true, true])
+	hopper.queue_free()
+	Events.unit_damaged.disconnect(count_hit)
+	await _reset_knight()
+	await _frames(30)
+
+
+## The step's "Done means": the test enemies fight with their full kits.
+func _test_ai3d_brains() -> void:
+	_section("AI3d: the brains use their kits")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	_spend_kit()
+	var brute := _spawn(BRUTE_SCENE, knight.global_position + Vector2(-140, 0), false)
+	var brute_casts := {}
+	var brute_first := [&""]
+	brute.abilities.cast_started.connect(func(s: StringName, _a: Ability, _c: CastContext) -> void:
+		brute_casts[s] = int(brute_casts.get(s, 0)) + 1
+		if brute_first[0] == &"":
+			brute_first[0] = s)
+	for i in 900:   # 15 s
+		await get_tree().physics_frame
+		knight.health.heal(100000.0)
+		if i % 30 == 0:
+			_spend_kit()
+	_check("the test brute, his kit spent: it opens with a charge from its band (got %s), and uses more than one ability in 15 s (%s)" % [brute_first[0], brute_casts.keys()],
+		[brute_first[0], brute_casts.size() >= 2], [&"e", true])
+	brute.passive = true
+	brute.attack.cancel()
+	brute.queue_free()
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	_spend_kit()
+	var slime := _spawn(ELITE_SCENE, knight.global_position + Vector2(0, -140), false)
+	var slime_first := [&""]
+	slime.abilities.cast_started.connect(func(s: StringName, _a: Ability, _c: CastContext) -> void:
+		if slime_first[0] == &"":
+			slime_first[0] = s)
+	await _wait_until(func() -> bool:
+		knight.health.heal(100000.0)
+		return slime_first[0] != &"", 900)
+	_check("the elite slime, his kit spent: it opens with its big hit (got %s)" % slime_first[0], slime_first[0], &"e")
+	slime.passive = true
+	slime.attack.cancel()
+	slime.queue_free()
+	await _reset_knight()
+	var caster := _spawn(CASTER_ELITE_SCENE, knight.global_position + Vector2(-220, 0), false)
+	await _wait_until(func() -> bool:
+		knight.health.heal(100000.0)
+		return knight.status_component.has_tag(&"root"), 720)
+	_check("the elite caster, 6 m off: it pokes with its snare and roots him", knight.status_component.has_tag(&"root"), true)
+	caster.passive = true
+	caster.attack.cancel()
+	caster.queue_free()
+	await _reset_knight()
+	var regular := _spawn(CASTER_SCENE, knight.global_position + Vector2(-220, 0), false)
+	var pokes := {}
+	regular.abilities.cast_started.connect(func(s: StringName, _a: Ability, _c: CastContext) -> void:
+		pokes[s] = int(pokes.get(s, 0)) + 1)
+	await _wait_until(func() -> bool:
+		knight.health.heal(100000.0)
+		return pokes.has(&"q") and pokes.has(&"w"), 720)
+	_check("the regular caster, 6 m off: it pokes with its bolt and its lobbed orb (%s)" % pokes, [pokes.has(&"q"), pokes.has(&"w")], [true, true])
+	regular.passive = true
+	regular.attack.cancel()
+	regular.queue_free()
+	await _reset_knight()
+	await _frames(30)
+
+
+## An enemy ability's telegraph (ENEMIES_AI.md, Kits): its cast time, plus a
+## leap's flight before the hit.
+func _telegraph_time(a: Ability) -> float:
+	var flight: Variant = a.get(&"leap_time")
+	return a.cast_time + (float(flight) if flight is float else 0.0)
+
+
+## The rule's breaches among `abilities`: a damaging ability telegraphed under
+## TELEGRAPH_MIN outside the chip band (CHIP_SHARE of the Knight's max health).
+func _telegraph_breaches(abilities: Array) -> Array:
+	var chip := CHIP_SHARE * knight.stats.max_health
+	var out: Array = []
+	for a: Ability in abilities:
+		if a.base_damage <= 0.0:
+			continue   # no damage (a blink, a shield): no telegraph needed
+		if _telegraph_time(a) < TELEGRAPH_MIN - 0.0001 and a.base_damage > chip:
+			out.append("%s: %.2f s, %d damage" % [a.id, _telegraph_time(a), roundi(a.base_damage)])
+	return out
+
+
+func _bare_ability(cast: float, damage: float) -> Ability:
+	var a := Ability.new()
+	a.id = &"bare"
+	a.cast_time = cast
+	a.base_damage = damage
+	return a
+
+
+func _hits_of(hits: Dictionary, ability_id: StringName, unit: Node) -> int:
+	return int(hits.get("%s>%d" % [ability_id, unit.get_instance_id()], 0))
 
 
 # --- TEMP: the enemy attack speed test multiplier (DECISIONS.md, Testing) --------------------

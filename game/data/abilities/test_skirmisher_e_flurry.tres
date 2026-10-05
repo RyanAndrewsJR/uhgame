@@ -1,0 +1,37 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/abilities/enemy/dash_strike.gd" id="1_script"]
+[ext_resource type="Script" path="res://scripts/data/ai_use.gd" id="2_use"]
+[ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_hit.tres" id="3_hit"]
+[ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_telegraph.tres" id="4_telegraph"]
+
+[sub_resource type="Resource" id="use_damage"]
+script = ExtResource("2_use")
+intent = &"damage"
+weight = 1.1
+
+[sub_resource type="Resource" id="use_punish"]
+script = ExtResource("2_use")
+intent = &"punish"
+
+[resource]
+script = ExtResource("1_script")
+length_px = 128.0
+overshoot_px = 64.0
+width_px = 32.0
+dash_time = 0.2
+id = &"test_skirmisher_flurry"
+tags = Array[StringName]([&"core", &"dash", &"line"])
+display_name = "Flurry"
+description = "Fills a band {width_px} px wide through the target, up to {length_px} px, over {cast_time} s, then dashes through it: {damage} physical damage to everyone in the way."
+icon_color = Color(0.95, 0.65, 0.2, 1)
+targeting = 2
+cooldown = 6.0
+cast_time = 0.6
+cast_range = 400.0
+resets_auto_attack = false
+base_damage = 45.0
+hit_knockback_px = 8.0
+hit_sound = ExtResource("3_hit")
+telegraph_sound = ExtResource("4_telegraph")
+ai_uses = Array[ExtResource("2_use")]([SubResource("use_damage"), SubResource("use_punish")])
