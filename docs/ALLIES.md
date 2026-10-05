@@ -82,7 +82,9 @@ Enemies **target the nearest party member unless something overrides it**. With 
 - **Threat** (a new stat, `threat`, default 1, min 0.1, max 10) *(name and limits approved by Ryan, 2026-10-04, at ENEMIES_AI AI2, which registered it)*: "enemies prefer you" from a talent, an item or a passive is just a modifier on it. No aggro table: nobody tracks damage or healing done.
 - The status tags `taunt`, `stealth` and `downed` were approved with it (Ryan, 2026-10-04); ENEMIES_AI AI2's pick reads them. The status files below come with AL1 (taunt, stealth) and AL3 (downed).
 - **Taunt:** `status_taunt.tres` (tags `cc`, `taunt`, `debuff`); its source is the taunter. Being `cc`, tenacity shortens it, unstoppable refuses it and a `cc` cleanse removes it. A kit applies a copy with its own duration.
-- **Stealth:** `status_stealth.tres` (tags `stealth`, `buff`): the unit is never picked as a new target. *(proposed)* An enemy already on it drops it at its next pick.
+- **Stealth:** `status_stealth.tres` (tags `stealth`, `buff`): the unit is never picked as a new target. ~~*(proposed)* An enemy already on it drops it at its next pick.~~ An enemy already on it drops it at once (rule 4; built that way in ENEMIES_AI AI2, 2026-10-04: its pick runs the moment its target can't be picked; wording fixed 2026-10-04).
+  - **The search** (Ryan, 2026-10-04, from Korsavil's Vanish): enemies chasing a unit that turns stealthed don't just lose it: they search, a simulated look-around at its last known spot (not a real vision cone), for 3 s *(proposed)*, then go back. ENEMIES_AI.md's (Losing a stealthed target), planned, not built; until then the drop above is all that happens.
+  - **Acting ends it** *(proposed, 2026-10-04)*: `status_stealth` ends when its holder starts a cast, a swing or a dash (the new `ends_on_cast` / `ends_on_swing` / `ends_on_dash` flags: ABILITIES.md, Later toolkit pieces), as Korsavil's Vanish does (`status_vanish`, a copy of this status with her own regen; CHAMPIONS.md). Whichever comes first, AL1 or Korsavil, creates `status_stealth.tres`.
 - "Everyone can tank": whoever stands closest draws the hits, and any kit or item can lean on it (threat, taunt, stealth). No champion has to be a tank.
 
 ### Downed and revive (MUST; Ryan 2026-10-03)
@@ -328,7 +330,7 @@ Claude's proposals still open (written in above as *(proposed)*; Ryan can overru
 6. **The brain's numbers:** 5 thinks a second, under 0.3 ms each, urgent wake-ups; reaction 0.3 s, dodge chance 0.8, a 0.1–0.25 s cast delay.
 7. **The ally's 1 s invulnerability** on getting up, like yours.
 8. **Equipping a lent item on yourself takes it back** from the ally (a move, not a refusal).
-9. **Stealth also drops a current target** at the enemy's next pick.
+9. ~~**Stealth also drops a current target** at the enemy's next pick.~~ Built in ENEMIES_AI AI2 (passed 2026-10-04): dropped at once. Since Korsavil (Ryan, 2026-10-04) the enemy then searches (Rules, How enemies pick a target, Stealth).
 10. **A named roll with no item for the picked champion** goes to the other, then to an Exotic.
 11. **Party size is who started the run** (a downed ally still counts for scaling).
 12. **Hazards a party member makes never hurt its team.**
@@ -336,6 +338,8 @@ Claude's proposals still open (written in above as *(proposed)*; Ryan can overru
 14. **Companions:** only the player's champion takes one; its bond follows the player's XP, so the ally's kills count for bond too.
 15. **Ally talent availability is kept** after a retune raises an ally level (TALENTS' kept-unlocks rule, applied here).
 16. **VISION's wording** for Principle 6 (see the reply's conflict list): "a champion's progress powers only that champion's own kit, played or as an ally; lent gear is lent for the run and never moves".
+17. **Stealth ends when its holder acts** (2026-10-04, with Korsavil): `status_stealth` ends on a cast, a swing or a dash, as her Vanish does; a kit that wants stealth through its own attacks leaves the flags off.
+18. **The search's length** (ENEMIES_AI.md's, 2026-10-04): 3 s at the last known spot.
 
 For other docs (nothing proposed beyond the above):
 - **ENEMIES_AI.md (Tier B)** (applied there, 2026-10-03): the target pick with candidates from the party, stickiness, threat, taunt and stealth (AI2); aggro on any party member; dropping a downed target; adopting the controller contract (AI1); an enemy's AI asking its abilities' `get_ai_plan()` (AI1); the tier that party scaling reads (its **rank**: regular, elite, boss; *proposed* word); telegraphs the ally's perception can read (`Ability.get_effect_area()`, the shape of any cast in progress).

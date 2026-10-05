@@ -1,6 +1,6 @@
 # CHAMPIONS.md: Champions, Passives, Resource Rhythms and the Knight's Kit
 
-**Read when:** the task involves a champion's data (ChampionData), a passive, a champion's resource type and how it fills and drains (fury, energy, mana), a champion's level/progress field, or any part of the Knight's kit (Unbroken, Fury, Staggered, Cleave's heal, Judgement's Fury payoff).
+**Read when:** the task involves a champion's data (ChampionData), a passive, a champion's resource type and how it fills and drains (fury, energy, mana), a champion's level/progress field, or any part of the Knight's kit (Unbroken, Fury, Staggered, Cleave's heal, Judgement's Fury payoff) or Korsavil's (designed, not built: Energy, Blades, Inevitable Demise and its detonation, Vanish, Umbral Stalker).
 **Depends on:** CLAUDE.md, VISION.md (Game structure: champion level, fixed slots), CONVENTIONS.md, STATS.md (StatsComponent, ResourceComponent, scoped modifiers), COMBAT.md (HitPipeline, statuses, Sustain), ABILITIES.md (the toolkit: conditions, conditional bonuses, named inputs, AB14's cast progress), AUDIO.md (hooks).
 **Used by:** TALENTS (per-champion trees gated by the champion level), LOOT (champion-specific items, weapons by class), UI (the hub's champion pick, the passive tooltip, the resource bar), PROGRESSION (saving the champion level), DUNGEONS (respawn rules for the resource; one champion quest line per wing; a champion's class and ability tags matched against a wing's recommendations).
 
@@ -178,7 +178,7 @@ An assassin who gathers Blades, throws them through packs and cashes in what the
 You pick Korsavil at the hub. She starts every fight with a full yellow bar and two dashes. Q sets Blades spinning around her, one more each second, and the more she holds the faster she moves and the less damage she takes. Her thrown knife (E) ricochets through a pack, and every enemy it cuts gives her another Blade. Recast Q and every Blade flies at the cursor: land all four and her ultimate changes for 10 seconds. Every Blade that lands marks its enemy with Inevitable Demise, damage over time that grows with the marks, and at eight marks her next finisher detonates them. When a fight turns, she Vanishes (W): the enemies on her lose her, and the longer she stays hidden, the harder her next three attacks hit. Her ultimate blinks her onto a target to strike, then lets her blink back out with a heal.
 
 ### Identity
-- `id` `&"korsavil"`, `display_name` "Korsavil", `champion_class` `&"assassin"` (Ryan, 2026-10-04) *(proposed word: CONVENTIONS' class list doesn't have `assassin` yet; it has `rogue` and `diver`)*.
+- `id` `&"korsavil"`, `display_name` "Korsavil", `champion_class` `&"assassin"` (Ryan, 2026-10-04; in CONVENTIONS' class list since the same day).
 - Resource: ENERGY (Ryan, 2026-10-04; Energy, below).
 - Stats: `data/units/korsavil.tres` (new). Health lower than the Knight's 650, in 450–550 (Ryan, 2026-10-04): **500** *(proposed)*. Every other stat is TBD (Ryan's call later). `dash_charges` stays 1 there: the second dash is the passive's (below).
 - Combo: TBD (Open questions, Korsavil 8): melee or ranged, how many swings, which one is the finisher, and her class's dash-strike power (COMBAT.md, Basic attack). The detonation needs the finisher's hit tag (Passive, below).
@@ -298,7 +298,7 @@ Passive: two dashes; Demise 5 / 8 / 10 / 12% AD per 5 s at 2 / 4 / 6 / 8 stacks 
 |---|---|
 | `id` | `&"korsavil"` |
 | `display_name` | "Korsavil" |
-| `champion_class` | `&"assassin"` *(proposed word)* |
+| `champion_class` | `&"assassin"` |
 | `stats` | `data/units/korsavil.tres` (new): health 500 *(proposed)*, `max_resource` 100, `resource_regen` 10; the rest TBD |
 | `resource_type` | ENERGY |
 | `resource_starts_empty` | false (the default) |
@@ -313,10 +313,10 @@ Passive: two dashes; Demise 5 / 8 / 10 / 12% AD per 5 s at 2 / 4 / 6 / 8 stacks 
 
 ### What she waits on
 - **Toolkit pieces** (ABILITIES.md, Later toolkit pieces, each *(proposed; built when Korsavil is)*): the bounce projectile (E), a status that ends when its holder acts (W), numbers that follow a stack count (Q's orbit, Demise's tiers), stacks that share one timer (Demise), an empower with several uses and an empower damage type (W), the finisher hit tag (the detonation), a recast part's own targeting (R), the fear status (the Stalker), the "higher of" heal (R; a script one-off).
-- **Other docs (open dependencies; not edited here):**
-  - **The search** (ENEMIES_AI.md): enemies chasing her when she Vanishes lose her and search, a simulated look-around at her last known spot (not a real vision cone) for 3 s *(proposed)*, then go back (Ryan, 2026-10-04). A new enemy behavior, not built. Today ALLIES' pick only drops a stealthed target (ENEMIES_AI AI2, built), and a pack with nobody else to pick walks home after 6 s with nothing in reach.
-  - **The fear** (COMBAT.md and ENEMIES_AI.md): the status, the flee and bosses ignoring it. Not built.
-  - **Stealth's break rule** (ALLIES.md): whether ALLIES' `status_stealth` ends when its holder acts, as Vanish does.
+- **Other docs (open dependencies, recorded there 2026-10-04):**
+  - **The search** (ENEMIES_AI.md, Losing a stealthed target): enemies chasing her when she Vanishes lose her and search, a simulated look-around at her last known spot (not a real vision cone) for 3 s *(proposed)*, then go back (Ryan, 2026-10-04). A new enemy behavior, not built. Today ALLIES' pick only drops a stealthed target (ENEMIES_AI AI2, built), and a pack with nobody else to pick walks home after 6 s with nothing in reach.
+  - **The fear** (COMBAT.md, Status effects, Fear; ENEMIES_AI.md, Fear): the status, the flee and bosses ignoring it. Not built.
+  - **Stealth's break rule** (ALLIES.md, How enemies pick a target, Stealth): `status_stealth` ending when its holder acts, as Vanish does *(proposed there)*.
 - A combo (her swings and finisher), base stats, a model and sounds.
 
 ### Korsavil's kit edge cases
@@ -529,7 +529,7 @@ Korsavil (designed 2026-10-04; Claude's proposals, written in above and in ABILI
 5. **E's bounce count, step and targeting:** "up to 4 bounces" read as 4 hits in all (the first and 3 bounces) at 30 / 35 / 40 / 45% AD, so one full E fills her 4 Blades (the other reading: 4 bounces after the first hit, a fifth at 50%); every hit gives a Blade and a Demise stack, the first included; DIRECTION, 6 m; the next bounce goes to the nearest enemy in sight of the one just hit, not hit yet, within 4 m (400 u, 128 px), homing (so it can't be dodged); a bounce whose target dies or turns untargetable ends the knife.
 6. **R's heals and recast window:** max(5% max health, 100); the Stalker's read as max(10% max health, 150) + 5% AD on top (the AD part is small: 3 at 64 AD, the Knight's); the window 3 s (the default). Also: she lands just behind the target; 0.15 s between strikes; a recast whose blink a root refuses at its effect still heals and gives its Blades where she stands (as Judgement Leap's landing hits where a refused leap leaves it); the Stalker's recast needs a landed strike too (LAST_PART_HIT, so its heal is earned: Principles 4), blinks to the aim point within 11 m and hits a half circle of 3 m (300 u, 96 px) in front of her along the blink's direction, fearing every enemy it hits; the Stalker's recast gives no Blades (Ryan gave them to the base R's).
 7. **The Stalker timing:** Stalker is consumed at the variant's first part's effect start; the recast window that part opens stays the variant's (an open recast sequence keeps the ability that opened it), and the slot shows the base R again when it ends (ABILITIES.md, Korsavil).
-8. **Still Ryan's to decide:** the class word (`assassin`, not yet in CONVENTIONS' list), her combo (melee or ranged, how many swings, which one is the finisher, the class's dash-strike power), base stats (health 500 proposed; the rest TBD), the passive's name, her fantasy line, the R's name ("Spectral" is a placeholder: the draft's name is cut off).
+8. **Still Ryan's to decide:** ~~the class word~~ (answered: `assassin`, in CONVENTIONS since 2026-10-04), her combo (melee or ranged, how many swings, which one is the finisher, the class's dash-strike power), base stats (health 500 proposed; the rest TBD), the passive's name, her fantasy line, the R's name ("Spectral" is a placeholder: the draft's name is cut off).
 9. **The search's length** (ENEMIES_AI.md's, not built): 3 s of looking around her last known spot.
 10. **Q:** role `core`, W role `defensive` (W also tagged `buff`); the orbit ends with the recast (the orbit is the recast window); the recast needs at least 1 Blade (`recast_conditions` SELF_HAS_STATUS `blade` min 1, fail text "No Blades"); "all 4 hit" counts Blades whose hits got through, on any enemies; each Blade deals the step (80–110% AD), so four Blades into one enemy deal 440% AD (the other reading: the step is the volley's total); PHYSICAL.
 11. **Movement during casts:** Q and W don't root (she walks at full speed), E walks at 0.6 and a dash cancels it, R roots for its 0.25 s.
