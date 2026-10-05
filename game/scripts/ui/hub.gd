@@ -4,10 +4,17 @@ extends Control
 ## later): the champion's level, XP and talent points, the talent screen
 ## (TalentScreen), and Start run / Sandbox / Clear. The main scene (F5) since
 ## T5; the pause menu's Back to hub returns here. Built in code: placeholder
-## text and buttons, no art. Only the Knight for now (champion select is UI.md's).
+## text and buttons, no art. Since CHAMPIONS K1 a functional champion pick
+## (one button per champion; the polished champion select is UI.md's).
 
-## The champion whose talents this hub shows.
+## The champion whose talents this hub shows: the picked one.
 @export var champion: ChampionData = preload("res://data/champions/knight.tres")
+## The champions the pick offers (CHAMPIONS K1), in order. The pick goes to
+## Progress.picked_champion, which Main gives to the run's Player.
+@export var champions: Array[ChampionData] = [
+	preload("res://data/champions/knight.tres"),
+	preload("res://data/champions/korsavil.tres"),
+]
 ## Where Start run and Sandbox go. A run plays room_01's layout since the 3D
 ## pivot's milestone (Ryan, P-M); main.tscn keeps the tile room_01.
 @export_file("*.tscn") var run_scene: String = "res://scenes/main_layout.tscn"
@@ -24,9 +31,14 @@ var _clear_asked_ms: int = -1
 var talent_screen: TalentScreen
 var _header: Label
 var _detail: Label
+var _pick_buttons: Dictionary = {}   # champion id -> its Button in the pick row
+
+const HOVER_HINT := "Hover a talent to read it. Click to put it in or take it out."
 
 
 func _ready() -> void:
+	if Progress.picked_champion != null and champions.has(Progress.picked_champion):
+		champion = Progress.picked_champion   # back from a run: the same pick
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	var bg := ColorRect.new()
 	bg.color = Color(0.07, 0.07, 0.1)
@@ -42,6 +54,21 @@ func _ready() -> void:
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 3)
 	margin.add_child(root)
+
+	if champions.size() > 1:
+		var pick := HBoxContainer.new()
+		pick.name = "ChampionPick"
+		pick.add_theme_constant_override("separation", 4)
+		root.add_child(pick)
+		pick.add_child(_label(8, Color(0.6, 0.6, 0.65), "Champion:"))
+		var group := ButtonGroup.new()
+		for c in champions:
+			var button := _button(c.display_name, pick_champion.bind(c), 8)
+			button.toggle_mode = true
+			button.button_group = group
+			button.button_pressed = c == champion
+			pick.add_child(button)
+			_pick_buttons[c.id] = button
 
 	_header = _label(11, Color(1, 1, 1))
 	root.add_child(_header)
@@ -60,7 +87,7 @@ func _ready() -> void:
 	_detail = _label(8, Color(0.85, 0.85, 0.9))
 	_detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_detail.custom_minimum_size = Vector2(0, 20)
-	_detail.text = "Hover a talent to read it. Click to put it in or take it out."
+	_detail.text = HOVER_HINT if not champion.talents.is_empty() else _no_talents_text()
 	root.add_child(_detail)
 
 	var buttons := HBoxContainer.new()
@@ -97,6 +124,22 @@ func get_header_text() -> String:
 	var level_text := "Level %d (max)" % record.level if record.level >= leveling.get_max_level() \
 		else "Level %d: %d / %d XP" % [record.level, record.xp, leveling.get_xp_to_next(record.level)]
 	return "%s   %s   Talents %d / %d" % [champion.display_name, level_text, record.get_points_used(), record.get_talent_points(leveling)]
+
+
+## Picks the champion Start run and Sandbox play as (CHAMPIONS K1): the
+## header, the talent screen and the debug tools follow it; Main gives it to
+## the run's Player (Progress.picked_champion, kept for the session).
+func pick_champion(c: ChampionData) -> void:
+	if c == null:
+		return
+	champion = c
+	Progress.picked_champion = c
+	_clear_asked_ms = -1
+	talent_screen.setup(c)
+	_detail.text = HOVER_HINT if not c.talents.is_empty() else _no_talents_text()
+	for id: StringName in _pick_buttons:
+		(_pick_buttons[id] as Button).set_pressed_no_signal(id == c.id)
+	refresh()
 
 
 func start_run() -> void:
@@ -146,6 +189,10 @@ func debug_clear_inventory() -> bool:
 ## The detail line's text now (tests read it).
 func get_detail_text() -> String:
 	return _detail.text
+
+
+func _no_talents_text() -> String:
+	return "%s has no talents yet." % champion.display_name
 
 
 func _debug(action: Callable) -> void:

@@ -37,6 +37,8 @@ func _ready() -> void:
 	var spawn: Marker2D = room.get_node("PlayerSpawn")
 
 	player = player_scene.instantiate()
+	if Progress.picked_champion != null:
+		player.champion = Progress.picked_champion   # the hub's pick (CHAMPIONS K1), before the Player loads it
 	player.global_position = spawn.global_position
 	entities.add_child(player)
 

@@ -408,8 +408,8 @@ Extra tunables: full_after 4.0 s, empower_blades 2.
 | A break at exactly 4.0 s | Counts as 4 s or more (with the status timer's 0.0001 s tolerance). |
 | When an act ends it *(proposed)* | At the act's start: a cast at its cast start (`cast_started`, once the press is accepted, so she's seen during its cast time), a swing at its start, a dash at its start. A free cast (an item's) and taking damage don't end it. |
 | The swing that ends it | Is the empower's first use: the empower goes on at the break, and a swing reads its empowers at its hit moment (Empowers). It's also swing 1 of her 4-swing cycle (the stealth was on when the chain started). |
-| Vanish cast mid-chain | Her next swing is swing 1 of the 4-swing cycle, wherever the old chain was *(proposed)*. |
-| The empower's 3 uses end inside the 4-swing cycle | The cycle runs to its end: swing 4, its finisher, still comes *(proposed: a cycle picked at a chain's start runs to its end)*. |
+| Vanish cast mid-chain | Her next swing is swing 1 of the 4-swing cycle, wherever the old chain was (Ryan approved, 2026-10-04). |
+| The empower's 3 uses end inside the 4-swing cycle | The cycle runs to its end: swing 4, its finisher, still comes (a cycle picked at a chain's start runs to its end; Ryan approved, 2026-10-04). |
 | A swing that whiffs | Uses nothing (an empower is used by a swing that hits). |
 | The empower's 5 s run out before 3 hits | It ends with its uses left; no Blades. |
 | Hit, or stunned, while stealthed | Stealth stays: only her own acts end it. It isn't untargetable: a cast already aimed at her, area hits and DoTs still land. |

@@ -27,6 +27,11 @@ const TEST_SCENES_DIR := "res://scenes/tests/"
 ## off by itself before the first record is made).
 var saving_enabled: bool = true
 var save_path: String = SAVE_PATH
+## The champion picked at the hub (CHAMPIONS K1): Main gives it to the
+## Player it spawns, and the hub shows it again on return. Kept for the
+## session, never saved (PROGRESSION.md saves it later). null = the Player
+## scene's own champion (the Knight).
+var picked_champion: ChampionData
 
 var _cfg := ConfigFile.new()
 var _loaded: bool = false

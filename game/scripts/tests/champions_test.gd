@@ -23,6 +23,10 @@ extends Node2D
 ## CH6: the readable kit HUD (the passive slot and its live tooltip line, the
 ## Fury bar's tick at 60 and glow, R's live-bonus outline; nothing for a
 ## champion without a passive or thresholds).
+## K1 (Korsavil, 2026-10-04): her ChampionData, stats and Energy, the passive's
+## second dash, her 3-swing cycle (only the last swing's hits carry the
+## `finisher` hit tag, AttackSwing.hit_tags), her empty slots, and the hub's
+## champion pick (Progress.picked_champion).
 ## Prints PASS/FAIL per check, then a total.
 ## Run headless and it quits with the number of failures as the exit code.
 
@@ -51,6 +55,10 @@ const SANDBOX_SCENE: PackedScene = preload("res://scenes/rooms/sandbox.tscn")
 const STAGGERED: StatusEffect = preload("res://data/statuses/status_staggered.tres")
 const CLEAVE_WAVE: Ability = preload("res://data/abilities/knight_q_cleave_wave.tres")
 const CLEAVE_HEAL_CURVE: Curve = preload("res://data/curves/curve_knight_cleave_heal.tres")
+const KORSAVIL: ChampionData = preload("res://data/champions/korsavil.tres")
+const KORSAVIL_STATS: UnitStats = preload("res://data/units/korsavil.tres")
+const COMBO_KORSAVIL: AttackCombo = preload("res://data/combos/combo_korsavil.tres")
+const HUB_SCENE: PackedScene = preload("res://scenes/ui/hub.tscn")
 
 const MANA := ResourceComponent.ResourceType.MANA
 const FURY := ResourceComponent.ResourceType.FURY
@@ -87,6 +95,10 @@ func _ready() -> void:
 	await _test_cleave_heals()
 	await _test_heal_edges()
 	await _test_readable_hud()
+	_test_korsavil_data()
+	await _test_korsavil_loaded()
+	await _test_korsavil_swings()
+	await _test_korsavil_hub_pick()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -829,6 +841,152 @@ func _plain(a: Array) -> Array:
 	var out := []
 	for x in a:
 		out.append(x)
+	return out
+
+
+func _test_korsavil_data() -> void:
+	_section("K1: Korsavil's ChampionData (data/champions/korsavil.tres)")
+	_check("identity: korsavil / Korsavil / assassin", [KORSAVIL.id, KORSAVIL.display_name, KORSAVIL.champion_class], [&"korsavil", "Korsavil", &"assassin"])
+	var s := KORSAVIL.stats
+	_check("stats: data/units/korsavil.tres", s == KORSAVIL_STATS, true)
+	_check("the placeholders (Ryan, 2026-10-04): 500 health, 60 AD, 0.7 attack speed, 390 move speed, 150 range, 0.25 crit",
+		[s.max_health, s.attack_damage, s.base_attack_speed, s.move_speed, s.attack_range, s.crit_chance],
+		[500.0, 60.0, 0.7, 390.0, 150.0, 0.25])
+	_check("armor and magic resist 0; dash_charges 1 on the stats (the second is the passive's); the Knight's pickup radius",
+		[s.armor, s.magic_resist, s.dash_charges, s.pickup_radius], [0.0, 0.0, 1, KNIGHT_STATS.pickup_radius])
+	_check("Energy: 100 max, 10 a second", [s.max_resource, s.resource_regen], [100.0, 10.0])
+	_check("ENERGY, starts full, no decay", [KORSAVIL.resource_type, KORSAVIL.resource_starts_empty, KORSAVIL.resource_decay_per_second, KORSAVIL.resource_decay_delay],
+		[ENERGY, false, 0.0, 0.0])
+	_check("her slots are empty until K2–K5", [KORSAVIL.q, KORSAVIL.w, KORSAVIL.e, KORSAVIL.r], [null, null, null, null])
+	_check("no own modifiers, talents or named items; the shared leveling; no model (a capsule)",
+		[KORSAVIL.modifiers.size(), KORSAVIL.talents.size(), KORSAVIL.named_items.size(), KORSAVIL.leveling == null, KORSAVIL.model_scene == null],
+		[0, 0, 0, true, true])
+	var p := KORSAVIL.passive
+	var mods: Array = []
+	if p != null:
+		for m in p.modifiers:
+			mods.append([m.stat, m.type, m.value, m.scope])
+	_check("the passive: one FLAT +1 dash_charges, nothing else yet", [mods, p.stat_scalings.size(), p.reaction_rules.size(), p.statuses.size(), p.augments.size()],
+		[[[&"dash_charges", StatModifier.Type.FLAT, 1.0, &""]], 0, 0, 0, 0])
+	_check("combo: combo_korsavil.tres, MELEE, 3 swings, reset 0.6 s, no speed scale",
+		[KORSAVIL.combo == COMBO_KORSAVIL, COMBO_KORSAVIL.attack_style, COMBO_KORSAVIL.swings.size(), COMBO_KORSAVIL.combo_reset_time, COMBO_KORSAVIL.speed_scale],
+		[true, AttackCombo.AttackStyle.MELEE, 3, 0.6, 1.0])
+	var sw := COMBO_KORSAVIL.swings
+	_check("windups 0.06 / 0.06 / 0.08 s", [sw[0].windup, sw[1].windup, sw[2].windup], [0.06, 0.06, 0.08])
+	_check("roots 0.22 / 0.22 / 0.32 s, a 0.2 s breather after the finisher only",
+		[sw[0].duration, sw[1].duration, sw[2].duration, sw[0].pause_after, sw[1].pause_after, sw[2].pause_after], [0.22, 0.22, 0.32, 0.0, 0.0, 0.2])
+	_check("damage 0.9 / 0.9 / 1.4 x AD, arcs 90 / 90 / 120", [sw[0].ad_ratio, sw[1].ad_ratio, sw[2].ad_ratio, sw[0].arc_deg, sw[1].arc_deg, sw[2].arc_deg],
+		[0.9, 0.9, 1.4, 90.0, 90.0, 120.0])
+	_check("only swing 3 is the finisher (its hit tags)", [_plain(sw[0].hit_tags), _plain(sw[1].hit_tags), _plain(sw[2].hit_tags)], [[], [], [&"finisher"]])
+	_check("the dash-strike: 1.3 x AD, not a finisher", [COMBO_KORSAVIL.dash_strike.ad_ratio, COMBO_KORSAVIL.dash_strike.hit_tags.size()], [1.3, 0])
+	var knight_tags := COMBO_KNIGHT.dash_strike.hit_tags.size()
+	for x in COMBO_KNIGHT.swings:
+		knight_tags += x.hit_tags.size()
+	_check("the Knight's combo has no hit tags (unchanged)", knight_tags, 0)
+
+
+func _test_korsavil_loaded() -> void:
+	_section("K1: player.tscn loads Korsavil")
+	var k := await _spawn(false, KORSAVIL)
+	_check("live: 500 health, 60 AD, 0.7 attack speed, 390 move speed, 150 range, 0.25 crit",
+		[k.health.max_health, k.stats_component.get_stat(&"attack_damage"), k.stats_component.get_stat(&"attack_speed"),
+			k.movement.get_move_speed(), k.stats_component.get_stat(&"attack_range"), k.stats_component.get_stat(&"crit_chance")],
+		[500.0, 60.0, 0.7, 390.0, 150.0, 0.25])
+	_check("the pool: ENERGY, full (100 of 100), no decay", [k.resource_pool.resource_type, k.resource_pool.max_resource, k.resource_pool.current, k.resource_pool.decay_per_second],
+		[ENERGY, 100.0, 100.0, 0.0])
+	_check("her slots empty, her combo hers, no model (a capsule)",
+		[k.abilities.q, k.abilities.w, k.abilities.e, k.abilities.r, k.attack.combo == COMBO_KORSAVIL, k.model_scene == null], [null, null, null, null, true, true])
+	_check("dash_charges 2: the passive's +1 under passive_korsavil", [int(k.stats_component.get_stat(&"dash_charges")), k.dash.get_max_charges(), k.stats_component.get_modifiers_from(&"passive_korsavil").size()],
+		[2, 2, 1])
+	await _wait_until(func() -> bool: return k.dash.get_charges() >= 2, 60)
+	_check("both dash charges ready shortly after load (0.35 s for the second)", k.dash.get_charges(), 2)
+	k.resource_pool.try_spend(50.0)
+	await _frames(60)
+	_check_near("Energy comes back at 10 a second (50 → 60 in 60 physics frames)", k.resource_pool.current, 60.0, 0.5)
+	_check("a press on an empty slot casts nothing", [k.abilities.try_cast(&"q", k.global_position + Vector2.RIGHT * 50.0), k.abilities.casting], [false, false])
+	var hud: CanvasLayer = HUD_SCENE.instantiate()
+	add_child(hud)
+	hud.setup_abilities(k)
+	await _frames(2)
+	_check("HUD: the ability bar, the Energy bar and her passive slot", [hud.get_node_or_null("AbilityBar") != null, hud.get_node_or_null("ResourceBar") != null, hud.get_node_or_null("PassiveSlot") != null],
+		[true, true, true])
+	hud.queue_free()
+	k.queue_free()
+	await _frames(1)
+
+
+func _test_korsavil_swings() -> void:
+	_section("K1: her 3-swing cycle: only the finisher's hits carry `finisher`")
+	var k := await _spawn(false, KORSAVIL)
+	var no_crit := StatModifier.new()
+	no_crit.stat = &"crit_chance"
+	no_crit.value = -10.0
+	no_crit.source_id = &"test_no_crit"
+	k.stats_component.add_modifier(no_crit)
+	var d := _dummy(k.global_position + Vector2(36, 0))
+	await _frames(1)
+	var hits: Array = []   # [the finisher tag, the melee tag, raw damage] per hit of hers
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == k and ctx.has_tag(&"basic_attack"):
+			hits.append([ctx.has_tag(&"finisher"), ctx.has_tag(&"melee"), roundi(ctx.raw_damage)])
+	Events.unit_hit.connect(on_hit)
+	for i in 3:
+		await _wait_until(func() -> bool: return k.attack.can_swing(), 120)
+		var before := hits.size()
+		k.attack.try_swing(Vector2.RIGHT)
+		await _wait_until(func() -> bool: return hits.size() > before, 60)
+	Events.unit_hit.disconnect(on_hit)
+	_check("three swings: 54 / 54 / 84 raw (0.9 / 0.9 / 1.4 x 60 AD), all melee, only the third tagged `finisher`",
+		hits, [[false, true, 54], [false, true, 54], [true, true, 84]])
+	var knight := await _spawn()
+	var tags := HitPipeline.basic_attack(knight, d, COMBO_KNIGHT.swings[2]).tags
+	_check("the Knight's finisher hit: no `finisher` tag (his data unchanged)", tags.has(&"finisher"), false)
+	d.queue_free()
+	k.queue_free()
+	knight.queue_free()
+	Audio.stop_all()   # the finisher's heavy hit sound would still play at quit
+	await _frames(10)
+
+
+func _test_korsavil_hub_pick() -> void:
+	_section("K1: the hub's champion pick (Progress.picked_champion)")
+	Progress.picked_champion = null
+	var hub: Hub = HUB_SCENE.instantiate()
+	add_child(hub)
+	await _frames(1)
+	_check("a pick row: the Knight (picked) and Korsavil", _pick_row(hub), [["Knight", true], ["Korsavil", false]])
+	_check("with no pick: the Knight's hub", [hub.champion == KNIGHT, hub.get_header_text().begins_with("Knight   ")], [true, true])
+	hub.pick_champion(KORSAVIL)
+	await _frames(1)
+	_check("picking Korsavil: Progress keeps it; the header, the buttons and the talent screen follow",
+		[Progress.picked_champion == KORSAVIL, hub.get_header_text(), _pick_row(hub), hub.talent_screen.champion == KORSAVIL],
+		[true, "Korsavil   Level 1: 0 / 600 XP   Talents 0 / 1", [["Knight", false], ["Korsavil", true]], true])
+	_check("her talent screen has no talents, and says so",
+		[hub.talent_screen.find_children("*", "Button", true, false).size(), hub.get_detail_text()], [0, "Korsavil has no talents yet."])
+	hub._debug(func() -> void: Progress.debug_add_ability_uses(KORSAVIL, 100))
+	_check("+100 uses with her empty slots: nothing to count, no error", Progress.get_progress(KORSAVIL).ability_uses.size(), 0)
+	hub.queue_free()
+	await _frames(1)
+	var again: Hub = HUB_SCENE.instantiate()
+	add_child(again)
+	await _frames(1)
+	_check("back at the hub (a new one): still Korsavil", [again.champion == KORSAVIL, _pick_row(again)], [true, [["Knight", false], ["Korsavil", true]]])
+	again.pick_champion(KNIGHT)
+	await _frames(1)
+	_check("picking the Knight back: his talents and the hover hint", [again.get_header_text().begins_with("Knight   "), again.talent_screen.find_children("*", "Button", true, false).size(), again.get_detail_text()],
+		[true, KNIGHT.talents.size(), "Hover a talent to read it. Click to put it in or take it out."])
+	again.queue_free()
+	Progress.picked_champion = null
+	await _frames(1)
+
+
+## The hub's pick row as [button text, pressed] per champion.
+func _pick_row(hub: Hub) -> Array:
+	var out: Array = []
+	var row := hub.find_child("ChampionPick", true, false)
+	if row != null:
+		for b in row.find_children("*", "Button", true, false):
+			out.append([(b as Button).text, (b as Button).button_pressed])
 	return out
 
 

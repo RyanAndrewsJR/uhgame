@@ -34,6 +34,10 @@ extends Resource
 ## moving, dashing and abilities don't. A click during it fires when it ends.
 ## Divided by the combo speed like every swing timing.
 @export var pause_after: float = 0.0
+## Hit tags added to this swing's hits (COMBAT.md, AttackSwing; built in
+## CHAMPIONS K1), so a HIT reaction rule can tell which swing landed:
+## `finisher` on the last swing of each of Korsavil's cycles (her detonation).
+@export var hit_tags: Array[StringName] = []
 
 @export_group("Sounds")
 ## At swing start, whiffs included (AUDIO.md). null = silent.

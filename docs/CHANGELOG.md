@@ -1192,6 +1192,38 @@ Combat test 450/450, stats test 172/172 (unchanged). A headless in-game check of
 
 ## Champions (CHAMPIONS.md)
 
+### K1 – Korsavil: data, loading, her 3-swing cycle and the champion pick: 2026-10-04, Built (awaiting Ryan's play test)
+Ryan's play test of ENEMIES_AI AI3d passed, so Korsavil's build started (Ryan, 2026-10-04: right after it, before AI3b and AI3c). The tree was clean (checked with `git status`) and no Godot editor was open.
+
+New:
+- `data/units/korsavil.tres`: Ryan's placeholders (500 health, 60 AD, 0.7 attack speed, 390 move speed, 150 range, 0.25 crit; Energy 100 at 10 a second), plus the Knight's `pickup_radius` 200 so she picks up loot.
+- `data/combos/combo_korsavil.tres`: the 3-swing cycle (windups 0.06 / 0.06 / 0.08 s, roots 0.22 / 0.22 / 0.32 s, 0.9 / 0.9 / 1.4 × AD, arcs 90 / 90 / 120°, a 0.2 s breather after the finisher; the Knight's knockback and steps) and the dash-strike (1.3 × AD, the Knight's thrust shape). Swing 3 has `hit_tags` [`finisher`].
+- `data/champions/korsavil.tres`: `korsavil` / "Korsavil" / `assassin`; ENERGY, starts full, no decay; empty Q/W/E/R; the passive inline (display name "Passive (name TBD)"), holding only the FLAT +1 `dash_charges`; no talents or named items; the shared leveling; no model (a capsule).
+
+Changed (additive):
+- `AttackSwing.hit_tags` (`Array[StringName]`, empty by default); `HitPipeline.basic_attack()` adds them to the swing's hits. COMBAT.md's per-swing hit tags, built.
+- `Progress.picked_champion`: the hub's pick, kept for the session and never saved.
+- `main.gd`: gives the Player it spawns the pick before the Player loads it (null = player.tscn's Knight).
+- `hub.gd`:
+  - `champions` (the Knight, Korsavil) and a pick row (`ChampionPick`, a toggle button per champion), with `pick_champion()`.
+  - On load the hub shows Progress's pick.
+  - The header, the talent screen and the debug tools follow the pick.
+  - A champion with no talents gets the detail line "Korsavil has no talents yet."
+
+**Changed during the step:**
+- Her swings reuse the Knight's swing and finisher sounds as placeholders (pitched up a little); CHAMPIONS.md had "sounds: none yet". The swing sound is the combo's, not a champion sound field.
+- The Knight's combo is unchanged: his finisher's hits carry no `finisher` tag (nothing reads it for him).
+
+Measured:
+- **Loading:** she loads with one dash charge and has both 0.35 s later (the passive attaches after `Unit._ready()`).
+- **Energy:** regenerates 50 → 60 in 60 physics frames.
+- **Swings:** a press on an empty slot casts nothing. Her three swings deal 54 / 54 / 84 raw on a dummy (crit off), all tagged `melee`, only the third tagged `finisher`.
+- **Hub:** picking her shows "Korsavil   Level 1: 0 / 600 XP   Talents 0 / 1" and an empty talent screen. A new hub keeps the pick. +100 uses with her empty slots counts nothing and raises no error.
+- **Smoke run:** with her picked, `sandbox_main.tscn` and `main_layout.tscn` each ran 240 frames with no errors: 500 health, 60 AD, 390 speed, 100 / 100 Energy, 2 / 2 dashes, empty slots. The real saves were byte-identical after (saving off).
+- **Sensitivity:** removing the tag loop fails the swing check; not storing the pick fails both hub checks.
+
+Champions 201/201 (33 new); stats 180, combat 474, abilities 593, audio 110, talents 310, view 469, loot 750, enemies 338: all 3,425/3,425, every suite clean at exit (the swing check stops its finisher's hit sound first).
+
 ### Milestone CH-M – the Knight's kit: 2026-09-30, Passed
 Ryan's play test in the sandbox of the whole loop (Fury from swings, Lunge → Staggered → Cleave, Judgement at 60+ Fury, a low-health fight on Cleave's missing-health heal) passed, together with CH5b. The Knight's numbers stop being placeholders (CHAMPIONS.md); later tuning is data edits.
 
@@ -1413,7 +1445,7 @@ Docs only; no code or tests changed.
 
 ## Enemies AI (ENEMIES_AI.md)
 
-### AI3d – The enemy ability library, part 1, and full kits: 2026-10-04, Built (awaiting Ryan's play test)
+### AI3d – The enemy ability library, part 1, and full kits: 2026-10-04, Passed (Ryan's play test, 2026-10-04)
 Ryan committed the Duels and odds design and started AI3d first of its three steps. Before building he answered four questions, each as Claude proposed: re-kit the elite slime (slam, shockwave, big hit); more enemy slots come with bosses (AI6); the test kits as proposed; the stab at 30 damage (35 broke the telegraph rule).
 - **Built:**
   - **The library:** 14 templates in `data/abilities/enemy/` (all of the starter list but the pool, which waits for Hazards). New scripts in `scripts/abilities/enemy/`: `cleave_arc.gd`, `dash_strike.gd` (the charge and the flurry), `shockwave.gd` (extends the slam), `hop_away.gd`. Existing scripts serve the other archetypes where they are (not moved).

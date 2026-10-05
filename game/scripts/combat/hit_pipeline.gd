@@ -119,6 +119,8 @@ static func basic_attack(source: Unit, target: Node, swing: AttackSwing) -> HitC
 	ctx.hit_sound = swing.hit_sound   # AUDIO.md: CombatSounds plays it
 	ctx.hit_sound_pitch = swing.sound_pitch
 	ctx.add_tag(&"basic_attack")
+	for tag in swing.hit_tags:   # the swing's own hit tags (CHAMPIONS K1: `finisher`)
+		ctx.add_tag(tag)
 	# A MELEE combo's swings are melee hits (3D.md, Terrain and height 2).
 	if is_instance_valid(source) and source.attack and source.attack.combo \
 			and source.attack.combo.attack_style == AttackCombo.AttackStyle.MELEE:
