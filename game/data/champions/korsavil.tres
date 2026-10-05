@@ -5,6 +5,7 @@
 [ext_resource type="Resource" path="res://data/combos/combo_korsavil.tres" id="3_combo"]
 [ext_resource type="Script" uid="uid://cvwv2nrsbyrah" path="res://scripts/data/stat_modifier.gd" id="4_stat_modifier"]
 [ext_resource type="Script" uid="uid://m2al7vs8lnnp" path="res://scripts/data/passive.gd" id="5_passive"]
+[ext_resource type="Resource" path="res://data/abilities/korsavil_q_bladesinger.tres" id="6_q"]
 
 [sub_resource type="Resource" id="StatModifier_second_dash"]
 script = ExtResource("4_stat_modifier")
@@ -14,7 +15,7 @@ value = 1.0
 [sub_resource type="Resource" id="Passive_korsavil"]
 script = ExtResource("5_passive")
 display_name = "Passive (name TBD)"
-description = "You have two dashes. (Inevitable Demise and its detonation come in K2 and K3.)"
+description = "You have two dashes. Every Blade that hits an enemy marks it with Inevitable Demise: damage over 5 seconds that grows at 2, 4, 6 and 8 marks, and each new Blade restarts the 5 seconds. (Its detonation comes in K3.)"
 icon_color = Color(0.62, 0.45, 0.95, 1)
 modifiers = Array[ExtResource("4_stat_modifier")]([SubResource("StatModifier_second_dash")])
 
@@ -25,5 +26,6 @@ display_name = "Korsavil"
 champion_class = &"assassin"
 stats = ExtResource("2_stats")
 resource_type = 1
+q = ExtResource("6_q")
 combo = ExtResource("3_combo")
 passive = SubResource("Passive_korsavil")

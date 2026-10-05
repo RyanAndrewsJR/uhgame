@@ -27,6 +27,11 @@ extends Node2D
 ## second dash, her 3-swing cycle (only the last swing's hits carry the
 ## `finisher` hit tag, AttackSwing.hit_tags), her empty slots, and the hub's
 ## champion pick (Progress.picked_champion).
+## K2: Q Bladesinger's and her statuses' data; the orbit (a Blade a second,
+## 5% damage reduction and speed per Blade only while it lasts, Blades kept
+## after it, "No Blades" at 0); the recast (one Blade per Blade held, 80–110%
+## AD each, a Demise stack per hit, Umbral Stalker when all 4 hit); Inevitable
+## Demise's tiers and its shared 5 s timer.
 ## Prints PASS/FAIL per check, then a total.
 ## Run headless and it quits with the number of failures as the exit code.
 
@@ -59,6 +64,11 @@ const KORSAVIL: ChampionData = preload("res://data/champions/korsavil.tres")
 const KORSAVIL_STATS: UnitStats = preload("res://data/units/korsavil.tres")
 const COMBO_KORSAVIL: AttackCombo = preload("res://data/combos/combo_korsavil.tres")
 const HUB_SCENE: PackedScene = preload("res://scenes/ui/hub.tscn")
+const BLADESINGER: Ability = preload("res://data/abilities/korsavil_q_bladesinger.tres")
+const STATUS_BLADE: StatusEffect = preload("res://data/statuses/status_blade.tres")
+const STATUS_ORBIT: StatusEffect = preload("res://data/statuses/status_bladesinger.tres")
+const STATUS_DEMISE: StatusEffect = preload("res://data/statuses/status_inevitable_demise.tres")
+const STATUS_STALKER: StatusEffect = preload("res://data/statuses/status_umbral_stalker.tres")
 
 const MANA := ResourceComponent.ResourceType.MANA
 const FURY := ResourceComponent.ResourceType.FURY
@@ -99,6 +109,10 @@ func _ready() -> void:
 	await _test_korsavil_loaded()
 	await _test_korsavil_swings()
 	await _test_korsavil_hub_pick()
+	_test_bladesinger_data()
+	await _test_bladesinger_orbit()
+	await _test_bladesinger_recast()
+	await _test_demise()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -857,7 +871,7 @@ func _test_korsavil_data() -> void:
 	_check("Energy: 100 max, 10 a second", [s.max_resource, s.resource_regen], [100.0, 10.0])
 	_check("ENERGY, starts full, no decay", [KORSAVIL.resource_type, KORSAVIL.resource_starts_empty, KORSAVIL.resource_decay_per_second, KORSAVIL.resource_decay_delay],
 		[ENERGY, false, 0.0, 0.0])
-	_check("her slots are empty until K2–K5", [KORSAVIL.q, KORSAVIL.w, KORSAVIL.e, KORSAVIL.r], [null, null, null, null])
+	_check("Q is Bladesinger (K2); W, E and R empty until K3–K5", [KORSAVIL.q == BLADESINGER, KORSAVIL.w, KORSAVIL.e, KORSAVIL.r], [true, null, null, null])
 	_check("no own modifiers, talents or named items; the shared leveling; no model (a capsule)",
 		[KORSAVIL.modifiers.size(), KORSAVIL.talents.size(), KORSAVIL.named_items.size(), KORSAVIL.leveling == null, KORSAVIL.model_scene == null],
 		[0, 0, 0, true, true])
@@ -894,8 +908,8 @@ func _test_korsavil_loaded() -> void:
 		[500.0, 60.0, 0.7, 390.0, 150.0, 0.25])
 	_check("the pool: ENERGY, full (100 of 100), no decay", [k.resource_pool.resource_type, k.resource_pool.max_resource, k.resource_pool.current, k.resource_pool.decay_per_second],
 		[ENERGY, 100.0, 100.0, 0.0])
-	_check("her slots empty, her combo hers, no model (a capsule)",
-		[k.abilities.q, k.abilities.w, k.abilities.e, k.abilities.r, k.attack.combo == COMBO_KORSAVIL, k.model_scene == null], [null, null, null, null, true, true])
+	_check("Q Bladesinger, W / E / R empty, her combo hers, no model (a capsule)",
+		[k.abilities.q == BLADESINGER, k.abilities.w, k.abilities.e, k.abilities.r, k.attack.combo == COMBO_KORSAVIL, k.model_scene == null], [true, null, null, null, true, true])
 	_check("dash_charges 2: the passive's +1 under passive_korsavil", [int(k.stats_component.get_stat(&"dash_charges")), k.dash.get_max_charges(), k.stats_component.get_modifiers_from(&"passive_korsavil").size()],
 		[2, 2, 1])
 	await _wait_until(func() -> bool: return k.dash.get_charges() >= 2, 60)
@@ -903,7 +917,7 @@ func _test_korsavil_loaded() -> void:
 	k.resource_pool.try_spend(50.0)
 	await _frames(60)
 	_check_near("Energy comes back at 10 a second (50 → 60 in 60 physics frames)", k.resource_pool.current, 60.0, 0.5)
-	_check("a press on an empty slot casts nothing", [k.abilities.try_cast(&"q", k.global_position + Vector2.RIGHT * 50.0), k.abilities.casting], [false, false])
+	_check("a press on an empty slot (W) casts nothing", [k.abilities.try_cast(&"w", k.global_position + Vector2.RIGHT * 50.0), k.abilities.casting], [false, false])
 	var hud: CanvasLayer = HUD_SCENE.instantiate()
 	add_child(hud)
 	hud.setup_abilities(k)
@@ -963,8 +977,11 @@ func _test_korsavil_hub_pick() -> void:
 		[true, "Korsavil   Level 1: 0 / 600 XP   Talents 0 / 1", [["Knight", false], ["Korsavil", true]], true])
 	_check("her talent screen has no talents, and says so",
 		[hub.talent_screen.find_children("*", "Button", true, false).size(), hub.get_detail_text()], [0, "Korsavil has no talents yet."])
+	var q_uses := Progress.get_progress(KORSAVIL).get_ability_uses(&"korsavil_bladesinger")
 	hub._debug(func() -> void: Progress.debug_add_ability_uses(KORSAVIL, 100))
-	_check("+100 uses with her empty slots: nothing to count, no error", Progress.get_progress(KORSAVIL).ability_uses.size(), 0)
+	_check("+100 uses: only her Q counts (W, E, R empty, no error)",
+		[Progress.get_progress(KORSAVIL).get_ability_uses(&"korsavil_bladesinger") - q_uses, Progress.get_progress(KORSAVIL).ability_uses.keys()],
+		[100, [&"korsavil_bladesinger"]])
 	hub.queue_free()
 	await _frames(1)
 	var again: Hub = HUB_SCENE.instantiate()
@@ -977,6 +994,197 @@ func _test_korsavil_hub_pick() -> void:
 		[true, KNIGHT.talents.size(), "Hover a talent to read it. Click to put it in or take it out."])
 	again.queue_free()
 	Progress.picked_champion = null
+	await _frames(1)
+
+
+func _test_bladesinger_data() -> void:
+	_section("K2: Q Bladesinger's data (korsavil_q_bladesinger.tres) and her statuses")
+	var q := BLADESINGER
+	_check("id, tags core + projectile, SELF, INSTANT", [q.id, _plain(q.tags), q.targeting, q.cast_style],
+		[&"korsavil_bladesinger", [&"core", &"projectile"], Ability.Targeting.SELF, Ability.CastStyle.INSTANT])
+	_check("25 Energy (its recast 0), 10 s cooldown, 0.25 s cast, one recast in a 6 s window",
+		[q.resource_cost, q.recast_resource_cost, q.cooldown, q.cast_time, q.recast_count, q.recast_window], [25.0, 0.0, 10.0, 0.25, 1, 6.0])
+	_check("Blades: 600 u (6 m), 1500 u/s, 60 u wide, 4 at most, 30° apart (90° for 4), pierce 0; she walks while casting",
+		[q.cast_range, q.projectile_speed, q.projectile_width, q.projectile_count, q.projectile_spread_deg, q.projectile_pierce, q.roots_during_cast],
+		[600.0, 1500.0, 60.0, 4, 30.0, 0, false])
+	_check("each Blade: 110% AD at 4 Blades, PHYSICAL", [q.base_damage, q.ad_ratio, q.damage_type], [0.0, 1.1, HitContext.DamageType.PHYSICAL])
+	var cond: Condition = q.recast_conditions[0] if q.recast_conditions.size() == 1 else null
+	_check("the recast needs a Blade: SELF_HAS_STATUS blade, at least 1, \"No Blades\"; part 0 has no condition",
+		[cond != null and cond.kind == Condition.Kind.SELF_HAS_STATUS, cond.status_tag if cond else &"", cond.min_stacks if cond else 0, cond.fail_text if cond else "", q.cast_conditions.size()],
+		[true, &"blade", 1, "No Blades", 0])
+	var bonus: ConditionalBonus = q.conditional_bonuses[0] if q.conditional_bonuses.size() == 1 else null
+	_check("every Blade that hits marks Inevitable Demise (a bonus with no conditions)",
+		[bonus != null and bonus.conditions.is_empty(), _plain(bonus.target_statuses) if bonus else []], [true, [STATUS_DEMISE]])
+	var by_param := {}
+	for s in q.charge_scalings:
+		by_param[s.param] = [s.input, roundi(s.min_fraction * 10000.0), s.curve == null]
+	_check("ad_ratio and projectile_count follow the `blades` input, linear (7/11 and 0 at none)",
+		by_param, {&"ad_ratio": [&"blades", 6364, true], &"projectile_count": [&"blades", 0, true]})
+	_check("the script's statuses, a Blade a second, all 4 for Stalker",
+		[q.get("orbit_status") == STATUS_ORBIT, q.get("blade_status") == STATUS_BLADE, q.get("stalker_status") == STATUS_STALKER, q.get("blade_interval"), q.get("stalker_hits")],
+		[true, true, true, 1.0, 4])
+	_check("Blade: 0–4, until spent (STACK, max 4, −1), tags blade + buff",
+		[STATUS_BLADE.id, STATUS_BLADE.duration, STATUS_BLADE.stack_rule, STATUS_BLADE.max_stacks, _plain(STATUS_BLADE.tags), STATUS_BLADE.modifiers.size()],
+		[&"blade", -1.0, StatusEffect.StackRule.STACK, 4, [&"blade", &"buff"], 0])
+	var scalings: Array = []
+	for s in STATUS_ORBIT.stat_scalings:
+		var sc := s as StatScaling
+		scalings.append([sc.modifier.stat, sc.modifier.type, sc.modifier.value, sc.input, sc.status_tag, sc.max_stacks, sc.curve == null])
+	_check("the orbit: 6 s, REFRESH, tags bladesinger + buff, two scalings on blade ÷ 4 (incoming_damage −20% \"more\", move_speed +20% at 4)",
+		[STATUS_ORBIT.id, STATUS_ORBIT.duration, STATUS_ORBIT.stack_rule, _plain(STATUS_ORBIT.tags), STATUS_ORBIT.modifiers.size(), scalings],
+		[&"bladesinger", 6.0, StatusEffect.StackRule.REFRESH, [&"bladesinger", &"buff"], 0, [
+			[&"incoming_damage", StatModifier.Type.PERCENT_MULT, -0.2, &"self_status_stacks", &"blade", 4, true],
+			[&"move_speed", StatModifier.Type.PERCENT_ADD, 0.2, &"self_status_stacks", &"blade", 4, true]]])
+	_check("Demise: STACK_SHARED, 8, 5 s, a tick every 0.5 s of 1% AD x the table, PHYSICAL, not cc, tags inevitable_demise + debuff",
+		[STATUS_DEMISE.id, STATUS_DEMISE.stack_rule, STATUS_DEMISE.max_stacks, STATUS_DEMISE.duration, STATUS_DEMISE.tick_interval, STATUS_DEMISE.tick_ad_ratio,
+			_plain(STATUS_DEMISE.tick_by_stacks), STATUS_DEMISE.tick_damage_type, STATUS_DEMISE.is_cc(), _plain(STATUS_DEMISE.tags)],
+		[&"inevitable_demise", StatusEffect.StackRule.STACK_SHARED, 8, 5.0, 0.5, 0.01, [0.0, 0.5, 0.5, 0.8, 0.8, 1.0, 1.0, 1.2],
+			HitContext.DamageType.PHYSICAL, false, [&"inevitable_demise", &"debuff"]])
+	_check("its tiers per 5 s at 1–8 stacks (Ryan): 0 / 5 / 5 / 8 / 8 / 10 / 10 / 12% AD",
+		STATUS_DEMISE.tick_by_stacks.map(func(m: float) -> int: return roundi(m * STATUS_DEMISE.tick_ad_ratio * 10.0 * 100.0)),
+		[0, 5, 5, 8, 8, 10, 10, 12])
+	_check("Umbral Stalker: 10 s, tags form + buff, REFRESH (its REPLACE of R comes in K5)",
+		[STATUS_STALKER.id, STATUS_STALKER.duration, _plain(STATUS_STALKER.tags), STATUS_STALKER.stack_rule, STATUS_STALKER.augments.size()],
+		[&"umbral_stalker", 10.0, [&"form", &"buff"], StatusEffect.StackRule.REFRESH, 0])
+
+
+func _test_bladesinger_orbit() -> void:
+	_section("K2: Q's orbit: a Blade a second; damage taken and speed follow them while it lasts")
+	var k := await _spawn(false, KORSAVIL)
+	var sc := k.status_component
+	var stats := k.stats_component
+	var aim := k.global_position + Vector2.RIGHT * 100.0
+	k.abilities.set_aim_hint(aim)
+	_check("cast: 25 Energy spent", [k.abilities.try_cast(&"q", aim), k.resource_pool.current], [true, 75.0])
+	await _wait_until(func() -> bool: return sc.has_status(&"bladesinger"), 30)
+	_check_near("after its 0.25 s cast: the orbit on her for 6 s", sc.get_time_left(&"bladesinger"), 6.0, 0.02)
+	_check("the recast window open, no Blade yet", [k.abilities.get_recast_part(&"q"), sc.get_stacks(&"blade")], [1, 0])
+	_check("the recast with 0 Blades fails: \"condition\", \"No Blades\"; the window keeps running",
+		[k.abilities.get_fail_reason(&"q", aim), k.abilities.get_condition_fail_text(&"q"), k.abilities.try_cast(&"q", aim), k.abilities.get_recast_part(&"q")],
+		["condition", "No Blades", false, 1])
+	_check("no Blades: damage taken x1, move speed 390", [stats.get_stat(&"incoming_damage"), stats.get_stat(&"move_speed")], [1.0, 390.0])
+	var frames := 0
+	while sc.get_stacks(&"blade") < 1 and frames < 90:
+		await _frames(1)
+		frames += 1
+	_check_near("the first Blade 1 s into the orbit (60 physics frames)", frames, 60.0, 1.5)
+	await _frames(1)
+	_check("1 Blade: 5% less damage taken, 5% faster (390 → 409.5)",
+		[roundi(stats.get_stat(&"incoming_damage") * 10000.0), roundi(stats.get_stat(&"move_speed") * 100.0)], [9500, 40950])
+	await _wait_until(func() -> bool: return sc.get_stacks(&"blade") >= 4, 240)
+	await _frames(1)
+	_check("4 Blades by 4 s: x0.8 damage taken, +20% speed (468)",
+		[sc.get_stacks(&"blade"), roundi(stats.get_stat(&"incoming_damage") * 10000.0), roundi(stats.get_stat(&"move_speed") * 100.0)], [4, 8000, 46800])
+	var before := k.health.current
+	k.take_damage(100.0)
+	_check("a 100 physical hit takes 80", before - k.health.current, 80.0)
+	await _wait_until(func() -> bool: return not sc.has_status(&"bladesinger"), 200)
+	await _frames(1)
+	_check("the orbit ends at 6 s: the Blades stay (4), damage taken and speed back (x1, 390)",
+		[sc.get_stacks(&"blade"), stats.get_stat(&"incoming_damage"), stats.get_stat(&"move_speed")], [4, 1.0, 390.0])
+	await _frames(3)
+	_check("the window closed with it, and the 10 s cooldown runs", [k.abilities.get_recast_part(&"q"), k.abilities.get_cooldown_left(&"q") > 9.0], [0, true])
+	k.queue_free()
+	await _frames(1)
+
+
+func _test_bladesinger_recast() -> void:
+	_section("K2: Q's recast: every Blade at the aim, a Demise stack per hit, Umbral Stalker when all 4 hit")
+	var k := await _spawn(false, KORSAVIL)
+	k.stats_component.add_modifier(StatModifier.create(&"crit_chance", StatModifier.Type.FLAT, -10.0, &"test_no_crit"))
+	var sc := k.status_component
+	var dummies: Array[Enemy] = []
+	for deg: float in [-45.0, -15.0, 15.0, 45.0]:
+		dummies.append(_dummy(k.global_position + Vector2.RIGHT.rotated(deg_to_rad(deg)) * 100.0))
+	await _frames(1)
+	for i in 5:
+		sc.apply_status(STATUS_BLADE, k)
+	_check("5 Blades given: she holds 4 (a gain past 4 is lost)", sc.get_stacks(&"blade"), 4)
+	var hits: Array = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == k and ctx.ability == BLADESINGER:
+			hits.append([ctx.target, roundi(ctx.raw_damage)])
+	Events.unit_hit.connect(on_hit)
+	var aim := k.global_position + Vector2.RIGHT * 100.0
+	k.abilities.set_aim_hint(aim)
+	k.abilities.try_cast(&"q", aim)
+	await _wait_until(func() -> bool: return k.abilities.get_recast_part(&"q") == 1 and not k.abilities.casting, 30)
+	_check("Q while holding 4: the orbit starts at full (x0.8 damage taken next frame); the recast is ready", [k.abilities.try_cast(&"q", aim)], [true])
+	await _wait_until(func() -> bool: return hits.size() >= 4, 90)
+	await _frames(2)
+	var targets := hits.map(func(h: Array) -> Object: return h[0])
+	_check("4 Blades, 30° apart toward the aim: each dummy hit once, 66 raw each (110% of 60 AD)",
+		[hits.size(), dummies.all(func(d: Enemy) -> bool: return targets.count(d) == 1), hits.map(func(h: Array) -> int: return h[1])], [4, true, [66, 66, 66, 66]])
+	_check("each dummy: 1 Demise stack, from her",
+		dummies.map(func(d: Enemy) -> Array: return [d.status_component.get_stacks(&"inevitable_demise"), d.status_component.get_source(&"inevitable_demise") == k]),
+		[[1, true], [1, true], [1, true], [1, true]])
+	_check("the Blades spent, the orbit over; all 4 hit: Umbral Stalker on her for 10 s",
+		[sc.get_stacks(&"blade"), sc.has_status(&"bladesinger"), sc.has_status(&"umbral_stalker"), sc.get_time_left(&"umbral_stalker") > 9.5], [0, false, true, true])
+	await _wait_until(func() -> bool: return k.abilities.get_recast_part(&"q") == 0, 30)
+	await _frames(2)
+	k.abilities.reset_cooldown(&"q")
+	sc.remove_status(&"umbral_stalker")
+	for d in dummies:
+		d.status_component.remove_status(&"inevitable_demise")
+	sc.apply_status(STATUS_BLADE, k)
+	sc.apply_status(STATUS_BLADE, k)
+	hits.clear()
+	k.abilities.try_cast(&"q", aim)
+	await _wait_until(func() -> bool: return k.abilities.get_recast_part(&"q") == 1 and not k.abilities.casting, 30)
+	k.abilities.try_cast(&"q", aim)
+	await _wait_until(func() -> bool: return hits.size() >= 2, 90)
+	await _frames(30)
+	Events.unit_hit.disconnect(on_hit)
+	targets = hits.map(func(h: Array) -> Object: return h[0])
+	_check("2 Blades: 2 fly, 15° each side of the aim, 54 raw each (90% of 60 AD); no Stalker",
+		[hits.size(), targets.has(dummies[1]) and targets.has(dummies[2]), hits.map(func(h: Array) -> int: return h[1]), sc.has_status(&"umbral_stalker")],
+		[2, true, [54, 54], false])
+	for d in dummies:
+		d.queue_free()
+	k.queue_free()
+	Audio.stop_all()
+	await _frames(10)
+
+
+func _test_demise() -> void:
+	_section("K2: Inevitable Demise: a tier by stacks, one shared 5 s timer")
+	var k := await _spawn(false, KORSAVIL)
+	var d := _dummy(k.global_position + Vector2(300, 0))
+	d.stats_component.add_modifier(StatModifier.create(&"max_health", StatModifier.Type.FLAT, 5000.0, &"test_tough"))
+	await _frames(1)
+	var ticks: Array[HitContext] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.target == d and ctx.has_tag(&"dot"):
+			ticks.append(ctx)
+	Events.unit_hit.connect(on_hit)
+	var dsc := d.status_component
+	dsc.apply_status(STATUS_DEMISE, k)
+	await _frames(32)
+	_check("1 stack: no tick (the first tier is at 2)", ticks.size(), 0)
+	var per_tick: Array = []
+	for n in 7:
+		dsc.apply_status(STATUS_DEMISE, k)
+		var before := ticks.size()
+		await _wait_until(func() -> bool: return ticks.size() > before, 40)
+		per_tick.append(roundi(ticks[-1].raw_damage * 1000.0) if ticks.size() > before else -1)
+	_check("a tick every 0.5 s at 2–8 stacks: 0.3 / 0.3 / 0.48 / 0.48 / 0.6 / 0.6 / 0.72 (1% of 60 AD x the table)",
+		per_tick, [300, 300, 480, 480, 600, 600, 720])
+	var last: HitContext = ticks[-1] if not ticks.is_empty() else HitContext.new()
+	_check("its ticks: dot + inevitable_demise, PHYSICAL, from her, no crit",
+		[last.has_tag(&"dot"), last.has_tag(&"inevitable_demise"), last.damage_type, last.source == k, last.is_crit], [true, true, HitContext.DamageType.PHYSICAL, true, false])
+	dsc.apply_status(STATUS_DEMISE, k)
+	_check("a 9th Blade: still 8 stacks, the shared 5 s restarted", [dsc.get_stacks(&"inevitable_demise"), dsc.get_time_left(&"inevitable_demise")], [8, 5.0])
+	var seen: Array = []
+	var frames := 0
+	while dsc.has_status(&"inevitable_demise") and frames < 400:
+		seen.append(dsc.get_stacks(&"inevitable_demise"))
+		await _frames(1)
+		frames += 1
+	Events.unit_hit.disconnect(on_hit)
+	_check_near("with no new Blade, all 8 go together 5 s later (300 frames)", frames, 300.0, 2.0)
+	_check("8 stacks the whole time, though they came over 3 s (no stack runs out on its own)", [seen.min(), seen.max()], [8, 8])
+	d.queue_free()
+	k.queue_free()
 	await _frames(1)
 
 

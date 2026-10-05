@@ -1976,6 +1976,7 @@ func _test_statuses() -> void:
 	await _test_c9_stack_rules()
 	await _test_c9_dot()
 	await _test_c9_hit_statuses_and_events()
+	await _test_k2_status_pieces()
 
 
 func _test_c9_data() -> void:
@@ -2909,6 +2910,102 @@ func _count_hits(target: Node, action: Callable) -> int:
 	action.call()
 	Events.unit_hit.disconnect(record)
 	return count[0]
+
+
+## CHAMPIONS K2's toolkit pieces on statuses (Korsavil's Blades and Demise use
+## them; ABILITIES.md, Later toolkit pieces): the STACK_SHARED rule, a DoT
+## tick table by stack count, and StatScalings held by a status, following
+## another status's stack count (`self_status_stacks`).
+func _test_k2_status_pieces() -> void:
+	_section("K2: STACK_SHARED (one timer for every stack)")
+	var dummy := _spawn_dummy()
+	var sc := dummy.status_component
+	var shared := _make_status(&"test_shared", [&"debuff"], 1.0)
+	shared.stack_rule = StatusEffect.StackRule.STACK_SHARED
+	shared.max_stacks = 3
+	shared.modifiers = [StatModifier.create(&"armor", FLAT, 10.0, &"")] as Array[StatModifier]
+	sc.apply_status(shared)
+	await _frames(30)
+	sc.apply_status(shared)
+	_check("a second application half a second later: 2 stacks, both back to 1 s, +10 armor each",
+		[sc.get_stacks(&"test_shared"), sc.get_time_left(&"test_shared"), dummy.stats_component.get_stat(&"armor")], [2, 1.0, 20.0])
+	sc.apply_status(shared)
+	sc.apply_status(shared, null, 0.5)
+	_check("at max 3 a 4th only restarts the shared timer (with its own duration)", [sc.get_stacks(&"test_shared"), sc.get_time_left(&"test_shared")], [3, 0.5])
+	var seen: Array = []
+	while sc.has_status(&"test_shared"):
+		seen.append(sc.get_stacks(&"test_shared"))
+		await _frames(1)
+	_check("they end together: 3 stacks until the frame they all go (no one-by-one)", [seen.min(), seen.max(), dummy.stats_component.get_stat(&"armor")], [3, 3, 0.0])
+
+	_section("K2: a DoT's tick by stack count (tick_by_stacks)")
+	var tough := _tough_dummy_at(Vector2(0, 400))
+	await _frames(1)
+	var tiers := _make_status(&"test_tiers", [&"debuff"], 3.0)
+	tiers.stack_rule = StatusEffect.StackRule.STACK_SHARED
+	tiers.max_stacks = 5
+	tiers.tick_interval = 0.5
+	tiers.tick_damage = 10.0
+	tiers.tick_by_stacks = [0.0, 0.5, 2.0] as Array[float]
+	var ticks: Array = []
+	var record := func(ctx: HitContext) -> void:
+		if ctx.target == tough and ctx.has_tag(&"dot"):
+			ticks.append(ctx.taken_damage)
+	Events.unit_hit.connect(record)
+	tough.status_component.apply_status(tiers)
+	await _frames(32)
+	_check("1 stack (multiplier 0): no tick at all (no hit, no number)", ticks, [])
+	tough.status_component.apply_status(tiers)
+	await _frames(30)
+	tough.status_component.apply_status(tiers)
+	await _frames(30)
+	tough.status_component.apply_status(tiers)
+	await _frames(30)
+	Events.unit_hit.disconnect(record)
+	_check("2 stacks x 0.5 = 5; 3 stacks x 2 = 20; 4 stacks past the table: the last entry, 20", ticks, [5.0, 20.0, 20.0])
+	tough.status_component.remove_status(&"test_tiers")
+
+	_section("K2: StatScalings on a status, following another status's stacks")
+	var count := _make_status(&"test_count", [&"test_count"], -1.0)
+	count.stack_rule = StatusEffect.StackRule.STACK
+	count.max_stacks = 6
+	var holder := _make_status(&"test_holder", [&"buff"], -1.0)
+	holder.stack_rule = StatusEffect.StackRule.STACK
+	holder.max_stacks = 3
+	holder.modifiers = [StatModifier.create(&"magic_resist", FLAT, 5.0, &"")] as Array[StatModifier]
+	var scaling := StatScaling.new()
+	scaling.modifier = StatModifier.create(&"armor", FLAT, 40.0, &"")
+	scaling.input = &"self_status_stacks"
+	scaling.status_tag = &"test_count"
+	scaling.max_stacks = 4
+	holder.stat_scalings = [scaling] as Array[Resource]
+	var stats := dummy.stats_component
+	sc.apply_status(holder)
+	_check("the holder on, no counted stacks: +0 armor (its copy under status_test_holder)", [stats.get_stat(&"armor"), stats.get_modifiers_from(&"status_test_holder").size()], [0.0, 2])
+	sc.apply_status(count)
+	sc.apply_status(count)
+	await _frames(1)
+	_check("2 of 4 counted stacks: +20 armor (refreshed after the status change)", stats.get_stat(&"armor"), 20.0)
+	sc.apply_status(holder)
+	await _frames(1)
+	_check("a new stack of the holder itself keeps the scaling (+10 MR from its own modifiers, +20 armor)",
+		[stats.get_stat(&"magic_resist"), stats.get_stat(&"armor")], [10.0, 20.0])
+	for i in 4:
+		sc.apply_status(count)
+	await _frames(1)
+	_check("6 counted stacks: capped at the full +40", stats.get_stat(&"armor"), 40.0)
+	sc.remove_status(&"test_count")
+	await _frames(1)
+	_check("the counted status gone: +0 armor, the holder's own +10 MR stays", [stats.get_stat(&"armor"), stats.get_stat(&"magic_resist")], [0.0, 10.0])
+	sc.apply_status(count)
+	sc.remove_status(&"test_holder")
+	await _frames(1)
+	_check("the holder gone: nothing left under its source, armor and MR back to 0",
+		[stats.get_modifiers_from(&"status_test_holder").size(), stats.get_stat(&"armor"), stats.get_stat(&"magic_resist"), dummy.get_stat_scalings().size()], [0, 0.0, 0.0, 0])
+	sc.remove_status(&"test_count")
+	tough.queue_free()
+	dummy.queue_free()
+	await _frames(1)
 
 
 func _make_status(id: StringName, tags: Array[StringName], duration: float) -> StatusEffect:

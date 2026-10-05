@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="StatusEffect" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/status_effect.gd" id="1_status"]
+
+[resource]
+script = ExtResource("1_status")
+id = &"inevitable_demise"
+display_name = "Inevitable Demise"
+tags = Array[StringName]([&"inevitable_demise", &"debuff"])
+duration = 5.0
+stack_rule = 4
+max_stacks = 8
+tick_interval = 0.5
+tick_ad_ratio = 0.01
+tick_damage_type = 0
+tick_by_stacks = Array[float]([0.0, 0.5, 0.5, 0.8, 0.8, 1.0, 1.0, 1.2])

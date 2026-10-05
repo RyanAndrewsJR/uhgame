@@ -10,12 +10,18 @@ extends Resource
 ## The full-strength modifier: its stat, type and value (scope allowed). Its
 ## source_id is ignored: the holder's source id is used.
 @export var modifier: StatModifier
-## The 0-1 input: &"self_missing_health" (1 - health / max health) is the
-## only one built in. An unknown input is reported and counts 0.
+## The 0-1 input: &"self_missing_health" (1 - health / max health), or since
+## CHAMPIONS K2 &"self_status_stacks" (the holder's stacks of statuses tagged
+## status_tag ÷ max_stacks, at most 1). An unknown input is reported and
+## counts 0.
 @export var input: StringName = &"self_missing_health"
 ## x = the input 0-1, y = the fraction of the modifier's value 0-1.
 ## null = linear (the fraction is the input).
 @export var curve: Curve
+## &"self_status_stacks" only: the status tag whose stacks are counted
+## (StatusComponent.get_tag_stacks()) and the count that gives 1.
+@export var status_tag: StringName = &""
+@export var max_stacks: int = 1
 
 static var _reported: Dictionary = {}   # unknown input -> true (reported once)
 
@@ -24,7 +30,17 @@ static var _reported: Dictionary = {}   # unknown input -> true (reported once)
 func get_value(unit: Unit) -> float:
 	if modifier == null:
 		return 0.0
-	return modifier.value * get_fraction(read_input(unit, input))
+	return modifier.value * get_fraction(read_own_input(unit))
+
+
+## This scaling's input for `unit` now (0-1): the stack count for
+## &"self_status_stacks", else the shared built-ins (read_input()).
+func read_own_input(unit: Unit) -> float:
+	if input == &"self_status_stacks":
+		if unit.status_component == null or max_stacks <= 0:
+			return 0.0
+		return minf(float(unit.status_component.get_tag_stacks(status_tag)) / float(max_stacks), 1.0)
+	return read_input(unit, input)
 
 
 ## The share of the full value at `x` (the input, 0-1).

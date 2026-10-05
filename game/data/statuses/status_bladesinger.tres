@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="StatusEffect" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/status_effect.gd" id="1_status"]
+[ext_resource type="Script" path="res://scripts/data/stat_scaling.gd" id="2_scaling"]
+[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="3_modifier"]
+
+[sub_resource type="Resource" id="reduction_full"]
+script = ExtResource("3_modifier")
+stat = &"incoming_damage"
+type = 2
+value = -0.2
+
+[sub_resource type="Resource" id="reduction"]
+script = ExtResource("2_scaling")
+modifier = SubResource("reduction_full")
+input = &"self_status_stacks"
+status_tag = &"blade"
+max_stacks = 4
+
+[sub_resource type="Resource" id="speed_full"]
+script = ExtResource("3_modifier")
+stat = &"move_speed"
+type = 1
+value = 0.2
+
+[sub_resource type="Resource" id="speed"]
+script = ExtResource("2_scaling")
+modifier = SubResource("speed_full")
+input = &"self_status_stacks"
+status_tag = &"blade"
+max_stacks = 4
+
+[resource]
+script = ExtResource("1_status")
+id = &"bladesinger"
+display_name = "Bladesinger"
+tags = Array[StringName]([&"bladesinger", &"buff"])
+duration = 6.0
+stack_rule = 1
+stat_scalings = Array[Resource]([SubResource("reduction"), SubResource("speed")])

@@ -1192,7 +1192,38 @@ Combat test 450/450, stats test 172/172 (unchanged). A headless in-game check of
 
 ## Champions (CHAMPIONS.md)
 
-### K1 – Korsavil: data, loading, her 3-swing cycle and the champion pick: 2026-10-04, Built (awaiting Ryan's play test)
+### K2 – Q Bladesinger, Blades and Inevitable Demise: 2026-10-04, Built (awaiting Ryan's play test)
+K1 passed and Ryan committed it. The tree was clean and no Godot editor was open when the step started; Ryan's editor was open (sandbox_main.tscn) by the end, and every K2 file was checked intact afterwards.
+
+New toolkit pieces (ABILITIES.md, Later toolkit pieces; COMBAT.md, StatusEffect):
+- `StatusEffect.StackRule.STACK_SHARED` (appended last, so saved values keep their numbers): an application adds a stack below `max_stacks` and restarts the one timer every stack shares; at max it only restarts it; the stacks end together; the tick clock runs on.
+- `StatusEffect.tick_by_stacks` (`Array[float]`): a DoT tick deals its snapshot × entry n − 1 at n stacks instead of × n (the last entry past the end); a multiplier of 0 is no tick at all (no hit, no number).
+- `StatusEffect.stat_scalings`: StatScalings added once under `status_<id>` while the status is on (`Unit.add_stat_scaling()`), removed with it.
+- `StatScaling.status_tag`, `max_stacks` and the input `self_status_stacks` (the holder's stacks of that tag ÷ max, at most 1; `read_own_input()`).
+- `Unit` refreshes its StatScalings when its StatusComponent applies or removes a status (the same deferred refresh as for health; `_mark_stat_scalings_dirty()`).
+
+Her data and script:
+- `scripts/abilities/korsavil/bladesinger.gd` and `data/abilities/korsavil_q_bladesinger.tres`: the orbit, then the recast. The `blades` input drives `ad_ratio` (min fraction 7/11) and `projectile_count` (min 0) through ChargeScaling. The recast condition is SELF_HAS_STATUS `blade` ≥ 1, "No Blades". A no-condition bonus adds Demise on each Blade's hit.
+- Four statuses in `data/statuses/`: `status_blade`, `status_bladesinger`, `status_inevitable_demise` and `status_umbral_stalker` (its REPLACE comes in K5).
+- Her Q slot set in `korsavil.tres`; her passive's text mentions Demise.
+
+**Changed during the step:**
+- `StatusComponent._sync_modifiers()` now swaps the exact per-stack copies it added (`ActiveStatus.mods`, through `StatsComponent.replace_modifiers()`) instead of removing everything under `status_<id>` and adding again. The old way would have wiped a status's StatScaling copies (same source id) on every stack change. Behavior is otherwise the same; a stack change now fires `stat_changed` once instead of a dip and a rise. This replaces working code without asking first (the change policy): Ryan's call to keep it or to give status scalings their own source id instead.
+- The Blade gain is read from the orbit's own time left each physics frame, a coroutine `execute()` doesn't await, so hitstop and the pause hold it like any status timer.
+
+Measured (champions test):
+- **The orbit:** the first Blade lands 60 physics frames into it. One Blade: damage taken × 0.95, speed 409.5. Four Blades: × 0.8 and 468, and a 100 physical hit takes 80. At 6 s the orbit and its window end together, the Blades stay and her stats go back. The recast at 0 Blades fails with "condition" / "No Blades" and the window keeps running.
+- **The recast with 4 Blades:** four dummies 30° apart each take one Blade for 66 raw, gain one Demise stack from her, and Umbral Stalker goes on (10 s). With 2 Blades, two fly ±15° for 54 each, and no Stalker.
+- **Demise:** no tick at 1 stack; ticks of 0.3 / 0.3 / 0.48 / 0.48 / 0.6 / 0.6 / 0.72 at 2–8 stacks (1% of 60 AD × the table), PHYSICAL, from her. A 9th Blade keeps 8 stacks and restarts the 5 s; all 8 end together 300 frames later.
+- **Toolkit (combat test):** STACK_SHARED, the tick table (0 → no tick, past the end → the last entry), and scalings following another status's stacks, which survive the holder's own stack changes and go with it.
+- **Smoke run:** a sandbox run as Korsavil: 2 Blades at 2.5 s (× 0.9, 429 speed), the recast spends them, no errors; saves byte-identical (saving off).
+- **Sensitivity:** breaking the shared timer, the tick table, the status refresh or the `blades` input each fails its checks.
+
+Ryan's progress.cfg changed during the step (23:45, his own play: a [korsavil] record with 6 kills and 30 XP, and more Knight casts and kills); no test writes saves.
+
+Champions 237/237 (36 new), combat 485/485 (11 new); stats 180, abilities 593, audio 110, talents 310, view 469, loot 750, enemies 338: all 3,472/3,472, every suite clean at exit.
+
+### K1 – Korsavil: data, loading, her 3-swing cycle and the champion pick: 2026-10-04, Passed (Ryan committed it)
 Ryan's play test of ENEMIES_AI AI3d passed, so Korsavil's build started (Ryan, 2026-10-04: right after it, before AI3b and AI3c). The tree was clean (checked with `git status`) and no Godot editor was open.
 
 New:

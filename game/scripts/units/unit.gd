@@ -110,6 +110,9 @@ func _ready() -> void:
 	movement.set_stats_component(stats_component)
 	if status_component:
 		movement.set_status_component(status_component)
+		# A StatScaling may follow a stack count (CHAMPIONS K2): refresh on status changes too.
+		status_component.status_applied.connect(_on_status_changed_for_stat_scalings)
+		status_component.status_removed.connect(_on_status_changed_for_stat_scalings)
 	movement.set_radius(get_pathing_radius_px())
 	if has_node("Hurtbox"):
 		($Hurtbox as Hurtbox).hurt.connect(_on_hurtbox_hurt)
@@ -390,6 +393,16 @@ func get_stat_scalings() -> Array[StatScaling]:
 
 
 func _on_health_changed_for_stat_scalings(_current: float, _maximum: float) -> void:
+	_mark_stat_scalings_dirty()
+
+
+## A status applied, re-applied or removed (CHAMPIONS K2: a StatScaling may
+## follow a stack count, `self_status_stacks`). The same deferred refresh.
+func _on_status_changed_for_stat_scalings(_effect: StatusEffect) -> void:
+	_mark_stat_scalings_dirty()
+
+
+func _mark_stat_scalings_dirty() -> void:
 	if _stat_scalings.is_empty() or _stat_scalings_dirty:
 		return
 	_stat_scalings_dirty = true

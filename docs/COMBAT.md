@@ -233,7 +233,7 @@ The hit feel per tier, held by `GameFeel.hit_feel`: `light_hitstop` 0.03, `heavy
 - `vfx: PackedScene` (visuals only)
 - ABILITIES.md adds `reaction_rules`, `augments` and the empower fields.
 - Built in 3D pivot P9: `ignores_tenacity` (false; airborne true) and `cleansable` (true; airborne false: `StatusComponent.remove_statuses_with_tags()` skips it). Files `status_airborne.tres`, `status_elevated.tres`.
-- Planned with Korsavil (designed 2026-10-04, not built; the names *(proposed)*; specified in ABILITIES.md, Later toolkit pieces), each defaulting to today's behavior:
+- Planned with Korsavil (designed 2026-10-04; the names *(proposed)*; specified in ABILITIES.md, Later toolkit pieces), each defaulting to today's behavior. **Built in CHAMPIONS K2 (2026-10-04):** `STACK_SHARED`, `tick_by_stacks` and `stat_scalings` (CHANGELOG.md); the rest come with her later steps:
   - stack rule `STACK_SHARED`: a new application adds a stack (up to `max_stacks`) and restarts the one timer every stack shares; the stacks end together (Inevitable Demise: "a new Blade restarts the 5 s");
   - `tick_by_stacks` (an array): a DoT tick at n stacks deals × entry n − 1 instead of × n (Demise's replacing tiers);
   - `stat_scalings`: StatScalings added under the status's source id while it's on (the orbit's numbers following the Blades' count);

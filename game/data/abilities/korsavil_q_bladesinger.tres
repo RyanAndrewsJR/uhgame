@@ -1,0 +1,59 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/abilities/korsavil/bladesinger.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="2_condition"]
+[ext_resource type="Script" uid="uid://effvdqcl7tjf" path="res://scripts/data/conditional_bonus.gd" id="3_bonus"]
+[ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="4_scaling"]
+[ext_resource type="Script" uid="uid://b03uhk6wyab30" path="res://scripts/data/status_effect.gd" id="5_status"]
+[ext_resource type="Resource" path="res://data/statuses/status_bladesinger.tres" id="6_orbit"]
+[ext_resource type="Resource" path="res://data/statuses/status_blade.tres" id="7_blade"]
+[ext_resource type="Resource" path="res://data/statuses/status_umbral_stalker.tres" id="8_stalker"]
+[ext_resource type="Resource" path="res://data/statuses/status_inevitable_demise.tres" id="9_demise"]
+
+[sub_resource type="Resource" id="has_blade"]
+script = ExtResource("2_condition")
+status_tag = &"blade"
+fail_text = "No Blades"
+
+[sub_resource type="Resource" id="marks_demise"]
+script = ExtResource("3_bonus")
+target_statuses = Array[ExtResource("5_status")]([ExtResource("9_demise")])
+description = "Each Blade that hits marks the enemy with Inevitable Demise."
+
+[sub_resource type="Resource" id="damage_by_blades"]
+script = ExtResource("4_scaling")
+param = &"ad_ratio"
+min_fraction = 0.6363636363636364
+input = &"blades"
+
+[sub_resource type="Resource" id="count_by_blades"]
+script = ExtResource("4_scaling")
+param = &"projectile_count"
+min_fraction = 0.0
+input = &"blades"
+
+[resource]
+script = ExtResource("1_script")
+orbit_status = ExtResource("6_orbit")
+blade_status = ExtResource("7_blade")
+stalker_status = ExtResource("8_stalker")
+id = &"korsavil_bladesinger"
+tags = Array[StringName]([&"core", &"projectile"])
+display_name = "Bladesinger"
+description = "Blades orbit you for {recast_window}s, one more each second, up to 4. While they orbit, each Blade you hold reduces damage taken by 5% and gives 5% movement speed. Recast: hurl every Blade toward the cursor, each dealing 80% to 110% AD physical damage, more the more you send. If all four hit, you become an Umbral Stalker for 10s."
+icon_color = Color(0.62, 0.45, 0.95, 1)
+targeting = 0
+cooldown = 10.0
+resource_cost = 25.0
+recast_count = 1
+recast_window = 6.0
+cast_time = 0.25
+cast_range = 600.0
+roots_during_cast = false
+ad_ratio = 1.1
+projectile_speed = 1500.0
+projectile_count = 4
+projectile_spread_deg = 30.0
+recast_conditions = Array[ExtResource("2_condition")]([SubResource("has_blade")])
+conditional_bonuses = Array[ExtResource("3_bonus")]([SubResource("marks_demise")])
+charge_scalings = Array[ExtResource("4_scaling")]([SubResource("damage_by_blades"), SubResource("count_by_blades")])

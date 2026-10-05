@@ -11,6 +11,7 @@ enum StackRule {
 	REFRESH,         ## Replaces it: the new numbers, source and full duration.
 	STACK,           ## Adds a stack (up to max_stacks), each with its own time. At max, the stack closest to running out restarts.
 	IGNORE,          ## Nothing happens while it's active.
+	STACK_SHARED,    ## Adds a stack (up to max_stacks) and restarts the one timer every stack shares; they end together (CHAMPIONS K2: Inevitable Demise). At max it only restarts it.
 }
 
 ## What uses up an empower (ABILITIES AB10). NONE = not an empower.
@@ -30,7 +31,7 @@ enum EmpowerTrigger {
 ## Seconds. -1 = until removed. Tenacity shortens it for &"cc" statuses.
 @export var duration: float = 1.0
 @export var stack_rule: StackRule = StackRule.REFRESH_LONGER
-## STACK only.
+## STACK and STACK_SHARED only.
 @export var max_stacks: int = 1
 ## True: tenacity doesn't shorten it, though it's cc (3D.md, Airborne: a
 ## knock-up keeps its arc; League's rule).
@@ -44,6 +45,12 @@ enum EmpowerTrigger {
 ## Added while active (under get_source_id()), once per stack. Slows and
 ## hastes are move_speed PERCENT_ADD modifiers.
 @export var modifiers: Array[StatModifier] = []
+## StatScaling resources added to the unit while active, under
+## get_source_id() (once, not per stack; CHAMPIONS K2): a value that follows
+## an input such as another status's stack count (`self_status_stacks`), like
+## Korsavil's orbit following her Blades. Refreshed when the unit's health or
+## statuses change. Typed as Resource for the preload cycle (reaction_rules).
+@export var stat_scalings: Array[Resource] = []
 
 @export_group("Rules")
 ## Unit rules (ReactionRule resources) the unit has while this status is
@@ -93,6 +100,11 @@ enum EmpowerTrigger {
 ## Fraction of the applier's attack_damage, snapshotted when applied.
 @export var tick_ad_ratio: float = 0.0
 @export var tick_damage_type: HitContext.DamageType = HitContext.DamageType.MAGIC
+## Empty: a tick deals its snapshot x the stacks. Otherwise entry n - 1 is the
+## multiplier at n stacks instead (the last entry past the end), so a DoT can
+## step by tiers (CHAMPIONS K2: Demise's 0 / 0.5 / 0.5 / 0.8 ...). A tick
+## whose multiplier is 0 deals nothing and isn't a hit.
+@export var tick_by_stacks: Array[float] = []
 
 @export_group("Shield")
 ## Damage it absorbs before health (after armor and incoming_damage), per

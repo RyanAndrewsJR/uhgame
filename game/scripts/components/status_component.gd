@@ -3,7 +3,8 @@ extends Node
 ## Every status effect on a unit (COMBAT.md, Status effects): stuns, slows,
 ## hastes, damage over time. A child of the Unit (Unit.status_component).
 ##
-## Applying one adds its StatModifiers (source &"status_<id>"), its move and
+## Applying one adds its StatModifiers (source &"status_<id>"; since CHAMPIONS
+## K2 also its StatScalings, once, under the same source id), its move and
 ## attack locks (lock id = the status id), its VFX, its reaction rules and
 ## augments (ABILITIES AB8, AB9), and starts its timer and DoT ticks. Removing
 ## it (timer, remove_status(), death) takes all of that back. A form (tagged
@@ -41,6 +42,10 @@ class ActiveStatus:
 	## DoT damage per stack per tick, snapshotted when applied.
 	var tick_amount: float = 0.0
 	var vfx: Node
+	## The per-stack StatModifier copies _sync_modifiers() added (CHAMPIONS K2:
+	## swapped as exact instances, so the status's StatScaling copies under the
+	## same source id stay).
+	var mods: Array[StatModifier] = []
 
 	func get_time_left() -> float:
 		var longest := 0.0
@@ -118,6 +123,18 @@ func apply_status(effect: StatusEffect, source: Unit = null, duration_override: 
 					var index := _shortest_stack(active)
 					active.stack_times[index] = duration
 					active.stack_shields[index] = effect.shield_amount
+				if is_instance_valid(source):
+					active.source = source
+				active.tick_amount = _snapshot_tick(effect, source)
+				_sync_modifiers(active)
+			StatusEffect.StackRule.STACK_SHARED:
+				# CHAMPIONS K2: one timer every stack shares, restarted by each
+				# application (a new stack below max). The tick clock runs on.
+				if active.stack_times.size() < maxi(active.effect.max_stacks, 1):
+					active.stack_times.append(duration)
+					active.stack_shields.append(effect.shield_amount)
+				for i in active.stack_times.size():
+					active.stack_times[i] = duration
 				if is_instance_valid(source):
 					active.source = source
 				active.tick_amount = _snapshot_tick(effect, source)
@@ -366,6 +383,9 @@ func _start(active: ActiveStatus, effect: StatusEffect, source: Unit, kept_augme
 	for rule in effect.reaction_rules:   # ABILITIES AB8
 		if rule is ReactionRule:
 			unit.add_reaction_rule(rule, effect.get_source_id())
+	for scaling in effect.stat_scalings:   # CHAMPIONS K2
+		if scaling is StatScaling and unit.stats_component != null:
+			unit.add_stat_scaling(scaling, effect.get_source_id())
 	if not kept_augments and not effect.augments.is_empty() and unit.abilities != null:   # ABILITIES AB9
 		for augment in effect.augments:
 			if augment is AbilityAugment:
@@ -377,6 +397,9 @@ func _stop(active: ActiveStatus, keep_augments: bool = false) -> void:
 	var effect := active.effect
 	if is_instance_valid(unit) and unit.stats_component != null:
 		unit.stats_component.remove_modifiers_from(effect.get_source_id())
+		active.mods.clear()
+		if not effect.stat_scalings.is_empty():
+			unit.remove_stat_scalings_from(effect.get_source_id())   # their copies went just above
 	if is_instance_valid(unit):
 		if effect.blocks_move:
 			unit.movement.remove_move_lock(effect.id)
@@ -399,29 +422,38 @@ func _remove_other_forms(keep_id: StringName) -> void:
 			remove_status(id)
 
 
-## The status's modifiers, once per stack, under its source id.
+## The status's modifiers, once per stack, under its source id. Swaps the
+## copies it added before for the new ones in one change (CHAMPIONS K2), so
+## the status's StatScaling copies under the same source id are untouched.
 func _sync_modifiers(active: ActiveStatus) -> void:
 	var stats := unit.stats_component
 	if stats == null:
 		return
 	var source_id := active.effect.get_source_id()
-	stats.remove_modifiers_from(source_id)
 	var mods: Array[StatModifier] = []
 	for i in active.stack_times.size():
 		for template in active.effect.modifiers:
 			var mod := StatModifier.create(template.stat, template.type, template.value, source_id, template.scope)
 			mods.append(mod)
-	if not mods.is_empty():
-		stats.add_modifiers(mods)
+	if not mods.is_empty() or not active.mods.is_empty():
+		stats.replace_modifiers(active.mods, mods)
+	active.mods = mods
 
 
 ## One DoT tick: a &"dot" hit (plus the status's tags) through the pipeline,
 ## from the applier. Can't crit, triggers no on-hit, starts no i-frames.
 func _tick(active: ActiveStatus) -> void:
+	var stacks := active.stack_times.size()
+	var multiplier := float(stacks)
+	var table := active.effect.tick_by_stacks
+	if not table.is_empty():   # CHAMPIONS K2: a tier per stack count
+		multiplier = table[clampi(stacks, 1, table.size()) - 1]
+	if multiplier <= 0.0:
+		return   # this many stacks deal nothing (Demise at 1): no hit, no number
 	var ctx := HitContext.new()
 	ctx.source = active.source if is_instance_valid(active.source) else null
 	ctx.target = unit
-	ctx.base_damage = active.tick_amount * active.stack_times.size()
+	ctx.base_damage = active.tick_amount * multiplier
 	ctx.damage_type = active.effect.tick_damage_type
 	ctx.can_crit = false
 	ctx.proc_coefficient = 0.0
