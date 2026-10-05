@@ -48,6 +48,10 @@ extends Node2D
 ##   health; the skirmisher stalking, leaping in when the kit drops, hitting,
 ##   hopping out and resetting; a missed gap-closer keeping the commit going;
 ##   Shift+H and the mixed pack.
+## TEMP, the enemy attack speed test multiplier (DECISIONS.md, Testing): off
+## by default; at x1.0 every number is today's exactly; at x1.5 with keep DPS
+## the same damage per second over 10 s, more swings, the windup floor; the
+## player and the ally untouched; its limits; SandboxBrains' row and reset.
 ## Brains.rng is seeded. Prints PASS/FAIL per check, then a total. Run
 ## headless and it quits with the number of failures as the exit code.
 
@@ -156,6 +160,9 @@ func _ready() -> void:
 	await _test_skirmisher_miss()
 	await _test_gap_closer_commit()
 	await _test_sandbox_ai3()
+
+	# TEMP: the enemy attack speed test multiplier (DECISIONS.md, Testing).
+	await _test_temp_attack_speed()
 
 	Audio.stop_all()
 	await _frames(120)   # stop_all() leaves the UI bus: let the ultimate-ready pings (reset_cooldown()) finish
@@ -1975,6 +1982,222 @@ func _intents(ability: Ability) -> Array:
 	var out: Array = []
 	for use in ability.get_ai_uses():
 		out.append(use.intent)
+	return out
+
+
+# --- TEMP: the enemy attack speed test multiplier (DECISIONS.md, Testing) --------------------
+
+func _test_temp_attack_speed() -> void:
+	_section("TEMP: the enemy attack speed test multiplier (one switch, off by default)")
+	await _reset_knight()
+	_check("off by default: x1.0, keep DPS on, the windup floor 0.25 s",
+		[AutoAttackComponent.enemy_attack_speed_test_mult, AutoAttackComponent.enemy_attack_test_keep_dps,
+			AutoAttackComponent.enemy_attack_test_min_windup], [1.0, true, 0.25])
+	# Two attackers on the Knight (a slime: today's windup is 0.25 s, the floor;
+	# the caster: 0.6 s), the ally stand-in on a dummy, three bystanders.
+	var slime := _spawn(SLIME_SCENE, ARENA, true)
+	var caster := _spawn(CASTER_SCENE, ARENA, true)
+	var brute := _spawn(BRUTE_SCENE, ARENA + Vector2(0, 400), true)
+	var elite := _spawn(ELITE_SCENE, ARENA + Vector2(0, -400), true)
+	var bare := SLIME_SCENE.instantiate() as Enemy   # no data: the old routine
+	bare.data = null
+	bare.passive = true
+	entities.add_child(bare)
+	_place(bare, ARENA + Vector2(400, 400))
+	var friend := _friend(ARENA + Vector2(-400, 400))
+	var dummy := _spawn(SLIME_SCENE, ARENA, true)
+	await _frames(1)
+	_place(slime, ARENA + Vector2(_temp_reach(knight, slime), 0))
+	_place(caster, ARENA - Vector2(_temp_reach(knight, caster), 0))
+	_place(dummy, friend.global_position + Vector2(_temp_reach(friend, dummy), 0))
+	for u: Enemy in [slime, caster, friend]:
+		u.attack.hit_knockback_px = 0.0   # the target stays in reach: the rhythm only
+	await _frames(2)
+	var enemies: Array[Enemy] = [slime, caster, brute, elite, bare]
+	_check("the bystanders: brained (the brute, the elite) and with no data", [brute.get_brain() != null, elite.get_brain() != null, bare.data == null], [true, true, true])
+
+	# x1.0: today's numbers, exactly.
+	var today := {}
+	var exact := true
+	for e in enemies:
+		var base := e.stats.base_attack_speed
+		today[e] = [e.attack.get_attack_speed(), e.attack.get_attack_interval(), e.attack.get_windup_time(), e.attack.make_attack_context(knight).ad_ratio]
+		exact = exact and today[e] == [base, 1.0 / base, (1.0 / base) * e.stats.attack_windup, 1.0] \
+			and e.attack.get_temp_test_mult() == 1.0 and e.stats_component.get_modifiers_from(AutoAttackComponent.TEMP_TEST_SPEED_SOURCE).is_empty()
+	_check("x1.0: every enemy's attack speed, interval, windup and hit are today's exactly (no modifier)", exact, true)
+	var knight_today := [knight.attack.get_attack_speed(), knight.attack.get_swing_speed()]
+	var friend_today := [friend.attack.get_attack_speed(), friend.attack.get_windup_time(), friend.attack.make_attack_context(dummy).ad_ratio]
+	var run_1 := await _temp_run([slime, caster, friend], [knight, knight, dummy], 10.0)
+	knight.health.heal(100000.0)
+	dummy.health.heal(100000.0)
+
+	# x1.5, keep DPS.
+	AutoAttackComponent.enemy_attack_speed_test_mult = 1.5
+	await _frames(1)
+	var sped := true
+	for e in enemies:
+		sped = sped and e.attack.get_temp_test_mult() == 1.5 and is_equal_approx(e.attack.get_attack_speed(), e.stats.base_attack_speed * 1.5) \
+			and e.stats_component.get_modifiers_from(AutoAttackComponent.TEMP_TEST_SPEED_SOURCE).size() == 1
+	_check("x1.5: every enemy-team attacker (fodder, brained, no data) attacks 1.5x as often", sped, true)
+	_check("its hits are lighter: ad_ratio 1 / 1.5", slime.attack.make_attack_context(knight).ad_ratio, 1.0 / 1.5)
+	_check("the windup floor: the slime's stays 0.25 s (today's; x1.5 alone would give 0.167), the caster's 0.6 s scales to 0.4 s",
+		[snappedf(slime.attack.get_windup_time(), 0.0001), snappedf(caster.attack.get_windup_time(), 0.0001)], [0.25, 0.4])
+	_check("the player: no modifier, the same attack speed and swing speed",
+		[knight.attack.get_temp_test_mult(), knight.attack.get_attack_speed(), knight.attack.get_swing_speed()], [1.0] + knight_today)
+	_check("the ally (on the player's team since the frame it spawned): never touched",
+		[friend.attack.get_temp_test_mult(), friend.attack.get_attack_speed(), friend.attack.get_windup_time(), friend.attack.make_attack_context(dummy).ad_ratio],
+		[1.0] + friend_today)
+	var run_15 := await _temp_run([slime, caster, friend], [knight, knight, dummy], 10.0)
+	knight.health.heal(100000.0)
+	for i in 2:
+		var who := ["slime", "caster"][i] as String
+		var a: Dictionary = run_1[i]
+		var b: Dictionary = run_15[i]
+		var ratio := _temp_dps(b.hits) / maxf(_temp_dps(a.hits), 0.001)
+		_check("%s: the same damage per second over 10 s, within 2%% (x1.5 / x1.0 = %.4f)" % [who, ratio], absf(ratio - 1.0) <= 0.02, true)
+		var rate := _temp_cycle(a.hits) / maxf(_temp_cycle(b.hits), 0.001)
+		_check("%s: more swings (%d → %d in 10 s; one every %.1f → %.1f frames)" % [who, a.hits.size(), b.hits.size(), _temp_cycle(a.hits), _temp_cycle(b.hits)],
+			b.hits.size() > a.hits.size() and rate > 1.4, true)
+	var floor_frames := ceili(0.25 * Engine.physics_ticks_per_second - 0.001)
+	var slime_windups := _temp_windup_frames(run_15[0])
+	_check("the slime's windups at x1.5: each signalled at 0.25 s or more and lasting %d+ frames (got %s)" % [floor_frames, slime_windups],
+		not slime_windups.is_empty() and slime_windups.min() >= floor_frames and (run_15[0].windups as Array).all(func(w: Array) -> bool: return w[1] >= 0.25 - 0.000001), true)
+	_check("the caster's windups at x1.5: shorter than at x1.0 (%s → %s frames)" % [_temp_windup_frames(run_1[1]), _temp_windup_frames(run_15[1])],
+		_temp_windup_frames(run_15[1]).max() < _temp_windup_frames(run_1[1]).min(), true)
+	var f1: Dictionary = run_1[2]
+	var f15: Dictionary = run_15[2]
+	_check("the ally's swings: the same rhythm and damage at x1.5 as at x1.0",
+		[_temp_gaps(f15.hits), f15.hits.map(func(h: Array) -> float: return h[1])],
+		[_temp_gaps(f1.hits), f1.hits.map(func(h: Array) -> float: return h[1])])
+
+	# Keep DPS off, a higher floor, the cap of the floor, the limits.
+	AutoAttackComponent.enemy_attack_test_keep_dps = false
+	_check("keep DPS off: full hits (damage per second rises 1.5x)", slime.attack.make_attack_context(knight).ad_ratio, 1.0)
+	AutoAttackComponent.enemy_attack_test_keep_dps = true
+	AutoAttackComponent.enemy_attack_test_min_windup = 0.3
+	_check("a floor above today's windup never lengthens it (the slime keeps 0.25 s; the caster's 0.4 s is over it)",
+		[snappedf(slime.attack.get_windup_time(), 0.0001), snappedf(caster.attack.get_windup_time(), 0.0001)], [0.25, 0.4])
+	AutoAttackComponent.enemy_attack_test_min_windup = 0.25
+	AutoAttackComponent.enemy_attack_speed_test_mult = 3.0
+	await _frames(1)
+	_check("x3: the slime's windup holds at 0.25 s; the recovery takes the rest (1 / 2.1 − 0.25 s)",
+		[snappedf(slime.attack.get_windup_time(), 0.0001), snappedf(slime.attack.get_attack_interval() - slime.attack.get_windup_time(), 0.0001)],
+		[0.25, snappedf(1.0 / 2.1 - 0.25, 0.0001)])
+	AutoAttackComponent.enemy_attack_speed_test_mult = 5.0
+	await _frames(1)
+	var high := slime.attack.get_temp_test_mult()
+	AutoAttackComponent.enemy_attack_speed_test_mult = 0.1
+	await _frames(1)
+	_check("its limits: 0.5 to 3", [high, slime.attack.get_temp_test_mult()], [3.0, 0.5])
+
+	# Back to x1.0: today's numbers again, exactly.
+	AutoAttackComponent.enemy_attack_speed_test_mult = 1.0
+	await _frames(1)
+	var back := true
+	for e in enemies:
+		back = back and [e.attack.get_attack_speed(), e.attack.get_attack_interval(), e.attack.get_windup_time(), e.attack.make_attack_context(knight).ad_ratio] == today[e] \
+			and e.stats_component.get_modifiers_from(AutoAttackComponent.TEMP_TEST_SPEED_SOURCE).is_empty()
+	_check("a live change back to x1.0: the modifier gone, every number today's exactly", back, true)
+
+	# SandboxBrains: the sandboxes start at x1.5; never applied in a test scene; the panel's row; put back on leaving.
+	var starts: Array = []
+	for path in ["res://scenes/rooms/sandbox.tscn", "res://scenes/rooms/sandbox_3d.tscn"]:
+		var room := (load(path) as PackedScene).instantiate()
+		var node := room.find_child("SandboxBrains", true, false) as SandboxBrains
+		starts.append(node.enemy_attack_speed_test_mult if node != null else -1.0)
+		room.free()
+	var sb := SandboxBrains.new()
+	_check("sandbox.tscn and sandbox_3d.tscn start at x1.5; the class default is x1.0", [starts, sb.enemy_attack_speed_test_mult], [[1.5, 1.5], 1.0])
+	sb.enemy_attack_speed_test_mult = 1.5
+	add_child(sb)
+	await _frames(1)
+	_check("a test scene never takes the sandbox's starting value", AutoAttackComponent.enemy_attack_speed_test_mult, 1.0)
+	sb.set_panel(true)
+	sb._temp_slider.value = 1.25
+	var from_slider := AutoAttackComponent.enemy_attack_speed_test_mult
+	sb._temp_keep_dps.button_pressed = false
+	var keep_after := AutoAttackComponent.enemy_attack_test_keep_dps
+	sb.set_enemy_attack_test(9.0, true)
+	_check("N's TEMP row: the slider and keep DPS set it live; clamped to 3", [from_slider, keep_after, AutoAttackComponent.enemy_attack_speed_test_mult], [1.25, false, 3.0])
+	sb.set_panel(false)
+	sb.queue_free()
+	await _frames(2)
+	_check("leaving the sandbox puts it back (x1.0, keep DPS on, the floor 0.25 s)",
+		[AutoAttackComponent.enemy_attack_speed_test_mult, AutoAttackComponent.enemy_attack_test_keep_dps,
+			AutoAttackComponent.enemy_attack_test_min_windup], [1.0, true, 0.25])
+
+	AutoAttackComponent.enemy_attack_speed_test_mult = 1.0
+	AutoAttackComponent.enemy_attack_test_keep_dps = true
+	AutoAttackComponent.enemy_attack_test_min_windup = 0.25
+	for u: Node in [slime, caster, brute, elite, bare, friend, dummy]:
+		u.queue_free()
+	await _frames(2)
+
+
+## TEMP: where `attacker` stands to reach `target` without walking (its
+## edge at half its range), px from the target's center.
+func _temp_reach(target: Unit, attacker: Unit) -> float:
+	return target.get_gameplay_radius_px() + attacker.get_gameplay_radius_px() + attacker.attack.get_range_px() * 0.5
+
+
+## TEMP: each attacker attacks its target for `seconds` of physics frames.
+## Per attacker: {hits: [[frame, damage], ...], windups: [[frame, windup s], ...]}.
+func _temp_run(attackers: Array, targets: Array, seconds: float) -> Array:
+	var frame := [0]
+	var out: Array = []
+	var links: Array = []
+	for i in attackers.size():
+		var a: Unit = attackers[i]
+		var entry := {"hits": [], "windups": []}
+		out.append(entry)
+		var on_landed := func(_t: Unit, damage: float) -> void: (entry.hits as Array).append([frame[0], damage])
+		var on_windup := func(_t: Unit, time: float) -> void: (entry.windups as Array).append([frame[0], time])
+		a.attack.attack_landed.connect(on_landed)
+		a.attack.windup_started.connect(on_windup)
+		links.append([a, on_landed, on_windup])
+		a.attack.attack(targets[i])
+	for f in roundi(seconds * Engine.physics_ticks_per_second):
+		await get_tree().physics_frame
+		frame[0] += 1
+	for link: Array in links:
+		var a: Unit = link[0]
+		a.attack.cancel()
+		a.attack.attack_landed.disconnect(link[1])
+		a.attack.windup_started.disconnect(link[2])
+	return out
+
+
+## TEMP: damage per second, steady: the damage after the first hit ÷ the time
+## from the first hit to the last.
+func _temp_dps(hits: Array) -> float:
+	if hits.size() < 2:
+		return 0.0
+	var total := 0.0
+	for i in range(1, hits.size()):
+		total += float(hits[i][1])
+	return total / (float(hits[-1][0] - hits[0][0]) / Engine.physics_ticks_per_second)
+
+
+## TEMP: frames per swing (first hit to last ÷ the swings between).
+func _temp_cycle(hits: Array) -> float:
+	return float(hits[-1][0] - hits[0][0]) / (hits.size() - 1) if hits.size() >= 2 else 0.0
+
+
+## TEMP: the frames between consecutive hits.
+func _temp_gaps(hits: Array) -> Array:
+	var out: Array = []
+	for i in range(1, hits.size()):
+		out.append(int(hits[i][0]) - int(hits[i - 1][0]))
+	return out
+
+
+## TEMP: each landed hit's frames since its windup started.
+func _temp_windup_frames(entry: Dictionary) -> Array:
+	var out: Array = []
+	var windups: Array = entry.windups
+	var hits: Array = entry.hits
+	for i in mini(windups.size(), hits.size()):
+		out.append(int(hits[i][0]) - int(windups[i][0]))
 	return out
 
 

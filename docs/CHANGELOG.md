@@ -1413,6 +1413,9 @@ Docs only; no code or tests changed.
 
 ## Enemies AI (ENEMIES_AI.md)
 
+### TEMP – Enemy attack speed test multiplier: 2026-10-04, Built (awaiting Ryan's play test)
+A test aid, not a design rule (DECISIONS.md, Testing); to remove it, revert `game/scripts/components/auto_attack_component.gd`, `game/scripts/rooms/sandbox_brains.gd`, `game/scenes/rooms/sandbox.tscn`, `game/scenes/rooms/sandbox_3d.tscn` and `game/scripts/tests/enemies_test.gd` (its TEMP section). Measured in enemies_test (seeded, 10 s each): at x1.5 with keep DPS a slime swings every 59 frames instead of 87 at 0.67× damage, so its DPS is 0.983 of x1.0 (the loop already loses one physics frame per swing, at the recovery's end); the caster's DPS is 1.004 of x1.0; the slime's windup holds at 0.25 s (16 frames), and the caster's 0.6 s drops to 0.4 s. A sensitivity run (the floor, the division and the team check broken) failed 9 checks. Tests: enemies 305/305 (24 new); all suites 3,359/3,359. A smoke run of `sandbox_main` starts at x1.5 and is back to x1.0 at the hub, with the saves untouched.
+
 ### AI3 – Skirmisher and caster: 2026-10-04, Built (awaiting Ryan's play test)
 Ryan passed AI2 and confirmed that his 30 m camera (committed with it) was on purpose. Before AI3 he answered four questions, each as Claude proposed:
 - **The test kits split by the rank caps:** a regular test caster (bolt, blink away) and an elite one (plus a shield). The elite skirmisher waits for AI4.

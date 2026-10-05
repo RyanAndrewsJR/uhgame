@@ -430,3 +430,4 @@ script = ExtResource("31_loot")
 
 [node name="SandboxBrains" type="Node" parent="." unique_id=487627299]
 script = ExtResource("32_brains")
+enemy_attack_speed_test_mult = 1.5

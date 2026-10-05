@@ -16,7 +16,10 @@ extends Node
 ##                with the resolved value and the preset's. A change applies
 ##                at once to it and to every enemy sharing its data (an
 ##                in-memory override). Its brain switch turns the brain off
-##                (the old routine and the naive cast loop) or on.
+##                (the old routine and the naive cast loop) or on. TEMP: its
+##                last rows set the enemy attack speed test multiplier
+##                (every enemy, 0.5–3; the sandbox starts at 1.5) and keep
+##                DPS (AutoAttackComponent, DECISIONS.md, Testing).
 ##   Ctrl+S       (panel open) saves the edited sliders into its behavior
 ##                preset (the archetype .tres)
 ##   Ctrl+Shift+S (panel open) saves them as overrides into its EnemyData
@@ -82,6 +85,17 @@ const FRIENDLY_SCENE := preload("res://scenes/enemies/slime.tscn")
 ## How far apart a pack's members stand at home (px).
 @export var pack_spread_px: float = 44.0
 
+@export_group("TEMP enemy attack speed test")
+## TEMP (DECISIONS.md, Testing): the enemy attack speed test multiplier this
+## sandbox starts with (AutoAttackComponent.enemy_attack_speed_test_mult;
+## 1.0 = off; sandbox.tscn and sandbox_3d.tscn set 1.5). Applied when it's
+## ready, never in a test scene; put back when it leaves.
+@export_range(0.5, 3.0, 0.05) var enemy_attack_speed_test_mult: float = 1.0
+## TEMP: lighter hits so damage per second stays the same.
+@export var enemy_attack_test_keep_dps: bool = true
+## TEMP: the windup floor, s.
+@export var enemy_attack_test_min_windup: float = 0.25
+
 var _player: Player
 var _overlay_layer: CanvasLayer
 var _labels: Dictionary = {}   # Enemy -> Label
@@ -116,6 +130,11 @@ func _ready() -> void:
 		for child in entities.get_children():
 			_on_entity(child)
 	set_overlay(overlay_on)
+	_temp_test_ready()
+
+
+func _exit_tree() -> void:
+	_temp_test_exit()
 
 
 func _on_entity(node: Node) -> void:
@@ -471,6 +490,7 @@ func _build_panel() -> void:
 		row.add_child(value_label)
 		box.add_child(row)
 		_rows[slider] = {"slider": s, "value": value_label}
+	_build_temp_test_rows(box)   # TEMP
 	_status_label = _small_label("")
 	_status_label.add_theme_color_override("font_color", HINT_COLOR)
 	box.add_child(_status_label)
@@ -508,6 +528,7 @@ func _sync_panel() -> void:
 		_brain_switch.button_pressed = enemy.get_brain() != null
 		for slider: StringName in _rows:
 			(_rows[slider].slider as HSlider).value = get_slider_base(enemy, slider)
+	_sync_temp_test_rows()   # TEMP
 	_syncing = false
 	_status_label.text = _status
 	_update_panel_values()
@@ -739,3 +760,83 @@ func _fire_bolt_at(enemy: Enemy) -> void:
 func _entities() -> Node:
 	var entities := get_parent().get_node_or_null("Entities")
 	return entities if entities != null else get_parent()
+
+
+# --- TEMP: the enemy attack speed test multiplier (DECISIONS.md, Testing) ------------------
+# Remove with AutoAttackComponent's TEMP block in one commit.
+
+var _temp_slider: HSlider
+var _temp_value: Label
+var _temp_keep_dps: CheckBox
+var _temp_previous: Array = []   # [mult, keep DPS, floor] before this sandbox, put back when it leaves
+
+
+## TEMP: sets the enemy attack speed test multiplier (clamped to 0.5–3) and
+## keep DPS; every enemy-team attacker picks them up on its next physics tick.
+func set_enemy_attack_test(mult: float, keep_dps: bool) -> void:
+	mult = clampf(mult, AutoAttackComponent.TEMP_TEST_MULT_MIN, AutoAttackComponent.TEMP_TEST_MULT_MAX)
+	AutoAttackComponent.enemy_attack_speed_test_mult = mult
+	AutoAttackComponent.enemy_attack_test_keep_dps = keep_dps
+	_status = "TEMP enemy attack speed x%.2f%s" % [mult, " (off)" if mult == 1.0 else (", same DPS" if keep_dps else ", DPS up")]
+	_sync_panel()
+
+
+func _temp_test_ready() -> void:
+	_temp_previous = [AutoAttackComponent.enemy_attack_speed_test_mult, AutoAttackComponent.enemy_attack_test_keep_dps,
+		AutoAttackComponent.enemy_attack_test_min_windup]
+	if Progress.is_test_scene():
+		return   # a test sets its own
+	AutoAttackComponent.enemy_attack_test_min_windup = enemy_attack_test_min_windup
+	set_enemy_attack_test(enemy_attack_speed_test_mult, enemy_attack_test_keep_dps)
+	if enemy_attack_speed_test_mult != 1.0:
+		print("SandboxBrains: ", _status, " (N: the panel's TEMP row)")
+
+
+func _temp_test_exit() -> void:
+	if _temp_previous.size() == 3:
+		AutoAttackComponent.enemy_attack_speed_test_mult = _temp_previous[0]
+		AutoAttackComponent.enemy_attack_test_keep_dps = _temp_previous[1]
+		AutoAttackComponent.enemy_attack_test_min_windup = _temp_previous[2]
+
+
+func _build_temp_test_rows(box: VBoxContainer) -> void:
+	var row := HBoxContainer.new()
+	var name_label := _small_label("TEMP atk spd")
+	name_label.custom_minimum_size = Vector2(72, 0)
+	row.add_child(name_label)
+	_temp_slider = HSlider.new()
+	_temp_slider.min_value = AutoAttackComponent.TEMP_TEST_MULT_MIN
+	_temp_slider.max_value = AutoAttackComponent.TEMP_TEST_MULT_MAX
+	_temp_slider.step = 0.05
+	_temp_slider.custom_minimum_size = Vector2(80, 10)
+	_temp_slider.value_changed.connect(_on_temp_slider_value_changed)
+	row.add_child(_temp_slider)
+	_temp_value = _small_label("")
+	_temp_value.custom_minimum_size = Vector2(90, 0)
+	row.add_child(_temp_value)
+	box.add_child(row)
+	_temp_keep_dps = CheckBox.new()
+	_temp_keep_dps.text = "TEMP keep enemy DPS (lighter hits)"
+	_temp_keep_dps.add_theme_font_size_override("font_size", 8)
+	_temp_keep_dps.toggled.connect(_on_temp_keep_dps_toggled)
+	box.add_child(_temp_keep_dps)
+
+
+func _on_temp_slider_value_changed(value: float) -> void:
+	if not _syncing:
+		set_enemy_attack_test(value, AutoAttackComponent.enemy_attack_test_keep_dps)
+
+
+func _on_temp_keep_dps_toggled(on: bool) -> void:
+	if not _syncing:
+		set_enemy_attack_test(AutoAttackComponent.enemy_attack_speed_test_mult, on)
+
+
+## Called by _sync_panel() while _syncing is set.
+func _sync_temp_test_rows() -> void:
+	if _temp_slider == null:
+		return
+	var mult := AutoAttackComponent.enemy_attack_speed_test_mult
+	_temp_slider.value = mult
+	_temp_keep_dps.button_pressed = AutoAttackComponent.enemy_attack_test_keep_dps
+	_temp_value.text = "x%.2f%s" % [mult, " (off)" if mult == 1.0 else " every enemy"]

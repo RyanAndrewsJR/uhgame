@@ -150,7 +150,10 @@ func get_attack_interval() -> float:
 
 
 func get_windup_time() -> float:
-	return get_attack_interval() * unit.stats.attack_windup
+	var windup := get_attack_interval() * unit.stats.attack_windup
+	if _temp_test_mult > 1.0:   # TEMP: the windup floor (the test multiplier, below)
+		windup = maxf(windup, minf(enemy_attack_test_min_windup, windup * _temp_test_mult))
+	return windup
 
 
 func get_range_px() -> float:
@@ -165,6 +168,55 @@ func is_in_range(other: Unit) -> bool:
 
 func is_winding_up() -> bool:
 	return state == State.WINDUP
+
+
+# --- TEMP: the enemy attack speed test multiplier --------------------------------
+# A temporary test aid until enemies have their abilities (2026-10-04;
+# DECISIONS.md, Testing), not a design rule. Remove this block and its three
+# uses (_physics_process(), get_windup_time(), make_attack_context()) with
+# SandboxBrains' TEMP block in one commit.
+
+## TEMP: the source of the attack_speed modifier it puts on each attacker.
+const TEMP_TEST_SPEED_SOURCE := &"temp_test_enemy_speed"
+const TEMP_TEST_MULT_MIN := 0.5
+const TEMP_TEST_MULT_MAX := 3.0
+
+## TEMP: every League-style attacker on the enemy team (brained, fodder, or
+## with no data) attacks this many times faster: one PERCENT_MULT
+## attack_speed modifier, clamped to 0.5–3 when applied. 1.0 = off (the
+## shipped value). Never the player (combo mode) or a unit on the player's
+## team. SandboxBrains sets it outside test scenes (its starting value, the
+## N panel's TEMP row).
+static var enemy_attack_speed_test_mult: float = 1.0
+## TEMP: each of those hits deals its damage ÷ the multiplier, so damage per
+## second stays the same (faster, lighter hits). Off: DPS rises with it.
+static var enemy_attack_test_keep_dps: bool = true
+## TEMP: above 1, a windup never drops under this (s), nor under its own
+## length at 1 when that's shorter. The interval still shrinks, so the extra
+## speed comes out of the recovery.
+static var enemy_attack_test_min_windup: float = 0.25
+
+var _temp_test_mult: float = 1.0   # TEMP: the multiplier on this unit now
+
+
+## TEMP: the multiplier on this unit now (1.0: off, or not an enemy-team
+## League-style attacker).
+func get_temp_test_mult() -> float:
+	return _temp_test_mult
+
+
+## TEMP: keeps this unit's modifier in step with the multiplier (a live
+## change, a unit moved to the player's team). Every physics tick.
+func _update_temp_test_speed() -> void:
+	var mult := 1.0
+	if combo == null and unit.team == Unit.Team.ENEMY:
+		mult = clampf(enemy_attack_speed_test_mult, TEMP_TEST_MULT_MIN, TEMP_TEST_MULT_MAX)
+	if mult == _temp_test_mult or unit.stats_component == null:
+		return
+	_temp_test_mult = mult
+	unit.stats_component.remove_modifiers_from(TEMP_TEST_SPEED_SOURCE)
+	if mult != 1.0:
+		unit.stats_component.add_modifier(StatModifier.create(&"attack_speed", StatModifier.Type.PERCENT_MULT, mult - 1.0, TEMP_TEST_SPEED_SOURCE))
 
 
 # --- Combo mode -----------------------------------------------------------------
@@ -444,6 +496,7 @@ func remove_lock(id: StringName) -> void:
 # --- Update ---------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
+	_update_temp_test_speed()   # TEMP: the enemy attack speed test multiplier
 	_attack_timer = maxf(_attack_timer - delta, 0.0)
 	if not unit.is_alive():
 		return
@@ -722,6 +775,8 @@ func make_attack_context(hit: Unit) -> HitContext:
 	ctx.source = unit
 	ctx.target = hit
 	ctx.ad_ratio = 1.0
+	if _temp_test_mult != 1.0 and enemy_attack_test_keep_dps:
+		ctx.ad_ratio /= _temp_test_mult   # TEMP: lighter hits, the same damage per second
 	ctx.damage_type = HitContext.DamageType.PHYSICAL
 	ctx.add_tag(&"basic_attack")   # on-hit and hit:basic_attack scopes (C8)
 	ctx.knockback_px = hit_knockback_px
