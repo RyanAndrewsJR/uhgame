@@ -1,0 +1,25 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/abilities/test/bolt.gd" id="1_script"]
+[ext_resource type="Script" path="res://scripts/data/ai_use.gd" id="2_use"]
+
+[sub_resource type="Resource" id="use_poke"]
+script = ExtResource("2_use")
+intent = &"poke"
+
+[resource]
+script = ExtResource("1_script")
+id = &"test_caster_bolt"
+tags = Array[StringName]([&"core", &"projectile"])
+display_name = "Bolt"
+description = "Throws a bolt up to {range} units at where the target stands: {damage} magic damage to the first one it hits. Walls stop it; it can be walked out of."
+icon_color = Color(0.55, 0.65, 1, 1)
+cooldown = 2.5
+cast_time = 0.4
+cast_range = 950.0
+resets_auto_attack = false
+base_damage = 30.0
+damage_type = 1
+projectile_speed = 750.0
+projectile_width = 50.0
+ai_uses = Array[ExtResource("2_use")]([SubResource("use_poke")])

@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/enemy_ability_slot.gd" id="1_slot"]
+[ext_resource type="Resource" path="res://data/abilities/test_caster_q_bolt.tres" id="2_bolt"]
+[ext_resource type="Resource" path="res://data/abilities/test_caster_e_blink.tres" id="3_blink"]
+[ext_resource type="Resource" path="res://data/enemy_behaviors/enemy_behavior_caster.tres" id="4_behavior"]
+[ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="5_data"]
+[ext_resource type="Resource" path="res://data/units/test_caster.tres" id="6_stats"]
+
+[sub_resource type="Resource" id="slot_q"]
+script = ExtResource("1_slot")
+ability = ExtResource("2_bolt")
+
+[sub_resource type="Resource" id="slot_e"]
+script = ExtResource("1_slot")
+slot = &"e"
+ability = ExtResource("3_blink")
+
+[resource]
+script = ExtResource("5_data")
+id = &"test_caster"
+display_name = "Test Caster"
+behavior = ExtResource("4_behavior")
+stats = ExtResource("6_stats")
+abilities = Array[ExtResource("1_slot")]([SubResource("slot_q"), SubResource("slot_e")])
+model_color = Color(0.4, 0.55, 1, 1)
+detect_range = 850.0

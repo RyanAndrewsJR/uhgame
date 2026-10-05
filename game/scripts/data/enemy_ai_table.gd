@@ -29,6 +29,7 @@ extends Resource
 ## behavior's intent weights and the jitter (ENEMIES_AI.md, Scoring).
 @export var intent_scores: Dictionary[StringName, float] = {
 	&"hold": 0.3, &"poke": 0.5, &"commit": 0.65,
+	&"defend": 0.9, &"escape": 0.75, &"retreat": 0.7,
 }
 ## A caster's poke scores this instead (it pokes the whole time).
 @export var caster_poke_score: float = 0.6
@@ -134,6 +135,30 @@ extends Resource
 ## An enemy checks its path to its target at most this often (s): out of
 ## reach, a holder lets its token go and the pack's leash timer runs.
 @export var reach_check_time: float = 0.5
+
+@export_group("Casters and skirmishers")
+## A caster caught (its target inside its band's minimum) with no escape
+## ability ready walks away for up to this long (s), escape_step_px at a time;
+## out of time, blocked, slowed or rooted it's cornered: it squares up and
+## fights for cornered_time (s) and doesn't run meanwhile, swinging at its
+## target within cornered_reach_ratio × its reach (Cornered casters).
+@export var escape_walk_time: float = 2.0
+@export var escape_step_px: float = 64.0
+@export var cornered_time: float = 3.0
+@export var cornered_reach_ratio: float = 1.5
+## A caster holds behind or beside its melee packmates: its nearest one within
+## this angle (degrees) of the line to its target counts as cover; and it keeps
+## caster_spacing_px (2 m) from other casters (Movement and positioning).
+@export var cover_angle_deg: float = 45.0
+@export var caster_spacing_px: float = 64.0
+## A skirmisher's commit ends at its first landed hit, or reset_time (s) after
+## it got to its target; then it hops reset_hop_px back over reset_hop_time
+## (s), keeps reset_patience of its patience and walks out to its band
+## (Low health: role-based, the skirmisher's hit and reset).
+@export var reset_time: float = 1.5
+@export var reset_hop_px: float = 64.0
+@export var reset_hop_time: float = 0.2
+@export_range(0.0, 1.0) var reset_patience: float = 0.5
 
 ## Derived respect values, cached per ability (they read only data).
 var _respect_cache: Dictionary = {}

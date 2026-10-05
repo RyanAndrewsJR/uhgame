@@ -112,6 +112,14 @@ func get_custom_fail_text() -> String:
 	return "Rooted"
 
 
+## The path it will cut, hit_width wide (ENEMIES_AI AI3: what an enemy sees
+## coming at it); the return (part 1) lands on nobody.
+func get_effect_area(caster: Unit, ctx: CastContext) -> Dictionary:
+	if ctx == null or not is_instance_valid(caster) or ctx.part > 0:
+		return {"kind": &"none"}
+	return {"kind": &"segment", "from": caster.global_position, "to": ctx.point, "half_width": Units.to_px(hit_width) * 0.5}
+
+
 ## Every enemy along the path start -> end, hit_width wide, in sight from the
 ## nearest point of the path (COMBAT C7).
 func _in_path(caster: Unit, start: Vector2, end: Vector2) -> Array[Unit]:

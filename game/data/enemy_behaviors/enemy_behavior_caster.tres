@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="EnemyBehavior" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/enemy_behavior.gd" id="1_behavior"]
+
+[resource]
+script = ExtResource("1_behavior")
+role = 2
+intent_weights = Dictionary[StringName, float]({
+&"commit": 0.0
+})
+low_health = 1
+aggression = 0.3
+respect_weight = 1.2
+patience_time = 4.0
+range_band_min = 550.0
+range_band_max = 800.0
+dodge_skill = 0.5
+dodge_cooldown = 5.0
+punish_greed = 0.4

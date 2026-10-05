@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="EnemyData" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/enemy_ability_slot.gd" id="1_slot"]
+[ext_resource type="Resource" path="res://data/abilities/test_skirmisher_q_leap.tres" id="2_leap"]
+[ext_resource type="Resource" path="res://data/abilities/test_skirmisher_w_stab.tres" id="3_stab"]
+[ext_resource type="Resource" path="res://data/enemy_behaviors/enemy_behavior_skirmisher.tres" id="4_behavior"]
+[ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="5_data"]
+[ext_resource type="Resource" path="res://data/units/test_skirmisher.tres" id="6_stats"]
+
+[sub_resource type="Resource" id="slot_q"]
+script = ExtResource("1_slot")
+ability = ExtResource("2_leap")
+
+[sub_resource type="Resource" id="slot_w"]
+script = ExtResource("1_slot")
+slot = &"w"
+ability = ExtResource("3_stab")
+
+[resource]
+script = ExtResource("5_data")
+id = &"test_skirmisher"
+display_name = "Test Skirmisher"
+behavior = ExtResource("4_behavior")
+stats = ExtResource("6_stats")
+abilities = Array[ExtResource("1_slot")]([SubResource("slot_q"), SubResource("slot_w")])
+model_color = Color(0.95, 0.75, 0.25, 1)

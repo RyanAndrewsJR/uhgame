@@ -58,6 +58,8 @@ var _alerts: Array[Dictionary] = []
 ## Each target's fodder ring angle (target Unit -> radians), kept while it
 ## has fodder on it.
 var _ring_anchor: Dictionary = {}
+## Thinks asked for at a game time: [brain, time] (wake_at()).
+var _timed_wakes: Array = []
 
 
 func _ready() -> void:
@@ -101,6 +103,13 @@ func wake(brain: EnemyBrain) -> void:
 		_urgent.append(brain)
 
 
+## `brain` thinks on the first physics tick at or after game time `time`
+## (AI3: an attack it saw coming, once its reaction time has passed).
+func wake_at(brain: EnemyBrain, time: float) -> void:
+	if brain != null:
+		_timed_wakes.append([brain, time])
+
+
 func _physics_process(delta: float) -> void:
 	_time += delta
 	_tick += 1
@@ -110,7 +119,15 @@ func _physics_process(delta: float) -> void:
 		_update_fodder_rings()
 	if _brains.is_empty():
 		_urgent.clear()
+		_timed_wakes.clear()
 		return
+	for i in range(_timed_wakes.size() - 1, -1, -1):
+		var w: Array = _timed_wakes[i]
+		if not is_instance_valid(w[0]):
+			_timed_wakes.remove_at(i)
+		elif float(w[1]) <= _time + 0.0001:
+			wake(w[0])
+			_timed_wakes.remove_at(i)
 	_update_idle(delta)
 	var period := get_think_period()
 	var slot := _tick % period
@@ -154,7 +171,7 @@ func get_party() -> Array[Unit]:
 func get_snapshot() -> PartySnapshot:
 	var frame := Engine.get_physics_frames()
 	if _snapshot == null or _snapshot.frame != frame:
-		_snapshot = PartySnapshot.build(get_party(), table, _idle, frame)
+		_snapshot = PartySnapshot.build(get_party(), table, _idle, frame, get_tree().get_nodes_in_group(Projectile.GROUP))
 		_snapshot_builds += 1
 	return _snapshot
 

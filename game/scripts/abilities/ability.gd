@@ -46,6 +46,9 @@ const ROLE_TAGS: Array[StringName] = [&"generator", &"core", &"defensive", &"mob
 ## script into its own compile.
 const DAMAGE_NUMBER_STYLE_PATH := "res://data/damage_number_styles/damage_number_style_default.tres"
 
+## get_effect_area()'s circle for a POINT ability with no radius of its own (px).
+const DEFAULT_AREA_RADIUS_PX := 40.0
+
 ## <champion>_<ability>, no slot (CONVENTIONS.md), e.g. &"knight_lunge".
 ## Scoped modifiers target it as &"ability:knight_lunge" (STATS.md).
 @export var id: StringName = &""
@@ -908,3 +911,69 @@ func get_ai_plan(caster: Unit, situation: SituationContext) -> CastPlan:
 	plan.value = 1.0
 	plan.reason = "default plan"
 	return plan
+
+
+## Where a cast will land (ENEMIES_AI AI3: what an enemy sees coming at it;
+## ALLIES' ally brain will read enemy casts the same way), in px, from `ctx`
+## (the cast in progress: its point, direction, target, vector line):
+##   {kind = &"none"}: it lands on nobody (SELF: a buff);
+##   {kind = &"unit", target}: point-and-click (UNIT targeting) on `target`;
+##   {kind = &"circle", center, radius};
+##   {kind = &"cone", origin, direction, range, half_angle (radians)};
+##   {kind = &"segment", from, to, half_width}.
+## The default reads the data: UNIT → unit; SELF → none; a VECTOR cast → its
+## line; tagged `projectile` → the line out to cast_range from the caster
+## (projectile_width wide); a script with a `radius_px` export → that circle
+## at the point; POINT → a circle of DEFAULT_AREA_RADIUS_PX at the point;
+## otherwise (DIRECTION) a 45° cone out to cast_range. Kit abilities override
+## it where this misreads them (Cleave, Lunge, Judgement Leap).
+func get_effect_area(caster: Unit, ctx: CastContext) -> Dictionary:
+	if ctx == null or not is_instance_valid(caster):
+		return {"kind": &"none"}
+	match targeting:
+		Targeting.SELF:
+			return {"kind": &"none"}
+		Targeting.UNIT:
+			return {"kind": &"unit", "target": ctx.target} if is_instance_valid(ctx.target) else {"kind": &"none"}
+	var range_px := Units.to_px(get_param(caster, &"cast_range"))
+	if cast_style == CastStyle.VECTOR:
+		var length_px := Units.to_px(get_param(caster, &"vector_length"))
+		return {"kind": &"segment", "from": ctx.vector_start, "to": ctx.vector_start + ctx.vector_direction * length_px,
+			"half_width": Units.to_px(get_param(caster, &"vector_width")) * 0.5}
+	if tags.has(&"projectile"):
+		return {"kind": &"segment", "from": caster.global_position, "to": caster.global_position + ctx.direction * range_px,
+			"half_width": Units.to_px(projectile_width) * 0.5}
+	var radius: Variant = get(&"radius_px")
+	if radius is float:
+		return {"kind": &"circle", "center": ctx.point, "radius": radius}
+	if targeting == Targeting.POINT:
+		return {"kind": &"circle", "center": ctx.point, "radius": DEFAULT_AREA_RADIUS_PX}
+	return {"kind": &"cone", "origin": caster.global_position, "direction": ctx.direction, "range": range_px,
+		"half_angle": deg_to_rad(45.0)}
+
+
+## True when `area` (get_effect_area()'s) covers `unit`: its gameplay circle
+## touches the shape, or it's the unit a point-and-click cast is on.
+static func covers_unit(area: Dictionary, unit: Unit) -> bool:
+	if not is_instance_valid(unit):
+		return false
+	var p := unit.global_position
+	var r := unit.get_gameplay_radius_px()
+	match area.get("kind", &"none"):
+		&"unit":
+			return area.get("target") == unit
+		&"circle":
+			return p.distance_to(area.center) <= float(area.radius) + r
+		&"segment":
+			var closest := Geometry2D.get_closest_point_to_segment(p, area.from, area.to)
+			return p.distance_to(closest) <= float(area.half_width) + r
+		&"cone":
+			var d: Vector2 = p - area.origin
+			var dist := d.length()
+			if dist <= r:
+				return true
+			if dist - r > float(area.range):
+				return false
+			var spread := absf(angle_difference((area.direction as Vector2).angle(), d.angle()))
+			return spread <= float(area.half_angle) + asin(minf(r / dist, 1.0))
+	return false

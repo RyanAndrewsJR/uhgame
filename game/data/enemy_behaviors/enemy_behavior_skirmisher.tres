@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EnemyBehavior" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/enemy_behavior.gd" id="1_behavior"]
+
+[resource]
+script = ExtResource("1_behavior")
+role = 1
+low_health = 2
+aggression = 0.7
+respect_weight = 0.8
+patience_time = 2.0
+range_band_min = 400.0
+range_band_max = 600.0
+reaction_time = 0.3
+dodge_skill = 0.6
+dodge_cooldown = 4.0
+punish_greed = 0.8
+jitter = 0.2

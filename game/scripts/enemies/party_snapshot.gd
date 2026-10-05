@@ -8,12 +8,20 @@ extends RefCounted
 ## share, its idle time. Companions never appear (they aren't Units).
 ## The party: the groups `player` and `party` (ALLIES adds `party`; until then
 ## the player, and the sandbox's friendly stand-in).
-## AI3 adds casts in progress and projectiles in flight; AI6 the punish window.
+## AI3 added the casts in progress and the projectiles in flight (what's on
+## screen: enemies see them as a person would, after their reaction time); AI6
+## adds the punish window.
 
 ## One entry per champion: {unit, position, health_ratio, up, targetable,
 ## kit_ready, share, idle_time, casting, slots: {slot: {ability, ready,
-## cooldown_left, value}}}.
+## cooldown_left, value}}, cast}. `cast` (AI3) is its cast in progress, {} when
+## none: {ability, ctx, kind (&"cast" / &"charge_up"), area
+## (Ability.get_effect_area()), time_left (s to its effect), key (one per
+## cast)}.
 var members: Array[Dictionary] = []
+## Every projectile in flight (AI3): {node, caster, ability, team, position,
+## direction, speed_px, range_left_px, half_width_px, key}.
+var projectiles: Array[Dictionary] = []
 ## The physics frame it was built on.
 var frame: int = -1
 
@@ -27,8 +35,9 @@ func get_member(unit: Node) -> Dictionary:
 
 
 ## Builds the read of `units` (living Units) against `table`'s respect values;
-## `idle` holds each unit's idle seconds (Brains tracks them every tick).
-static func build(units: Array[Unit], table: EnemyAITable, idle: Dictionary, p_frame: int) -> PartySnapshot:
+## `idle` holds each unit's idle seconds (Brains tracks them every tick);
+## `projectile_nodes` the projectiles in flight (the group Projectile.GROUP).
+static func build(units: Array[Unit], table: EnemyAITable, idle: Dictionary, p_frame: int, projectile_nodes: Array = []) -> PartySnapshot:
 	var snap := PartySnapshot.new()
 	snap.frame = p_frame
 	for u in units:
@@ -61,8 +70,47 @@ static func build(units: Array[Unit], table: EnemyAITable, idle: Dictionary, p_f
 					ready += value
 		m.kit_ready = ready / total if total > 0.0 else 0.0
 		m.share = get_share(m.kit_ready, m.health_ratio) if m.up else 0.0
+		m.cast = read_cast(u)
 		snap.members.append(m)
+	for node in projectile_nodes:
+		var p := node as Projectile
+		if p == null or not is_instance_valid(p) or not p.is_inside_tree():
+			continue
+		snap.projectiles.append({
+			"node": p, "caster": p.caster if is_instance_valid(p.caster) else null, "ability": p.ability, "team": p.team,
+			"position": p.global_position, "direction": p.direction, "speed_px": p.speed_px,
+			"range_left_px": p.get_range_left(), "half_width_px": p.half_width_px,
+			"key": "projectile:%d" % p.get_instance_id(),
+		})
 	return snap
+
+
+## `u`'s cast in progress as enemies see it (AI3; see `members`), or {}: a cast
+## whose effect hasn't started (its area from its context), or a charge-up
+## held (its area where it would fire now; its time left is its release
+## windup at the soonest).
+static func read_cast(u: Unit) -> Dictionary:
+	if u.abilities == null or not u.abilities.casting:
+		return {}
+	var ability := u.abilities.get_cast_ability()
+	if ability == null:
+		return {}
+	var ctx := u.abilities.get_cast_context()
+	if ctx != null:
+		if ctx.progress >= 1.0:
+			return {}   # its effect started: nothing coming any more
+		return {"ability": ability, "ctx": ctx, "kind": &"cast", "area": ability.get_effect_area(u, ctx),
+			"time_left": u.abilities.get_cast_time_left(), "key": "cast:%d" % ctx.get_instance_id()}
+	var aim := u.abilities.get_charge_aim()
+	if aim == Vector2.INF:
+		return {}
+	var held := CastContext.new()
+	held.ability = ability
+	held.point = aim
+	var to_aim := aim - u.global_position
+	held.direction = to_aim.normalized() if to_aim.length() > 0.01 else Vector2.RIGHT
+	return {"ability": ability, "ctx": held, "kind": &"charge_up", "area": ability.get_effect_area(u, held),
+		"time_left": ability.cast_time, "key": "charge:%d" % u.get_instance_id()}
 
 
 ## A champion's respect share: its kit ready × (0.5 + 0.5 × its health

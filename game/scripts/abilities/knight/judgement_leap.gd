@@ -79,6 +79,15 @@ func _stun_for(seconds: float) -> Array[StatusEffect]:
 	return statuses
 
 
+## Its landing circle where it will land (ENEMIES_AI AI3: what an enemy sees
+## coming at it), not judgement.gd's point-and-click.
+func get_effect_area(caster: Unit, ctx: CastContext) -> Dictionary:
+	if ctx == null or not is_instance_valid(caster):
+		return {"kind": &"none"}
+	return {"kind": &"circle", "center": caster.movement.get_leap_landing(ctx.point),
+		"radius": Units.to_px(get_param(caster, &"landing_radius"))}
+
+
 ## The range, the line to where the Knight would land (the nearest walkable
 ## floor to the aim: MovementComponent.get_leap_landing()) and the landing
 ## circle there; with Shockwave, its outer ring.

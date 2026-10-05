@@ -1413,6 +1413,74 @@ Docs only; no code or tests changed.
 
 ## Enemies AI (ENEMIES_AI.md)
 
+### AI3 – Skirmisher and caster: 2026-10-04, Built (awaiting Ryan's play test)
+Ryan passed AI2 and confirmed that his 30 m camera (committed with it) was on purpose. Before AI3 he answered four questions, each as Claude proposed:
+- **The test kits split by the rank caps:** a regular test caster (bolt, blink away) and an elite one (plus a shield). The elite skirmisher waits for AI4.
+- **The shield reads anything it sees coming,** Judgement on it included.
+- **The skirmisher's gap-closer is a real leap.**
+- **AI2's two rules stay:** sight needs a path, and a taunt commits.
+
+**Code, new:**
+- **Ability scripts:**
+  - `scripts/abilities/test_skirmisher/leap.gd`: a telegraphed landing circle, `MovementComponent.leap()`, a hit on landing; its plan lands beside the target.
+  - `scripts/abilities/test_caster/guard.gd`: a `status_shield` copy on itself.
+  - `scripts/abilities/test_caster/escape_blink.gd`: extends the test blink; its plan blinks away, the farthest of five directions.
+- **Data:**
+  - Presets: `enemy_behavior_skirmisher.tres`, `enemy_behavior_caster.tres`.
+  - Units: `units/test_skirmisher.tres`, `units/test_caster.tres`.
+  - Abilities: `test_skirmisher_q_leap`, `test_skirmisher_w_stab` (the slam's script), `test_caster_q_bolt` (the test bolt's script), `test_caster_w_guard`, `test_caster_e_blink`.
+  - EnemyData: `enemy_test_skirmisher`, `enemy_test_caster`, `enemy_test_caster_elite` (casters notice from 850 u).
+  - Scenes: `scenes/enemies/test_skirmisher.tscn`, `test_caster.tscn`, `test_caster_elite.tscn`.
+
+**Code, changed (additive):**
+- `ability.gd`: `get_effect_area()`, with the kinds none, unit, circle, cone and segment and a default from the data; `covers_unit()`; `DEFAULT_AREA_RADIUS_PX`.
+- Kit overrides of `get_effect_area()`: `cleave.gd` (its cone, or Whirling Cleave's circle), `lunge.gd` (its path), `judgement_leap.gd` (its landing circle).
+- `ability_component.gd`: `get_cast_ability()`, `get_cast_context()`, `get_cast_time_left()`, `get_charge_aim()`.
+- `projectile.gd`: the group `projectiles` and `get_range_left()`.
+- `condition.gd`: `Kind.THREATENED` (appended), read from the situation.
+- `situation_context.gd`: `incoming`, `is_threatened()`, `cornered`, `escaping`, `resetting`.
+- `party_snapshot.gd`: each member's `cast` (`read_cast()`) and the `projectiles` in flight.
+- `brains.gd`: `wake_at()`; the snapshot gets the projectiles.
+- `enemy_brain.gd`:
+  - Perception with the reaction delay.
+  - The intents `defend`, `escape` (the walk away, cornered) and `retreat` (falling back, the skirmisher's reset).
+  - Poses by role; a caster's strafe for cover and spacing.
+  - The skirmisher's commit end, its hop and half its patience; a gap-closer's cast no longer ends a commit.
+  - An attack coming breaks the no-flip-flop bonus.
+- `enemy_ai_table.gd`: the scores defend 0.9, escape 0.75, retreat 0.7, and the group "Casters and skirmishers".
+- `enemy.gd`: a settled fodder steps back to its place past 0.85 of its reach.
+- `sandbox_brains.gd`: Shift+H (the test enemy), the mixed pack, the incoming shot once the enemy fights, the overlay's threats and states.
+- `view_test.gd`:
+  - The camera's numbers updated for Ryan's 30 m: distance 31.5 m, the floor window 2752 × 1792 texels.
+  - The leap guard now allows the skirmisher's leap.
+
+**Changed during the step** (the rules are in ENEMIES_AI.md):
+- **Casters notice from 850 u.** At the default 450 u a lone caster always noticed inside its own band's minimum and fled at once.
+- **The escape walk keeps its own clock and holds.** Jitter let a poke beat escape for one think, and that restarted the 2 s walk each time, so a caster was never cornered.
+- **The cornered pose shows from the moment it's cornered,** even before its next think.
+- **An attack coming breaks the no-flip-flop bonus,** so a shield isn't held back by a poke just started.
+- **A gap-closer's cast no longer ends a commit.** A missed leap ended a brute's commit at once.
+- **A settled fodder keeps swinging only while its target is within 0.85 of its reach.** At the edge, other fodder's pushes made every swing whiff. One slime landed nothing for 4 s in 2 of about 14 runs, with the same numbers each time.
+
+**Measured** (the enemies suite and a scratch smoke harness, saving off):
+- **Shield timing:** a bolt at the elite caster got its Guard up 0.38–0.45 s after the shot, inside its 0.35 s reaction plus a think. The shield took the hit.
+- **Escaping:** caught, the regular caster blinked to 534 u. With its blink down it walked about 2 s, was cornered, then stood its ground and swung for the next 2.5 s.
+- **The skirmisher's reset:** its leap hit, it hopped from 17 u to 377 u, then walked out to its band.
+- **Think cost:** in the sandbox's mixed pack, thinks ran 200–340 µs (AI1 measured 130–230 in a fight). Perception and the extra uses cost a little; brains stay cheap.
+
+**Sensitivity:** each key behavior was broken once on purpose and restored (diff-checked), and each failed its checks:
+- defend in `decide()`, the reaction delay, the escape walk's clock, the skirmisher's commit end;
+- the fall-back spot, the cone's angle, the escape blink's direction, a gap-closer ending a commit.
+
+The first runs missed four of these, and new checks went in for them: a slime beside the Knight inside Cleave's reach, the plan's direction in the open, the fall-back spot, a brute with a missed leap.
+
+**Smoke** (`sandbox_main`, `sandbox_main_layout`, `main_layout`; the saves backed up first, byte-identical after):
+- The mixed pack: the brute holding, the skirmisher diving and resetting, the caster poking and cornered.
+- Shift+H cycling the test enemies.
+- room_01's slimes as before.
+
+**Tests:** enemies 281/281 (61 new; 5 runs in a row green in parallel with other suites), view 469/469 (19 checks updated for the camera, 1 for the leap guard). Stats 180/180, combat 474/474, abilities 593/593, audio 110/110, champions 168/168, talents 310/310, loot 750/750: 3,335/3,335.
+
 ### AI2 – Groups: tokens, packs, the alert, the leash: 2026-10-04, Passed (Ryan's play test; he committed it)
 Ryan passed AI1 and "roots are roots", started AI2, and answered three questions first:
 - **The performance fix is a cap:** about 20 moving enemies awake per fight; no code change.

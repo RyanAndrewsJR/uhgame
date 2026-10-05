@@ -6,7 +6,7 @@ extends Node3D
 ## flag use_3d_view and the 2D camera gone since the cleanup's C3; the hub's
 ## run plays room_01's layout), and the floor
 ## pick on a fixed camera at the default look (perspective, 30° field of
-## view, 50° pitch, 28 m wide) over a 1 m floor grid with a raised plateau:
+## view, 50° pitch, 30 m wide) over a 1 m floor grid with a raised plateau:
 ## the screen center, round trips, the plateau top, the exact shared vertices
 ## that made a single ray slip through in P0a, a blocker on another layer,
 ## and a miss.
@@ -220,13 +220,13 @@ func _test_camera_look() -> void:
 	_check_exact("perspective", look.projection, CameraLook.ProjectionMode.PERSPECTIVE)
 	_check("a 30° field of view", look.fov_deg, 30.0)
 	_check("a 50° pitch", look.pitch_deg, 50.0)
-	_check("28 m wide", look.visible_width_m, 28.0)
+	_check("30 m wide (Ryan, 2026-10-04; it was 28)", look.visible_width_m, 30.0)
 	_check("faded things fade to 0.25", look.fade_to, 0.25)
 	_check("over 0.18 s", look.fade_time, 0.18)
-	_check_near("16:9: the camera sits 29.4 m from its focus", look.get_distance_m(16.0 / 9.0), 29.389, 0.001)
+	_check_near("16:9: the camera sits 31.5 m from its focus", look.get_distance_m(16.0 / 9.0), 31.489, 0.001)
 	var offset := look.get_offset_m(16.0 / 9.0)
-	_check_near("16:9: 22.5 m above it", offset.y, 22.513, 0.001)
-	_check_near("16:9: 18.9 m south of it", offset.z, 18.891, 0.001)
+	_check_near("16:9: 24.1 m above it", offset.y, 24.122, 0.001)
+	_check_near("16:9: 20.2 m south of it", offset.z, 20.241, 0.001)
 	_check_near("16:9: not east or west of it (the camera never turns)", offset.x, 0.0, 0.0)
 
 	# The look on a camera: the focus lands on the screen's center, and 14 m
@@ -245,8 +245,8 @@ func _test_camera_look() -> void:
 		each.apply(cam, focus, vis.x / vis.y)
 		var name_ := "perspective" if projection == CameraLook.ProjectionMode.PERSPECTIVE else "orthographic"
 		_check_near("%s: the focus is the screen's center (px off)" % name_, cam.unproject_position(focus).distance_to(vis * 0.5), 0.0, 0.01)
-		_check_near("%s: 14 m west of the focus is the left edge (x px)" % name_, cam.unproject_position(focus + Vector3(-14.0, 0.0, 0.0)).x, 0.0, 0.05)
-		_check_near("%s: 14 m east of it is the right edge (x px)" % name_, cam.unproject_position(focus + Vector3(14.0, 0.0, 0.0)).x, vis.x, 0.05)
+		_check_near("%s: 15 m west of the focus is the left edge (x px)" % name_, cam.unproject_position(focus + Vector3(-15.0, 0.0, 0.0)).x, 0.0, 0.05)
+		_check_near("%s: 15 m east of it is the right edge (x px)" % name_, cam.unproject_position(focus + Vector3(15.0, 0.0, 0.0)).x, vis.x, 0.05)
 	cam.free()
 
 
@@ -415,8 +415,8 @@ func _test_game_camera_3d() -> void:
 	_check("GameCamera is gone (the cleanup's C3): CameraLook is the one place these are tuned",
 		ResourceLoader.exists("res://scripts/camera/game_camera.gd"), false)
 	_check_near("follow smoothing: GameCamera's speed 10 at 60 ticks is 10.94 per second", GameCamera3D.follow_rate_per_second(10.0, 60), 10.9393, 0.0001)
-	_check_near("28 m across a 640 px wide screen: 0.04375 m per screen px", GameCamera3D.meters_per_screen_px(look, 640.0), 0.04375, 0.000001)
-	_check_near("sounds reach 1.4 times as far: the view's 896 px over the 640 px screen", GameCamera3D.view_distance_scale(look, 640.0), 1.4, 0.000001)
+	_check_near("30 m across a 640 px wide screen: 0.046875 m per screen px", GameCamera3D.meters_per_screen_px(look, 640.0), 0.046875, 0.000001)
+	_check_near("sounds reach 1.5 times as far: the view's 960 px over the 640 px screen", GameCamera3D.view_distance_scale(look, 640.0), 1.5, 0.000001)
 	var floor_m := Rect2(1.0, 1.0, 28.0, 18.0)
 	_check_exact("bounds: a focus on the room's floor stays", GameCamera3D.clamp_focus(Vector3(5.0, 0.0, 6.0), floor_m), Vector3(5.0, 0.0, 6.0))
 	_check_exact("bounds: past the east and south edges it stops on them, its height kept",
@@ -440,7 +440,7 @@ func _test_game_camera_3d() -> void:
 	add_child(cam)
 	cam.snap_to_target()
 	_check_near("snapped: the target is the screen's center (px off)", cam.unproject_position(FOCUS).distance_to(center), 0.0, 0.01)
-	_check_near_v3("80 px sideways on screen is 3.5 m on the floor (the same share of the screen as in 2D)", cam.screen_to_floor(Vector2(80.0, 0.0)), Vector3(3.5, 0.0, 0.0), 0.001)
+	_check_near_v3("80 px sideways on screen is 3.75 m on the floor (the same share of the screen as in 2D)", cam.screen_to_floor(Vector2(80.0, 0.0)), Vector3(3.75, 0.0, 0.0), 0.001)
 	var up := cam.screen_to_floor(Vector2(0.0, -48.0))
 	_check("48 px up the screen is north, and more floor than 48 px sideways (perspective at 50°)", up.z < -48.0 * k and absf(up.x) < 0.0001, true)
 	var round_ok := 0
@@ -834,7 +834,7 @@ func _test_room_floor_pick() -> void:
 # --- Floor pick -------------------------------------------------------------------------------
 
 func _test_floor_pick() -> void:
-	_section("Floor pick (fixed camera: perspective 30°, 50° pitch, 28 m wide)")
+	_section("Floor pick (fixed camera: perspective 30°, 50° pitch, 30 m wide)")
 	_build_world()
 	# Bodies join the physics space on the next physics step.
 	await get_tree().physics_frame
@@ -1006,14 +1006,14 @@ func _test_floor_overlay() -> void:
 	var seen := FloorOverlay.seen_floor_around_focus_m(cam)
 	var half := Vector2(320.0, 180.0)
 	var bottom := cam.screen_to_floor(Vector2(half.x, half.y)) - cam.screen_to_floor(Vector2(-half.x, half.y))
-	_check_near("the default look sees 22.9 m of floor across at the screen's bottom edge", bottom.x, 22.9, 0.05)
-	_check_near("36.1 m across at its top edge (the widest)", seen.size.x, 36.1, 0.05)
-	_check_near("from 8.4 m in front of the focus (south)", seen.end.y, 8.4, 0.05)
-	_check_near("to 13.3 m beyond it (north): 21.7 m deep", -seen.position.y, 13.3, 0.05)
+	_check_near("the default look sees 24.5 m of floor across at the screen's bottom edge", bottom.x, 24.49, 0.05)
+	_check_near("38.7 m across at its top edge (the widest)", seen.size.x, 38.70, 0.05)
+	_check_near("from 9.0 m in front of the focus (south)", seen.end.y, 8.99, 0.05)
+	_check_near("to 14.2 m beyond it (north): 23.2 m deep", -seen.position.y, 14.21, 0.05)
 	_check_near("centered across the focus", seen.get_center().x, 0.0, 0.001)
 	var with_margin := seen.grow(2.0).size
-	_check_exact("with the 2 m margin (40.1 x 25.7 m): 2624 x 1664 texels, multiples of 64",
-		FloorOverlay.window_size_texels(with_margin, 64.0, Rect2()), Vector2i(2624, 1664))
+	_check_exact("with the 2 m margin (42.7 x 27.2 m): 2752 x 1792 texels, multiples of 64",
+		FloorOverlay.window_size_texels(with_margin, 64.0, Rect2()), Vector2i(2752, 1792))
 	_check_exact("in a 30 x 20 m room (smaller than the window): the room, 1920 x 1280",
 		FloorOverlay.window_size_texels(with_margin, 64.0, Rect2(0.0, 0.0, 30.0, 20.0)), Vector2i(1920, 1280))
 
@@ -1047,14 +1047,14 @@ func _test_floor_overlay() -> void:
 	overlay.world_2d = get_viewport().world_2d
 	view.add_child(overlay)
 	overlay.setup(cam, Rect2())
-	_check_exact("set up on the camera: the texture is the window's size", overlay.size, Vector2i(2624, 1664))
+	_check_exact("set up on the camera: the texture is the window's size", overlay.size, Vector2i(2752, 1792))
 	var material := ShaderMaterial.new()
 	material.shader = RoomView.FLOOR_SHADER
 	overlay.add_floor_material(material)
 	_check("a floor material shows its texture, its corner and its size",
 		material.get_shader_parameter(&"drawings") == overlay.get_texture()
 		and (material.get_shader_parameter(&"drawings_origin_m") as Vector2).is_equal_approx(overlay.origin_m)
-		and (material.get_shader_parameter(&"drawings_size_m") as Vector2).is_equal_approx(Vector2(41.0, 26.0)), true)
+		and (material.get_shader_parameter(&"drawings_size_m") as Vector2).is_equal_approx(Vector2(43.0, 28.0)), true)
 	var focus_xz := Vector2(FOCUS.x, FOCUS.z)
 	_check("the window holds all the floor the camera sees",
 		Rect2(overlay.origin_m, overlay.get_size_m()).encloses(Rect2(focus_xz + seen.position, seen.size)), true)
@@ -1069,7 +1069,7 @@ func _test_floor_overlay() -> void:
 	_check("its canvas transform and the floor's material moved with it",
 		overlay.canvas_transform.is_equal_approx(FloorOverlay.window_canvas_transform(overlay.origin_m, 2.0))
 		and (material.get_shader_parameter(&"drawings_origin_m") as Vector2).is_equal_approx(overlay.origin_m), true)
-	_check_exact("the texture keeps its size (only the screen's shape changes it)", overlay.size, Vector2i(2624, 1664))
+	_check_exact("the texture keeps its size (only the screen's shape changes it)", overlay.size, Vector2i(2752, 1792))
 	var room_overlay := FloorOverlay.new()
 	view.add_child(room_overlay)
 	room_overlay.setup(cam, Rect2(0.0, 0.0, 30.0, 20.0))
@@ -1782,9 +1782,12 @@ func _test_airborne_status() -> void:
 	_check("and only the Knight's Judgement pulls: no enemy knocks up the player in v1 (files: %s)" % [pullers],
 		pullers, ["res://scripts/abilities/ability.gd", "res://scripts/abilities/knight/judgement.gd"])
 	# LOOT L6: a leap is the player's own (3D.md, Leaps): only The Last Verdict's
-	# Judgement Leap calls MovementComponent.leap().
+	# Judgement Leap calls MovementComponent.leap(). ENEMIES_AI AI3 (Ryan,
+	# 2026-10-04): the test skirmisher's gap-closer is a real leap too.
 	var leapers := _files_mentioning("res://scripts/", "movement.leap(")
-	_check("only the Knight's Judgement Leap leaps (files: %s)" % [leapers], leapers, ["res://scripts/abilities/knight/judgement_leap.gd"])
+	leapers.sort()
+	_check("only the Knight's Judgement Leap and the test skirmisher's Leap leap (files: %s)" % [leapers], leapers,
+		["res://scripts/abilities/knight/judgement_leap.gd", "res://scripts/abilities/test_skirmisher/leap.gd"])
 
 
 ## Every .gd, .tres and .tscn under `dir` (tests and the status itself left

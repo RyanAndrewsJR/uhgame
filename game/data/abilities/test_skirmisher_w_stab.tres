@@ -1,0 +1,23 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/abilities/slime/slam.gd" id="1_script"]
+[ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_hit.tres" id="2_hit"]
+
+[resource]
+script = ExtResource("1_script")
+radius_px = 26.0
+knockback_px = 0.0
+hitstop = 0.03
+shake = 1.5
+id = &"test_skirmisher_stab"
+tags = Array[StringName]([&"core", &"area"])
+display_name = "Stab"
+description = "Marks a small {radius_px} px circle on the target, fills it over {cast_time} s, then stabs: {damage} physical damage to everyone inside."
+icon_color = Color(0.95, 0.75, 0.25, 1)
+targeting = 2
+cooldown = 3.0
+cast_time = 0.35
+cast_range = 160.0
+resets_auto_attack = false
+base_damage = 35.0
+hit_sound = ExtResource("2_hit")

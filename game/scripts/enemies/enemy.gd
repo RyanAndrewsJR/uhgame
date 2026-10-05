@@ -35,6 +35,10 @@ const FODDER_BLOCKED_TIME := 1.0
 ## A fodder whose place is more than this far round the ring (degrees) walks
 ## round the outside of the ring to it.
 const FODDER_DETOUR_DEG := 50.0
+## Settled at its place, a fodder keeps swinging while its target stays within
+## this share of its reach; pushed farther (hits push its target about), it
+## steps back to its place first, or its swings would whiff at the edge.
+const FODDER_FIRM_REACH_SHARE := 0.85
 
 ## Aggro range in LoL units (edge to edge).
 @export var detect_range: float = 450.0
@@ -83,6 +87,7 @@ var _ring_spot := Vector2.INF
 var _ring_repath := 0.0
 var _ring_settled := false   # it reached its place; it attacks from where it stands while in reach
 var _ring_blocked := 0.0     # seconds in reach, short of its place, not moving
+var _ring_stuck := false     # settled where it was blocked (not at its place)
 var _ring_last_pos := Vector2.INF
 var _reach_target: Unit
 var _reach_next := -INF
@@ -735,11 +740,12 @@ func _set_target(u: Unit) -> void:
 ## Fodder (no brain; ENEMIES_AI.md, Groups): it walks to its place in the ring
 ## around its target (Brains, 5 times a second) and attacks once there and in
 ## reach; a place out of its reach (an outer ring) waits there. Settled, it
-## attacks from where it stands until its target leaves its reach, then walks
-## to its place again (it doesn't chase its place while it can hit: a hit's
-## push on its target moves the places a little each time). Blocked short of
+## attacks from where it stands while its target stays within
+## FODDER_FIRM_REACH_SHARE of its reach (it doesn't chase its place for every
+## small push), then walks to its place again (at the edge of its reach every
+## swing would whiff as other hits push its target about). Blocked short of
 ## its place for FODDER_BLOCKED_TIME s with its target in reach, it settles
-## where it is. Standing too close to another fodder (Brains' ring think), the
+## where it is, until its target leaves its reach. Standing too close to another fodder (Brains' ring think), the
 ## one farther from its place walks to it. Before its first place (the first
 ## pack think) it chases as before. No tokens.
 func _drive_fodder(delta: float) -> void:
@@ -752,13 +758,19 @@ func _drive_fodder(delta: float) -> void:
 			attack.attack(_target)
 		return
 	var at_spot := global_position.distance_to(spot) <= Brains.table.fodder_ring_tolerance_px
+	var firm := edge_distance_to(_target) <= attack.get_range_px() * FODDER_FIRM_REACH_SHARE
 	var stuck := global_position.distance_to(_ring_last_pos) < 0.5
 	_ring_last_pos = global_position
 	_ring_blocked = _ring_blocked + delta if not _ring_settled and in_reach and not at_spot and stuck else 0.0
-	if at_spot or _ring_blocked >= FODDER_BLOCKED_TIME:
+	if at_spot:
 		_ring_settled = true
-	elif not in_reach:
-		_ring_settled = false
+		_ring_stuck = false
+	elif _ring_blocked >= FODDER_BLOCKED_TIME:
+		_ring_settled = true
+		_ring_stuck = true
+	elif not in_reach or (not _ring_stuck and not firm):
+		_ring_settled = false   # pushed to the edge of its reach, its swings would whiff: back to its place
+		_ring_stuck = false
 	if _ring_settled and in_reach:
 		if attack.target != _target:
 			attack.attack(_target)

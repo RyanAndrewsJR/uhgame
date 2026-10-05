@@ -37,6 +37,17 @@ extends Node2D
 ##   (faster, ignoring sight, a hit only from inside the leash) and recovery;
 ## - a stunned holder; five test brutes never more than two on the Knight,
 ##   rotating; fodder in a ring around him with no tokens; the pack scenarios.
+## Step AI3, the skirmisher and the caster:
+## - the presets, the test enemies and their kits, the table's numbers; the
+##   THREATENED kind; Ability.get_effect_area() for the Knight's kit and the
+##   defaults; decide() with defend, escape, cornered, retreat, poses by role;
+## - the elite caster holding 550–800 u and poking, shielding only when a bolt
+##   or Judgement comes at it (after its reaction time), blinking away when
+##   caught, walking away with its blink down, then cornered: squared up,
+##   swinging, not running for 3 s; falling back behind its brute at low
+##   health; the skirmisher stalking, leaping in when the kit drops, hitting,
+##   hopping out and resetting; a missed gap-closer keeping the commit going;
+##   Shift+H and the mixed pack.
 ## Brains.rng is seeded. Prints PASS/FAIL per check, then a total. Run
 ## headless and it quits with the number of failures as the exit code.
 
@@ -59,6 +70,22 @@ const SLAM: Ability = preload("res://data/abilities/slime_elite_q_slam.tres")
 const VECTOR_WALL: Ability = preload("res://data/abilities/test_w_vector_wall.tres")
 const STATUS_SLOW: StatusEffect = preload("res://data/statuses/status_slow.tres")
 const ENEMY_DATA_DIR := "res://data/enemies/"
+# AI3
+const SKIRMISHER_SCENE: PackedScene = preload("res://scenes/enemies/test_skirmisher.tscn")
+const CASTER_SCENE: PackedScene = preload("res://scenes/enemies/test_caster.tscn")
+const CASTER_ELITE_SCENE: PackedScene = preload("res://scenes/enemies/test_caster_elite.tscn")
+const SKIRMISHER_BEHAVIOR: EnemyBehavior = preload("res://data/enemy_behaviors/enemy_behavior_skirmisher.tres")
+const CASTER_BEHAVIOR: EnemyBehavior = preload("res://data/enemy_behaviors/enemy_behavior_caster.tres")
+const SKIRMISHER_DATA: EnemyData = preload("res://data/enemies/enemy_test_skirmisher.tres")
+const CASTER_DATA: EnemyData = preload("res://data/enemies/enemy_test_caster.tres")
+const CASTER_ELITE_DATA: EnemyData = preload("res://data/enemies/enemy_test_caster_elite.tres")
+const LEAP: Ability = preload("res://data/abilities/test_skirmisher_q_leap.tres")
+const STAB: Ability = preload("res://data/abilities/test_skirmisher_w_stab.tres")
+const CASTER_BOLT: Ability = preload("res://data/abilities/test_caster_q_bolt.tres")
+const GUARD: Ability = preload("res://data/abilities/test_caster_w_guard.tres")
+const ESCAPE_BLINK: Ability = preload("res://data/abilities/test_caster_e_blink.tres")
+const TEST_BOLT: Ability = preload("res://data/abilities/test_q_bolt.tres")
+const JUDGEMENT_LEAP: Ability = preload("res://data/abilities/knight_r_judgement_leap.tres")
 ## Where the fights happen, away from the origin.
 const ARENA := Vector2(3000, 0)
 
@@ -70,7 +97,7 @@ var _failed: int = 0
 
 
 func _ready() -> void:
-	print("\n=== Enemies test (ENEMIES_AI AI1–AI2) ===")
+	print("\n=== Enemies test (ENEMIES_AI AI1–AI3) ===")
 	Progress.get_progress(KNIGHT)   # the save guards latch off first (a test scene)
 	Loot.get_inventory(KNIGHT)
 	Brains.rng.seed = 20261004
@@ -115,6 +142,20 @@ func _ready() -> void:
 	await _test_five_brutes()
 	await _test_fodder_ring()
 	await _test_sandbox_packs()
+
+	# AI3: the skirmisher and the caster.
+	_test_ai3_data()
+	_test_threatened()
+	await _test_effect_areas()
+	_test_decide_ai3()
+	await _test_caster_band_and_poke()
+	await _test_caster_defends()
+	await _test_caster_escapes()
+	await _test_caster_falls_back()
+	await _test_skirmisher()
+	await _test_skirmisher_miss()
+	await _test_gap_closer_commit()
+	await _test_sandbox_ai3()
 
 	Audio.stop_all()
 	await _frames(120)   # stop_all() leaves the UI bus: let the ultimate-ready pings (reset_cooldown()) finish
@@ -830,10 +871,10 @@ func _test_sandbox_brains() -> void:
 	var on_cast := func(u: Unit, a: Ability, _c: CastContext) -> void: casts.append([u, a])
 	Events.ability_cast.connect(on_cast)
 	brute = sb.run_scenario(&"incoming_shot")
-	await _frames(2)
+	await _wait_until(func() -> bool: return not casts.is_empty(), 60)   # (AI3: once it's fighting)
 	Events.ability_cast.disconnect(on_cast)
-	_check("incoming_shot: the Knight fires the test bolt at it", casts.size() == 1 and casts[0][0] == knight and casts[0][1] == sb.test_bolt, true)
-	_check("H cycles the eight (AI2 added the two packs)", [sb.next_scenario(), sb.next_scenario(), sb.next_scenario()], [&"pack", &"fodder", &"all_ready"])
+	_check("incoming_shot: the Knight fires the test bolt at it (once it's aggroed)", casts.size() == 1 and casts[0][0] == knight and casts[0][1] == sb.test_bolt and brute.ai == Enemy.AI.AGGRO, true)
+	_check("H cycles the nine (AI2 added the two packs, AI3 the mixed one)", [sb.next_scenario(), sb.next_scenario(), sb.next_scenario(), sb.next_scenario()], [&"pack", &"fodder", &"mixed", &"all_ready"])
 
 	# The panel: a live change for every enemy sharing the data; no saving here.
 	brute = sb.run_scenario(&"all_ready")
@@ -1441,7 +1482,510 @@ func _test_sandbox_packs() -> void:
 	await _frames(2)
 
 
+# --- AI3: the skirmisher and the caster ----------------------------------------------------
+
+func _test_ai3_data() -> void:
+	_section("AI3 data: the skirmisher and caster presets, the test enemies, the table's numbers")
+	var values: Array = []
+	for slider in EnemyBehavior.SLIDERS:
+		values.append(SKIRMISHER_BEHAVIOR.get_slider(slider))
+	_check("skirmisher: aggression .7, respect .8, patience 2, band 400–600, reaction .3, dodge .6 / 4, greed .8, finish .3, pressure 12, breather 5, jitter .2",
+		values, [0.7, 0.8, 2.0, 400.0, 600.0, 0.3, 0.6, 4.0, 0.8, 0.3, 12.0, 5.0, 0.2])
+	_check("its kind: role SKIRMISHER, hits and resets, uses tokens",
+		[SKIRMISHER_BEHAVIOR.role, SKIRMISHER_BEHAVIOR.low_health, SKIRMISHER_BEHAVIOR.uses_tokens],
+		[EnemyBehavior.Role.SKIRMISHER, EnemyBehavior.LowHealth.HIT_AND_RESET, true])
+	values = []
+	for slider in EnemyBehavior.SLIDERS:
+		values.append(CASTER_BEHAVIOR.get_slider(slider))
+	_check("caster: aggression .3, respect 1.2, patience 4, band 550–800, reaction .35, dodge .5 / 5, greed .4, finish .3, pressure 12, breather 5, jitter .15",
+		values, [0.3, 1.2, 4.0, 550.0, 800.0, 0.35, 0.5, 5.0, 0.4, 0.3, 12.0, 5.0, 0.15])
+	_check("its kind: role CASTER, falls back below 35%, never commits (commit weight 0)",
+		[CASTER_BEHAVIOR.role, CASTER_BEHAVIOR.low_health, CASTER_BEHAVIOR.retreat_health, CASTER_BEHAVIOR.get_intent_weight(&"commit")],
+		[EnemyBehavior.Role.CASTER, EnemyBehavior.LowHealth.FALL_BACK, 0.35, 0.0])
+	_check("the test skirmisher (regular): Leap on Q (gap_close, a real leap), Stab on W (damage)",
+		[SKIRMISHER_DATA.rank, _slot_ability(SKIRMISHER_DATA, &"q") == LEAP, _slot_ability(SKIRMISHER_DATA, &"w") == STAB, _intents(LEAP), _intents(STAB), LEAP.tags.has(&"leap")],
+		[EnemyData.Rank.REGULAR, true, true, [&"gap_close"], [&"damage"], true])
+	_check("the test caster (regular): Bolt on Q (poke), Blink away on E (escape); it notices from 850 u",
+		[CASTER_DATA.rank, _slot_ability(CASTER_DATA, &"q") == CASTER_BOLT, _slot_ability(CASTER_DATA, &"e") == ESCAPE_BLINK, _intents(CASTER_BOLT), _intents(ESCAPE_BLINK), CASTER_DATA.detect_range],
+		[EnemyData.Rank.REGULAR, true, true, [&"poke"], [&"escape"], 850.0])
+	var rule: Condition = GUARD.ai_uses[0].conditions[0] if not GUARD.ai_uses.is_empty() and not GUARD.ai_uses[0].conditions.is_empty() else null
+	_check("the elite test caster: Bolt, Guard on W (defend, only when THREATENED within 1 s), Blink away",
+		[CASTER_ELITE_DATA.rank, _slot_ability(CASTER_ELITE_DATA, &"w") == GUARD, _intents(GUARD), rule.kind if rule else -1, rule.value if rule else 0.0, CASTER_ELITE_DATA.abilities.size()],
+		[EnemyData.Rank.ELITE, true, [&"defend"], Condition.Kind.THREATENED, 1.0, 3])
+	var t := Brains.table
+	_check("scores: defend .9, escape .75, retreat .7", [t.get_intent_score(&"defend"), t.get_intent_score(&"escape"), t.get_intent_score(&"retreat")], [0.9, 0.75, 0.7])
+	_check("a caught caster walks away 2 s at most, then squares up for 3 s", [t.escape_walk_time, t.cornered_time], [2.0, 3.0])
+	_check("casters keep 2 m apart and want cover within 45°", [Units.px_to_m(t.caster_spacing_px), t.cover_angle_deg], [2.0, 45.0])
+	_check("the skirmisher's reset: 1.5 s once there, a 2 m hop, half its patience", [t.reset_time, Units.px_to_m(t.reset_hop_px), t.reset_patience], [1.5, 2.0, 0.5])
+
+
+func _test_threatened() -> void:
+	_section("The THREATENED condition kind (AI3)")
+	var within_1 := _threat_condition(1.0)
+	var within_03 := _threat_condition(0.3)
+	var any := _threat_condition(0.0)
+	var negated := _threat_condition(1.0)
+	negated.negate = true
+	var s := SituationContext.new()
+	_check("nothing coming: false (negated: true); no situation: false, even negated",
+		[within_1.is_met(knight, null, null, s), negated.is_met(knight, null, null, s), within_1.is_met(knight, null), negated.is_met(knight, null)], [false, true, false, false])
+	s.incoming.append({"time_to_hit": 0.5})
+	_check("an attack landing in 0.5 s: within 1 s yes, within 0.3 s no, any time yes",
+		[within_1.is_met(knight, null, null, s), within_03.is_met(knight, null, null, s), any.is_met(knight, null, null, s)], [true, false, true])
+	_check("a situation kind", within_1.is_situation_kind(), true)
+
+
+func _test_effect_areas() -> void:
+	_section("Ability.get_effect_area(): what an enemy sees coming at it (AI3)")
+	await _reset_knight()
+	var origin := knight.global_position
+	var near := _spawn(SLIME_SCENE, origin + Vector2(60, 0), true)
+	var side := _spawn(SLIME_SCENE, origin + Vector2(0, 200), true)
+	var far := _spawn(SLIME_SCENE, origin + Vector2(200, 0), true)
+	var beside := _spawn(SLIME_SCENE, origin + Vector2(0, 60), true)   # in reach, 90° off the aim
+	await _frames(1)
+	var ctx := CastContext.new()
+	ctx.point = origin + Vector2(100, 0)
+	ctx.direction = Vector2.RIGHT
+	ctx.target = near
+	var cleave := CLEAVE.get_effect_area(knight, ctx)
+	_check("Cleave: its cone, 60° each side, out to its reach; it covers the slime in front, not one beside (in reach, 90° off) or beyond",
+		[cleave.kind, snappedf(rad_to_deg(cleave.half_angle), 0.01), Ability.covers_unit(cleave, near), Ability.covers_unit(cleave, beside),
+			Ability.covers_unit(cleave, side), Ability.covers_unit(cleave, far)],
+		[&"cone", 60.0, true, false, false, false])
+	var lunge := LUNGE.get_effect_area(knight, ctx)
+	_check("Lunge: the path it will cut", [lunge.kind, lunge.to == ctx.point, Ability.covers_unit(lunge, near), Ability.covers_unit(lunge, side)], [&"segment", true, true, false])
+	var judgement := JUDGEMENT.get_effect_area(knight, ctx)
+	_check("Judgement: point-and-click on its target only", [judgement.kind, Ability.covers_unit(judgement, near), Ability.covers_unit(judgement, far)], [&"unit", true, false])
+	_check("Iron Resolve: on nobody (a buff)", IRON_RESOLVE.get_effect_area(knight, ctx).kind, &"none")
+	var leap := JUDGEMENT_LEAP.get_effect_area(knight, ctx)
+	_check("Judgement Leap: its landing circle", [leap.kind, snappedf(leap.radius, 0.01)], [&"circle", snappedf(Units.to_px(JUDGEMENT_LEAP.get_param(knight, &"landing_radius")), 0.01)])
+	var bolt := TEST_BOLT.get_effect_area(knight, ctx)
+	_check("a projectile ability (the default): its line out to its range; it covers the slime in line, not the one beside",
+		[bolt.kind, Ability.covers_unit(bolt, far), Ability.covers_unit(bolt, side)], [&"segment", true, false])
+	var smash := SMASH.get_effect_area(knight, ctx)
+	_check("a script with radius_px (the default): that circle at the point", [smash.kind, smash.center == ctx.point, smash.radius], [&"circle", true, 64.0])
+	for x in [near, side, far, beside]:
+		x.queue_free()
+	await _frames(1)
+
+
+func _test_decide_ai3() -> void:
+	_section("decide() (AI3): defend, escape, cornered, retreat, the caster never commits, poses by role")
+	var caster := CASTER_BEHAVIOR.resolve({}, [] as Array[BrainAdjust])
+	caster.jitter = 0.0
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 11
+	var s := _caster_situation(650.0)
+	s.add_use(&"q", &"poke", _plan(&"q"))
+	_check("a caster in its band with a poke: it pokes", EnemyBrain.decide(s, caster, rng).intent, &"poke")
+	s.add_use(&"w", &"defend", _plan(&"w"))
+	var d := EnemyBrain.decide(s, caster, rng)
+	_check("something coming at it (a defend use passes): it defends, with Guard, in its guard pose", [d.intent, d.plan.slot if d.plan else &"", d.pose], [&"defend", &"w", &"guard"])
+	s = _caster_situation(650.0, &"poke", 0.1)
+	s.add_use(&"q", &"poke", _plan(&"q"))
+	s.add_use(&"w", &"defend", _plan(&"w"))
+	_check("even right after it started poking: an attack coming breaks the hold", EnemyBrain.decide(s, caster, rng).intent, &"defend")
+	s = _caster_situation(300.0)
+	s.add_use(&"q", &"poke", _plan(&"q"))
+	s.add_use(&"e", &"escape", _plan(&"e"))
+	d = EnemyBrain.decide(s, caster, rng)
+	_check("its target inside its band's minimum: it escapes, with its blink", [d.intent, d.plan.slot if d.plan else &"", d.pose], [&"escape", &"e", &"step_back"])
+	s = _caster_situation(300.0)
+	s.add_use(&"q", &"poke", _plan(&"q"))
+	d = EnemyBrain.decide(s, caster, rng)
+	_check("its blink down: it escapes on foot (no plan)", [d.intent, d.plan], [&"escape", null])
+	s.cornered = true
+	d = EnemyBrain.decide(s, caster, rng)
+	_check("cornered: no escape; it pokes, squared up (cornered pose)", [d.intent, d.pose], [&"poke", &"cornered"])
+	s = _caster_situation(650.0)
+	s.add_use(&"q", &"poke", _plan(&"q"))
+	s.health_ratio = 0.3
+	d = EnemyBrain.decide(s, caster, rng)
+	_check("below 35% health: it falls back, still poking", [d.intent, d.plan.slot if d.plan else &"", d.pose], [&"retreat", &"q", &"step_back"])
+	s.health_ratio = 0.5
+	_check("at 50%: it pokes", EnemyBrain.decide(s, caster, rng).intent, &"poke")
+	s = _caster_situation(650.0)
+	s.patience = 1.0
+	_check("a caster with full patience and nothing needed: never a commit (weight 0)", EnemyBrain.decide(s, caster, rng).intent, &"hold")
+	var brute := _regular_brute()
+	brute.jitter = 0.0
+	s = _situation(1.0, 0.0)
+	s.target_edge_distance_px = Units.to_px(300.0)
+	_check("a brute walked in on (inside its band, no escape use): it holds its ground", EnemyBrain.decide(s, brute, rng).intent, &"hold")
+	var skirmisher := SKIRMISHER_BEHAVIOR.resolve({}, [] as Array[BrainAdjust])
+	skirmisher.jitter = 0.0
+	s = _situation(1.0, 0.5)
+	d = EnemyBrain.decide(s, skirmisher, rng)
+	_check("a skirmisher holding: its stalk pose", [d.intent, d.pose], [&"hold", &"stalk"])
+	s.resetting = true
+	d = EnemyBrain.decide(s, skirmisher, rng)
+	_check("a skirmisher's reset: it retreats, recoiling", [d.intent, d.pose], [&"retreat", &"recoil"])
+	_check("the brute's poses are AI1's", [EnemyBrain.get_intent_pose(&"hold", EnemyBehavior.Role.BRUTE), EnemyBrain.get_intent_pose(&"poke", EnemyBehavior.Role.BRUTE), EnemyBrain.get_intent_pose(&"commit", EnemyBehavior.Role.BRUTE)],
+		[&"hold", &"hold", &""])
+
+
+## The step's "Done means": the caster pokes from 550–800 u.
+func _test_caster_band_and_poke() -> void:
+	_section("The elite caster holds 550–800 u from the Knight and pokes; with nothing aimed at it, no shield")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	knight.resource_pool.restore(1000.0)
+	var caster := _spawn(CASTER_ELITE_SCENE, knight.global_position + Vector2(230, 0), false)
+	var casts := {}
+	caster.abilities.cast_started.connect(func(slot: StringName, _a: Ability, _c: CastContext) -> void: casts[slot] = int(casts.get(slot, 0)) + 1)
+	var bolt_hits := [0]
+	var on_damaged := func(ctx: HitContext) -> void:
+		if ctx.source == caster and ctx.target == knight and not ctx.tags.has(&"basic_attack"):
+			bolt_hits[0] += 1
+	Events.unit_damaged.connect(on_damaged)
+	var in_band := true
+	var min_e := INF
+	var max_e := 0.0
+	for i in 420:
+		await get_tree().physics_frame
+		knight.health.heal(100000.0)
+		knight.resource_pool.restore(1000.0)
+		if i >= 120:
+			var e := Units.to_units(caster.edge_distance_to(knight))
+			min_e = minf(min_e, e)
+			max_e = maxf(max_e, e)
+			in_band = in_band and e >= 520.0 and e <= 830.0
+	Events.unit_damaged.disconnect(on_damaged)
+	_check("it holds in its band (550–800 u, a little slack; got %d–%d u)" % [roundi(min_e), roundi(max_e)], [caster.ai, in_band], [Enemy.AI.AGGRO, true])
+	_check("it pokes the whole time: bolts cast (%d), and they hit the Knight standing there (%d)" % [int(casts.get(&"q", 0)), bolt_hits[0]],
+		[int(casts.get(&"q", 0)) >= 2, bolt_hits[0] >= 1], [true, true])
+	_check("nothing aimed at it: no shield, no blink", [int(casts.get(&"w", 0)), int(casts.get(&"e", 0))], [0, 0])
+	caster.passive = true
+	caster.queue_free()
+	await _frames(30)
+
+
+## The step's "Done means": the caster shields only when something is aimed
+## at it (a projectile; and a point-and-click cast: Ryan, 2026-10-04).
+func _test_caster_defends() -> void:
+	_section("The elite caster shields when it sees an attack coming at it, never otherwise")
+	await _reset_knight()
+	knight.resource_pool.restore(1000.0)
+	var caster := _spawn(CASTER_ELITE_SCENE, knight.global_position + Vector2(240, 0), false)
+	var brain := caster.get_brain()
+	var guards := [0]
+	caster.abilities.cast_started.connect(func(slot: StringName, _a: Ability, _c: CastContext) -> void:
+		if slot == &"w":
+			guards[0] += 1)
+	var poses: Array = []
+	brain.pose_changed.connect(func(p: StringName) -> void: poses.append(p))
+	await _frames(90)
+	_check("settled in its band, nothing aimed at it: no shield", [caster.ai, guards[0]], [Enemy.AI.AGGRO, 0])
+	var absorbed := [0.0]
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.target == caster and ctx.source == knight:
+			absorbed[0] += ctx.absorbed
+	Events.unit_hit.connect(on_hit)
+	var fired_at := Brains.get_time()
+	knight.abilities.try_cast_free(TEST_BOLT, caster.global_position, null, &"test")
+	await _wait_until(func() -> bool: return guards[0] > 0, 90)
+	var took := Brains.get_time() - fired_at
+	await _frames(45)
+	Events.unit_hit.disconnect(on_hit)
+	_check("a bolt flying at it: Guard goes up once its reaction time has passed (0.35–0.6 s; got %.2f s), in its guard pose" % took,
+		[guards[0], took >= 0.35 and took <= 0.6, poses.has(&"guard")], [1, true, true])
+	_check("the shield took the bolt (%.0f absorbed)" % absorbed[0], absorbed[0] > 0.0, true)
+	caster.passive = true
+	caster.queue_free()
+	await _frames(30)
+
+	# Judgement on it (point-and-click, 0.75 s): seen and shielded too.
+	await _reset_knight()
+	knight.resource_pool.restore(1000.0)
+	var second := _spawn(CASTER_ELITE_SCENE, knight.global_position + Vector2(130, 0), false)
+	second.abilities.start_cooldown(&"e")   # no blink: it stays in his range
+	var second_guards := [0]
+	second.abilities.cast_started.connect(func(slot: StringName, _a: Ability, _c: CastContext) -> void:
+		if slot == &"w":
+			second_guards[0] += 1)
+	await _frames(3)
+	var judged := knight.abilities.try_cast(&"r", second.global_position, second)
+	await _wait_until(func() -> bool: return second_guards[0] > 0 or not knight.abilities.casting, 60)
+	_check("Judgement cast on it: it sees it coming and its Guard goes up before it lands", [judged, second_guards[0]], [true, 1])
+	second.passive = true
+	second.queue_free()
+	await _reset_knight()
+	await _frames(60)
+
+
+## The step's "Done means": the caster blinks away when caught and squares up
+## when its blink is down.
+func _test_caster_escapes() -> void:
+	_section("Caught, the caster blinks away; its blink down, it walks away, then squares up and fights (no running for 3 s)")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	knight.resource_pool.restore(1000.0)
+	var caster := _spawn(CASTER_SCENE, knight.global_position + Vector2(230, 0), false)
+	var brain := caster.get_brain()
+	await _frames(60)
+	var asked := SituationContext.new()
+	asked.has_target = true
+	asked.target_unit = knight
+	var plan := ESCAPE_BLINK.get_ai_plan(caster, asked)
+	var away := (caster.global_position - knight.global_position).normalized()
+	_check("its escape plan in the open: straight away from him, the whole blink", [plan != null and plan.intents == ([&"escape"] as Array[StringName]),
+		plan != null and rad_to_deg(absf(away.angle_to(plan.point - caster.global_position))) < 1.0], [true, true])
+	_place(knight, caster.global_position + Vector2(-50, 0))   # he walked in on it
+	await _wait_until(func() -> bool: return not caster.abilities.is_ready(&"e"), 60)
+	await _frames(10)
+	_check("caught: it blinks away (its blink on cooldown), well out of his reach (got %d u)" % roundi(Units.to_units(caster.edge_distance_to(knight))),
+		[caster.abilities.is_ready(&"e"), Units.to_units(caster.edge_distance_to(knight)) > 300.0], [false, true])
+	var stick := Vector2(-50, 0)
+	_place(knight, caster.global_position + stick)
+	var escaped := false
+	var walk_pose := false
+	var walk_start := caster.global_position
+	var walked := 0
+	for i in 180:   # he sticks to it
+		await get_tree().physics_frame
+		escaped = escaped or brain.is_escaping()
+		walk_pose = walk_pose or caster.get_pose() == &"step_back"
+		if brain.is_cornered():
+			break
+		walked += 1
+		_place(knight, caster.global_position + stick)
+	_check("its blink down, caught again: it walks away from him (step_back pose; %d px)" % roundi(caster.global_position.distance_to(walk_start)),
+		[escaped, walk_pose, caster.global_position.x > walk_start.x + 60.0], [true, true, true])
+	_check("after 2 s on foot it's cornered (after %.2f s): it squares up" % (walked / 60.0), [brain.is_cornered(), caster.get_pose(), absf(walked / 60.0 - 2.0) < 0.2], [true, &"cornered", true])
+	var corner_pos := caster.global_position
+	var landed := [0]
+	caster.attack.attack_landed.connect(func(_t: Unit, _d: float) -> void: landed[0] += 1)
+	var ran := false
+	for i in 150:   # 2.5 s of its 3
+		await get_tree().physics_frame
+		knight.health.heal(100000.0)
+		ran = ran or brain.is_escaping() or brain.get_intent() == &"escape"
+	_check("cornered: it doesn't run (it stays put, %d px), it swings at him (its weak, slow close option)" % roundi(caster.global_position.distance_to(corner_pos)),
+		[ran, landed[0] >= 1, caster.global_position.distance_to(corner_pos) < 40.0], [false, true, true])
+	caster.passive = true
+	caster.attack.cancel()
+	caster.queue_free()
+	await _frames(30)
+
+
+## The step's "Done means": low health → behind a melee packmate.
+func _test_caster_falls_back() -> void:
+	_section("Below 35% health the caster falls back behind its melee packmate and keeps poking")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	knight.resource_pool.restore(1000.0)   # his kit up: the brute holds
+	var pack := Pack.new()
+	pack.name = "FallBackPack"
+	var brute := BRUTE_SCENE.instantiate() as Enemy
+	var caster := CASTER_ELITE_SCENE.instantiate() as Enemy
+	caster.position = Vector2(60, -80)
+	pack.add_child(brute)
+	pack.add_child(caster)
+	entities.add_child(pack)
+	_place(pack, knight.global_position + Vector2(170, 0))
+	await _frames(90)
+	var mates: Array[Enemy] = [brute]
+	var spot := EnemyBrain.get_fall_back_spot(caster, knight, mates, caster.get_brain().behavior)
+	var behind := (brute.global_position - knight.global_position).normalized()
+	_check("its fall-back spot: straight behind the brute as seen from the Knight, edge to edge plus a little",
+		[rad_to_deg(absf(behind.angle_to(spot - knight.global_position))) < 0.5, spot.distance_to(knight.global_position) > brute.global_position.distance_to(knight.global_position)], [true, true])
+	caster.health.take_damage(caster.health.max_health * 0.7)
+	var bolts := [0]
+	caster.abilities.cast_started.connect(func(slot: StringName, _a: Ability, _c: CastContext) -> void:
+		if slot == &"q":
+			bolts[0] += 1)
+	var retreated := false
+	for i in 240:
+		await get_tree().physics_frame
+		knight.health.heal(100000.0)
+		knight.resource_pool.restore(1000.0)
+		retreated = retreated or caster.get_brain().get_intent() == &"retreat"
+	var center := knight.global_position
+	var spread := rad_to_deg(absf(angle_difference((brute.global_position - center).angle(), (caster.global_position - center).angle())))
+	_check("it falls back (retreat)", retreated, true)
+	_check("behind the brute as seen from the Knight (within 45°; got %.0f°), farther than it" % spread,
+		[spread <= 45.0, caster.global_position.distance_to(center) > brute.global_position.distance_to(center)], [true, true])
+	_check("still poking as it falls back (%d bolts)" % bolts[0], bolts[0] >= 1, true)
+	for x in [brute, caster]:
+		x.passive = true
+		x.attack.cancel()
+	pack.queue_free()
+	await _frames(30)
+
+
+## The step's "Done means": the skirmisher dives when respect drops and hops
+## out after its hit.
+func _test_skirmisher() -> void:
+	_section("The skirmisher stalks while the kit is up, leaps in when it drops, hits and hops out")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	knight.resource_pool.restore(1000.0)
+	var sk := _spawn(SKIRMISHER_SCENE, knight.global_position + Vector2(170, 0), false)
+	var brain := sk.get_brain()
+	var leaps := [0]
+	sk.abilities.cast_started.connect(func(slot: StringName, _a: Ability, _c: CastContext) -> void:
+		if slot == &"q":
+			leaps[0] += 1)
+	for i in 120:
+		await get_tree().physics_frame
+		knight.resource_pool.restore(1000.0)
+		knight.health.heal(100000.0)
+	_check("his kit up: it holds in its band, stalking, no leap (%d u)" % roundi(Units.to_units(sk.edge_distance_to(knight))),
+		[brain.get_intent(), sk.get_pose(), leaps[0], Units.to_units(sk.edge_distance_to(knight)) >= 370.0], [&"hold", &"stalk", 0, true])
+	_spend_kit()
+	var hp := knight.health.current
+	await _wait_until(func() -> bool: return leaps[0] > 0, 360)
+	_check("his kit spent: after its crouch it leaps (its gap-closer)", leaps[0], 1)
+	await _wait_until(func() -> bool: return brain.is_resetting(), 120)
+	var hit_edge := Units.to_units(sk.edge_distance_to(knight))
+	_check("its leap landed a hit and its commit ended there: it resets, recoiling, with about half its patience (%.2f)" % brain.get_patience(),
+		[knight.health.current < hp, brain.is_resetting(), brain.get_patience() >= 0.5 and brain.get_patience() < 0.7, sk.get_pose()], [true, true, true, &"recoil"])
+	var farthest := 0.0
+	var reset_intents: Array = []
+	for i in 60:
+		await get_tree().physics_frame
+		farthest = maxf(farthest, Units.to_units(sk.edge_distance_to(knight)))
+		if not reset_intents.has(brain.get_intent()):
+			reset_intents.append(brain.get_intent())
+	_check("it hops out: more than 2 m farther within a second (%d → %d u)" % [roundi(hit_edge), roundi(farthest)], farthest > hit_edge + 200.0, true)
+	var out := [farthest]   # (a lambda captures a local by value)
+	await _wait_until(func() -> bool:
+		out[0] = maxf(out[0], Units.to_units(sk.edge_distance_to(knight)))
+		return not brain.is_resetting(), 120)
+	_check("and walks back out to its band through its reset (retreat; out to %d u)" % roundi(out[0]), [reset_intents, out[0] >= 380.0], [[&"retreat"], true])
+	sk.passive = true
+	sk.attack.cancel()
+	sk.queue_free()
+	await _reset_knight()
+	await _frames(30)
+
+
+## A gap-closer only gets it there: its leap missing (he stepped aside) ends
+## nothing; the commit goes on until a hit lands or reset_time runs out.
+func _test_skirmisher_miss() -> void:
+	_section("The skirmisher's leap misses: its commit goes on (a gap-closer's cast doesn't end it)")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	_spend_kit()
+	var sk := _spawn(SKIRMISHER_SCENE, knight.global_position + Vector2(170, 0), false)
+	var brain := sk.get_brain()
+	var leaps := [0]
+	sk.abilities.cast_started.connect(func(slot: StringName, _a: Ability, _c: CastContext) -> void:
+		if slot == &"q":
+			leaps[0] += 1)
+	await _wait_until(func() -> bool: return leaps[0] > 0, 360)
+	_place(knight, knight.global_position + Vector2(0, 150))   # he steps out of its landing circle
+	var hp := knight.health.current
+	await _wait_until(func() -> bool: return not sk.abilities.casting and not sk.movement.is_leaping(), 90)
+	await _frames(3)
+	_check("landed short of him, no hit: still committing (chasing him down)", [knight.health.current == hp, brain.is_committing(), brain.get_intent()], [true, true, &"commit"])
+	await _wait_until(func() -> bool: return brain.is_resetting(), 180)
+	_check("then it resets (a hit landed, or 1.5 s once it got to him)", brain.is_resetting(), true)
+	sk.passive = true
+	sk.attack.cancel()
+	sk.queue_free()
+	await _reset_knight()
+	await _frames(30)
+
+
+## The same rule on a brute (which otherwise ends its commit after its first
+## cast): a brute given the leap as a gap-closer keeps committing after it.
+func _test_gap_closer_commit() -> void:
+	_section("A gap-closer's cast doesn't end a brute's commit either (its first cast after it does)")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	_spend_kit()
+	var leaper: EnemyData = BRUTE_DATA.duplicate()
+	var slot := EnemyAbilitySlot.new()
+	slot.slot = &"w"
+	slot.ability = LEAP
+	leaper.abilities = [BRUTE_DATA.abilities[0], slot]
+	var brute := BRUTE_SCENE.instantiate() as Enemy
+	brute.data = leaper
+	entities.add_child(brute)
+	_place(brute, knight.global_position + Vector2(170, 0))
+	var brain := brute.get_brain()
+	var leaps := [0]
+	brute.abilities.cast_started.connect(func(s: StringName, _a: Ability, _c: CastContext) -> void:
+		if s == &"w":
+			leaps[0] += 1)
+	await _wait_until(func() -> bool: return leaps[0] > 0, 600)
+	_place(knight, knight.global_position + Vector2(0, 150))
+	await _wait_until(func() -> bool: return not brute.abilities.casting and not brute.movement.is_leaping(), 90)
+	await _frames(15)   # two thinks after it landed
+	_check("it leapt (%d) and, landed short of him, still commits after two thinks" % leaps[0], [leaps[0], brain.is_committing()], [1, true])
+	brute.passive = true
+	brute.attack.cancel()
+	brute.queue_free()
+	await _reset_knight()
+	await _frames(30)
+
+
+func _test_sandbox_ai3() -> void:
+	_section("SandboxBrains (AI3): Shift+H picks the test enemy; the mixed pack")
+	await _reset_knight()
+	var sb := SandboxBrains.new()
+	add_child(sb)
+	await _frames(2)
+	var order: Array = []
+	for i in 4:
+		order.append(sb.cycle_scenario_enemy().resource_path.get_file())
+	_check("Shift+H: brute → skirmisher → caster → elite caster → brute", order,
+		["test_skirmisher.tscn", "test_caster.tscn", "test_caster_elite.tscn", "test_brute.tscn"])
+	sb.scenario_enemy = CASTER_ELITE_SCENE
+	var caster := sb.run_scenario(&"all_ready")
+	await _frames(2)
+	_check("the scenarios spawn it (the elite caster)", caster != null and caster.data == CASTER_ELITE_DATA, true)
+	var first := sb.run_scenario(&"mixed")
+	await _frames(2)
+	var roles: Array = []
+	if first != null:
+		for m in first.get_pack().get_members():
+			roles.append(String(m.data.id))
+	roles.sort()
+	_check("mixed: one pack of a brute, a skirmisher, an elite caster and three slimes", roles,
+		["slime", "slime", "slime", "test_brute", "test_caster_elite", "test_skirmisher"])
+	sb.clear_scenario()
+	sb.queue_free()
+	await _frames(2)
+
+
+func _caster_situation(edge_units: float, intent: StringName = &"hold", intent_age: float = 1.0) -> SituationContext:
+	var s := _situation(0.5, 0.0, intent, intent_age)
+	s.target_edge_distance_px = Units.to_px(edge_units)
+	return s
+
+
+func _threat_condition(within: float) -> Condition:
+	var c := Condition.new()
+	c.kind = Condition.Kind.THREATENED
+	c.value = within
+	return c
+
+
+func _slot_ability(data: EnemyData, slot: StringName) -> Ability:
+	for s in data.abilities:
+		if s != null and s.slot == slot:
+			return s.ability
+	return null
+
+
+func _intents(ability: Ability) -> Array:
+	var out: Array = []
+	for use in ability.get_ai_uses():
+		out.append(use.intent)
+	return out
+
+
 # --- Helpers ----------------------------------------------------------------------------
+
+## The Knight's kit all ready again (every charge back).
+func _reset_cooldowns() -> void:
+	for slot in AbilityComponent.SLOTS:
+		for i in knight.abilities.get_max_charges(slot):
+			knight.abilities.reset_cooldown(slot)
+
 
 ## The Knight's kit all spent (every slot on cooldown, no Fury): respect 0.
 func _spend_kit() -> void:

@@ -1,0 +1,23 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/abilities/test_caster/escape_blink.gd" id="1_script"]
+[ext_resource type="Script" path="res://scripts/data/ai_use.gd" id="2_use"]
+
+[sub_resource type="Resource" id="use_escape"]
+script = ExtResource("2_use")
+intent = &"escape"
+
+[resource]
+script = ExtResource("1_script")
+through_walls = false
+id = &"test_caster_blink"
+tags = Array[StringName]([&"mobility", &"blink"])
+display_name = "Blink away"
+description = "Blinks up to {range} units away from its target, stopping short of a wall in the way."
+icon_color = Color(0.65, 0.55, 1, 1)
+targeting = 2
+cooldown = 10.0
+cast_time = 0.15
+cast_range = 450.0
+resets_auto_attack = false
+ai_uses = Array[ExtResource("2_use")]([SubResource("use_escape")])

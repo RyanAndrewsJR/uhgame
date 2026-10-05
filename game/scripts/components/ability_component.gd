@@ -248,6 +248,34 @@ func get_cast_progress() -> float:
 	return _cast_ctx.progress
 
 
+## The cast (or charge-up) in progress: its ability, or null (ENEMIES_AI AI3:
+## what an enemy sees coming at it).
+func get_cast_ability() -> Ability:
+	if not casting:
+		return null
+	return _cast_ability if _cast_ability != null else _charge_ability
+
+
+## The cast in progress's context (its point, direction, target), or null
+## (none, or a charge-up or VECTOR aim still held: its cast starts at release).
+func get_cast_context() -> CastContext:
+	return _cast_ctx if casting else null
+
+
+## Seconds until the cast in progress's effect starts (its cast time left at
+## its cast speed); 0 when nothing is casting or the effect has started.
+func get_cast_time_left() -> float:
+	if not casting or _cast_ctx == null or _cast_ctx.progress >= 1.0:
+		return 0.0
+	return maxf(_cast_time_left, 0.0) / maxf(_get_valid_cast_speed(_cast_ability), 0.01)
+
+
+## The aim of the charge-up being held (Vector2.INF when none is held): where
+## it would fire now.
+func get_charge_aim() -> Vector2:
+	return _charge_aim if _charge_phase == ChargePhase.HOLDING else Vector2.INF
+
+
 ## True if the slot has a charge (with max_charges 1: its cooldown is done)
 ## or a recast sequence is going (its next part needs no charge).
 func is_ready(slot: StringName) -> bool:

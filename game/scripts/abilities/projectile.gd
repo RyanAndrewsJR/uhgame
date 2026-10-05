@@ -19,6 +19,8 @@ extends Node2D
 ## Walls stop the projectile's core, a small circle (not its full width), so
 ## a wide projectile doesn't catch on corners it visibly clears.
 const WALL_RADIUS_PX := 2.0
+## Every projectile in flight is in this group (enemy perception reads it).
+const GROUP := &"projectiles"
 
 @export var debug_draw: bool = false
 ## Its 3D look (3D.md, The generic view mechanism; the projectile is in the
@@ -85,8 +87,14 @@ func _setup(p_caster: Unit, p_ability: Ability, p_cast: CastContext, origin: Vec
 
 func _ready() -> void:
 	add_to_group(&"view_source")   # its 3D look (3D.md); nothing happens without a WorldView
+	add_to_group(GROUP)   # what enemies see in flight (ENEMIES_AI AI3)
 	if debug_draw:
 		visibility_layer |= FloorOverlay.DRAWING_VISIBILITY_BIT   # the debug sweep shows on the 3D floor (cleanup C2)
+
+
+## How far it can still fly (px).
+func get_range_left() -> float:
+	return maxf(range_px - _travelled, 0.0)
 
 
 ## The scene of its 3D view (view_scene, or the default bolt). Loaded only when

@@ -9,8 +9,8 @@ extends RefCounted
 ## reads them.
 ## Built in AI1: self, the target, respect, patience, the commit and the
 ## castable uses. AI2 added the tokens, the taunt, reachability and home.
-## Later steps add the incoming attacks (AI3), packmates' roles and places
-## (AI3: casters behind melee), dodging (AI4) and the punish window (AI6).
+## AI3 added the incoming attacks and the cornered, escaping and resetting
+## states. Later steps add dodging (AI4) and the punish window (AI6).
 
 # --- Self ---------------------------------------------------------------------
 var rank: EnemyData.Rank = EnemyData.Rank.REGULAR
@@ -81,6 +81,29 @@ var tokens_free: int = 0
 ## Its pack's home and its distance to it (px).
 var home_position: Vector2 = Vector2.ZERO
 var home_distance_px: float = 0.0
+
+# --- Incoming attacks and its own states (AI3) ----------------------------------
+## The attacks it sees coming at it, each perceived once its reaction time
+## has passed since it first saw it (ENEMIES_AI.md, Knowledge):
+## {source: Unit, ability: Ability, kind: &"cast" / &"charge_up" /
+## &"projectile", area: Dictionary (Ability.get_effect_area()), time_to_hit
+## (s), age (s since first seen), dodgeable (false until AI4)}.
+var incoming: Array[Dictionary] = []
+## Cornered (a caster caught with no way out): it squares up and fights, and
+## doesn't run again until it's over (Cornered casters).
+var cornered: bool = false
+## Walking away from its target on foot (an escape with no escape ability).
+var escaping: bool = false
+## A skirmisher's reset after its hit: it hops out and retreats to its band.
+var resetting: bool = false
+
+
+## An attack it has seen coming lands within `within` seconds (0 = any).
+func is_threatened(within: float) -> bool:
+	for a in incoming:
+		if within <= 0.0 or float(a.time_to_hit) <= within:
+			return true
+	return false
 
 # --- What it can cast ---------------------------------------------------------
 ## Each castable slot's passing uses: {slot, intent, weight, plan: CastPlan}.

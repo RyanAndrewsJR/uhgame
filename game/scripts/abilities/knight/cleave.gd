@@ -53,5 +53,17 @@ func draw_indicator(canvas: Node2D, caster: Unit, aim: Vector2) -> void:
 	canvas.draw_polyline(pts, Color(icon_color, 0.8), 1.0)
 
 
+## The cone it will sweep, or the circle all around with Whirling Cleave
+## (ENEMIES_AI AI3: what an enemy sees coming at it).
+func get_effect_area(caster: Unit, ctx: CastContext) -> Dictionary:
+	if ctx == null or not is_instance_valid(caster):
+		return {"kind": &"none"}
+	var reach := Units.to_px(get_param(caster, &"cast_range"))
+	if ctx.has_flag(&"cleave_whirl"):
+		return {"kind": &"circle", "center": caster.global_position, "radius": reach}
+	return {"kind": &"cone", "origin": caster.global_position, "direction": ctx.direction, "range": reach,
+		"half_angle": deg_to_rad(_half_angle_deg(ctx.flags))}
+
+
 func _half_angle_deg(flags: Array[StringName]) -> float:
 	return flag_rend_half_angle_deg if flags.has(&"cleave_rend") else cone_half_angle_deg

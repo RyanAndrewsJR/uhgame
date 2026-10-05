@@ -23,6 +23,7 @@ enum Kind {
 	RESOURCE_AT_LEAST,      ## Self's resource pool >= value; a unit without a pool fails.
 	LAST_PART_HIT,          ## In a recast sequence, the previous part hit something (reads the cast).
 	RESPECT,                ## The brain's situation: its respect (0-1) compared with value (ENEMIES_AI AI1).
+	THREATENED,             ## The brain's situation: an attack it sees coming at it lands within value s (0 = any time; ENEMIES_AI AI3).
 }
 
 enum Comparison {
@@ -42,7 +43,8 @@ enum Comparison {
 ## The *_HEALTH_PERCENT kinds, TARGET_DISTANCE and RESPECT.
 @export var comparison: Comparison = Comparison.AT_LEAST
 ## *_HEALTH_PERCENT: 0-1 of max health. TARGET_DISTANCE: LoL units, edge to
-## edge. RESOURCE_AT_LEAST: the amount. RESPECT: 0-1.
+## edge. RESOURCE_AT_LEAST: the amount. RESPECT: 0-1. THREATENED: seconds
+## (0 = any attack coming, whenever it lands).
 @export var value: float = 0.0
 ## ENEMIES_IN_RANGE: at least this many.
 @export var count: int = 1
@@ -55,8 +57,8 @@ enum Comparison {
 
 ## The kind's check, then negate. `cast` is the CastContext when there is one
 ## (LAST_PART_HIT reads it); null otherwise. `situation` is an enemy brain's
-## SituationContext when an AI use rule is checked (ENEMIES_AI AI1); the
-## situation kinds (RESPECT) read it, and without one they're false, even
+## SituationContext when an AI use rule is checked (ENEMIES_AI AI1, AI3); the
+## situation kinds (RESPECT, THREATENED) read it, and without one they're false, even
 ## when negated (a cast condition, a reaction rule). The other kinds ignore it.
 func is_met(self_unit: Unit, target: Unit, cast: CastContext = null, situation: SituationContext = null) -> bool:
 	if not is_instance_valid(self_unit):
@@ -76,10 +78,10 @@ func is_target_kind() -> bool:
 	return kind == Kind.TARGET_HAS_STATUS or kind == Kind.TARGET_HEALTH_PERCENT or kind == Kind.TARGET_DISTANCE
 
 
-## A kind that reads a brain's SituationContext (RESPECT; later THREATENED
-## and TARGET_WHIFFED, ENEMIES_AI AI3 and AI6).
+## A kind that reads a brain's SituationContext (RESPECT, THREATENED; later
+## TARGET_WHIFFED, ENEMIES_AI AI6).
 func is_situation_kind() -> bool:
-	return kind == Kind.RESPECT
+	return kind == Kind.RESPECT or kind == Kind.THREATENED
 
 
 ## All of `conditions` pass (AND). An empty list passes.
@@ -129,10 +131,14 @@ func _check(self_unit: Unit, target: Unit, cast: CastContext) -> bool:
 
 ## RESPECT: the party's respect as the situation saw it (0-1, before the
 ## enemy's respect_weight slider: the same for every enemy).
+## THREATENED: an attack the brain has seen coming at it (after its reaction
+## time: SituationContext.incoming) lands within `value` seconds; 0 = any.
 func _check_situation(situation: SituationContext) -> bool:
 	match kind:
 		Kind.RESPECT:
 			return _compare(situation.respect)
+		Kind.THREATENED:
+			return situation.is_threatened(value)
 	return false
 
 

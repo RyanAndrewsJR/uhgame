@@ -34,22 +34,39 @@ extends Node
 ##                AI2 adds two packs, placed 9 m away toward the cursor and
 ##                idle until they notice the Knight: a pack of five test
 ##                brutes (two tokens at a time, the shout, the leash) and a
-##                pack of eight slimes (the fodder ring).
+##                pack of eight slimes (the fodder ring). AI3 adds a mixed
+##                pack: a brute, a skirmisher, an elite caster, three slimes.
+##   Shift+H      (AI3) the next test enemy the scenarios spawn: the test
+##                brute, skirmisher, caster, elite caster; the scenario
+##                running now spawns it again.
 ## It never touches the player's saves. room_01 has none of this.
 
 const TEXT_COLOR := Color(0.92, 0.92, 0.92)
 const HINT_COLOR := Color(0.65, 0.65, 0.7)
 const SOURCE_ID := &"sandbox_brains"
-const SCENARIOS: Array[StringName] = [&"all_ready", &"none_ready", &"low_health", &"ally", &"whiff", &"incoming_shot", &"pack", &"fodder"]
+const SCENARIOS: Array[StringName] = [&"all_ready", &"none_ready", &"low_health", &"ally", &"whiff", &"incoming_shot", &"pack", &"fodder", &"mixed"]
 const SCENARIO_NAMES := {
 	&"all_ready": "all cooldowns ready", &"none_ready": "none ready", &"low_health": "low health (25%)",
 	&"ally": "an ally present", &"whiff": "a whiff (Judgement spent)", &"incoming_shot": "an incoming shot",
 	&"pack": "a pack of five brutes (9 m away, idle)", &"fodder": "a pack of eight slimes (9 m away, idle)",
+	&"mixed": "a mixed pack: brute, skirmisher, elite caster, three slimes (9 m away, idle)",
 }
 const FRIENDLY_SCENE := preload("res://scenes/enemies/slime.tscn")
 
-## What H spawns (the test brute).
+## What H spawns (the test brute; Shift+H picks another of scenario_enemies).
 @export var scenario_enemy: PackedScene = preload("res://scenes/enemies/test_brute.tscn")
+## The test enemies Shift+H cycles through (AI3).
+@export var scenario_enemies: Array[PackedScene] = [
+	preload("res://scenes/enemies/test_brute.tscn"), preload("res://scenes/enemies/test_skirmisher.tscn"),
+	preload("res://scenes/enemies/test_caster.tscn"), preload("res://scenes/enemies/test_caster_elite.tscn"),
+]
+## The mixed pack (AI3), spawned in this order (members after the first stand
+## around it).
+@export var mixed_pack: Array[PackedScene] = [
+	preload("res://scenes/enemies/test_brute.tscn"), preload("res://scenes/enemies/test_skirmisher.tscn"),
+	preload("res://scenes/enemies/test_caster_elite.tscn"), preload("res://scenes/enemies/slime.tscn"),
+	preload("res://scenes/enemies/slime.tscn"), preload("res://scenes/enemies/slime.tscn"),
+]
 ## How far from the Knight it spawns (px; 160 = 5 m).
 @export var scenario_distance_px: float = 160.0
 ## The test bolt the incoming-shot scenario fires (a free cast from the Knight).
@@ -116,7 +133,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_N:
 			set_panel(not is_panel_open())
 		KEY_H:
-			next_scenario()
+			if key.shift_pressed:
+				cycle_scenario_enemy()
+			else:
+				next_scenario()
 		KEY_COMMA:
 			if not is_panel_open():
 				return
@@ -191,6 +211,17 @@ func get_overlay_text(enemy: Enemy) -> String:
 	var effective := s.effective_respect if s != null else 0.0
 	lines.append("respect %.2f (%.2f)  patience %.2f" % [respect, effective, brain.get_patience()])
 	lines.append("token %s  dodge -  react %.2f s  %d µs" % [brain.get_token_state(), brain.behavior.reaction_time, brain.get_think_usec()])
+	var state: PackedStringArray = []
+	if s != null and not s.incoming.is_empty():
+		state.append("threats %d (next %.2f s)" % [s.incoming.size(), s.incoming.map(func(a: Dictionary) -> float: return a.time_to_hit).min()])
+	if brain.is_cornered():
+		state.append("cornered")
+	if brain.is_escaping():
+		state.append("escaping")
+	if brain.is_resetting():
+		state.append("resetting")
+	if not state.is_empty():
+		lines.append("  ".join(state))
 	return "\n".join(lines)
 
 
@@ -552,6 +583,8 @@ func run_scenario(scenario: StringName) -> Enemy:
 			enemy = _spawn_pack(scenario_enemy, pack_size)
 		&"fodder":
 			enemy = _spawn_pack(fodder_scene, fodder_pack_size)
+		&"mixed":
+			enemy = _spawn_pack_of(mixed_pack)
 		_:
 			enemy = _spawn_enemy()
 	if scenario == &"incoming_shot" and enemy != null:
@@ -561,6 +594,27 @@ func run_scenario(scenario: StringName) -> Enemy:
 	if is_panel_open():
 		pick(enemy)
 	return enemy
+
+
+## Shift+H (AI3): the next of scenario_enemies becomes what the scenarios
+## spawn; the scenario running now spawns it again. Returns its scene.
+func cycle_scenario_enemy() -> PackedScene:
+	if scenario_enemies.is_empty():
+		return scenario_enemy
+	var index := scenario_enemies.find(scenario_enemy)
+	scenario_enemy = scenario_enemies[(index + 1) % scenario_enemies.size()]
+	_status = "Scenario enemy: %s" % get_scenario_enemy_name()
+	print("SandboxBrains: ", _status)
+	if get_scenario() != &"" and is_instance_valid(_player):
+		run_scenario(get_scenario())
+	elif is_panel_open():
+		_sync_panel()
+	return scenario_enemy
+
+
+## The scenario enemy's name (its scene's file, e.g. "test_caster_elite").
+func get_scenario_enemy_name() -> String:
+	return scenario_enemy.resource_path.get_file().get_basename() if scenario_enemy != null else "-"
 
 
 ## Frees what the last scenario spawned.
@@ -612,13 +666,24 @@ func _spawn_enemy() -> Enemy:
 func _spawn_pack(scene: PackedScene, count: int) -> Enemy:
 	if scene == null or count <= 0:
 		return null
+	var scenes: Array[PackedScene] = []
+	for i in count:
+		scenes.append(scene)
+	return _spawn_pack_of(scenes)
+
+
+## A pack (as _spawn_pack()) of one member per scene in `scenes`, in order.
+func _spawn_pack_of(scenes: Array[PackedScene]) -> Enemy:
+	if scenes.is_empty():
+		return null
+	var count := scenes.size()
 	var pack := Pack.new()
 	pack.name = "ScenarioPack"
 	var center := _on_floor(_spawn_point(pack_distance_px))
 	pack.position = center
 	var first: Enemy
 	for i in count:
-		var enemy := scene.instantiate() as Enemy
+		var enemy := scenes[i].instantiate() as Enemy
 		enemy.name = "Scenario%s" % enemy.name
 		if i > 0:
 			var ring := 1 + floori((i - 1) / 6.0)
@@ -660,7 +725,13 @@ func _spawn_friendly() -> void:
 	_scenario_units.append(friend)
 
 
+## The test bolt at `enemy`, once it's fighting (AI3: a brain only sees
+## attacks coming while aggroed; up to a second's wait).
 func _fire_bolt_at(enemy: Enemy) -> void:
+	for i in 60:
+		if not is_instance_valid(enemy) or enemy.ai == Enemy.AI.AGGRO:
+			break
+		await get_tree().physics_frame
 	if is_instance_valid(enemy) and is_instance_valid(_player) and test_bolt != null:
 		_player.abilities.try_cast_free(test_bolt, enemy.global_position, null, SOURCE_ID)
 

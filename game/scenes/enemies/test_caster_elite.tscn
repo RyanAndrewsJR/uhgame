@@ -1,0 +1,25 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/enemies/slime.tscn" id="1_slime"]
+[ext_resource type="Resource" path="res://data/units/test_caster.tres" id="2_stats"]
+[ext_resource type="Script" path="res://scripts/components/ability_component.gd" id="3_abilities"]
+[ext_resource type="Resource" path="res://data/enemies/enemy_test_caster_elite.tres" id="4_data"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_body"]
+radius = 15.0
+
+[node name="TestCasterElite" instance=ExtResource("1_slime")]
+stats = ExtResource("2_stats")
+body_center = Vector2(0, -14)
+model_color = Color(0.6, 0.45, 1, 1)
+data = ExtResource("4_data")
+
+[node name="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_body")
+
+[node name="HealthBar" parent="."]
+position = Vector2(0, -36)
+width = 32.0
+
+[node name="AbilityComponent" type="Node" parent="."]
+script = ExtResource("3_abilities")
