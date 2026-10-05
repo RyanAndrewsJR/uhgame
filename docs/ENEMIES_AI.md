@@ -1,10 +1,10 @@
 # ENEMIES_AI.md: Enemy Brains, Roles, Groups, Dodging, Tells, Elites, Bosses and the Tuning Toolkit
-<!-- Written 2026-10-03 from Ryan's decisions (his interview with the advisor, the same day). AI1 and AI2 built and passed, AI3 built 2026-10-04 (CHANGELOG.md); the rest is a plan. -->
+<!-- Written 2026-10-03 from Ryan's decisions (his interview with the advisor, the same day). AI1–AI3 built and passed 2026-10-04 (CHANGELOG.md); the rest is a plan. Duels and odds (Ryan's design addition, 2026-10-04, docs only) added as AI3b–AI3d. -->
 
 **Read when:** the task involves how enemies decide (the brain, the situation, intents, respect, patience), enemy roles and ranks (fodder, brute, skirmisher, caster; regular, elite, boss), what an enemy ability is for (its AI uses), what enemies know about the party, attack tokens, packs (alert, leash), enemy dodging, enemy tells (poses), elite modifiers, the boss director (phases, pressure and breather, punish, finish, reset), spawning (packs, ambushes, spawn-in), how factions and difficulty tiers scale brains, where enemy data lives (`EnemyData`, the roster: XP, kill tags, drops), the AI's performance (think rate, sleeping), or the AI tuning toolkit (sliders, the brain overlay, the live tuning panel, the scenario spawner).
 **Depends on:** CLAUDE.md, VISION.md (Pillar 1, decision priorities, Open question 7), CONVENTIONS.md, ABILITIES.md (AbilityComponent and the cast flow, `Condition`, `get_ai_vector()`, telegraphs, cast progress, untargetable), COMBAT.md (damage bands, telegraph rules, hit forgiveness, statuses, CC and tenacity), ALLIES.md (`UnitController`, the target-pick rules, `threat`, taunt, stealth, `get_ai_plan()` and `CastPlan`, party scaling), DUNGEONS.md (rosters on shared behaviors, packs and arenas, content slots, difficulty tiers and elite modifier counts, bosses and their reset), 3D.md (views and `UnitView`, perches and `can_reach()`, ledges and navmesh islands, the sleep distance and the P-spike), WORLD_INTERACTION.md (WorldQuery, Hazards, kill credit), COMPANIONS.md (enemies never see companions; drops), TALENTS.md (kill counters and XP; the kind-not-magnitude rule), LOOT.md (drop tables), MOVEMENT.md (MovementComponent, soft caps), STATS.md, AUDIO.md (hooks).
 **Used by:** ALLIES (the shared perception, the controller base, `CastPlan`, the target pick; the ally brain reuses the toolkit), DUNGEONS (the roster format, faction presets, spawn kinds, elite modifiers, difficulty tier hooks, the boss reset), COMBAT and ABILITIES (intent tags, use rules, enemy telegraph and dodge rules), TALENTS, LOOT and COMPANIONS (enemy XP, kill tags, drop tables and kindling move onto `EnemyData`), 3D (pose hooks, the perched sniper), UI (the boss bar, elite modifier names), AUDIO (hooks), NARRATIVE (bestiary entries by kill tag).
-**Status:** written 2026-10-03. Ryan's decisions (his interview with the advisor, 2026-10-03) are MUST, recorded in DECISIONS.md (Enemies). **The interview is done:** Ryan answered all eleven open items (I1–I11) in three rounds the same day, each as Claude proposed; his answers are MUST, marked I1–I11 in the sections below and listed under Open questions, Interview. Items still marked *(proposed)* are Claude's picks Ryan hasn't answered; each is also in Open questions. **AI1 built and passed 2026-10-04** (see CHANGELOG.md; Ryan started it before ALLIES' second champion, and approved its names). **AI2 built and passed 2026-10-04.** **AI3 built 2026-10-04** (awaiting Ryan's play test). AI4–AI8 and AI-M aren't started. ALLIES.md calls this doc's first steps "Tier B": they are AI1 and AI2 here.
+**Status:** written 2026-10-03. Ryan's decisions (his interview with the advisor, 2026-10-03) are MUST, recorded in DECISIONS.md (Enemies). **The interview is done:** Ryan answered all eleven open items (I1–I11) in three rounds the same day, each as Claude proposed; his answers are MUST, marked I1–I11 in the sections below and listed under Open questions, Interview. Items still marked *(proposed)* are Claude's picks Ryan hasn't answered; each is also in Open questions. **AI1 built and passed 2026-10-04** (see CHANGELOG.md; Ryan started it before ALLIES' second champion, and approved its names). **AI2 built and passed 2026-10-04.** **AI3 built and passed 2026-10-04.** AI4–AI8 and AI-M aren't started. ALLIES.md calls this doc's first steps "Tier B": they are AI1 and AI2 here. **Duels and odds** (Ryan's design addition, 2026-10-04, docs only): smarter single enemies, since most fights are one or two champions against at most 5–7 enemies: confidence, spending the key ability, the crowded response, smell blood, odds, think rates by rank, five more sliders, kit sizes and the enemy ability library, boss passives (Kits; Duels and odds; build steps AI3b–AI3d). Ryan answered its questions the same day in three rounds (Open questions, Open from Duels and odds).
 
 ## How to read this doc
 Same as ALLIES.md: MUST (never change without asking Ryan), TARGET (start value and allowed range), FREE (your call; tiebreaker: VISION.md's decision priorities). Every number is a TARGET placeholder until the play tests; the performance budget is measured in AI1, never guessed. Enemy names in examples (a brute, a thrall caster) are illustrations, not launch content.
@@ -29,6 +29,7 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 7. **The ladder is the budget.** Fodder has no brain; brains think about 10 times a second, staggered; one shared read of the party per tick; far enemies sleep. The budget is measured (AI1), never guessed.
 8. **Fights never stall.** Patience always fills; every enemy comes eventually.
 9. **Tuning is where the time goes**, so the toolkit (sliders, the brain overlay, live tuning, scenarios) is built first (AI1), and every tunable is an `@export` in a .tres.
+10. **Few enemies, each one smart** (Ryan, 2026-10-04). Most fights are one or two champions (the player and the ally) against rarely more than 5–7 enemies, so each enemy's decisions are the whole fight. It reads its own kit as well as yours (confidence), answers you in its face, smells blood, and presses when the odds are on its side, always inside the fairness limits: tokens, telegraphs, one heavy hit at a time (Duels and odds).
 
 ## Current code
 - `Enemy` (`res://scripts/enemies/enemy.gd`, extends `Unit`; team ENEMY, group `enemies`): a three-state machine (`AI.IDLE`, `WANDER`, `AGGRO`) in `_physics_process`. IDLE waits 0.8–2 s and WANDER walks up to `wander_distance` (60 px) from `_home`; both switch to AGGRO when `_can_see_player()` passes (the first node in the group `player`, targetable, within `detect_range` 450 u edge to edge, and the `Sight` RayCast2D, mask 1, clear). A hit from the player aggroes it too (`_on_damaged`). In AGGRO: past `leash_range` (800 u from the player, edge distance) it stops where it stands and goes IDLE (no walk home, no heal); an untargetable player is chased without attacking (`_chase_untargetable()`, ABILITIES AB10); otherwise `_try_cast_ability()`, then `attack.attack(_player)`. `passive` makes a training dummy. Its random numbers come from the global `randf()`, unseeded.
@@ -48,9 +49,12 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 | What | Number (TARGET) | Why |
 |---|---|---|
 | Roles at first | fodder, brute, skirmisher, caster | Ryan (MUST) |
-| Abilities per enemy | fodder 0; regular melee or ranged 1–2; elite 3; a boss by phase | Ryan (MUST) |
+| Abilities per enemy | fodder none (its basic attack); regulars 2–3; elites (and duelists) 3–5; bosses 4–6 plus a passive | Ryan (MUST). Was fodder 0, regulars 1–2, elites 3, a boss by phase (2026-10-03); Ryan's "3 to 5 across the board, no passives, bosses DO have passives" (2026-10-04), reconciled by his pick of Claude's table (Kits) |
 | Big attackers on you at once | about 1–2: a pool of 2 attack tokens per champion (3 at difficulty tiers 4–5); a regular holds 1, an elite 2; fodder never needs one | Ryan (MUST shape; the counts I3) |
-| Thinking | about 10 thinks a second per brain, staggered; fodder none | Ryan (MUST shape); the cost measured in AI1 |
+| Thinking | about 10 thinks a second per brain, staggered; fodder none. By rank since 2026-10-04: regular 10, elite 15, boss 20–30, under a total budget (Performance) | Ryan (MUST shape); the cost measured in AI1; the rates by rank Ryan (2026-10-04) |
+| Pressing (odds) | when the enemy side's strength passes 1.5 × the party's: less respect, faster patience, one more attack token per champion (capped), the weakest champion picked | Ryan (2026-10-04); the numbers TARGET |
+| Heavy hits on one champion | while enemies press, at most one within 0.8 s (a heavy hit: at least 10% of the target's max health), unless a boss plan scripts it | Ryan (2026-10-04; his 0.3 s widened by him, since the post-hit i-frames already cover 0.3 s) |
+| Enemy telegraphs | at least 0.6 s on every enemy ability, unless it's faster than the reaction time on purpose and low damage | Ryan (2026-10-04) |
 | Reaction time | regulars about 0.45 s, elites 0.35 s, bosses 0.3 s; never under 0.2 s; higher difficulty tiers sharpen it | Ryan (I4) |
 | Dodging | elites and bosses only; they try 40–60% of the dodgeable attacks that cover them; cooldown 4–6 s | Ryan (MUST: who; the numbers I4) |
 | A melee hold while your kit is up | patience fills in 2–4 s with nothing up, at worst 4× slower with everything up (a brute: 12 s) | *(proposed)*; Ryan: they always come eventually |
@@ -76,10 +80,45 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 | Skirmisher / assassin (fast melee) | circles, dives in with a gap-closer, hits and resets out | 1–2 (one is a gap-closer); an elite 3 | hits and resets |
 | Caster (ranged, artillery) | keeps its range and pokes the whole time, defends against what's coming at it, escapes or fights when caught | 1–2; an elite 3 | falls back toward packmates |
 
-- Any ranged enemy counts as a caster for these numbers (Ryan). Fodder is a rank and a role at once: a fodder enemy is always the fodder role, and no other rank is.
+- Any ranged enemy counts as a caster for these numbers (Ryan). *(2026-10-04, Ryan: the counts are now regulars 2–3 and elites 3–5: Kits.)* Fodder is a rank and a role at once: a fodder enemy is always the fodder role, and no other rank is.
 - **Later, on the same toolkit** (Ryan: the data model leaves room for them now; built in AI8, right after the milestone and before DUNGEONS' slice, so the slice's rosters can use all seven roles: Ryan, I11): **support** (heals, shields or buffs other enemies; falls back like a caster), **summoner** (makes adds through spawn-in), **perched sniper** (stands on a perch under 3D.md's rules: the `elevated` tag, its dead zone, targets through `AbilityUtil.can_reach()`, and every champion keeps an answer).
 - A **mini-boss** (DUNGEONS.md) is rank boss with a lighter plan: one or two phases (Ryan, I10).
 - Champions are data, never subclasses of Player (CLAUDE.md); likewise every enemy is an `Enemy` with data. Roles and ranks are data read by one brain class, never subclasses.
+
+### Kits: ability counts, the enemy ability library, passives (Ryan, 2026-10-04; the details *(proposed)*)
+- **Ryan:** "enemies will have 3 to 5 abilities across the board; no passives; bosses DO have passives."
+- **Reconciled** (Ryan, 2026-10-04) with the ladder above (his MUST of 2026-10-03: fodder none, regulars 1–2, elites 3): he picked Claude's table below. `RankRules.max_abilities` (built in AI1: 0, 2, 3, any; checked by the enemies test) becomes 0, 3, 5, 6, with `min_abilities` 0, 2, 3, 4 (the test warns below them), when AI3d builds the library; until then the built caps stand. The table:
+
+| Rank | Abilities | Passive |
+|---|---|---|
+| Fodder | none (its basic attack) | none |
+| Regular | 2–3 | none |
+| Elite (and a duelist) | 3–5 | none; its elite modifiers are the passive-like layer |
+| Boss | 4–6 (a phase's form can swap some) | one (Bosses, Boss passives) |
+
+- **A duelist** (Ryan, 2026-10-04) is an elite flagged `EnemyData.duelist` *(proposed name)*: rank elite in everything (2 tokens, 20% tenacity, 3–5 abilities, no passive), but it thinks at the boss's rate (25 a second): a single strong enemy built for a 1v1. Not a new rank.
+- **No passives below boss:** an enemy's identity is its abilities and what they're for. Elite modifiers stay the passive-like layer for non-bosses (Ryan). **`EnemyData.twist` stays as it is** (Ryan, 2026-10-04; a `ToolkitBundle`, a field since AI1, set on no enemy yet): it may hold stat shapes, unit reaction rules and statuses.
+- **The enemy ability library** (Ryan's idea): about 12–15 reusable abilities, mixed into kits with different numbers, so no kit is authored from scratch. Each is a shared script with a template .tres; an enemy's ability is its own .tres on a library script, as the test skirmisher's stab already runs the slam's script. *(proposed)* Scripts in `res://scripts/abilities/enemy/`, templates `res://data/abilities/enemy/enemy_<archetype>.tres`; an enemy's copies keep CONVENTIONS' names (`<enemy>_<slot>_<name>.tres`).
+- **Every enemy ability telegraphs at least 0.6 s** (the dash-answerable minimum: Bosses), unless it's faster than the reaction time on purpose and low damage (COMBAT's chip band, 2–5% of the target's max health). An ability with no damage (a blink, a shield) needs none.
+- **The starter list** *(proposed; archetypes, not content; numbers TARGET; the telegraph runs from the cast's start to the hit)*:
+
+| Archetype | Role tag | Shape | Telegraph | `ai_uses` hint | Today |
+|---|---|---|---|---|---|
+| Smash | `core` | a 2 m circle at the target | 0.7 s | `damage` | the test brute's smash |
+| Cleave arc | `core` | a 120° cone, 2.5 m | 0.6 s | `damage`; `zone` with two champions in it | |
+| Charge | `mobility` | a 6 m line, 1.2 m wide | 0.8 s | `gap_close` | |
+| Shockwave | `core` | a 3 m circle round itself, knocking away 1.5 m | 0.6 s | `cc` (its crowded answer) | |
+| Leap | `mobility` | a 1.5 m landing circle beside the target | 0.5 s cast + 0.4 s flight | `gap_close` | the test skirmisher's leap |
+| Stab | `core` | a 0.8 m circle in front | 0.35 s (chip band) | `damage` | the test skirmisher's stab |
+| Hop away | `mobility` | itself, 3 m straight back | none (no damage) | `escape`; a skirmisher's reset | |
+| Flurry | `core` | a 4 m dash line through the target, 1 m wide | 0.6 s | `damage`, `punish` | |
+| Bolt | `core` | a 9.5 m skillshot, 0.5 m wide | 0.4 s + travel (chip band) | `poke` | the test caster's bolt |
+| Lobbed orb | `core` | a 1.5 m circle at a point | 1.0 s | `poke`, `zone` | |
+| Snare | `core` | a skillshot that roots for 1 s | 0.6 s + travel | `cc` (a caster's crowded answer) | |
+| Blink away | `mobility` | itself, up to 4.5 m | none | `escape` | the test caster's blink |
+| Guard | `defensive` | a shield on itself | none | `defend` with `THREATENED` | the elite test caster's guard |
+| Pool | `core` | a 2 m circle that lingers 4 s | 0.8 s | `zone` | waits for WORLD_INTERACTION's Hazards |
+| Big hit | `ultimate` | a circle up to 3.5 m in radius, or a band up to 3.5 m wide (dash-answerable) | 1.0 s | `damage`, `punish`, `finish` | an elite's or a boss's key ability |
 
 ### The brain (MUST shape; Ryan 2026-10-03)
 - Every enemy above fodder has a **brain** (`EnemyBrain`, a `UnitController`: ALLIES.md, Controllers). Each think it:
@@ -127,6 +166,7 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
   - *(Built AI3)* An attack is "coming at" an enemy when it covers it. That is a party cast whose effect hasn't started and whose `get_effect_area()` covers the enemy (a point-and-click on it included: Ryan, 2026-10-04), with its cast time left. Or a charge-up held aimed through it, with its release windup at the soonest. Or a projectile whose path will cross it before it runs out, with its travel time.
   - The enemy perceives each attack once its reaction time has passed since it first saw it (at a think); Brains wakes it then (`wake_at()`).
   - Enemies' own attacks aren't threats to them.
+- **Reaction time is for reacting to the party only** (Ryan, 2026-10-04): an attack coming, a whiff, an opening, a champion stepping in (Crowded). An enemy's own follow-ups and planned sequences never wait for it: a commit's hit after its gap-closer, a skirmisher's hop after its hit, a boss pattern's next attack. The drive runs the next step on the tick the previous one ends, not at the next think. (The doc implied it through `reaction_time`'s "anything new"; now it's a rule.)
 - **Nothing hidden:** no gear, no hidden stats, no talent loadout, no input reading (an enemy reacts to the cast it sees, never to the key press). The values a brain gives abilities never read the champion's stats (Respect).
 - **Companions are invisible to enemies:** never in the snapshot, never a target (they aren't Units: COMPANIONS.md), and the command's slot doesn't count toward respect.
 - A later opt-in "habit reading" for bosses (learning what this player tends to do) is out of scope.
@@ -153,6 +193,72 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 - **Holding:** a spot in its range band around the target (Movement and positioning), strafing one way and turning after 2–4 s (jittered), facing the target, in its hold pose (Tells). *(Built AI1; found while building)* It keeps a **hold distance** (edge to edge): its distance when the hold starts, kept in the band; from farther than the band it closes to the band's far edge; when the target walks away it follows, back into the band. Each re-plan aims at the circle of that distance (without it, strafing along chords spiraled the brute into the Knight).
 - *(Built AI1; proposed)* **When the target walks in on a holding melee enemy, it doesn't run:** it holds its ground at that distance and swings its basic attack once the target is in its reach (no abilities: those are a commit's). Otherwise a hold would be a slow chase the player always wins.
 - *(Built AI1; proposed)* **A commit** shows its tell (0.3 s, standing still), then goes in: its basic attack (chasing) and its `damage` uses, plus its `gap_close` uses while out of its reach. It **ends** after its first cast ends, after 2 landed basic attacks (`commit_hits`), or after 4 s (`commit_max_time`, the tell included); patience empties then, and a melee enemy **walks back out to its band** for up to 2 s (`back_off_time`) before it holds its ground again. AI2's token is held for the same commit.
+
+### Duels and odds (MUST: the rules, Ryan 2026-10-04; built in AI3b–AI3c; the details *(proposed)*, numbers TARGET)
+- **Why** (Ryan): most fights are 1v1 or 2v1 (the player and the ally), rarely more than 5–7 enemies, so an individual enemy must be smarter and stronger, and its decisions are the whole fight. Everything here is data and sliders, tested as scenarios like the rest of the brain.
+- **Effective respect, every term** (AI1's respect × `respect_weight`, plus two factors that are 1 at their sliders' 0, so an enemy with `confidence` and `nerve` at 0 reads respect as today):
+  effective respect = clamp(respect × `respect_weight` × (1 − `confidence` × own_ready_share) × (1 − `nerve` × press), 0, 1)
+- **Patience's pressure, every term:** 1, +0.5 while the target idles, + the larger of the target's low health (+0.5 below 40%) and the odds (`odds_pressure` × press). Low health and the odds both count the target's health, so they share one push instead of adding two.
+
+#### Confidence: its own key ability
+- **Its key ability:** its `ultimate`-role ability, else its ability with the highest `respect_value` (derived from its role tag as a champion's is, or authored). A tie goes to the earlier slot (q, w, e, r); an authored `respect_value` breaks one. Today: the test brute's smash, the test skirmisher's leap, the test casters' bolt.
+- **While its key ability is ready** it reads its own kit the way it reads yours: `own_ready_share` = the `respect_value` of its ready slots ÷ that of all its slots (0–1); with the key on cooldown it's 0. Effective respect drops by `confidence` × that share, so a brute with its smash ready walks in sooner.
+- **Cautious:** once it has spent its key ability (cast it, landed or not) or whiffed it (none of its hits landed on a champion within `whiff_time`, 0.3 s: Punish's whiff rule, read on its own cast), it turns cautious for `cautious_time` (3 s) or until the key is ready again, whichever comes first. Its patience fills × (1 − `cautious_patience_cut` (0.5) × `confidence`), and when its commit ends it walks back out to its band's far edge, not just into the band (`retreat`, the `step_back` pose). **That stretch is the player's opening:** the body shows it, and so does the overlay.
+- **Not counted twice with punish and whiffs:** Punish's whiffs are a champion's; confidence reads only the enemy's own key. Your whiffed ultimate lowers respect (it's on cooldown) and may open a punish; the enemy's confidence doesn't move. An enemy whose key ability carries its `punish` use spends it on the punish and turns cautious after: one moment, two sides. The punish roll (`punish_greed`) never reads respect, so confidence never makes a punish likelier. A skirmisher's reset already walks it out; being cautious only slows its refill.
+
+#### Spending the key ability: `spend_eagerness`
+- At 1 it fires its key ability whenever a use passes (today's behavior: on cooldown). At 0 it holds it for **the right moment:** its target crowd-controlled, a punish window open, the target below `finish_threshold`, every `defensive` ability of the target on cooldown, being crowded (it's an answer), or a plan worth at least `spend_value_bar` (0.8: two champions in its area).
+- Outside the right moment it rolls `spend_eagerness` once every `spend_roll_time` (2 s) while it holds the key; a pass fires it.
+- Only the key's `damage`, `cc` and `zone` uses are held. **A `poke` is never held** (ranged enemies poke the whole time: MUST), nor a `defend`, `escape` or `gap_close` use.
+- Its key held and ready still counts for confidence: it walks in with its big hit in its pocket.
+
+#### Crowded: in its face (Ryan: "if I'm in their face they should back up rightfully if they have no abilities, but if they do, they should have the option to all in")
+- **Crowded** = its target inside `crowded_range` (LoL units, edge to edge): **its own value in the preset** (Ryan, 2026-10-04): brute 200, skirmisher 200, caster its band's minimum (550). Not the band's minimum for melee: a melee band's minimum (350) sits just outside the Knight's reach, so a brute would back off every time he stepped toward it.
+- **One episode, one roll each:** an episode starts when its target comes inside, seen after its reaction time (it's reacting to you), and ends once the target has stayed outside `crowded_range` + 0.5 m for `crowded_clear_time` (1 s), or when its all-in or kiting step ends. Each roll below happens once per episode, never per think.
+- **In order:**
+  1. **Cornered** (AI3): the cornered stand wins.
+  2. **Escape** (AI3): a caster, or any role with a passing `escape` use, escapes.
+  3. **An answer ready:** it rolls `crowded_commit` once. **Pass: all in.** A melee role's patience fills at once and it commits (its tell first; its token as usual, so with none free it holds its ground and swings, AI1's rule, first in the queue). A caster casts its answer (no token, like a `defend`), then carries on with its escape rules. **Fail:** step 4.
+  4. **No answer, or the roll failed: a mix, rolled** (Ryan, 2026-10-04: "both stand and swing, and back up once, then stand. it should be a mix ... it can be rolled randomly"). One roll per episode:
+     - **back up once** (the **kiting step**): it walks back out toward its band (`retreat`, the `step_back` pose) for up to `back_off_time` (2 s), then stands; if you follow it in, it holds its ground and swings (AI1's rule), so a hold never becomes a chase you always win;
+     - **or stand and swing** at once (AI1's rule as built).
+     - *(proposed)* The chance to back up is 1 − `aggression` (brute 50%, skirmisher 30%), so no eighteenth slider: an enemy that shrugs off danger stands more often.
+- **An answer** is derived; there's no new tag. ABILITIES.md checked: role tags are Diablo's categories, used by modifiers and respect, and say nothing about what the AI does; the intent tags do. An answer is a ready, castable ability with a passing use for:
+  - `cc`: a knock-away is authored as a `cc` use (pushing you off it is crowd control, League's rule); an ability whose data applies a `cc` status counts too (`EnemyAITable.applies_cc()`);
+  - `escape` (step 2 takes it first);
+  - `damage`, `zone`, `punish` or `finish`, when its plan reaches the target from where it stands now: a close-range burst. A `poke` isn't an answer; it's for range.
+  - A held key ability answers: being crowded is a right moment.
+- **This changes AI1's built rule** ("walked in on, it holds its ground and swings"): Ryan chose the mix (2026-10-04), so AI1's rule stays as one of the two outcomes and the kiting step is the other.
+
+#### Smell blood: the target low
+- Below `finish_threshold` (0.3) of the target's health, respect's health term already lowers respect (the share × (0.5 + 0.5 × health)), and patience's low-health push (+0.5 below 40%) already speeds it up. **Smell blood adds:** its `commit` and `finish` scores × `smell_blood_mult` (1.3), never above 0.89, so `defend`, `dodge` and `return` still win (commit 0.65 → 0.85: it beats `escape`, `retreat` and a skirmisher's reset).
+- **A panic button still counts:** below the threshold, the target's ready `defensive` abilities (a shield, invulnerability, a heal) keep their full respect value, with no health cut, so an enemy stays wary while your panic button is up. The Knight at 20% with Iron Resolve ready: its 1.5 counts whole.
+- **The overlap** (Ryan asked): respect's health term (smooth, at any health), the low-health push (below 40%) and smell blood (below 30%) all point the same way, and the odds count health too. **Nothing is removed.** Smell blood adds no third push on patience: it changes the choice (scores), and the panic-button rule pulls the other way; the odds and low health share one push. If Ryan wants a single low-health lever, the 40% push could fold into smell blood (his call).
+- **This changes AI1's built respect below 30%** (a ready defensive counts whole). Approved by Ryan (2026-10-04) for AI3b.
+
+#### Odds: outnumbered or outpowered (Ryan: "if I'm outnumbered and/or outpowered they should really try to commit to trying to kill me")
+- **Odds** = the enemy side's strength ÷ the party's. **Strength** = the sum over living units of rank weight × health ratio. Rank weights (`EnemyAITable.rank_strength`; Ryan's start, tuned in the overlay): fodder 0.25, regular 1, elite 2, boss 4. A champion weighs `champion_strength` (1.5: Ryan, 2026-10-04) × its `threat`. Against a full-health Knight, then: a lone elite (1.33) or two regulars don't press, three regulars do (2.0, press 0.5), an elite and three fodder a little (1.83); the Knight at 30% against one regular, 2.22 (at 1, a lone elite already pressed). The enemy side is every enemy with data fighting the party (awake, not walking home). A downed champion counts 0; companions never count.
+- **One shared read per tick,** like the party snapshot (`Brains.get_odds()`).
+- **The press** = clamp(odds − `odds_threshold` (1.5), 0, 1). While it's above 0, enemies press:
+  - effective respect × (1 − `nerve` × press);
+  - patience's push: `odds_pressure` (0.5) × press, one push shared with the target's low health (the larger);
+  - each champion's attack-token pool gains `odds_token_bonus` (1): never more than +1, and never above `tokens_per_target_cap` (4);
+  - every enemy's target pick favors the weakest living champion: effective distance × (0.5 + 0.5 × its health ratio), on top of ALLIES' ÷ `threat`. The sticky rules hold (the 25% and 1.5 m margin for 0.5 s, never mid-windup), taunt still wins, stealth and downed still drop it. With one champion nothing changes.
+- **Bosses don't press:** the director owns their tempo. A boss counts in its side's strength, so its adds press.
+- **Fairness limits:**
+  - **The token cap holds:** +1 at most, never past the hard cap.
+  - **One heavy hit at a time:** while enemies press, no more than one heavy hit may land on one champion inside `heavy_hit_window`, unless a boss plan scripts it. Brains keeps each champion's predicted landing times for heavy hits started on it (the cast time left, plus a projectile's travel); a brain doesn't start a heavy ability whose hit would land inside another's window (its use fails that think, so it holds or swings).
+    - **Heavy** (Ryan, 2026-10-04): an enemy ability hit worth at least 10% of the target's max health by the enemy's own numbers (`heavy_hit_share`; COMBAT's elite band starts at 12%). Basic attacks and chip pokes never count.
+    - **The window is 0.8 s** (Ryan, 2026-10-04, widened from 0.3 s): the player's post-hit i-frames (0.3 s, COMBAT.md) already block any second hit inside 0.3 s, so 0.3 s would have changed nothing; 0.8 s leaves about a reaction time to answer the second hit. COMBAT needs no hook.
+    - **Only while pressing** (Ryan, 2026-10-04: always-on not approved): outside a press, two token holders may still land heavy hits together, as AI2 allows.
+  - **The press shows:** a pose (`press`: its hold or stalk pose becomes a lean in 10° with an amber rim pulsing at 1 Hz) and the overlay's odds line.
+- **The mirror** (morale: losing units break or go desperate) is a later idea only (Later sliders and ideas).
+
+#### Aim lead: `aim_lead`
+- At 0 it aims where the target stands (the default plan today: no leading). At 1 it leads its walk fully: the aim point moves by the target's velocity × the time until the hit (the cast time left, plus a projectile's travel) × `aim_lead`, kept within the ability's range, on floor and in sight.
+- **Fair:** the velocity is its walk (what's on screen over the last 0.2 s), never a dash's. A target that stops, turns or dashes walks out of a led shot, as COMBAT.md's "can be walked out of" asks.
+- For casters and ranged roles; a melee role's POINT ability may lead a little (the skirmisher's leap).
+- **This changes the built default plan** (AI1: "no leading") once a preset's `aim_lead` is above 0. Approved by Ryan (2026-10-04) with the presets' starts, for AI3b.
 
 ### Dodging (MUST: beatable, elites and bosses only; Ryan 2026-10-03)
 - **Elites and bosses only.** Fodder and regulars never dodge.
@@ -183,6 +289,8 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 | Elite (extra) | `sidestep` (the dodge: squash, then the hop) |
 | Boss (extra) | `pressure` (upright, a slow rim pulse), `breather` (slumped back, no pulse), `draw_back`, `finish` (a longer, bigger draw back) |
 | Everyone | `alert` (a short stretch up when it notices you), `return` (walking home, leaning back) |
+
+- *(Duels and odds, proposed)* `step_back` for every role (the crowded kiting step, the cautious walk out), `press` for every brained role below boss (pressing: Odds), and a boss's `passive` (Boss passives).
 
 ### Groups: attack tokens (MUST: smart enemies only; Ryan 2026-10-03)
 - **Fodder swarms freely and chips** (COMBAT.md, Enemies): no tokens. **It surrounds** (Ryan, I6): its pack spreads its fodder in a ring around their target, about 0.6 m apart, instead of stacking on one spot (Diablo's zombies), and a wounded fodder behaves exactly the same (it fights to the death).
@@ -301,6 +409,13 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
   - **Sizing a punish:** each `punish` use states the window it needs through `TARGET_WHIFFED`'s value. Under 0.8 s, its fastest telegraphed hit; 0.8–1.5 s, a gap-closer into a hit; over 1.5 s, its all-in. *(proposed)* A punish can cut a breather short, never a phase change.
   - *(proposed)* **Dash-answerable** means a punish or finish attack is telegraphed for at least 0.6 s and its shape can be left by one dash (4 m in 0.18 s) from anywhere inside it: a circle at most 3.5 m in radius, a band at most 3.5 m wide.
   - *(proposed)* **The reset** (`BossDirector.reset()`): full health, phase 1, the tempo at pressure's start, every cooldown ready, statuses and forms cleared, its home position, its windows and memory cleared, its arena told. Nothing from the failed attempt survives.
+- **Boss passives** (Ryan, 2026-10-04: "bosses DO have passives"; the details *(proposed)*, built in AI6):
+  - A boss has one passive: a `Passive` (CHAMPIONS.md's resource, a `ToolkitBundle`) on `BossPlan.passive`, under `&"boss_passive_<id>"`. A phase may swap it (`BossPhase.passive`; null keeps the plan's). The reset removes it and puts phase 1's back.
+  - **It must read** (Ryan: a readable tell on the HUD or the boss's pose):
+    - its state shows on the boss bar as the player's passive shows on the HUD (CHAMPIONS CH6: its initials in its `icon_color`, a stack count or timer, its tooltip). A slot on the boss bar isn't an icon over a head, so it keeps Ryan's tells rule;
+    - its always-on part shows as an aura on the boss (`BossPlan.passive_aura`, a scene);
+    - when it fires, the boss flashes its `passive` pose (a short rim pulse in the passive's `icon_color`).
+  - Elite modifiers remain the passive-like layer for everyone below boss (Kits).
 
 ### Punish: what counts as a whiff (MUST: only what the player did; Ryan 2026-10-03. The details *(proposed)*)
 - A **major ability** has the role `ultimate`, the style `charge_up`, or the tag `dash` or `leap` (`EnemyAITable.major_tags`).
@@ -320,6 +435,7 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 | Token cost (I3) | none (swarms) | 1 | 2 | none (the director) |
 | Tenacity (I8) | 0 | 0 | 0.2 | 0.4 |
 | Sliders | — | reaction × 1.3, jitter × 1.5, punish greed × 0.5 | × 1 | reaction × 0.85, jitter × 0.7 |
+| Thinks a second (Ryan, 2026-10-04; AI3c) | none | 10 | 15 (a duelist 25) | 25 (Ryan's range 20–30) |
 
 | Difficulty tier adjust *(proposed)* | 1 | 2 | 3 | 4 | 5 |
 |---|---|---|---|---|---|
@@ -344,6 +460,11 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
   - **The frame at 180 Hz holds** (mean 5.56 ms) up to about **20 awake enemies: 10 fodder + 10 brutes** (p99 11.9 ms: an occasional missed frame on the physics tick) **or 25 fodder alone** (p99 13 ms). 25 fodder + 10 brutes falls to about 100 fps; **50 chasing fodder break the game** (the physics step can't keep up: 6–7 fps), so P0a's 10–12 ms was the crowd's movement, not deciding.
   - **So until a fix:** a fight wakes **at most about 20 enemies** that move (any mix of brained and fodder; brains themselves aren't the limit). **The fix is Ryan's pick** (Open questions): fewer awake enemies, cheaper fodder movement (no steering for fodder, the ring spacing doing its job), or the optimization pass ALLIES.md puts after all AI.
   - **Ryan's pick (2026-10-04, starting AI2): the cap.** A fight wakes at most about 20 moving enemies; DUNGEONS' packs, arenas and the sleep distance plan around it. No code changed for it; the optimization pass after all AI may lift it.
+- **Think rate by rank** (Ryan, 2026-10-04; built in AI3c with the next measurement; the budget *(proposed)*):
+  - Each rank thinks at its own rate (`RankRules.think_rate`): fodder none, regular 10, elite 15, boss 25 a second (Ryan's range for bosses and duelists: 20–30); a duelist elite thinks at the boss's rate (Kits). Still staggered. The table's `think_rate` stays as the default for a rank without one (additive: nothing is removed).
+  - **A budget caps the total** (`EnemyAITable.think_budget`: thinks a second over every awake brain). 200, from AI1's measure: a think in a fight costs about 165 µs, so 200 a second is about 0.55 ms per physics tick. Past it, every brain's rate scales down evenly, never under `think_rate_floor` (5). Under the 20-enemy cap a boss, 2 elites and 6 regulars think 115 times a second.
+  - AI3c measures it again, with the odds read added.
+  - Reaction times don't change (0.45 / 0.35 / 0.3 s, never under 0.2 s), and apply only to reacting to the party (Knowledge).
 
 ### The tuning toolkit (MUST: built first; Ryan 2026-10-03)
 1. **A brain Resource with sliders,** every tunable an `@export` in the inspector. **Archetype presets and faction presets are Resources;** each enemy carries only a few overrides (kind, not magnitude). **The slider list** (Ryan, I1: all twelve, in one preset per role; bosses read pressure, breather and finisher, the others ignore them), with each role preset's starting value (TARGET):
@@ -362,12 +483,36 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 | `pressure_time` | a boss's pressure phase, seconds | 12 | 12 | 12 | 3–30 |
 | `breather_time` | a boss's breather, seconds (difficulty tiers shorten it) | 5 | 5 | 5 | 1–15 |
 | `jitter` | randomness: ± this share on scores and timings, so a group never moves in lockstep | 0.15 | 0.2 | 0.15 | 0–0.5 |
+| `confidence` | how much its own ready key ability emboldens it (effective respect × (1 − confidence × its own kit ready)), and how cautious it turns once it's spent | 0.5 | 0.6 | 0.3 | 0–1 |
+| `crowded_commit` | the chance it goes all in when you're in its face and it has an answer (one roll per episode; otherwise it backs up once or stands) | 0.6 | 0.4 | 0.2 | 0–1 |
+| `aim_lead` | how far its aimed abilities lead a walking target: 0 = where you stand, 1 = where you'll be | 0 | 0.3 | 0.5 | 0–1 |
+| `spend_eagerness` | how freely it fires its key ability: 0 = holds it for the right moment, 1 = fires it on cooldown | 0.4 | 0.7 | 0.8 | 0–1 |
+| `nerve` | how hard it presses when the odds are on its side: effective respect × (1 − nerve × the press) | 0.6 | 0.8 | 0.4 | 0–1 |
 
    Twelve sliders (the range band is one, with two ends). The rest of a preset is **kind**, not magnitude: the role, its intent weights, its low-health response, its retreat health, whether it uses tokens, its pose set.
+   **Five more** (Ryan, 2026-10-04; Duels and odds), **seventeen in all:** `confidence`, `crowded_commit`, `aim_lead` and `spend_eagerness` (built in AI3b), `nerve` (AI3c). Their role starts are TARGET. At `confidence`, `aim_lead` and `nerve` 0, `crowded_commit` 0 and `spend_eagerness` 1 an enemy plays as AI3 shipped, except for the crowded mix (backing up once or standing). The starts above change the test enemies; Ryan approved them for their steps (2026-10-04). `crowded_range` is kind, not a slider (Data). Each new slider's scenario test and overlay line:
+   - `confidence`. **Test:** the same party state with the test brute's smash ready, then on cooldown: patience fills faster while it's ready; after its smash (landed or whiffed) it's cautious for 3 s, refilling slower and walking out to its band's far edge; at 0 neither changes. **Overlay:** `conf 0.5 × own 1.0 (key: smash ready)`, or `cautious 2.1 s`.
+   - `crowded_commit`. **Test:** the Knight with Judgement ready steps inside its crowded range. With its smash ready, 1,000 seeded episodes go all in at about `crowded_commit`'s rate, one roll each; with the smash down it backs up once in about 1 − `aggression` of the episodes and otherwise stands and swings, one roll each. **Overlay:** `crowded: all in (0.31 < 0.6)`, `crowded: back up (no answer)`, or `crowded: stand (no answer)`.
+   - `aim_lead`. **Test:** a target walking sideways at a steady speed: at 0 the bolt lands behind it, at 1 on it. A target that stops as the cast starts: at 1 the bolt lands ahead of it (walked out of). A dash is never led. **Overlay:** `lead 0.5 (+1.2 m)`.
+   - `spend_eagerness`. **Test:** at 0 the key is held until a right moment (the target stunned, or below 30%), then fires at once; at 1 it fires on cooldown; at 0.5 about half the 2 s rolls fire; a poke is never held. **Overlay:** `key: held (next roll 1.4 s)`, or `key: free`.
+   - `nerve`. **Test:** odds past the threshold: effective respect × (1 − nerve × press), the pool +1, the weakest champion picked; at 0 respect is unchanged (the pool and the pick still change: they're the group's). **Overlay:** `odds 2.1, press 0.6 (nerve 0.6)`.
 2. **An in-game brain overlay** in the sandbox: per enemy, its state, chosen intent, why (its top scores), respect, patience, whether it holds a token, its dodge cooldown and its reaction timer.
 3. **A live tuning panel** in the sandbox: pick an enemy, drag its sliders, watch it change while you play, and save back to its .tres.
 4. **A scenario spawner:** preset situations (all cooldowns ready, none ready, low health, an ally present) and a scripted dummy player for the headless tests.
 - *(Built AI1)* All three in-game tools live on one sandbox node, `SandboxBrains` (Architecture), on raw keys like `SandboxLoot`'s: **I** the overlay (B was taken: the AB15 test blink; Ryan, 2026-10-04), **N** the panel, **H** the scenarios (AI2 added two packs).
+
+### Later sliders and ideas (Ryan, 2026-10-04: named only, not designed)
+- `bait_susceptibility`: how readily a cheap ability spent as bait draws its commit (today respect alone decides).
+- `mixup`: feints and timing changes, such as a tell that doesn't follow through or a delayed swing.
+- `combo_commitment`: whether it finishes a string after you dodge its first hit, or cancels it.
+- `memory_time`: how long it remembers its target after stealth or lost sight (today AI2 keeps a known champion while it fights, and ALLIES drops a stealthed one at the next pick).
+- `strafe_bias`: which way and for how long it circles while it holds (today 2–4 s, jittered).
+- `adaptation`: it changes a pattern after the player counters it three times.
+- `anti_repeat`: a boss never uses the same attack three times in a row.
+- A telegraph-length multiplier per difficulty tier (on `DifficultyTier`; `BrainAdjust` holds no telegraph today).
+- Pack leader and follower settings, and focus fire versus spread (the odds' weakest pick is a first focus rule).
+- Boss phase triggers by health: already in (`BossPhase.health_below`, I10); later, triggers other than health.
+- Morale, the mirror of odds: losing units break or go desperate.
 
 ### Testing (MUST: scenarios in the headless suites; Ryan 2026-10-03)
 - The brain is a pure function, so scenarios are tested in the headless suites, with no view and a seeded random number generator: a player with an ultimate ready at 5 m means a brute holds; the ultimate spent means it dives; a projectile aimed at a caster means `defend`; a dodge only after the reaction delay and never on cooldown; `punish` only after a real whiff; token counts and release; the leash and the pack alert; a boss reset. Each step's list is in Build order.
@@ -396,6 +541,7 @@ One kind of enemy: DUNGEONS' "a shared behavior plus its own data". `Enemy.data`
 | `pose_set` | `PoseSet` | its tells; null = `pose_set_default.tres` |
 | `boss_plan` | `BossPlan` | rank BOSS only |
 | `detect_range` | `float` | LoL units, edge to edge (450) |
+| `duelist` | `bool` | *(AI3c; Ryan, 2026-10-04; the name proposed)* rank ELITE only: it thinks at the boss's rate (Kits) |
 | `xp` | `int` | champion XP per kill; replaces `ChampionLeveling.xp_by_unit` (AI7) |
 | `kill_tags` | `Array[StringName]` | TALENTS' kills by tag, quest counters, the bestiary; replaces `Progress.get_kill_tags()`'s none (AI7) |
 | `drop_table` | `DropTable` | replaces `LootTable.drop_table_by_unit`; null = the regular or elite table by rank (AI7) |
@@ -416,7 +562,8 @@ DUNGEONS' "shared behavior": one archetype preset per role (`brute`, `skirmisher
 | Kind | `retreat_health` | `float` | 0.35 (`FALL_BACK` only) |
 | Kind | `uses_tokens` | `bool` | true |
 | Kind | `pose_set` | `PoseSet` | *(added AI1)* the role's tells; null = the enemy's own, else `pose_set_default.tres` (looked up: EnemyData's, the behavior's, the default) |
-| Sliders | the twelve | | The tuning toolkit: each an `@export_range` with its limits (`EnemyBehavior.LIMITS`). `resolve(overrides, adjusts)` makes the copy a brain reads |
+| Kind | `crowded_range` | `float` | *(AI3b; its own value: Ryan, 2026-10-04)* LoL units, edge to edge; −1 = the band's minimum. Brute 200, skirmisher 200, caster −1 (Crowded) |
+| Sliders | the twelve | | The tuning toolkit: each an `@export_range` with its limits (`EnemyBehavior.LIMITS`). `resolve(overrides, adjusts)` makes the copy a brain reads. Seventeen from AI3b–AI3c (Duels and odds) |
 
 *(Built AI1: `enemy_behavior_brute.tres` with the brute column. AI3: `enemy_behavior_skirmisher.tres` (HIT_AND_RESET) and `enemy_behavior_caster.tres` (FALL_BACK at 35%, `intent_weights` commit 0) with their columns.)*
 
@@ -432,6 +579,7 @@ Extends `ToolkitBundle` (`display_name`, `description`, `modifiers`, `stat_scali
 ### BossPlan and BossPhase (`boss_plan.gd`, `boss_phase.gd`; inline in the EnemyData, or `res://data/boss_plans/boss_plan_<name>.tres`)
 - `BossPlan`: `phases: Array[BossPhase]`, `transition_time` (1.5), `transition_ability: Ability` (cast at a phase change; its telegraph is the warning).
 - `BossPhase` (inline): `health_below` (1.0 for the first), `form: StatusEffect` (a `form` status of REPLACE augments; null = its base slots), `intent_weights` (in place of the behavior's; empty = unchanged), `pressure_time`, `breather_time` (−1 = the sliders').
+- *(Boss passives, proposed; AI6)* `BossPlan.passive: Passive` and `passive_aura: PackedScene`; `BossPhase.passive: Passive` (null = keep the plan's).
 
 ### AIUse (`ai_use.gd`; inline on an Ability)
 `intent: StringName` (`poke`, `gap_close`, `escape`, `defend`, `punish`, `finish`, `zone`, `damage`, `heal`, `shield`, `buff`, `cc`), `conditions: Array[Condition]` (all must pass; the situation is passed in), `weight: float` (1).
@@ -470,11 +618,20 @@ The global rules, held by `Brains.table` (the pattern of `LootTable`, `AllyTable
 | `patience_respect_cut` | `float` | *(added AI1)* 0.75: the patience formula's respect cut |
 | `commit_hits`, `commit_max_time`, `back_off_time` | `int`, `float`, `float` | *(added AI1)* 2, 4, 2: a commit's end and the walk back out (The standoff) |
 | `hold_replan_time`, `strafe_step_px`, `strafe_turn_min`, `strafe_turn_max` | `float` | *(added AI1)* 0.25, 40, 2, 4: the hold's movement |
+| `cautious_time`, `cautious_patience_cut` | `float` | *(AI3b, proposed)* 3, 0.5 (Confidence) |
+| `spend_roll_time`, `spend_value_bar` | `float` | *(AI3b, proposed)* 2, 0.8 (Spending the key ability) |
+| `crowded_clear_time`, `crowded_clear_px` | `float` | *(AI3b, proposed)* 1, 16 (an episode ends after this long this far outside) |
+| `smell_blood_mult`, `smell_blood_cap` | `float` | *(AI3b, proposed)* 1.3, 0.89 |
+| `rank_strength`, `champion_strength` | `Dictionary` (rank → float), `float` | *(AI3c; Ryan, 2026-10-04)* fodder 0.25, regular 1, elite 2, boss 4; 1.5 |
+| `odds_threshold`, `odds_pressure` | `float` | *(AI3c)* 1.5 (Ryan), 0.5 *(proposed)* |
+| `odds_token_bonus`, `tokens_per_target_cap` | `int` | *(AI3c)* 1 (Ryan), 4 *(proposed)* |
+| `heavy_hit_window`, `heavy_hit_share` | `float` | *(AI3c; Ryan, 2026-10-04)* 0.8 (widened from his 0.3), 0.1; only while pressing |
+| `think_budget`, `think_rate_floor` | `float` | *(AI3c, proposed)* 200, 5 (thinks a second) |
 
 *(AI1 built the ranks, `think_rate`, `min_intent_time`, `tell_time`, `reaction_floor`, the respect and patience rows and the added rows. AI2 built `pack_think_rate`, the fodder ring, the switch, alert, leash, return and token rows, and its added rows; each later row comes with its step.)*
 
 ### RankRules (`rank_rules.gd`; inline in the table)
-`rank`, `has_brain` (fodder false), `can_dodge` (elites and bosses), `token_cost` (regular 1, elite 2; 0 = no tokens), `tenacity` (elite 0.2, boss 0.4; a FLAT `tenacity` modifier at spawn under `&"enemy_rank"`), `max_abilities` (0, 2, 3, −1 = any; the enemies test checks every EnemyData), `brain_adjust: BrainAdjust`.
+`rank`, `has_brain` (fodder false), `can_dodge` (elites and bosses), `token_cost` (regular 1, elite 2; 0 = no tokens), `tenacity` (elite 0.2, boss 0.4; a FLAT `tenacity` modifier at spawn under `&"enemy_rank"`), `max_abilities` (0, 2, 3, −1 = any; the enemies test checks every EnemyData), `brain_adjust: BrainAdjust`. *(Duels and odds)* `think_rate` (AI3c: 0, 10, 15, 25; −1 = the table's; a duelist elite takes the boss's), and in AI3d `max_abilities` 0, 3, 5, 6 with `min_abilities` 0, 2, 3, 4 (Ryan's kit answer: Kits).
 
 ### Additions to existing data
 | Where | Addition | Default | Notes |
@@ -490,6 +647,7 @@ The global rules, held by `Brains.table` (the pattern of `LootTable`, `AllyTable
 | `DungeonData` (DUNGEONS.md) | `roster: EnemyRoster` | | the type DUNGEONS left to this doc |
 | Events | `pack_alerted(pack, target)`, `boss_phase_changed(boss, phase_index)`, `boss_reset(boss)` | | reserved names |
 | Vocabulary | **rank**, **role**, **brain**, **situation**, **intent**, **use rule**, **respect**, **patience**, **attack token**, **tell**, **pose**, **pack**, **alert**, **leash**, **whiff**, **punish window**, **pressure**, **breather**, **director**, **faction**, **spawn-in**, **ambush** | | for CONVENTIONS.md, on approval |
+| Vocabulary *(Duels and odds, proposed)* | **duelist** (Ryan's word), **key ability**, **cautious**, **crowded** (an **episode**), **answer**, **all in**, **kiting step**, **smell blood**, **strength**, **odds**, **press**, **heavy hit**, **enemy ability library** | | for CONVENTIONS.md, on approval; "press" sits beside "pressure" (patience's push, a boss's phase): Open questions |
 
 ### Test and sandbox data
 - `enemy_slime.tres` (fodder) and `enemy_slime_elite.tres` (an elite brute with the slam), set on today's scenes in AI1, so the slimes keep their look and numbers.
@@ -536,6 +694,7 @@ ALLIES.md's contract, built here first (AI1) because the enemy brain is the firs
   - The drive gains the escape walk (`_drive_escape()`, `_corner()`), the cornered stand, the fall-back (`_drive_fall_back()`) and a caster's strafe.
   - The skirmisher's commit end and reset hop; a gap-closer's cast doesn't end a commit.
   - Static `wants_escape()`, `get_intent_pose()` (poses by role), `get_projectile_time_to_hit()`, `get_caster_strafe()`, `get_fall_back_spot()`, `is_caster()`; queries `is_cornered()`, `is_escaping()`, `is_resetting()`.
+- *(Duels and odds, proposed; AI3b)* It also keeps its key slot, its cautious time, its crowded episode and that episode's roll, and its spend roll's clock; `decide()` reads them from the situation, and the drive runs the all-in, the kiting step and the walk out to the band's far edge.
 - *(Built AI2)* Tokens in the think: a lost token breaks a commit off or ends it (`_check_token_lost()`), full patience asks (`_ask_token()`), a decision other than `commit` lets a held token go; `_end_commit()` releases with the rest, `_reset()` without.
 - `debug_draw`: its range band, home and leash, a line to its target while it holds a token, its dodge direction. *(AI1: the sandbox overlay draws them (I), as `Brains.debug_draw`; the band and the commit line so far.)*
 
@@ -549,6 +708,7 @@ Pure data, filled by `EnemyBrain.build_situation()` or by a test:
 - The live nodes (`target_unit`, `self_unit`) ride along for the act step only; `decide()` never reads them.
 - *(Built AI3)* `incoming` ({source, ability, kind, area, time_to_hit, age, dodgeable}) and `is_threatened(within)`, `cornered`, `escaping`, `resetting`.
 - *(Built AI2)* `needs_token` (false in a hand-built situation), `has_token`, `waiting_for_token`, `tokens_free`, `taunted`, `home_position`, `home_distance_px`; `target_reachable` from the path.
+- *(Duels and odds, proposed)* `key_slot`, `key_ready`, `own_ready_share`, `cautious_left`, `right_moment`, `crowded` and `crowded_roll` (none, all in, back up, stand), `answers`, `target_defensive_ready`, `odds`, `press`; the target's walking velocity (for `aim_lead`).
 
 ### PartySnapshot (RefCounted, `res://scripts/enemies/party_snapshot.gd`)
 Per champion (the `party` group from ALLIES; the `player` until then): the unit, position, health ratio, up or downed, targetable, stealthed, `threat`, each slot's ability, ready, cooldown left and value, kit ready, its respect share, its cast in progress (ability, area, time to the effect), its punish window, its idle time. Plus the party's projectiles in flight (area, time to each point). Companions never appear. *(Built AI3: each member's `cast` (`read_cast()`: its ability, context, kind, area, time left) and `projectiles` (every projectile in flight: position, direction, speed, range left, width, team); the brain works out which reach it.)*
@@ -568,6 +728,7 @@ Each think, every intent the situation allows gets a score from 0 to 1, × the b
 - `commit`: 0.65 at full patience with a token; 0 without one.
 - `poke`: 0.5 when a `poke` use passes (casters 0.6).
 - `hold`: 0.3, always there.
+- *(Duels and odds, proposed)* Smell blood: below `finish_threshold`, `commit` and `finish` × 1.3, never above 0.89. Crowded: an all-in is a `commit` (its patience filled at once); the kiting step is a `retreat`.
 
 ### CastPlan and get_ai_plan() (ALLIES.md's, built here first)
 ALLIES' `CastPlan` (`res://scripts/abilities/cast_plan.gd`) and `Ability.get_ai_plan(caster, situation)` with the shared default are built in AI1, since the brain needs aims. The default aims at the target where it stands now (no leading: an enemy's shot can be walked out of, COMBAT.md), wraps `get_ai_vector()` for a VECTOR ability, and copies the intents of the ability's passing `ai_uses` into the plan's `intents`. Enemy abilities override it where they need to (AI3); ALLIES AL4 adds the Knight's.
@@ -599,6 +760,7 @@ ALLIES' `CastPlan` (`res://scripts/abilities/cast_plan.gd`) and `Ability.get_ai_
   - The shout is `Brains.shout()` (it spans packs), and `Events.pack_alerted(pack, target)` fires for each pack it wakes.
   - The fodder ring runs per target in Brains; only the pure placement, `get_ring_spots()`, is here.
   - No arena flag yet (AI7: arena and boss enemies never leash).
+- *(Duels and odds, proposed; AI3c)* Brains also gains: `get_odds()` (each side's strength, the odds, the press; built with the snapshot, once per tick), each champion's heavy-hit landing times (`note_heavy_hit(target, land_time)`, `can_land_heavy_hit(target, land_time)`), the pool's +1 while pressing (`get_tokens_per_target()`), and the schedule by rank under `think_budget`.
 
 ### BossDirector (`res://scripts/enemies/boss_director.gd`; a child of a boss) *(proposed)*
 - Reads `EnemyData.boss_plan`. Owns the phase, the tempo (pressure, breather), when `punish` and `finish` may open, and hands its brain the phase's intent weights and the intents allowed now.
@@ -672,6 +834,15 @@ Audio hooks: see AUDIO.md. To add when built (synthesized placeholders until rea
 | A slot with no ability below its difficulty tier | Empty; the brain never sees it |
 | An elite modifier's ability with no free slot | Skipped, with a warning (the validator flags such a pool) |
 | More than three overrides on an EnemyData | They apply; the test warns (kind, not magnitude) |
+| Crowded with its escape ready *(Duels and odds)* | Escape wins (a caster blinks away); no roll |
+| Crowded while cornered | The cornered stand; no roll |
+| Crowded again right after an episode | The episode lasts until you've stayed out 1 s; a new episode rolls again |
+| Two heavy hits timed on one champion | While enemies press, the second waits until its landing clears the first's 0.8 s window (a boss plan's scripted pattern is exempt); outside a press both may land, as AI2 allows |
+| A boss fight with adds | The boss never presses (the director); it counts in its side's strength, so its adds can |
+| The ally downed | It counts 0 in the party's strength, so the odds rise |
+| Two abilities tied for its key | The earlier slot; an authored `respect_value` breaks the tie |
+| A brained enemy with no abilities | No key ability: confidence and spending do nothing; crowded, it rolls the mix (no answer): back up once or stand |
+| A poke while it holds its key | Never held (casters poke the whole time) |
 | Tests | No view; `Brains.rng` seeded; saving off (`Progress.is_test_scene()`); the panel never saves in a test scene |
 
 ## Build order (proposed; one step per request; each ends with Ryan's play test)
@@ -682,14 +853,25 @@ Every step: Ryan runs `git status` first; the Knight's abilities, talents, enemi
    **Done means:** with the brute and everything up, it holds and circles at 350–500 u; after Lunge and Judgement go down it crouches and dives; its hold always ends within 12 s (4 × its 3 s `patience_time`); dragging a slider changes it live and saving writes the .tres; the scenarios load; with the brain off the elite slime casts as before. **Tests:** an ultimate ready at 5 m → `hold`; spent → `commit`; respect from known kits; patience's fill and its floor; the same seed → the same decisions; ranks' ability counts; the naive loop gated. **Play test:** Ryan fights the test brute.
 2. **AI2 – Groups (tokens, packs, alert, leash).** Token pools per target (`tokens_per_target`, rank costs, the queue, release on stun, death, out of reach, timeouts), `Pack` (home, the shout, the walk home and recovery), the fodder group think (the ring around the target, 0.6 m apart), ALLIES' target pick (nearest by `threat`, sticky with the margin, taunt, stealth, downed; tested on a second PLAYER-team dummy), sight through `WorldQuery`, the old leash replaced for packs (asked first). **Built 2026-10-04 (see CHANGELOG.md); passed Ryan's play test 2026-10-04.** Ryan's answers first: the performance fix is the cap (Performance), the pack rules for every enemy with data, ALLIES' `threat` and status tags approved (AI2 registers `threat`).
    **Done means:** five test brutes never put more than two on you at tier 1, and they rotate; a stunned holder frees its token at once; one pack member noticing wakes its pack 0.4 s later; walking 12 m away sends them home to heal; fodder surrounds you with no tokens. **Tests:** token counts and release, timeouts, pack alert (through walls for packmates, sight for other packs), the leash and recovery, the target pick's margin, taunt and stealth. **Play test:** a pack fight in the sandbox.
-3. **AI3 – Skirmisher and caster.** Range bands and positioning (ranged behind or beside melee), `poke`, `defend` (incoming attacks, `get_effect_area()`, the `THREATENED` kind), `escape` or fight (cornered), role-based retreat, the skirmisher's dive and reset, the test skirmisher and caster with their plans, their poses. **Built 2026-10-04 (see CHANGELOG.md); awaiting Ryan's play test.** Ryan's answers first: a regular test caster (bolt, blink) and an elite one (plus the shield), the elite skirmisher waiting for AI4; the shield reads anything it sees coming, Judgement included; the skirmisher's gap-closer a real leap; AI2's two rules kept.
+3. **AI3 – Skirmisher and caster.** Range bands and positioning (ranged behind or beside melee), `poke`, `defend` (incoming attacks, `get_effect_area()`, the `THREATENED` kind), `escape` or fight (cornered), role-based retreat, the skirmisher's dive and reset, the test skirmisher and caster with their plans, their poses. **Built 2026-10-04 (see CHANGELOG.md); passed Ryan's play test 2026-10-04.** Ryan's answers first: a regular test caster (bolt, blink) and an elite one (plus the shield), the elite skirmisher waiting for AI4; the shield reads anything it sees coming, Judgement included; the skirmisher's gap-closer a real leap; AI2's two rules kept.
    **Done means:** the caster pokes from 550–800 u, shields only when something is aimed at it, blinks away when caught and squares up when its blink is down; the skirmisher dives when respect drops and hops out after its hit. **Tests:** a projectile aimed at a caster → `defend`; nothing aimed → no shield; cornered → basic attacks, no running for 3 s; low health → behind a melee packmate. **Play test:** a mixed pack.
+
+*Duels and odds (Ryan's design addition, 2026-10-04): three steps after AI3, numbered so AI1–AI3 and AI4–AI8 keep their numbers (proposed placement; each ends with Ryan's play test).*
+
+3b. **AI3b – The duel: confidence, spending, crowded, smell blood, aim lead.** The key ability and `own_ready_share`, cautious, `spend_eagerness` (the right moments and the roll), the crowded episode (answers, `crowded_commit`, the mix of backing up once or standing, `crowded_range`), smell blood (the scores; a ready defensive counted whole below the threshold), `aim_lead` in the default plan; the four sliders in the presets and the panel; the overlay lines; `step_back` for every role. **Changes to built behavior, approved by Ryan (2026-10-04):** AI1's walked-in rule becomes one side of the crowded mix (the other: back up once); AI1's respect below 30% counts a ready defensive whole; the presets' new starts change how the test enemies play (a brute bolder with its smash up, the caster's bolt led).
+   **Done means:** with Judgement ready in its face, a brute with its smash up sometimes goes all in, and otherwise either steps back once and then stands, or stands and swings at once; with its smash spent it backs off and holds longer; at 20% with Iron Resolve up it's warier than with it down; the caster's bolt hits a Knight walking a straight line and misses one who turns. **Tests:** a player with an ultimate ready at 5 m (it holds, as in AI1) and in its face, with the enemy having an answer and not having one; its key spent versus ready (patience, cautious, the same seed giving the same rolls); one all-in roll and one mix roll per episode (backing up at about 1 − `aggression`); escape and cornered still win; the player at 20% with and without a shield ready; a poke never held; aim lead against walking, stopping and dashing targets. **Play test:** Ryan duels the test brute, the skirmisher and the elite caster.
+3c. **AI3c – Odds, and think rates by rank** (AI2's token code reopened). The strength read and `get_odds()`, the press (respect × `nerve`, the shared patience push, +1 token under the cap, the weakest pick), the heavy-hit window while pressing (Brains' landing times; 0.8 s, heavy at 10% of max health), the `press` pose and the overlay's odds line, `nerve`, the `duelist` flag; `RankRules.think_rate` and `think_budget`, measured again with the odds read added. Outside a press nothing built changes (Ryan kept AI2's heavy-hit behavior there).
+   **Done means:** alone against three test brutes and an elite you feel them press (a third attacker, quicker commits, the amber lean); against one brute nothing changes; with the ally down they turn on you; while they press, never two heavy hits within 0.8 s. **Tests:** the odds in a 1v1, a 3v1 and an elite plus fodder against the player and the ally (each side's strength worked out by hand, a champion at 1.5); the pool +1 and never past the cap; the weakest pick with the margin, taunt and stealth; a heavy-hit stacking case refused while pressing (a boss plan's allowed, and outside a press allowed as in AI2); a duelist thinking at the boss's rate; thinks per rank over 10 s, the budget's scaling, reaction times unchanged, a gap-closer's follow-up never waiting a reaction time. **Play test:** a 1v1, a 3v1 and a mixed pack.
+3d. **AI3d – The enemy ability library, part 1, and full kits** (Ryan's kit answer: Kits). The starter archetypes that need nothing new (all but the pool, which waits for WORLD_INTERACTION's Hazards) as shared scripts and templates; the test enemies re-kitted to the new counts; `RankRules`' caps; the telegraph rule checked by the enemies test. It could come before AI3b, so AI3b's play test has full kits (Ryan's call).
+   **Done means:** the test brute, skirmisher and casters fight with full kits built from the library, none authored from scratch. **Tests:** every library ability telegraphs at least 0.6 s unless it's in the chip band and faster than the reaction time on purpose; each rank's ability count in its band; each archetype's `ai_uses` pass where they should. **Play test:** the mixed pack with full kits.
+
 4. **AI4 – Dodging.** The sidestep (elites and bosses), the reaction delay, one roll per attack, the dodge cooldown, never while casting or crowd-controlled, the free-side check, the `sidestep` pose; which party abilities are dodgeable (Dodging).
    **Done means:** an elite sidesteps a Cleave Wave thrown from range a beat late, never twice inside its cooldown, never a Judgement; a stunned or casting elite takes the hit. **Tests:** no dodge before the reaction time; none on cooldown; none while casting, stunned, rooted or airborne; never into a wall or off a ledge; fodder and regulars never dodge. **Play test:** baiting and beating a dodging elite.
 5. **AI5 – Elite modifiers.** `EliteModifier`, the roster's pool, the count by difficulty tier (a sandbox key stands in for the tier until DUNGEONS D8), the first pool (Fast, Shielded, Teleporting with `blink()`, Vampiric, Volatile with its area effect), excludes, the names under the bar.
    **Done means:** elites roll the right count with no excluded pairs; each modifier changes how the fight plays. **Tests:** seeded rolls, counts per tier, excludes, sources removed exactly, the blink's use rules. **Play test:** each modifier on the test brute.
 6. **AI6 – The boss director.** `BossPlan`, `BossPhase`, phases and transitions, the pressure and breather tempo, `punish` (whiffs, `TARGET_WHIFFED`, window sizing), `finish`, the knowledge of the ally's cooldowns, `reset()`, the test boss and its arena corner.
    **Done means:** the boss's tempo reads; a whiffed Judgement draws a telegraphed punish a dash answers; below 30% it goes for a telegraphed finisher; dying resets it cleanly. **Tests:** no punish without a real whiff (a landed ultimate opens nothing); window sizes pick the right attack; phase thresholds; the breather allows only pokes and zones; reset restores everything. **Play test:** the test boss.
+   *(Ryan, 2026-10-04)* It also builds **boss passives:** `BossPlan.passive` and `passive_aura`, `BossPhase.passive`, the passive on the boss bar and the `passive` pose (Bosses). **Tests:** the passive applies under its source, swaps by phase, and is removed and put back by the reset; its state shows on the boss bar.
 7. **AI7 – Faction and tier hooks, ambushes and spawn-in, sleep, enemy data for rewards.** `EnemyRoster` with its faction preset and pool, `DifficultyTier.brain_adjust` (or its stand-in until DUNGEONS D8), `Ambush`, `EnemySpawner.spawn_in()`, sleeping (with the P-spike's distance), XP, kill tags, drop tables and kindling read from `EnemyData` (the stand-ins retired with Ryan's OK).
    **Done means:** the same pack plays differently under two factions and harder at tier 5; an ambush emerges with its telegraph and aggro; far packs sleep and wake together; kills give XP, tags and drops from data. **Tests:** the adjust chain, ambush triggers, spawn-in aggro, sleep and wake, the rewards matching the old tables. **Play test:** a faction pair at two tiers.
 
@@ -719,6 +901,14 @@ Arena waves and mid-fight reinforcements (deferred; Spawning); habit reading for
 ### Open after AI1 (Ryan's call)
 - ~~**The performance fix**~~ Answered (Ryan, 2026-10-04, starting AI2): **(a), the cap** of about 20 moving enemies per fight (Performance). The question as asked (found in AI1, 2026-10-04; Performance, The budget): crowd movement, mostly steering, breaks the 180 Hz frame past about 20 moving enemies, and 50 chasing fodder break the game. Ryan picks: (a) **fewer awake enemies** (a cap of about 20 per fight until later; DUNGEONS' pack sizes and the sleep distance plan around it), (b) **cheaper fodder movement** (fodder without avoidance steering, kept apart by the fodder ring of AI2: about 60% of their cost; Claude's pick, to build with AI2), or (c) **the optimization pass** ALLIES.md puts after all AI (and live with the cap until then).
 
+### Open from Duels and odds (2026-10-04; Ryan's call, asked in short rounds)
+1. ~~**Kit sizes:** does "3 to 5 abilities across the board" include fodder and regulars? And what's a **duelist**?~~ Answered (Ryan, 2026-10-04): **Claude's table** (fodder none, regulars 2–3, elites 3–5, bosses 4–6 plus a passive); **a duelist is an elite flagged `duelist`** that thinks at the boss's rate (Kits).
+2. ~~**No passives and `EnemyData.twist`:** stat shapes only below boss, or retire it?~~ Answered (Ryan, 2026-10-04): **keep it as it is** (Kits).
+3. ~~**The odds:** the champion's weight, the rank weights and the threshold.~~ Answered (Ryan, 2026-10-04): **a champion weighs 1.5** × its `threat` (at 1 a lone elite pressed a full-health Knight); **the rank weights (0.25, 1, 2, 4) and the threshold (1.5) stay** (Odds).
+4. ~~**`crowded_range`:** its own value or the band's minimum.~~ Answered (Ryan, 2026-10-04): **its own value** (melee 200 u, casters their band's minimum) (Crowded).
+5. ~~**The heavy hit:** what counts, and the window.~~ Answered (Ryan, 2026-10-04): **at least 10% of the target's max health; the window 0.8 s** (0.3 s was the post-hit i-frames already) (Odds).
+6. ~~**Changes to built rules,** with their steps.~~ Answered (Ryan, 2026-10-04): **approved:** a ready defensive counted whole below 30% (AI3b); the new sliders' role starts, `aim_lead` included (AI3b). **Not approved:** the heavy-hit rule always on (it runs only while pressing). **Changed:** the crowded kiting step isn't "first": with no answer, a roll picks between backing up once and standing and swinging (Ryan: "it should be a mix"); *(proposed)* the chance to back up is 1 − `aggression`.
+
 ### Claude's other proposals (written in above as *(proposed)*; Ryan can overrule any)
 1. ~~**Names**~~ Answered (Ryan, 2026-10-04, starting AI1): **all approved as proposed**, the word **rank** included (CONVENTIONS.md updated). The list: (`EnemyData`, `EnemyBehavior` and `EnemyRoster` approved as the format in I9): `EnemyAbilitySlot`, `BrainAdjust`, `EliteModifier`, `BossPlan`, `BossPhase`, `AIUse`, `PoseSet`, `PoseLook`, `EnemyAITable`, `RankRules`, `Brains` (autoload), `EnemyBrain`, `SituationContext`, `PartySnapshot`, `BrainDecision`, `Pack`, `BossDirector`, `Ambush`, `EnemySpawner`, `SandboxBrains`, `ScriptedController`; `Ability.ai_uses`, `respect_value`, `get_effect_area()`; `Condition.Kind.THREATENED`, `TARGET_WHIFFED`, `RESPECT`; `Enemy.data`, `naive_casting`; the Events `pack_alerted`, `boss_phase_changed`, `boss_reset`; the source ids `elite_modifier_<id>`, `enemy_<id>`; the intents and intent tags; the word **rank** for the ladder (CONVENTIONS calls elite and boss "enemy tiers").
 2. ~~**The tell lead** (0.3 s of pose before an attack decision) and the pose looks.~~ Answered in I7.
@@ -739,12 +929,33 @@ Arena waves and mid-fight reinforcements (deferred; Spawning); habit reading for
 17. *(Built AI3)* **Casters notice from 850 u** (their `detect_range`), beyond their band's far edge; **an attack coming breaks the no-flip-flop bonus** (the doc's urgent event), so a shield is never held back by a poke just started; **a walk away holds** (its own clock, its bonus); **cornered, a caster swings within 1.5 × its reach** and otherwise stands and pokes.
 18. *(Built AI3)* **The skirmisher's numbers:** a 2 m hop at its reset, half its patience kept. With its 2 s patience it dives every couple of seconds even with the kit up while the target stands still: the play test says whether that's right (the sliders tune it live).
 19. *(Built AI3)* **A settled fodder keeps swinging only while its target is within 0.85 of its reach**, else it steps back to its place. At the edge, other fodder's pushes made every swing whiff (one slime landed nothing for 4 s).
+20. *(Duels and odds)* **The key ability:** its `ultimate`, else its highest `respect_value`, ties to the earlier slot; `own_ready_share` read like a champion's kit ready, 0 while the key is down; **cautious** for 3 s (or until the key is ready), patience × (1 − 0.5 × confidence), the walk out to the band's far edge.
+21. *(Duels and odds)* **The right moments** for a held key (crowd control, a punish window, the target below the finish threshold, its defensives down, crowded, a plan worth 0.8) and one roll every 2 s; a poke is never held.
+22. *(Duels and odds)* **An answer is derived from the intent tags** (`cc`, `escape`, or a damaging use that reaches now), with no new tag; a knock-away is authored as a `cc` use.
+23. *(Duels and odds)* **The crowded order** (cornered, escape, the all-in roll, then Ryan's mix of backing up or standing, its chance 1 − `aggression`), one roll each per episode, the episode ending 1 s after the target leaves by 0.5 m, a caster's all-in as casting its answer.
+24. *(Duels and odds)* **Smell blood as scores** (× 1.3, capped at 0.89) and **one shared push** for low health and the odds (the larger), instead of more pushes on patience.
+25. *(Duels and odds)* **The press:** `odds_pressure` 0.5, the token cap 4, the weakest pick's factor (0.5 + 0.5 × health), bosses never pressing, the `press` pose (a 10° lean, an amber 1 Hz rim). The word "press" sits beside "pressure" (patience's push and a boss's phase); another word is fine.
+26. *(Duels and odds)* **The think budget:** 200 thinks a second (about 0.55 ms per physics tick at AI1's measure), scaled down evenly past it, never under 5 a second.
+27. *(Duels and odds)* **The library's paths and starter list** (Kits), and **AI3d** for it (before or after AI3b).
+28. *(Duels and odds)* **Boss passives' tells:** the boss bar like the HUD's passive slot, an aura, the `passive` pose; `BossPlan.passive`, `BossPhase.passive`.
 
 ### Conflicts and notes for Ryan (found 2026-10-03)
 - ~~**Arena spawn-in vs waves:** DUNGEONS.md proposes arena waves (`ArenaWave`, `next_wave_at`); Ryan didn't pick waves or reinforcements. This doc keeps spawn-in (one group at the seal) and defers waves; DUNGEONS' wave proposal is marked waiting on Ryan.~~ Answered (Ryan, 2026-10-04): spawn-in confirmed (one group at the seal); waves and reinforcements stay deferred. DUNGEONS.md updated.
 - **Data intents vs ALLIES' script-only AI:** ALLIES' decision ("one AI method per ability ... replaces the brief's data hints") and this brief's data intent tags both stand: the data says what for and when, the script says how and how good. ALLIES' `engage` intent is renamed `gap_close`, and `get_ai_plan()`'s `sense` is the `SituationContext`.
 - ~~**"Rank" vs "enemy tier":** CONVENTIONS.md's vocabulary calls elite and boss enemy tiers; this doc proposes "rank". CONVENTIONS isn't edited until Ryan picks.~~ Answered (Ryan, 2026-10-04): "rank"; CONVENTIONS.md updated.
 - **Found building AI1 (2026-10-04):** the doc's **B** for the overlay was already the sandbox's AB15 test blink; Ryan picked **I**. Putting the slimes on data gives the elite slime a brain in room_01 too (Ryan: yes, everywhere); combat_test's C5 and abilities_test's AB13 and cleanup-pass checks of the naive loop now spawn the elite with no data.
+- **Found writing Duels and odds (2026-10-04):**
+  - **Ability counts:** Ryan's "3 to 5 across the board" against his ladder (fodder none, regulars 1–2, elites 3) and the built `RankRules.max_abilities`. Answered: Claude's table; the caps change in AI3d.
+  - **"Duelist"** wasn't a rank or a role in this doc. Answered: an elite flagged `duelist`.
+  - **"No passives"** against `EnemyData.twist`, a bundle that can hold unit reaction rules and statuses. Answered: the twist stays as it is.
+  - **The crowded kiting step** against AI1's built "walked in on, it holds its ground and swings". Answered: a mix, rolled per episode (back up once, or stand and swing).
+  - **A caster never commits** (AI3, its commit weight 0): its all-in is casting its answer, not a commit, so nothing built changes for casters (the test casters' only answer is their blink, and escape wins).
+  - **Aim lead** against the default plan's "no leading" (AI1, from COMBAT's "can be walked out of"): at 0 it's today's aim, and a lead still loses to a turn, a stop or a dash. Answered: approved with the presets' starts.
+  - **Low health counted four ways** (respect's health term, the 40% push, smell blood, the odds' health ratios): nothing removed; smell blood is scores only, and the odds and low health share one push.
+  - **The heavy-hit window (0.3 s)** equals the player's post-hit i-frames (COMBAT.md), which already block a second hit inside 0.3 s: as written the rule changes nothing today, and COMBAT needs no hook. Answered: widened to 0.8 s, only while pressing.
+  - **The champion's weight:** at Ryan's start (1 × `threat`), a lone elite (2) against a full-health Knight was at odds 2 and pressed. Answered: 1.5.
+  - **"Boss phase triggers by health"** (Ryan's later list) is already designed (I10, `BossPhase.health_below`).
+  - **Vocabulary:** "press" beside "pressure" (Claude's proposal 25).
 - **Found building AI3 (2026-10-04):**
   - **The caster's numbers:** a regular can have at most 2 abilities, but the doc gave the test caster 3. Ryan split it: a regular test caster with the bolt and the blink, and an elite one with the shield added.
   - **Detection:** at the default 450 u a caster always noticed inside its own band's minimum and fled at once; casters notice from 850 u.
@@ -769,4 +980,5 @@ Arena waves and mid-fight reinforcements (deferred; Spawning); habit reading for
 - **DUNGEONS.md** (applied 2026-10-03): `EnemyRoster` as `DungeonData.roster`; faction presets; `DifficultyTier.brain_adjust`; elite modifiers' format here; ambushes and spawn-in; waves deferred; `BossDirector.reset()`.
 - **ABILITIES.md, COMBAT.md** (applied 2026-10-03): `ai_uses`, `respect_value`, `get_effect_area()`, the three condition kinds; enemy roles in the threat kinds; dodge and tell rules; bands unchanged.
 - **WORLD_INTERACTION.md** (applied): ambush triggers; `Sight` into WorldQuery in AI2. **COMPANIONS.md** (applied): drops from `EnemyData`. **3D.md** (applied): pose hooks; the perched sniper; enemy attacks' `melee` tag.
+- **Duels and odds** (applied 2026-10-04): ABILITIES.md (answers from the intent tags, enemy abilities' `respect_value` and the key ability, the enemy ability library, `aim_lead` in the default plan, heavy hits); ALLIES.md (the target pick under odds, the party's strength); COMBAT.md unchanged (the post-hit i-frames already cover the heavy-hit window). CONVENTIONS.md gets the new words on approval.
 - **CONVENTIONS.md** (applied 2026-10-04, Ryan approved the names): the names AI1 built and the word "rank"; the later steps' names go in as they're built. **TALENTS.md, LOOT.md** (on approval): their stand-ins retire in AI7. **VISION.md** (on approval): Open question 7 answered. **AUDIO.md**: the hooks above join its "later, per system" list when built.
