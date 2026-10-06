@@ -1192,7 +1192,16 @@ Combat test 450/450, stats test 172/172 (unchanged). A headless in-game check of
 
 ## Champions (CHAMPIONS.md)
 
-### K2 – Q Bladesinger, Blades and Inevitable Demise: 2026-10-04, Built (awaiting Ryan's play test)
+### K2 fix – DoT numbers under 1: 2026-10-05, Passed
+K2 passed and Ryan committed it; the tree was clean. His one hiccup: Inevitable Demise's tick numbers showed "0". The damage was right: each tick is 0.3–0.72 at 60 AD (no armor on today's enemies), but the number rounds each tick, and ticks 0.5 s apart don't merge (the merge window is 0.3 s).
+
+- `Unit._spawn_hit_number()`: a DoT tick that isn't merged adds the unit's carry (`Unit._dot_carry`, new) to its amount. Under 1, it shows nothing and the total waits as the carry; at 1 or more it shows as before and the carry goes back to 0. Merging and the shield's number are unchanged; only DoT ticks carry. COMBAT.md, Damage numbers has the rule.
+- Tests: the combat test's C6 gets ticks of 0.3 showing nothing, nothing, nothing, "1", nothing. The champions test's Demise run checks that none of the dummy's numbers shows "0", that at least 6 appear and that each shows "1". With the carry switched off, both checks fail; the champions one gets the "0" Ryan saw.
+- All suites: stats 180, combat 486, abilities 593, audio 110, champions 238, talents 310, view 469, loot 750, enemies 338 = 3,474/3,474. Saves unchanged.
+
+**Passed** (Ryan's check, 2026-10-05).
+
+### K2 – Q Bladesinger, Blades and Inevitable Demise: 2026-10-04, Passed
 K1 passed and Ryan committed it. The tree was clean and no Godot editor was open when the step started; Ryan's editor was open (sandbox_main.tscn) by the end, and every K2 file was checked intact afterwards.
 
 New toolkit pieces (ABILITIES.md, Later toolkit pieces; COMBAT.md, StatusEffect):
@@ -1217,6 +1226,8 @@ Measured (champions test):
 - **Demise:** no tick at 1 stack; ticks of 0.3 / 0.3 / 0.48 / 0.48 / 0.6 / 0.6 / 0.72 at 2–8 stacks (1% of 60 AD × the table), PHYSICAL, from her. A 9th Blade keeps 8 stacks and restarts the 5 s; all 8 end together 300 frames later.
 - **Toolkit (combat test):** STACK_SHARED, the tick table (0 → no tick, past the end → the last entry), and scalings following another status's stacks, which survive the holder's own stack changes and go with it.
 - **Smoke run:** a sandbox run as Korsavil: 2 Blades at 2.5 s (× 0.9, 429 speed), the recast spends them, no errors; saves byte-identical (saving off).
+
+**Passed** (Ryan's play test, 2026-10-05; he committed it): he keeps the `_sync_modifiers()` change. One hiccup, Demise's tick numbers showing "0", is fixed above (K2 fix).
 - **Sensitivity:** breaking the shared timer, the tick table, the status refresh or the `blades` input each fails its checks.
 
 Ryan's progress.cfg changed during the step (23:45, his own play: a [korsavil] record with 6 kills and 30 XP, and more Knight casts and kills); no test writes saves.

@@ -263,6 +263,7 @@
 | 2026-09-29 | The pre-C9 `StunEffect` fallback is deleted (`stun_effect.gd`, its branches in `Unit`); a unit without a StatusComponent can't be stunned (`apply_stun()` does nothing, `get_status_tags()` is empty). Closes the 2026-09-27 C9 `StunEffect` row. `AutoAttackComponent`'s old next-attack dictionary is deleted too (`add_next_attack_modifier()` does nothing without a StatusComponent). | Their recorded delete conditions (C9 passed; AB10 passed) are met, and every Unit scene has a StatusComponent. |
 | 2026-10-03 | Damage numbers stack: a unit's new number starts one step (11 px) above its previous number while that one still shows, up to 4 high, then at the bottom again. In 2D and on the 3D overlay. Ryan will revisit numbers with UI.md. | Ryan, after P7's check: equal hits on one target (a combo's swings) started 9 px apart and read as one number drawn twice. Every hit makes exactly one number; this only spreads them. |
 | 2026-10-04 | **Fear** (planned, not built): a `cc` status (`status_fear`): the unit runs away from the fear's source and can't act; tenacity shortens it; bosses ignore it. How bosses refuse it (`StatusEffect.refused_by_tags` and a permanent `boss` status) is *(proposed)*. `AttackSwing.hit_tags` (the hit tag `finisher` on a combo's last swing) is built with Korsavil, the champion that needs it. | Ryan's design for Korsavil's Umbral Stalker; the per-swing hit tags were "noted for later, built when a champion needs it" (2026-10-04). |
+| 2026-10-05 | A DoT tick under 1 shows no number of its own: it carries into the unit's next DoT number, so a tick never shows "0". Ticks of 1 or more show as before. | Ryan's report from K2's play test: Inevitable Demise's ticks (0.3–0.72 at 60 AD) showed "0". Claude's fix: a carry rather than decimals, so numbers stay whole. |
 
 ## Abilities
 | Date | Decision | Why |
@@ -379,6 +380,7 @@
 | 2026-10-04 | **Korsavil is built right after Ryan's play test of ENEMIES_AI AI3d**, before AI3b and AI3c, so before ALLIES' planned ranged support too; in steps K1–K6 and the milestone K-M (CHAMPIONS.md, Build order; the steps' contents *(proposed)*). | Ryan. |
 | 2026-10-04 | Korsavil's cycle rules: a combo cycle is picked when a chain starts and runs to its end even if the state that picked it ends inside it (so the 4-swing cycle's finisher still comes after Vanish's empower is used up); casting Vanish restarts her chain at swing 1 of the 4-swing cycle. | Ryan approved Claude's gap rules (the empower has 3 uses, the cycle 4 swings). |
 | 2026-10-04 | Korsavil's K1 passed Ryan's play test (he committed it); K2 started the same day. | Ryan. |
+| 2026-10-05 | Korsavil's K2 passed Ryan's play test (he committed it). K2's change to `StatusComponent._sync_modifiers()`, which now swaps the exact per-stack copies it added, is kept; status-held StatScalings don't get their own source id. | Ryan. The change replaced working code without asking first; he OK'd it after the fact. |
 
 ## Talents
 | Date | Decision | Why |

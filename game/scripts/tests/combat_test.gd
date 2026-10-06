@@ -1454,6 +1454,18 @@ func _test_damage_numbers() -> void:
 	dummy.on_hit(late)
 	added = _numbers().filter(func(n: Label) -> bool: return not before.has(n))
 	_check("a tick after the window starts a new number", added.size(), 1)
+	# A tick under 1 would show "0" (Inevitable Demise's, CHAMPIONS K2's fix):
+	# it waits and adds into the unit's next DoT number.
+	var small_ticks: Array = []
+	for i in 5:
+		await _frames(25)   # past the merge window
+		before = _numbers()
+		var small := dummy.make_hit_context(0.3, knight)
+		small.add_tag(&"dot")
+		dummy.on_hit(small)
+		small_ticks.append(_numbers().filter(func(n: Label) -> bool: return not before.has(n)).map(func(n: Label) -> String: return n.text))
+	_check("ticks of 0.3 show nothing until they reach 1: \"1\" on the 4th (1.2), never \"0\", then it starts over",
+		small_ticks, [[], [], [], ["1"], []])
 
 	before = _numbers()
 	dummy.show_heal_number(15.0)

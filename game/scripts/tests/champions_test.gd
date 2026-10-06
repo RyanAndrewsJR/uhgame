@@ -69,6 +69,7 @@ const STATUS_BLADE: StatusEffect = preload("res://data/statuses/status_blade.tre
 const STATUS_ORBIT: StatusEffect = preload("res://data/statuses/status_bladesinger.tres")
 const STATUS_DEMISE: StatusEffect = preload("res://data/statuses/status_inevitable_demise.tres")
 const STATUS_STALKER: StatusEffect = preload("res://data/statuses/status_umbral_stalker.tres")
+const NUMBER_SCRIPT := preload("res://scripts/ui/damage_number.gd")
 
 const MANA := ResourceComponent.ResourceType.MANA
 const FURY := ResourceComponent.ResourceType.FURY
@@ -1157,6 +1158,11 @@ func _test_demise() -> void:
 		if ctx.target == d and ctx.has_tag(&"dot"):
 			ticks.append(ctx)
 	Events.unit_hit.connect(on_hit)
+	var shown: Array[int] = []   # the dummy's DoT numbers as shown
+	var on_number := func(n: Node) -> void:
+		if n is Label and n.get_script() == NUMBER_SCRIPT and n.kind == NUMBER_SCRIPT.Kind.DOT:
+			shown.append(roundi(n.amount))
+	child_entered_tree.connect(on_number)
 	var dsc := d.status_component
 	dsc.apply_status(STATUS_DEMISE, k)
 	await _frames(32)
@@ -1183,6 +1189,9 @@ func _test_demise() -> void:
 	Events.unit_hit.disconnect(on_hit)
 	_check_near("with no new Blade, all 8 go together 5 s later (300 frames)", frames, 300.0, 2.0)
 	_check("8 stacks the whole time, though they came over 3 s (no stack runs out on its own)", [seen.min(), seen.max()], [8, 8])
+	child_entered_tree.disconnect(on_number)
+	_check("its numbers never show \"0\": ticks under 1 add up into the next number (a \"1\" every 1–2 ticks)",
+		[shown.has(0), shown.size() >= 6, shown.max() if not shown.is_empty() else -1], [false, true, 1])
 	d.queue_free()
 	k.queue_free()
 	await _frames(1)

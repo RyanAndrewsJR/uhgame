@@ -91,6 +91,7 @@ The rule for every combo with `attack_style` MELEE (the default; the Knight is t
 - Every hit shows a number above the target.
 - Crits use a distinct font (proposed) and are larger.
 - DoT ticks use a smaller style and are merged per target over a short window so they don't flood the screen.
+- **A DoT tick under 1 never shows "0"** (2026-10-05, from K2's play test): it shows nothing and carries into the unit's next DoT number (`Unit._dot_carry`), which appears once the carried total reaches 1. Ticks of 1 or more show as before. Inevitable Demise's ticks (0.3–0.72 at 60 AD) show a "1" every one or two ticks.
 - **Hits in a row stack** (Ryan, 2026-10-03; revisited with UI.md): a unit's new number starts `stack_step_px` (11) above its previous number while that one still shows (its `lifetime`), up to `stack_levels` (4) high, then at the bottom again. Equal hits (a combo's swings) read as a rising column, not one number drawn twice. The same in 2D and on the 3D overlay (`Unit._stack_lift()`).
 - Size grows with the amount, in a few discrete pixel-font steps on a log scale, so late-game numbers don't all hit max size.
 - Colors: by damage type (FREE, but readable); damage the player takes is red; healing is green; damage a shield absorbed is its own silver-blue number.

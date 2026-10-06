@@ -87,6 +87,7 @@ var crit_misses: int = 0
 var _alive: bool = true
 var _reaction_rules: Array = []   # [ReactionRule, source_id] (COMBAT C11)
 var _dot_number: Label   # the latest DoT number, to merge the next tick into
+var _dot_carry: float = 0.0   # DoT damage too small to show yet (under 1), added to the next DoT number
 var _last_number: Label   # the latest number, to stack the next one above (_stack_lift())
 var _last_number_level: int = 0
 var _invulnerable: Dictionary = {}   # id -> true (e.g. &"dash" i-frames)
@@ -461,7 +462,8 @@ func _on_hurtbox_hurt(hitbox: Hitbox) -> void:
 
 ## The number for a hit that got through (COMBAT.md, Damage numbers): size by
 ## amount (log steps), crits bigger with their own look, color by damage type
-## (red on the player), DoT ticks smaller and merged per target. The part a
+## (red on the player), DoT ticks smaller and merged per target (a tick under
+## 1 carried into the next, so none shows "0"). The part a
 ## shield absorbed is its own number in the shield color (COMBAT C10); a hit
 ## fully absorbed shows only that one.
 func _spawn_hit_number(ctx: HitContext) -> void:
@@ -481,6 +483,14 @@ func _spawn_hit_number(ctx: HitContext) -> void:
 			and _dot_number.get_age() < style.dot_merge_window:
 		_dot_number.add_amount(to_health)
 		return
+	if is_dot:
+		# A tick under 1 would show "0": it waits and adds into this unit's
+		# next DoT number instead (Inevitable Demise's ticks, CHAMPIONS K2).
+		to_health += _dot_carry
+		_dot_carry = 0.0
+		if to_health < 1.0:
+			_dot_carry = to_health
+			return
 	var n := _make_number(to_health, style)
 	if is_dot:
 		n.kind = DamageNumber.Kind.DOT
