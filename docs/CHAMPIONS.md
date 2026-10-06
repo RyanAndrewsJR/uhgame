@@ -171,6 +171,13 @@ Damage: 150 + 100% AD + 20% of the target's missing health, PHYSICAL; stun 0.75 
 Conditional bonuses: RESOURCE_AT_LEAST 60 → base_damage +30%, ad_ratio +30%, stun_duration +0.5 s; then consumes all Fury
 ```
 
+### Against enemy crowd control (checked 2026-10-05 for ENEMIES_AI.md, Combos)
+- **The Knight has no crowd-control break and no unstoppable moment.** Iron Resolve is a haste and an empowered swing with a slow, Unbroken is attack damage, and Judgement stuns.
+- **Rooted** (ABILITIES.md, Roots), he can swing, Cleave (its knockback pushes the attacker off), Iron Resolve and Judgement, but can't Lunge or dash. **Stunned,** he can do nothing.
+- **Tenacity:** none on the Knight. It comes from gear (`affix_tenacity` on helms and boots, Oathbound Plate) and the Stalwart talent.
+- **What answers an enemy's combo:** dodging its opener (always telegraphed and dodgeable) and diminishing returns on crowd control (ENEMIES_AI.md, Being combo'd). There is no combo budget: an enemy's cooldowns are its only limit. **No new Knight tool now** (Ryan, 2026-10-05; Claude's proposal), revisited at ENEMIES_AI's AI-M with the low-health judgment call.
+- *(ENEMIES_AI Combos, proposed; with ALLIES AL6)* `ChampionData.combo_plans` (`Array[ComboPlan]`, empty): a champion's own ability chains (the Knight's Lunge → Cleave), read only when an AI drives the champion (the ally). The human never uses them.
+
 ## Korsavil
 An assassin who gathers Blades, throws them through packs and cashes in what they marked. **Designed 2026-10-04; K1 built and passed the same day** (her data, loading, 3-swing cycle and the hub's pick), **K2 built 2026-10-04 and passed 2026-10-05** (Q Bladesinger, Blades, Inevitable Demise); her build steps are K1–K6 and K-M (Build order, Korsavil), right after Ryan's play test of ENEMIES_AI AI3d (Ryan, 2026-10-04). Ryan's decisions are MUST (Ryan, 2026-10-04); Claude's picks are marked *(proposed)* and listed in Open questions (Korsavil). Her ability sheets are in ABILITIES.md (Korsavil); the toolkit pieces she needs that don't exist yet are in ABILITIES.md, Later toolkit pieces. Units: League units, 100 u = 1 m = 32 px.
 

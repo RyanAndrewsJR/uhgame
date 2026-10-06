@@ -1487,6 +1487,35 @@ Docs only; no code or tests changed.
 
 ## Enemies AI (ENEMIES_AI.md)
 
+### Design addition – Combos, crowd control and the test duelist: 2026-10-05, Docs only (Ryan's answers applied)
+Docs only; no code or tests changed. Ryan's design addition: enemies are easy to brute-force because their kits are thin, so a test enemy with a real kit proves the brain. Added to ENEMIES_AI.md (on top of Duels and odds, the brief's "v2 additions"), nothing built rewritten:
+- **ENEMIES_AI.md:**
+  - Principle 11 and three Goal/feel rows.
+  - A new section, Combos, crowd control and the test duelist:
+    - two reads: crowding (the brief's "pressure on me") and the opening;
+    - peel and setup as a crowd control's two use rules (the peel is the crowded episode with a crowd control as its answer);
+    - combo plans (`ComboPlan`, `ComboStep`, `combo_roles`; any opener; no blind finishers; the ends);
+    - the follow-through (reset or stay) with a worked example;
+    - where a plan lives (inside `commit`);
+    - being combo'd: no combo budget and no kill protection (cooldowns are the limit), diminishing returns on crowd control, the opener's telegraph;
+    - the Knight's counterplay findings, ally parity, enemies being combo'd (the poise hook, break free), the feedback events;
+    - the test duelist (stats, a kit from the library with the guard as a plain shield, three plans, poses, scenarios).
+  - The `peel` intent; four condition kinds and THREATENED's tag filter; five sliders (twenty-two in all) with tests and overlay lines; data rows, architecture (`ComboPlanner`), edge cases.
+  - Build steps **AI-D1** (the duelist and the two reads), **AI-D2** (combo plans and the follow-through), **AI-D3** (diminishing returns) and **AI-D4** (ally parity, with ALLIES AL6), after AI3c. Not D1–D4: DUNGEONS has D0–D9.
+- **Cross-doc edits:**
+  - ABILITIES.md: `combo_roles`, `recovery_time`, `castable_while_cc`, the condition kinds, the AI section's combos bullets.
+  - COMBAT.md: diminishing returns, `status_cc_immune` and its ring, `CrowdControlRules`, the events, no combo budget or kill protection (Ryan), the open question answered.
+  - ALLIES.md: the shared planner, the ally's rules, the stances' sliders, the table's weights, AL6's note.
+  - CHAMPIONS.md: the Knight against enemy crowd control, `ChampionData.combo_plans`.
+  - DECISIONS.md: two rows in Enemies (the brief; Ryan's answers) and one in Combat (diminishing returns; no budget). CLAUDE.md: the Docs index and Current status.
+  - CONVENTIONS.md is untouched: the new names go in on approval.
+- **Ryan's answers** (four short rounds, the same day): the Knight gets no new tool against crowd control now; a root (up to 1 s) and a short stun (up to 0.5 s) on the player at first; **no combo budget** ("if their abilities are off cool down they can use it whenever they please") and no kill protection; diminishing returns for every unit (fodder full; bosses until poise); boss poise later; the duelist's guard a plain shield, its numbers as proposed; all four rule changes approved (crowding starts the crowded episode and a failed all-in peels; a plan holds its commit and token up to 6 s; `mixup` and `combo_greed`; the ally's own plans and quick follow-up); "stay" for the follow-through. Ryan asked whether the rule changes were new or already planned: all were new proposals from this pass.
+- **Found while writing** (ENEMIES_AI.md, Conflicts):
+  - **Names:** "pressure" and "press" already taken (so crowding and stay); "combo" is the basic attack chain (so a combo plan); peel and guard are already intent tags.
+  - **The brief's own gaps:** `combo_greed` not defined, and the blind finisher put under the brute's lowest slider; fodder's full crowd control against "every unit"; kill protection redundant with the damage cap.
+  - **Against Ryan's decisions:** the duelist as a rank thinking 20 a second (Ryan: an elite flag at the boss's 25); the library already built; no `answer` tag needed; a root blocking the dash (Ryan's roots rule); no icons over heads (so a ring); ALLIES' unscripted party combos; the ally's reaction time.
+  - **What doesn't exist yet:** AI6's whiff read for "recovering"; a plan outlasting the token's 4 s; no ability recovery field.
+
 ### AI3d – The enemy ability library, part 1, and full kits: 2026-10-04, Passed (Ryan's play test, 2026-10-04)
 Ryan committed the Duels and odds design and started AI3d first of its three steps. Before building he answered four questions, each as Claude proposed: re-kit the elite slime (slam, shockwave, big hit); more enemy slots come with bosses (AI6); the test kits as proposed; the stab at 30 damage (35 broke the telegraph rule).
 - **Built:**

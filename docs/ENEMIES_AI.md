@@ -1,10 +1,10 @@
 # ENEMIES_AI.md: Enemy Brains, Roles, Groups, Dodging, Tells, Elites, Bosses and the Tuning Toolkit
-<!-- Written 2026-10-03 from Ryan's decisions (his interview with the advisor, the same day). AI1–AI3 built and passed 2026-10-04 (CHANGELOG.md); the rest is a plan. Duels and odds (Ryan's design addition, 2026-10-04, docs only) added as AI3b–AI3d; AI3d built 2026-10-04. -->
+<!-- Written 2026-10-03 from Ryan's decisions (his interview with the advisor, the same day). AI1–AI3 built and passed 2026-10-04 (CHANGELOG.md); the rest is a plan. Duels and odds (Ryan's design addition, 2026-10-04, docs only) added as AI3b–AI3d; AI3d built 2026-10-04. Combos, crowd control and the test duelist (Ryan's design addition, 2026-10-05, docs only) added as AI-D1–AI-D4. -->
 
-**Read when:** the task involves how enemies decide (the brain, the situation, intents, respect, patience), enemy roles and ranks (fodder, brute, skirmisher, caster; regular, elite, boss), what an enemy ability is for (its AI uses), what enemies know about the party, attack tokens, packs (alert, leash), losing a stealthed target (the search), fear (fleeing), enemy dodging, enemy tells (poses), elite modifiers, the boss director (phases, pressure and breather, punish, finish, reset), spawning (packs, ambushes, spawn-in), how factions and difficulty tiers scale brains, where enemy data lives (`EnemyData`, the roster: XP, kill tags, drops), the AI's performance (think rate, sleeping), or the AI tuning toolkit (sliders, the brain overlay, the live tuning panel, the scenario spawner).
+**Read when:** the task involves how enemies decide (the brain, the situation, intents, respect, patience), enemy roles and ranks (fodder, brute, skirmisher, caster; regular, elite, boss), what an enemy ability is for (its AI uses), what enemies know about the party, attack tokens, packs (alert, leash), losing a stealthed target (the search), fear (fleeing), enemy dodging, enemy tells (poses), elite modifiers, the boss director (phases, pressure and breather, punish, finish, reset), spawning (packs, ambushes, spawn-in), how factions and difficulty tiers scale brains, where enemy data lives (`EnemyData`, the roster: XP, kill tags, drops), the AI's performance (think rate, sleeping), the AI tuning toolkit (sliders, the brain overlay, the live tuning panel, the scenario spawner), or combos (combo plans, peel and setup, crowding and the opening, the follow-through, crowd control's diminishing returns, the combo budget, the test duelist).
 **Depends on:** CLAUDE.md, VISION.md (Pillar 1, decision priorities, Open question 7), CONVENTIONS.md, ABILITIES.md (AbilityComponent and the cast flow, `Condition`, `get_ai_vector()`, telegraphs, cast progress, untargetable), COMBAT.md (damage bands, telegraph rules, hit forgiveness, statuses, CC and tenacity), ALLIES.md (`UnitController`, the target-pick rules, `threat`, taunt, stealth, `get_ai_plan()` and `CastPlan`, party scaling), DUNGEONS.md (rosters on shared behaviors, packs and arenas, content slots, difficulty tiers and elite modifier counts, bosses and their reset), 3D.md (views and `UnitView`, perches and `can_reach()`, ledges and navmesh islands, the sleep distance and the P-spike), WORLD_INTERACTION.md (WorldQuery, Hazards, kill credit), COMPANIONS.md (enemies never see companions; drops), TALENTS.md (kill counters and XP; the kind-not-magnitude rule), LOOT.md (drop tables), MOVEMENT.md (MovementComponent, soft caps), STATS.md, AUDIO.md (hooks).
 **Used by:** ALLIES (the shared perception, the controller base, `CastPlan`, the target pick; the ally brain reuses the toolkit), DUNGEONS (the roster format, faction presets, spawn kinds, elite modifiers, difficulty tier hooks, the boss reset), COMBAT and ABILITIES (intent tags, use rules, enemy telegraph and dodge rules), TALENTS, LOOT and COMPANIONS (enemy XP, kill tags, drop tables and kindling move onto `EnemyData`), 3D (pose hooks, the perched sniper), UI (the boss bar, elite modifier names), AUDIO (hooks), NARRATIVE (bestiary entries by kill tag).
-**Status:** written 2026-10-03. Ryan's decisions (his interview with the advisor, 2026-10-03) are MUST, recorded in DECISIONS.md (Enemies). **The interview is done:** Ryan answered all eleven open items (I1–I11) in three rounds the same day, each as Claude proposed; his answers are MUST, marked I1–I11 in the sections below and listed under Open questions, Interview. Items still marked *(proposed)* are Claude's picks Ryan hasn't answered; each is also in Open questions. **AI1 built and passed 2026-10-04** (see CHANGELOG.md; Ryan started it before ALLIES' second champion, and approved its names). **AI2 built and passed 2026-10-04.** **AI3 built and passed 2026-10-04.** **AI3d built and passed 2026-10-04** (before AI3b and AI3c, Ryan's call). AI4–AI8 and AI-M aren't started. **Korsavil** (CHAMPIONS.md) is built right after AI3d's play test, before AI3b and AI3c (Ryan, 2026-10-04); her step K6 builds this doc's fear and search. ALLIES.md calls this doc's first steps "Tier B": they are AI1 and AI2 here. **Duels and odds** (Ryan's design addition, 2026-10-04, docs only): smarter single enemies, since most fights are one or two champions against at most 5–7 enemies: confidence, spending the key ability, the crowded response, smell blood, odds, think rates by rank, five more sliders, kit sizes and the enemy ability library, boss passives (Kits; Duels and odds; build steps AI3b–AI3d). Ryan answered its questions the same day in three rounds (Open questions, Open from Duels and odds).
+**Status:** written 2026-10-03. Ryan's decisions (his interview with the advisor, 2026-10-03) are MUST, recorded in DECISIONS.md (Enemies). **The interview is done:** Ryan answered all eleven open items (I1–I11) in three rounds the same day, each as Claude proposed; his answers are MUST, marked I1–I11 in the sections below and listed under Open questions, Interview. Items still marked *(proposed)* are Claude's picks Ryan hasn't answered; each is also in Open questions. **AI1 built and passed 2026-10-04** (see CHANGELOG.md; Ryan started it before ALLIES' second champion, and approved its names). **AI2 built and passed 2026-10-04.** **AI3 built and passed 2026-10-04.** **AI3d built and passed 2026-10-04** (before AI3b and AI3c, Ryan's call). AI4–AI8 and AI-M aren't started. **Korsavil** (CHAMPIONS.md) is built right after AI3d's play test, before AI3b and AI3c (Ryan, 2026-10-04); her step K6 builds this doc's fear and search. ALLIES.md calls this doc's first steps "Tier B": they are AI1 and AI2 here. **Duels and odds** (Ryan's design addition, 2026-10-04, docs only): smarter single enemies, since most fights are one or two champions against at most 5–7 enemies: confidence, spending the key ability, the crowded response, smell blood, odds, think rates by rank, five more sliders, kit sizes and the enemy ability library, boss passives (Kits; Duels and odds; build steps AI3b–AI3d). Ryan answered its questions the same day in three rounds (Open questions, Open from Duels and odds). **Combos, crowd control and the test duelist** (Ryan's design addition, 2026-10-05, docs only): a test duelist with a real kit (one crowd control, one defensive, two damage), its crowd control used to peel or to set up, combo plans with any opener, the follow-through after a plan, diminishing returns on crowd control (no combo budget: cooldowns are the limit), the ally on the same planner, and enemies being combo'd (Combos, crowd control and the test duelist; build steps AI-D1–AI-D4, after AI3c). Ryan answered its questions the same day in four short rounds (Open questions, Open from Combos).
 
 ## How to read this doc
 Same as ALLIES.md: MUST (never change without asking Ryan), TARGET (start value and allowed range), FREE (your call; tiebreaker: VISION.md's decision priorities). Every number is a TARGET placeholder until the play tests; the performance budget is measured in AI1, never guessed. Enemy names in examples (a brute, a thrall caster) are illustrations, not launch content.
@@ -30,6 +30,7 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 8. **Fights never stall.** Patience always fills; every enemy comes eventually.
 9. **Tuning is where the time goes**, so the toolkit (sliders, the brain overlay, live tuning, scenarios) is built first (AI1), and every tunable is an `@export` in a .tres.
 10. **Few enemies, each one smart** (Ryan, 2026-10-04). Most fights are one or two champions (the player and the ally) against rarely more than 5–7 enemies, so each enemy's decisions are the whole fight. It reads its own kit as well as yours (confidence), answers you in its face, smells blood, and presses when the odds are on its side, always inside the fairness limits: tokens, telegraphs, one heavy hit at a time (Duels and odds).
+11. **Combos read and have answers** (Ryan, 2026-10-05). An enemy with a real kit chains its abilities by plan: any opener, its crowd control only one option. It uses that crowd control to make space or to set up, and after a combo decides whether to reset or stay on you. Every chain opens with a telegraphed, dodgeable opener. Its cooldowns are its only limit (Ryan: "if their abilities are off cool down they can use it whenever they please"), and diminishing returns keep crowd control from chaining forever (Combos, crowd control and the test duelist).
 
 ## Current code
 - `Enemy` (`res://scripts/enemies/enemy.gd`, extends `Unit`; team ENEMY, group `enemies`): a three-state machine (`AI.IDLE`, `WANDER`, `AGGRO`) in `_physics_process`. IDLE waits 0.8–2 s and WANDER walks up to `wander_distance` (60 px) from `_home`; both switch to AGGRO when `_can_see_player()` passes (the first node in the group `player`, targetable, within `detect_range` 450 u edge to edge, and the `Sight` RayCast2D, mask 1, clear). A hit from the player aggroes it too (`_on_damaged`). In AGGRO: past `leash_range` (800 u from the player, edge distance) it stops where it stands and goes IDLE (no walk home, no heal); an untargetable player is chased without attacking (`_chase_untargetable()`, ABILITIES AB10); otherwise `_try_cast_ability()`, then `attack.attack(_player)`. `passive` makes a training dummy. Its random numbers come from the global `randf()`, unseeded.
@@ -56,6 +57,9 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 | Pressing (odds) | when the enemy side's strength passes 1.5 × the party's: less respect, faster patience, one more attack token per champion (capped), the weakest champion picked | Ryan (2026-10-04); the numbers TARGET |
 | Heavy hits on one champion | while enemies press, at most one within 0.8 s (a heavy hit: at least 10% of the target's max health), unless a boss plan scripts it | Ryan (2026-10-04; his 0.3 s widened by him, since the post-hit i-frames already cover 0.3 s) |
 | Enemy telegraphs | at least 0.6 s on every enemy ability, unless it's faster than the reaction time on purpose and low damage | Ryan (2026-10-04) |
+| Combos | an enemy with a real kit chains abilities by plan; any opener (its crowd control is one option); the opener telegraphed at least 0.6 s and dodgeable | Ryan (2026-10-05); the details *(proposed)* |
+| Crowd control on one unit | a second within 4 s lasts half as long; a third is refused and the unit is immune for 3 s (fodder takes full crowd control; bosses build poise, later) | Ryan (2026-10-05: every unit; the numbers as proposed, TARGET) |
+| Combo limits | none beyond cooldowns: no lockout cap, no damage cap, no kill protection | Ryan (2026-10-05: "if their abilities are off cool down they can use it whenever they please") |
 | Reaction time | regulars about 0.45 s, elites 0.35 s, bosses 0.3 s; never under 0.2 s; higher difficulty tiers sharpen it | Ryan (I4) |
 | Dodging | elites and bosses only; they try 40–60% of the dodgeable attacks that cover them; cooldown 4–6 s | Ryan (MUST: who; the numbers I4) |
 | A melee hold while your kit is up | patience fills in 2–4 s with nothing up, at worst 4× slower with everything up (a brute: 12 s) | *(proposed)*; Ryan: they always come eventually |
@@ -158,17 +162,20 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 | `punish` | attack a whiff, sized to the window | bosses; regulars and elites holding a token |
 | `finish` | go for the kill on a low target | bosses; anyone with a `finish` ability |
 | `return` | walk home after a leash | everyone, fodder too |
+| `peel` *(Combos, proposed)* | cast a crowd control to make space when crowded, then step back to its band | anyone with a `peel` use |
 
 - **Each ability carries what it's for, as data:** `Ability.ai_uses`, a list of `AIUse` *(proposed names)*. Each use has an **intent tag**, **use rules** (a list of the shared `Condition`s, all of which must pass) and a weight. The intent tags: `poke`, `gap_close`, `escape`, `defend`, `punish`, `finish`, `zone`, plus ALLIES' effect tags `damage`, `heal`, `shield`, `buff` and `cc`.
   - **Casters don't cast a shield "just because":** a shield's only use is `defend`, with the rule `THREATENED` ("a projectile, a charge-up or a cast is aimed at me").
   - **The brain asks for the ability the moment calls for, not whatever is ready:** `commit` looks at `gap_close` uses (out of reach) and `damage` uses (in reach), `poke` at `poke` uses, `hold` at `poke` and `zone`, `defend` at `defend`, `escape` at `escape`, `punish` at `punish` (else `damage`), `finish` at `finish`.
   - An ability with no `ai_uses` counts as one `damage` use with no rules, so today's elite slam keeps working.
+  - *(Combos, 2026-10-05, proposed; AI-D1)* One more intent tag, `peel`: cast to make space when the enemy is crowded (Peel and setup). A crowd control's other use, setting up a combo, is recorded on its combo plan, not as an `AIUse`.
 - **Abilities propose, brains decide** (ALLIES.md, An AI method per ability). For each castable ability with a passing use for the chosen intent, the brain asks its `get_ai_plan(caster, situation)` (where to aim, how good) and takes the best plan value × the use's weight. **The data says what for and when; the script says how and how good.** One list of intent tags serves both brains: the ally brain's stance weighs them (ALLIES' `engage` becomes `gap_close`).
 - **Three new `Condition` kinds** for use rules *(proposed; ABILITIES.md, Conditions)*:
   - `THREATENED`: an attack coming at self (Perception) lands within `value` seconds (0 = any time);
   - `TARGET_WHIFFED`: the target's punish window is open and at least `value` seconds long (Punish);
   - `RESPECT`: the situation's respect compared with `value` (0–1) by `comparison`. *(Built AI1)* It reads the party's respect before the enemy's `respect_weight` slider (the same for every enemy, so a use rule means the same on any enemy); the slider shapes the enemy's patience and choices.
   They read the `SituationContext`, passed as a new optional last argument (`Condition.is_met(self_unit, target, cast, situation)`). Without one (a cast condition, a reaction rule) they're false, even negated. *(AI1 built `RESPECT` and the argument; AI3 built `THREATENED` (`SituationContext.is_threatened()`); TARGET_WHIFFED comes in AI6.)* The other kinds work unchanged in use rules: `TARGET_DISTANCE` for a poke's range, `TARGET_HEALTH_PERCENT` for a finisher, `SELF_HEALTH_PERCENT` for an escape, `ENEMIES_IN_RANGE` for a zone (champions are the enemy's enemies), `TARGET_HAS_STATUS` with `cc` to hit a stunned target. One condition system (ABILITIES.md).
+- *(Combos, 2026-10-05, proposed; AI-D1)* **Four more situation kinds,** for use rules and combo plans: `CROWDING` and `OPENING` (the situation's crowding or opening, 0–1, compared with `value`), `TARGET_ESCAPES_READY` (at least `count` of the target's `mobility` and `defensive` abilities ready, as the HUD shows them) and `TARGET_CORNERED` (a wall or a ledge just behind the target, seen from self). **`THREATENED` gains a filter:** with `status_tag` set, it counts only attacks whose ability carries that tag; `major` means any of `major_tags` (an ultimate, a charge-up, a dash, a leap).
 
 ### Knowledge: what enemies know (MUST; Ryan 2026-10-03)
 - **Exactly what the HUD shows, for the player and the ally:** each ability ready or on cooldown, the time left, and current health. *(proposed reading)* "Ready" is what the HUD shows as usable: a charge available and the cost payable (the sweep and the blue tint), not the ability's conditions. The ally's are what ALLIES' ally panel shows.
@@ -203,6 +210,7 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 - **Holding:** a spot in its range band around the target (Movement and positioning), strafing one way and turning after 2–4 s (jittered), facing the target, in its hold pose (Tells). *(Built AI1; found while building)* It keeps a **hold distance** (edge to edge): its distance when the hold starts, kept in the band; from farther than the band it closes to the band's far edge; when the target walks away it follows, back into the band. Each re-plan aims at the circle of that distance (without it, strafing along chords spiraled the brute into the Knight).
 - *(Built AI1; proposed)* **When the target walks in on a holding melee enemy, it doesn't run:** it holds its ground at that distance and swings its basic attack once the target is in its reach (no abilities: those are a commit's). Otherwise a hold would be a slow chase the player always wins.
 - *(Built AI1; proposed)* **A commit** shows its tell (0.3 s, standing still), then goes in: its basic attack (chasing) and its `damage` uses, plus its `gap_close` uses while out of its reach. It **ends** after its first cast ends, after 2 landed basic attacks (`commit_hits`), or after 4 s (`commit_max_time`, the tell included); patience empties then, and a melee enemy **walks back out to its band** for up to 2 s (`back_off_time`) before it holds its ground again. AI2's token is held for the same commit.
+- *(Combos; AI-D2; a change to the built rule for enemies with plans, approved by Ryan 2026-10-05)* **A commit with a combo plan** ends when its plan ends, then the follow-through decides between a reset and staying on the target (Combos, crowd control and the test duelist). A commit with no plan ends by the rule above.
 
 ### Duels and odds (MUST: the rules, Ryan 2026-10-04; built in AI3b–AI3c; the details *(proposed)*, numbers TARGET)
 - **Why** (Ryan): most fights are 1v1 or 2v1 (the player and the ally), rarely more than 5–7 enemies, so an individual enemy must be smarter and stronger, and its decisions are the whole fight. Everything here is data and sliders, tested as scenarios like the rest of the brain.
@@ -239,6 +247,7 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
   - `damage`, `zone`, `punish` or `finish`, when its plan reaches the target from where it stands now: a close-range burst. A `poke` isn't an answer; it's for range.
   - A held key ability answers: being crowded is a right moment.
 - **This changes AI1's built rule** ("walked in on, it holds its ground and swings"): Ryan chose the mix (2026-10-04), so AI1's rule stays as one of the two outcomes and the kiting step is the other.
+- *(Combos; AI-D1; a change to this design, approved by Ryan 2026-10-05)* **The episode starts when crowding passes `peel_threshold`** (a 0–1 read in which being inside `crowded_range` is the biggest term: at the role starts it's enough alone, so the episode starts where it does here), and **a failed all-in roll peels first** when a `peel` use passes, before the mix (Combos, Peel and setup). An enemy with no `peel` use plays this section as written.
 
 #### Smell blood: the target low
 - Below `finish_threshold` (0.3) of the target's health, respect's health term already lowers respect (the share × (0.5 + 0.5 × health)), and patience's low-health push (+0.5 below 40%) already speeds it up. **Smell blood adds:** its `commit` and `finish` scores × `smell_blood_mult` (1.3), never above 0.89, so `defend`, `dodge` and `return` still win (commit 0.65 → 0.85: it beats `escape`, `retreat` and a skirmisher's reset).
@@ -269,6 +278,228 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 - **Fair:** the velocity is its walk (what's on screen over the last 0.2 s), never a dash's. A target that stops, turns or dashes walks out of a led shot, as COMBAT.md's "can be walked out of" asks.
 - For casters and ranged roles; a melee role's POINT ability may lead a little (the skirmisher's leap).
 - **This changes the built default plan** (AI1: "no leading") once a preset's `aim_lead` is above 0. Approved by Ryan (2026-10-04) with the presets' starts, for AI3b.
+
+### Combos, crowd control and the test duelist (MUST: the brief, Ryan 2026-10-05; built in AI-D1–AI-D4; the details *(proposed)*, numbers TARGET)
+- **Why** (Ryan): enemies are easy to brute-force because their kits are thin. A test enemy with a real kit proves the brain: four abilities (one crowd control, one defensive, two damage). It uses its crowd control for two different reasons. A combo doesn't have to start with it: any opener will do, and the crowd control is one option. After a combo it decides whether to back off or keep going. The same reasoning serves the ally, and giving and taking combos gets fair rules.
+- **Built on Duels and odds** (AI3b–AI3c): the crowded episode, confidence and the key ability, `spend_eagerness`, the odds and `nerve`, the `duelist` flag and think rates by rank. So AI-D comes after AI3c.
+- **Only enemies that opt in change:** an enemy reads the opening and sets up only if it has combo plans, and peels only if one of its abilities has a `peel` use. Today none has either (the test duelist is the first), so every built enemy plays as Duels and odds has it, except one thing for all of them: crowding starts the crowded episode, so a Lunge in or a string of hits at the edge can start it a little sooner (approved by Ryan, 2026-10-05).
+
+#### Two reads: crowding and the opening
+Two 0–1 values the brain works out each think from the situation. Their weights are data in `EnemyAITable`. Neither reads anything the HUD and the screen don't show.
+- **Crowding** is the brief's "pressure on me". The word "pressure" already means patience's push and a boss's phase, so this read gets its own name. It measures how hard the target is pushing this enemy: the sum, clamped to 1, of (`crowding_weights`):
+  - **near** (0.6): 1 inside its `crowded_range`, falling to 0 at its band's minimum (a melee role: 200 → 350 u; a caster's two are the same, so it's 1 or 0);
+  - **closing** (0.15): the target's walk toward it ÷ 400 u/s (`crowding_closing_full`), while the target is within its band's far edge;
+  - **gap-closer** (0.3): in the last 1 s (`crowding_recent_time`), the target dashed or cast an ability that moves it (`moves_caster()`: a dash, a leap, a blink), and it ended inside this enemy's band's minimum;
+  - **hits** (0.3): the party's hits landed on it in the last 3 s (`crowding_hit_window`) ÷ 3 (`crowding_hits_full`).
+  - At the role starts (`peel_threshold` 0.6 or lower), the target inside `crowded_range` is enough on its own, so the crowded episode starts where Duels and odds put it. The other terms bring it forward only when the target is already near: a Lunge into its face, a string of hits at the edge.
+- **The opening** measures how open the target is right now to this enemy's crowd control and burst: the sum, clamped to 1, of (`opening_weights`):
+  - **escapes down** (0.5): the target's `mobility` and `defensive` abilities on cooldown, as a share of their `respect_value`. For the Knight with Lunge and Iron Resolve both down it's 1; with one down, about half. The dash isn't counted: it isn't on the HUD and it recharges in 0.35 s. That's why an opener must always be dodgeable (Being combo'd);
+  - **crowd-controlled by someone else** (0.5): a `cc` status from another unit on the target, with at least 0.5 s left (`opening_cc_min_left`);
+  - **recovering** (0.4): its punish window is open (Punish). This needs AI6's whiff read, so it's 0 until then;
+  - **committed** (0.4): the target is casting (a cast time, a channel such as Judgement, a held charge-up);
+  - **cornered** (0.2): a wall or a ledge within 1.5 m (`cornered_check_px`, 48) behind the target, seen from this enemy (a `WorldQuery` ray).
+  - **A token is a gate, not a weight:** with none free for it, it waits first in the queue, as full patience does.
+- **The same standard as respect:** both read cooldowns the player sees on their own HUD, and what happens on screen. Neither reads the keys being pressed. Cooldowns are state, read at once as respect reads them. A cast, a whiff or a crowd control landing are things the enemy reacts to, so they count once its reaction time has passed.
+- **Not respect twice:** respect asks "how dangerous is it to go in?" (everything ready counts, ultimates most). The opening asks "can it get away from what I'm about to do?". Escapes going down lower respect too, so patience also fills faster. The opening is what lets an enemy with a plan go in at once.
+
+#### Peel and setup: the two uses of a crowd control
+Both are use rules on the same ability, never new abilities.
+- **Peel** (defensive): crowding passes `peel_threshold`, and the enemy uses its crowd control to make space. It casts it, then takes the kiting step back to its band (`retreat`, the `step_back` pose). The ability carries a `peel` use (the new intent tag), with its own rules on top, such as the target within its range. A peel needs no token, like a `defend`.
+- **It's the crowded episode, not a second mechanism:** Duels and odds' episode now starts when crowding passes `peel_threshold` instead of at `crowded_range` alone. Its order stays:
+  1. **Cornered:** the cornered stand wins.
+  2. **Escape:** a caster, or any role with a passing `escape` use, escapes.
+  3. **An answer ready:** one `crowded_commit` roll.
+     - **Pass: all in.** A melee role commits at once with its best combo plan, which may open with the crowd control. A caster casts its answer, as AI3b has it.
+     - **Fail: peel,** when a `peel` use passes.
+  4. **Otherwise the mix:** back up once, or stand and swing.
+  - So a peel is the crowded response with a crowd control as its answer: one episode, one roll, the same reaction time, the same `crowded_clear_time`. A caster's all-in was already a peel in all but name (cast its answer, then escape).
+- **Setup** (opening): the opening passes `opening_bar` while crowding is under `peel_threshold`. Its patience fills at once and it commits (its tell first, its token as usual) with a combo plan. **The crowd control's setup use is simply the plan that opens with it:** recorded on the plan, not as an `AIUse`. A plan can open with the crowd control, a gap-closing strike or a poke, or have no crowd control at all.
+- **Choosing:**
+  - **pressured** (crowding at `peel_threshold` or more): the crowded episode, all in or peel, decided by one roll;
+  - **unpressured, with an opening:** setup;
+  - **neither:** poke or hold, as today.
+- **`mixup`** (promoted from the later list, for this use only; approved by Ryan, 2026-10-05): the chance a setup doesn't go the way the read says. With two plans that fit, it takes the runner-up. With one, it holds a beat (0.4–0.8 s, `mixup_delay_min` / `_max`) before starting. `crowded_commit` already rolls the pressured choice, so the player can't solve either one in two fights. Feints and delayed swings stay on the later list; the same slider gains them then.
+
+#### Combo plans
+- **A `ComboPlan`** (a Resource, in `EnemyData.combo_plans`) is a list of ordered steps plus when it fits:
+  - `steps`: each a `ComboStep`, made of:
+    - its ability, by `slot`;
+    - its **timing:**
+      - `AFTER_LANDED`: as the previous step's hit lands;
+      - `AFTER_ENDED`: as the previous cast ends, landed or not;
+      - `AFTER_DELAY`: `delay` seconds after the previous step ends;
+      - `ON_STATUS`: when the target carries a status tagged `status_tag`, such as `root`;
+    - its **window:** the step must start within this long of its trigger, else the plan ends (1 s);
+    - `optional`: skipped, not ended, when its ability can't be cast or has no plan.
+  - `conditions`: the shared `Condition`s, all of which must pass when the plan starts (read like use rules, with the situation);
+  - `weight` (1) among the plans that fit;
+  - `min_difficulty_tier` (1): harder plans at higher tiers (Scaling's "attack patterns gated by tier").
+- **Combo roles** (`Ability.combo_roles`, a list: an ability may hold several):
+  - `opener`: may be a plan's first step;
+  - `extender`: a middle step;
+  - `finisher`: a last step. The word means what it means for the basic attack combo: the last, heavy hit.
+  - The brief's other two roles are already intent tags, so they live there: **peel** is the `peel` use, **guard** the `defend` use. One place says what an ability is for.
+- **Picking a plan:** at a setup, and at any commit by an enemy with plans (a crowded all-in included), the brain looks at the plans that fit. A plan fits when:
+  - its tier is reached and its conditions pass;
+  - its first step's ability can be cast and its `get_ai_plan()` gives a plan;
+  - every step that isn't optional has its ability ready.
+  It takes the highest weight × the opener's plan value (× jitter, then `mixup`). **A plan whose opener is unavailable is simply not chosen; the enemy never waits for an ability.** With no plan fitting, the commit plays as AI1's.
+- **No blind finishers:** a `finisher` step starts only if the plan's opener landed.
+- **A missed step ends the plan** unless a `combo_greed` roll passes. A step misses when none of its hits or statuses land on the target within `whiff_time` after its cast ended (a projectile: by its end); this is Punish's whiff rule, read on its own cast. The enemy rolls `combo_greed` once: a pass carries on, a finisher included (a blind finisher, the brute's swing-through).
+  - The brief put the blind finisher under `spend_eagerness` "as for a brute", but the brute has the lowest start of the three presets (0.4). `combo_greed` is the knob for it: the later list's `combo_commitment`, under the brief's name (approved by Ryan, 2026-10-05).
+- **Its own steps never wait for its reaction time** (Knowledge). Only the first step reacts to the player, with its tell first. Each next step starts on the tick its trigger comes, with no tell.
+- **A plan ends** after its last step's effect, or at once when:
+  - a step missed and the `combo_greed` roll failed;
+  - the enemy was interrupted or crowd-controlled (a cast cut, `is_cc_blocked()`);
+  - its token was lost (Brains took it back);
+  - its target turned untargetable or changed;
+  - its target turned CC-immune with a crowd-control step still to come (an optional one is skipped instead);
+  - its health fell under its `retreat_health` (`FALL_BACK` roles; brutes fight on);
+  - the odds turned: they fell below two thirds of their value when it started (`plan_odds_drop`, 0.33). For example, a packmate died or the ally came in.
+  Then the follow-through decides.
+- **Its token:** a commit with a plan keeps its token until the plan ends, up to `plan_max_time` (6 s) in place of `token_hold_time` (4 s), then rests as usual. The duelist's longest plan takes about 3.6 s, which can pass 4 s with a long snare flight.
+- **Urgent intents** (`defend`, `dodge`) can end a plan between steps, never mid-cast.
+
+#### After the plan: reset or stay (the follow-through)
+- When a plan ends, the enemy picks one of two:
+  - **reset:** the commit ends. Patience empties (a skirmisher keeps half) and it walks back out to its band, or to the far edge while cautious;
+  - **stay** on the target: a new commit at once, its tell first (0.3 s, `crouch`), with its basic attack and any `damage` use, or another plan if one fits, on the same token.
+  - The brief's word was "press", but "press" is already the odds' press. "Stay" is used here; either word can change.
+- **No special mode:** it falls out of reads the brain already has.
+  - **The lean** = (1 − effective respect) × (0.5 + 0.5 × its own health ratio) × (0.5 + 0.5 × its own kit ready).
+  - **Effective respect** is Duels and odds' (the target's kit ready and health, confidence, the odds and `nerve`).
+  - **Its own kit ready** is the share of its slots' `respect_value` ready now: confidence's read, but not zeroed while its key is down.
+  - **It stays** when lean ≥ 1 − `follow_through`. So at `follow_through` 1 it always stays, and at 0 it always resets.
+  - **It always resets** when its token is gone.
+- **Worked example:** the test duelist, with `follow_through` 0.6, so it stays at a lean of 0.4 or more.
+  - Its kit's values: snare 3, guard 1.5, strike 2, finisher 4, so 10.5 in all. The Knight's kit is 10.5 too (Respect). The duelist is at 90% health: × 0.95.
+  - **Its plan done, the Knight's kit up.** The snare, strike and finisher are on cooldown, the guard ready: its own kit is 1.5 ÷ 10.5 = 0.14, a factor of 0.57. The Knight at 60% with everything ready: respect = 1.0 × 0.8 = 0.8. Lean = 0.2 × 0.95 × 0.57 = 0.11: **reset.**
+  - **Its plan done, the Knight's kit spent too.** Only Cleave is ready: respect = 2 ÷ 10.5 × 0.8 = 0.15. Lean = 0.85 × 0.95 × 0.57 = 0.46: **stay.** It keeps swinging while he has nothing to punish it with.
+  - **Its plan cut short after the opener landed** (the strike's window ran out), with the strike and finisher still ready. Its own kit is (2 + 1.5 + 4) ÷ 10.5 = 0.71, a factor of 0.86. Its key is ready, so confidence cuts respect: × (1 − 0.5 × 0.71) = 0.64. The Knight at 60% with Lunge and Iron Resolve ready (Judgement down): respect = 0.52 × 0.8 = 0.42, effective 0.27. Lean = 0.73 × 0.95 × 0.86 = 0.6: **stay.**
+  - **The first case, while pressing.** With the duelist and a regular against the Knight, the odds are 2, so the press is 0.5; at `nerve` 0.6 effective respect is × 0.7, so 0.8 becomes 0.56. Lean = 0.24: still a **reset.** At `follow_through` 0.8 it would stay.
+
+#### Where a plan lives in the brain
+- **Inside `commit`, as its progress** (the brain already keeps "its commit's progress"), not as an intent of its own. Tokens, the tell, the no-flip-flop hold, `is_cc_blocked()` breaking a commit off, the token's release and the walk back out all hang on `commit` already. A separate intent would copy them all and need its own score against `commit`. A plan is how a commit is carried out.
+- **`decide()` stays pure.** When it decides to commit, it picks the plan (`BrainDecision.combo_plan`, with the first step's `CastPlan`). It reads a running plan's progress from the situation: the step, what landed, its damage so far. The drive runs the steps, each on the tick its trigger comes.
+- **A commit without a plan is unchanged** (AI1: it ends after its first cast, 2 landed swings or 4 s).
+- `punish` and `finish` (AI6) and the boss director's patterns may run plans the same way; that's AI6's call.
+
+#### Being combo'd: the rules (every unit; Ryan, 2026-10-05)
+- **No combo budget: cooldowns are the limit** (Ryan: "if their abilities are off cool down they can use it whenever they please"). An enemy may chain whatever it has ready; nothing caps how long a combo locks the player out or how much it deals. What still holds: every enemy ability's telegraph (at least 0.6 s, or the chip band), the dodgeable opener (below), attack tokens, the one-heavy-hit window while enemies press (Duels and odds), and diminishing returns on crowd control.
+  - *(Not adopted, kept for the record: Claude's proposal was at most 1.2 s locked out in any 3 s, a root counting half, and at most 30% of max health from a regular's combo, 45% from an elite's.)*
+- **Diminishing returns on crowd control: one rule for every unit** (Ryan; the numbers as proposed, TARGET). A second crowd control on the same unit within `dr_window` (4 s) of the first lasts half as long. A third is refused, and the unit is immune to crowd control for `dr_immune_time` (3 s); then the count starts over.
+  - **What counts:** `cc` statuses that block something (moving, attacking, casting or dashing: a stun, a root, a silence, fear). Slows don't count, and nor does a status that `ignores_tenacity` (a knock-up keeps its arc's shape).
+  - **The order:** the duration × (1 − tenacity) × the step's factor.
+  - **Who:** the player, the ally, regulars and elites alike, so the Knight's own stuns on one enemy are halved too (Judgement, then Lunge's stun augment within 4 s). Fodder takes full crowd control: it never lives long enough for it to matter (`RankRules.cc_diminishing` off). Bosses use poise (later: below) once it exists, and this rule until then.
+  - **It shows:** the immunity is a status (`status_cc_immune`, tags `cc_immune` and `buff`) with a ring at the feet, the same on every unit. It's a status look like the stun's stars, not an icon over the head (Tells).
+  - It's COMBAT's rule, in StatusComponent, so it's one place for everyone (COMBAT.md, Status effects).
+- **The telegraph rule for combos:**
+  - **The opener** keeps the dash-answerable telegraph (at least 0.6 s) and must be dodgeable: a skillshot or a placed area (POINT, DIRECTION, VECTOR, or an area round itself), never UNIT-targeted.
+  - **Later steps may be faster** *(proposed)*, down to the tell (0.3 s), only when they land while the plan's own crowd control still holds the target: its time left, after diminishing returns, at least the step's cast time. Otherwise they keep the 0.6 s rule.
+  - So the fair answer is to dodge the opener, or to have an answer ready. The test duelist doesn't use the fast exception (its steps telegraph 0.7 s and more). The enemies test checks every plan's opener, and the library's telegraph check stays as AI3d built it.
+- **No kill protection** (Ryan): a combo may take the player from any health to dead. Telegraphs and the dodgeable opener are the answer; revisit at AI-M if deaths feel cheap.
+- **Crowd control on the player at first** (Ryan): a root (up to 1 s; `status_root`) and a short stun (up to 0.5 s), each only from a dodgeable, telegraphed ability. **Later:** slows from enemies, silence, fear, knock-ups (3D.md: enemies don't knock up the player in v1), pulls, taunt.
+
+#### The player's counterplay (checked 2026-10-05 in CHAMPIONS.md and ABILITIES.md)
+- **The Knight has no crowd-control break and no unstoppable moment.** Iron Resolve is a haste and an empowered swing with a slow. Unbroken is attack damage. Judgement stuns.
+- **Rooted** ("roots are roots", Ryan: ABILITIES.md, Roots), he can swing, Cleave (its knockback pushes the attacker off), Iron Resolve and Judgement. He can't Lunge, dash, leap or blink. **Stunned,** he can do nothing.
+- **Tenacity:** the Knight has none. It comes from gear (`affix_tenacity`, 4–15%, on helms and boots; Oathbound Plate) and the Stalwart talent (up to +30% at low health).
+- **Korsavil** (designed): her W Vanish doesn't move her, so she can cast it while rooted, and the enemies on her lose her.
+- **No new Knight tool now** (Ryan, 2026-10-05; Claude's proposal). The dodgeable opener and diminishing returns carry it: a root lets him fight back where he stands, and only a stun is a real lockout. Revisit at AI-M with the low-health judgment call. *(The options not picked: Iron Resolve also breaking roots and slows, or base tenacity on the Knight.)*
+
+#### Ally parity (ALLIES.md; built with ALLIES AL6)
+- **One shared planner, not a copy:** `ComboPlanner` (`res://scripts/units/combo_planner.gd`, beside `UnitController`). Like `decide()`, it's static and pure, over a `SituationContext`. It holds:
+  - `get_crowding(situation, weights)` and `get_opening(situation, weights)`;
+  - `pick_plan(plans, situation, sliders, rng)` and `get_lean(situation)`;
+  - the step and end rules.
+  The enemy brain and `AllyBrain` call the same functions. The ally's situation is its own (ALLIES: "filled with the ally's goals").
+- **What differs for the ally:**
+  - its target pick (ALLIES' stance preferences and `threat`, not the enemy pick);
+  - its sliders, which live with its stance (below);
+  - no tokens;
+  - the player is a teammate it must not get in the way of.
+- **Its plans** (approved by Ryan, 2026-10-05): a champion's own sequences (the Knight's Lunge → Cleave) may be `ChampionData.combo_plans`, read only when an AI drives that champion. Party combos (your crowd control, its payoff) stay unscripted. They fall out of the opening read, as ALLIES' "combos come from the plans" has it.
+- **It never wastes crowd control.** The planner's rule, for both brains: no crowd-control step on a target that is CC-immune, or already held by a crowd control with more time left than the step's cast time. The ally adds its teammate's cast in progress: it holds its crowd control on a target under the player's channel (Judgement's stun is coming, and diminishing returns would halve it).
+  - It never uses a crowd control that damage breaks on a target the player is chaining. None exists yet (no sleep, no charm); the rule waits for one.
+- **Follow-up** (approved by Ryan, 2026-10-05): a target the player just crowd-controlled is an opening at once, with no reaction wait: a teammate's crowd control counts as its own. It still has ALLIES' 0.1–0.25 s cast delay, so it's quick but not frame-perfect. The ally commits its payoff.
+- **Peel for the player:** the same crowding read with the player as "me". It counts the enemies near and closing on the player, gap-closers into the player and the hits the player took, plus one term only the ally uses: a crowd control on the player (`crowding_weights.cc`, 0.4). Past its stance's `peel_threshold` it peels for you, with one of:
+  - its own crowd control on the attacker;
+  - a shield or a cleanse on you (`shield` and `heal` uses aimed at a teammate);
+  - switching to the attacker (ALLIES' `THREATS_TO_TEAMMATE`).
+- **Its sliders live with its stances,** not in the enemy table. `AllyStance` gains `peel_threshold`, `opening_bar`, `follow_through`, `combo_greed` and `mixup` (support peels early, aggressive stays on), and `AllyTable` the reads' weights (ALLIES.md, Data).
+- Companions stay invisible to enemies, and out of both reads.
+
+#### Enemies being combo'd (the player delivering combos)
+- **By rank:**
+  - fodder takes full crowd control (no diminishing returns);
+  - regulars take it with diminishing returns;
+  - elites also have their 20% tenacity (Poise);
+  - **bosses** will not get stunned and build a **poise** meter instead: **later** (Ryan, 2026-10-05). Only the data hook is designed now (below).
+- **The poise hook** (designed, not built):
+  - `RankRules.poise` (bool; on for bosses when it's built). A unit with it refuses `cc` statuses and fires `Events.cc_refused(unit, source, status, reason)` with the reason `POISE` and the duration it would have had.
+  - A later `PoiseComponent` fills a meter from those and breaks the boss when it's full: a long, real stun the director plans around.
+  - Until then a boss takes crowd control with its 40% tenacity and diminishing returns.
+- **A CC-immune tell:** the immunity ring (Being combo'd) shows on every unit, so the player sees when a crowd control would be wasted. A boss with poise will show its meter on the boss bar instead.
+- **Enemy counterplay when combo'd:**
+  - **Guard:** a `defend` shield, as the test duelist's (The test duelist). A counter-strike stance was proposed for it; Ryan picked the plain shield (2026-10-05), so a counter guard is a later archetype if a kit wants one.
+  - **A defensive against a big ability aimed at it:** a `defend` use with `THREATENED` filtered by `status_tag` `major` (Intents).
+  - **A break-out for elites,** only on enemies that have one. A library archetype, **break free** *(proposed)*: it can be cast while crowd-controlled (`Ability.castable_while_cc`), cleanses `cc` from itself and makes it unstoppable for 0.5 s. It's a `defend` use with `SELF_HAS_STATUS` `cc`, after its reaction time. A crowd-controlled brain otherwise rests (AI2), so this is the one cast it can make. Built with AI5 (an elite modifier can carry it).
+  - **No flinch from damage** (I8): unchanged.
+
+#### Feedback hooks (events only; VFX and audio never decide state, COMBAT's rule)
+- `Events.cc_applied(unit, source, status, duration, dr_step)`: a crowd control took, with its duration after tenacity and diminishing returns, and its step (0 full, 1 halved). For the HUD, VFX, audio and tests.
+- `Events.cc_refused(unit, source, status, reason)`: a crowd control was refused, with one of the reasons `IMMUNE` (diminishing returns), `UNSTOPPABLE`, `REFUSED_BY_TAG` (a boss's fear) and, later, `POISE`. For an "Immune" text or a sound.
+- `Events.combo_plan_started(unit, target, plan)` and `combo_plan_ended(unit, target, plan, reason)`, with the reasons `DONE`, `MISSED`, `INTERRUPTED`, `TOKEN_LOST`, `TARGET_LOST`, `LOW_HEALTH`, `ODDS`: for an audio sting, the overlay and, later, the HUD.
+- The immunity rides `status_applied` / `status_removed` (`status_cc_immune`).
+- The HUD isn't designed here (UI.md).
+
+#### The test duelist (a sandbox enemy: a placeholder capsule and poses, no art)
+- **Ryan's brief:** four abilities, one crowd control, one defensive, two damage. It's built from the enemy ability library: AI3d made the snare, the charge, the big hit and the guard as templates, so it adds no new archetype (Ryan picked the library's guard, 2026-10-05). The numbers are from the doc's elite values (the elite slime, COMBAT's elite band); Ryan approved them as proposed (2026-10-05), TARGET, tuned live in the panel.
+- **`enemy_test_duelist.tres`:**
+  - **Rank and role:** rank ELITE with `duelist` on, so it thinks at the boss's rate (25 a second: Kits; the brief's 20 sits inside Ryan's 20–30). Role brute (`enemy_behavior_brute.tres`), so it fights to the death.
+  - **Tokens and tenacity:** an elite's: it holds 2 tokens, a champion's whole pool at tier 1, and has 20% tenacity.
+  - **Stats** (`data/units/test_duelist.tres`): 1000 health; 30 attack damage (the chip band: 4.6% of the Knight's 650); 0.8 attack speed; 320 move speed; 150 u range; gameplay radius 55.
+  - **Look:** a capsule in a steel blue `model_color`.
+  - **Overrides** (at most three): `crowded_commit` 0.4 (it peels more often than it goes all in), `combo_greed` 0.2 (it rarely swings blind), `mixup` 0.3.
+- **Its kit** (`test_duelist_<slot>_<name>.tres`, copies of the templates):
+
+| Slot | Ability | From | Numbers | Uses | Combo roles | Respect |
+|---|---|---|---|---|---|---|
+| Q | snare (the crowd control) | `enemy_snare` (the bolt with an always-on root) | a 0.7 s cast with its line telegraph, 750 u, 700 u/s, 60 wide, 20 magic, roots 1 s, 10 s | `peel` (the target within 400 u); `cc` (an answer when crowded) | opener, extender | 3 (core 2, +1 for its root) |
+| W | guard (the defensive) | `enemy_guard` (the library's guard: a shield on itself; Ryan picked it over a counter-strike stance, 2026-10-05) | a 250 shield for 2 s, no cast time, 8 s | `defend` (`THREATENED` within 1 s by a `major` ability); `defend` (`SELF_HEALTH_PERCENT` below 0.4 and `CROWDING` at least 0.6) | none | 1.5 (defensive) |
+| E | strike (damage one) | `enemy_charge` (the dash strike) | a 0.7 s cast with its band, 5 m long (160 px) plus 1 m past, 1.2 m wide, 60 physical, a 16 px push, 7 s | `gap_close` (weight 0.9); `damage` (in reach) | opener, extender | 2 (mobility) |
+| R | finisher (damage two) | `enemy_big_hit` (the slam's script) | a 1.0 s cast, a 2.5 m circle (80 px) at the target, 300 u, 130 physical (20%: the elite band's top), a 32 px push, **a 1.2 s recovery** (the new `Ability.recovery_time`), 12 s; role tag `ultimate`, so it's its key ability | `damage` (weight 1.3); `punish`; `finish` | finisher | 4 (ultimate) |
+
+- **Its plans** (`EnemyData.combo_plans`):
+
+| Plan | Steps | Fits when | Weight |
+|---|---|---|---|
+| `snare_first` | snare → strike (`AFTER_LANDED`) → finisher (`AFTER_LANDED`) | all the target's escapes are down (`TARGET_ESCAPES_READY` below 1), and the target isn't crowd-controlled already (`TARGET_HAS_STATUS` `cc`, negated) or cornered (`TARGET_CORNERED`, negated). With AI6: and it isn't recovering (`TARGET_WHIFFED`, negated) | 1.0 |
+| `strike_first` | strike → snare (`AFTER_LANDED`; the crowd control as an extender) → finisher (`AFTER_LANDED`) | its snare is ready (every step is needed) | 0.8 |
+| `strike_finish` | strike → finisher (`AFTER_LANDED`) | always: with the snare on cooldown or spent on a peel, it's the plan left | 0.6 |
+
+  - **The timing of `snare_first`:**
+    - **Opening:** its tell (0.3 s), then the snare's 0.7 s cast and its flight. The root lands at t = 0.
+    - **The strike** starts at once and hits at about t = 0.85 (0.7 s cast + 0.15 s of dash). The 1 s root holds the Knight, unless diminishing returns halved it.
+    - **The finisher** starts as the strike lands and hits at about t = 1.9. The root ended at t = 1.0, so there's about 0.9 s to leave a 2.5 m circle: dash-answerable.
+    - **Its damage:** 20 + 60 + 130 = 210, or 32% of the Knight's 650 (COMBAT's elite band is 12–20% per hit).
+  - **`strike_first`'s snare** is cast at short range against a Knight who isn't held, so it's dodgeable. If it misses, the plan ends (or carries on blind at `combo_greed` 0.2).
+- **Poses:** the brute's set, plus:
+  - `crouch` before a plan's opener (the commit's tell);
+  - `guard` while its W is up (a bright white rim pulse; the caster's look);
+  - `step_back` after a peel;
+  - `recover` *(new, proposed: slumped back 10°, squashed to 0.9, no rim)*, held through the finisher's recovery, so the player's opening shows;
+  - `press` while pressing (Odds).
+- **Scenarios** (`SandboxBrains`: Shift+H gains the duelist; H's scenarios apply):
+  - **Lunge and Iron Resolve down:** it sets up `snare_first` (the overlay shows the opening and the plan).
+  - **Everything ready:** it holds. Walk into it: it peels (snare, then a step back) or goes all in (about 40%).
+  - **Only Lunge spent:** an opening of about 0.3 (2 of the escapes' 3.5, × 0.5): it waits for patience.
+  - **The Knight against a wall:** `strike_first` (cornered).
+  - **Its snare on cooldown** (H spends it): `strike_finish`.
+  - **Judgement aimed at it:** it raises its guard.
+  - **The Knight at 25%:** smell blood, its finisher held for the finish.
+  - **A whiff** (Judgement at nothing; after AI6): recovering, so `strike_first`.
+- **Tests:** Build order, AI-D1 and AI-D2.
 
 ### Dodging (MUST: beatable, elites and bosses only; Ryan 2026-10-03)
 - **Elites and bosses only.** Fodder and regulars never dodge.
@@ -301,6 +532,7 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 | Everyone | `alert` (a short stretch up when it notices you), `return` (walking home, leaning back) |
 
 - *(Duels and odds, proposed)* `step_back` for every role (the crowded kiting step, the cautious walk out), `press` for every brained role below boss (pressing: Odds), and a boss's `passive` (Boss passives).
+- *(Combos, proposed)* `recover` for any enemy with a `recovery_time` ability (slumped back 10°, squashed to 0.9, no rim, held through the recovery: the player's opening shows); a peel ends in `step_back`; a stay after a plan shows `crouch` again (its tell). The test duelist uses the brute's set plus `guard`, `step_back` and `recover`.
 
 ### Groups: attack tokens (MUST: smart enemies only; Ryan 2026-10-03)
 - **Fodder swarms freely and chips** (COMBAT.md, Enemies): no tokens. **It surrounds** (Ryan, I6): its pack spreads its fodder in a ring around their target, about 0.6 m apart, instead of stacking on one spot (Diablo's zombies), and a wounded fodder behaves exactly the same (it fights to the death).
@@ -309,6 +541,7 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 - **A holder that's stunned, dead or out of reach releases its token**, and **timeouts** keep anything from deadlocking.
 - **Pools** (Ryan, I3): each party member has its own pool of tokens, so a second champion brings a second pool (the party-size hook). A pool's size comes from the difficulty tier (`EnemyAITable.tokens_per_target`: 2 at tiers 1–3, 3 at tiers 4–5, plus a tier's `token_bonus`). A regular holds 1, an elite 2: two regulars or one elite at once. Bosses use none (the director).
 - *(proposed)* **What needs a token:** `commit`, and `punish` and `finish` for any enemy below boss. `poke`, `hold`, `defend`, `dodge`, `escape`, `retreat` and `return` never do.
+- *(Combos; AI-D2; approved by Ryan 2026-10-05)* A `peel` needs no token. A commit running a combo plan (a setup) needs one as any commit does, and keeps it until the plan ends, up to `plan_max_time` (6 s) instead of `token_hold_time` (4 s).
 - **The queue** (the 4 s rotation: Ryan, I3; the rest *(proposed)*): the highest patience asks first, ties to the nearest. A holder keeps its token until its commit ends, for at most `token_hold_time` (4 s); then it can't ask again for `token_rest_time` (1.5 s), so attackers rotate. "Stunned" means any status that blocks moving or attacking; "out of reach" means no path to the target, or a melee holder against an `elevated` target it can't hit (`can_reach()`).
 - Fodder in the same fight attacks freely: five thralls and a brute means the brute on a token and the thralls chipping.
 - *(Built AI2)* **How tokens run:**
@@ -394,6 +627,7 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 - **A hit never interrupts a smart enemy's cast.** Only a status that blocks casting (a stun, a silence) does, as today (COMBAT.md; League's rule). CC stays the answer to big casts and to dodgers.
 - **Tenacity by rank:** elites take 20% shorter crowd control, bosses 40% (the `tenacity` stat, given at spawn by their rank: `RankRules.tenacity` 0.2 and 0.4, a FLAT modifier under `&"enemy_rank"`). Fodder and regulars have none. A knock-up still ignores tenacity (`ignores_tenacity`, 3D.md).
 - Knockback is untouched: bosses get `knockback_resistance` 1 when that stat is built (WORLD_INTERACTION.md, Knockback).
+- *(Combos; Ryan, 2026-10-05)* **Diminishing returns** on crowd control for every unit but fodder, and **poise** for bosses later (a meter that crowd control fills instead of stunning; only the data hook now): Combos, crowd control and the test duelist (Being combo'd; Enemies being combo'd). Until poise exists, a boss keeps its 40% tenacity and takes diminishing returns.
 
 ### Fear: fleeing (MUST: Ryan, 2026-10-04, from Korsavil's Umbral Stalker; planned, not built; the details *(proposed)*)
 - **A feared enemy runs away from the fear's source and can't act; fear is crowd control (tenacity applies); bosses ignore it** (Ryan). The status is COMBAT.md's (`status_fear`, Status effects, Fear); the flee and the brain's part are this doc's.
@@ -520,6 +754,11 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 | `aim_lead` | how far its aimed abilities lead a walking target: 0 = where you stand, 1 = where you'll be | 0 | 0.3 | 0.5 | 0–1 |
 | `spend_eagerness` | how freely it fires its key ability: 0 = holds it for the right moment, 1 = fires it on cooldown | 0.4 | 0.7 | 0.8 | 0–1 |
 | `nerve` | how hard it presses when the odds are on its side: effective respect × (1 − nerve × the press) | 0.6 | 0.8 | 0.4 | 0–1 |
+| `peel_threshold` | how crowded it must be before it reacts (the crowded episode: all in or peel); lower reacts sooner | 0.6 | 0.6 | 0.5 | 0.1–1 |
+| `opening_bar` | how open the target must be before it sets up a combo plan (enemies with plans only) | 0.5 | 0.4 | 0.6 | 0–1 |
+| `follow_through` | after a plan: 0 = always resets, 1 = always stays on the target | 0.6 | 0.2 | 0 | 0–1 |
+| `combo_greed` | the chance it carries on after a plan step misses (0 = the plan ends: no blind finishers) | 0.6 | 0.3 | 0.1 | 0–1 |
+| `mixup` | the chance a setup takes its runner-up plan (or holds a beat), so it can't be read in two fights | 0.15 | 0.3 | 0.2 | 0–0.5 |
 
    Twelve sliders (the range band is one, with two ends). The rest of a preset is **kind**, not magnitude: the role, its intent weights, its low-health response, its retreat health, whether it uses tokens, its pose set.
    **Five more** (Ryan, 2026-10-04; Duels and odds), **seventeen in all:** `confidence`, `crowded_commit`, `aim_lead` and `spend_eagerness` (built in AI3b), `nerve` (AI3c). Their role starts are TARGET. At `confidence`, `aim_lead` and `nerve` 0, `crowded_commit` 0 and `spend_eagerness` 1 an enemy plays as AI3 shipped, except for the crowded mix (backing up once or standing). The starts above change the test enemies; Ryan approved them for their steps (2026-10-04). `crowded_range` is kind, not a slider (Data). Each new slider's scenario test and overlay line:
@@ -528,6 +767,12 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
    - `aim_lead`. **Test:** a target walking sideways at a steady speed: at 0 the bolt lands behind it, at 1 on it. A target that stops as the cast starts: at 1 the bolt lands ahead of it (walked out of). A dash is never led. **Overlay:** `lead 0.5 (+1.2 m)`.
    - `spend_eagerness`. **Test:** at 0 the key is held until a right moment (the target stunned, or below 30%), then fires at once; at 1 it fires on cooldown; at 0.5 about half the 2 s rolls fire; a poke is never held. **Overlay:** `key: held (next roll 1.4 s)`, or `key: free`.
    - `nerve`. **Test:** odds past the threshold: effective respect × (1 − nerve × press), the pool +1, the weakest champion picked; at 0 respect is unchanged (the pool and the pick still change: they're the group's). **Overlay:** `odds 2.1, press 0.6 (nerve 0.6)`.
+   **Five more** (Ryan's Combos brief, 2026-10-05; the meanings of `combo_greed` and `mixup` approved by Ryan the same day; every start TARGET), **twenty-two in all,** near the twenty the brief asked for: `peel_threshold` and `opening_bar` (built in AI-D1), `follow_through`, `combo_greed` and `mixup` (AI-D2). They act only for an enemy with a `peel` use or combo plans (none today; the test duelist first), except `peel_threshold`, which starts every crowded episode: at the role starts the target inside `crowded_range` is enough on its own, as before. Each one's scenario test and overlay line:
+   - `peel_threshold`. **Test:** the test duelist with its snare ready and `crowded_commit` at 0: the Knight stepping inside its crowded range draws a peel (the snare, then a step back to its band) in every episode; 1 m outside it with nothing else, no episode; Lunging in to 2.75 m (near 0.5 × 0.6 = 0.3, plus the gap-closer's 0.3) starts one at 0.6 but not at 0.7; an enemy with no `peel` use falls to the mix, as in AI3b. **Overlay:** `crowding 0.66 ≥ 0.6: peel (snare)`.
+   - `opening_bar`. **Test:** the Knight with Lunge and Iron Resolve down (escapes down: 0.5) draws `snare_first` at a bar of 0.5 but not at 0.6; with them up, it holds while patience fills; an enemy with no plans never reads the opening. **Overlay:** `opening 0.5 ≥ 0.5 (escapes 0.5): snare_first`.
+   - `follow_through`. **Test:** the worked example's cases at 0.6 (reset, stay, stay, reset); at 0 always a reset, at 1 always a stay; a lost token always resets. **Overlay:** `after: stay (lean 0.60 ≥ 0.40)`.
+   - `combo_greed`. **Test:** a dodged opener over 1,000 seeded plans carries on in about `combo_greed` of them; at 0, never, and never a finisher after a missed opener. **Overlay:** `missed: carry on (0.12 < 0.2)` or `missed: end`.
+   - `mixup`. **Test:** with two plans fitting, over 1,000 seeded setups the runner-up is taken in about `mixup` of them; with one plan, a held beat of 0.4–0.8 s instead. **Overlay:** `plan: strike_first (runner-up)`.
 2. **An in-game brain overlay** in the sandbox: per enemy, its state, chosen intent, why (its top scores), respect, patience, whether it holds a token, its dodge cooldown and its reaction timer.
 3. **A live tuning panel** in the sandbox: pick an enemy, drag its sliders, watch it change while you play, and save back to its .tres.
 4. **A scenario spawner:** preset situations (all cooldowns ready, none ready, low health, an ally present) and a scripted dummy player for the headless tests.
@@ -535,8 +780,8 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
 
 ### Later sliders and ideas (Ryan, 2026-10-04: named only, not designed)
 - `bait_susceptibility`: how readily a cheap ability spent as bait draws its commit (today respect alone decides).
-- `mixup`: feints and timing changes, such as a tell that doesn't follow through or a delayed swing.
-- `combo_commitment`: whether it finishes a string after you dodge its first hit, or cancels it.
+- `mixup`: feints and timing changes, such as a tell that doesn't follow through or a delayed swing. *(Combos, 2026-10-05: promoted for one use, the runner-up plan at a setup; the feints and delayed swings stay here.)*
+- `combo_commitment`: whether it finishes a string after you dodge its first hit, or cancels it. *(Combos, 2026-10-05: designed as `combo_greed`, the brief's name.)*
 - `memory_time`: how long it remembers its target after stealth or lost sight (today AI2 keeps a known champion while it fights, and ALLIES drops a stealthed one at once). Since 2026-10-04 the search (Losing a stealthed target) is its first, fixed form: `search_time` 3 s *(proposed)*.
 - `strafe_bias`: which way and for how long it circles while it holds (today 2–4 s, jittered).
 - `adaptation`: it changes a pattern after the player counters it three times.
@@ -574,6 +819,7 @@ One kind of enemy: DUNGEONS' "a shared behavior plus its own data". `Enemy.data`
 | `boss_plan` | `BossPlan` | rank BOSS only |
 | `detect_range` | `float` | LoL units, edge to edge (450) |
 | `duelist` | `bool` | *(AI3c; Ryan, 2026-10-04; the name proposed)* rank ELITE only: it thinks at the boss's rate (Kits) |
+| `combo_plans` | `Array[ComboPlan]` | *(Combos, proposed; AI-D2)* its plans; empty = it never reads the opening or sets up (Combo plans) |
 | `xp` | `int` | champion XP per kill; replaces `ChampionLeveling.xp_by_unit` (AI7) |
 | `kill_tags` | `Array[StringName]` | TALENTS' kills by tag, quest counters, the bestiary; replaces `Progress.get_kill_tags()`'s none (AI7) |
 | `drop_table` | `DropTable` | replaces `LootTable.drop_table_by_unit`; null = the regular or elite table by rank (AI7) |
@@ -595,7 +841,7 @@ DUNGEONS' "shared behavior": one archetype preset per role (`brute`, `skirmisher
 | Kind | `uses_tokens` | `bool` | true |
 | Kind | `pose_set` | `PoseSet` | *(added AI1)* the role's tells; null = the enemy's own, else `pose_set_default.tres` (looked up: EnemyData's, the behavior's, the default) |
 | Kind | `crowded_range` | `float` | *(AI3b; its own value: Ryan, 2026-10-04)* LoL units, edge to edge; −1 = the band's minimum. Brute 200, skirmisher 200, caster −1 (Crowded) |
-| Sliders | the twelve | | The tuning toolkit: each an `@export_range` with its limits (`EnemyBehavior.LIMITS`). `resolve(overrides, adjusts)` makes the copy a brain reads. Seventeen from AI3b–AI3c (Duels and odds) |
+| Sliders | the twelve | | The tuning toolkit: each an `@export_range` with its limits (`EnemyBehavior.LIMITS`). `resolve(overrides, adjusts)` makes the copy a brain reads. Seventeen from AI3b–AI3c (Duels and odds); twenty-two from AI-D1–AI-D2 (Combos) |
 
 *(Built AI1: `enemy_behavior_brute.tres` with the brute column. AI3: `enemy_behavior_skirmisher.tres` (HIT_AND_RESET) and `enemy_behavior_caster.tres` (FALL_BACK at 35%, `intent_weights` commit 0) with their columns.)*
 
@@ -614,7 +860,12 @@ Extends `ToolkitBundle` (`display_name`, `description`, `modifiers`, `stat_scali
 - *(Boss passives, proposed; AI6)* `BossPlan.passive: Passive` and `passive_aura: PackedScene`; `BossPhase.passive: Passive` (null = keep the plan's).
 
 ### AIUse (`ai_use.gd`; inline on an Ability)
-`intent: StringName` (`poke`, `gap_close`, `escape`, `defend`, `punish`, `finish`, `zone`, `damage`, `heal`, `shield`, `buff`, `cc`), `conditions: Array[Condition]` (all must pass; the situation is passed in), `weight: float` (1).
+`intent: StringName` (`poke`, `gap_close`, `escape`, `defend`, `punish`, `finish`, `zone`, `damage`, `heal`, `shield`, `buff`, `cc`; *(Combos, AI-D1)* `peel`), `conditions: Array[Condition]` (all must pass; the situation is passed in), `weight: float` (1).
+
+### ComboPlan and ComboStep (`combo_plan.gd`, `combo_step.gd`; inline in the EnemyData or ChampionData) *(Combos, proposed; AI-D2)*
+- `ComboPlan`: `id: StringName` (`&"snare_first"`), `steps: Array[ComboStep]`, `conditions: Array[Condition]` (all must pass when it starts; the situation is passed in), `weight: float` (1), `min_difficulty_tier: int` (1).
+- `ComboStep` (inline): `slot: StringName` (`&"q"`...), `timing: ComboStep.Timing` (`AFTER_LANDED`, `AFTER_ENDED`, `AFTER_DELAY`, `ON_STATUS`), `delay: float` (0; `AFTER_DELAY`), `status_tag: StringName` (`ON_STATUS`), `window: float` (1.0), `optional: bool` (false).
+- Checked by the enemies test: every plan's first step holds an `opener`-role ability that telegraphs at least 0.6 s and isn't UNIT-targeted; every slot named exists in its EnemyData.
 
 ### PoseSet (`pose_set.gd`; `res://data/pose_sets/pose_set_<name>.tres`; view data)
 `poses: Dictionary` (pose → `PoseLook`). `PoseLook` (inline): `clip: StringName` (a model's clip; empty = none), `lean_deg` (+ toward the target), `squash` (height scale, 1 = none), `rim_color` (alpha 0 = none), `pulse_hz` (0 = steady). `pose_set_default.tres` gives every pose of the minimum set its capsule look.
@@ -659,11 +910,17 @@ The global rules, held by `Brains.table` (the pattern of `LootTable`, `AllyTable
 | `odds_token_bonus`, `tokens_per_target_cap` | `int` | *(AI3c)* 1 (Ryan), 4 *(proposed)* |
 | `heavy_hit_window`, `heavy_hit_share` | `float` | *(AI3c; Ryan, 2026-10-04)* 0.8 (widened from his 0.3), 0.1; only while pressing |
 | `think_budget`, `think_rate_floor` | `float` | *(AI3c, proposed)* 200, 5 (thinks a second) |
+| `crowding_weights` | `Dictionary` (StringName → float) | *(Combos, AI-D1, proposed)* `near` 0.6, `closing` 0.15, `gap_closer` 0.3, `hits` 0.3 (and `cc` 0.4, read only by the ally) |
+| `crowding_closing_full`, `crowding_recent_time`, `crowding_hit_window`, `crowding_hits_full` | `float`, `float`, `float`, `int` | *(Combos, AI-D1, proposed)* 400 (u/s), 1, 3, 3 |
+| `opening_weights` | `Dictionary` (StringName → float) | *(Combos, AI-D1, proposed)* `escapes_down` 0.5, `cc_by_other` 0.5, `recovering` 0.4, `committed` 0.4, `cornered` 0.2 |
+| `opening_cc_min_left`, `cornered_check_px` | `float` | *(Combos, AI-D1, proposed)* 0.5, 48 (1.5 m) |
+| `plan_max_time`, `plan_odds_drop` | `float` | *(Combos, AI-D2, proposed)* 6, 0.33 |
+| `mixup_delay_min`, `mixup_delay_max` | `float` | *(Combos, AI-D2, proposed)* 0.4, 0.8 |
 
 *(AI1 built the ranks, `think_rate`, `min_intent_time`, `tell_time`, `reaction_floor`, the respect and patience rows and the added rows. AI2 built `pack_think_rate`, the fodder ring, the switch, alert, leash, return and token rows, and its added rows; each later row comes with its step.)*
 
 ### RankRules (`rank_rules.gd`; inline in the table)
-`rank`, `has_brain` (fodder false), `can_dodge` (elites and bosses), `token_cost` (regular 1, elite 2; 0 = no tokens), `tenacity` (elite 0.2, boss 0.4; a FLAT `tenacity` modifier at spawn under `&"enemy_rank"`), `max_abilities` (0, 2, 3, −1 = any; the enemies test checks every EnemyData), `brain_adjust: BrainAdjust`. *(Duels and odds)* `think_rate` (AI3c: 0, 10, 15, 25; −1 = the table's; a duelist elite takes the boss's), and in AI3d `max_abilities` 0, 3, 5, 6 with `min_abilities` 0, 2, 3, 4 (Ryan's kit answer: Kits; *built AI3d*: the enemies test warns below the minimum, as for overrides).
+`rank`, `has_brain` (fodder false), `can_dodge` (elites and bosses), `token_cost` (regular 1, elite 2; 0 = no tokens), `tenacity` (elite 0.2, boss 0.4; a FLAT `tenacity` modifier at spawn under `&"enemy_rank"`), `max_abilities` (0, 2, 3, −1 = any; the enemies test checks every EnemyData), `brain_adjust: BrainAdjust`. *(Duels and odds)* `think_rate` (AI3c: 0, 10, 15, 25; −1 = the table's; a duelist elite takes the boss's), and in AI3d `max_abilities` 0, 3, 5, 6 with `min_abilities` 0, 2, 3, 4 (Ryan's kit answer: Kits; *built AI3d*: the enemies test warns below the minimum, as for overrides). *(Combos, AI-D3; Ryan 2026-10-05)* `cc_diminishing` (fodder false, the rest true: given to the unit's StatusComponent at spawn), `poise` (false; the hook for bosses, built later: Enemies being combo'd).
 
 ### Additions to existing data
 | Where | Addition | Default | Notes |
@@ -680,6 +937,14 @@ The global rules, held by `Brains.table` (the pattern of `LootTable`, `AllyTable
 | Events | `pack_alerted(pack, target)`, `boss_phase_changed(boss, phase_index)`, `boss_reset(boss)` | | reserved names |
 | Vocabulary | **rank**, **role**, **brain**, **situation**, **intent**, **use rule**, **respect**, **patience**, **attack token**, **tell**, **pose**, **pack**, **alert**, **leash**, **whiff**, **punish window**, **pressure**, **breather**, **director**, **faction**, **spawn-in**, **ambush** | | for CONVENTIONS.md, on approval |
 | Vocabulary *(Duels and odds, proposed)* | **duelist** (Ryan's word), **key ability**, **cautious**, **crowded** (an **episode**), **answer**, **all in**, **kiting step**, **smell blood**, **strength**, **odds**, **press**, **heavy hit**, **enemy ability library** | | for CONVENTIONS.md, on approval; "press" sits beside "pressure" (patience's push, a boss's phase): Open questions |
+| `Ability` *(Combos, proposed)* | `combo_roles: Array[StringName]` | `[]` | `opener`, `extender`, `finisher` (AI-D2) |
+| `Ability` *(Combos, proposed)* | `recovery_time: float` | 0 | after its effect the caster can't move, attack or cast for this long (locks `&"recovery"`): a finisher's long recovery, the player's opening (AI-D1) |
+| `Ability` *(Combos, proposed)* | `castable_while_cc: bool` | false | it can be cast while crowd-controlled (break free; AI5) |
+| `Condition.Kind` *(Combos, proposed)* | `CROWDING`, `OPENING`, `TARGET_ESCAPES_READY`, `TARGET_CORNERED` | | appended; read the situation (AI-D1). `THREATENED` reads `status_tag` as the incoming ability's tag (`major` = any of `major_tags`) |
+| `StatusComponent` *(Combos, proposed; COMBAT.md)* | diminishing returns for `cc` statuses; `cc_diminishing: bool` | true | AI-D3; `status_cc_immune.tres` (tags `cc_immune`, `buff`; a ring at the feet) |
+| `ChampionData`, `AllyStance`, `AllyTable` *(Combos, proposed; ALLIES.md)* | `combo_plans`; the five planner sliders per stance; the reads' weights | | AI-D4, with ALLIES AL6 |
+| Events *(Combos, proposed)* | `cc_applied(unit, source, status, duration, dr_step)`, `cc_refused(unit, source, status, reason)`, `combo_plan_started(unit, target, plan)`, `combo_plan_ended(unit, target, plan, reason)` | | reserved names on approval (Feedback hooks) |
+| Vocabulary *(Combos, proposed)* | **combo plan** (an enemy's or an AI-driven champion's planned chain of abilities; not the basic attack combo), **step**, **opener**, **extender**, **finisher** (as the combo's: the last, heavy hit), **combo role**, **peel**, **setup**, **crowding**, **the opening**, **follow-through** (**reset** or **stay**: Ryan, 2026-10-05), **diminishing returns**, **poise** (later) | | for CONVENTIONS.md, on approval; "combo" already means the basic attack chain (CONVENTIONS), and "role" means an enemy's role and an ability's role tag: Open questions |
 
 ### Test and sandbox data
 - `enemy_slime.tres` (fodder) and `enemy_slime_elite.tres` (an elite brute with the slam), set on today's scenes in AI1, so the slimes keep their look and numbers.
@@ -698,6 +963,7 @@ The global rules, held by `Brains.table` (the pattern of `LootTable`, `AllyTable
   - **Scenes:** `scenes/enemies/test_skirmisher.tscn`, `test_caster.tscn`, `test_caster_elite.tscn`.
   - **Later:** the elite skirmisher comes with dodging (AI4).
 - *(Built AI3d: full kits from the library; Ryan, 2026-10-04)* The test brute: smash, cleave arc (`test_brute_w_cleave_arc.tres`), charge (`test_brute_e_charge.tres`). The test skirmisher: leap, stab (30 damage now), flurry (`test_skirmisher_e_flurry.tres`). The test caster: bolt, lobbed orb (`test_caster_w_lobbed_orb.tres`), blink away. The elite test caster: bolt, guard, blink away, snare (`test_caster_r_snare.tres`). The elite slime: slam, shockwave (`slime_elite_w_shockwave.tres`), big hit (`slime_elite_e_big_hit.tres`). The elite slime is placed only in the two sandboxes (room_01 has slimes only).
+- *(Combos, proposed; AI-D1–AI-D2)* **`enemy_test_duelist.tres`** (an elite brute flagged `duelist`; `data/units/test_duelist.tres`) in `scenes/enemies/test_duelist.tscn`, with `test_duelist_q_snare.tres`, `test_duelist_w_guard.tres` (the library's guard: Ryan, 2026-10-05), `test_duelist_e_strike.tres` and `test_duelist_r_finisher.tres`, and its three plans (The test duelist). Shift+H's cycle gains it.
 
 ## Architecture / contracts
 ### Brains (autoload, `res://scripts/autoload/brains.gd`) *(built AI1: the table, the generator, the schedule, the shared read; AI2: the enemies with data, tokens, the shout, the fodder ring; whiffs AI6, sleep AI7)*
@@ -728,6 +994,7 @@ ALLIES.md's contract, built here first (AI1) because the enemy brain is the firs
   - The skirmisher's commit end and reset hop; a gap-closer's cast doesn't end a commit.
   - Static `wants_escape()`, `get_intent_pose()` (poses by role), `get_projectile_time_to_hit()`, `get_caster_strafe()`, `get_fall_back_spot()`, `is_caster()`; queries `is_cornered()`, `is_escaping()`, `is_resetting()`.
 - *(Duels and odds, proposed; AI3b)* It also keeps its key slot, its cautious time, its crowded episode and that episode's roll, and its spend roll's clock; `decide()` reads them from the situation, and the drive runs the all-in, the kiting step and the walk out to the band's far edge.
+- *(Combos, proposed; AI-D1–AI-D2)* It also keeps its running plan (the plan, the step, when its trigger came, what landed, its damage on the target so far, its `combo_greed` roll) and its follow-through; `decide()` reads them from the situation. The drive runs the peel (the cast, then the kiting step) and each plan step on the tick its trigger comes, never at the next think.
 - *(Built AI2)* Tokens in the think: a lost token breaks a commit off or ends it (`_check_token_lost()`), full patience asks (`_ask_token()`), a decision other than `commit` lets a held token go; `_end_commit()` releases with the rest, `_reset()` without.
 - `debug_draw`: its range band, home and leash, a line to its target while it holds a token, its dodge direction. *(AI1: the sandbox overlay draws them (I), as `Brains.debug_draw`; the band and the commit line so far.)*
 
@@ -742,12 +1009,13 @@ Pure data, filled by `EnemyBrain.build_situation()` or by a test:
 - *(Built AI3)* `incoming` ({source, ability, kind, area, time_to_hit, age, dodgeable}) and `is_threatened(within)`, `cornered`, `escaping`, `resetting`.
 - *(Built AI2)* `needs_token` (false in a hand-built situation), `has_token`, `waiting_for_token`, `tokens_free`, `taunted`, `home_position`, `home_distance_px`; `target_reachable` from the path.
 - *(Duels and odds, proposed)* `key_slot`, `key_ready`, `own_ready_share`, `cautious_left`, `right_moment`, `crowded` and `crowded_roll` (none, all in, back up, stand), `answers`, `target_defensive_ready`, `odds`, `press`; the target's walking velocity (for `aim_lead`).
+- *(Combos, proposed)* `crowding` and `opening` (each with its terms, for the overlay), `own_kit_ready`, `target_escapes_ready`, `target_cornered`, `target_cc_left` and `target_cc_source`, `target_cc_immune`, `peel_uses`, the running plan's progress, `plans` (its `ComboPlan`s). `crowded_roll` gains `peel`.
 
 ### PartySnapshot (RefCounted, `res://scripts/enemies/party_snapshot.gd`)
-Per champion (the `party` group from ALLIES; the `player` until then): the unit, position, health ratio, up or downed, targetable, stealthed, `threat`, each slot's ability, ready, cooldown left and value, kit ready, its respect share, its cast in progress (ability, area, time to the effect), its punish window, its idle time. Plus the party's projectiles in flight (area, time to each point). Companions never appear. *(Built AI3: each member's `cast` (`read_cast()`: its ability, context, kind, area, time left) and `projectiles` (every projectile in flight: position, direction, speed, range left, width, team); the brain works out which reach it.)*
+Per champion (the `party` group from ALLIES; the `player` until then): the unit, position, health ratio, up or downed, targetable, stealthed, `threat`, each slot's ability, ready, cooldown left and value, kit ready, its respect share, its cast in progress (ability, area, time to the effect), its punish window, its idle time. Plus the party's projectiles in flight (area, time to each point). Companions never appear. *(Built AI3: each member's `cast` (`read_cast()`: its ability, context, kind, area, time left) and `projectiles` (every projectile in flight: position, direction, speed, range left, width, team); the brain works out which reach it.)* *(Combos, proposed)* Each member's crowd control (time left, source, tags), its CC immunity, and its recent gap-closers (when, where they ended).
 
 ### BrainDecision (RefCounted)
-`intent`, `plan: CastPlan` (null = no cast), `move_to: Vector2`, `pose`, `scores: Dictionary` (intent → score: the overlay's "why"), `reason: String`.
+`intent`, `plan: CastPlan` (null = no cast), `move_to: Vector2`, `pose`, `scores: Dictionary` (intent → score: the overlay's "why"), `reason: String`. *(Combos, proposed; AI-D2)* `combo_plan: ComboPlan` (the plan a new commit runs; null = none).
 
 ### Scoring (proposed; FREE inside these rules)
 Each think, every intent the situation allows gets a score from 0 to 1, × the behavior's intent weight, × (1 ± `jitter`, seeded); the highest wins, with the current intent's +0.15 until `min_intent_time`. In short:
@@ -762,6 +1030,12 @@ Each think, every intent the situation allows gets a score from 0 to 1, × the b
 - `poke`: 0.5 when a `poke` use passes (casters 0.6).
 - `hold`: 0.3, always there.
 - *(Duels and odds, proposed)* Smell blood: below `finish_threshold`, `commit` and `finish` × 1.3, never above 0.89. Crowded: an all-in is a `commit` (its patience filled at once); the kiting step is a `retreat`.
+- *(Combos, proposed)* `peel`: 0.9 on the think a crowded episode's roll picks it (like `defend`: it answers something already happening), then the kiting step's `retreat`. A setup is a `commit` (its patience filled at once, as an all-in is). A running plan holds `commit` (+ `intent_hold_bonus` throughout); only `return`, `dodge` and `defend` can beat it, between steps.
+
+### ComboPlanner (`res://scripts/units/combo_planner.gd`) *(Combos, proposed; AI-D1–AI-D2)*
+- Static and pure, like `decide()`; shared by `EnemyBrain` and ALLIES' `AllyBrain` (one code path, not a copy). Beside `UnitController` because both controllers use it.
+- `get_crowding(situation, weights) -> float`, `get_opening(situation, weights) -> float` (each also fills its terms for the overlay); `pick_plan(plans, situation, sliders, rng) -> ComboPlan` (fit, weight × the opener's plan value, jitter, `mixup`); `next_step(plan, progress, situation)` (the step due, or why the plan ends); `get_lean(situation) -> float` and `wants_stay(situation, sliders) -> bool` (the follow-through); `can_crowd_control(situation, step)` (the no-waste rule).
+- The weights and sliders come in as arguments: `EnemyAITable` and the resolved `EnemyBehavior` for an enemy; `AllyTable` and the `AllyStance` for the ally.
 
 ### CastPlan and get_ai_plan() (ALLIES.md's, built here first)
 ALLIES' `CastPlan` (`res://scripts/abilities/cast_plan.gd`) and `Ability.get_ai_plan(caster, situation)` with the shared default are built in AI1, since the brain needs aims. The default aims at the target where it stands now (no leading: an enemy's shot can be walked out of, COMBAT.md), wraps `get_ai_vector()` for a VECTOR ability, and copies the intents of the ability's passing `ai_uses` into the plan's `intents`. Enemy abilities override it where they need to (AI3); ALLIES AL4 adds the Knight's.
@@ -794,6 +1068,7 @@ ALLIES' `CastPlan` (`res://scripts/abilities/cast_plan.gd`) and `Ability.get_ai_
   - The fodder ring runs per target in Brains; only the pure placement, `get_ring_spots()`, is here.
   - No arena flag yet (AI7: arena and boss enemies never leash).
 - *(Duels and odds, proposed; AI3c)* Brains also gains: `get_odds()` (each side's strength, the odds, the press; built with the snapshot, once per tick), each champion's heavy-hit landing times (`note_heavy_hit(target, land_time)`, `can_land_heavy_hit(target, land_time)`), the pool's +1 while pressing (`get_tokens_per_target()`), and the schedule by rank under `think_budget`.
+- *(Combos, proposed; AI-D1–AI-D2)* Brains also gains: the party's hits on each enemy with data over the last 3 s and the champions' recent gap-closers (crowding's terms); and, with AI6's whiff read, the opening's `recovering` term.
 
 ### BossDirector (`res://scripts/enemies/boss_director.gd`; a child of a boss) *(proposed)*
 - Reads `EnemyData.boss_plan`. Owns the phase, the tempo (pressure, breather), when `punish` and `finish` may open, and hands its brain the phase's intent weights and the intents allowed now.
@@ -817,6 +1092,7 @@ A unit farther than `sleep_distance_px` from every party member stops its physic
   - **H** gains a mixed pack (a brute, a skirmisher, an elite caster, three slimes).
   - The incoming shot waits until the enemy is fighting, so its reaction shows.
   - The overlay adds its threats (how many, the next one's time) and cornered, escaping or resetting.
+- *(Combos, proposed; AI-D1–AI-D2)* Shift+H's cycle gains the test duelist. The overlay adds crowding and the opening (with their biggest terms), the peel, the running plan (its name, step and what landed; why it ended) and the follow-through's lean; the panel shows the five new sliders.
 - **H** cycles **the scenarios:** all cooldowns ready, none ready, low health (25%), an ally present (a friendly stand-in dummy until ALLIES), a whiff (Judgement spent at nothing), an incoming shot (a test bolt fired at the picked enemy). *(Built AI2)* Then two packs, placed 9 m away toward the cursor on the walkable floor and idle until they notice the Knight: five test brutes (tokens, the shout, the leash) and eight slimes (the ring). The overlay shows each brain's token (held, waiting, rest, or none needed) and draws each pack's home and leash, token lines and fodder's places. Each spawns the chosen test enemy 5 m away and sets the Knight's cooldowns and health through test hooks. *(Built AI1: it spawns the test brute toward the cursor; the hooks are `AbilityComponent.start_cooldown()` / `reset_cooldown()`, the Fury pool and the health component; the whiff only starts Judgement's cooldown until AI6 reads whiffs.)*
 - It never touches the player's saves.
 
@@ -878,6 +1154,17 @@ Audio hooks: see AUDIO.md. To add when built (synthesized placeholders until rea
 | Two abilities tied for its key | The earlier slot; an authored `respect_value` breaks the tie |
 | A brained enemy with no abilities | No key ability: confidence and spending do nothing; crowded, it rolls the mix (no answer): back up once or stand |
 | A poke while it holds its key | Never held (casters poke the whole time) |
+| Its opener is dodged *(Combos)* | The plan ends, then the follow-through decides; at `combo_greed` it carries on once (a blind finisher); never a finisher after a missed opener at 0 |
+| Its crowd control on cooldown, or spent on a peel *(Combos)* | Plans that need it don't fit; it opens with its strike (`strike_finish`) and never waits for the crowd control |
+| No plan fits at a commit *(Combos)* | AI1's commit (its first cast, 2 landed swings or 4 s) |
+| The target turns CC-immune mid-plan *(Combos)* | An optional crowd-control step is skipped; a needed one ends the plan |
+| A plan longer than the token's 4 s *(Combos)* | It keeps the token to the plan's end, up to `plan_max_time` (6 s) |
+| Two enemies' crowd control on one champion *(Combos)* | The second within 4 s lasts half as long; a third is refused and the champion is immune for 3 s (the ring). Nothing else caps a chain: cooldowns are the limit (Ryan) |
+| A crowd control on a target already held *(Combos)* | No enemy or ally starts one while the hold left is longer than its cast time (it would be halved, or wasted) |
+| The player channels Judgement on an enemy *(Combos)* | The ally holds its crowd control on that enemy; the enemy may still guard (a `major` ability aimed at it) |
+| Fodder crowd-controlled twice *(Combos)* | Full duration both times (no diminishing returns) |
+| A boss crowd-controlled *(Combos)* | Until poise exists: its 40% tenacity and diminishing returns |
+| Crowded while a plan runs *(Combos)* | The plan holds the commit; no episode starts until it ends |
 | Tests | No view; `Brains.rng` seeded; saving off (`Progress.is_test_scene()`); the panel never saves in a test scene |
 
 ## Build order (proposed; one step per request; each ends with Ryan's play test)
@@ -899,6 +1186,17 @@ Every step: Ryan runs `git status` first; the Knight's abilities, talents, enemi
    **Done means:** alone against three test brutes and an elite you feel them press (a third attacker, quicker commits, the amber lean); against one brute nothing changes; with the ally down they turn on you; while they press, never two heavy hits within 0.8 s. **Tests:** the odds in a 1v1, a 3v1 and an elite plus fodder against the player and the ally (each side's strength worked out by hand, a champion at 1.5); the pool +1 and never past the cap; the weakest pick with the margin, taunt and stealth; a heavy-hit stacking case refused while pressing (a boss plan's allowed, and outside a press allowed as in AI2); a duelist thinking at the boss's rate; thinks per rank over 10 s, the budget's scaling, reaction times unchanged, a gap-closer's follow-up never waiting a reaction time. **Play test:** a 1v1, a 3v1 and a mixed pack.
 3d. **AI3d – The enemy ability library, part 1, and full kits** (Ryan's kit answer: Kits). The starter archetypes that need nothing new (all but the pool, which waits for WORLD_INTERACTION's Hazards) as shared scripts and templates; the test enemies re-kitted to the new counts; `RankRules`' caps; the telegraph rule checked by the enemies test. It could come before AI3b, so AI3b's play test has full kits (Ryan's call). **Built 2026-10-04, first of the three (Ryan started it; see CHANGELOG.md); passed Ryan's play test 2026-10-04.** Ryan's answers first: the elite slime re-kitted (slam, shockwave, big hit), more enemy slots with bosses (AI6), the test kits as proposed, the stab at 30.
    **Done means:** the test brute, skirmisher and casters fight with full kits built from the library, none authored from scratch. **Tests:** every library ability telegraphs at least 0.6 s unless it's in the chip band and faster than the reaction time on purpose; each rank's ability count in its band; each archetype's `ai_uses` pass where they should. **Play test:** the mixed pack with full kits.
+
+*Combos, crowd control and the test duelist (Ryan's design addition, 2026-10-05): four steps after AI3c (proposed placement; each ends with Ryan's play test). They're named AI-D1 to AI-D4, not D1–D4, because DUNGEONS.md already has D0–D9. AI-D1 needs AI3b's crowded episode and AI3c's `duelist` flag; AI-D4 waits for ALLIES AL6.*
+
+D1. **AI-D1 – The test duelist, crowding and the opening (no plans yet).** The duelist (its EnemyData, stats and scene; its four abilities as library copies, the guard a plain shield (Ryan); `Ability.recovery_time` and the `recover` pose; Shift+H). `ComboPlanner`'s two reads. Crowding starting the crowded episode, the peel and the `peel` intent tag. The opening and the setup: in this step a setup is a commit that opens with its best `opener`-role ability, and plans come next. The condition kinds `CROWDING`, `OPENING`, `TARGET_ESCAPES_READY`, `TARGET_CORNERED` and THREATENED's tag filter. `peel_threshold` and `opening_bar` in the presets and the panel, with their overlay lines. **Changes to designed behavior (approved by Ryan, 2026-10-05):** AI3b's episode starts from crowding (inside `crowded_range` still enough on its own), and a failed all-in roll peels first when a `peel` use passes.
+   **Done means:** crowd the duelist and it snares you and steps back (or goes all in); spend Lunge and Iron Resolve and it comes at you snare first; aim Judgement at it and it guards; its finisher's recovery is a window you can punish. **Tests:** crowding's terms and its start (inside the crowded range, a Lunge in to 2.75 m, a string of hits); a peel in every episode at `crowded_commit` 0; the opening's terms (escapes, crowd control by another, committed, cornered); a setup at the bar and not below; an enemy with no `peel` use or opener plays AI3b's episode unchanged; THREATENED filtered by `major` (Judgement aimed at it yes, a Cleave no); `recovery_time` locks moving, attacking and casting; the shield's two `defend` uses (a `major` ability aimed at it; low health while crowded). **Play test:** Ryan duels the duelist.
+D2. **AI-D2 – Combo plans and the follow-through.** `ComboPlan`, `ComboStep`, `combo_roles`, the duelist's three plans; picking a plan (fit, weight, `mixup`); the step timings and windows; the ends; no blind finishers and `combo_greed`; the token kept to the plan's end (`plan_max_time`); the follow-through (the lean, `follow_through`); `Events.combo_plan_started` / `combo_plan_ended`; `follow_through`, `combo_greed` and `mixup` in the presets and the panel; the overlay's plan and lean lines; the enemies test's opener check.
+   **Done means:** the duelist opens with its snare when your escapes are down and with its strike otherwise, never waits for its snare, finishes only after a landed opener, and after a plan backs off when your kit is up and stays on you when it's spent. **Tests:** pressure high leads to a peel and pressure low with the target's escapes down to a setup (from AI-D1, now with the plan); an opener that misses ends the plan; no finisher after a missed opener at `combo_greed` 0, and a carry-on at its rate; with its crowd control on cooldown (or spent on a peel) it still opens with the strike and finishes; a plan with no crowd control works end to end; the follow-through resets when its kit is spent and the player's is ready, and stays when it's the other way round (the worked example's four cases); the plan's own steps never wait a reaction time; the token kept to the plan's end and never past 6 s; `mixup`'s runner-up rate; each end reason. **Play test:** Ryan duels the duelist again, then the mixed pack with it.
+D3. **AI-D3 – Diminishing returns on crowd control.** Diminishing returns in StatusComponent (every unit, fodder off through `RankRules.cc_diminishing`; `CrowdControlRules`; COMBAT.md), `status_cc_immune` and its ring, `Events.cc_applied` and `cc_refused` (with `POISE` reserved for later), `RankRules.poise` (the hook, off), the crowd control types allowed on the player (a root up to 1 s, a stun up to 0.5 s; the enemies test checks every enemy ability that applies one). No combo budget and no kill protection (Ryan, 2026-10-05: cooldowns are the limit). **A change for every unit** (Ryan): a second crowd control within 4 s is halved, the Knight's on enemies included.
+   **Done means:** rooted twice in 4 s, the second root is half as long; a third doesn't take, and a ring shows you're immune for 3 s; the same on enemies (Judgement, then a stun from Lunge, on an elite); fodder takes every stun in full. **Tests:** a second crowd control within the window halved, a third refused and the unit immune, the count starting over after the immunity; tenacity first, then diminishing returns; slows and knock-ups not counted; fodder taking full durations; a boss taking diminishing returns with its 40% tenacity (poise is later); the events' payloads and reasons; the existing suites' crowd control checks (any that crowd-control one unit twice within 4 s change their expectations, listed when built). **Play test:** the duelist and the elite caster together.
+D4. **AI-D4 – Ally parity** (with ALLIES AL6, after AL1–AL5). `AllyBrain` calls `ComboPlanner` (the reads and the plans); `AllyStance`'s five sliders and `AllyTable`'s weights; `ChampionData.combo_plans` (the Knight's Lunge → Cleave); the no-waste rules, the follow-up and the peel for the player.
+   **Done means:** the ally holds its crowd control on what you've just stunned and hits it instead, follows your crowd control with its payoff, and peels an enemy off you when you're swarmed. **Tests:** the ally holds its crowd control on a target the player already crowd-controlled (and on one under Judgement's channel) and follows up on one the player just crowd-controlled (no reaction wait, the cast delay kept); the peel from the player's crowding; the stance's sliders; nothing read from the enemy table. **Play test:** with the ally (ALLIES AL6's).
 
 4. **AI4 – Dodging.** The sidestep (elites and bosses), the reaction delay, one roll per attack, the dodge cooldown, never while casting or crowd-controlled, the free-side check, the `sidestep` pose; which party abilities are dodgeable (Dodging).
    **Done means:** an elite sidesteps a Cleave Wave thrown from range a beat late, never twice inside its cooldown, never a Judgement; a stunned or casting elite takes the hit. **Tests:** no dodge before the reaction time; none on cooldown; none while casting, stunned, rooted or airborne; never into a wall or off a ledge; fodder and regulars never dodge. **Play test:** baiting and beating a dodging elite.
@@ -944,6 +1242,17 @@ Arena waves and mid-fight reinforcements (deferred; Spawning); habit reading for
 5. ~~**The heavy hit:** what counts, and the window.~~ Answered (Ryan, 2026-10-04): **at least 10% of the target's max health; the window 0.8 s** (0.3 s was the post-hit i-frames already) (Odds).
 6. ~~**Changes to built rules,** with their steps.~~ Answered (Ryan, 2026-10-04): **approved:** a ready defensive counted whole below 30% (AI3b); the new sliders' role starts, `aim_lead` included (AI3b). **Not approved:** the heavy-hit rule always on (it runs only while pressing). **Changed:** the crowded kiting step isn't "first": with no answer, a roll picks between backing up once and standing and swinging (Ryan: "it should be a mix"); *(proposed)* the chance to back up is 1 − `aggression`.
 
+### Open from Combos (2026-10-05; Ryan's call, asked in short rounds: all answered the same day, in four rounds)
+1. ~~**The Knight's answer to crowd control:** he has no CC-break and no unstoppable moment (rooted he can swing, Cleave, Iron Resolve and Judgement; stunned, nothing).~~ Answered: **no new tool now** (Claude's proposal); revisit at AI-M. Not picked: Iron Resolve breaking roots and slows; base tenacity.
+2. ~~**Kill protection,** yes or no, and its threshold (60%).~~ Answered: **no.** Telegraphs and the dodgeable opener are the answer; revisit at AI-M if deaths feel cheap.
+3. ~~**The combo budget's numbers:** 1.2 s locked out in any 3 s (a root counts half); 30% of max health from a regular's combo, 45% from an elite's.~~ Answered: **no budget at all.** Ryan: "if their abilities are off cool down they can use it whenever they please." Cooldowns are the limit.
+4. ~~**The crowd control types on the player at first.**~~ Answered: **a root (up to 1 s) and a short stun (up to 0.5 s)**, each from a telegraphed, dodgeable ability; the rest later.
+5. ~~**Diminishing returns:** who it applies to.~~ Answered: **every unit** (fodder full; bosses until poise), the numbers as proposed (a second within 4 s halved, a third refused and 3 s immune, a ring).
+6. ~~**Boss poise:** now or later.~~ Answered: **later** (only the hook now; bosses keep 40% tenacity plus diminishing returns).
+7. ~~**The duelist's defensive:** a counter-strike guard or a plain shield.~~ Answered: **a plain shield** (the library's guard). ~~**Its numbers.**~~ Answered: **as proposed** (TARGET; it thinks 25 a second).
+8. ~~**Changes to designed or built rules.**~~ Answered: **all approved:** the crowded episode started by crowding and a failed all-in roll peeling first (AI3b, designed; Ryan asked whether these were new: they were all new proposals); a commit with a plan ending with the plan and keeping its token up to 6 s (AI1, AI2, built; only enemies with plans); `mixup` promoted for one use and `combo_commitment` designed as `combo_greed`; the ally's own plans on `ChampionData` and its follow-up with no reaction wait (ALLIES).
+9. ~~**Names.**~~ Answered: **"stay"** for the follow-through's other choice (the odds keep "press"). Still to approve with CONVENTIONS: "crowding", "combo plan" beside the basic attack combo, `combo_roles` (with peel and guard as intent tags), the other names (Data, Vocabulary).
+
 ### Claude's other proposals (written in above as *(proposed)*; Ryan can overrule any)
 1. ~~**Names**~~ Answered (Ryan, 2026-10-04, starting AI1): **all approved as proposed**, the word **rank** included (CONVENTIONS.md updated). The list: (`EnemyData`, `EnemyBehavior` and `EnemyRoster` approved as the format in I9): `EnemyAbilitySlot`, `BrainAdjust`, `EliteModifier`, `BossPlan`, `BossPhase`, `AIUse`, `PoseSet`, `PoseLook`, `EnemyAITable`, `RankRules`, `Brains` (autoload), `EnemyBrain`, `SituationContext`, `PartySnapshot`, `BrainDecision`, `Pack`, `BossDirector`, `Ambush`, `EnemySpawner`, `SandboxBrains`, `ScriptedController`; `Ability.ai_uses`, `respect_value`, `get_effect_area()`; `Condition.Kind.THREATENED`, `TARGET_WHIFFED`, `RESPECT`; `Enemy.data`, `naive_casting`; the Events `pack_alerted`, `boss_phase_changed`, `boss_reset`; the source ids `elite_modifier_<id>`, `enemy_<id>`; the intents and intent tags; the word **rank** for the ladder (CONVENTIONS calls elite and boss "enemy tiers").
 2. ~~**The tell lead** (0.3 s of pose before an attack decision) and the pose looks.~~ Answered in I7.
@@ -977,8 +1286,36 @@ Arena waves and mid-fight reinforcements (deferred; Spawning); habit reading for
 28. *(Duels and odds)* **Boss passives' tells:** the boss bar like the HUD's passive slot, an aura, the `passive` pose; `BossPlan.passive`, `BossPhase.passive`.
 31. *(Korsavil, 2026-10-04)* **The search:** 3 s of looking around (`search_time` in `EnemyAITable`), only with no other candidate, a `search` pose, then home as on a leash (arena and boss enemies hold); a stealth ending in its sight brings the chase back; enemies with no data keep today's drop (Losing a stealthed target).
 32. *(Korsavil, 2026-10-04)* **Fear:** the brain rests as under `is_cc_blocked()`, the flee re-paths at each think straight away from the source and stops when cornered, a stun or root wins, the pick runs again at once after; bosses refuse it through a permanent `boss` status from `RankRules` and fear's `refused_by_tags` (Fear).
+33. *(Combos, 2026-10-05)* **The two reads:** crowding's terms and weights (near 0.6, closing 0.15, a gap-closer 0.3, hits 0.3) and the opening's (escapes down 0.5, crowd control by another 0.5, recovering 0.4, committed 0.4, cornered 0.2), the token as a gate; the dash never counted as an escape (it's not on the HUD), which is why openers must be dodgeable.
+34. *(Combos)* **One mechanism:** crowding starts the crowded episode; a failed all-in roll peels when a `peel` use passes, else the mix. Only enemies with a `peel` use or combo plans change. *(Approved by Ryan, 2026-10-05.)*
+35. *(Combos)* **Combo plans:** the step timings (after landed, after ended, after a delay, on a status), a 1 s window, optional steps, the ends (a miss, an interrupt, the token, the target, low health, the odds down by a third), the token kept up to 6 s, urgent intents only between steps.
+36. *(Combos)* **The follow-through's lean:** (1 − effective respect) × (0.5 + 0.5 × its health) × (0.5 + 0.5 × its own kit ready), staying at lean ≥ 1 − `follow_through`.
+37. *(Combos)* **The five sliders' meanings and starts:** `combo_greed` as the chance to carry on after a missed step (the brief named it without a meaning; the brute's swing-through is it, not `spend_eagerness`); `mixup` as the runner-up plan or a held beat. *(The two meanings approved by Ryan, 2026-10-05; the starts stay TARGET.)*
+38. *(Combos)* ~~**Diminishing returns' numbers** (4 s, half, then 3 s immune; slows and knock-ups not counted; fodder exempt) and **the immunity's ring**~~ (approved by Ryan with the rule, 2026-10-05). Still a proposal: **`Ability.recovery_time`** (no recovery field exists).
+39. *(Combos)* **The test duelist's numbers, plans and overrides** (The test duelist), its think rate the boss's 25 (Kits), not the brief's 20. *(The numbers approved by Ryan, 2026-10-05; the guard a plain shield.)*
+40. *(Combos)* **Break free** (an elite's break-out, castable while crowd-controlled) as a library archetype built with AI5, and **the poise hook** (`RankRules.poise`, `Events.cc_refused` with `POISE`).
 
 ### Conflicts and notes for Ryan (found 2026-10-03)
+- **Found writing Combos (2026-10-05):**
+  - **"The v2 additions"** in the brief are this doc's **Duels and odds**: confidence, crowded, smell blood, odds and `nerve`, think rates by rank, the five sliders. They're designed but AI3b and AI3c aren't built, so AI-D comes after them.
+  - **"Pressure on me"** would give "pressure" a third meaning (patience's push, a boss's phase), so the read is **crowding**. The follow-through's **"press"** is already the odds' press, so it's **stay**.
+  - **"Combo"** means the basic attack chain in CONVENTIONS, so the new thing is a **combo plan**. Its **finisher** means what the combo's finisher means (the last, heavy hit). "Role" now has three uses (an enemy's role, an ability's role tag, a combo role), so "combo role" is always said in full.
+  - **The brief's five combo roles:** peel and guard are already what intent tags say (`peel`, new, and `defend`), so `combo_roles` holds opener, extender and finisher only.
+  - **`combo_greed`** is named in the brief but not defined. The blind finisher was put under `spend_eagerness` "as for a brute", but the brute has the lowest `spend_eagerness` of the presets (0.4). So `combo_greed` carries it: the later list's `combo_commitment`.
+  - **"The duelist rank: think rate 20":** Ryan made the duelist an elite flagged `duelist` that thinks at the boss's rate (25 a second; his range 20–30), not a rank. The doc keeps his.
+  - **"The first entries of the shared library":** the library exists (AI3d), so the duelist is built from its templates, with no new archetype (Ryan picked the library's guard over a counter-strike stance).
+  - **The `answer` tag:** Duels and odds decided answers are derived (no new tag). The duelist's snare counts as one through its `cc` use and its root.
+  - **"A root lets you cast and dash-cancel":** Ryan's roots rule (ABILITIES.md, Roots) blocks the dash under a root. Rooted, the player can still swing and cast anything that doesn't move them, so a root is a softer lockout than a stun.
+  - **Fodder:** the brief's section 3 puts diminishing returns on every unit, its section 5 gives fodder full crowd control. Fodder is exempt.
+  - **The CC-immune "icon":** no icons over heads (Tells), so it's a ring at the feet, a status look like the stun's stars.
+  - **Kill protection** would have added nothing for one enemy's combo under the proposed damage cap (45%, below the 60% it protected). Ryan dropped both: no budget, no kill protection.
+  - **D1–D4** clash with DUNGEONS.md's D0–D9, so the steps are AI-D1–AI-D4.
+  - **ALLIES' "combos come from the plans; no pair scripted by name":** party combos stay unscripted; only a champion's own sequences may be combo plans, read when an AI drives it.
+  - **The ally's follow-up "with no reaction check"** goes past ALLIES' 0.3 s reaction; it keeps ALLIES' 0.1–0.25 s cast delay, so it isn't frame-perfect.
+  - **The opening's "recovering" term** needs AI6's whiff read (0 until then); the duelist's `snare_first` gains its `TARGET_WHIFFED` rule with AI6.
+  - **A plan can outlast the token's 4 s,** so a plan keeps it up to 6 s.
+  - **No ability has a recovery** (end lag) today, so the finisher's long recovery needs `Ability.recovery_time`.
+  - **"Later steps may be fast"** against the 0.6 s rule (AI3d's telegraph test): allowed only while the plan's own crowd control still holds the target. Nothing uses it yet, so the library's test stays as built.
 - ~~**Arena spawn-in vs waves:** DUNGEONS.md proposes arena waves (`ArenaWave`, `next_wave_at`); Ryan didn't pick waves or reinforcements. This doc keeps spawn-in (one group at the seal) and defers waves; DUNGEONS' wave proposal is marked waiting on Ryan.~~ Answered (Ryan, 2026-10-04): spawn-in confirmed (one group at the seal); waves and reinforcements stay deferred. DUNGEONS.md updated.
 - **Data intents vs ALLIES' script-only AI:** ALLIES' decision ("one AI method per ability ... replaces the brief's data hints") and this brief's data intent tags both stand: the data says what for and when, the script says how and how good. ALLIES' `engage` intent is renamed `gap_close`, and `get_ai_plan()`'s `sense` is the `SituationContext`.
 - ~~**"Rank" vs "enemy tier":** CONVENTIONS.md's vocabulary calls elite and boss enemy tiers; this doc proposes "rank". CONVENTIONS isn't edited until Ryan picks.~~ Answered (Ryan, 2026-10-04): "rank"; CONVENTIONS.md updated.
@@ -1027,5 +1364,6 @@ Arena waves and mid-fight reinforcements (deferred; Spawning); habit reading for
 - **ABILITIES.md, COMBAT.md** (applied 2026-10-03): `ai_uses`, `respect_value`, `get_effect_area()`, the three condition kinds; enemy roles in the threat kinds; dodge and tell rules; bands unchanged.
 - **WORLD_INTERACTION.md** (applied): ambush triggers; `Sight` into WorldQuery in AI2. **COMPANIONS.md** (applied): drops from `EnemyData`. **3D.md** (applied): pose hooks; the perched sniper; enemy attacks' `melee` tag.
 - **Duels and odds** (applied 2026-10-04): ABILITIES.md (answers from the intent tags, enemy abilities' `respect_value` and the key ability, the enemy ability library, `aim_lead` in the default plan, heavy hits); ALLIES.md (the target pick under odds, the party's strength); COMBAT.md unchanged (the post-hit i-frames already cover the heavy-hit window). CONVENTIONS.md gets the new words on approval.
+- **Combos** (applied 2026-10-05): ABILITIES.md (`combo_roles`, the `peel` intent tag, `recovery_time`, the new condition kinds, crowd control on the player, the events), COMBAT.md (diminishing returns, the immunity ring, the events; no combo budget and no kill protection: Ryan), ALLIES.md (the shared planner, the ally's rules and sliders), CHAMPIONS.md (the Knight's counterplay findings). CONVENTIONS.md gets the new words on approval.
 - **Korsavil** (CHAMPIONS.md, designed 2026-10-04; applied the same day): the search and fear come from her kit (this doc's two new sections); ALLIES.md (stealth dropped at once, the search, stealth ending on acting *(proposed)*), COMBAT.md (`status_fear`, `refused_by_tags`) and CONVENTIONS.md (the words search and fear, the `boss` tag) updated with them.
 - **CONVENTIONS.md** (applied 2026-10-04, Ryan approved the names): the names AI1 built and the word "rank"; the later steps' names go in as they're built. **TALENTS.md, LOOT.md** (on approval): their stand-ins retire in AI7. **VISION.md** (on approval): Open question 7 answered. **AUDIO.md**: the hooks above join its "later, per system" list when built.
