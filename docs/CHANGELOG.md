@@ -1487,6 +1487,19 @@ Docs only; no code or tests changed.
 
 ## Enemies AI (ENEMIES_AI.md)
 
+### AI3c follow-up – the think budget, Ryan's answer: 2026-10-05, Built (awaiting Ryan's play test)
+Ryan committed AI3c and the warnings cleanup (the tree was clean). He asked what an optimization sweep and a budget cut would do, then decided: **keep 200; elites and bosses are exempt.**
+- `RankRules.think_budget_exempt`, data: true for the elite and boss ranks in `enemy_ai_table_default.tres`. A duelist is an elite, so it's exempt.
+- `EnemyBrain.is_budget_exempt()`.
+- In `Brains`, an exempt brain always thinks at its own rate. The budget takes the exempt brains' thinks off the top, and the regulars share what's left, never under the floor of 5. Claude's reading: the total stays near 200 instead of the exempt thinks going on top of it.
+- **Tests:** the think-rate test's budget part now shows a regular, an elite, a duelist elite and a boss (75 a second, 65 of them exempt):
+  - at a budget of 72, the regular gets the 7 left (7, 15, 25, 25; over 6 s, 42 / 90 / 150 / 150 thinks);
+  - at 20, below the exempt 65, the regular sits at the floor of 5 and the exempt keep their rates;
+  - which ranks are exempt.
+
+  Enemies 451/451. All suites 3,587/3,587, all nine at once. The warnings probe found 0.
+- **Sensitivity:** ignoring the exemption, and not taking the exempt thinks off the top, each failed 3 checks. The file was restored and diff-checked.
+
 ### AI3c – Odds, and think rates by rank: 2026-10-05, Built (awaiting Ryan's play test)
 Ryan committed the AI3b fix (the tree was clean) and asked for the warnings cleanup and "the next step", which was AI3c in Claude's proposed order. It's built on Duels and odds and his 2026-10-04 answers: a champion weighs 1.5; a heavy hit is 10% of max health, one per 0.8 s, only while pressing; think rates by rank.
 - **Built:**

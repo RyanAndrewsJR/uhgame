@@ -35,6 +35,7 @@ tenacity = 0.2
 max_abilities = 5
 min_abilities = 3
 think_rate = 15.0
+think_budget_exempt = true
 
 [sub_resource type="Resource" id="Resource_sq8i8"]
 script = ExtResource("2_vigi2")
@@ -50,6 +51,7 @@ tenacity = 0.4
 max_abilities = 6
 min_abilities = 4
 think_rate = 25.0
+think_budget_exempt = true
 brain_adjust = SubResource("Resource_sq8i8")
 
 [resource]

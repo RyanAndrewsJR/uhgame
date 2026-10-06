@@ -22,8 +22,9 @@ extends Node
 ##   press, one read per tick); while the enemies press, one more token in
 ##   each champion's pool (under the cap) and one heavy hit at a time on each
 ##   champion (note_heavy_hit(), can_land_heavy_hit()); each brain thinking at
-##   its rank's rate (a duelist elite at the boss's), every rate scaled down
-##   evenly past think_budget (get_think_rate()).
+##   its rank's rate (a duelist elite at the boss's), the regulars' rates
+##   scaled down evenly past think_budget (get_think_rate(); elites and
+##   bosses exempt).
 ## AI6 adds the whiffs, AI7 sleeping.
 
 const TABLE_PATH := "res://data/enemy_ai_tables/enemy_ai_table_default.tres"
@@ -109,9 +110,12 @@ func get_think_period() -> int:
 
 ## `brain`'s thinks a second now (AI3c, Think rate by rank): its rank's
 ## (EnemyBrain.get_base_think_rate()) × the budget's scale, never under
-## think_rate_floor (nor above its own).
+## think_rate_floor (nor above its own). A brain whose rank is exempt (Ryan,
+## 2026-10-05: elites and bosses) always thinks at its own rate.
 func get_think_rate(brain: EnemyBrain) -> float:
 	var own := brain.get_base_think_rate()
+	if brain.is_budget_exempt():
+		return own
 	return maxf(own * _think_scale, minf(table.think_rate_floor, own))
 
 
@@ -398,14 +402,25 @@ func _prune_heavy_hits() -> void:
 
 
 ## The think budget (AI3c): the awake brains' thinks a second at their own
-## rates; past think_budget every rate scales down evenly (get_think_rate()).
+## rates; past think_budget the brains that aren't exempt scale down evenly
+## (get_think_rate()). The exempt ones' thinks (elites and bosses: Ryan,
+## 2026-10-05) come off the budget first; the rest share what's left, never
+## under the floor.
 func _update_think_budget() -> void:
 	var demand := 0.0
+	var exempt := 0.0
 	for b in _brains:
 		if is_instance_valid(b) and b.is_awake():
-			demand += b.get_base_think_rate()
+			var rate := b.get_base_think_rate()
+			demand += rate
+			if b.is_budget_exempt():
+				exempt += rate
 	_think_demand = demand
-	_think_scale = minf(1.0, table.think_budget / demand) if demand > 0.0 and table.think_budget > 0.0 else 1.0
+	var scaled := demand - exempt
+	if scaled <= 0.0 or table.think_budget <= 0.0:
+		_think_scale = 1.0
+	else:
+		_think_scale = clampf((table.think_budget - exempt) / scaled, 0.0, 1.0)
 
 
 # --- Enemies with data (AI2) ---------------------------------------------------------------

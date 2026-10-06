@@ -31,3 +31,7 @@ extends Resource
 ## table's think_rate. Brains scales every rate down evenly past the table's
 ## think_budget.
 @export var think_rate: float = -1.0
+## Its brains always think at their full rate, whatever the budget (Ryan,
+## 2026-10-05: elites, of any role, and bosses). Their thinks still count:
+## they come off the budget first, and the other ranks share what's left.
+@export var think_budget_exempt: bool = false

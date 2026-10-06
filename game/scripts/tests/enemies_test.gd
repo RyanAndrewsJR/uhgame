@@ -3486,7 +3486,7 @@ func _test_ai3c_think_rates() -> void:
 	for e in all:
 		free_rates.append(roundi(e.get_brain().get_think_rate()))
 	var saved_budget := t.think_budget
-	t.think_budget = 50.0
+	t.think_budget = 72.0
 	await _frames(2)
 	var scaled: Array = []
 	for e in all:
@@ -3505,10 +3505,15 @@ func _test_ai3c_think_rates() -> void:
 		floored.append(snappedf(e.get_brain().get_think_rate(), 0.01))
 	t.think_budget = saved_budget
 	_check("four awake brains ask 75 a second, under the budget: each at its own rate", [roundi(demand), free_rates], [75, [10, 15, 25, 25]])
-	_check("a budget of 50: every rate × 2/3 (6.67, 10, 16.67, 16.67)", scaled, [6.67, 10.0, 16.67, 16.67])
+	_check("exempt (Ryan): the elite and boss ranks, so the elite, the duelist elite and the boss; not the regular or fodder",
+		[t.get_rank_rules(EnemyData.Rank.FODDER).think_budget_exempt, t.get_rank_rules(EnemyData.Rank.REGULAR).think_budget_exempt,
+			t.get_rank_rules(EnemyData.Rank.ELITE).think_budget_exempt, t.get_rank_rules(EnemyData.Rank.BOSS).think_budget_exempt,
+			all.map(func(e: Enemy) -> bool: return e.get_brain().is_budget_exempt())],
+		[false, false, true, true, [false, true, true, true]])
+	_check("a budget of 72: the exempt three's 65 come off the top, the regular gets the 7 left (7, 15, 25, 25)", scaled, [7.0, 15.0, 25.0, 25.0])
 	_check("...and over 6 s they think about that often (got %s)" % [scaled_counts],
-		[absi(scaled_counts[0] - 40) <= 2, absi(scaled_counts[1] - 60) <= 2, absi(scaled_counts[2] - 100) <= 2, absi(scaled_counts[3] - 100) <= 2], [true, true, true, true])
-	_check("a budget of 20: × 0.27, never under the floor of 5 (5, 5, 6.67, 6.67)", floored, [5.0, 5.0, 6.67, 6.67])
+		[absi(scaled_counts[0] - 42) <= 2, absi(scaled_counts[1] - 90) <= 2, absi(scaled_counts[2] - 150) <= 2, absi(scaled_counts[3] - 150) <= 2], [true, true, true, true])
+	_check("a budget of 20, under the exempt three's 65: the regular at the floor of 5, the exempt at their own rates (5, 15, 25, 25)", floored, [5.0, 15.0, 25.0, 25.0])
 	for e in all:
 		e.passive = true
 		e.attack.cancel()

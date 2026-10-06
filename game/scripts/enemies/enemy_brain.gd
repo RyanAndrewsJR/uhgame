@@ -341,6 +341,12 @@ func get_think_rate() -> float:
 	return Brains.get_think_rate(self)
 
 
+## Its rank always thinks at its full rate (RankRules.think_budget_exempt:
+## elites and bosses, Ryan 2026-10-05).
+func is_budget_exempt() -> bool:
+	return rank_rules != null and rank_rules.think_budget_exempt
+
+
 ## Its enemy is in a fight (its thinks do work; the think budget counts it).
 func is_awake() -> bool:
 	return is_instance_valid(_enemy) and _enemy.is_brain_active()
