@@ -6,7 +6,9 @@ extends Resource
 ## scores. res://data/enemy_ai_tables/enemy_ai_table_default.tres.
 ## Every number is a TARGET until the play tests. AI2 added the groups'
 ## numbers (tokens, the fodder ring, the alert, the leash) and the target
-## pick's; dodging's and the whiff's come with their steps (AI4, AI6).
+## pick's; AI3b the duel's (cautious, spending, crowded, smell blood, the
+## walk read for aim lead); dodging's and the whiff's come with their steps
+## (AI4, AI6).
 
 ## The four ranks (fodder, regular, elite, boss), each a RankRules.
 @export var ranks: Array[RankRules] = []
@@ -159,6 +161,32 @@ extends Resource
 @export var reset_hop_px: float = 64.0
 @export var reset_hop_time: float = 0.2
 @export_range(0.0, 1.0) var reset_patience: float = 0.5
+
+@export_group("Duels and odds (AI3b)")
+## Confidence: once it has spent its key ability it's cautious for this long
+## (s; or until the key is ready again): its patience fills × (1 −
+## cautious_patience_cut × confidence), and its commit's end walks it out to
+## its band's far edge.
+@export var cautious_time: float = 3.0
+@export_range(0.0, 1.0) var cautious_patience_cut: float = 0.5
+## Spending the key ability: outside a right moment it rolls spend_eagerness
+## once every spend_roll_time s while it holds the key (a pass frees it until
+## the next roll). One right moment: its key's area covering at least
+## spend_min_champions champions.
+@export var spend_roll_time: float = 2.0
+@export var spend_min_champions: int = 2
+## A crowded episode ends once its target has stayed this far (px) outside
+## its crowded range for crowded_clear_time s.
+@export var crowded_clear_time: float = 1.0
+@export var crowded_clear_px: float = 16.0
+## Smell blood: below its finish_threshold of the target's health, its commit
+## (and later finish) score × smell_blood_mult, never above smell_blood_cap
+## (so defend, dodge and return still win).
+@export var smell_blood_mult: float = 1.3
+@export var smell_blood_cap: float = 0.89
+## Aim lead: the target's walk is its average velocity over this long (s),
+## counted only since its last dash or push.
+@export var walk_velocity_time: float = 0.2
 
 ## Derived respect values, cached per ability (they read only data).
 var _respect_cache: Dictionary = {}

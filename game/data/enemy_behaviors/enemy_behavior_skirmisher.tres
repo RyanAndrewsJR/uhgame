@@ -16,3 +16,7 @@ dodge_skill = 0.6
 dodge_cooldown = 4.0
 punish_greed = 0.8
 jitter = 0.2
+confidence = 0.6
+crowded_commit = 0.4
+aim_lead = 0.3
+spend_eagerness = 0.7

@@ -9,6 +9,7 @@ intent_weights = Dictionary[StringName, float]({
 &"commit": 0.0
 })
 low_health = 1
+crowded_range = -1.0
 aggression = 0.3
 respect_weight = 1.2
 patience_time = 4.0
@@ -17,3 +18,7 @@ range_band_max = 800.0
 dodge_skill = 0.5
 dodge_cooldown = 5.0
 punish_greed = 0.4
+confidence = 0.3
+crowded_commit = 0.2
+aim_lead = 0.5
+spend_eagerness = 0.8

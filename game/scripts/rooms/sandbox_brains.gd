@@ -47,6 +47,9 @@ extends Node
 const TEXT_COLOR := Color(0.92, 0.92, 0.92)
 const HINT_COLOR := Color(0.65, 0.65, 0.7)
 const SOURCE_ID := &"sandbox_brains"
+## The tuning panel's slider list height (px; AI3b): 11 rows of 16 show, the
+## rest scroll, so the panel ends inside the 360 px canvas.
+const SLIDER_LIST_HEIGHT := 176.0
 const SCENARIOS: Array[StringName] = [&"all_ready", &"none_ready", &"low_health", &"ally", &"whiff", &"incoming_shot", &"pack", &"fodder", &"mixed"]
 const SCENARIO_NAMES := {
 	&"all_ready": "all cooldowns ready", &"none_ready": "none ready", &"low_health": "low health (25%)",
@@ -230,6 +233,9 @@ func get_overlay_text(enemy: Enemy) -> String:
 	var effective := s.effective_respect if s != null else 0.0
 	lines.append("respect %.2f (%.2f)  patience %.2f" % [respect, effective, brain.get_patience()])
 	lines.append("token %s  dodge -  react %.2f s  %d µs" % [brain.get_token_state(), brain.behavior.reaction_time, brain.get_think_usec()])
+	var duel := get_duel_text(enemy)   # AI3b
+	if duel != "":
+		lines.append(duel)
 	var state: PackedStringArray = []
 	if s != null and not s.incoming.is_empty():
 		state.append("threats %d (next %.2f s)" % [s.incoming.size(), s.incoming.map(func(a: Dictionary) -> float: return a.time_to_hit).min()])
@@ -241,6 +247,51 @@ func get_overlay_text(enemy: Enemy) -> String:
 		state.append("resetting")
 	if not state.is_empty():
 		lines.append("  ".join(state))
+	return "\n".join(lines)
+
+
+## The overlay's duel lines (ENEMIES_AI.md, Duels and odds; AI3b), "" when
+## there's nothing to show: its confidence (`conf 0.5 × own 1.00 (key: Smash
+## ready)`, or `cautious 2.1 s`), its key's hold (`key: held (next roll 1.4
+## s)`, `key: free (crowded)`), its crowded episode (`crowded: all in (0.31 <
+## 0.60)`, `crowded: back up (no answer)`, `crowded: stand (0.82)`) and its aim
+## lead (`lead 0.5 (+1.2 m)`).
+func get_duel_text(enemy: Enemy) -> String:
+	var brain := enemy.get_brain()
+	if brain == null or brain.behavior == null:
+		return ""
+	var b := brain.behavior
+	var s := brain.get_situation()
+	var parts: PackedStringArray = []
+	var key := brain.get_key_slot()
+	if key != &"" and enemy.abilities != null and enemy.abilities.get_ability(key) != null:
+		var key_name := enemy.abilities.get_ability(key).display_name
+		if brain.is_cautious():
+			parts.append("cautious %.1f s" % brain.get_cautious_left())
+		elif s != null and s.key_ready:
+			parts.append("conf %.1f × own %.2f (key: %s ready)" % [b.confidence, s.own_ready_share, key_name])
+			if s.held_slot != &"":
+				parts.append("key: held (next roll %.1f s)" % brain.get_spend_roll_left())
+			elif s.right_moment:
+				parts.append("key: free (%s)" % s.right_moment_reason)
+			else:
+				parts.append("key: free")
+		else:
+			parts.append("key: %s down" % key_name)
+	var lines: PackedStringArray = []
+	if not parts.is_empty():
+		lines.append("  ".join(parts))
+	if brain.is_crowded():
+		var roll := brain.get_crowded_roll()
+		var value := brain.get_crowded_roll_value()
+		var text := "crowded: %s" % String(roll).replace("_", " ")
+		if roll == EnemyBrain.ALL_IN:
+			text += " (%.2f < %.2f)" % [value, b.crowded_commit]
+		elif roll == EnemyBrain.BACK_UP or roll == EnemyBrain.STAND:
+			text += " (no answer)" if not brain.had_crowded_answer() else " (%.2f)" % value
+		lines.append(text)
+	if b.aim_lead > 0.0:
+		lines.append("lead %.1f (+%.1f m)" % [b.aim_lead, Units.px_to_m(brain.get_last_lead_px())])
 	return "\n".join(lines)
 
 
@@ -472,6 +523,16 @@ func _build_panel() -> void:
 	_brain_switch.add_theme_font_size_override("font_size", 8)
 	_brain_switch.toggled.connect(_on_brain_switch_toggled)
 	box.add_child(_brain_switch)
+	# AI3b: sixteen sliders no longer fit the 360 px canvas, so they scroll (the
+	# mouse wheel over the list; nothing else in the game reads the wheel).
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.custom_minimum_size = Vector2(0, SLIDER_LIST_HEIGHT)
+	box.add_child(scroll)
+	var list := VBoxContainer.new()
+	list.add_theme_constant_override("separation", 0)
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(list)
 	for slider: StringName in EnemyBehavior.SLIDERS:
 		var row := HBoxContainer.new()
 		var name_label := _small_label(String(slider))
@@ -488,7 +549,7 @@ func _build_panel() -> void:
 		var value_label := _small_label("")
 		value_label.custom_minimum_size = Vector2(90, 0)
 		row.add_child(value_label)
-		box.add_child(row)
+		list.add_child(row)
 		_rows[slider] = {"slider": s, "value": value_label}
 	_build_temp_test_rows(box)   # TEMP
 	_status_label = _small_label("")

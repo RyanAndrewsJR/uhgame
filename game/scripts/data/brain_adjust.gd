@@ -20,6 +20,11 @@ extends Resource
 @export var pressure_time: float = 1.0
 @export var breather_time: float = 1.0
 @export var jitter: float = 1.0
+## AI3b's sliders (Duels and odds).
+@export var confidence: float = 1.0
+@export var crowded_commit: float = 1.0
+@export var aim_lead: float = 1.0
+@export var spend_eagerness: float = 1.0
 ## Attack tokens added to each target's pool (difficulty tiers; AI2).
 @export var token_bonus: int = 0
 

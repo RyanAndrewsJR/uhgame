@@ -24,6 +24,9 @@ var intents: Array[StringName] = []
 var value: float = 0.0
 ## Why, for the overlay and debug_draw.
 var reason: String = ""
+## How far the aim leads its target's walk (px; ENEMIES_AI AI3b, aim_lead):
+## 0 = where it stands.
+var lead_px: float = 0.0
 
 
 func is_vector() -> bool:

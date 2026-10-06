@@ -874,13 +874,14 @@ func get_passing_intents(caster: Unit, target: Unit, situation: SituationContext
 ## propose, brains decide). The brain asks only castable slots (their
 ## get_fail_reason() empty) and fills in the plan's slot. The shared default
 ## (built in ENEMIES_AI AI1; AL4 adds the Knight's): the situation's target
-## where it stands now (no leading: an enemy's shot can be walked out of),
-## within cast_range of the caster's center and in sight unless the ability
-## ignores walls (as the naive loop did); a SELF ability aims at the caster;
-## a VECTOR ability's line from get_ai_vector(). Its intents are the passing
-## uses', its value 1. null = no good use now (no target, out of range, no
-## sight, or no use passes). Override where an ability needs its own aim or
-## value.
+## where it stands now, within cast_range of the caster's center and in sight
+## unless the ability ignores walls (as the naive loop did); a SELF ability
+## aims at the caster; a VECTOR ability's line from get_ai_vector(). Since
+## ENEMIES_AI AI3b a POINT or DIRECTION aim leads the target's walk by the
+## situation's aim_lead (get_led_point(); 0 = where it stands, as before).
+## Its intents are the passing uses', its value 1. null = no good use now (no
+## target, out of range, no sight, or no use passes). Override where an
+## ability needs its own aim or value.
 func get_ai_plan(caster: Unit, situation: SituationContext) -> CastPlan:
 	if situation == null or not is_instance_valid(caster):
 		return null
@@ -899,7 +900,11 @@ func get_ai_plan(caster: Unit, situation: SituationContext) -> CastPlan:
 			return null
 		plan.target = target
 		plan.point = target.global_position
-		var to_target := target.global_position - caster.global_position
+		if situation.aim_lead > 0.0 and (targeting == Targeting.POINT or targeting == Targeting.DIRECTION) \
+				and cast_style != CastStyle.VECTOR:
+			plan.point = get_led_point(caster, target, situation.target_walk_velocity, situation.aim_lead)
+			plan.lead_px = plan.point.distance_to(target.global_position)
+		var to_target := plan.point - caster.global_position
 		plan.direction = to_target.normalized() if to_target.length() > 0.01 else Vector2.RIGHT
 		if cast_style == CastStyle.VECTOR:
 			var v := get_ai_vector(caster, target)
@@ -911,6 +916,33 @@ func get_ai_plan(caster: Unit, situation: SituationContext) -> CastPlan:
 	plan.value = 1.0
 	plan.reason = "default plan"
 	return plan
+
+
+## Where an aim led by `lead` (0–1; ENEMIES_AI AI3b, aim_lead) meets
+## `target` walking at `walk_velocity` (px/s): its position plus the walk ×
+## the time until the hit (this cast time, plus a projectile's flight to the
+## point) × `lead`. Kept within cast_range of the caster's center; a point in
+## a wall, or out of sight, falls back to where the target stands. The walk
+## is what's on screen (Brains.get_walk_velocity(): never a dash), so a
+## target that stops, turns or dashes walks out of a led shot (COMBAT.md).
+func get_led_point(caster: Unit, target: Unit, walk_velocity: Vector2, lead: float) -> Vector2:
+	var here := target.global_position
+	if lead <= 0.0 or walk_velocity.length() < 0.01:
+		return here
+	var from := caster.global_position
+	var speed_px := Units.to_px(projectile_speed) if tags.has(&"projectile") else 0.0
+	var point := here
+	for i in 2:   # the flight depends on the point: twice is close enough
+		var time := maxf(get_param(caster, &"cast_time"), 0.0)
+		if speed_px > 0.0:
+			time += from.distance_to(point) / speed_px
+		point = here + walk_velocity * time * clampf(lead, 0.0, 1.0)
+	var range_px := Units.to_px(get_param(caster, &"cast_range"))
+	if from.distance_to(point) > range_px:
+		point = from + (point - from).normalized() * range_px
+	if not WorldQuery.is_point_free(point, 1.0) or (not ignores_walls and not WorldQuery.has_line_of_sight(from, point)):
+		return here
+	return point
 
 
 ## Where a cast will land (ENEMIES_AI AI3: what an enemy sees coming at it;

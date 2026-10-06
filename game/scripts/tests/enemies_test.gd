@@ -58,6 +58,23 @@ extends Node2D
 ##   the snare's root;
 ## - the brains using the kits: the brute charges in, the elite slime opens
 ##   with its big hit, the elite caster snares.
+## Step AI3b, the duel (Duels and odds):
+## - the four sliders, crowded range, the table's numbers; the key ability
+##   (ultimate, else the highest respect value, ties to the earlier slot) and
+##   its own kit read; effective respect and patience with confidence; a real
+##   brute spending its smash turns cautious and walks out to its band's far
+##   edge (not at confidence 0);
+## - spending: a held key's damage, cc and zone uses left out (never a poke
+##   or a gap-closer), the right moments, the roll's rate (one per 2 s), a
+##   real brute holding its smash until the Knight is low;
+## - crowded: one seeded roll per episode (all in at about crowded_commit
+##   with an answer, else backing up at about 1 − aggression), cornered and
+##   escape first; a real brute's episode after its reaction time, all in,
+##   backing up once, standing, the episode ending 1 s after he leaves;
+## - smell blood's scores and the panic-button share; aim lead's point, the
+##   default plan, Brains' walk read (zero while dashing), a real bolt hitting
+##   a walking Knight only when led; the overlay's duel lines; step_back.
+## Tests of older rules pin AI3b's sliders to their AI3 values (_pin_ai3()).
 ## TEMP, the enemy attack speed test multiplier (DECISIONS.md, Testing): off
 ## by default; at x1.0 every number is today's exactly; at x1.5 with keep DPS
 ## the same damage per second over 10 s, more swings, the windup floor; the
@@ -139,7 +156,7 @@ var _failed: int = 0
 
 
 func _ready() -> void:
-	print("\n=== Enemies test (ENEMIES_AI AI1–AI3d) ===")
+	print("\n=== Enemies test (ENEMIES_AI AI1–AI3d, AI3b) ===")
 	Progress.get_progress(KNIGHT)   # the save guards latch off first (a test scene)
 	Loot.get_inventory(KNIGHT)
 	Brains.rng.seed = 20261004
@@ -207,6 +224,16 @@ func _ready() -> void:
 	await _test_ai3d_casts()
 	await _test_ai3d_brains()
 
+	# AI3b: the duel (Duels and odds).
+	_test_ai3b_data()
+	await _test_ai3b_key_and_confidence()
+	await _test_ai3b_spend()
+	await _test_ai3b_crowded()
+	await _test_ai3b_own_commit()
+	await _test_ai3b_smell_blood()
+	await _test_ai3b_aim_lead()
+	await _test_ai3b_overlay_and_poses()
+
 	# TEMP: the enemy attack speed test multiplier (DECISIONS.md, Testing).
 	await _test_temp_attack_speed()
 
@@ -252,9 +279,9 @@ func _test_brute_preset() -> void:
 	var values: Array = []
 	for s in EnemyBehavior.SLIDERS:
 		values.append(b.get_slider(s))
-	_check("aggression .5, respect 1, patience 3, band 350–500, reaction .35, dodge .4 / 6, greed .6, finish .3, pressure 12, breather 5, jitter .15",
-		values, [0.5, 1.0, 3.0, 350.0, 500.0, 0.35, 0.4, 6.0, 0.6, 0.3, 12.0, 5.0, 0.15])
-	_check("13 fields, 12 sliders (the band is one, with two ends)", [EnemyBehavior.SLIDERS.size(), EnemyBehavior.LIMITS.size()], [13, 13])
+	_check("aggression .5, respect 1, patience 3, band 350–500, reaction .35, dodge .4 / 6, greed .6, finish .3, pressure 12, breather 5, jitter .15; AI3b: confidence .5, all in .6, lead 0, spend .4",
+		values, [0.5, 1.0, 3.0, 350.0, 500.0, 0.35, 0.4, 6.0, 0.6, 0.3, 12.0, 5.0, 0.15, 0.5, 0.6, 0.0, 0.4])
+	_check("17 fields, 16 sliders (the band is one, with two ends; AI3b added four)", [EnemyBehavior.SLIDERS.size(), EnemyBehavior.LIMITS.size()], [17, 17])
 	var in_limits := true
 	for s in EnemyBehavior.SLIDERS:
 		var lim: Array = EnemyBehavior.LIMITS[s]
@@ -754,10 +781,12 @@ func _test_naive_gate() -> void:
 	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
 	knight.resource_pool.restore(1000.0)
 	var brained := _spawn(ELITE_SCENE, knight.global_position + Vector2(70, 0), false)
+	_pin_ai3(brained)   # an AI1 check: its crowded all-in (AI3b) would slam
 	var brained_slams := [0]
 	brained.abilities.cast_started.connect(func(_s: StringName, _a: Ability, _c: CastContext) -> void: brained_slams[0] += 1)
 	await _frames(90)
-	_check("with its brain and the Knight's kit up: no slam (the loop never runs; it holds)", [brained_slams[0], brained.get_brain().get_intent()], [0, &"hold"])
+	_check("with its brain and the Knight's kit up: no slam (the loop never runs; it holds, or backs up once: AI3b's crowded mix)",
+		[brained_slams[0], brained.get_brain().get_intent() in [&"hold", &"retreat"]], [0, true])
 	brained.set_brain_enabled(false)
 	await _wait_until(func() -> bool: return brained.abilities.casting, 90)
 	_check("its brain switched off: it slams as before (the naive loop)", brained.abilities.casting, true)
@@ -777,6 +806,7 @@ func _test_brute_holds_then_commits() -> void:
 	knight.resource_pool.restore(1000.0)
 	var hp := knight.health.current
 	var brute := _spawn(BRUTE_SCENE, knight.global_position + Vector2(180, 0), false)
+	_pin_ai3(brute)   # AI1's timings: no confidence (AI3b)
 	var brain := brute.get_brain()
 	var start := brute.global_position
 	var band_ok := true
@@ -836,6 +866,7 @@ func _test_hold_ends_within_12s() -> void:
 	Brains.table.idle_time = 1000.0
 	knight.resource_pool.restore(1000.0)
 	var brute := _spawn(BRUTE_SCENE, knight.global_position + Vector2(180, 0), false)
+	_pin_ai3(brute)   # AI1's timings: no confidence (AI3b)
 	var brain := brute.get_brain()
 	var aggro_at := -1
 	var commit_at := -1
@@ -1550,16 +1581,16 @@ func _test_ai3_data() -> void:
 	var values: Array = []
 	for slider in EnemyBehavior.SLIDERS:
 		values.append(SKIRMISHER_BEHAVIOR.get_slider(slider))
-	_check("skirmisher: aggression .7, respect .8, patience 2, band 400–600, reaction .3, dodge .6 / 4, greed .8, finish .3, pressure 12, breather 5, jitter .2",
-		values, [0.7, 0.8, 2.0, 400.0, 600.0, 0.3, 0.6, 4.0, 0.8, 0.3, 12.0, 5.0, 0.2])
+	_check("skirmisher: aggression .7, respect .8, patience 2, band 400–600, reaction .3, dodge .6 / 4, greed .8, finish .3, pressure 12, breather 5, jitter .2; AI3b: confidence .6, all in .4, lead .3, spend .7",
+		values, [0.7, 0.8, 2.0, 400.0, 600.0, 0.3, 0.6, 4.0, 0.8, 0.3, 12.0, 5.0, 0.2, 0.6, 0.4, 0.3, 0.7])
 	_check("its kind: role SKIRMISHER, hits and resets, uses tokens",
 		[SKIRMISHER_BEHAVIOR.role, SKIRMISHER_BEHAVIOR.low_health, SKIRMISHER_BEHAVIOR.uses_tokens],
 		[EnemyBehavior.Role.SKIRMISHER, EnemyBehavior.LowHealth.HIT_AND_RESET, true])
 	values = []
 	for slider in EnemyBehavior.SLIDERS:
 		values.append(CASTER_BEHAVIOR.get_slider(slider))
-	_check("caster: aggression .3, respect 1.2, patience 4, band 550–800, reaction .35, dodge .5 / 5, greed .4, finish .3, pressure 12, breather 5, jitter .15",
-		values, [0.3, 1.2, 4.0, 550.0, 800.0, 0.35, 0.5, 5.0, 0.4, 0.3, 12.0, 5.0, 0.15])
+	_check("caster: aggression .3, respect 1.2, patience 4, band 550–800, reaction .35, dodge .5 / 5, greed .4, finish .3, pressure 12, breather 5, jitter .15; AI3b: confidence .3, all in .2, lead .5, spend .8",
+		values, [0.3, 1.2, 4.0, 550.0, 800.0, 0.35, 0.5, 5.0, 0.4, 0.3, 12.0, 5.0, 0.15, 0.3, 0.2, 0.5, 0.8])
 	_check("its kind: role CASTER, falls back below 35%, never commits (commit weight 0)",
 		[CASTER_BEHAVIOR.role, CASTER_BEHAVIOR.low_health, CASTER_BEHAVIOR.retreat_health, CASTER_BEHAVIOR.get_intent_weight(&"commit")],
 		[EnemyBehavior.Role.CASTER, EnemyBehavior.LowHealth.FALL_BACK, 0.35, 0.0])
@@ -1883,6 +1914,7 @@ func _test_skirmisher() -> void:
 	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
 	knight.resource_pool.restore(1000.0)
 	var sk := _spawn(SKIRMISHER_SCENE, knight.global_position + Vector2(170, 0), false)
+	_pin_ai3(sk)   # AI3's stalk: no confidence (AI3b)
 	var brain := sk.get_brain()
 	var leaps := [0]
 	sk.abilities.cast_started.connect(func(slot: StringName, _a: Ability, _c: CastContext) -> void:
@@ -1930,6 +1962,7 @@ func _test_skirmisher_miss() -> void:
 	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
 	_spend_kit()
 	var sk := _spawn(SKIRMISHER_SCENE, knight.global_position + Vector2(170, 0), false)
+	_pin_ai3(sk)   # AI3's stalk: no confidence (AI3b)
 	var brain := sk.get_brain()
 	var leaps := [0]
 	sk.abilities.cast_started.connect(func(slot: StringName, _a: Ability, _c: CastContext) -> void:
@@ -2413,6 +2446,597 @@ func _bare_ability(cast: float, damage: float) -> Ability:
 
 func _hits_of(hits: Dictionary, ability_id: StringName, unit: Node) -> int:
 	return int(hits.get("%s>%d" % [ability_id, unit.get_instance_id()], 0))
+
+
+# --- AI3b: the duel (ENEMIES_AI.md, Duels and odds) ------------------------------------------
+
+## Pins a brain's AI3b sliders to their AI3 values (no confidence or aim lead,
+## never all in, its key never held), so a check of an older rule stays about
+## that rule. Ryan's crowded mix still plays (backing up once or standing).
+func _pin_ai3(e: Enemy) -> void:
+	var b := e.get_brain().behavior
+	b.confidence = 0.0
+	b.crowded_commit = 0.0
+	b.aim_lead = 0.0
+	b.spend_eagerness = 1.0
+
+
+func _test_ai3b_data() -> void:
+	_section("AI3b data: the four sliders, crowded range, the table's numbers, the adjusts")
+	var limits: Array = []
+	for s: StringName in [&"confidence", &"crowded_commit", &"aim_lead", &"spend_eagerness"]:
+		limits.append(EnemyBehavior.LIMITS[s])
+	_check("confidence, crowded_commit, aim_lead, spend_eagerness: each 0–1, in the panel's list",
+		[limits, EnemyBehavior.SLIDERS.slice(13)], [[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0], [0.0, 1.0]], [&"confidence", &"crowded_commit", &"aim_lead", &"spend_eagerness"]])
+	_check("crowded range (Ryan: its own value): brute 200, skirmisher 200, caster −1 = its band's minimum (550)",
+		[BRUTE_BEHAVIOR.get_crowded_range(), SKIRMISHER_BEHAVIOR.get_crowded_range(), CASTER_BEHAVIOR.crowded_range, CASTER_BEHAVIOR.get_crowded_range()],
+		[200.0, 200.0, -1.0, 550.0])
+	var t := Brains.table
+	_check("cautious 3 s, patience × (1 − 0.5 × confidence); a spend roll every 2 s; two champions in its area",
+		[t.cautious_time, t.cautious_patience_cut, t.spend_roll_time, t.spend_min_champions], [3.0, 0.5, 2.0, 2])
+	_check("an episode ends 1 s after its target left by 16 px; smell blood × 1.3, never above 0.89; the walk read over 0.2 s",
+		[t.crowded_clear_time, t.crowded_clear_px, t.smell_blood_mult, t.smell_blood_cap, t.walk_velocity_time], [1.0, 16.0, 1.3, 0.89, 0.2])
+	var adjust := BrainAdjust.new()
+	_check("a BrainAdjust leaves the four at × 1 unless set",
+		[adjust.get_multiplier(&"confidence"), adjust.get_multiplier(&"crowded_commit"), adjust.get_multiplier(&"aim_lead"), adjust.get_multiplier(&"spend_eagerness")],
+		[1.0, 1.0, 1.0, 1.0])
+	var regular := t.get_rank_rules(EnemyData.Rank.REGULAR).brain_adjust
+	var r := BRUTE_BEHAVIOR.resolve({&"aim_lead": 0.7}, [regular] as Array[BrainAdjust])
+	_check("resolve() carries them, an override included (a regular's adjust leaves them)",
+		[r.confidence, r.crowded_commit, r.aim_lead, r.spend_eagerness], [0.5, 0.6, 0.7, 0.4])
+
+
+## The step's tests: its key spent versus ready (patience, cautious).
+func _test_ai3b_key_and_confidence() -> void:
+	_section("The key ability and confidence: its own kit, effective respect, patience, cautious")
+	var t := Brains.table
+	var keys: Array = []
+	var spawned: Array[Enemy] = []
+	for scene: PackedScene in [BRUTE_SCENE, SKIRMISHER_SCENE, CASTER_SCENE, CASTER_ELITE_SCENE, ELITE_SCENE]:
+		var e := _spawn(scene, ARENA + Vector2(-1500, 1500 + 200 * spawned.size()), true)
+		spawned.append(e)
+		keys.append(EnemyBrain.find_key_slot(e.abilities, t))
+	_check("keys: the brute's smash (q: a tie goes to the earlier slot), the skirmisher's leap (q), the caster's bolt (q), the elite caster's snare (r: core 2 + its root), the elite slime's big hit (e: its ultimate)",
+		keys, [&"q", &"q", &"q", &"r", &"e"])
+	var brute := spawned[0]
+	var shares: Array = [roundi(EnemyBrain.get_own_ready_share(brute.abilities, t, &"q") * 10000)]
+	brute.abilities.start_cooldown(&"w")
+	shares.append(roundi(EnemyBrain.get_own_ready_share(brute.abilities, t, &"q") * 10000))
+	brute.abilities.start_cooldown(&"q")
+	shares.append(roundi(EnemyBrain.get_own_ready_share(brute.abilities, t, &"q") * 10000))
+	_check("the brute's own kit: all ready 1; its cleave arc down 4 ÷ 6; its smash (the key) down 0 (× 10,000)", shares, [10000, 6667, 0])
+	for e in spawned:
+		e.queue_free()
+	var b := BRUTE_BEHAVIOR.resolve({}, [] as Array[BrainAdjust])
+	var calm: EnemyBehavior = b.duplicate()
+	calm.confidence = 0.0
+	var s := _situation(1.0, 0.0)
+	s.own_ready_share = 1.0
+	_check("everything up on the Knight, its smash ready: effective respect 1 × (1 − 0.5 × 1) = 0.5", EnemyBrain.get_effective_respect(s, b), 0.5)
+	_check("at confidence 0: unchanged (1)", EnemyBrain.get_effective_respect(s, calm), 1.0)
+	s.effective_respect = EnemyBrain.get_effective_respect(s, b)
+	_check("its smash ready: patience fills at 0.625 ÷ 3 a second (full in 4.8 s)", EnemyBrain.get_patience_rate(s, b, t), 0.625 / 3.0)
+	s.own_ready_share = 0.0
+	s.effective_respect = EnemyBrain.get_effective_respect(s, b)
+	_check("its smash down: 1 ÷ 12, as in AI3", EnemyBrain.get_patience_rate(s, b, t), 1.0 / 12.0)
+	s.cautious_left = 2.0
+	_check("cautious: × (1 − 0.5 × 0.5) = 0.75", EnemyBrain.get_patience_rate(s, b, t), 0.75 / 12.0)
+	_check("cautious at confidence 0: unchanged", EnemyBrain.get_patience_rate(s, calm, t), 1.0 / 12.0)
+
+	# A real brute spends its smash: cautious 3 s, then its commit's end walks
+	# it out to its band's far edge; at confidence 0 neither.
+	for confidence: float in [0.5, 0.0]:
+		await _reset_knight()
+		await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+		var unstoppable := _tag_status(&"test_unstoppable", [&"unstoppable"])
+		knight.status_component.apply_status(unstoppable)
+		var rb := _spawn(BRUTE_SCENE, knight.global_position + Vector2(180, 0), false)
+		var brain := rb.get_brain()
+		brain.behavior.confidence = confidence
+		brain.behavior.spend_eagerness = 1.0   # its smash isn't held
+		brain.behavior.crowded_commit = 0.0
+		rb.abilities.set(&"w", null)   # only its smash: the cleave arc would win on weight
+		rb.abilities.set(&"e", null)
+		_spend_kit()
+		var smash_end := [-1.0]
+		rb.abilities.cast_finished.connect(func(slot: StringName, _a: Ability) -> void:
+			if slot == &"q" and smash_end[0] < 0.0:
+				smash_end[0] = Brains.get_time())
+		await _wait_until(func() -> bool: return smash_end[0] >= 0.0, 600)
+		await _frames(1)
+		var cautious_left := brain.get_cautious_left()
+		await _wait_until(func() -> bool: return not brain.is_committing(), 300)
+		await _frames(2)
+		var walking := brain.is_walking_out()
+		var intent := brain.get_intent()
+		var pose := rb.get_pose()
+		var far := [0.0]
+		for i in 120:
+			await get_tree().physics_frame
+			if brain.is_walking_out():
+				far[0] = maxf(far[0], Units.to_units(rb.edge_distance_to(knight)))
+		if confidence > 0.0:
+			_check("its smash cast (spent): cautious for 3 s (%.2f s left)" % cautious_left, [smash_end[0] >= 0.0, cautious_left > 2.9 and cautious_left <= 3.0], [true, true])
+			_check("its commit's end: it walks out (a retreat, step_back) to its band's far edge (500 u; got %d u)" % roundi(far[0]),
+				[walking, intent, pose, far[0] >= 470.0 and far[0] <= 540.0], [true, &"retreat", &"step_back", true])
+		else:
+			_check("at confidence 0: cautious all the same (it's the state), but no walk out to the far edge: AI1's back off", [cautious_left > 2.9, walking, intent == &"retreat"], [true, false, false])
+		knight.status_component.remove_status(&"test_unstoppable")
+		rb.passive = true
+		rb.attack.cancel()
+		rb.queue_free()
+		await _frames(30)
+
+
+func _test_ai3b_spend() -> void:
+	_section("Spending the key: held for the right moment, one roll every 2 s, a poke never held")
+	var b := _regular_brute()
+	b.jitter = 0.0
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 21
+	var s := _situation(0.0, 1.0)
+	s.target_edge_distance_px = 10.0
+	s.key_slot = &"q"
+	s.add_use(&"q", &"damage", _plan(&"q", 1.0))
+	s.add_use(&"w", &"damage", _plan(&"w", 0.5))
+	s.held_slot = &"q"
+	var d := EnemyBrain.decide(s, b, rng)
+	_check("its key held: a commit takes its other damage use", [d.intent, d.plan.slot], [&"commit", &"w"])
+	s.held_slot = &""
+	_check("free: its key (the better plan)", EnemyBrain.decide(s, b, rng).plan.slot, &"q")
+	var p := _situation(1.0, 0.0)
+	p.add_use(&"q", &"poke", _plan(&"q"))
+	p.held_slot = &"q"
+	d = EnemyBrain.decide(p, b, rng)
+	_check("a poke is never held (casters poke the whole time)", [d.intent, d.plan.slot], [&"poke", &"q"])
+	var g := _situation(0.0, 1.0)
+	g.add_use(&"q", &"gap_close", _plan(&"q"))
+	g.held_slot = &"q"
+	_check("nor a gap-closer", EnemyBrain.decide(g, b, rng).plan.slot, &"q")
+	var z := _situation(1.0, 0.0)
+	z.add_use(&"q", &"zone", _plan(&"q"))
+	z.held_slot = &"q"
+	_check("a zone use is (its hold casts nothing)", [EnemyBrain.decide(z, b, rng).intent, EnemyBrain.decide(z, b, rng).plan], [&"hold", null])
+
+	var m := _situation(0.5, 0.0)
+	m.target_defensives = 1
+	m.target_defensives_ready = 1
+	var moments: Array = [EnemyBrain.get_right_moment(m, b)]
+	m.target_cc = true
+	moments.append(EnemyBrain.get_right_moment(m, b))
+	m.target_cc = false
+	m.target_health_ratio = 0.25
+	moments.append(EnemyBrain.get_right_moment(m, b))
+	m.target_health_ratio = 1.0
+	m.target_defensives_ready = 0
+	moments.append(EnemyBrain.get_right_moment(m, b))
+	m.target_defensives = 0
+	moments.append(EnemyBrain.get_right_moment(m, b))
+	m.crowded = true
+	moments.append(EnemyBrain.get_right_moment(m, b))
+	m.crowded = false
+	m.key_area_champions = 2
+	moments.append(EnemyBrain.get_right_moment(m, b))
+	_check("right moments: none (full health, Iron Resolve ready); stunned; below 30%; every defensive down; none with no defensive at all; crowded; two champions in its area",
+		moments, ["", "crowd-controlled", "low", "defensives down", "", "crowded", "2 in its area"])
+
+	# The roll, on a real brain (its own seeded stream).
+	var brute := _spawn(BRUTE_SCENE, ARENA + Vector2(-1500, 1500), true)
+	var brain := brute.get_brain()
+	var snap := PartySnapshot.new()
+	var rates: Array = []
+	for eagerness: float in [0.5, 1.0, 0.0]:
+		brain.behavior.spend_eagerness = eagerness
+		brain.rng.seed = 5
+		brain.set("_next_spend_roll", -1.0)
+		var frees := 0
+		var steady := true
+		var now := 1000.0
+		for i in 1000:
+			var ks := _situation(0.5, 0.0)
+			ks.key_slot = &"q"
+			ks.key_ready = true
+			ks.target_defensives = 1
+			ks.target_defensives_ready = 1
+			brain.call("_update_spend", ks, snap, now)
+			var free := ks.held_slot == &""
+			frees += int(free)
+			var again := _situation(0.5, 0.0)   # 1.9 s later: the same roll
+			again.key_slot = &"q"
+			again.key_ready = true
+			again.target_defensives = 1
+			again.target_defensives_ready = 1
+			brain.call("_update_spend", again, snap, now + 1.9)
+			steady = steady and (again.held_slot == &"") == free
+			now += 2.0
+		rates.append(frees)
+		if eagerness == 0.5:
+			_check("at 0.5 about half the 2 s rolls free it (%d of 1,000), one roll per 2 s" % frees, [absi(frees - 500) <= 50, steady], [true, true])
+	_check("at 1 always free (on cooldown, as before AI3b); at 0 always held outside a right moment", [rates[1], rates[2]], [1000, 0])
+	var low := _situation(0.5, 0.0)
+	low.key_slot = &"q"
+	low.key_ready = true
+	low.target_health_ratio = 0.25
+	brain.call("_update_spend", low, snap, 5000.0)
+	_check("at 0, a right moment frees it at once (the target below 30%)", [low.held_slot, low.right_moment, low.right_moment_reason], [&"", true, "low"])
+	var down := _situation(0.5, 0.0)
+	down.key_slot = &"q"
+	down.key_ready = false
+	brain.call("_update_spend", down, snap, 5002.0)
+	_check("its key down: nothing to hold", down.held_slot, &"")
+	brute.queue_free()
+
+	# A real brute at spend 0: no smash while Iron Resolve is up; the Knight at
+	# 25% (a right moment), and it smashes.
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	var unstoppable := _tag_status(&"test_unstoppable", [&"unstoppable"])
+	knight.status_component.apply_status(unstoppable)
+	var rb := _spawn(BRUTE_SCENE, knight.global_position + Vector2(180, 0), false)
+	var rbrain := rb.get_brain()
+	rbrain.behavior.spend_eagerness = 0.0
+	rbrain.behavior.crowded_commit = 0.0
+	rb.abilities.set(&"w", null)
+	rb.abilities.set(&"e", null)
+	var smashes := [0]
+	var commits := [0]
+	rb.abilities.cast_started.connect(func(slot: StringName, _a: Ability, _c: CastContext) -> void:
+		if slot == &"q":
+			smashes[0] += 1)
+	rbrain.intent_changed.connect(func(intent: StringName) -> void:
+		if intent == &"commit":
+			commits[0] += 1)
+	var max_hp := knight.health.max_health
+	var commit_hits := Brains.table.commit_hits
+	Brains.table.commit_hits = 1000   # its commits last until their first cast (or 4 s): room for a smash
+	for i in 420:
+		await get_tree().physics_frame
+		_spend_kit()
+		knight.abilities.reset_cooldown(&"w")   # Iron Resolve stays ready: no right moment
+		knight.health.current = max_hp
+	_check("at spend 0 with Iron Resolve up: it commits (%d, each until its first cast) but never smashes in 7 s" % commits[0], [commits[0] >= 1, smashes[0]], [true, 0])
+	for i in 420:
+		await get_tree().physics_frame
+		_spend_kit()
+		knight.abilities.reset_cooldown(&"w")
+		knight.health.current = max_hp * 0.25
+		if smashes[0] > 0:
+			break
+	_check("the Knight at 25% (a right moment): it smashes", smashes[0] >= 1, true)
+	Brains.table.commit_hits = commit_hits
+	knight.health.current = max_hp
+	knight.status_component.remove_status(&"test_unstoppable")
+	rb.passive = true
+	rb.attack.cancel()
+	rb.queue_free()
+	await _frames(30)
+
+
+## The step's tests: in its face with an answer and without; one roll each;
+## escape and cornered still win; the same seed giving the same rolls.
+func _test_ai3b_crowded() -> void:
+	_section("Crowded: one roll per episode: cornered, escape, all in with an answer, else back up once or stand")
+	var b := _regular_brute()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 31
+	var all_in := 0
+	for i in 1000:
+		var s := _situation(1.0, 0.0)
+		s.target_edge_distance_px = Units.to_px(80.0)
+		s.add_use(&"q", &"damage", _plan(&"q"))
+		all_in += int(EnemyBrain.roll_crowded(s, b, rng).result == EnemyBrain.ALL_IN)
+	_check("with an answer (its smash in reach): all in in about 60%% of 1,000 episodes (%d)" % all_in, absi(all_in - 600) <= 50, true)
+	var back := 0
+	var stand := 0
+	for i in 1000:
+		var s := _situation(1.0, 0.0)
+		s.target_edge_distance_px = Units.to_px(80.0)
+		var r := EnemyBrain.roll_crowded(s, b, rng)
+		back += int(r.result == EnemyBrain.BACK_UP)
+		stand += int(r.result == EnemyBrain.STAND)
+	_check("no answer: it backs up once in about 1 − aggression (50%%) and otherwise stands (%d / %d)" % [back, stand],
+		[absi(back - 500) <= 50, back + stand], [true, 1000])
+	var mixed := 0
+	var answered := 0
+	for i in 1000:
+		var s := _situation(1.0, 0.0)
+		s.add_use(&"q", &"damage", _plan(&"q"))
+		var r := EnemyBrain.roll_crowded(s, b, rng)
+		if r.result != EnemyBrain.ALL_IN:
+			mixed += 1
+			answered += int(r.answer and (r.result == EnemyBrain.BACK_UP or r.result == EnemyBrain.STAND))
+	_check("an answer whose roll failed falls to the mix (%d)" % mixed, [mixed > 300, answered], [true, mixed])
+	var poke := _situation(1.0, 0.0)
+	poke.add_use(&"q", &"poke", _plan(&"q"))
+	var cc := _situation(1.0, 0.0)
+	cc.add_use(&"w", &"cc", _plan(&"w"))
+	_check("a poke isn't an answer; a cc use (the shockwave's knock-away, the snare) is", [poke.has_answer(), cc.has_answer()], [false, true])
+	var cornered := _situation(1.0, 0.0)
+	cornered.cornered = true
+	cornered.add_use(&"q", &"damage", _plan(&"q"))
+	var caster := CASTER_BEHAVIOR.resolve({}, [] as Array[BrainAdjust])
+	var fleeing := _caster_situation(300.0)
+	fleeing.add_use(&"q", &"damage", _plan(&"q"))
+	_check("cornered: the cornered stand (no roll); a caster inside its band: escape (no roll)",
+		[EnemyBrain.roll_crowded(cornered, b, rng).result, EnemyBrain.roll_crowded(cornered, b, rng).roll,
+			EnemyBrain.roll_crowded(fleeing, caster, rng).result], [EnemyBrain.CORNERED, -1.0, EnemyBrain.ESCAPE])
+	var runs: Array = []
+	for run in 2:
+		var seeded := RandomNumberGenerator.new()
+		seeded.seed = 777
+		var out: Array = []
+		for i in 500:
+			var s := _situation(1.0, 0.0)
+			if i % 2 == 0:
+				s.add_use(&"q", &"damage", _plan(&"q"))
+			out.append(EnemyBrain.roll_crowded(s, b, seeded).result)
+		runs.append(out)
+	_check("the same seed gives the same rolls (500 episodes, twice)", runs[0] == runs[1], true)
+
+	# A real test brute in its hold, the Knight stepping into its face (0.8 m).
+	var cases := [
+		["all in", 1.0, 0.5],    # crowded_commit, aggression
+		["back up", 0.0, 0.0],
+		["stand", 0.0, 1.0],
+	]
+	for c: Array in cases:
+		await _reset_knight()
+		await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+		var unstoppable := _tag_status(&"test_unstoppable", [&"unstoppable"])
+		knight.status_component.apply_status(unstoppable)
+		var rb := _spawn(BRUTE_SCENE, knight.global_position + Vector2(200, 0), false)
+		var brain := rb.get_brain()
+		brain.behavior.confidence = 0.0
+		brain.behavior.spend_eagerness = 1.0
+		brain.behavior.crowded_commit = c[1]
+		brain.behavior.aggression = c[2]
+		await _wait_until(func() -> bool: return brain.get_intent() == &"hold", 120)
+		await _frames(20)
+		var away := (knight.global_position - rb.global_position).normalized()
+		var radii := knight.get_gameplay_radius_px() + rb.get_gameplay_radius_px()
+		_place(knight, rb.global_position + away * (radii + Units.to_px(80.0)))
+		var stepped_in := Brains.get_time()
+		await _wait_until(func() -> bool: return brain.is_crowded(), 120)
+		var took := Brains.get_time() - stepped_in
+		var roll := brain.get_crowded_roll()
+		var committed := [false]
+		var retreated := [false]
+		var step_back := [false]
+		var max_edge := [0.0]
+		for i in 90:
+			await get_tree().physics_frame
+			committed[0] = committed[0] or brain.is_committing()
+			retreated[0] = retreated[0] or brain.get_intent() == &"retreat"
+			step_back[0] = step_back[0] or rb.get_pose() == &"step_back"
+			max_edge[0] = maxf(max_edge[0], Units.to_units(rb.edge_distance_to(knight)))
+		var same := brain.get_crowded_roll() == roll and brain.is_crowded()
+		match c[0]:
+			"all in":
+				_check("the Knight steps inside its 2 m: an episode, after its reaction time (0.455 s as a regular; got %.2f s)" % took,
+					[brain.is_crowded(), took >= 0.44 and took <= 0.62], [true, true])
+				_check("an answer ready, crowded_commit 1: all in (patience full at once: its tell, then it commits)", [roll, committed[0]], [EnemyBrain.ALL_IN, true])
+			"back up":
+				_check("no all in, aggression 0: it backs up once (a retreat, step_back) toward its band (got %d u)" % roundi(max_edge[0]),
+					[roll, retreated[0], step_back[0], max_edge[0] >= 300.0, committed[0]], [EnemyBrain.BACK_UP, true, true, true, false])
+			"stand":
+				_check("aggression 1: it stands and swings (AI1's rule: no retreat, no commit)", [roll, retreated[0], committed[0]], [EnemyBrain.STAND, false, false])
+		_check("%s: one roll for the episode (the same 1.5 s later, the Knight still near)" % c[0], same or not brain.is_crowded() or roll == EnemyBrain.BACK_UP, true)
+		if c[0] == "stand":
+			_place(knight, rb.global_position + away * (radii + Units.to_px(400.0)))
+			await _frames(50)
+			var still_on := brain.is_crowded()
+			await _frames(30)
+			_check("the Knight 4 m away: the episode lasts 1 s, then ends", [still_on, brain.is_crowded()], [true, false])
+		knight.status_component.remove_status(&"test_unstoppable")
+		rb.passive = true
+		rb.attack.cancel()
+		rb.queue_free()
+		await _frames(30)
+
+
+## Found building AI3b: its own commit brings it into the Knight's face, and
+## that never starts an episode (nor its walk back out after it).
+func _test_ai3b_own_commit() -> void:
+	_section("Crowded: only the target coming in starts an episode, never its own commit")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	var unstoppable := _tag_status(&"test_unstoppable", [&"unstoppable"])
+	knight.status_component.apply_status(unstoppable)
+	var rb := _spawn(BRUTE_SCENE, knight.global_position + Vector2(180, 0), false)
+	var brain := rb.get_brain()
+	_pin_ai3(rb)
+	brain.behavior.aggression = 0.0   # an episode would back it up: easy to see
+	_spend_kit()
+	var committed := [false]
+	var crowded := [false]
+	var near := [INF]
+	for i in 420:
+		await get_tree().physics_frame
+		_spend_kit()
+		knight.health.heal(100000.0)
+		if brain.is_committing():
+			committed[0] = true
+		if committed[0]:
+			near[0] = minf(near[0], Units.to_units(rb.edge_distance_to(knight)))
+			crowded[0] = crowded[0] or brain.is_crowded()
+	_check("it commits into his face (%d u, inside its 200 u) and walks back out: no episode the whole time" % roundi(near[0]),
+		[committed[0], near[0] < 200.0, crowded[0]], [true, true, false])
+	knight.status_component.remove_status(&"test_unstoppable")
+	rb.passive = true
+	rb.attack.cancel()
+	rb.queue_free()
+	await _frames(30)
+
+
+## The step's tests: the player at 20% with and without a shield ready.
+func _test_ai3b_smell_blood() -> void:
+	_section("Smell blood: commit × 1.3 below 30%, capped; a ready defensive counted whole")
+	var b := _regular_brute()
+	b.jitter = 0.0
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 41
+	var s := _situation(0.0, 1.0)
+	s.target_health_ratio = 0.25
+	var scores: Array = [roundi(EnemyBrain.decide(s, b, rng).scores[&"commit"] * 10000)]
+	s.target_health_ratio = 0.5
+	scores.append(roundi(EnemyBrain.decide(s, b, rng).scores[&"commit"] * 10000))
+	s.target_health_ratio = 0.25
+	s.smell_blood_mult = 2.0
+	scores.append(roundi(EnemyBrain.decide(s, b, rng).scores[&"commit"] * 10000))
+	_check("commit: 0.65 × 1.3 = 0.845 below 30%; 0.65 at 50%; never above 0.89 (× 10,000)", scores, [8450, 6500, 8900])
+	s.smell_blood_mult = 1.3
+	s.add_use(&"w", &"defend", _plan(&"w"))
+	_check("defend (0.9) still wins", EnemyBrain.decide(s, b, rng).intent, &"defend")
+	var m := {"up": true, "health_ratio": 0.2, "total_value": 10.5, "ready_value": 1.5, "ready_defensive_value": 1.5}
+	m.share = PartySnapshot.get_share(1.5 / 10.5, 0.2)
+	var whole := snappedf(PartySnapshot.get_share_for(m, 0.3), 0.0001)
+	m.health_ratio = 0.5
+	m.share = PartySnapshot.get_share(1.5 / 10.5, 0.5)
+	_check("the Knight at 20% with only Iron Resolve ready: its 1.5 counts whole (0.1429, not 0.0857); at 50% the share as before",
+		[whole, PartySnapshot.get_share_for(m, 0.3) == m.share], [0.1429, true])
+	m.health_ratio = 0.2
+	m.ready_defensive_value = 0.0
+	m.share = PartySnapshot.get_share(1.5 / 10.5, 0.2)
+	_check("with nothing defensive ready the health cut stays", snappedf(PartySnapshot.get_share_for(m, 0.3), 0.0001), 0.0857)
+	await _reset_knight()
+	_spend_kit()
+	knight.abilities.reset_cooldown(&"w")
+	knight.health.current = knight.health.max_health * 0.2
+	await _frames(2)
+	var mm := Brains.get_snapshot().get_member(knight)
+	_check("the snapshot: ready 1.5 (Iron Resolve), of it defensive 1.5, total 10.5, one defensive and it's ready",
+		[mm.ready_value, mm.ready_defensive_value, mm.total_value, mm.defensives, mm.defensives_ready], [1.5, 1.5, 10.5, 1, 1])
+	knight.health.current = knight.health.max_health
+	await _reset_knight()
+
+
+## The step's tests: aim lead against walking, stopping and dashing targets.
+func _test_ai3b_aim_lead() -> void:
+	_section("Aim lead: a walking target led by the time to the hit; a stop or a dash walks out of it")
+	await _reset_knight()
+	var caster := _spawn(CASTER_SCENE, knight.global_position + Vector2(0, -200), true)
+	await _frames(2)
+	var bolt := _slot_ability(CASTER_DATA, &"q")
+	var here := knight.global_position
+	var walk := Vector2(110, 0)
+	var speed_px := Units.to_px(bolt.projectile_speed)
+	var p := here
+	for i in 2:
+		p = here + walk * (bolt.cast_time + caster.global_position.distance_to(p) / speed_px)
+	var led := bolt.get_led_point(caster, knight, walk, 1.0)
+	_check("lead 0: where he stands; no walk: no lead", [bolt.get_led_point(caster, knight, walk, 0.0) == here, bolt.get_led_point(caster, knight, Vector2.ZERO, 1.0) == here], [true, true])
+	_check("lead 1: his walk × (the 0.4 s cast + the bolt's flight) ahead (%.1f px)" % led.distance_to(here), led.distance_to(p) < 0.01, true)
+	var half := bolt.get_led_point(caster, knight, walk, 0.5)
+	var ratio := half.distance_to(here) / led.distance_to(here)
+	_check("lead 0.5: about half as far (%.2f: nearer, so a shorter flight)" % ratio, ratio > 0.4 and ratio < 0.6, true)
+	var far := bolt.get_led_point(caster, knight, Vector2(5000, 0), 1.0)
+	_check("kept within its range (950 u)", caster.global_position.distance_to(far) <= Units.to_px(bolt.cast_range) + 0.01, true)
+	var wall := _wall_at(led, Vector2(40, 40))
+	await _frames(2)
+	_check("a led point in a wall: where he stands", bolt.get_led_point(caster, knight, walk, 1.0) == here, true)
+	wall.queue_free()
+	await _frames(2)
+	var s := SituationContext.new()
+	s.has_target = true
+	s.target_unit = knight
+	s.target_position = here
+	s.aim_lead = 1.0
+	s.target_walk_velocity = walk
+	var plan := bolt.get_ai_plan(caster, s)
+	_check("the default plan aims there, its direction too, and keeps its lead (px)",
+		[plan.point.distance_to(led) < 0.01, plan.direction.is_equal_approx((led - caster.global_position).normalized()), plan.lead_px > 30.0], [true, true, true])
+	s.aim_lead = 0.0
+	_check("aim_lead 0: where he stands (AI1's plan)", [bolt.get_ai_plan(caster, s).point == here, bolt.get_ai_plan(caster, s).lead_px], [true, 0.0])
+
+	# Brains reads his walk: its velocity while he walks, nothing while he dashes.
+	var target := here + Vector2(900, 0)
+	knight.movement.move_to(target)
+	await _frames(30)
+	var walking := Brains.get_walk_velocity(knight)
+	var speed := Units.to_px(knight.movement.get_move_speed())
+	_check("walking: his walk velocity, along his walk (%.0f px/s of %.0f)" % [walking.length(), speed],
+		[walking.length() > speed * 0.8 and walking.length() < speed * 1.2, walking.normalized().dot(Vector2.RIGHT) > 0.95], [true, true])
+	knight.movement.stop()
+	knight.dash.try_dash(Vector2.UP)
+	await _frames(3)
+	_check("dashing: zero (a dash is never led)", Brains.get_walk_velocity(knight), Vector2.ZERO)
+	await _wait_until(func() -> bool: return not knight.movement.is_displaced(), 60)
+	await _frames(20)
+	_check("standing: zero", Brains.get_walk_velocity(knight).length() < 1.0, true)
+
+	# The caster's bolt, cast at a Knight walking a straight line: led, it hits;
+	# unled, it lands behind; led at a Knight who stops as it fires, it misses.
+	var results: Array = []
+	for lead: float in [1.0, 0.0, -1.0]:   # −1: led, but he stops at the cast
+		await _reset_knight()
+		await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+		caster.abilities.reset_cooldown(&"q")
+		knight.movement.move_to(knight.global_position + Vector2(2000, 0))
+		await _frames(30)
+		_place(caster, knight.global_position + Vector2(0, -Units.to_px(400.0)))   # 4 m off his path: the lead stays inside its range
+		var hit := [false]
+		var on_hit := func(ctx: HitContext) -> void:
+			if ctx.source == caster and ctx.target == knight and not ctx.blocked:
+				hit[0] = true
+		Events.unit_hit.connect(on_hit)
+		var ls := SituationContext.new()
+		ls.has_target = true
+		ls.target_unit = knight
+		ls.aim_lead = absf(lead)
+		ls.target_walk_velocity = Brains.get_walk_velocity(knight)
+		var cast_plan := bolt.get_ai_plan(caster, ls)
+		caster.abilities.try_cast(&"q", cast_plan.point)
+		if lead < 0.0:
+			knight.movement.stop()
+		await _frames(90)
+		Events.unit_hit.disconnect(on_hit)
+		knight.movement.stop()
+		results.append(hit[0])
+	_check("walking a straight line: the led bolt hits, the unled one misses; led, but he stops as it fires: it misses", results, [true, false, false])
+	caster.queue_free()
+	await _reset_knight()
+
+
+func _test_ai3b_overlay_and_poses() -> void:
+	_section("The overlay's duel lines; step_back for every role")
+	var poses: Array = []
+	for role in [EnemyBehavior.Role.BRUTE, EnemyBehavior.Role.SKIRMISHER, EnemyBehavior.Role.CASTER]:
+		poses.append(EnemyBrain.get_intent_pose(&"retreat", role))
+	_check("a walk out (the kiting step, the cautious walk) shows step_back for every role", poses, [&"step_back", &"step_back", &"step_back"])
+	var b := _regular_brute()
+	b.jitter = 0.0
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 51
+	var s := _situation(1.0, 0.0)
+	s.walking_out = true
+	var d := EnemyBrain.decide(s, b, rng)
+	_check("walking out: a retreat (0.7) over hold, in step_back", [d.intent, d.pose], [&"retreat", &"step_back"])
+	var brute := _spawn(BRUTE_SCENE, ARENA + Vector2(-1500, 1500), true)
+	var sb := SandboxBrains.new()
+	var lines: Array = []
+	var brain := brute.get_brain()
+	brain.think()   # passive: no situation; the key line reads the abilities
+	lines.append(sb.get_duel_text(brute))
+	brain.set("_cautious_until", Brains.get_time() + 2.1)
+	lines.append(sb.get_duel_text(brute))
+	_check("its key line: `key: Smash down` with no fight yet; cautious: `cautious 2.1 s`",
+		[lines[0].begins_with("key: Smash down") or lines[0].begins_with("conf"), lines[1].begins_with("cautious 2.1 s")], [true, true])
+	brain.set("_cautious_until", -1.0)
+	brain.set("_episode", true)
+	brain.set("_crowded_roll", EnemyBrain.ALL_IN)
+	brain.set("_crowded_roll_value", 0.31)
+	brain.set("_crowded_answer", true)
+	_check("crowded: `crowded: all in (0.31 < 0.60)`", sb.get_duel_text(brute).contains("crowded: all in (0.31 < 0.60)"), true)
+	brain.set("_crowded_roll", EnemyBrain.BACK_UP)
+	brain.set("_crowded_answer", false)
+	_check("`crowded: back up (no answer)`", sb.get_duel_text(brute).contains("crowded: back up (no answer)"), true)
+	brain.set("_episode", false)
+	brain.behavior.aim_lead = 0.5
+	brain.set("_last_lead_px", 32.0)
+	_check("aim lead: `lead 0.5 (+1.0 m)`", sb.get_duel_text(brute).contains("lead 0.5 (+1.0 m)"), true)
+	sb.free()
+	brute.queue_free()
+	await _frames(2)
 
 
 # --- TEMP: the enemy attack speed test multiplier (DECISIONS.md, Testing) --------------------

@@ -1487,6 +1487,41 @@ Docs only; no code or tests changed.
 
 ## Enemies AI (ENEMIES_AI.md)
 
+### AI3b – The duel: confidence, spending, crowded, smell blood, aim lead: 2026-10-05, Built (awaiting Ryan's play test)
+Ryan committed the Combos design and asked whether Korsavil's K3 had to come first. It didn't: K3–K6 and the enemy steps don't depend on each other, but the combo steps need AI3b. Ryan said "start AI3b". Built on the Duels and odds design and his 2026-10-04 answers (approved: a ready defensive counts whole below 30%, the sliders' role starts).
+- **Built:**
+  - **Four sliders** (sixteen in all): `confidence`, `crowded_commit`, `aim_lead`, `spend_eagerness`, at the role starts (brute 0.5 / 0.6 / 0 / 0.4, skirmisher 0.6 / 0.4 / 0.3 / 0.7, caster 0.3 / 0.2 / 0.5 / 0.8). Plus `BrainAdjust`'s four and `EnemyBehavior.crowded_range` (brute and skirmisher 200 u, the caster −1 = its band's minimum).
+  - **The key ability and confidence:** `EnemyBrain.find_key_slot()`, `get_own_ready_share()`, and effective respect × (1 − confidence × its own kit ready). Cautious for 3 s after its key's cast (patience × (1 − 0.5 × confidence)), and its commit's end walks it out to its band's far edge (a retreat, `step_back`).
+  - **Spending:** outside a right moment, a held key's damage, cc and zone uses are left out (`SituationContext.held_slot`), and a roll every 2 s frees it. The right moments: the target crowd-controlled, below its finish threshold, every defensive down, crowded, two champions in the key's area. A poke is never held.
+  - **Crowded:** an episode after its reaction time, with one roll (`roll_crowded()`): cornered, escape, all in (patience full at once), or Ryan's mix of backing up once (chance 1 − aggression) or standing.
+  - **Smell blood:** commit × 1.3 below the finish threshold, capped at 0.89. The panic-button share comes from `PartySnapshot.get_share_for()`, with the snapshot's ready and defensive values.
+  - **Aim lead:** `Ability.get_led_point()` in the default plan (POINT and DIRECTION aims), `CastPlan.lead_px`, Brains' walk read (`get_walk_velocity()`), and the skirmisher's leap landing beside the led point.
+  - **The overlay's duel lines** (`SandboxBrains.get_duel_text()`); the panel's slider list scrolls.
+- **Found while building** (in ENEMIES_AI.md, Duels and odds and Conflicts):
+  - **Episodes:**
+    - An episode starts only when the target comes in: its own commit (and its walk out after) brought it into the Knight's face.
+    - An episode ends only once the target has stayed out. The brief's "ends when the all-in or kiting step ends" would roll again and turn "back up once" into a chase.
+    - A caster's all-in can't happen yet (escape wins first), so it isn't built.
+  - **The key:**
+    - `spend_value_bar` became a count of champions in the key's area (the default plan's value is always 1).
+    - "Every defensive down" needs one to exist.
+    - The elite test caster's key is its snare (3), not its bolt.
+  - **Aim lead** past a bolt's range falls short (the first bolt test missed for that reason; the caster now stands 4 m off the walk).
+  - **The tuning panel** already ran 14 px past the 360 px canvas; its sixteen rows now scroll (it ends at 342 px).
+  - **Older tests:** confidence brings the test brute in after 4.8 s with its smash up instead of 12 s, so the AI1 and AI3 checks of the old timings pin AI3b's sliders to AI3's values (`_pin_ai3()`). The naive-gate check also accepts the kiting step (the elite slime spawns in the Knight's face).
+- **Tests:** enemies 404/404 (66 new: the data, the key and confidence, a real brute's caution and walk out, spending and a real brute's held smash, the crowded rolls and three real episodes, its own commit never starting one, smell blood and the panic button, aim lead, a real bolt hitting only when led, the overlay lines, `step_back`). Green on 4 parallel runs.
+  - **All suites 3,540/3,540:** stats 180, combat 486, abilities 593, audio 110, champions 238, talents 310, view 469, loot 750, enemies 404.
+- **Sensitivity:** nine breaks in three runs, each caught:
+  - run A: confidence, the far-edge walk, the all-in roll, the walk read during a dash (9 checks failed);
+  - run B: the held-key filter, the bolt's flight in the lead, smell blood, the own-commit guard (8 failed);
+  - the hold filter again, after the real brute's hold check was tightened to let its commits run to their first cast (3 failed).
+  The originals were restored and diff-checked.
+- **Smoke** (scratch `ai3b_harness.gd`, saving off; `sandbox_main`, `sandbox_main_layout`, `main_layout`, and the sandbox's elite slime): no script errors.
+  - Every duel moment showed in the mixed pack and the Shift+H enemies: crowded rolls (all in, stand, back up, escape), cautious, a held key, the walk out.
+  - The elite slime held its big hit through 15 s at the Knight with Iron Resolve up (spend 0.4, no right moment).
+  - The saves were byte-identical.
+- **Panel layout probe** (scratch `ai3b_panel_probe.gd`): 263 × 276 px from (6, 66), inside the canvas.
+
 ### Design addition – Combos, crowd control and the test duelist: 2026-10-05, Docs only (Ryan's answers applied)
 Docs only; no code or tests changed. Ryan's design addition: enemies are easy to brute-force because their kits are thin, so a test enemy with a real kit proves the brain. Added to ENEMIES_AI.md (on top of Duels and odds, the brief's "v2 additions"), nothing built rewritten:
 - **ENEMIES_AI.md:**

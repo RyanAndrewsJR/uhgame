@@ -42,11 +42,12 @@ func get_ai_plan(caster: Unit, situation: SituationContext) -> CastPlan:
 	var plan := super.get_ai_plan(caster, situation)
 	if plan == null or not is_instance_valid(plan.target):
 		return plan
-	var to_target := plan.target.global_position - caster.global_position
+	var aim := plan.point   # where it stands, or led along its walk (ENEMIES_AI AI3b, aim_lead)
+	var to_target := aim - caster.global_position
 	var dist := to_target.length()
 	if dist > 0.01:
 		var stop := caster.get_gameplay_radius_px() + plan.target.get_gameplay_radius_px()
-		plan.point = plan.target.global_position - to_target / dist * stop
+		plan.point = aim - to_target / dist * stop
 	plan.reason = "leap beside it"
 	return plan
 

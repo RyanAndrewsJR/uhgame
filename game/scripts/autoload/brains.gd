@@ -15,11 +15,17 @@ extends Node
 ##   champion's pool, the queue, the timeouts and releases), the shout
 ##   (shout(): a pack wakes alert_delay s after its first member notices) and
 ##   the fodder ring around each target (pack_think_rate times a second).
+## - (AI3b) each champion's walk velocity for aim lead (get_walk_velocity()):
+##   what's on screen over the last walk_velocity_time s, counted only since
+##   its last dash, push, leap or blink (a dash is never led).
 ## AI6 adds the whiffs, AI7 sleeping.
 
 const TABLE_PATH := "res://data/enemy_ai_tables/enemy_ai_table_default.tres"
 ## A champion counts as acting while it moves faster than this (px/s).
 const IDLE_SPEED_PX := 5.0
+## A champion that moved farther than this in one tick blinked or teleported:
+## its walk starts again (px).
+const WALK_JUMP_PX := 24.0
 
 ## The global rules.
 var table: EnemyAITable
@@ -60,6 +66,10 @@ var _alerts: Array[Dictionary] = []
 var _ring_anchor: Dictionary = {}
 ## Thinks asked for at a game time: [brain, time] (wake_at()).
 var _timed_wakes: Array = []
+## Each champion's walk (AI3b): Unit -> Array of [game time, position] since
+## its last dash or push, and Unit -> its walk velocity (px/s).
+var _walk: Dictionary = {}
+var _walk_velocity: Dictionary = {}
 
 
 func _ready() -> void:
@@ -129,6 +139,7 @@ func _physics_process(delta: float) -> void:
 			wake(w[0])
 			_timed_wakes.remove_at(i)
 	_update_idle(delta)
+	_update_walk()
 	var period := get_think_period()
 	var slot := _tick % period
 	var due: Array[EnemyBrain] = []
@@ -171,7 +182,7 @@ func get_party() -> Array[Unit]:
 func get_snapshot() -> PartySnapshot:
 	var frame := Engine.get_physics_frames()
 	if _snapshot == null or _snapshot.frame != frame:
-		_snapshot = PartySnapshot.build(get_party(), table, _idle, frame, get_tree().get_nodes_in_group(Projectile.GROUP))
+		_snapshot = PartySnapshot.build(get_party(), table, _idle, frame, get_tree().get_nodes_in_group(Projectile.GROUP), _walk_velocity)
 		_snapshot_builds += 1
 	return _snapshot
 
@@ -196,6 +207,36 @@ func _update_idle(delta: float) -> void:
 		var acting: bool = u.velocity.length() > IDLE_SPEED_PX or u.attack.is_swinging() \
 			or u.attack.is_winding_up() or (u.abilities != null and u.abilities.casting)
 		_idle[u] = 0.0 if acting else float(_idle.get(u, 0.0)) + delta
+
+
+## `unit`'s walk velocity (px/s; AI3b, aim lead): its average over the last
+## walk_velocity_time s, counted only since its last dash, push, leap or
+## blink. Zero while it dashes or is pushed, and until it has walked 0.05 s.
+func get_walk_velocity(unit: Node) -> Vector2:
+	return _walk_velocity.get(unit, Vector2.ZERO)
+
+
+## Each champion's walk, every tick while brains exist (AI3b).
+func _update_walk() -> void:
+	var party := get_party()
+	for u: Variant in _walk.keys():
+		if not is_instance_valid(u) or not party.has(u):
+			_walk.erase(u)
+			_walk_velocity.erase(u)
+	for u in party:
+		var history: Array = _walk.get_or_add(u, [])
+		var pos := u.global_position
+		var own_walk := u.movement == null or not (u.movement.is_displaced() or u.movement.is_airborne())
+		if not own_walk or (not history.is_empty() and pos.distance_to(history[-1][1]) > WALK_JUMP_PX):
+			history.clear()
+		if not own_walk:
+			_walk_velocity[u] = Vector2.ZERO
+			continue
+		history.append([_time, pos])
+		while history.size() > 2 and _time - float(history[1][0]) >= table.walk_velocity_time - 0.0001:
+			history.pop_front()
+		var dt: float = float(history[-1][0]) - float(history[0][0])
+		_walk_velocity[u] = ((history[-1][1] as Vector2) - (history[0][1] as Vector2)) / dt if dt >= 0.05 else Vector2.ZERO
 
 
 # --- Enemies with data (AI2) ---------------------------------------------------------------

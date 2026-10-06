@@ -9,15 +9,18 @@ extends RefCounted
 ## The party: the groups `player` and `party` (ALLIES adds `party`; until then
 ## the player, and the sandbox's friendly stand-in).
 ## AI3 added the casts in progress and the projectiles in flight (what's on
-## screen: enemies see them as a person would, after their reaction time); AI6
-## adds the punish window.
+## screen: enemies see them as a person would, after their reaction time);
+## AI3b the values behind the share (for the panic-button rule), its
+## defensives and its walk (aim lead); AI6 adds the punish window.
 
 ## One entry per champion: {unit, position, health_ratio, up, targetable,
 ## kit_ready, share, idle_time, casting, slots: {slot: {ability, ready,
 ## cooldown_left, value}}, cast}. `cast` (AI3) is its cast in progress, {} when
 ## none: {ability, ctx, kind (&"cast" / &"charge_up"), area
 ## (Ability.get_effect_area()), time_left (s to its effect), key (one per
-## cast)}.
+## cast)}. AI3b: total_value, ready_value, ready_defensive_value (its ready
+## slots' with the `defensive` role), defensives and defensives_ready (how
+## many), walk_velocity (px/s; Brains.get_walk_velocity()).
 var members: Array[Dictionary] = []
 ## Every projectile in flight (AI3): {node, caster, ability, team, position,
 ## direction, speed_px, range_left_px, half_width_px, key}.
@@ -36,8 +39,9 @@ func get_member(unit: Node) -> Dictionary:
 
 ## Builds the read of `units` (living Units) against `table`'s respect values;
 ## `idle` holds each unit's idle seconds (Brains tracks them every tick);
-## `projectile_nodes` the projectiles in flight (the group Projectile.GROUP).
-static func build(units: Array[Unit], table: EnemyAITable, idle: Dictionary, p_frame: int, projectile_nodes: Array = []) -> PartySnapshot:
+## `projectile_nodes` the projectiles in flight (the group Projectile.GROUP);
+## `walk` each unit's walk velocity (AI3b).
+static func build(units: Array[Unit], table: EnemyAITable, idle: Dictionary, p_frame: int, projectile_nodes: Array = [], walk: Dictionary = {}) -> PartySnapshot:
 	var snap := PartySnapshot.new()
 	snap.frame = p_frame
 	for u in units:
@@ -56,6 +60,9 @@ static func build(units: Array[Unit], table: EnemyAITable, idle: Dictionary, p_f
 		}
 		var total := 0.0
 		var ready := 0.0
+		var ready_defensive := 0.0
+		var defensives := 0
+		var defensives_ready := 0
 		if u.abilities != null:
 			for slot in AbilityComponent.SLOTS:
 				var ability := u.abilities.get_ability(slot)
@@ -66,10 +73,21 @@ static func build(units: Array[Unit], table: EnemyAITable, idle: Dictionary, p_f
 				m.slots[slot] = {"ability": ability, "ready": is_ready,
 					"cooldown_left": u.abilities.get_cooldown_left(slot), "value": value}
 				total += value
+				var defensive := ability.tags.has(&"defensive")
+				defensives += int(defensive)
 				if is_ready:
 					ready += value
+					if defensive:
+						ready_defensive += value
+						defensives_ready += 1
 		m.kit_ready = ready / total if total > 0.0 else 0.0
 		m.share = get_share(m.kit_ready, m.health_ratio) if m.up else 0.0
+		m.total_value = total
+		m.ready_value = ready
+		m.ready_defensive_value = ready_defensive
+		m.defensives = defensives
+		m.defensives_ready = defensives_ready
+		m.walk_velocity = walk.get(u, Vector2.ZERO)
 		m.cast = read_cast(u)
 		snap.members.append(m)
 	for node in projectile_nodes:
@@ -117,6 +135,22 @@ static func read_cast(u: Unit) -> Dictionary:
 ## ratio), so a low champion is respected less (ENEMIES_AI.md, Respect).
 static func get_share(kit_ready: float, health_ratio: float) -> float:
 	return kit_ready * (0.5 + 0.5 * clampf(health_ratio, 0.0, 1.0))
+
+
+## A member's share as an enemy whose finish threshold is `finish_threshold`
+## reads it (AI3b, Smell blood: a panic button still counts): below the
+## threshold its ready defensive abilities keep their full value, with no
+## health cut; the rest is get_share()'s. At or above it, the member's share.
+static func get_share_for(m: Dictionary, finish_threshold: float) -> float:
+	if not m.get("up", false):
+		return 0.0
+	var health: float = m.health_ratio
+	var total: float = m.get("total_value", 0.0)
+	if health >= finish_threshold or total <= 0.0:
+		return m.share
+	var defensive: float = m.get("ready_defensive_value", 0.0)
+	var other: float = float(m.get("ready_value", 0.0)) - defensive
+	return (other * (0.5 + 0.5 * clampf(health, 0.0, 1.0)) + defensive) / total
 
 
 ## The party's respect for an enemy whose target has `target_share`: plus

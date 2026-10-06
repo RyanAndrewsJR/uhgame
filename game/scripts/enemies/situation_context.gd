@@ -10,7 +10,17 @@ extends RefCounted
 ## Built in AI1: self, the target, respect, patience, the commit and the
 ## castable uses. AI2 added the tokens, the taunt, reachability and home.
 ## AI3 added the incoming attacks and the cornered, escaping and resetting
-## states. Later steps add dodging (AI4) and the punish window (AI6).
+## states. AI3b (Duels and odds) added its key ability and own kit, cautious,
+## the spend hold, the crowded episode, the walk out, smell blood's numbers
+## and the target's walk for aim lead. Later steps add dodging (AI4) and the
+## punish window (AI6).
+
+## The intents a held key ability isn't used for (Spending the key ability:
+## a poke, a defend, an escape and a gap-closer are never held).
+const HELD_INTENTS: Array[StringName] = [&"damage", &"cc", &"zone"]
+## The intents an answer can come from when crowded (an escape is step 2's;
+## a poke isn't one: ENEMIES_AI.md, Crowded).
+const ANSWER_INTENTS: Array[StringName] = [&"cc", &"damage", &"zone", &"punish", &"finish"]
 
 # --- Self ---------------------------------------------------------------------
 var rank: EnemyData.Rank = EnemyData.Rank.REGULAR
@@ -97,6 +107,48 @@ var escaping: bool = false
 ## A skirmisher's reset after its hit: it hops out and retreats to its band.
 var resetting: bool = false
 
+# --- Duels and odds (AI3b) ----------------------------------------------------------
+## Its key ability's slot (its ultimate, else its highest respect_value, ties
+## to the earlier slot; &"" = none) and whether it's ready.
+var key_slot: StringName = &""
+var key_ready: bool = false
+## Its own kit ready, read like a champion's (0–1), while its key is ready;
+## 0 while the key is down (Confidence).
+var own_ready_share: float = 0.0
+## Seconds of caution left after spending its key (0 = not cautious).
+var cautious_left: float = 0.0
+## A right moment for its key (the target crowd-controlled, below its
+## finish threshold, every defensive down, it's crowded, two champions in
+## the key's area), and which.
+var right_moment: bool = false
+var right_moment_reason: String = ""
+## Its key held by spend_eagerness (no right moment, the last roll failed):
+## that slot's damage, cc and zone uses aren't picked (get_best_use()).
+var held_slot: StringName = &""
+## A crowded episode is on (its target came inside its crowded range), and
+## its roll: &"all_in", &"back_up", &"stand", &"escape", &"cornered", &"".
+var crowded: bool = false
+var crowded_roll: StringName = &""
+## Walking back out (the crowded kiting step, or a cautious walk to its
+## band's far edge after a commit): a retreat.
+var walking_out: bool = false
+## The target's walk (px/s, what's on screen over the last 0.2 s; zero while
+## it dashes or is pushed) and this enemy's aim_lead, for the plans.
+var target_walk_velocity: Vector2 = Vector2.ZERO
+var aim_lead: float = 0.0
+## Smell blood's numbers (EnemyAITable), copied in for decide().
+var smell_blood_mult: float = 1.3
+var smell_blood_cap: float = 0.89
+## For the right moments: its target holds a crowd control (a `cc` status:
+## on screen), how many `defensive` abilities it has and how many are ready,
+## the champions its key's planned area covers, and the table's count for
+## that right moment.
+var target_cc: bool = false
+var target_defensives: int = 0
+var target_defensives_ready: int = 0
+var key_area_champions: int = 0
+var spend_min_champions: int = 2
+
 
 ## An attack it has seen coming lands within `within` seconds (0 = any).
 func is_threatened(within: float) -> bool:
@@ -116,11 +168,14 @@ var target_unit: Unit
 
 
 ## The listed use with the best plan value × weight among `intents`, or {}.
+## A held key's damage, cc and zone uses are left out (AI3b).
 func get_best_use(intents: Array[StringName]) -> Dictionary:
 	var best := {}
 	var best_value := -INF
 	for u in uses:
 		if not intents.has(u.intent):
+			continue
+		if held_slot != &"" and u.slot == held_slot and HELD_INTENTS.has(u.intent):
 			continue
 		var plan: CastPlan = u.plan
 		var value: float = (plan.value if plan != null else 0.0) * float(u.weight)
@@ -132,6 +187,14 @@ func get_best_use(intents: Array[StringName]) -> Dictionary:
 
 func has_use(intents: Array[StringName]) -> bool:
 	return not get_best_use(intents).is_empty()
+
+
+## An answer to being crowded is ready (ENEMIES_AI.md, Crowded): a cc use, or
+## a damage, zone, punish or finish use whose plan reaches the target from
+## where it stands (a listed use has a plan, so it does). An escape is
+## step 2's; a poke never answers.
+func has_answer() -> bool:
+	return has_use(ANSWER_INTENTS)
 
 
 ## Adds a castable use (tests and build_situation()).

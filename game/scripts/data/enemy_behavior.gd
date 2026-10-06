@@ -7,6 +7,8 @@ extends Resource
 ## its limits. Files: res://data/enemy_behaviors/enemy_behavior_<role>.tres.
 ## An enemy carries only a few overrides on top (EnemyData.overrides; kind,
 ## not magnitude). Fodder needs none (it has no brain).
+## AI3b (Duels and odds) added four sliders (confidence, crowded_commit,
+## aim_lead, spend_eagerness: sixteen in all) and crowded_range (kind).
 ## The brain reads a resolved copy (resolve()): the preset's values or the
 ## enemy's overrides, times its rank's, faction's, difficulty tier's and elite
 ## modifiers' BrainAdjust multipliers, each clamped to its limits.
@@ -17,7 +19,8 @@ enum LowHealth { FIGHT_ON, FALL_BACK, HIT_AND_RESET }
 ## The slider fields, in the panel's order (the band's two ends are one slider).
 const SLIDERS: Array[StringName] = [&"aggression", &"respect_weight", &"patience_time",
 	&"range_band_min", &"range_band_max", &"reaction_time", &"dodge_skill", &"dodge_cooldown",
-	&"punish_greed", &"finish_threshold", &"pressure_time", &"breather_time", &"jitter"]
+	&"punish_greed", &"finish_threshold", &"pressure_time", &"breather_time", &"jitter",
+	&"confidence", &"crowded_commit", &"aim_lead", &"spend_eagerness"]
 ## Each slider's limits [min, max], as its @export_range says (floats, not a
 ## Vector2: a Vector2 holds 32-bit floats, and 0.2 would clamp to 0.2000000030).
 const LIMITS := {
@@ -34,6 +37,10 @@ const LIMITS := {
 	&"pressure_time": [3.0, 30.0],
 	&"breather_time": [1.0, 15.0],
 	&"jitter": [0.0, 0.5],
+	&"confidence": [0.0, 1.0],
+	&"crowded_commit": [0.0, 1.0],
+	&"aim_lead": [0.0, 1.0],
+	&"spend_eagerness": [0.0, 1.0],
 }
 
 @export_group("Kind")
@@ -48,6 +55,10 @@ const LIMITS := {
 @export var uses_tokens: bool = true
 ## Its tells (poses); null = the enemy's own set or pose_set_default.tres.
 @export var pose_set: PoseSet
+## Its target inside this (LoL units, edge to edge) is in its face: a crowded
+## episode (AI3b; Ryan, 2026-10-04: its own value, brute and skirmisher 200).
+## −1 = its range band's minimum (casters).
+@export var crowded_range: float = 200.0
 
 @export_group("Sliders")
 ## How much danger it shrugs off: patience fills × (0.5 + aggression).
@@ -78,6 +89,19 @@ const LIMITS := {
 @export_range(1.0, 15.0) var breather_time: float = 5.0
 ## Randomness: ± this share on scores and timings.
 @export_range(0.0, 0.5) var jitter: float = 0.15
+## How much its own ready key ability emboldens it: effective respect ×
+## (1 − confidence × its own kit ready); once the key is spent it turns
+## cautious (a slower refill, a walk out to its band's far edge) (AI3b).
+@export_range(0.0, 1.0) var confidence: float = 0.5
+## The chance it goes all in when its target is in its face and it has an
+## answer; one roll per crowded episode (AI3b).
+@export_range(0.0, 1.0) var crowded_commit: float = 0.6
+## How far its aimed abilities lead a walking target: 0 = where it stands,
+## 1 = where it will be when the hit lands (AI3b).
+@export_range(0.0, 1.0) var aim_lead: float = 0.0
+## How freely it fires its key ability: 0 = it holds it for the right moment,
+## 1 = on cooldown; a roll every spend_roll_time s in between (AI3b).
+@export_range(0.0, 1.0) var spend_eagerness: float = 0.4
 
 
 func get_slider(slider: StringName) -> float:
@@ -90,6 +114,12 @@ func set_slider(slider: StringName, value: float) -> void:
 
 func get_intent_weight(intent: StringName) -> float:
 	return intent_weights.get(intent, 1.0)
+
+
+## Its crowded range (LoL units, edge to edge): crowded_range, or its band's
+## minimum when that's −1.
+func get_crowded_range() -> float:
+	return range_band_min if crowded_range < 0.0 else crowded_range
 
 
 static func clamp_slider(slider: StringName, value: float) -> float:
