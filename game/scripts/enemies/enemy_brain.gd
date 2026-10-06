@@ -606,7 +606,7 @@ static func get_own_ready_share(abilities: AbilityComponent, table: EnemyAITable
 	if abilities == null or key_slot == &"" or not (abilities.is_ready(key_slot) and abilities.can_afford(key_slot)):
 		return 0.0
 	var total := 0.0
-	var ready := 0.0
+	var ready_value := 0.0
 	for slot in AbilityComponent.SLOTS:
 		var ability := abilities.get_ability(slot)
 		if ability == null:
@@ -614,8 +614,8 @@ static func get_own_ready_share(abilities: AbilityComponent, table: EnemyAITable
 		var value := table.get_respect_value(ability)
 		total += value
 		if abilities.is_ready(slot) and abilities.can_afford(slot):
-			ready += value
-	return ready / total if total > 0.0 else 0.0
+			ready_value += value
+	return ready_value / total if total > 0.0 else 0.0
 
 
 ## Effective respect (ENEMIES_AI.md, Duels and odds): respect × its
@@ -703,18 +703,19 @@ func _roll_episode(s: SituationContext, now: float) -> void:
 ## with a passing escape use); an answer ready: crowded_commit to go all in;
 ## else (no answer, or that roll failed) the mix, Ryan's: back up once with
 ## the chance 1 − aggression, otherwise stand and swing. {result, roll (the
-## roll that decided it, −1 = none), answer (it had one)}.
-static func roll_crowded(s: SituationContext, b: EnemyBehavior, rng: RandomNumberGenerator) -> Dictionary:
+## roll that decided it, −1 = none), answer (it had one)}. `stream` is the
+## brain's rng.
+static func roll_crowded(s: SituationContext, b: EnemyBehavior, stream: RandomNumberGenerator) -> Dictionary:
 	var answer := s.has_answer()
 	if s.cornered:
 		return {"result": CORNERED, "roll": -1.0, "answer": answer}
 	if wants_escape(s, b, s.has_use([ESCAPE] as Array[StringName])):
 		return {"result": ESCAPE, "roll": -1.0, "answer": answer}
 	if answer:
-		var roll := rng.randf()
+		var roll := stream.randf()
 		if roll < b.crowded_commit:
 			return {"result": ALL_IN, "roll": roll, "answer": true}
-	var mix := rng.randf()
+	var mix := stream.randf()
 	return {"result": BACK_UP if mix < 1.0 - b.aggression else STAND, "roll": mix, "answer": answer}
 
 

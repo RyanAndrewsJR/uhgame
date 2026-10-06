@@ -1487,7 +1487,14 @@ Docs only; no code or tests changed.
 
 ## Enemies AI (ENEMIES_AI.md)
 
-### AI3b – The duel: confidence, spending, crowded, smell blood, aim lead: 2026-10-05, Built (awaiting Ryan's play test)
+### AI3b fix – the panel on H's fodder: 2026-10-05, Built (awaiting Ryan's check)
+AI3b passed and Ryan committed it; the tree was clean. His one hiccup: after changing some sliders and cycling H, the game broke at `SandboxBrains._sync_panel` ("Invalid access to property or key 'resource_path' on a base object of type 'Nil'"). The cause is older than AI3b, from AI2. H's eighth scenario (fodder) spawns plain slimes, and with the panel open the scenario picks its first enemy for the panel. A slime's data has no behavior preset, so the panel's title (and its values each frame) read a missing preset.
+- `SandboxBrains.pick()` picks none for an enemy the panel can't tune: no data, no behavior preset, or no brain by its rank (`is_pickable()`, new; `_pickable()` uses it). The panel then says "No brained enemy".
+- **His other question, the "shadowing" warnings:** these are GDScript warnings (a local name hiding a member with the same name), not errors, and harmless. Godot only shows them with a debugger attached (the editor's run; headless runs need `-d`). The enemies test loads 30 of them. Two came from AI3b, in `enemy_brain.gd`: a local `ready` in `get_own_ready_share()` became `ready_value`, and `roll_crowded()`'s `rng` parameter became `stream`. The other 28 are older (AI1, AI2, abilities, components, views), so they stay unless Ryan asks for a cleanup.
+- **Tests:** enemies 405/405 (one new check: with the panel open, fodder picks none by H or by hand, and the panel says so). With the fix removed, it fails and the run prints Ryan's exact error. Green on 4 and on 6 parallel runs. All nine suites at once: stats 180, combat 486, abilities 593, audio 110, champions 238, talents 310, view 469, loot 750 green; enemies 404/405 in that run (the miss below).
+  - **The miss:** AI2's fodder-ring check ("pushed about by their hits for 4 s, every one of them keeps hitting him") missed twice, under the heaviest load only: once in the `-d` run, once with all nine suites at once. Both times the hits were [0, 2, 3, 3, 2, 3]. It runs before the edited test, its slimes have no brain, and none of the changed code runs in it. HEAD's files passed it under the same kinds of load (2 runs). It's a load-sensitive check, not this fix.
+
+### AI3b – The duel: confidence, spending, crowded, smell blood, aim lead: 2026-10-05, Passed
 Ryan committed the Combos design and asked whether Korsavil's K3 had to come first. It didn't: K3–K6 and the enemy steps don't depend on each other, but the combo steps need AI3b. Ryan said "start AI3b". Built on the Duels and odds design and his 2026-10-04 answers (approved: a ready defensive counts whole below 30%, the sliders' role starts).
 - **Built:**
   - **Four sliders** (sixteen in all): `confidence`, `crowded_commit`, `aim_lead`, `spend_eagerness`, at the role starts (brute 0.5 / 0.6 / 0 / 0.4, skirmisher 0.6 / 0.4 / 0.3 / 0.7, caster 0.3 / 0.2 / 0.5 / 0.8). Plus `BrainAdjust`'s four and `EnemyBehavior.crowded_range` (brute and skirmisher 200 u, the caster −1 = its band's minimum).
@@ -1521,6 +1528,8 @@ Ryan committed the Combos design and asked whether Korsavil's K3 had to come fir
   - The elite slime held its big hit through 15 s at the Knight with Iron Resolve up (spend 0.4, no right moment).
   - The saves were byte-identical.
 - **Panel layout probe** (scratch `ai3b_panel_probe.gd`): 263 × 276 px from (6, 66), inside the canvas.
+
+**Passed** (Ryan's play test, 2026-10-05; he committed it). One hiccup, the panel breaking on H's fodder scenario (an AI2 bug), is fixed above (AI3b fix).
 
 ### Design addition – Combos, crowd control and the test duelist: 2026-10-05, Docs only (Ryan's answers applied)
 Docs only; no code or tests changed. Ryan's design addition: enemies are easy to brute-force because their kits are thin, so a test enemy with a real kit proves the brain. Added to ENEMIES_AI.md (on top of Duels and odds, the brief's "v2 additions"), nothing built rewritten:

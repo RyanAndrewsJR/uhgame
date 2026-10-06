@@ -385,9 +385,20 @@ func get_picked() -> Enemy:
 	return _picked if is_instance_valid(_picked) else null
 
 
+## An enemy the panel can't tune (no brain by its rank, or no behavior
+## preset: a fodder slime) picks none.
 func pick(enemy: Enemy) -> void:
-	_picked = enemy
+	_picked = enemy if is_pickable(enemy) else null
 	_sync_panel()
+
+
+## The panel can tune `enemy`: alive, with data and a behavior preset, and a
+## brain by its rank.
+func is_pickable(enemy: Enemy) -> bool:
+	if not is_instance_valid(enemy) or not enemy.is_alive() or enemy.data == null or enemy.data.behavior == null:
+		return false
+	var rules := enemy.get_rank_rules()
+	return rules != null and rules.has_brain
 
 
 ## `,` / `.`: the previous / next brained enemy (by distance to the Knight).
@@ -475,10 +486,8 @@ func _pickable() -> Array[Enemy]:
 	var out: Array[Enemy] = []
 	for node in get_tree().get_nodes_in_group(&"enemies"):
 		var e := node as Enemy
-		if e != null and e.is_alive() and e.data != null and e.data.behavior != null:
-			var rules := e.get_rank_rules()
-			if rules != null and rules.has_brain:
-				out.append(e)
+		if e != null and is_pickable(e):
+			out.append(e)
 	if is_instance_valid(_player):
 		var from := _player.global_position
 		out.sort_custom(func(a: Enemy, b: Enemy) -> bool: return a.global_position.distance_to(from) < b.global_position.distance_to(from))

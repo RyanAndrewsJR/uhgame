@@ -1569,6 +1569,17 @@ func _test_sandbox_packs() -> void:
 	await _frames(2)
 	_check("fodder: eight slimes in one Pack; the brutes' pack gone",
 		[slime != null and slime.get_pack().get_members().size() == 8, slime != null and slime.data == SLIME_DATA, not is_instance_valid(pack)], [true, true, true])
+	# The fix (Ryan, 2026-10-05): with the panel open, H's fodder picked its first
+	# slime (no behavior preset) and the panel's sync broke on it.
+	sb.set_panel(true)
+	slime = sb.run_scenario(&"fodder")
+	var picked_by_h := sb.get_picked()
+	await _frames(2)
+	sb.pick(slime)
+	await _frames(2)
+	_check("the panel open: fodder (no behavior preset) picks none, by H or by hand; the panel says so",
+		[picked_by_h == null, sb.get_picked() == null, sb.is_pickable(slime), sb._panel_title.text.begins_with("No brained enemy")], [true, true, false, true])
+	sb.set_panel(false)
 	sb.clear_scenario()
 	sb.queue_free()
 	await _frames(2)
