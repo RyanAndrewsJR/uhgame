@@ -296,7 +296,7 @@ func _test_non_unit_target() -> void:
 func _test_combo() -> void:
 	knight.attack.swing_landed.connect(func(index: int, targets: Array[Unit]) -> void:
 		_landed.append([_frame, index, targets.size()]))
-	await _test_combo_data()
+	_test_combo_data()
 	await _test_swing_timing_and_damage()
 	await _test_combo_chain_and_reset()
 	await _test_reach_and_arc()
@@ -527,11 +527,11 @@ func _test_iron_resolve_swing() -> void:
 func _test_attack_speed() -> void:
 	_section("C2: attack speed speeds up the combo")
 	await _reset_knight()
-	var scale := knight.attack.combo.speed_scale
+	var base_scale := knight.attack.combo.speed_scale
 	_check("get_attack_interval() = 1 / 0.7 attack speed", knight.attack.get_attack_interval(), 1.0 / 0.7)
-	_check("base: combo speed = speed_scale (%s)" % scale, knight.attack.get_swing_speed(), scale)
+	_check("base: combo speed = speed_scale (%s)" % base_scale, knight.attack.get_swing_speed(), base_scale)
 	knight.stats_component.add_modifier(StatModifier.create(&"attack_speed", PERCENT_ADD, 0.5, &"test_attack_speed"))
-	_check("+50% bonus attack speed: combo speed 1.5 x speed_scale", knight.attack.get_swing_speed(), 1.5 * scale)
+	_check("+50% bonus attack speed: combo speed 1.5 x speed_scale", knight.attack.get_swing_speed(), 1.5 * base_scale)
 	var start := _frame
 	knight.attack.try_swing(Vector2.RIGHT)
 	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
@@ -545,7 +545,7 @@ func _test_attack_speed() -> void:
 func _test_combo_pace() -> void:
 	_section("Combo pace: the finisher's breather and the speed knob")
 	var combo := knight.attack.combo
-	var scale := combo.speed_scale
+	var base_scale := combo.speed_scale
 	_check("pause_after 0 / 0 / 0.25 s, speed_scale 1.266",
 		[combo.swings[0].pause_after, combo.swings[1].pause_after, combo.swings[2].pause_after, combo.speed_scale], [0.0, 0.0, 0.25, 1.266])
 	await _reset_knight()
@@ -560,7 +560,7 @@ func _test_combo_pace() -> void:
 	var t0 := _game_time
 	knight.player_input.buffer_action(&"attack")   # a click during the breather
 	await _wait_until(func() -> bool: return knight.attack.is_swinging(), 40)
-	_check_near("the click fires when the 0.25 s / speed_scale breather ends", _game_time - t0, 0.25 / scale, 0.04)
+	_check_near("the click fires when the 0.25 s / speed_scale breather ends", _game_time - t0, 0.25 / base_scale, 0.04)
 	_check("starting the combo over", knight.attack.get_combo_index(), 0)
 	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
 
@@ -581,7 +581,7 @@ func _test_combo_pace() -> void:
 	knight.attack.try_swing(Vector2.RIGHT)
 	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
 	_check_near("a 0.3 s swing takes 0.15 s", _game_time - start, 0.15 + 1.0 / 60.0, 0.02)
-	combo.speed_scale = scale   # back to the data's value (it's the shared combo_knight.tres), not to 1.0
+	combo.speed_scale = base_scale   # back to the data's value (it's the shared combo_knight.tres), not to 1.0
 
 
 ## Physics frames a swing timing of `seconds` (at base attack speed) lasts at
@@ -638,7 +638,7 @@ func _test_hit_feel() -> void:
 	var read_hitstop := func(_index: int, _targets: Array[Unit]) -> void:
 		_hitstop_at_hit = GameFeel.get_hitstop_left()
 	knight.attack.swing_landed.connect(read_hitstop)
-	await _test_hit_feel_data()
+	_test_hit_feel_data()
 	await _test_longest_hitstop()
 	await _test_swing_feel_tiers()
 	await _test_feel_unchanged_for_abilities()
@@ -796,7 +796,7 @@ func _hitstop_over() -> void:
 # --- Melee basic attacks ------------------------------------------------------------
 
 func _test_melee() -> void:
-	await _test_melee_data()
+	_test_melee_data()
 	await _test_step_in_the_air()
 	await _test_pull()
 	await _test_assist_picks()
@@ -915,15 +915,15 @@ func _test_assist_picks() -> void:
 
 	await _reset_knight()
 	var wall := _wall_at(knight.global_position + Vector2(40, 0), Vector2(8, 80))
-	var hidden := _dummy_at(Vector2(90, 0))
+	var walled := _dummy_at(Vector2(90, 0))
 	await _frames(2)
-	_check("line of sight: blocked by the wall", WorldQuery.has_line_of_sight(knight.global_position, hidden.global_position), false)
+	_check("line of sight: blocked by the wall", WorldQuery.has_line_of_sight(knight.global_position, walled.global_position), false)
 	from = knight.global_position
 	knight.attack.try_swing(Vector2.RIGHT)
 	_check("a slime behind the pillar is never aimed at", knight.attack.get_assist_target() == null, true)
 	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
 	_check("the step doesn't go through the wall", knight.global_position.x - from.x <= 6.01, true)
-	hidden.queue_free()
+	walled.queue_free()
 	wall.queue_free()
 
 
@@ -1012,7 +1012,7 @@ func _wall_at(pos: Vector2, size: Vector2) -> StaticBody2D:
 # --- C4: getting hit ---------------------------------------------------------------
 
 func _test_getting_hit() -> void:
-	await _test_getting_hit_data()
+	_test_getting_hit_data()
 	await _test_post_hit_iframes()
 	await _test_slime_hit_and_push()
 	await _test_enemy_hit_pipeline()
@@ -1194,7 +1194,7 @@ func _test_stronger_knockback() -> void:
 # --- C5: elite slime --------------------------------------------------------------
 
 func _test_elite() -> void:
-	await _test_elite_data()
+	_test_elite_data()
 	await _test_slam_hits()
 	await _test_slam_dodges()
 	await _test_elite_ai()
@@ -1229,7 +1229,6 @@ func _test_slam_hits() -> void:
 	await _frames(19)
 	_check_near("it fills up (about half at 0.32 s)", telegraph.get_progress() if telegraph else -1.0, 0.5, 0.1)
 	_check("no damage before the slam", knight.health.current, hp)
-	var t0 := _game_time
 	await _wait_until(func() -> bool: return knight.health.current < hp, 40)
 	_check("100 damage at 0.65 s", hp - knight.health.current, 100.0)
 	await _frames(12)
@@ -1406,10 +1405,10 @@ func _test_damage_numbers() -> void:
 		dummy.health.heal(1000.0)
 		_place(dummy, knight.global_position + Vector2(50, 0))
 		await _frames(1)
-		var before := _numbers()
+		var before_swing := _numbers()
 		knight.attack.try_swing(Vector2.RIGHT)
 		await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 20)
-		var new := _numbers().filter(func(n: Label) -> bool: return not before.has(n))
+		var new := _numbers().filter(func(n: Label) -> bool: return not before_swing.has(n))
 		numbers.append(new.map(func(n: Label) -> Array: return [n.text, n.font_size, n.color]))
 		await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
 		await _wait_until(func() -> bool: return not knight.attack.is_in_pause(), 30)
@@ -1427,7 +1426,7 @@ func _test_damage_numbers() -> void:
 	magic.base_damage = 30.0
 	magic.damage_type = HitContext.DamageType.MAGIC
 	HitPipeline.resolve(magic)
-	var true_hit := _hit(dummy, 30.0, HitContext.DamageType.TRUE)
+	_hit(dummy, 30.0, HitContext.DamageType.TRUE)
 	var added := _numbers().filter(func(n: Label) -> bool: return not before.has(n))
 	_check("magic blue, true white", added.map(func(n: Label) -> Color: return n.color), [style.magic_color, style.true_color])
 
@@ -3043,6 +3042,7 @@ func _cast(slot: StringName, aim: Vector2, target: Unit = null) -> void:
 	ctx.point = aim
 	ctx.direction = (aim - knight.global_position).normalized()
 	ctx.target = target
+	@warning_ignore("redundant_await")   # an ability's own execute() may wait
 	await knight.abilities.get_ability(slot).execute(knight, ctx)
 
 

@@ -74,7 +74,21 @@ extends Node2D
 ## - smell blood's scores and the panic-button share; aim lead's point, the
 ##   default plan, Brains' walk read (zero while dashing), a real bolt hitting
 ##   a walking Knight only when led; the overlay's duel lines; step_back.
-## Tests of older rules pin AI3b's sliders to their AI3 values (_pin_ai3()).
+## Step AI3c, the odds and think rates by rank (Duels and odds):
+## - nerve, the table's numbers, the ranks' think rates, duelist, the press
+##   pose; each side's strength by hand (a 1v1, a 3v1, an elite and fodder,
+##   against the Knight and the ally, the ally downed, the Knight at 30%);
+## - the press's rules (respect × (1 − nerve × press), one shared push, the
+##   press pose); the pool +1 and never past the cap; the weakest pick with
+##   the margin, taunt, stealth and a boss's; one heavy hit at a time (Brains'
+##   landing times, a real brain's smash refused, scripted and outside a
+##   press allowed); thinks per rank over 10 s and the budget's scaling,
+##   reaction times unchanged, a gap-closer's follow-up never waiting a
+##   reaction time; three brutes and an elite pressing (a third attacker, the
+##   press pose, never two heavy hits within 0.8 s), one brute changing
+##   nothing, the ally down; the overlay's odds line and think rate.
+## Tests of older rules pin AI3b's sliders (and AI3c's nerve) to their AI3
+## values (_pin_ai3()); AI2's five brutes play with the press off (_no_press()).
 ## TEMP, the enemy attack speed test multiplier (DECISIONS.md, Testing): off
 ## by default; at x1.0 every number is today's exactly; at x1.5 with keep DPS
 ## the same damage per second over 10 s, more swings, the windup floor; the
@@ -153,10 +167,11 @@ const ARENA := Vector2(3000, 0)
 var knight: Player
 var _passed: int = 0
 var _failed: int = 0
+var _odds_threshold_saved := -1.0   # _no_press() (AI3c)
 
 
 func _ready() -> void:
-	print("\n=== Enemies test (ENEMIES_AI AI1–AI3d, AI3b) ===")
+	print("\n=== Enemies test (ENEMIES_AI AI1–AI3d, AI3b, AI3c) ===")
 	Progress.get_progress(KNIGHT)   # the save guards latch off first (a test scene)
 	Loot.get_inventory(KNIGHT)
 	Brains.rng.seed = 20261004
@@ -234,6 +249,18 @@ func _ready() -> void:
 	await _test_ai3b_aim_lead()
 	await _test_ai3b_overlay_and_poses()
 
+	# AI3c: the odds, and think rates by rank.
+	_test_ai3c_data()
+	await _test_ai3c_odds()
+	_test_ai3c_press_rules()
+	await _test_ai3c_tokens()
+	await _test_ai3c_weakest_pick()
+	await _test_ai3c_heavy_hits()
+	await _test_ai3c_think_rates()
+	await _test_ai3c_follow_up()
+	await _test_ai3c_pack_presses()
+	await _test_ai3c_overlay()
+
 	# TEMP: the enemy attack speed test multiplier (DECISIONS.md, Testing).
 	await _test_temp_attack_speed()
 
@@ -279,9 +306,9 @@ func _test_brute_preset() -> void:
 	var values: Array = []
 	for s in EnemyBehavior.SLIDERS:
 		values.append(b.get_slider(s))
-	_check("aggression .5, respect 1, patience 3, band 350–500, reaction .35, dodge .4 / 6, greed .6, finish .3, pressure 12, breather 5, jitter .15; AI3b: confidence .5, all in .6, lead 0, spend .4",
-		values, [0.5, 1.0, 3.0, 350.0, 500.0, 0.35, 0.4, 6.0, 0.6, 0.3, 12.0, 5.0, 0.15, 0.5, 0.6, 0.0, 0.4])
-	_check("17 fields, 16 sliders (the band is one, with two ends; AI3b added four)", [EnemyBehavior.SLIDERS.size(), EnemyBehavior.LIMITS.size()], [17, 17])
+	_check("aggression .5, respect 1, patience 3, band 350–500, reaction .35, dodge .4 / 6, greed .6, finish .3, pressure 12, breather 5, jitter .15; AI3b: confidence .5, all in .6, lead 0, spend .4; AI3c: nerve .6",
+		values, [0.5, 1.0, 3.0, 350.0, 500.0, 0.35, 0.4, 6.0, 0.6, 0.3, 12.0, 5.0, 0.15, 0.5, 0.6, 0.0, 0.4, 0.6])
+	_check("18 fields, 17 sliders (the band is one, with two ends; AI3b added four, AI3c nerve)", [EnemyBehavior.SLIDERS.size(), EnemyBehavior.LIMITS.size()], [18, 18])
 	var in_limits := true
 	for s in EnemyBehavior.SLIDERS:
 		var lim: Array = EnemyBehavior.LIMITS[s]
@@ -338,10 +365,10 @@ func _test_pose_set() -> void:
 	_check("every pose of the minimum set has a look", missing, [])
 	var hold := POSE_SET.get_look(&"hold")
 	var crouch := POSE_SET.get_look(&"crouch")
-	var draw := POSE_SET.get_look(&"draw_back")
+	var draw_look := POSE_SET.get_look(&"draw_back")
 	_check("hold: upright, leaning back 5°", [hold.lean_deg, hold.squash, hold.rim_color.a], [-5.0, 1.0, 0.0])
 	_check("crouch: squash 0.8, lean in 15°", [crouch.lean_deg, crouch.squash], [15.0, 0.8])
-	_check("draw_back: lean back 15°, stretch 1.1, an orange rim pulse", [draw.lean_deg, draw.squash, draw.rim_color.a > 0.0, draw.pulse_hz > 0.0], [-15.0, 1.1, true, true])
+	_check("draw_back: lean back 15°, stretch 1.1, an orange rim pulse", [draw_look.lean_deg, draw_look.squash, draw_look.rim_color.a > 0.0, draw_look.pulse_hz > 0.0], [-15.0, 1.1, true, true])
 	_check("no pose: no look", POSE_SET.get_look(&""), null)
 
 
@@ -960,7 +987,7 @@ func _test_sandbox_brains() -> void:
 	await _wait_until(func() -> bool: return not casts.is_empty(), 60)   # (AI3: once it's fighting)
 	Events.ability_cast.disconnect(on_cast)
 	_check("incoming_shot: the Knight fires the test bolt at it (once it's aggroed)", casts.size() == 1 and casts[0][0] == knight and casts[0][1] == sb.test_bolt and brute.ai == Enemy.AI.AGGRO, true)
-	_check("H cycles the nine (AI2 added the two packs, AI3 the mixed one)", [sb.next_scenario(), sb.next_scenario(), sb.next_scenario(), sb.next_scenario()], [&"pack", &"fodder", &"mixed", &"all_ready"])
+	_check("H cycles the ten (AI2 added the two packs, AI3 the mixed one, AI3c the odds)", [sb.next_scenario(), sb.next_scenario(), sb.next_scenario(), sb.next_scenario(), sb.next_scenario()], [&"pack", &"fodder", &"mixed", &"odds", &"all_ready"])
 
 	# The panel: a live change for every enemy sharing the data; no saving here.
 	brute = sb.run_scenario(&"all_ready")
@@ -1203,7 +1230,7 @@ func _test_pack_alert() -> void:
 	_place(pack, q)
 	var wall := _wall_at(q + Vector2(40, 32), Vector2(220, 6))   # c behind it: no sight of a, b or the Knight
 	var near := _spawn(SLIME_SCENE, q + Vector2(150, -40), false)    # another pack: 6 m of a, in sight
-	var hidden := _spawn(SLIME_SCENE, q + Vector2(100, 100), false)  # within 6 m of a, behind the wall
+	var walled := _spawn(SLIME_SCENE, q + Vector2(100, 100), false)  # within 6 m of a, behind the wall
 	var far := _spawn(SLIME_SCENE, q + Vector2(0, -260), false)      # in sight, past 6 m
 	var alerted: Array = []
 	var on_alert := func(p: Node, t: Unit) -> void: alerted.append([p, t])
@@ -1217,7 +1244,7 @@ func _test_pack_alert() -> void:
 	while tick < 60:
 		await get_tree().physics_frame
 		tick += 1
-		for x in [a, b, c, near, hidden, far]:
+		for x in [a, b, c, near, walled, far]:
 			if not woke.has(x) and x.ai == Enemy.AI.AGGRO:
 				woke[x] = tick
 				if x == b:
@@ -1229,14 +1256,14 @@ func _test_pack_alert() -> void:
 	_check("its packmates wake 0.4 s later (24 ticks ± 1)", [absi(lag.call(b) - 24) <= 1, absi(lag.call(c) - 24) <= 1], [true, true])
 	_check("c woke behind the wall (packmates know), in its alert pose", [woke.has(c), alert_pose], [true, true])
 	_check("another pack within 6 m with a in sight wakes with them", absi(lag.call(near) - 24) <= 1, true)
-	_check("one within 6 m behind a wall, and one past 6 m, stay asleep (no chain)", [woke.has(hidden), woke.has(far)], [false, false])
+	_check("one within 6 m behind a wall, and one past 6 m, stay asleep (no chain)", [woke.has(walled), woke.has(far)], [false, false])
 	_check("Events.pack_alerted: a's pack and the other, on the Knight",
 		[alerted.size(), alerted.size() > 0 and alerted[0][0] == pack and alerted[0][1] == knight, alerted.size() > 1 and alerted[1][0] == near.get_pack()], [2, true, true])
-	for x in [a, b, c, near, hidden, far]:
+	for x in [a, b, c, near, walled, far]:
 		x.passive = true
 		x.attack.cancel()
 	pack.queue_free()
-	for x in [near, hidden, far]:
+	for x in [near, walled, far]:
 		x.queue_free()
 	wall.queue_free()
 	await _frames(2)
@@ -1294,11 +1321,11 @@ func _test_target_pick() -> void:
 	dummy.queue_free()
 	await _frames(8)
 	_check("the dummy gone: the Knight again", e.get_target() == knight, true)
-	var hidden := _tag_status(&"test_untargetable", [&"untargetable"] as Array[StringName])
-	knight.status_component.apply_status(hidden)
+	var untargetable := _tag_status(&"test_untargetable", [&"untargetable"] as Array[StringName])
+	knight.status_component.apply_status(untargetable)
 	await _frames(10)
 	_check("its only target untargetable: kept and chased, not attacked (AB10)", [e.get_target() == knight, e.attack.target], [true, null])
-	knight.status_component.remove_status(hidden.id)
+	knight.status_component.remove_status(untargetable.id)
 	e.passive = true
 	e.attack.cancel()
 	e.queue_free()
@@ -1425,6 +1452,7 @@ func _test_stunned_holder() -> void:
 ## Knight at tier 1, and they rotate.
 func _test_five_brutes() -> void:
 	_section("Five test brutes at tier 1: never more than two on the Knight at once, and they rotate")
+	_no_press()   # AI2's rule; five brutes press since AI3c (their own test)
 	await _reset_knight()
 	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
 	_spend_kit()
@@ -1480,6 +1508,7 @@ func _test_five_brutes() -> void:
 		b.attack.cancel()
 		b.queue_free()
 	await _frames(60)
+	_restore_press()
 
 
 ## The step's "Done means": fodder surrounds the Knight, with no tokens.
@@ -1592,16 +1621,16 @@ func _test_ai3_data() -> void:
 	var values: Array = []
 	for slider in EnemyBehavior.SLIDERS:
 		values.append(SKIRMISHER_BEHAVIOR.get_slider(slider))
-	_check("skirmisher: aggression .7, respect .8, patience 2, band 400–600, reaction .3, dodge .6 / 4, greed .8, finish .3, pressure 12, breather 5, jitter .2; AI3b: confidence .6, all in .4, lead .3, spend .7",
-		values, [0.7, 0.8, 2.0, 400.0, 600.0, 0.3, 0.6, 4.0, 0.8, 0.3, 12.0, 5.0, 0.2, 0.6, 0.4, 0.3, 0.7])
+	_check("skirmisher: aggression .7, respect .8, patience 2, band 400–600, reaction .3, dodge .6 / 4, greed .8, finish .3, pressure 12, breather 5, jitter .2; AI3b: confidence .6, all in .4, lead .3, spend .7; AI3c: nerve .8",
+		values, [0.7, 0.8, 2.0, 400.0, 600.0, 0.3, 0.6, 4.0, 0.8, 0.3, 12.0, 5.0, 0.2, 0.6, 0.4, 0.3, 0.7, 0.8])
 	_check("its kind: role SKIRMISHER, hits and resets, uses tokens",
 		[SKIRMISHER_BEHAVIOR.role, SKIRMISHER_BEHAVIOR.low_health, SKIRMISHER_BEHAVIOR.uses_tokens],
 		[EnemyBehavior.Role.SKIRMISHER, EnemyBehavior.LowHealth.HIT_AND_RESET, true])
 	values = []
 	for slider in EnemyBehavior.SLIDERS:
 		values.append(CASTER_BEHAVIOR.get_slider(slider))
-	_check("caster: aggression .3, respect 1.2, patience 4, band 550–800, reaction .35, dodge .5 / 5, greed .4, finish .3, pressure 12, breather 5, jitter .15; AI3b: confidence .3, all in .2, lead .5, spend .8",
-		values, [0.3, 1.2, 4.0, 550.0, 800.0, 0.35, 0.5, 5.0, 0.4, 0.3, 12.0, 5.0, 0.15, 0.3, 0.2, 0.5, 0.8])
+	_check("caster: aggression .3, respect 1.2, patience 4, band 550–800, reaction .35, dodge .5 / 5, greed .4, finish .3, pressure 12, breather 5, jitter .15; AI3b: confidence .3, all in .2, lead .5, spend .8; AI3c: nerve .4",
+		values, [0.3, 1.2, 4.0, 550.0, 800.0, 0.35, 0.5, 5.0, 0.4, 0.3, 12.0, 5.0, 0.15, 0.3, 0.2, 0.5, 0.8, 0.4])
 	_check("its kind: role CASTER, falls back below 35%, never commits (commit weight 0)",
 		[CASTER_BEHAVIOR.role, CASTER_BEHAVIOR.low_health, CASTER_BEHAVIOR.retreat_health, CASTER_BEHAVIOR.get_intent_weight(&"commit")],
 		[EnemyBehavior.Role.CASTER, EnemyBehavior.LowHealth.FALL_BACK, 0.35, 0.0])
@@ -2470,6 +2499,21 @@ func _pin_ai3(e: Enemy) -> void:
 	b.crowded_commit = 0.0
 	b.aim_lead = 0.0
 	b.spend_eagerness = 1.0
+	b.nerve = 0.0   # AI3c
+
+
+## Turns the press off (AI3c) for a check of an older rule with enough enemies
+## on the Knight to press; _restore_press() puts the table's threshold back.
+func _no_press() -> void:
+	if _odds_threshold_saved < 0.0:
+		_odds_threshold_saved = Brains.table.odds_threshold
+	Brains.table.odds_threshold = 1000.0
+
+
+func _restore_press() -> void:
+	if _odds_threshold_saved >= 0.0:
+		Brains.table.odds_threshold = _odds_threshold_saved
+		_odds_threshold_saved = -1.0
 
 
 func _test_ai3b_data() -> void:
@@ -2478,7 +2522,7 @@ func _test_ai3b_data() -> void:
 	for s: StringName in [&"confidence", &"crowded_commit", &"aim_lead", &"spend_eagerness"]:
 		limits.append(EnemyBehavior.LIMITS[s])
 	_check("confidence, crowded_commit, aim_lead, spend_eagerness: each 0–1, in the panel's list",
-		[limits, EnemyBehavior.SLIDERS.slice(13)], [[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0], [0.0, 1.0]], [&"confidence", &"crowded_commit", &"aim_lead", &"spend_eagerness"]])
+		[limits, EnemyBehavior.SLIDERS.slice(13, 17)], [[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0], [0.0, 1.0]], [&"confidence", &"crowded_commit", &"aim_lead", &"spend_eagerness"]])
 	_check("crowded range (Ryan: its own value): brute 200, skirmisher 200, caster −1 = its band's minimum (550)",
 		[BRUTE_BEHAVIOR.get_crowded_range(), SKIRMISHER_BEHAVIOR.get_crowded_range(), CASTER_BEHAVIOR.crowded_range, CASTER_BEHAVIOR.get_crowded_range()],
 		[200.0, 200.0, -1.0, 550.0])
@@ -3048,6 +3092,575 @@ func _test_ai3b_overlay_and_poses() -> void:
 	sb.free()
 	brute.queue_free()
 	await _frames(2)
+
+
+# --- AI3c: the odds, and think rates by rank (ENEMIES_AI.md, Odds; Performance) ----------------
+
+func _test_ai3c_data() -> void:
+	_section("AI3c data: nerve, the table's odds numbers, think rates by rank, duelist, the press pose")
+	_check("nerve: 0–1, last in the panel's list; brute .6, skirmisher .8, caster .4",
+		[EnemyBehavior.LIMITS[&"nerve"], EnemyBehavior.SLIDERS[-1], BRUTE_BEHAVIOR.nerve, SKIRMISHER_BEHAVIOR.nerve, CASTER_BEHAVIOR.nerve],
+		[[0.0, 1.0], &"nerve", 0.6, 0.8, 0.4])
+	var regular := Brains.table.get_rank_rules(EnemyData.Rank.REGULAR).brain_adjust
+	_check("a BrainAdjust leaves nerve at × 1; resolve() carries it, an override included",
+		[BrainAdjust.new().get_multiplier(&"nerve"), BRUTE_BEHAVIOR.resolve({&"nerve": 0.2}, [regular] as Array[BrainAdjust]).nerve], [1.0, 0.2])
+	var t := Brains.table
+	_check("strength: fodder 0.25, regular 1, elite 2, boss 4; a champion 1.5 (Ryan)",
+		[t.get_rank_strength(EnemyData.Rank.FODDER), t.get_rank_strength(EnemyData.Rank.REGULAR), t.get_rank_strength(EnemyData.Rank.ELITE),
+			t.get_rank_strength(EnemyData.Rank.BOSS), t.champion_strength], [0.25, 1.0, 2.0, 4.0, 1.5])
+	_check("the press past 1.5; patience's push 0.5 × press; +1 token, capped at 4; the weakest pick's weight 0.5",
+		[t.odds_threshold, t.odds_pressure, t.odds_token_bonus, t.tokens_per_target_cap, t.weakest_pick_weight], [1.5, 0.5, 1, 4, 0.5])
+	_check("one heavy hit (10% of max health) per 0.8 s; the think budget 200 a second, never under 5",
+		[t.heavy_hit_window, t.heavy_hit_share, t.think_budget, t.think_rate_floor], [0.8, 0.1, 200.0, 5.0])
+	var rates: Array = []
+	for rank in [EnemyData.Rank.FODDER, EnemyData.Rank.REGULAR, EnemyData.Rank.ELITE, EnemyData.Rank.BOSS]:
+		rates.append(t.get_rank_rules(rank).think_rate)
+	var duelist: EnemyData = BRUTE_DATA.duplicate()
+	duelist.rank = EnemyData.Rank.ELITE
+	duelist.duelist = true
+	var regular_duelist: EnemyData = BRUTE_DATA.duplicate()
+	regular_duelist.duelist = true
+	_check("thinks a second by rank: fodder none, regular 10, elite 15, boss 25 (Ryan); a duelist elite the boss's; the flag means nothing below elite",
+		[rates, t.get_think_rate_for(BRUTE_DATA), t.get_think_rate_for(ELITE_DATA), t.get_think_rate_for(duelist), t.get_think_rate_for(regular_duelist), BRUTE_DATA.duelist],
+		[[0.0, 10.0, 15.0, 25.0], 10.0, 15.0, 25.0, 10.0, false])
+	var press := POSE_SET.get_look(&"press")
+	_check("the press pose: a 10° lean in, an amber rim pulsing at 1 Hz",
+		[press != null and press.lean_deg == 10.0, press != null and press.pulse_hz == 1.0, press != null and press.rim_color.r > 0.9 and press.rim_color.g > 0.5 and press.rim_color.b < 0.4 and press.rim_color.a > 0.0],
+		[true, true, true])
+
+
+## Each side's strength worked out by hand (the step's tests), the enemies
+## fighting only for the read (set aggroed and read in one frame).
+func _test_ai3c_odds() -> void:
+	_section("AI3c odds: a 1v1, a 3v1, an elite and fodder, against the Knight and the ally (by hand)")
+	await _reset_knight()
+	var threat := knight.stats_component.get_stat(&"threat")
+	var far := ARENA + Vector2(-1800, -1800)
+	var brutes: Array[Enemy] = []
+	for i in 3:
+		brutes.append(_spawn(BRUTE_SCENE, far + Vector2(60 * i, 0), true))
+	var elite := _spawn(ELITE_SCENE, far + Vector2(0, 120), true)
+	var fodder: Array[Enemy] = []
+	for i in 3:
+		fodder.append(_spawn(SLIME_SCENE, far + Vector2(60 * i, 240), true))
+	var friend := _friend(ARENA + Vector2(0, 80))
+	await _frames(2)
+	var solo: Array[Unit] = [knight]
+	var both: Array[Unit] = [knight, friend]
+	var ally_threat := friend.stats_component.get_stat(&"threat")
+	var one: Array[Enemy] = [brutes[0]]
+	var three: Array[Enemy] = brutes.duplicate()
+	var mixed: Array[Enemy] = [elite]
+	mixed.append_array(fodder)
+	var rows: Array = []
+	for pair: Array in [[one, solo], [three, solo], [mixed, solo]]:
+		var o := _odds_of(pair[0], pair[1])
+		rows.append([roundi(float(o.odds) * 1000), roundi(float(o.press) * 1000)])
+	_check("against the full-health Knight (threat %.1f: 1.5): one brute 0.67, no press; three 2.0, press 0.5; an elite and three fodder 1.83, press 0.33" % threat,
+		rows, [[667, 0], [2000, 500], [1833, 333]])
+	rows = []
+	for pair: Array in [[three, both], [mixed, both]]:
+		var o := _odds_of(pair[0], pair[1])
+		rows.append([roundi(float(o.party) * 1000), roundi(float(o.odds) * 1000), roundi(float(o.press) * 1000)])
+	_check("the ally beside him (threat %.1f): the party 3.0; three brutes 1.0 and an elite and fodder 0.92: neither presses" % ally_threat,
+		rows, [[3000, 1000, 0], [3000, 917, 0]])
+	var downed := _tag_status(&"test_downed", [&"downed"] as Array[StringName])
+	friend.status_component.apply_status(downed)
+	var o_down := _odds_of(three, both)
+	friend.status_component.remove_status(downed.id)
+	_check("the ally downed counts 0: three brutes press again (2.0, 0.5)", [roundi(float(o_down.odds) * 1000), roundi(float(o_down.press) * 1000)], [2000, 500])
+	knight.health.current = knight.health.max_health * 0.3
+	var o_low := _odds_of(one, solo)
+	knight.health.heal(100000.0)
+	elite.health.current = elite.health.max_health * 0.5
+	var o_half := _odds_of([elite] as Array[Enemy], solo)
+	_check("the Knight at 30% against one regular: 2.22, press 0.72; an elite at half health weighs 1 (0.67)",
+		[roundi(float(o_low.odds) * 100), roundi(float(o_low.press) * 100), roundi(float(o_half.odds) * 100)], [222, 72, 67])
+	brutes[0].passive = false   # not fighting (idle)
+	brutes[1].ai = Enemy.AI.AGGRO   # aggroed but passive (a training dummy)
+	brutes[2].passive = false
+	brutes[2].ai = Enemy.AI.RETURN   # walking home
+	var counted := Brains.compute_odds(solo, three)
+	brutes[0].ai = Enemy.AI.AGGRO
+	var nobody := Brains.compute_odds([] as Array[Unit], one)
+	var empty := Brains.compute_odds([] as Array[Unit], [] as Array[Enemy])
+	for e in brutes:
+		e.passive = true
+		e.ai = Enemy.AI.IDLE
+	_check("one not fighting, a passive one and one walking home don't count", float(counted.enemy), 0.0)
+	_check("no party up: the odds INF and a full press with an enemy fighting; 0 with nobody", [is_inf(float(nobody.odds)), float(nobody.press), float(empty.odds), float(empty.press)],
+		[true, 1.0, 0.0, 0.0])
+	var builds := Brains.get_odds_builds()
+	Brains.get_odds()
+	Brains.get_odds()
+	var same_tick := Brains.get_odds_builds() - builds
+	await _frames(5)
+	_check("one shared read per tick (twice in one tick builds at most one; 5 ticks at most 5)", [same_tick <= 1, Brains.get_odds_builds() - builds <= 6], [true, true])
+	for e in brutes + fodder + [elite]:
+		e.queue_free()
+	friend.queue_free()
+	await _frames(2)
+
+
+## The odds of `enemies` against `party`, the enemies fighting for the read
+## only (one frame: nothing moves), then back to passive and idle.
+func _odds_of(enemies: Array[Enemy], party: Array[Unit]) -> Dictionary:
+	for e in enemies:
+		e.passive = false
+		e.ai = Enemy.AI.AGGRO
+	var o := Brains.compute_odds(party, enemies)
+	for e in enemies:
+		e.passive = true
+		e.ai = Enemy.AI.IDLE
+	return o
+
+
+func _test_ai3c_press_rules() -> void:
+	_section("AI3c the press's rules (pure): respect × (1 − nerve × press), the shared push, the press pose")
+	var t := Brains.table
+	var b := BRUTE_BEHAVIOR.resolve({}, [] as Array[BrainAdjust])
+	var calm := b.duplicate() as EnemyBehavior
+	calm.nerve = 0.0
+	var s := _situation(0.8, 0.0)
+	var values: Array = [roundi(EnemyBrain.get_effective_respect(s, b) * 1000)]
+	s.press = 0.5
+	values.append(roundi(EnemyBrain.get_effective_respect(s, b) * 1000))
+	values.append(roundi(EnemyBrain.get_effective_respect(s, calm) * 1000))
+	s.press = 1.0
+	values.append(roundi(EnemyBrain.get_effective_respect(s, b) * 1000))
+	_check("respect 0.8: no press 0.8; press 0.5 at nerve 0.6: × 0.7 = 0.56; at nerve 0 unchanged; press 1: × 0.4 = 0.32",
+		values, [800, 560, 800, 320])
+	var p := _situation(0.5, 0.0)
+	p.effective_respect = 0.5
+	p.target_health_ratio = 1.0
+	var base := EnemyBrain.get_patience_rate(p, b, t)
+	var ratios: Array = []
+	for row: Array in [[0.5, 1.0], [1.0, 1.0], [0.0, 0.3], [0.5, 0.3], [1.0, 0.3]]:
+		p.press = row[0]
+		p.target_health_ratio = row[1]
+		ratios.append(roundi(EnemyBrain.get_patience_rate(p, b, t) / base * 100))
+	_check("patience's push: press 0.5 → × 1.25, press 1 → × 1.5; low health alone × 1.5; both share one push (the larger): × 1.5, × 1.5",
+		ratios, [125, 150, 150, 150, 150])
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 33
+	var h := _situation(1.0, 0.0)
+	h.press = 0.5
+	var poses: Array = [EnemyBrain.decide(h, b, rng).pose, EnemyBrain.decide(h, SKIRMISHER_BEHAVIOR, rng).pose]
+	h.cornered = true
+	poses.append(EnemyBrain.decide(h, CASTER_BEHAVIOR, rng).pose)
+	h.cornered = false
+	h.press = 0.0
+	poses.append(EnemyBrain.decide(h, b, rng).pose)
+	_check("pressing, its hold shows `press` (a skirmisher's stalk too); cornered stays cornered; no press, hold",
+		poses, [&"press", &"press", &"cornered", &"hold"])
+
+
+## The pool +1 while pressing, never past the cap (a real fight's odds).
+func _test_ai3c_tokens() -> void:
+	_section("AI3c the pool: +1 token while three brutes press, never past the cap; one brute changes nothing")
+	await _reset_knight()
+	var t := Brains.table
+	var one := _spawn(BRUTE_SCENE, knight.global_position + Vector2(150, 0), false)
+	await _wait_until(func() -> bool: return one.ai == Enemy.AI.AGGRO, 30)
+	await _frames(2)
+	knight.health.heal(100000.0)
+	await _frames(1)
+	_check("one test brute on the Knight: odds 0.67, no press, 2 tokens", [roundi(float(Brains.get_odds().odds) * 100), Brains.get_press(), Brains.get_tokens_per_target()], [67, 0.0, 2])
+	var more: Array[Enemy] = [one]
+	for i in 2:
+		more.append(_spawn(BRUTE_SCENE, knight.global_position + Vector2(-150, -80 + 160 * i), false))
+	await _wait_until(func() -> bool: return more.all(func(e: Enemy) -> bool: return e.ai == Enemy.AI.AGGRO), 30)
+	knight.health.heal(100000.0)
+	await _frames(1)
+	var press := Brains.get_press()
+	_check("three test brutes: press 0.5 (Knight at full health), 3 tokens: a third attacker", [roundi(press * 100), Brains.get_tokens_per_target()], [50, 3])
+	Brains.difficulty_tier = 4
+	var at_four := Brains.get_tokens_per_target()
+	t.tokens_per_target_cap = 3
+	var at_cap := Brains.get_tokens_per_target()
+	t.tokens_per_target_cap = 4
+	Brains.difficulty_tier = 1
+	t.odds_token_bonus = 5
+	var big_bonus := Brains.get_tokens_per_target()
+	t.odds_token_bonus = 1
+	_check("tier 4 (3 tokens): 4, the cap; a cap of 3 leaves its 3; a bonus of 5 still adds 1 (+1 at most)", [at_four, at_cap, big_bonus], [4, 3, 3])
+	for e in more:
+		e.passive = true
+		e.attack.cancel()
+		e.queue_free()
+	await _frames(30)
+	_check("they're gone: no press, 2 tokens", [Brains.get_press(), Brains.get_tokens_per_target()], [0.0, 2])
+
+
+## The weakest pick with the margin, taunt and stealth (a rooted brute: it
+## stands, its pick runs).
+func _test_ai3c_weakest_pick() -> void:
+	_section("AI3c the weakest pick: × (0.5 + 0.5 × health) while pressing, with the margin, taunt and stealth")
+	await _reset_knight()
+	var t := Brains.table
+	var saved := t.odds_threshold
+	var spot := ARENA + Vector2(0, 600)
+	var brute := _spawn(BRUTE_SCENE, spot, false)
+	var root := _tag_status(&"test_root", [&"root"] as Array[StringName], true)
+	brute.status_component.apply_status(root)
+	_place(knight, spot + Vector2(210, 0))
+	var friend := _friend(spot + Vector2(0, 240))
+	await _frames(2)
+	brute.alert(knight)
+	brute.alert(friend)
+	t.odds_threshold = 1000.0
+	await _frames(12)
+	knight.health.heal(100000.0)
+	var no_press_target := brute.get_target()
+	var plain := [roundi(brute.get_pick_distance(friend)), roundi(brute.get_effective_distance(friend))]
+	t.odds_threshold = 0.0   # any fight presses (one brute: odds 0.6)
+	friend.health.current = friend.health.max_health * 0.7
+	await _frames(45)
+	knight.health.heal(100000.0)
+	var margin_target := brute.get_target()
+	var at_70 := brute.get_pick_distance(friend) / brute.get_effective_distance(friend)
+	friend.health.current = friend.health.max_health * 0.1
+	await _frames(45)
+	knight.health.heal(100000.0)
+	var weak_target := brute.get_target()
+	var at_10 := brute.get_pick_distance(friend) / brute.get_effective_distance(friend)
+	_check("no press: it picks the nearer Knight (the friend's distance unchanged: %s)" % [plain], [no_press_target == knight, plain[0] == plain[1]], [true, true])
+	_check("pressing, the friend at 70% counts × 0.85: inside the margin, it stays on the Knight", [margin_target == knight, roundi(at_70 * 100)], [true, 85])
+	_check("at 10% it counts × 0.55: past the margin, it turns on the friend (after the hold)", [weak_target == friend, roundi(at_10 * 100)], [true, 55])
+	var taunt := _tag_status(&"test_taunt", [&"taunt"] as Array[StringName])
+	brute.status_component.apply_status(taunt, knight)
+	await _frames(12)
+	var taunted_target := brute.get_target()
+	brute.status_component.remove_status(taunt.id)
+	await _frames(45)
+	var back_to_weak := brute.get_target()
+	var stealth := _tag_status(&"test_stealth", [&"stealth"] as Array[StringName])
+	friend.status_component.apply_status(stealth)
+	await _frames(12)
+	var stealth_target := brute.get_target()
+	friend.status_component.remove_status(stealth.id)
+	_check("a taunt still wins (the Knight); untaunted it turns back to the weak friend; the friend stealthed is dropped (the Knight)",
+		[taunted_target == knight, back_to_weak == friend, stealth_target == knight], [true, true, true])
+	var boss_data: EnemyData = BRUTE_DATA.duplicate()
+	boss_data.rank = EnemyData.Rank.BOSS
+	var boss := BRUTE_SCENE.instantiate() as Enemy
+	boss.data = boss_data
+	boss.passive = true
+	entities.add_child(boss)
+	_place(boss, spot + Vector2(-120, 0))
+	await _frames(1)
+	_check("a boss's pick never changes (bosses don't press)", is_equal_approx(boss.get_pick_distance(friend), boss.get_effective_distance(friend)), true)
+	boss.status_component.apply_status(root)
+	boss.passive = false
+	boss.alert(knight)
+	await _frames(1)
+	var boss_s := boss.get_brain().build_situation()
+	_check("its situation reads no press while the others press (%.2f)" % Brains.get_press(), [Brains.get_press() > 0.0, boss_s.has_target, boss_s.press], [true, true, 0.0])
+	t.odds_threshold = saved
+	for e: Node in [brute, friend, boss]:
+		e.queue_free()
+	await _reset_knight()
+	await _frames(10)
+
+
+func _test_ai3c_heavy_hits() -> void:
+	_section("AI3c one heavy hit at a time while pressing: Brains' landing times, a brain's use refused")
+	await _reset_knight()
+	var t := Brains.table
+	var saved := t.odds_threshold
+	var spot := ARENA + Vector2(0, -600)
+	_place(knight, spot)
+	var brute := _spawn(BRUTE_SCENE, spot + Vector2(70, 0), true)
+	var other := _spawn(BRUTE_SCENE, spot + Vector2(-400, 0), true)
+	await _frames(2)
+	var smash := EnemyBrain.is_heavy_hit(SMASH, brute, knight, t)
+	var stab := EnemyBrain.is_heavy_hit(STAB, brute, knight, t)
+	_check("heavy: the smash (%d = %d%% of the Knight's %d), not the stab (%d)" % [roundi(SMASH.get_damage_against(brute, knight)),
+		roundi(SMASH.get_damage_against(brute, knight) / knight.health.max_health * 100), roundi(knight.health.max_health), roundi(STAB.get_damage_against(brute, knight))],
+		[smash, stab], [true, false])
+	_check("the smash lands its cast time (%.2f s) after it starts" % SMASH.get_param(brute, &"cast_time"),
+		EnemyBrain.get_time_to_land(SMASH, brute, knight), SMASH.get_param(brute, &"cast_time"))
+	var now := Brains.get_time()
+	Brains.note_heavy_hit(other, knight, now + 0.5)
+	t.odds_threshold = 1000.0
+	var outside := Brains.can_land_heavy_hit(knight, now + 0.6)
+	brute.passive = false
+	brute.alert(knight)   # a fighting enemy, so the odds can press
+	brute.status_component.apply_status(_tag_status(&"test_root", [&"root"] as Array[StringName], true))
+	t.odds_threshold = 0.0
+	await _frames(1)
+	now = Brains.get_time()
+	var lands: Array[float] = Brains.get_heavy_hits(knight)
+	var at := lands[0] if not lands.is_empty() else now
+	var answers := [Brains.can_land_heavy_hit(knight, at + 0.1), Brains.can_land_heavy_hit(knight, at - 0.79), Brains.can_land_heavy_hit(knight, at + 0.81),
+		Brains.can_land_heavy_hit(knight, at + 0.1, true), Brains.can_land_heavy_hit(brute, at + 0.1)]
+	_check("outside a press: allowed (AI2's rule)", outside, true)
+	_check("pressing: 0.1 s and 0.79 s from another, refused; 0.81 s, allowed; a boss plan's (scripted), allowed; on another unit, allowed",
+		answers, [false, false, true, true, true])
+	# A real brain's smash use: refused while another heavy hit lands inside its window.
+	var brain := brute.get_brain()
+	brain.set("_patience", 1.0)
+	var refused := _has_slot_use(brain.build_situation(), &"q")
+	Brains.clear_heavy_hits(other)
+	var allowed := _has_slot_use(brain.build_situation(), &"q")
+	t.odds_threshold = 1000.0
+	await _frames(1)   # the odds are read once a tick
+	brain.set("_patience", 1.0)
+	Brains.note_heavy_hit(other, knight, Brains.get_time() + _smash_land_time(brute))
+	var no_press := _has_slot_use(brain.build_situation(), &"q")
+	t.odds_threshold = 0.0
+	_check("its smash use: refused inside another's window (it holds or swings); the other's cast cancelled, allowed; no press, allowed",
+		[refused, allowed, no_press], [false, true, true])
+	t.odds_threshold = saved
+	Brains.clear_heavy_hits(other)
+	for e in [brute, other]:
+		e.passive = true
+		e.attack.cancel()
+		e.queue_free()
+	await _reset_knight()
+	await _frames(10)
+
+
+func _smash_land_time(caster: Enemy) -> float:
+	return EnemyBrain.get_time_to_land(SMASH, caster, knight)
+
+
+func _has_slot_use(s: SituationContext, slot: StringName) -> bool:
+	for u in s.uses:
+		if u.slot == slot:
+			return true
+	return false
+
+
+## Thinks per rank over 10 s (passive enemies: scheduled thinks only), then
+## the budget scaling the awake brains' rates.
+func _test_ai3c_think_rates() -> void:
+	_section("AI3c think rates by rank: a regular 10, an elite 15, a duelist and a boss 25 a second; the budget")
+	await _reset_knight()
+	var t := Brains.table
+	var duelist_data: EnemyData = BRUTE_DATA.duplicate()
+	duelist_data.rank = EnemyData.Rank.ELITE
+	duelist_data.duelist = true
+	var boss_data: EnemyData = BRUTE_DATA.duplicate()
+	boss_data.rank = EnemyData.Rank.BOSS
+	# Around the Knight 8 m out (their homes inside the leash), passive while counted.
+	var ring := func(i: int) -> Vector2: return knight.global_position + Vector2.from_angle(TAU * i / 4.0) * 260.0
+	var regular := _spawn(BRUTE_SCENE, ring.call(0), true)
+	var elite := _spawn(ELITE_SCENE, ring.call(1), true)
+	var made: Array[Enemy] = []
+	for d: EnemyData in [duelist_data, boss_data]:
+		var e := BRUTE_SCENE.instantiate() as Enemy
+		e.data = d
+		e.passive = true
+		entities.add_child(e)
+		_place(e, ring.call(2 + made.size()))
+		made.append(e)
+	var all: Array[Enemy] = [regular, elite, made[0], made[1]]
+	await _frames(1)
+	var before: Array[int] = []
+	for e in all:
+		before.append(e.get_brain().scheduled_thinks)
+	var reactions: Array = []
+	for e in all:
+		reactions.append(e.get_brain().behavior.reaction_time)
+	await _frames(600)   # 10 s at 60 Hz
+	var counts: Array = []
+	for i in all.size():
+		counts.append(all[i].get_brain().scheduled_thinks - before[i])
+	_check("over 10 s: a regular 100, an elite 150, a duelist elite 250, a boss 250 (got %s)" % [counts],
+		[absi(counts[0] - 100) <= 1, absi(counts[1] - 150) <= 1, absi(counts[2] - 250) <= 1, absi(counts[3] - 250) <= 1], [true, true, true, true])
+	var expected_reactions := [0.455, 0.35, 0.35, 0.2975]
+	var same := true
+	for i in reactions.size():
+		same = same and absf(float(reactions[i]) - float(expected_reactions[i])) < 0.0005
+	_check("reaction times unchanged by the think rate: a regular's 0.455, an elite's 0.35, a duelist's 0.35, a boss's 0.2975 (got %s)" % [reactions], same, true)
+	# The budget: awake brains (rooted, out of reach, on the Knight) ask 10 + 15 + 25 + 25 = 75 a second.
+	var root := _tag_status(&"test_root", [&"root"] as Array[StringName], true)
+	for e in all:
+		e.status_component.apply_status(root)
+		e.passive = false
+		e.alert(knight)
+	await _frames(5)
+	var demand := Brains.get_think_demand()
+	var free_rates: Array = []
+	for e in all:
+		free_rates.append(roundi(e.get_brain().get_think_rate()))
+	var saved_budget := t.think_budget
+	t.think_budget = 50.0
+	await _frames(2)
+	var scaled: Array = []
+	for e in all:
+		scaled.append(snappedf(e.get_brain().get_think_rate(), 0.01))
+	var counts_before: Array[int] = []
+	for e in all:
+		counts_before.append(e.get_brain().scheduled_thinks)
+	await _frames(360)   # 6 s
+	var scaled_counts: Array = []
+	for i in all.size():
+		scaled_counts.append(all[i].get_brain().scheduled_thinks - counts_before[i])
+	t.think_budget = 20.0
+	await _frames(2)
+	var floored: Array = []
+	for e in all:
+		floored.append(snappedf(e.get_brain().get_think_rate(), 0.01))
+	t.think_budget = saved_budget
+	_check("four awake brains ask 75 a second, under the budget: each at its own rate", [roundi(demand), free_rates], [75, [10, 15, 25, 25]])
+	_check("a budget of 50: every rate × 2/3 (6.67, 10, 16.67, 16.67)", scaled, [6.67, 10.0, 16.67, 16.67])
+	_check("...and over 6 s they think about that often (got %s)" % [scaled_counts],
+		[absi(scaled_counts[0] - 40) <= 2, absi(scaled_counts[1] - 60) <= 2, absi(scaled_counts[2] - 100) <= 2, absi(scaled_counts[3] - 100) <= 2], [true, true, true, true])
+	_check("a budget of 20: × 0.27, never under the floor of 5 (5, 5, 6.67, 6.67)", floored, [5.0, 5.0, 6.67, 6.67])
+	for e in all:
+		e.passive = true
+		e.attack.cancel()
+		e.queue_free()
+	await _reset_knight()
+	await _frames(10)
+
+
+## A gap-closer's follow-up never waits a reaction time (it isn't a reaction
+## to the party): a brute with a leap lands beside the Knight and swings.
+func _test_ai3c_follow_up() -> void:
+	_section("AI3c a gap-closer's follow-up: the swing starts within a think of landing, not after a reaction time")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	_spend_kit()
+	var leaper: EnemyData = BRUTE_DATA.duplicate()
+	var slot := EnemyAbilitySlot.new()
+	slot.slot = &"w"
+	slot.ability = LEAP
+	leaper.abilities = [BRUTE_DATA.abilities[0], slot]
+	var brute := BRUTE_SCENE.instantiate() as Enemy
+	brute.data = leaper
+	entities.add_child(brute)
+	_place(brute, knight.global_position + Vector2(170, 0))
+	_pin_ai3(brute)
+	var leaps := [0]
+	brute.abilities.cast_started.connect(func(s: StringName, _a: Ability, _c: CastContext) -> void:
+		if s == &"w":
+			leaps[0] += 1)
+	await _wait_until(func() -> bool: return leaps[0] > 0, 600)
+	await _wait_until(func() -> bool: return not brute.abilities.casting and not brute.movement.is_leaping(), 90)
+	var landed := Brains.get_time()
+	await _wait_until(func() -> bool: return brute.attack.is_winding_up() or brute.abilities.casting, 60)
+	var follow := Brains.get_time() - landed
+	var reaction := brute.get_brain().behavior.reaction_time
+	_check("it leapt and swung %.2f s after landing (its reaction time %.2f s)" % [follow, reaction], [leaps[0] >= 1, follow < reaction - 0.1], [true, true])
+	brute.passive = true
+	brute.attack.cancel()
+	brute.queue_free()
+	await _reset_knight()
+	await _frames(30)
+
+
+## The step's "Done means": three test brutes and an elite press (a third
+## attacker, the amber lean), never two heavy hits within 0.8 s; one brute
+## changes nothing; with the ally down they turn on the Knight.
+func _test_ai3c_pack_presses() -> void:
+	_section("AI3c three test brutes and an elite press: a third attacker, the press pose, one heavy hit at a time")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	_spend_kit()
+	var t := Brains.table
+	var steady := _tag_status(&"test_unstoppable", [&"unstoppable"] as Array[StringName])
+	knight.status_component.apply_status(steady)
+	var pack: Array[Enemy] = []
+	for i in 3:
+		pack.append(_spawn(BRUTE_SCENE, knight.global_position + Vector2.from_angle(TAU * i / 4.0) * 150.0, false))
+	pack.append(_spawn(ELITE_SCENE, knight.global_position + Vector2.from_angle(TAU * 0.75) * 150.0, false))
+	var heavy: Array = []   # [game time, source, ability]
+	var on_damaged := func(ctx: HitContext) -> void:
+		if ctx.target == knight and ctx.ability != null and ctx.source is Enemy \
+				and EnemyBrain.is_heavy_hit(ctx.ability, ctx.source, knight, t):
+			heavy.append([Brains.get_time(), ctx.source, ctx.ability])
+	Events.unit_damaged.connect(on_damaged)
+	var max_used := 0
+	var min_press := 1.0
+	var poses := {}
+	var frames := 0
+	while frames < 900:   # 15 s
+		await get_tree().physics_frame
+		frames += 1
+		knight.health.heal(100000.0)
+		if frames % 30 == 0:
+			_spend_kit()
+		if frames > 30:
+			min_press = minf(min_press, Brains.get_press())
+		max_used = maxi(max_used, Brains.get_tokens_per_target() - Brains.get_tokens_free(knight))
+		for e in pack:
+			if e.get_brain() != null:
+				poses[e.get_brain().get_pose()] = true
+	Events.unit_damaged.disconnect(on_damaged)
+	knight.status_component.remove_status(steady.id)
+	var min_gap := INF
+	var casts := 0
+	for i in heavy.size():
+		if i > 0 and heavy[i][1] == heavy[i - 1][1] and heavy[i][2] == heavy[i - 1][2] and float(heavy[i][0]) - float(heavy[i - 1][0]) < 0.5:
+			continue   # one cast's second hit
+		casts += 1
+		if i > 0:
+			min_gap = minf(min_gap, float(heavy[i][0]) - float(heavy[i - 1][0]))
+	_check("they pressed the whole fight (the lowest press %.2f), with 3 tokens in use at once: a third attacker" % min_press, [min_press > 0.0, max_used], [true, 3])
+	_check("the press pose showed (poses seen: %s)" % [poses.keys()], poses.has(&"press"), true)
+	_check("heavy hits landed (%d casts) and never two within 0.8 s (the closest %.2f s)" % [casts, min_gap], [casts >= 2, min_gap >= t.heavy_hit_window - 0.05], [true, true])
+	for e in pack:
+		e.passive = true
+		e.attack.cancel()
+		e.queue_free()
+	await _frames(30)
+	# One brute: nothing changes.
+	await _reset_knight()
+	var lone := _spawn(BRUTE_SCENE, knight.global_position + Vector2(150, 0), false)
+	await _wait_until(func() -> bool: return lone.get_brain().get_intent() != &"", 60)
+	await _frames(6)
+	var s := lone.get_brain().get_situation()
+	_check("one test brute: no press, its respect as before (× 1), the hold pose, 2 tokens",
+		[s.press, is_equal_approx(s.effective_respect, clampf(s.respect * lone.get_brain().behavior.respect_weight * (1.0 - lone.get_brain().behavior.confidence * s.own_ready_share), 0.0, 1.0)),
+			lone.get_brain().get_pose(), Brains.get_tokens_per_target()], [0.0, true, &"hold", 2])
+	# The ally down: they turn on the Knight.
+	var friend := _friend(lone.global_position + Vector2(40, 0))
+	lone.alert(friend)
+	await _wait_until(func() -> bool:
+		friend.health.heal(100000.0)   # its swings mustn't kill the stand-in first
+		return lone.get_target() == friend, 60)
+	var on_friend := lone.get_target() == friend
+	friend.health.heal(100000.0)
+	knight.health.heal(100000.0)
+	await _frames(1)
+	var party_before := float(Brains.get_odds().party)
+	var downed := _tag_status(&"test_downed", [&"downed"] as Array[StringName])
+	friend.status_component.apply_status(downed)
+	await _frames(3)
+	_check("the ally nearer, it fights the ally; the ally down, it turns on the Knight and the party's strength drops (%.2f → %.2f)" % [party_before, float(Brains.get_odds().party)],
+		[on_friend, lone.get_target() == knight, float(Brains.get_odds().party) < party_before], [true, true, true])
+	lone.passive = true
+	lone.attack.cancel()
+	lone.queue_free()
+	friend.queue_free()
+	await _reset_knight()
+	await _frames(30)
+
+
+func _test_ai3c_overlay() -> void:
+	_section("AI3c the overlay: its odds line, its think rate")
+	var t := Brains.table
+	var saved := t.odds_threshold
+	await _reset_knight()
+	var brute := _spawn(BRUTE_SCENE, knight.global_position + Vector2(150, 0), false)
+	await _wait_until(func() -> bool: return brute.get_brain().get_intent() != &"", 60)
+	var sb := SandboxBrains.new()
+	var calm := sb.get_duel_text(brute)
+	var token_line := sb.get_overlay_text(brute)
+	t.odds_threshold = 0.0
+	await _frames(8)
+	var pressing := sb.get_duel_text(brute)
+	t.odds_threshold = saved
+	_check("no press: `odds 0.7`; pressing: `odds 0.7, press 0.7 (nerve 0.6)`; the token line ends in its rate `10/s`",
+		[calm.contains("odds 0.7"), pressing.contains("odds 0.7, press 0.7 (nerve 0.6)"), token_line.contains("µs  10/s")], [true, true, true])
+	sb.free()
+	brute.passive = true
+	brute.attack.cancel()
+	brute.queue_free()
+	await _frames(10)
 
 
 # --- TEMP: the enemy attack speed test multiplier (DECISIONS.md, Testing) --------------------

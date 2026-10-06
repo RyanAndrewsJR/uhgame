@@ -12,8 +12,8 @@ extends RefCounted
 ## AI3 added the incoming attacks and the cornered, escaping and resetting
 ## states. AI3b (Duels and odds) added its key ability and own kit, cautious,
 ## the spend hold, the crowded episode, the walk out, smell blood's numbers
-## and the target's walk for aim lead. Later steps add dodging (AI4) and the
-## punish window (AI6).
+## and the target's walk for aim lead. AI3c added the odds and the press.
+## Later steps add dodging (AI4) and the punish window (AI6).
 
 ## The intents a held key ability isn't used for (Spending the key ability:
 ## a poke, a defend, an escape and a gap-closer are never held).
@@ -149,6 +149,13 @@ var target_defensives_ready: int = 0
 var key_area_champions: int = 0
 var spend_min_champions: int = 2
 
+# --- The odds (AI3c) ----------------------------------------------------------------
+## The enemy side's strength ÷ the party's (Brains.get_odds(): one read per
+## tick), and the press (0–1: how far past odds_threshold; 0 for a boss,
+## which never presses).
+var odds: float = 0.0
+var press: float = 0.0
+
 
 ## An attack it has seen coming lands within `within` seconds (0 = any).
 func is_threatened(within: float) -> bool:
@@ -198,5 +205,5 @@ func has_answer() -> bool:
 
 
 ## Adds a castable use (tests and build_situation()).
-func add_use(slot: StringName, intent: StringName, plan: CastPlan, weight: float = 1.0) -> void:
-	uses.append({"slot": slot, "intent": intent, "weight": weight, "plan": plan})
+func add_use(slot: StringName, use_intent: StringName, plan: CastPlan, weight: float = 1.0) -> void:
+	uses.append({"slot": slot, "intent": use_intent, "weight": weight, "plan": plan})

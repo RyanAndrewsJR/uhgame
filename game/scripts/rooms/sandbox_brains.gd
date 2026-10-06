@@ -39,6 +39,9 @@ extends Node
 ##                brutes (two tokens at a time, the shout, the leash) and a
 ##                pack of eight slimes (the fodder ring). AI3 adds a mixed
 ##                pack: a brute, a skirmisher, an elite caster, three slimes.
+##                AI3c adds the odds: three test brutes and the elite slime
+##                (strength 5 against the full-health Knight's 1.5: a full
+##                press; it eases as they fall and ends with the elite alone).
 ##   Shift+H      (AI3) the next test enemy the scenarios spawn: the test
 ##                brute, skirmisher, caster, elite caster; the scenario
 ##                running now spawns it again.
@@ -50,12 +53,13 @@ const SOURCE_ID := &"sandbox_brains"
 ## The tuning panel's slider list height (px; AI3b): 11 rows of 16 show, the
 ## rest scroll, so the panel ends inside the 360 px canvas.
 const SLIDER_LIST_HEIGHT := 176.0
-const SCENARIOS: Array[StringName] = [&"all_ready", &"none_ready", &"low_health", &"ally", &"whiff", &"incoming_shot", &"pack", &"fodder", &"mixed"]
+const SCENARIOS: Array[StringName] = [&"all_ready", &"none_ready", &"low_health", &"ally", &"whiff", &"incoming_shot", &"pack", &"fodder", &"mixed", &"odds"]
 const SCENARIO_NAMES := {
 	&"all_ready": "all cooldowns ready", &"none_ready": "none ready", &"low_health": "low health (25%)",
 	&"ally": "an ally present", &"whiff": "a whiff (Judgement spent)", &"incoming_shot": "an incoming shot",
 	&"pack": "a pack of five brutes (9 m away, idle)", &"fodder": "a pack of eight slimes (9 m away, idle)",
 	&"mixed": "a mixed pack: brute, skirmisher, elite caster, three slimes (9 m away, idle)",
+	&"odds": "the odds: three test brutes and the elite slime (9 m away, idle; they press)",
 }
 const FRIENDLY_SCENE := preload("res://scenes/enemies/slime.tscn")
 
@@ -72,6 +76,11 @@ const FRIENDLY_SCENE := preload("res://scenes/enemies/slime.tscn")
 	preload("res://scenes/enemies/test_brute.tscn"), preload("res://scenes/enemies/test_skirmisher.tscn"),
 	preload("res://scenes/enemies/test_caster_elite.tscn"), preload("res://scenes/enemies/slime.tscn"),
 	preload("res://scenes/enemies/slime.tscn"), preload("res://scenes/enemies/slime.tscn"),
+]
+## The odds scenario's pack (AI3c): three test brutes and the elite slime.
+@export var odds_pack: Array[PackedScene] = [
+	preload("res://scenes/enemies/test_brute.tscn"), preload("res://scenes/enemies/test_brute.tscn"),
+	preload("res://scenes/enemies/test_brute.tscn"), preload("res://scenes/enemies/slime_elite.tscn"),
 ]
 ## How far from the Knight it spawns (px; 160 = 5 m).
 @export var scenario_distance_px: float = 160.0
@@ -221,7 +230,7 @@ func get_overlay_text(enemy: Enemy) -> String:
 		intent = "return" if enemy.ai == Enemy.AI.RETURN else "idle"
 	var pose := brain.get_pose()
 	var lines: PackedStringArray = []
-	lines.append("%s · %s" % [intent, pose if pose != &"" else "-"])
+	lines.append("%s · %s" % [intent, String(pose) if pose != &"" else "-"])
 	var d := brain.get_last_decision()
 	if d != null and not d.scores.is_empty():
 		var parts: PackedStringArray = []
@@ -232,7 +241,7 @@ func get_overlay_text(enemy: Enemy) -> String:
 	var respect := s.respect if s != null else 0.0
 	var effective := s.effective_respect if s != null else 0.0
 	lines.append("respect %.2f (%.2f)  patience %.2f" % [respect, effective, brain.get_patience()])
-	lines.append("token %s  dodge -  react %.2f s  %d µs" % [brain.get_token_state(), brain.behavior.reaction_time, brain.get_think_usec()])
+	lines.append("token %s  dodge -  react %.2f s  %d µs  %d/s" % [brain.get_token_state(), brain.behavior.reaction_time, brain.get_think_usec(), roundi(brain.get_think_rate())])
 	var duel := get_duel_text(enemy)   # AI3b
 	if duel != "":
 		lines.append(duel)
@@ -255,7 +264,8 @@ func get_overlay_text(enemy: Enemy) -> String:
 ## ready)`, or `cautious 2.1 s`), its key's hold (`key: held (next roll 1.4
 ## s)`, `key: free (crowded)`), its crowded episode (`crowded: all in (0.31 <
 ## 0.60)`, `crowded: back up (no answer)`, `crowded: stand (0.82)`) and its aim
-## lead (`lead 0.5 (+1.2 m)`).
+## lead (`lead 0.5 (+1.2 m)`); AI3c: the odds (`odds 0.7`, or while pressing
+## `odds 2.1, press 0.6 (nerve 0.6)`).
 func get_duel_text(enemy: Enemy) -> String:
 	var brain := enemy.get_brain()
 	if brain == null or brain.behavior == null:
@@ -292,6 +302,13 @@ func get_duel_text(enemy: Enemy) -> String:
 		lines.append(text)
 	if b.aim_lead > 0.0:
 		lines.append("lead %.1f (+%.1f m)" % [b.aim_lead, Units.px_to_m(brain.get_last_lead_px())])
+	if s != null and s.has_target:   # AI3c: the odds, and the press
+		if s.press > 0.0:
+			lines.append("odds %.1f, press %.1f (nerve %.1f)" % [s.odds, s.press, b.nerve])
+		elif enemy.data != null and enemy.data.rank == EnemyData.Rank.BOSS and s.odds > Brains.table.odds_threshold:
+			lines.append("odds %.1f (a boss doesn't press)" % s.odds)
+		else:
+			lines.append("odds %.1f" % s.odds)
 	return "\n".join(lines)
 
 
@@ -676,6 +693,8 @@ func run_scenario(scenario: StringName) -> Enemy:
 			enemy = _spawn_pack(fodder_scene, fodder_pack_size)
 		&"mixed":
 			enemy = _spawn_pack_of(mixed_pack)
+		&"odds":
+			enemy = _spawn_pack_of(odds_pack)
 		_:
 			enemy = _spawn_enemy()
 	if scenario == &"incoming_shot" and enemy != null:
@@ -716,17 +735,17 @@ func clear_scenario() -> void:
 	_scenario_units.clear()
 
 
-func _set_knight_ready(ready: bool) -> void:
+func _set_knight_ready(all_ready: bool) -> void:
 	var abilities := _player.abilities
 	for slot in AbilityComponent.SLOTS:
 		if abilities.get_ability(slot) == null:
 			continue
-		if ready:
+		if all_ready:
 			for i in abilities.get_max_charges(slot):
 				abilities.reset_cooldown(slot)
 		else:
 			abilities.start_cooldown(slot)
-	if ready and _player.resource_pool != null:
+	if all_ready and _player.resource_pool != null:
 		_player.resource_pool.restore(_player.resource_pool.max_resource)
 	_player.health.heal(_player.health.max_health)
 
@@ -772,7 +791,7 @@ func _spawn_pack_of(scenes: Array[PackedScene]) -> Enemy:
 	pack.name = "ScenarioPack"
 	var center := _on_floor(_spawn_point(pack_distance_px))
 	pack.position = center
-	var first: Enemy
+	var first: Enemy = null
 	for i in count:
 		var enemy := scenes[i].instantiate() as Enemy
 		enemy.name = "Scenario%s" % enemy.name

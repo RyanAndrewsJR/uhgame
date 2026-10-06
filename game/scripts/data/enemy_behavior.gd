@@ -8,7 +8,8 @@ extends Resource
 ## An enemy carries only a few overrides on top (EnemyData.overrides; kind,
 ## not magnitude). Fodder needs none (it has no brain).
 ## AI3b (Duels and odds) added four sliders (confidence, crowded_commit,
-## aim_lead, spend_eagerness: sixteen in all) and crowded_range (kind).
+## aim_lead, spend_eagerness: sixteen in all) and crowded_range (kind); AI3c
+## added nerve (seventeen).
 ## The brain reads a resolved copy (resolve()): the preset's values or the
 ## enemy's overrides, times its rank's, faction's, difficulty tier's and elite
 ## modifiers' BrainAdjust multipliers, each clamped to its limits.
@@ -20,7 +21,7 @@ enum LowHealth { FIGHT_ON, FALL_BACK, HIT_AND_RESET }
 const SLIDERS: Array[StringName] = [&"aggression", &"respect_weight", &"patience_time",
 	&"range_band_min", &"range_band_max", &"reaction_time", &"dodge_skill", &"dodge_cooldown",
 	&"punish_greed", &"finish_threshold", &"pressure_time", &"breather_time", &"jitter",
-	&"confidence", &"crowded_commit", &"aim_lead", &"spend_eagerness"]
+	&"confidence", &"crowded_commit", &"aim_lead", &"spend_eagerness", &"nerve"]
 ## Each slider's limits [min, max], as its @export_range says (floats, not a
 ## Vector2: a Vector2 holds 32-bit floats, and 0.2 would clamp to 0.2000000030).
 const LIMITS := {
@@ -41,6 +42,7 @@ const LIMITS := {
 	&"crowded_commit": [0.0, 1.0],
 	&"aim_lead": [0.0, 1.0],
 	&"spend_eagerness": [0.0, 1.0],
+	&"nerve": [0.0, 1.0],
 }
 
 @export_group("Kind")
@@ -102,6 +104,10 @@ const LIMITS := {
 ## How freely it fires its key ability: 0 = it holds it for the right moment,
 ## 1 = on cooldown; a roll every spend_roll_time s in between (AI3b).
 @export_range(0.0, 1.0) var spend_eagerness: float = 0.4
+## How hard it presses when the odds are on its side: effective respect ×
+## (1 − nerve × the press) (AI3c). At 0 the press still adds its patience
+## push, its token and its pick (they're the group's).
+@export_range(0.0, 1.0) var nerve: float = 0.6
 
 
 func get_slider(slider: StringName) -> float:

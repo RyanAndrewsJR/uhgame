@@ -18,6 +18,12 @@ extends Node
 ## - (AI3b) each champion's walk velocity for aim lead (get_walk_velocity()):
 ##   what's on screen over the last walk_velocity_time s, counted only since
 ##   its last dash, push, leap or blink (a dash is never led).
+## - (AI3c) the odds (get_odds(): each side's strength, the odds and the
+##   press, one read per tick); while the enemies press, one more token in
+##   each champion's pool (under the cap) and one heavy hit at a time on each
+##   champion (note_heavy_hit(), can_land_heavy_hit()); each brain thinking at
+##   its rank's rate (a duelist elite at the boss's), every rate scaled down
+##   evenly past think_budget (get_think_rate()).
 ## AI6 adds the whiffs, AI7 sleeping.
 
 const TABLE_PATH := "res://data/enemy_ai_tables/enemy_ai_table_default.tres"
@@ -70,6 +76,18 @@ var _timed_wakes: Array = []
 ## its last dash or push, and Unit -> its walk velocity (px/s).
 var _walk: Dictionary = {}
 var _walk_velocity: Dictionary = {}
+## The odds (AI3c): this tick's read, its frame, how many were built, and the
+## last one's cost (µs).
+var _odds: Dictionary = {}
+var _odds_frame := -1
+var _odds_builds := 0
+var _odds_usec := 0
+## Heavy hits on their way (AI3c): {enemy, target, at (the game time it lands)}.
+var _heavy_hits: Array[Dictionary] = []
+## The think budget (AI3c): this tick's scale (1 = none) and the thinks a
+## second the awake brains ask for before it.
+var _think_scale := 1.0
+var _think_demand := 0.0
 
 
 func _ready() -> void:
@@ -82,17 +100,48 @@ func get_time() -> float:
 	return _time
 
 
-## Physics ticks between two thinks of one brain (6 at 60 Hz and 10 a second).
+## Physics ticks between two thinks of one brain (6 at 60 Hz and 10 a second):
+## the table's think_rate, a regular's.
 func get_think_period() -> int:
 	var tps := Engine.physics_ticks_per_second
 	return maxi(1, roundi(tps / maxf(table.think_rate, 0.01)))
 
 
+## `brain`'s thinks a second now (AI3c, Think rate by rank): its rank's
+## (EnemyBrain.get_base_think_rate()) × the budget's scale, never under
+## think_rate_floor (nor above its own).
+func get_think_rate(brain: EnemyBrain) -> float:
+	var own := brain.get_base_think_rate()
+	return maxf(own * _think_scale, minf(table.think_rate_floor, own))
+
+
+## Physics ticks between two of `brain`'s thinks now (a float: 25 a second at
+## 60 Hz is 2.4, so it thinks on ticks 0, 3, 5, 8, 10, 12...).
+func get_think_period_for(brain: EnemyBrain) -> float:
+	return Engine.physics_ticks_per_second / maxf(get_think_rate(brain), 0.01)
+
+
+## The budget's scale this tick (1 = under think_budget) and the thinks a
+## second the awake brains asked for (AI3c).
+func get_think_scale() -> float:
+	return _think_scale
+
+
+func get_think_demand() -> float:
+	return _think_demand
+
+
+## A brain thinks on its own period from a slot (a tick inside its first
+## period), so brains of one rank spread over the ticks; at 10 a second the
+## slots and ticks are AI1's (tick % 6 == slot).
 func register(brain: EnemyBrain) -> void:
 	if brain == null or _brains.has(brain):
 		return
 	brain.rng.seed = rng.randi()
-	brain.think_slot = _next_slot % get_think_period()
+	var span := maxi(1, floori(get_think_period_for(brain)))
+	brain.think_slot = _next_slot % span
+	var first := _tick - posmod(_tick, span) + brain.think_slot
+	brain.next_think_tick = float(first + span if first <= _tick else first)
 	_next_slot += 1
 	_brains.append(brain)
 
@@ -140,11 +189,14 @@ func _physics_process(delta: float) -> void:
 			_timed_wakes.remove_at(i)
 	_update_idle(delta)
 	_update_walk()
-	var period := get_think_period()
-	var slot := _tick % period
+	_update_think_budget()
 	var due: Array[EnemyBrain] = []
 	for b in _brains:
-		if b.think_slot == slot or _urgent.has(b):
+		var scheduled := is_instance_valid(b) and float(_tick) >= b.next_think_tick - 0.0001
+		if scheduled:
+			b.scheduled_thinks += 1
+			b.next_think_tick = maxf(b.next_think_tick + get_think_period_for(b), float(_tick) + 1.0)
+		if scheduled or _urgent.has(b):
 			due.append(b)
 	_urgent.clear()
 	for b in due:
@@ -239,6 +291,123 @@ func _update_walk() -> void:
 		_walk_velocity[u] = ((history[-1][1] as Vector2) - (history[0][1] as Vector2)) / dt if dt >= 0.05 else Vector2.ZERO
 
 
+# --- The odds (ENEMIES_AI.md, Odds; AI3c) ---------------------------------------------------
+
+## The odds this physics tick, read once (the first time anything asks in it):
+## {enemy, party (each side's strength), odds (enemy ÷ party), press}
+## (compute_odds()).
+func get_odds() -> Dictionary:
+	var frame := Engine.get_physics_frames()
+	if _odds_frame != frame or _odds.is_empty():
+		var t0 := Time.get_ticks_usec()
+		_odds = compute_odds(get_party(), _enemies)
+		_odds_usec = Time.get_ticks_usec() - t0
+		_odds_frame = frame
+		_odds_builds += 1
+	return _odds
+
+
+## The press this tick (0–1; 0 = the enemies don't press).
+func get_press() -> float:
+	return float(get_odds().press)
+
+
+## How many odds reads were built so far (tests: one per tick at most), and
+## the last one's cost (µs; the budget's measure).
+func get_odds_builds() -> int:
+	return _odds_builds
+
+
+func get_odds_usec() -> int:
+	return _odds_usec
+
+
+## The odds of `enemies` against `party` (pure but for the units' state).
+## Strength: the sum over living units of their weight × their health ratio.
+## The enemy side: every enemy with data fighting (aggroed, not walking home,
+## not passive) at its rank's weight. The party: every champion up (not
+## downed) at champion_strength × its `threat`; companions are never Units.
+## The press = clamp(odds − odds_threshold, 0, 1); with no party up the odds
+## are INF (0 with no enemy either).
+func compute_odds(party: Array[Unit], enemies: Array[Enemy]) -> Dictionary:
+	var enemy_side := 0.0
+	for e in enemies:
+		if is_instance_valid(e) and e.ai == Enemy.AI.AGGRO and not e.passive and e.data != null and e.is_alive():
+			enemy_side += table.get_rank_strength(e.data.rank) * _health_ratio(e)
+	var party_side := 0.0
+	for u in party:
+		if not is_instance_valid(u) or not u.is_alive() or (u.status_component != null and u.status_component.has_tag(&"downed")):
+			continue
+		var threat := u.stats_component.get_stat(&"threat") if u.stats_component != null else 1.0
+		party_side += table.champion_strength * threat * _health_ratio(u)
+	var odds := enemy_side / party_side if party_side > 0.0 else (INF if enemy_side > 0.0 else 0.0)
+	return {"enemy": enemy_side, "party": party_side, "odds": odds,
+		"press": clampf(odds - table.odds_threshold, 0.0, 1.0)}
+
+
+static func _health_ratio(u: Unit) -> float:
+	var max_health := u.health.max_health
+	return clampf(u.health.current / max_health, 0.0, 1.0) if max_health > 0.0 else 0.0
+
+
+## One heavy hit at a time (Odds, Fairness limits): `enemy` started a heavy
+## hit on `target` that lands at game time `land_time` (its cast time left
+## plus a projectile's flight).
+func note_heavy_hit(enemy: Enemy, target: Unit, land_time: float) -> void:
+	_prune_heavy_hits()
+	_heavy_hits.append({"enemy": enemy, "target": target, "at": land_time})
+
+
+## `enemy`'s heavy hits not landed yet are off (its cast was cancelled).
+func clear_heavy_hits(enemy: Enemy) -> void:
+	for i in range(_heavy_hits.size() - 1, -1, -1):
+		if _heavy_hits[i].enemy == enemy and float(_heavy_hits[i].at) > _time:
+			_heavy_hits.remove_at(i)
+
+
+## A heavy hit may land on `target` at game time `land_time`: always outside a
+## press (AI2's rule: Ryan kept it there) or when a boss plan scripts it
+## (`scripted`); while the enemies press, only when no other heavy hit lands on
+## it within heavy_hit_window s.
+func can_land_heavy_hit(target: Unit, land_time: float, scripted: bool = false) -> bool:
+	if scripted or target == null or get_press() <= 0.0:
+		return true
+	_prune_heavy_hits()
+	for h in _heavy_hits:
+		if h.target == target and absf(float(h.at) - land_time) < table.heavy_hit_window - 0.0001:
+			return false
+	return true
+
+
+## The landing times (game time) of the heavy hits on their way to or just
+## landed on `target` (the overlay, tests).
+func get_heavy_hits(target: Unit) -> Array[float]:
+	_prune_heavy_hits()
+	var out: Array[float] = []
+	for h in _heavy_hits:
+		if h.target == target:
+			out.append(float(h.at))
+	return out
+
+
+func _prune_heavy_hits() -> void:
+	for i in range(_heavy_hits.size() - 1, -1, -1):
+		var h: Dictionary = _heavy_hits[i]
+		if not is_instance_valid(h.target) or float(h.at) < _time - table.heavy_hit_window:
+			_heavy_hits.remove_at(i)
+
+
+## The think budget (AI3c): the awake brains' thinks a second at their own
+## rates; past think_budget every rate scales down evenly (get_think_rate()).
+func _update_think_budget() -> void:
+	var demand := 0.0
+	for b in _brains:
+		if is_instance_valid(b) and b.is_awake():
+			demand += b.get_base_think_rate()
+	_think_demand = demand
+	_think_scale = minf(1.0, table.think_budget / demand) if demand > 0.0 and table.think_budget > 0.0 else 1.0
+
+
 # --- Enemies with data (AI2) ---------------------------------------------------------------
 
 func register_enemy(enemy: Enemy) -> void:
@@ -262,9 +431,14 @@ func get_enemies() -> Array[Enemy]:
 # --- Attack tokens (ENEMIES_AI.md, Groups; AI2) -------------------------------------------
 
 ## Tokens in each champion's pool now: by the difficulty tier (Ryan, I3).
-## ALLIES' second champion brings a second pool (one per target).
+## ALLIES' second champion brings a second pool (one per target). AI3c: while
+## the enemies press, odds_token_bonus more (+1 at most: a fairness limit),
+## never past tokens_per_target_cap (a pool already at it or past it stays).
 func get_tokens_per_target() -> int:
-	return table.get_tokens_per_target(difficulty_tier)
+	var base := table.get_tokens_per_target(difficulty_tier)
+	if get_press() <= 0.0:
+		return base
+	return maxi(base, mini(base + clampi(table.odds_token_bonus, 0, 1), table.tokens_per_target_cap))
 
 
 ## The tokens `enemy` needs to commit: its rank's cost (a regular 1, an elite

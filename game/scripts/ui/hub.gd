@@ -204,18 +204,18 @@ func _on_talent_screen_talent_hovered(talent: Talent) -> void:
 	_detail.text = "%s: %s" % [talent.display_name, talent.description]
 
 
-func _label(size: int, color: Color, text: String = "") -> Label:
+func _label(font_size: int, color: Color, text: String = "") -> Label:
 	var label := Label.new()
 	label.text = text
-	label.add_theme_font_size_override("font_size", size)
+	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", color)
 	return label
 
 
-func _button(text: String, action: Callable, size: int = 10) -> Button:
+func _button(text: String, action: Callable, font_size: int = 10) -> Button:
 	var button := Button.new()
 	button.text = text
 	button.focus_mode = Control.FOCUS_NONE
-	button.add_theme_font_size_override("font_size", size)
+	button.add_theme_font_size_override("font_size", font_size)
 	button.pressed.connect(action)
 	return button

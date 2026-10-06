@@ -112,10 +112,10 @@ func _bulwark(caster: Unit, ctx: CastContext) -> void:
 ## tags, sounds and VFX): `percent` move_speed PERCENT_ADD for `duration` s,
 ## refreshed by a recast. The same status MovementComponent's speed wrapper
 ## builds, so the numbers and ids are unchanged.
-func _speed_status(template: StatusEffect, id: StringName, percent: float, duration: float) -> StatusEffect:
+func _speed_status(template: StatusEffect, status_id: StringName, percent: float, duration: float) -> StatusEffect:
 	var effect: StatusEffect = template.duplicate()
-	effect.id = id
-	effect.display_name = String(id)
+	effect.id = status_id
+	effect.display_name = String(status_id)
 	effect.duration = duration
 	effect.stack_rule = StatusEffect.StackRule.REFRESH
 	var mods: Array[StatModifier] = [StatModifier.create(&"move_speed", StatModifier.Type.PERCENT_ADD, percent, &"")]

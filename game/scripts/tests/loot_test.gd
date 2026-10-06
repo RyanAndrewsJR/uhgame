@@ -779,14 +779,14 @@ func _test_round_trip() -> void:
 		items.append(item)
 		for pair: Array in item.affix_rolls:
 			four_decimals = four_decimals and is_equal_approx(pair[1] * 10000.0, roundf(pair[1] * 10000.0))
-		var d := item.to_dict()
-		saved.append(d)
-		var back := Item.from_dict(d, _table)
-		same = same and back != null and back.to_dict() == d
+		var item_dict := item.to_dict()
+		saved.append(item_dict)
+		var back := Item.from_dict(item_dict, _table)
+		same = same and back != null and back.to_dict() == item_dict
 		mods_same = mods_same and back != null and _mod_rows(back) == _mod_rows(item)
-		var reread: Variant = str_to_var(var_to_str(d))
+		var reread: Variant = str_to_var(var_to_str(item_dict))
 		var again := Item.from_dict(reread, _table)
-		through_text = through_text and again != null and again.to_dict() == d
+		through_text = through_text and again != null and again.to_dict() == item_dict
 	_check("rolls are kept to 4 decimals", four_decimals, true)
 	_check("300 items survive the round trip", same, true)
 	_check("with the same modifiers", mods_same, true)
@@ -1098,7 +1098,7 @@ func _test_loot_autoload() -> void:
 	var err := cfg.load(SCRATCH_SAVE)
 	var read := ChampionInventory.read_from(cfg, KNIGHT, _table) if err == OK else null
 	_check("Loot.save() writes the record (read back from a scratch file)",
-		[err, read != null and read.items.size() == 1 and read.items[0].to_dict() == helm.to_dict(), read.equipped if read != null else null],
+		[err, read != null and read.items.size() == 1 and read.items[0].to_dict() == helm.to_dict(), read.equipped if read != null else {}],
 		[OK, true, {&"helm": uid}])
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH_SAVE))
 	Loot.reset(KNIGHT)
@@ -1377,7 +1377,7 @@ func _test_sandbox_loot_saves() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH_SAVE))
 	_check("K: the new item is in the file", after_roll != null and after_roll.items.size() == 1
 		and after_roll.items[0].to_dict() == rolled[0].to_dict(), true)
-	_check("U: the worn slot is in the file", after_equip.equipped if after_equip != null else null,
+	_check("U: the worn slot is in the file", after_equip.equipped if after_equip != null else {},
 		{p.equipment.get_slot_of(rolled[0]): rolled[0].uid})
 	room.queue_free()
 	await _frames(1)
@@ -1841,7 +1841,7 @@ func _test_named_items() -> void:
 	drifted["affixes"] = [d["affixes"][0], ["affix_gone", 0.4]]
 	var fixed := Item.from_dict(drifted, _table, KNIGHT)
 	_check("the named item's data wins: its base, rarity and affix list; a missing roll is the band's middle, an unknown one dropped (expect 3 warnings)",
-		[fixed.base, fixed.rarity, fixed.affix_rolls.map(func(p: Array) -> StringName: return (p[0] as Affix).id), fixed.affix_rolls.map(func(p: Array) -> float: return p[1])],
+		[fixed.base, fixed.rarity, fixed.affix_rolls.map(func(pair: Array) -> StringName: return (pair[0] as Affix).id), fixed.affix_rolls.map(func(pair: Array) -> float: return pair[1])],
 		[TIDEBREAKER.base, R.LEGENDARY, [&"affix_attack_damage", &"affix_core_damage", &"affix_crit_chance"], [d["affixes"][0][1], 0.5, 0.5]])
 	var verdict_champ := _knight_with([_fixture_artifact()])
 	var art := ItemRoller.make_named(verdict_champ.get_named_item(&"knight_test_verdict"), _table, _rng(1))
@@ -2885,15 +2885,15 @@ func _test_landing_terrain() -> void:
 	# away to the right would be against it (its 6 px circle) or past it.
 	for row: Array in [[1, "a wall"], [7, "a fence"], [11, "a ledge (a cliff's edge)"], [6, "a pit"]]:
 		_next_x += 400.0
-		var origin := Vector2(_next_x, -3000.0)
-		var strip := _blocker(Rect2(origin + Vector2(8.0, -100.0), Vector2(4.0, 200.0)), row[0])
+		var row_origin := Vector2(_next_x, -3000.0)
+		var strip := _blocker(Rect2(row_origin + Vector2(8.0, -100.0), Vector2(4.0, 200.0)), row[0])
 		await _frames(2)
-		var rng := _rng(7400 + int(row[0]))
+		var row_rng := _rng(7400 + int(row[0]))
 		var against := 0
 		var past := 0
 		var open := 0
 		for i in 300:
-			var x := probe.pick_landing(origin, rng).x - origin.x
+			var x := probe.pick_landing(row_origin, row_rng).x - row_origin.x
 			if x >= 12.0 + 6.0:
 				past += 1
 			elif x > 8.0 - 6.0:

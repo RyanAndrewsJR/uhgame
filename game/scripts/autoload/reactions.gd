@@ -140,8 +140,8 @@ func _fire(trigger: ReactionRule.Trigger, affected: Unit, other: Unit, unit_tags
 		if not _has_all(hit_tags, rule.required_hit_tags) or not _has_all(unit_tags, rule.required_unit_tags) \
 				or not _has_all(status_tags, rule.required_status_tags) or not rule.matches_ability(ability):
 			continue
-		var owner: Unit = c[1]
-		var source: Unit = owner if owner != null else other
+		var rule_owner: Unit = c[1]
+		var source: Unit = rule_owner if rule_owner != null else other
 		var target: Unit = affected if rule.effect_target == ReactionRule.EffectTarget.AFFECTED else other
 		# Conditions (ABILITIES AB12): after the tag filters, before chance.
 		if not rule.conditions.is_empty() \

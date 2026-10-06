@@ -197,8 +197,8 @@ func get_all_abilities() -> Array[Ability]:
 		var ability := get_base_ability(slot)
 		if ability != null and not result.has(ability):
 			result.append(ability)
-	for e: Array in _augments:
-		var augment: AbilityAugment = e[0]
+	for entry: Array in _augments:
+		var augment: AbilityAugment = entry[0]
 		if augment.replacement != null and not result.has(augment.replacement):
 			result.append(augment.replacement)
 	return result
@@ -1031,6 +1031,8 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext, precharged: 
 		# The effect starts: ABILITY_CAST rules fire now (never for a cast
 		# that was cancelled or interrupted before this point). AB8.
 		_emit_ability_cast(ability, ctx)
+		# The base execute() doesn't wait, but an ability's own script may.
+		@warning_ignore("redundant_await")
 		await ability.execute(unit, ctx)
 		_executing = false
 
@@ -1163,13 +1165,13 @@ func add_augment(augment: AbilityAugment, source_id: StringName) -> void:
 ## Takes back every augment added under `source_id`. An augment another
 ## source still grants stays.
 func remove_augments_from(source_id: StringName) -> void:
-	var removed: Array = _augments.filter(func(e: Array) -> bool: return e[1] == source_id)
+	var removed: Array = _augments.filter(func(entry: Array) -> bool: return entry[1] == source_id)
 	if removed.is_empty():
 		return
 	var before := _snapshot_slot_abilities()
-	_augments = _augments.filter(func(e: Array) -> bool: return e[1] != source_id)
-	for e: Array in removed:
-		var augment: AbilityAugment = e[0]
+	_augments = _augments.filter(func(entry: Array) -> bool: return entry[1] != source_id)
+	for entry: Array in removed:
+		var augment: AbilityAugment = entry[0]
 		if augment.kind == AbilityAugment.Kind.EVENT and not _is_augment_active(augment.id):
 			unit.remove_reaction_rules_from(augment.get_rules_source_id())
 	_after_augments_changed(before)
@@ -1188,7 +1190,7 @@ func set_description_override(ability_id: StringName, template: String, source_i
 ## Takes back every description override added under `source_id`.
 func remove_description_overrides_from(source_id: StringName) -> void:
 	var before := _description_overrides.size()
-	_description_overrides = _description_overrides.filter(func(e: Array) -> bool: return e[2] != source_id)
+	_description_overrides = _description_overrides.filter(func(entry: Array) -> bool: return entry[2] != source_id)
 	if _description_overrides.size() != before:
 		for slot in SLOTS:
 			augments_changed.emit(slot)
@@ -1200,18 +1202,18 @@ func get_description_override(ability: Ability) -> String:
 	if ability == null:
 		return ""
 	for i in range(_description_overrides.size() - 1, -1, -1):
-		var e: Array = _description_overrides[i]
-		if e[0] == ability.id:
-			return e[1]
+		var entry: Array = _description_overrides[i]
+		if entry[0] == ability.id:
+			return entry[1]
 	return ""
 
 
 ## The sources whose description override is on `ability` now.
 func _description_override_sources(ability: Ability) -> Array[StringName]:
 	var out: Array[StringName] = []
-	for e: Array in _description_overrides:
-		if ability != null and e[0] == ability.id:
-			out.append(e[2])
+	for entry: Array in _description_overrides:
+		if ability != null and entry[0] == ability.id:
+			out.append(entry[2])
 	return out
 
 
@@ -1220,8 +1222,8 @@ func _description_override_sources(ability: Ability) -> Array[StringName]:
 func _is_line_muted(augment_id: StringName, muting: Array[StringName]) -> bool:
 	if muting.is_empty():
 		return false
-	for e: Array in _augments:
-		if (e[0] as AbilityAugment).id == augment_id and not muting.has(e[1]):
+	for entry: Array in _augments:
+		if (entry[0] as AbilityAugment).id == augment_id and not muting.has(entry[1]):
 			return false
 	return true
 
@@ -1301,8 +1303,8 @@ func get_augment_tooltip_lines(ability: Ability) -> PackedStringArray:
 func _get_unique_augments() -> Array[AbilityAugment]:
 	var result: Array[AbilityAugment] = []
 	var seen := {}
-	for e: Array in _augments:
-		var augment: AbilityAugment = e[0]
+	for entry: Array in _augments:
+		var augment: AbilityAugment = entry[0]
 		if not seen.has(augment.id):
 			seen[augment.id] = true
 			result.append(augment)
@@ -1310,8 +1312,8 @@ func _get_unique_augments() -> Array[AbilityAugment]:
 
 
 func _is_augment_active(id: StringName) -> bool:
-	for e: Array in _augments:
-		if (e[0] as AbilityAugment).id == id:
+	for entry: Array in _augments:
+		if (entry[0] as AbilityAugment).id == id:
 			return true
 	return false
 
@@ -1464,10 +1466,10 @@ func _use_up_ability_empowers(ability: Ability, ctx: CastContext) -> void:
 	if unit.status_component == null or ctx.is_free:
 		return
 	var scopes := ability.get_modifier_scopes()
-	for e in unit.status_component.get_empowers(StatusEffect.EmpowerTrigger.ABILITY_CAST):
-		if e.empower_scope == &"" or scopes.has(e.empower_scope):
-			ctx.empowers.append(e)
-			unit.status_component.remove_status(e.id)
+	for empower in unit.status_component.get_empowers(StatusEffect.EmpowerTrigger.ABILITY_CAST):
+		if empower.empower_scope == &"" or scopes.has(empower.empower_scope):
+			ctx.empowers.append(empower)
+			unit.status_component.remove_status(empower.id)
 
 
 ## Events.ability_cast at the cast's chain depth (0 for a slot cast).

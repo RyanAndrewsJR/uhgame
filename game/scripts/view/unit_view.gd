@@ -229,12 +229,12 @@ func _build_model(scene: PackedScene) -> void:
 ## pose at load, in this view's space.
 func _measure_height(model: Node3D) -> float:
 	var top := 0.0
-	var to_local := global_transform.affine_inverse()
+	var to_view := global_transform.affine_inverse()
 	for node in model.find_children("*", "MeshInstance3D", true, false):
 		var mi := node as MeshInstance3D
 		if not mi.is_visible_in_tree() or mi.skin != null:
 			continue   # skinned meshes' boxes are their bind pose; the attached parts (helmet, weapon) show the pose
-		top = maxf(top, ((to_local * mi.global_transform) * mi.get_aabb()).end.y)
+		top = maxf(top, ((to_view * mi.global_transform) * mi.get_aabb()).end.y)
 	return top if top > 0.1 else 1.8
 
 
@@ -643,8 +643,8 @@ func _update_placeholder(delta: float) -> void:
 	var lift := 0.0
 	if _windup_left > 0.0:
 		_windup_left = maxf(_windup_left - delta, 0.0)
-		var k := 1.0 - _windup_left / _windup_total
-		squash = Vector3(1.0 + 0.15 * k, 1.0 - 0.2 * k, 1.0 + 0.15 * k)
+		var windup_k := 1.0 - _windup_left / _windup_total
+		squash = Vector3(1.0 + 0.15 * windup_k, 1.0 - 0.2 * windup_k, 1.0 + 0.15 * windup_k)
 	elif _stretch > 0.0:
 		_stretch = maxf(_stretch - delta * 5.0, 0.0)
 		squash = Vector3(1.0 - 0.1 * _stretch, 1.0 + 0.25 * _stretch, 1.0 - 0.1 * _stretch)

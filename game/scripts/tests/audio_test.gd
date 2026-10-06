@@ -145,9 +145,9 @@ func _test_null_and_empty() -> void:
 	var empty := _event("empty", [])
 	var a := Audio.play(empty)
 	var b := Audio.play(empty)
-	var log := Audio.get_log()
+	var entries := Audio.get_log()
 	_check("an event without audio stays silent (logged no_audio twice; warned once, see the output)",
-		[a, b, log.size(), log[0].reason if log.size() > 0 else &"", log[-1].reason if log.size() > 0 else &""],
+		[a, b, entries.size(), entries[0].reason if entries.size() > 0 else &"", entries[-1].reason if entries.size() > 0 else &""],
 		[0, 0, 2, &"no_audio", &"no_audio"])
 
 
@@ -159,9 +159,9 @@ func _test_instance_limit() -> void:
 	var handles := []
 	for i in 4:
 		handles.append(Audio.play(ev))
-	var log := Audio.get_log()
+	var entries := Audio.get_log()
 	_check("4 plays in one frame: 3 played, the 4th dropped",
-		[handles[0] > 0, handles[1] > 0, handles[2] > 0, handles[3], log[-1].result, log[-1].reason],
+		[handles[0] > 0, handles[1] > 0, handles[2] > 0, handles[3], entries[-1].result, entries[-1].reason],
 		[true, true, true, 0, Audio.RESULT_DROPPED, &"instance_limit"])
 	await _real_wait(0.06)
 	_check("it plays again after 0.05 s of real time", Audio.play(ev) > 0, true)
@@ -239,11 +239,11 @@ func _test_handles() -> void:
 	_check("stop_all_on() stops only that node's sounds", [Audio.is_playing(a), Audio.is_playing(b)], [false, true])
 	Audio.stop(b)
 
-	var owner := Node2D.new()
-	add_child(owner)
-	h = Audio.play_on(loop, owner)
-	var h2 := Audio.play_on(_event("loop3", [_tone_loop], true), owner)   # two sounds on one node
-	owner.queue_free()
+	var holder := Node2D.new()
+	add_child(holder)
+	h = Audio.play_on(loop, holder)
+	var h2 := Audio.play_on(_event("loop3", [_tone_loop], true), holder)   # two sounds on one node
+	holder.queue_free()
 	await get_tree().physics_frame
 	last = Audio.get_log()[-1]
 	_check("both play_on() loops on a node stop when it's freed",
@@ -285,9 +285,9 @@ func _test_voice_cap() -> void:
 	_check("a LOW sound is dropped", [Audio.play(_event("low", [_tone_short], false, SoundEvent.Bus.SFX, SoundEvent.Priority.LOW)), Audio.get_log()[-1].reason], [0, &"voice_cap"])
 	_check("a NORMAL one too (equal priority doesn't steal)", Audio.play(_event("normal", [_tone_short])), 0)
 	var high := Audio.play(_event("high", [_tone_short], false, SoundEvent.Bus.SFX, SoundEvent.Priority.HIGH))
-	var log := Audio.get_log()
+	var entries := Audio.get_log()
 	_check("a HIGH one plays and steals the oldest NORMAL",
-		[high > 0, Audio.is_playing(handles[0]), Audio.is_playing(handles[1]), log[-2].result, log[-2].handle, log[-2].reason, log[-1].result],
+		[high > 0, Audio.is_playing(handles[0]), Audio.is_playing(handles[1]), entries[-2].result, entries[-2].handle, entries[-2].reason, entries[-1].result],
 		[true, false, true, Audio.RESULT_STOLEN, handles[0], &"by high", Audio.RESULT_PLAYED])
 	_check("priority can be raised per call", Audio.play(_event("boosted", [_tone_short]), 1.0, SoundEvent.Priority.HIGH) > 0, true)
 	Audio.stop(ui)
@@ -369,6 +369,7 @@ func _test_volumes() -> void:
 	_check("values round to whole percents", Settings.get_volume(&"Music"), 0.33)
 	Settings.set_volume(&"Music", 1.0)
 	Settings.setting_changed.disconnect(on_changed)
+	@warning_ignore("static_called_on_instance")   # Settings is an autoload with no class_name
 	_check("the keys", [Settings.get_volume_key(&"Master"), Settings.get_volume_key(&"Ambience")], [&"volume_master", &"volume_ambience"])
 
 

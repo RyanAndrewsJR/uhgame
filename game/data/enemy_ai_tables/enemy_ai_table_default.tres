@@ -11,6 +11,7 @@ rank = 0
 has_brain = false
 token_cost = 0
 max_abilities = 0
+think_rate = 0.0
 
 [sub_resource type="Resource" id="Resource_6g70d"]
 script = ExtResource("2_vigi2")
@@ -22,6 +23,7 @@ jitter = 1.5
 script = ExtResource("1_tp8sr")
 max_abilities = 3
 min_abilities = 2
+think_rate = 10.0
 brain_adjust = SubResource("Resource_6g70d")
 
 [sub_resource type="Resource" id="Resource_2debi"]
@@ -32,6 +34,7 @@ token_cost = 2
 tenacity = 0.2
 max_abilities = 5
 min_abilities = 3
+think_rate = 15.0
 
 [sub_resource type="Resource" id="Resource_sq8i8"]
 script = ExtResource("2_vigi2")
@@ -46,6 +49,7 @@ token_cost = 0
 tenacity = 0.4
 max_abilities = 6
 min_abilities = 4
+think_rate = 25.0
 brain_adjust = SubResource("Resource_sq8i8")
 
 [resource]

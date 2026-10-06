@@ -579,23 +579,23 @@ func _update_walk_cancel() -> void:
 func _start_melee_step(swing: AttackSwing, duration: float) -> void:
 	var reach := get_swing_reach_px(swing)
 	var raw_aim := _swing_direction
-	var target := _find_assist_target(raw_aim, reach)
+	var assist := _find_assist_target(raw_aim, reach)
 	var step_dir := raw_aim
 	var step_len := swing.lunge_px
-	if target:
-		var to := target.global_position - unit.global_position
+	if assist:
+		var to := assist.global_position - unit.global_position
 		var snap := deg_to_rad(combo.assist_snap_deg)
 		_swing_direction = raw_aim.rotated(clampf(raw_aim.angle_to(to), -snap, snap))
 		if to.length() > 0.01:
 			step_dir = to.normalized()
-		var edge := to.length() - target.get_gameplay_radius_px()
+		var edge := to.length() - assist.get_gameplay_radius_px()
 		var wanted := edge - combo.stop_at_reach_fraction * reach
 		if wanted > swing.lunge_px:
 			step_len = minf(wanted, maxf(swing.lunge_max_px, swing.lunge_px))
 		# Never into its body: stop at its edge.
-		var room := to.length() - unit.get_pathing_radius_px() - target.get_pathing_radius_px()
+		var room := to.length() - unit.get_pathing_radius_px() - assist.get_pathing_radius_px()
 		step_len = clampf(step_len, 0.0, maxf(room, 0.0))
-	_assist_target = target
+	_assist_target = assist
 	# Rooted or stunned: the swing stays where it stands (roots are roots,
 	# 2026-10-04); the aim still snaps to the target.
 	if step_len > 0.01 and not unit.is_dash_blocked():
@@ -606,7 +606,7 @@ func _start_melee_step(swing: AttackSwing, duration: float) -> void:
 			_step_serial = unit.movement.get_displacement_serial()
 	if debug_draw:
 		_debug_plan = {"from": unit.global_position, "raw_aim": raw_aim, "aim": _swing_direction,
-			"range": reach + combo.assist_range_bonus_px, "target": target,
+			"range": reach + combo.assist_range_bonus_px, "target": assist,
 			"step": step_dir * step_len}
 		_update_debug_draw()
 
@@ -673,9 +673,9 @@ func _on_debug_node_draw() -> void:
 	_debug_node.draw_line(from, from + raw_aim.rotated(-half) * r, grey, 1.0)
 	_debug_node.draw_line(from, from + raw_aim.rotated(half) * r, grey, 1.0)
 	_debug_node.draw_line(from, from + (_debug_plan.aim as Vector2) * r, Color(1, 1, 1, 0.8), 1.0)
-	var target: Unit = _debug_plan.target
-	if is_instance_valid(target):
-		_debug_node.draw_arc(target.global_position, target.get_gameplay_radius_px(), 0.0, TAU, 24, Color(1, 0.3, 0.3), 1.5)
+	var plan_target: Unit = _debug_plan.target
+	if is_instance_valid(plan_target):
+		_debug_node.draw_arc(plan_target.global_position, plan_target.get_gameplay_radius_px(), 0.0, TAU, 24, Color(1, 0.3, 0.3), 1.5)
 	_debug_node.draw_line(from, from + (_debug_plan.step as Vector2), Color(1, 0.9, 0.2), 2.0)
 
 

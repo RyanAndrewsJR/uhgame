@@ -39,6 +39,9 @@ enum Rank { FODDER, REGULAR, ELITE, BOSS }
 @export var pose_set: PoseSet
 ## Aggro range, LoL units edge to edge.
 @export var detect_range: float = 450.0
+## A duelist (ENEMIES_AI.md, Kits; AI3c; Ryan, 2026-10-04): rank ELITE in
+## everything, but it thinks at the boss's rate. Read only at rank ELITE.
+@export var duelist: bool = false
 
 
 ## The source id its twist goes under.

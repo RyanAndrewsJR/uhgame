@@ -7,7 +7,8 @@ extends Resource
 ## Every number is a TARGET until the play tests. AI2 added the groups'
 ## numbers (tokens, the fodder ring, the alert, the leash) and the target
 ## pick's; AI3b the duel's (cautious, spending, crowded, smell blood, the
-## walk read for aim lead); dodging's and the whiff's come with their steps
+## walk read for aim lead), AI3c the odds' (strength, the press, the heavy
+## hit) and the think budget; dodging's and the whiff's come with their steps
 ## (AI4, AI6).
 
 ## The four ranks (fodder, regular, elite, boss), each a RankRules.
@@ -188,6 +189,43 @@ extends Resource
 ## counted only since its last dash or push.
 @export var walk_velocity_time: float = 0.2
 
+@export_group("Odds (AI3c)")
+## Strength: the sum over living units of their weight × their health ratio.
+## An enemy weighs its rank's (Ryan's start: fodder 0.25, regular 1, elite 2,
+## boss 4); a champion champion_strength × its `threat` (Ryan: 1.5); a downed
+## one 0.
+@export var rank_strength: Dictionary[EnemyData.Rank, float] = {
+	EnemyData.Rank.FODDER: 0.25, EnemyData.Rank.REGULAR: 1.0,
+	EnemyData.Rank.ELITE: 2.0, EnemyData.Rank.BOSS: 4.0,
+}
+@export var champion_strength: float = 1.5
+## The press = clamp(odds − odds_threshold, 0, 1), the odds being the enemy
+## side's strength ÷ the party's. While it's above 0 the enemies press: less
+## respect (× (1 − nerve × press)), patience's push odds_pressure × press
+## (shared with low health's: the larger), odds_token_bonus more tokens in each
+## champion's pool (never past tokens_per_target_cap), the weakest champion
+## picked. Bosses don't press (the director owns their tempo).
+@export var odds_threshold: float = 1.5
+@export var odds_pressure: float = 0.5
+@export var odds_token_bonus: int = 1
+@export var tokens_per_target_cap: int = 4
+## While pressing, the target pick compares effective distance × (1 −
+## weakest_pick_weight + weakest_pick_weight × the champion's health ratio):
+## at 0.5, (0.5 + 0.5 × health), so a champion at half health counts a
+## quarter closer.
+@export_range(0.0, 1.0) var weakest_pick_weight: float = 0.5
+## One heavy hit at a time, while pressing: no more than one heavy hit (an
+## ability hit worth heavy_hit_share of the target's max health by the
+## enemy's own numbers) may land on one champion inside heavy_hit_window s
+## (Ryan: 0.8, widened from 0.3; 10%). Basic attacks never count.
+@export var heavy_hit_window: float = 0.8
+@export_range(0.0, 1.0) var heavy_hit_share: float = 0.1
+## The think budget: thinks a second over every awake brain. Past it, every
+## brain's rate scales down evenly, never under think_rate_floor (a brain
+## whose own rate is lower keeps its own).
+@export var think_budget: float = 200.0
+@export var think_rate_floor: float = 5.0
+
 ## Derived respect values, cached per ability (they read only data).
 var _respect_cache: Dictionary = {}
 
@@ -206,6 +244,26 @@ func get_tokens_per_target(tier: int) -> int:
 	if tokens_per_target.is_empty():
 		return 0
 	return tokens_per_target[clampi(tier, 1, tokens_per_target.size()) - 1]
+
+
+## An enemy's weight in its side's strength by `rank` (0 when the table has
+## none).
+func get_rank_strength(rank: EnemyData.Rank) -> float:
+	return rank_strength.get(rank, 0.0)
+
+
+## Thinks a second for a brain with `data` (AI3c): its rank's think_rate (−1 =
+## think_rate), a duelist elite the boss's. Before the budget's scaling.
+func get_think_rate_for(data: EnemyData) -> float:
+	if data == null:
+		return think_rate
+	var rank := data.rank
+	if data.duelist and rank == EnemyData.Rank.ELITE:
+		rank = EnemyData.Rank.BOSS
+	var rules := get_rank_rules(rank)
+	if rules == null or rules.think_rate < 0.0:
+		return think_rate
+	return rules.think_rate
 
 
 ## Base score of `intent` (0 when the table has none).

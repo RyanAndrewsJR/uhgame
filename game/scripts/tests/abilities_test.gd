@@ -1978,7 +1978,7 @@ func _test_free_casts() -> void:
 	var also_bolt := _augment(&"test_strike_also_bolts", AbilityAugment.Kind.EVENT, &"ability:test_strike")
 	also_bolt.rules = [_rule(ReactionRule.Trigger.ABILITY_CAST, [cast_bolt] as Array[GameplayEffect])] as Array[ReactionRule]
 	var free_ctx: Array[CastContext] = []
-	var on_cast := func(u: Unit, a: Ability, ctx: CastContext) -> void:
+	var on_cast := func(u: Unit, _a: Ability, ctx: CastContext) -> void:
 		if u == knight and ctx.is_free:
 			free_ctx.append(ctx)
 	Events.ability_cast.connect(on_cast)
@@ -2902,9 +2902,9 @@ func _test_ab11_scripts() -> void:
 	for path in ["res://scripts/abilities/knight/cleave.gd", "res://scripts/abilities/knight/iron_resolve.gd",
 			"res://scripts/abilities/knight/lunge.gd", "res://scripts/abilities/knight/judgement.gd"]:
 		var src := FileAccess.get_file_as_string(path)
-		for call in ["displace(", "apply_stun(", "add_speed_modifier(", "add_next_attack_modifier(", "CritRoll.new(", "HitPipeline.resolve("]:
-			if src.contains(call):
-				offenders.append("%s: %s" % [path.get_file(), call])
+		for pattern in ["displace(", "apply_stun(", "add_speed_modifier(", "add_next_attack_modifier(", "CritRoll.new(", "HitPipeline.resolve("]:
+			if src.contains(pattern):
+				offenders.append("%s: %s" % [path.get_file(), pattern])
 	_check("no displace / apply_stun / add_speed_modifier / add_next_attack_modifier / own crit roll or resolve", offenders, [] as Array[String])
 
 
@@ -3282,14 +3282,14 @@ func _test_ab13_drag_and_tap() -> void:
 	var pool := knight.resource_pool
 	var original_q: Ability = await _setup_vector_line(VECTOR_LINE)
 	var ctxs: Array[CastContext] = []
-	var on_started := func(slot: StringName, _a: Ability, ctx: CastContext) -> void:
+	var on_started := func(slot: StringName, _a: Ability, cast_ctx: CastContext) -> void:
 		if slot == &"q":
-			ctxs.append(ctx)
+			ctxs.append(cast_ctx)
 	ab.cast_started.connect(on_started)
 	var hits: Array[HitContext] = []
-	var on_hit := func(ctx: HitContext) -> void:
-		if ctx.ability != null and ctx.ability.id == &"test_vector_line":
-			hits.append(ctx)
+	var on_hit := func(hit_ctx: HitContext) -> void:
+		if hit_ctx.ability != null and hit_ctx.ability.id == &"test_vector_line":
+			hits.append(hit_ctx)
 	Events.unit_hit.connect(on_hit)
 	var k := knight.global_position
 	var start := k + Vector2(100, 0)
@@ -3392,9 +3392,9 @@ func _test_ab13_start_point() -> void:
 
 	# The start on the caster and a release on it: a tap along the facing.
 	var ctxs: Array[CastContext] = []
-	var on_started := func(slot: StringName, _a: Ability, ctx: CastContext) -> void:
+	var on_started := func(slot: StringName, _a: Ability, cast_ctx: CastContext) -> void:
 		if slot == &"q":
-			ctxs.append(ctx)
+			ctxs.append(cast_ctx)
 	ab.cast_started.connect(on_started)
 	k = knight.global_position
 	ab.try_start_charge(&"q", k)
@@ -3616,14 +3616,14 @@ func _test_ab13_without_mouse() -> void:
 	var ab := knight.abilities
 	var original_q: Ability = await _setup_vector_line(VECTOR_LINE)
 	var ctxs: Array[CastContext] = []
-	var on_started := func(slot: StringName, _a: Ability, ctx: CastContext) -> void:
+	var on_started := func(slot: StringName, _a: Ability, cast_ctx: CastContext) -> void:
 		if slot == &"q":
-			ctxs.append(ctx)
+			ctxs.append(cast_ctx)
 	ab.cast_started.connect(on_started)
 	var hits: Array[HitContext] = []
-	var on_hit := func(ctx: HitContext) -> void:
-		if ctx.ability != null and ctx.ability.id == &"test_vector_line":
-			hits.append(ctx)
+	var on_hit := func(hit_ctx: HitContext) -> void:
+		if hit_ctx.ability != null and hit_ctx.ability.id == &"test_vector_line":
+			hits.append(hit_ctx)
 	Events.unit_hit.connect(on_hit)
 	var k := knight.global_position
 	var start := k + Vector2(100, 0)
@@ -3821,14 +3821,14 @@ func _test_bonus_widens_and_lengthens_vector() -> void:
 	var ab := knight.abilities
 	var original_q: Ability = await _setup_vector_line(wide)
 	var ctxs: Array[CastContext] = []
-	var on_started := func(slot: StringName, _a: Ability, ctx: CastContext) -> void:
+	var on_started := func(slot: StringName, _a: Ability, cast_ctx: CastContext) -> void:
 		if slot == &"q":
-			ctxs.append(ctx)
+			ctxs.append(cast_ctx)
 	ab.cast_started.connect(on_started)
 	var hit_units: Array = []
-	var on_hit := func(ctx: HitContext) -> void:
-		if ctx.ability == wide:
-			hit_units.append(ctx.target)
+	var on_hit := func(hit_ctx: HitContext) -> void:
+		if hit_ctx.ability == wide:
+			hit_units.append(hit_ctx.target)
 	Events.unit_hit.connect(on_hit)
 	var start := knight.global_position + Vector2(100, 0)
 	# The line goes down from the start. `beside` is 36 px off it (inside only
@@ -4325,7 +4325,8 @@ func _test_ab14_progress() -> void:
 	ab.try_cast(&"r", dummy.global_position, dummy)   # Judgement: 0.75 s = 45 frames (CH4)
 	_check("Judgement's cast starts at progress 0", [ctxs.size(), ctxs[0].progress if not ctxs.is_empty() else -1.0, ab.get_cast_progress()], [1, 0.0, 0.0])
 	var total := _ab14_timer_ticks(JUDGEMENT.cast_time)
-	var part := total / 3
+	@warning_ignore("integer_division")
+	var part := total / 3   # whole frames
 	await _frames(part)
 	_check_near("%d of its %d frames in: progress %d / %d" % [part, total, part, total], ab.get_cast_progress(), float(part) / total, 0.001)
 	_check("the cast's context carries the same progress", not ctxs.is_empty() and ctxs[0].progress == ab.get_cast_progress(), true)

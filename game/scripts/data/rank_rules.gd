@@ -26,3 +26,8 @@ extends Resource
 ## Its slider multipliers (a regular: reaction × 1.3, jitter × 1.5, punish
 ## greed × 0.5; a boss: reaction × 0.85, jitter × 0.7). null = none.
 @export var brain_adjust: BrainAdjust
+## Thinks a second for its brains (AI3c; Ryan, 2026-10-04: fodder none,
+## regular 10, elite 15, boss 25; a duelist elite takes the boss's). −1 = the
+## table's think_rate. Brains scales every rate down evenly past the table's
+## think_budget.
+@export var think_rate: float = -1.0

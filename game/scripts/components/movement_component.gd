@@ -701,9 +701,9 @@ func _physics_process(delta: float) -> void:
 		_displace_elapsed = minf(_displace_elapsed + delta, _displace_duration)
 		_displace_time = _displace_duration - _displace_elapsed
 		var t1 := _displace_elapsed / _displace_duration
-		var step := _displace_offset * (_displacement_progress(t1) - _displacement_progress(t0))
+		var frame_step := _displace_offset * (_displacement_progress(t1) - _displacement_progress(t0))
 		_move_dir = Vector2.ZERO
-		body.velocity = step / delta
+		body.velocity = frame_step / delta
 		# Knocked up (3D.md, Airborne): over pits, fences and cliffs; walls still stop it.
 		var airborne := is_airborne()
 		var mask := body.collision_mask

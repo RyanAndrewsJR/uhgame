@@ -534,10 +534,10 @@ func _test_game_camera_3d() -> void:
 	knight.free()
 
 	# The listener and Audio's scale.
-	var scale := GameCamera3D.view_distance_scale(look, vis.x)
+	var view_scale := GameCamera3D.view_distance_scale(look, vis.x)
 	_check("the listener is current", cam.listener != null and cam.listener.is_current(), true)
 	_check_near("Audio hears from the camera's focus, in px (px off)", Audio.get_listener_position().distance_to(Units.to_sim(cam.get_focus())), 0.0, 0.001)
-	_check_near("Audio's reach is scaled to the view", Audio.distance_scale, scale, 0.000001)
+	_check_near("Audio's reach is scaled to the view", Audio.distance_scale, view_scale, 0.000001)
 	var ev := SoundEvent.new()
 	ev.resource_name = "view_test_tone"
 	var streams: Array[AudioStream] = [load("res://audio/sfx/hit_crit_01.wav")]
@@ -545,12 +545,12 @@ func _test_game_camera_3d() -> void:
 	ev.volume_db = -80.0
 	ev.max_distance_px = 480.0
 	var heard_from := Audio.get_listener_position()
-	var h := Audio.play_at(ev, heard_from + Vector2(480.0 * scale - 10.0, 0.0))
+	var h := Audio.play_at(ev, heard_from + Vector2(480.0 * view_scale - 10.0, 0.0))
 	_check("a sound past its 480 px but inside 480 px x the scale starts", h > 0, true)
 	var p2 := Audio.get_player(h) as AudioStreamPlayer2D
-	_check_near("its player's reach is 480 px x the scale", p2.max_distance if p2 else 0.0, 480.0 * scale, 0.001)
-	_check_near("its panning strength is 1 / the scale", p2.panning_strength if p2 else 0.0, 1.0 / scale, 0.0001)
-	_check("one beyond 480 px x the scale isn't started", Audio.play_at(ev, heard_from + Vector2(480.0 * scale + 10.0, 0.0)), 0)
+	_check_near("its player's reach is 480 px x the scale", p2.max_distance if p2 else 0.0, 480.0 * view_scale, 0.001)
+	_check_near("its panning strength is 1 / the scale", p2.panning_strength if p2 else 0.0, 1.0 / view_scale, 0.0001)
+	_check("one beyond 480 px x the scale isn't started", Audio.play_at(ev, heard_from + Vector2(480.0 * view_scale + 10.0, 0.0)), 0)
 	_check("logged out_of_range", Audio.get_log()[-1].reason, &"out_of_range")
 	Audio.stop_all()
 	remove_child(cam)

@@ -61,6 +61,18 @@ extends UnitController
 ##   capped; the target's ready defensives keep their full respect value then;
 ## - aim lead: the situation carries the target's walk and its aim_lead for
 ##   the plans (Ability.get_led_point()).
+## AI3c, the odds (ENEMIES_AI.md, Odds):
+## - the press (Brains.get_odds(): the enemy side's strength ÷ the party's,
+##   past odds_threshold): effective respect × (1 − nerve × press), patience's
+##   push odds_pressure × press (shared with low health's: the larger), the
+##   `press` pose in place of hold and stalk. A boss never presses (its
+##   director owns its tempo);
+## - one heavy hit at a time while pressing: a heavy ability (a hit worth
+##   heavy_hit_share of its target's max health) whose hit would land within
+##   heavy_hit_window of another on the same champion isn't started (its use
+##   fails that think: it holds or swings); one it starts is noted in Brains;
+## - think rates by rank (Brains: a regular 10, an elite 15, a boss and a
+##   duelist elite 25 a second, scaled down past think_budget).
 
 signal intent_changed(intent: StringName)
 signal pose_changed(pose: StringName)
@@ -104,8 +116,12 @@ var behavior: EnemyBehavior
 var rng := RandomNumberGenerator.new()
 ## Its tick in the think schedule (Brains sets it).
 var think_slot: int = 0
-## How often Brains has called think() (tests: the schedule).
+## The physics tick of its next scheduled think (Brains keeps it; AI3c).
+var next_think_tick: float = 0.0
+## How often Brains has called think() (tests: the schedule), and how many of
+## those were scheduled (not urgent wakes; AI3c: think rates).
 var think_calls: int = 0
+var scheduled_thinks: int = 0
 
 var _enemy: Enemy
 var _patience := 0.0
@@ -176,6 +192,7 @@ func _ready() -> void:
 		_enemy.abilities.cast_started.connect(_on_cast_started)
 		_enemy.abilities.cast_finished.connect(_on_cast_ended)
 		_enemy.abilities.cast_cancelled.connect(_on_cast_ended)
+		_enemy.abilities.cast_cancelled.connect(_on_cast_cancelled)
 	Events.unit_damaged.connect(_on_unit_damaged)
 
 
@@ -312,6 +329,26 @@ func get_last_lead_px() -> float:
 ## band's far edge after a commit).
 func is_walking_out() -> bool:
 	return Brains.get_time() < _walking_out_until
+
+
+## Its thinks a second by its rank (AI3c; a duelist elite the boss's), before
+## the budget, and now (Brains.get_think_rate(): after it).
+func get_base_think_rate() -> float:
+	return Brains.table.get_think_rate_for(data)
+
+
+func get_think_rate() -> float:
+	return Brains.get_think_rate(self)
+
+
+## Its enemy is in a fight (its thinks do work; the think budget counts it).
+func is_awake() -> bool:
+	return is_instance_valid(_enemy) and _enemy.is_brain_active()
+
+
+## It pressed at its last think (AI3c: the odds on its side; never a boss).
+func is_pressing() -> bool:
+	return _situation != null and _situation.press > 0.0
 
 
 ## Its attack token, for the overlay: "held", "waiting" (in the queue),
@@ -470,6 +507,9 @@ func build_situation() -> SituationContext:
 		if _enemy.global_position.distance_to(o.position) <= table.ally_respect_range_px:
 			others.append(PartySnapshot.get_share_for(o, behavior.finish_threshold))
 	s.respect = PartySnapshot.combine_respect(target_share, others, table.ally_respect_weight)
+	var odds := Brains.get_odds()   # AI3c: one shared read per tick
+	s.odds = float(odds.odds)
+	s.press = 0.0 if data.rank == EnemyData.Rank.BOSS else float(odds.press)   # bosses don't press
 	s.effective_respect = get_effective_respect(s, behavior)
 	_perceive(s, snap, now)
 	_gather_uses(s)
@@ -571,6 +611,8 @@ func _gather_uses(s: SituationContext) -> void:
 		var aim := plan.vector_start if plan.is_vector() else plan.point
 		if abilities.get_fail_reason(slot, aim, plan.target) != "":
 			continue
+		if not _heavy_hit_allowed(ability, plan):
+			continue   # AI3c: one heavy hit at a time while pressing (it holds or swings)
 		for use in ability.get_ai_uses():
 			if use != null and wanted.has(use.intent) and plan.intents.has(use.intent) and use.passes(_enemy, s.target_unit, s):
 				s.add_use(slot, use.intent, plan, use.weight)
@@ -619,10 +661,10 @@ static func get_own_ready_share(abilities: AbilityComponent, table: EnemyAITable
 
 
 ## Effective respect (ENEMIES_AI.md, Duels and odds): respect × its
-## respect_weight × (1 − confidence × its own kit ready), clamped 0–1. AI3c
-## adds × (1 − nerve × the press).
+## respect_weight × (1 − confidence × its own kit ready) × (1 − nerve × the
+## press; AI3c), clamped 0–1.
 static func get_effective_respect(s: SituationContext, b: EnemyBehavior) -> float:
-	return clampf(s.respect * b.respect_weight * (1.0 - b.confidence * s.own_ready_share), 0.0, 1.0)
+	return clampf(s.respect * b.respect_weight * (1.0 - b.confidence * s.own_ready_share) * (1.0 - b.nerve * s.press), 0.0, 1.0)
 
 
 func _is_slot_ready(slot: StringName) -> bool:
@@ -795,6 +837,55 @@ func _key_area_champions(s: SituationContext, snap: PartySnapshot) -> int:
 	return 0
 
 
+# --- The odds (AI3c) ----------------------------------------------------------------
+
+## A hit by `ability` from `caster` on `target` is heavy (ENEMIES_AI.md, Odds;
+## Ryan): worth at least heavy_hit_share of the target's max health by the
+## caster's own numbers (Ability.get_damage_against(): before mitigation).
+## Basic attacks never count (they aren't abilities), nor chip pokes.
+static func is_heavy_hit(ability: Ability, caster: Unit, target: Unit, table: EnemyAITable) -> bool:
+	if ability == null or target == null or target.health == null or target.health.max_health <= 0.0:
+		return false
+	return ability.get_damage_against(caster, target) >= table.heavy_hit_share * target.health.max_health - 0.0001
+
+
+## Seconds until `ability`'s hit lands on `target` if it's cast now: its cast
+## time, plus a projectile's flight from the caster.
+static func get_time_to_land(ability: Ability, caster: Unit, target: Unit) -> float:
+	var time := maxf(ability.get_param(caster, &"cast_time"), 0.0)
+	if ability.tags.has(&"projectile") and ability.projectile_speed > 0.0:
+		time += caster.global_position.distance_to(target.global_position) / Units.to_px(ability.projectile_speed)
+	return time
+
+
+## The champion a plan's hit lands on: its target, else (a cast around itself)
+## its brain's.
+func _plan_hit_target(plan: CastPlan) -> Unit:
+	if plan.target != null and is_instance_valid(plan.target):
+		return plan.target
+	return _enemy.get_brain_target()
+
+
+## One heavy hit at a time (Odds, Fairness limits): while the enemies press,
+## a heavy hit that would land within heavy_hit_window s of another on the
+## same champion isn't started. True when it may start.
+func _heavy_hit_allowed(ability: Ability, plan: CastPlan) -> bool:
+	if Brains.get_press() <= 0.0:
+		return true   # outside a press, AI2's rule: no limit
+	var target := _plan_hit_target(plan)
+	if target == null or not is_heavy_hit(ability, _enemy, target, Brains.table):
+		return true
+	return Brains.can_land_heavy_hit(target, Brains.get_time() + get_time_to_land(ability, _enemy, target))
+
+
+## A heavy hit it started is noted in Brains (with or without a press, so a
+## press that starts while it's on its way sees it).
+func _note_heavy_hit(plan: CastPlan) -> void:
+	var target := _plan_hit_target(plan)
+	if target != null and is_heavy_hit(plan.ability, _enemy, target, Brains.table):
+		Brains.note_heavy_hit(_enemy, target, Brains.get_time() + get_time_to_land(plan.ability, _enemy, target))
+
+
 static func _has_use_for(ability: Ability, intents: Array[StringName]) -> bool:
 	for use in ability.get_ai_uses():
 		if use != null and intents.has(use.intent):
@@ -835,7 +926,7 @@ func _ask_token(s: SituationContext) -> void:
 ## Patience fills by the next think (so the commit's plans are ready on the
 ## think it fires).
 func _patience_full_soon(s: SituationContext) -> bool:
-	var step := 1.0 / maxf(Brains.table.think_rate, 0.01)
+	var step := 1.0 / maxf(get_think_rate(), 0.01)   # AI3c: its own rate
 	return s.patience + get_patience_rate(s, behavior, Brains.table) * step >= 1.0 - PATIENCE_EPSILON
 
 
@@ -854,7 +945,7 @@ func _patience_full_soon(s: SituationContext) -> bool:
 ## smell_blood_mult below its finish threshold, capped), the walk out (the
 ## kiting step, the cautious walk) as a retreat, a held key's uses left out
 ## (SituationContext.get_best_use()).
-static func decide(s: SituationContext, b: EnemyBehavior, rng: RandomNumberGenerator) -> BrainDecision:
+static func decide(s: SituationContext, b: EnemyBehavior, stream: RandomNumberGenerator) -> BrainDecision:
 	var d := BrainDecision.new()
 	if not s.has_target:
 		d.reason = "no target"
@@ -881,7 +972,7 @@ static func decide(s: SituationContext, b: EnemyBehavior, rng: RandomNumberGener
 	var best_score := -INF
 	var urgent := raw.has(DEFEND)   # an attack coming breaks the no-flip-flop hold (The brain)
 	for intent: StringName in raw:   # in the order above: a tie keeps the earlier
-		var score: float = raw[intent] * b.get_intent_weight(intent) * (1.0 + rng.randf_range(-b.jitter, b.jitter))
+		var score: float = raw[intent] * b.get_intent_weight(intent) * (1.0 + stream.randf_range(-b.jitter, b.jitter))
 		if intent == s.intent and s.intent_age < s.min_intent_time and not urgent:
 			score += s.intent_hold_bonus
 		elif intent == ESCAPE and s.escaping:
@@ -917,7 +1008,7 @@ static func decide(s: SituationContext, b: EnemyBehavior, rng: RandomNumberGener
 	if best in TELL_POSES and s.intent != best:
 		d.pose = TELL_POSES[best]   # a new attack starts with its tell
 	else:
-		d.pose = get_intent_pose(best, b.role, s.cornered, s.resetting)
+		d.pose = get_intent_pose(best, b.role, s.cornered, s.resetting, s.press > 0.0)
 	d.reason = "%s %.2f  patience %.2f  respect %.2f" % [best, best_score, s.patience, s.effective_respect]
 	return d
 
@@ -936,14 +1027,16 @@ static func wants_escape(s: SituationContext, b: EnemyBehavior, has_escape_use: 
 
 
 ## The pose `intent` shows while it runs (ENEMIES_AI.md, Tells), by role:
-## hold (a skirmisher's stalk; a cornered caster's cornered), guard (defend),
-## step_back (escaping on foot, a caster falling back), recoil (a
-## skirmisher's reset); &"" = none (an attack's own look).
-static func get_intent_pose(intent: StringName, role: EnemyBehavior.Role, cornered: bool = false, resetting: bool = false) -> StringName:
+## hold (a skirmisher's stalk; a cornered caster's cornered; AI3c: press while
+## pressing), guard (defend), step_back (escaping on foot, a caster falling
+## back), recoil (a skirmisher's reset); &"" = none (an attack's own look).
+static func get_intent_pose(intent: StringName, role: EnemyBehavior.Role, cornered: bool = false, resetting: bool = false, pressing: bool = false) -> StringName:
 	if cornered and (intent == HOLD or intent == POKE or intent == ESCAPE):
 		return &"cornered"   # (an escape is cornered mid-walk; its next think picks again)
 	match intent:
 		HOLD, POKE:
+			if pressing:
+				return &"press"   # the press shows: a lean in, an amber rim (Odds)
 			return &"stalk" if role == EnemyBehavior.Role.SKIRMISHER else &"hold"
 		DEFEND:
 			return &"guard"
@@ -961,13 +1054,14 @@ static func get_intent_pose(intent: StringName, role: EnemyBehavior.Role, corner
 ## So with everything up it still fills, at a quarter of its speed: a brute
 ## (3 s, aggression 0.5) comes in 12 s at the latest.
 ## AI3b: while cautious (its key spent) × (1 − cautious_patience_cut ×
-## confidence).
+## confidence). AI3c: the odds' push (odds_pressure × the press) and low
+## health's share one push, the larger (both count the target's health).
 static func get_patience_rate(s: SituationContext, b: EnemyBehavior, table: EnemyAITable) -> float:
 	var pressure := 1.0
 	if s.target_idle_time >= table.idle_time:
 		pressure += table.idle_pressure
-	if s.target_health_ratio < table.low_health:
-		pressure += table.low_pressure
+	var low := table.low_pressure if s.target_health_ratio < table.low_health else 0.0
+	pressure += maxf(low, table.odds_pressure * s.press)
 	var rate := (1.0 - table.patience_respect_cut * s.effective_respect) / maxf(b.patience_time, 0.01) \
 		* (0.5 + b.aggression) * pressure
 	if s.cautious_left > 0.0:
@@ -1246,12 +1340,17 @@ func _try_plan() -> void:
 	var aim := plan.vector_start if plan.is_vector() else plan.point
 	if abilities.get_fail_reason(plan.slot, aim, plan.target) != "":
 		return
+	if not _heavy_hit_allowed(plan.ability, plan):
+		return   # AI3c: another heavy hit got there first since the decision
 	abilities.set_aim_hint(plan.point)
 	_last_lead_px = plan.lead_px
+	var cast: bool
 	if plan.is_vector():
-		abilities.try_cast_vector(plan.slot, plan.vector_start, plan.vector_direction)
+		cast = abilities.try_cast_vector(plan.slot, plan.vector_start, plan.vector_direction)
 	else:
-		abilities.try_cast(plan.slot, plan.point, plan.target)
+		cast = abilities.try_cast(plan.slot, plan.point, plan.target)
+	if cast:
+		_note_heavy_hit(plan)
 
 
 func _start_commit(now: float) -> void:
@@ -1332,7 +1431,7 @@ func _update_pose(now: float) -> void:
 	if _committing and _tell_left > 0.0:
 		pose = TELL_POSES.get(COMMIT, &"")
 	elif behavior != null:
-		pose = get_intent_pose(_intent, behavior.role, is_cornered(), is_resetting())
+		pose = get_intent_pose(_intent, behavior.role, is_cornered(), is_resetting(), is_pressing())
 	if pose != _pose:
 		_pose = pose
 		_pose_started = now
@@ -1384,6 +1483,11 @@ func _on_attack_landed(_target: Unit, _damage: float) -> void:
 func _on_unit_damaged(ctx: HitContext) -> void:
 	if _committing and _tell_left <= 0.0 and ctx.source == _enemy and not ctx.tags.has(&"basic_attack"):
 		_commit_ability_hits += 1
+
+
+## A cast cut short lands nothing: its heavy hit on its way is off (AI3c).
+func _on_cast_cancelled(_slot: StringName, _ability: Ability) -> void:
+	Brains.clear_heavy_hits(_enemy)
 
 
 func _on_cast_started(_slot: StringName, _ability: Ability, _ctx: CastContext) -> void:

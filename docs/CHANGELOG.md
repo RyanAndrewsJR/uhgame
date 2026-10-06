@@ -1487,12 +1487,78 @@ Docs only; no code or tests changed.
 
 ## Enemies AI (ENEMIES_AI.md)
 
-### AI3b fix – the panel on H's fodder: 2026-10-05, Built (awaiting Ryan's check)
+### AI3c – Odds, and think rates by rank: 2026-10-05, Built (awaiting Ryan's play test)
+Ryan committed the AI3b fix (the tree was clean) and asked for the warnings cleanup and "the next step", which was AI3c in Claude's proposed order. It's built on Duels and odds and his 2026-10-04 answers: a champion weighs 1.5; a heavy hit is 10% of max health, one per 0.8 s, only while pressing; think rates by rank.
+- **Built:**
+  - **Data:**
+    - `nerve` (seventeen sliders: brute 0.6, skirmisher 0.8, caster 0.4) and its `BrainAdjust` multiplier.
+    - `EnemyData.duelist`, and `RankRules.think_rate` (fodder 0, regular 10, elite 15, boss 25; −1 = the table's).
+    - The table's odds group: `rank_strength`, `champion_strength`, `odds_threshold`, `odds_pressure`, `odds_token_bonus`, `tokens_per_target_cap`, `weakest_pick_weight` (added), `heavy_hit_window`, `heavy_hit_share`, `think_budget`, `think_rate_floor`. Two helpers: `get_rank_strength()` and `get_think_rate_for()` (a duelist elite gets the boss's rate).
+  - **Brains:**
+    - The odds, read once a tick (`get_odds()`, `compute_odds()`, `get_press()`).
+    - The pool's +1 while pressing.
+    - Heavy-hit landing times (`note_heavy_hit()`, `can_land_heavy_hit()`, `clear_heavy_hits()`).
+    - The schedule by rank: each brain thinks on its own float period from its slot, and every rate is scaled down past the budget, never under the floor.
+  - **The brain:**
+    - The odds and the press in its situation (0 for a boss).
+    - Respect × (1 − `nerve` × press), and one patience push shared with low health.
+    - The `press` pose in place of hold and stalk.
+    - The heavy-hit gate (as uses are gathered, and again at the cast), with the hit noted when its cast starts.
+    - Its own think rate.
+  - **The pick and the look:** `Enemy.get_pick_distance()` (the weakest pick, which ALLIES' margin reads). `pose_set_default.tres` gains `press`: a 10° lean in, an amber rim pulsing at 1 Hz.
+  - **SandboxBrains:** the overlay's odds line, the think rate on its token line, and H's tenth scenario, the odds (three test brutes and the elite slime, 9 m away and idle).
+- **Found while building** (ENEMIES_AI.md, Odds and Performance):
+  - **The odds:**
+    - They're read once a tick, so a change inside a tick shows on the next one.
+    - With no champion up they're infinite (a full press).
+    - The sandbox's own two slimes and elite slime make a light press (0.17) when all three fight the full-health Knight.
+  - **The weakest pick:** its factor is data (`weakest_pick_weight`). "+1 at most" holds even if the data says more.
+  - **Heavy hits:** a hit is noted when its cast starts, press or not, and a cast cut short takes its note back. "A boss plan scripts it" is a `scripted` argument that nothing passes until AI6.
+  - **The press pose:** it applies to casters too; cornered still wins.
+  - **Think rates:** the schedule at 10 a second is AI1's, tick for tick. The budget counts only awake brains.
+- **Changed in older tests:**
+  - AI2's five brutes now press, so the pool gives a third token; that check runs with the press off (`_no_press()`), and the press has its own test.
+  - `_pin_ai3()` also pins `nerve` to 0.
+  - The preset lists have 18 values, and H cycles ten scenarios.
+- **Tests:** enemies 450/450, with 45 new checks:
+  - the data and the strength worked out by hand (a 1v1, a 3v1, an elite with fodder, with and without the ally, the ally downed, the Knight at 30%);
+  - the press's rules, the pool and its cap, and the weakest pick with the margin, a taunt, stealth and a boss;
+  - one heavy hit at a time, with a real brute's smash refused;
+  - thinks per rank over 10 s (100 / 150 / 250 / 250), the budget's scaling and floor, reaction times unchanged, and a gap-closer's follow-up starting 0.00 s after landing;
+  - three brutes and an elite pressing (3 tokens in use, the press pose, 4 heavy casts at least 0.84 s apart), one brute changing nothing, and the ally down;
+  - the overlay.
+
+  Enemies 450/450 on 4 parallel runs too. All suites, all nine at once: 3,586/3,586 (stats 180, combat 486, abilities 593, audio 110, champions 238, talents 310, view 469, loot 750, enemies 450).
+- **Sensitivity:** ten breaks across four runs, each caught.
+  - **Run A** (the nerve term, the shared push, the token bonus, the press pose): 7 checks failed.
+  - **Run B** (the weakest pick, the heavy-hit gate, a downed champion counted, a boss pressing): 8 failed. Without the gate, the real pack landed two heavy hits 0.50 s apart.
+  - **Run C** (rank rates): 5 failed. **Run C2** (the budget alone): 3 failed.
+
+  The originals were restored and diff-checked.
+- **Smoke** (scratch `ai3c_harness.gd`, saving off; `sandbox_main`, `sandbox_main_layout` and `main_layout`): no script errors.
+  - The odds scenario pressed the whole fight, with 3 tokens in use, the press pose, and `odds 3.3, press 1.0 (nerve 0.6)` on the overlay.
+  - room_01's layout (six fodder slimes, odds 1.0) never pressed.
+  - The saves were byte-identical.
+- **Measured** (the step's "measured again"; ENEMIES_AI.md, Performance): a think in a fight now costs 410–480 µs (p99 0.8–0.9 ms; AI1: 130–230 µs). The odds read costs 42–56 µs a tick, and the odds scenario asks 45 thinks a second (about 0.32 ms a tick). At this cost the budget's 200 is about 1.5 ms a tick, which is Ryan's call (Open from AI3c).
+
+### Warnings cleanup (every system's scripts): 2026-10-05, Built (awaiting Ryan's check)
+The AI3b fix passed and Ryan committed it (the tree was clean). He asked for the other script warnings to be cleaned up in one pass, before AI3c. The pass covers every system, not only enemies.
+- **Found:** a scratch probe scene (under `scenes/tests/`, so the save guards applied; deleted after) loaded all 170 scripts with the debugger on (`-d`): **67 warnings in 18 files**, 13 of them in the game's scripts and the rest in the test suites. None was a bug.
+- **Fixed:**
+  - **Locals and parameters renamed** where they shadowed a member, a base-class property or a signal: `e` (the E slot's export) in `ability_component.gd` became `entry` / `empower`; `target` in `auto_attack_component.gd` became `assist` / `plan_target`; also `owner`, `size`, `id`, `rng`, `intent`, `ready`, `to_local`, `log`, `scale`, `hidden` and `draw` in reactions, the camera, Iron Resolve, the brain, the situation, the sandbox, the hub, the talent screen, the unit view and the tests. An inner `step` and `k` that a later outer one shared a name with were renamed too, as were loop and lambda names in the tests.
+  - **Kept as they were, with `@warning_ignore`:** `await ability.execute(...)` in `AbilityComponent` and the combat test. The base `execute()` doesn't wait, but an ability's own script may, so removing that `await` would break casts. The same goes for one test's intended whole-frame division and one static call through the `Settings` autoload.
+  - **Removed:** five `await`s on test data helpers that never wait, one unused test local, and one unused return value. Two ternaries now give `{}` instead of `null` (the check fails either way when the file is missing).
+- Only names inside functions changed: no class, file, signal, exported property or input changed, and no behavior.
+- **Tests:** the probe again: 0 warnings, no errors. All suites 3,541/3,541 (stats 180, combat 486, abilities 593, audio 110, champions 238, talents 310, view 469, loot 750, enemies 405), all nine at once.
+
+### AI3b fix – the panel on H's fodder: 2026-10-05, Passed
 AI3b passed and Ryan committed it; the tree was clean. His one hiccup: after changing some sliders and cycling H, the game broke at `SandboxBrains._sync_panel` ("Invalid access to property or key 'resource_path' on a base object of type 'Nil'"). The cause is older than AI3b, from AI2. H's eighth scenario (fodder) spawns plain slimes, and with the panel open the scenario picks its first enemy for the panel. A slime's data has no behavior preset, so the panel's title (and its values each frame) read a missing preset.
 - `SandboxBrains.pick()` picks none for an enemy the panel can't tune: no data, no behavior preset, or no brain by its rank (`is_pickable()`, new; `_pickable()` uses it). The panel then says "No brained enemy".
 - **His other question, the "shadowing" warnings:** these are GDScript warnings (a local name hiding a member with the same name), not errors, and harmless. Godot only shows them with a debugger attached (the editor's run; headless runs need `-d`). The enemies test loads 30 of them. Two came from AI3b, in `enemy_brain.gd`: a local `ready` in `get_own_ready_share()` became `ready_value`, and `roll_crowded()`'s `rng` parameter became `stream`. The other 28 are older (AI1, AI2, abilities, components, views), so they stay unless Ryan asks for a cleanup.
 - **Tests:** enemies 405/405 (one new check: with the panel open, fodder picks none by H or by hand, and the panel says so). With the fix removed, it fails and the run prints Ryan's exact error. Green on 4 and on 6 parallel runs. All nine suites at once: stats 180, combat 486, abilities 593, audio 110, champions 238, talents 310, view 469, loot 750 green; enemies 404/405 in that run (the miss below).
   - **The miss:** AI2's fodder-ring check ("pushed about by their hits for 4 s, every one of them keeps hitting him") missed twice, under the heaviest load only: once in the `-d` run, once with all nine suites at once. Both times the hits were [0, 2, 3, 3, 2, 3]. It runs before the edited test, its slimes have no brain, and none of the changed code runs in it. HEAD's files passed it under the same kinds of load (2 runs). It's a load-sensitive check, not this fix.
+
+**Passed** (Ryan's check, 2026-10-05; he committed it and asked for the warnings cleanup above).
 
 ### AI3b – The duel: confidence, spending, crowded, smell blood, aim lead: 2026-10-05, Passed
 Ryan committed the Combos design and asked whether Korsavil's K3 had to come first. It didn't: K3–K6 and the enemy steps don't depend on each other, but the combo steps need AI3b. Ryan said "start AI3b". Built on the Duels and odds design and his 2026-10-04 answers (approved: a ready defensive counts whole below 30%, the sliders' role starts).

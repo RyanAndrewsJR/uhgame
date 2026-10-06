@@ -489,6 +489,20 @@ func get_effective_distance(u: Unit) -> float:
 	return edge_distance_to(u) / maxf(threat, 0.1)
 
 
+## The distance its target pick compares (AI3c, Odds): the effective
+## distance, and while the enemies press × (1 − w + w × its health ratio), w
+## being weakest_pick_weight (0.5: the weakest champion favored). A boss's
+## never changes (bosses don't press); with one champion nothing changes.
+func get_pick_distance(u: Unit) -> float:
+	var d := get_effective_distance(u)
+	if data == null or data.rank == EnemyData.Rank.BOSS or Brains.get_press() <= 0.0:
+		return d
+	var w := Brains.table.weakest_pick_weight
+	var max_health := u.health.max_health
+	var ratio := clampf(u.health.current / max_health, 0.0, 1.0) if max_health > 0.0 else 1.0
+	return d * (1.0 - w + w * ratio)
+
+
 ## ALLIES' margin (rule 4): a switch from a target at `current_eff` to one at
 ## `candidate_eff` (effective distances, px) only when the candidate is
 ## switch_ratio shorter and switch_px shorter (then held switch_hold_time s).
@@ -663,7 +677,8 @@ func _on_damaged_pack(source: Unit) -> void:
 ## (10 a second) and at once when its target stops being one. The candidates:
 ## the party members it knows (and any it sees now) that it could pick
 ## (can_pick()). A taunt wins. Otherwise the nearest by effective distance
-## (edge ÷ threat), sticky: a switch only past the margin (is_better_target())
+## (edge ÷ threat; AI3c: while the enemies press, the weakest favored:
+## get_pick_distance()), sticky: a switch only past the margin (is_better_target())
 ## held switch_hold_time s, never mid-windup or mid-cast. Down, stealthed,
 ## dead or out of the leash: dropped at once. Only untargetable (AB10): kept
 ## and chased, not attacked, while nobody else is a candidate.
@@ -699,12 +714,12 @@ func _update_pick(delta: float, force: bool = false) -> void:
 		return
 	var best: Unit = candidates[0]
 	for u in candidates:
-		if get_effective_distance(u) < get_effective_distance(best):
+		if get_pick_distance(u) < get_pick_distance(best):
 			best = u
 	if current == null:
 		_set_target(best)
 		return
-	if best == current or not is_better_target(get_effective_distance(current), get_effective_distance(best), table):
+	if best == current or not is_better_target(get_pick_distance(current), get_pick_distance(best), table):
 		_switch_to = null
 		return
 	var now := Brains.get_time()

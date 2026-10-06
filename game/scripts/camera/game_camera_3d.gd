@@ -273,16 +273,16 @@ func _follow_rate() -> float:
 
 
 func _place() -> void:
-	var size := get_viewport().get_visible_rect().size
-	look.apply(self, _focus, size.x / size.y)
+	var view_size := get_viewport().get_visible_rect().size
+	look.apply(self, _focus, view_size.x / view_size.y)
 	# The shake's offset is in canvas px; the same share of the screen here.
 	# h_offset and v_offset shift the camera in its own plane.
-	var k := meters_per_screen_px(look, size.x)
+	var k := meters_per_screen_px(look, view_size.x)
 	h_offset = shake_offset_px.x * k
 	v_offset = -shake_offset_px.y * k
 	if listener:
 		listener.global_position = Units.to_sim(_focus)
-	Audio.distance_scale = view_distance_scale(look, size.x)
+	Audio.distance_scale = view_distance_scale(look, view_size.x)
 
 
 func _target_valid() -> bool:
