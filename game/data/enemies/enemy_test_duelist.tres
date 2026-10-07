@@ -35,7 +35,13 @@ display_name = "Test Duelist"
 rank = 2
 behavior = ExtResource("6_behavior")
 overrides = Dictionary[StringName, float]({
-&"crowded_commit": 0.4
+&"aggression": 0.9,
+&"confidence": 0.65,
+&"crowded_commit": 0.55,
+&"opening_bar": 0.4,
+&"peel_threshold": 0.5,
+&"punish_greed": 0.75,
+&"reaction_time": 0.3
 })
 stats = ExtResource("8_stats")
 abilities = Array[ExtResource("1_slot")]([SubResource("slot_q"), SubResource("slot_w"), SubResource("slot_e"), SubResource("slot_r")])

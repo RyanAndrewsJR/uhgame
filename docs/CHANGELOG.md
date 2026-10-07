@@ -1487,7 +1487,10 @@ Docs only; no code or tests changed.
 
 ## Enemies AI (ENEMIES_AI.md)
 
-### AI-D1 – The test duelist, crowding and the opening: 2026-10-06, Built (awaiting Ryan's play test)
+### The duelist's tuning pass (TUNING PASS, starting values, expect to change): 2026-10-07, Built (awaiting Ryan's play test)
+- Data only (the values in DECISIONS.md, Enemies, 2026-10-07). Measured in five seeded fights a case (a temporary harness, deleted: Ryan's Knight with no gear, Quick Recovery and Bulwark; the sandbox's TEMP ×1.5 with keep DPS; the duelist 5 m away as H spawns it; the leash lifted, since its pushes walked a standing Knight out of 12 m and it went home in 3 of 5 runs), before → after: his full rotation and swings, taking no damage, kill it in 4.4 s (2.9–5.5) → 13.4 s (11.4–15.1), his swings 52–79% → 65–72% of it; a real trade he still wins every time, left with 570–620 → 271–475 health; standing still he dies in 37.2 s (31.5–39.8) → 21.9 s (16.8–26.6); with Lunge and Iron Resolve spent, its setup (snare, strike, finisher) deals 150 (23%) in 2.9 s → 355 (55%) in 1.9 s, and he dies in 31.0 s → 14.7 s; with him on top of it, it peels in 2 → 3 fights of 5 (one roll an episode). Tests: enemies 500/527 (2 new; HEAD already failed 28 of 525, all from the brute preset's panel save in 0a7c3d6: with that preset's AI1 values 527/527), the other eight 3,136/3,136; no warnings.
+
+### AI-D1 – The test duelist, crowding and the opening: 2026-10-06, Passed (Ryan's play test, 2026-10-07; he committed it, then asked for the tuning pass)
 Ryan passed AI3c and committed it (the tree was clean), then started AI-D1, the first Combos step (ENEMIES_AI.md, Combos, crowd control and the test duelist). Combo plans come in AI-D2.
 - **Data:**
   - `EnemyBehavior`: `peel_threshold` (0.1–1) and `opening_bar` (0–1), nineteen sliders (twenty fields). Brute 0.6 / 0.5 (the class defaults), skirmisher 0.6 / 0.4, caster 0.5 / 0.6. `BrainAdjust` has both.

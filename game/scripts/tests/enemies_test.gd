@@ -179,6 +179,10 @@ const TELEGRAPH_MIN := 0.6
 ## ...unless it's in COMBAT's chip band: at most this share of the target's
 ## max health (the Knight's 650: 32.5).
 const CHIP_SHARE := 0.05
+## A follow-up (combo roles, none of them `opener`) may be faster, down to
+## this (Ryan's tuning pass, 2026-10-07: only the opener needs the long
+## telegraph; the 0.25 s windup floor of the TEMP attack speed test).
+const FOLLOW_UP_MIN := 0.25
 ## Where the fights happen, away from the origin.
 const ARENA := Vector2(3000, 0)
 # AI-D1
@@ -2184,7 +2188,7 @@ func _test_ai3d_library() -> void:
 ## least 0.6 s, unless it's faster than the reaction time on purpose and in
 ## the chip band.
 func _test_ai3d_telegraph_rule() -> void:
-	_section("AI3d: every enemy ability telegraphs at least 0.6 s, unless it's a quick chip hit")
+	_section("AI3d: every enemy ability telegraphs at least 0.6 s, unless it's a quick chip hit (a combo's follow-up: at least 0.25 s, Ryan's tuning pass)")
 	var library: Array = []
 	for k: String in LIBRARY:
 		library.append(load(LIBRARY_DIR + "enemy_%s.tres" % k))
@@ -2198,6 +2202,14 @@ func _test_ai3d_telegraph_rule() -> void:
 		[_telegraph_breaches([_bare_ability(0.35, 35.0)]).size(), _telegraph_breaches([_bare_ability(0.35, 30.0)]).size(),
 			_telegraph_breaches([_bare_ability(0.6, 120.0)]).size()], [1, 0, 0])
 	_check("a leap's flight counts: 0.5 s cast + 0.4 s flight", _telegraph_time(LEAP), 0.9)
+	var follow_up := _bare_ability(0.3, 100.0)
+	follow_up.combo_roles = [&"extender"] as Array[StringName]
+	var fast_follow_up := _bare_ability(0.2, 100.0)
+	fast_follow_up.combo_roles = [&"finisher"] as Array[StringName]
+	var fast_opener := _bare_ability(0.3, 100.0)
+	fast_opener.combo_roles = [&"opener", &"extender"] as Array[StringName]
+	_check("a follow-up (extender or finisher, no opener role) of 100 damage: 0.3 s keeps it, 0.2 s breaks it; an opener at 0.3 s breaks it",
+		[_telegraph_breaches([follow_up]).size(), _telegraph_breaches([fast_follow_up]).size(), _telegraph_breaches([fast_opener]).size()], [0, 1, 1])
 
 
 func _test_ai3d_kits() -> void:
@@ -2508,16 +2520,24 @@ func _telegraph_time(a: Ability) -> float:
 
 
 ## The rule's breaches among `abilities`: a damaging ability telegraphed under
-## TELEGRAPH_MIN outside the chip band (CHIP_SHARE of the Knight's max health).
+## TELEGRAPH_MIN outside the chip band (CHIP_SHARE of the Knight's max health);
+## a follow-up (_is_follow_up()) under FOLLOW_UP_MIN instead.
 func _telegraph_breaches(abilities: Array) -> Array:
 	var chip := CHIP_SHARE * knight.stats.max_health
 	var out: Array = []
 	for a: Ability in abilities:
 		if a.base_damage <= 0.0:
 			continue   # no damage (a blink, a shield): no telegraph needed
-		if _telegraph_time(a) < TELEGRAPH_MIN - 0.0001 and a.base_damage > chip:
+		var least := FOLLOW_UP_MIN if _is_follow_up(a) else TELEGRAPH_MIN
+		if _telegraph_time(a) < least - 0.0001 and a.base_damage > chip:
 			out.append("%s: %.2f s, %d damage" % [a.id, _telegraph_time(a), roundi(a.base_damage)])
 	return out
+
+
+## A combo's follow-up: it has combo roles and none is `opener` (an ability
+## with no roles is no combo's, and keeps the full rule).
+func _is_follow_up(a: Ability) -> bool:
+	return not a.combo_roles.is_empty() and not a.combo_roles.has(&"opener")
 
 
 func _bare_ability(cast: float, damage: float) -> Ability:
@@ -3995,12 +4015,16 @@ func _test_aid1_data() -> void:
 	var slots: Array = []
 	for entry in d.abilities:
 		slots.append([entry.slot, entry.ability])
-	_check("the test duelist: an elite brute flagged duelist (25 thinks a second), crowded_commit 0.4 its one override, four abilities on q w e r",
-		[d.rank, d.duelist, d.behavior == BRUTE_BEHAVIOR, t.get_think_rate_for(d), d.overrides.size(), d.overrides.get(&"crowded_commit", -1.0), slots],
-		[EnemyData.Rank.ELITE, true, true, 25.0, 1, 0.4, [[&"q", D_SNARE], [&"w", D_GUARD], [&"e", D_STRIKE], [&"r", D_FINISHER]]])
+	var overrides := {}
+	for slider: StringName in d.overrides:
+		overrides[slider] = d.overrides[slider]
+	_check("the test duelist: an elite brute flagged duelist (25 thinks a second), four abilities on q w e r; its overrides (Ryan's tuning pass, 2026-10-07): aggression .9, confidence .65, crowded_commit .55, opening_bar .4, peel_threshold .5, punish_greed .75, reaction .3",
+		[d.rank, d.duelist, d.behavior == BRUTE_BEHAVIOR, t.get_think_rate_for(d), overrides, slots],
+		[EnemyData.Rank.ELITE, true, true, 25.0, {&"aggression": 0.9, &"confidence": 0.65, &"crowded_commit": 0.55, &"opening_bar": 0.4,
+			&"peel_threshold": 0.5, &"punish_greed": 0.75, &"reaction_time": 0.3}, [[&"q", D_SNARE], [&"w", D_GUARD], [&"e", D_STRIKE], [&"r", D_FINISHER]]])
 	var st := d.stats
-	_check("its stats: 1000 health, 30 attack damage (4.6% of the Knight's 650: chip), 0.8 attack speed, 320 move speed, 150 u range, radius 55",
-		[st.max_health, st.attack_damage, st.base_attack_speed, st.move_speed, st.attack_range, st.gameplay_radius], [1000.0, 30.0, 0.8, 320.0, 150.0, 55.0])
+	_check("its stats (the tuning pass): 2800 health, 30 armor, 36 attack damage (5.5% of the Knight's 650), 0.8 attack speed, 320 move speed, 150 u range, radius 55",
+		[st.max_health, st.armor, st.attack_damage, st.base_attack_speed, st.move_speed, st.attack_range, st.gameplay_radius], [2800.0, 30.0, 36.0, 0.8, 320.0, 150.0, 55.0])
 	var values := [t.get_respect_value(D_SNARE), t.get_respect_value(D_GUARD), t.get_respect_value(D_STRIKE), t.get_respect_value(D_FINISHER)]
 	_check("respect: snare 3 (core 2 + its root), guard 1.5, strike 2, finisher 4: 10.5, the Knight's too",
 		[values, values[0] + values[1] + values[2] + values[3]], [[3.0, 1.5, 2.0, 4.0], 10.5])
@@ -4009,18 +4033,18 @@ func _test_aid1_data() -> void:
 		[[&"peel", &"cc"], [&"defend", &"defend"], [&"gap_close", &"damage"], [&"damage", &"punish", &"finish"]])
 	var peel_rule: Condition = D_SNARE.ai_uses[0].conditions[0]
 	_check("the snare's peel rule: its target within 400 u", [peel_rule.kind, peel_rule.comparison, peel_rule.value], [Condition.Kind.TARGET_DISTANCE, Condition.Comparison.LESS_THAN, 400.0])
-	_check("combo roles: snare and strike opener + extender, finisher finisher, guard none; only the finisher recovers (1.2 s)",
+	_check("combo roles: the snare opener + extender, the strike extender (the tuning pass: fast now, so no opener), finisher finisher, guard none; only the finisher recovers (1.2 s)",
 		[D_SNARE.combo_roles, D_STRIKE.combo_roles, D_FINISHER.combo_roles, D_GUARD.combo_roles.is_empty(), D_FINISHER.recovery_time, D_SNARE.recovery_time, D_STRIKE.recovery_time],
-		[[&"opener", &"extender"], [&"opener", &"extender"], [&"finisher"], true, 1.2, 0.0, 0.0])
-	_check("its openers telegraph 0.7 s and can be dodged (not point-and-click); the finisher 1.0 s",
+		[[&"opener", &"extender"], [&"extender"], [&"finisher"], true, 1.2, 0.0, 0.0])
+	_check("its opener (the snare) telegraphs 0.7 s and can be dodged (not point-and-click); its follow-ups are fast (Ryan's tuning pass): the strike 0.3 s, the finisher 0.35 s",
 		[D_SNARE.cast_time, D_STRIKE.cast_time, D_FINISHER.cast_time, D_SNARE.targeting != Ability.Targeting.UNIT, D_STRIKE.targeting != Ability.Targeting.UNIT],
-		[0.7, 0.7, 1.0, true, true])
-	_check("numbers: snare 750 u at 700 u/s, 60 wide, 20 magic, 10 s; guard 250 for 2 s, 8 s; strike 60, reaching 6 m (the charge's range: from its band's far edge), its band 5 m + 1 m past, 7 s; finisher 130 (20% of 650), an 80 px circle, 12 s",
+		[0.7, 0.3, 0.35, true, true])
+	_check("numbers: snare 750 u at 700 u/s, 60 wide, 60 magic (9.2% of 650: under the 10% heavy hit), 10 s; guard 250 for 2 s, 8 s; strike 100 (15.4%), reaching 6 m (the charge's range: from its band's far edge), its band 5 m + 1 m past, 7 s; finisher 195 (30%), an 80 px circle, 12 s",
 		[D_SNARE.cast_range, D_SNARE.projectile_speed, D_SNARE.projectile_width, D_SNARE.base_damage, D_SNARE.cooldown,
 			D_GUARD.get(&"shield_amount"), D_GUARD.get(&"shield_duration"), D_GUARD.cooldown,
 			D_STRIKE.base_damage, D_STRIKE.cast_range, D_STRIKE.get(&"length_px"), D_STRIKE.get(&"overshoot_px"), D_STRIKE.cooldown,
 			D_FINISHER.base_damage, D_FINISHER.get(&"radius_px"), D_FINISHER.cooldown],
-		[750.0, 700.0, 60.0, 20.0, 10.0, 250.0, 2.0, 8.0, 60.0, 600.0, 192.0, 32.0, 7.0, 130.0, 80.0, 12.0])
+		[750.0, 700.0, 60.0, 60.0, 10.0, 250.0, 2.0, 8.0, 100.0, 600.0, 192.0, 32.0, 7.0, 195.0, 80.0, 12.0])
 
 
 ## A situation for crowding by hand: a brute's crowded range (200 u) and band
@@ -4165,7 +4189,7 @@ func _test_aid1_opening() -> void:
 func _test_aid1_peel_roll() -> void:
 	_section("The crowded roll (AI-D1): a failed all-in peels when a peel use passes; with none, AI3b's mix")
 	var b := DUELIST_DATA.behavior.resolve(DUELIST_DATA.overrides, [] as Array[BrainAdjust])
-	_check("the duelist's crowded_commit: 0.4 (its override)", b.crowded_commit, 0.4)
+	_check("the duelist's crowded_commit: 0.55 (its override; the tuning pass, was 0.4)", b.crowded_commit, 0.55)
 	b.crowded_commit = 0.0
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 41
@@ -4177,7 +4201,7 @@ func _test_aid1_peel_roll() -> void:
 		s.add_use(&"q", &"peel", _plan(&"q"))
 		peels += int(EnemyBrain.roll_crowded(s, b, rng).result == EnemyBrain.PEEL)
 	_check("crowded_commit 0, its snare ready (cc and peel): a peel in every one of 1,000 episodes", peels, 1000)
-	b.crowded_commit = 0.4
+	b.crowded_commit = 0.55
 	var all_in := 0
 	var peeled := 0
 	for i in 1000:
@@ -4186,9 +4210,9 @@ func _test_aid1_peel_roll() -> void:
 		s.add_use(&"q", &"peel", _plan(&"q"))
 		var r := EnemyBrain.roll_crowded(s, b, rng)
 		all_in += int(r.result == EnemyBrain.ALL_IN)
-		peeled += int(r.result == EnemyBrain.PEEL and r.roll >= 0.4)
-	_check("crowded_commit 0.4: all in about 40%% (%d), a peel otherwise (its roll the failed one: %d)" % [all_in, peeled],
-		[absi(all_in - 400) <= 50, all_in + peeled], [true, 1000])
+		peeled += int(r.result == EnemyBrain.PEEL and r.roll >= 0.55)
+	_check("crowded_commit 0.55: all in about 55%% (%d), a peel otherwise (its roll the failed one: %d)" % [all_in, peeled],
+		[absi(all_in - 550) <= 50, all_in + peeled], [true, 1000])
 	var results := {}
 	for i in 1000:
 		var s := _situation(1.0, 0.0)
@@ -4313,7 +4337,7 @@ func _free_duelist(e: Enemy) -> void:
 
 
 func _test_aid1_episode_start() -> void:
-	_section("Crowding starts the crowded episode (a real duelist, rooted where it stands; reaction 0.35 s)")
+	_section("Crowding starts the crowded episode (a real duelist, rooted where it stands; its reaction time, 0.3 s since the tuning pass)")
 	var cases := [
 		["the Knight inside its 2 m (0.8 m)", 80.0, 0.6, false, 0, true],
 		["1 m outside it (3 m), nothing else", 300.0, 0.6, false, 0, false],
@@ -4340,7 +4364,7 @@ func _test_aid1_episode_start() -> void:
 		var took := Brains.get_time() - started
 		if c[5]:
 			_check("%s: crowding %.2f ≥ %.1f starts an episode after its reaction time (got %.2f s)" % [c[0], peak[0], c[2], took],
-				[brain.is_crowded(), took >= 0.33 and took <= 0.5], [true, true])
+				[brain.is_crowded(), took >= brain.behavior.reaction_time - 0.02 and took <= brain.behavior.reaction_time + 0.15], [true, true])
 		else:
 			_check("%s: crowding %.2f < %.1f, no episode" % [c[0], peak[0], c[2]], brain.is_crowded(), false)
 		if c[0] == "the Knight inside its 2 m (0.8 m)":
@@ -4363,6 +4387,7 @@ func _test_aid1_peel() -> void:
 		var brain := e.get_brain()
 		brain.behavior.crowded_commit = 0.0
 		brain.behavior.opening_bar = 1.0
+		brain.behavior.patience_time = 10.0   # no new commit cuts its step back short (the tuning pass's faster patience)
 		await _wait_until(func() -> bool: return brain.get_intent() == &"hold", 120)
 		await _frames(10)
 		var casts: Array = []
@@ -4391,7 +4416,7 @@ func _test_aid1_peel() -> void:
 			[roll, casts.slice(0, 1), brain.peel_count, intents.has(EnemyBrain.PEEL), intents.has(&"retreat"), step_back[0], max_edge[0] >= 300.0],
 			[EnemyBrain.PEEL, [&"q"], 1, true, true, true, true])
 		if episode == 0:
-			_check("its overlay line: %s" % peel_line[0], peel_line[0].begins_with("crowding ") and peel_line[0].contains(" ≥ 0.60 (near ") and peel_line[0].ends_with(": peel (Snare)"), true)
+			_check("its overlay line: %s" % peel_line[0], peel_line[0].begins_with("crowding ") and peel_line[0].contains(" ≥ 0.50 (near ") and peel_line[0].ends_with(": peel (Snare)"), true)
 		await _free_duelist(e)
 
 
@@ -4471,10 +4496,11 @@ func _test_aid1_brain_opening() -> void:
 func _test_aid1_setup() -> void:
 	_section("The setup (a real duelist about 4 m away): his escapes down fill its patience at once and it opens with its best opener")
 	var cases := [
-		["Lunge and Iron Resolve down, its bar 0.5", true, 0.5, false, &"q"],
-		["the same at a bar of 0.6", true, 0.6, false, &""],
-		["his escapes up", false, 0.5, false, &""],
-		["escapes down, its snare on cooldown", true, 0.5, true, &"e"],
+		["Lunge and Iron Resolve down, its bar 0.5", true, 0.5, false, &"q", false],
+		["the same at a bar of 0.6", true, 0.6, false, &"", false],
+		["his escapes up", false, 0.5, false, &"", false],
+		["escapes down, its snare (its one opener since the tuning pass) on cooldown", true, 0.5, true, &"", false],
+		["the same with a test copy of the strike that is an opener: its next opener", true, 0.5, true, &"e", true],
 	]
 	for c: Array in cases:
 		await _reset_knight()
@@ -4486,6 +4512,10 @@ func _test_aid1_setup() -> void:
 		var e := _spawn(DUELIST_SCENE, knight.global_position + Vector2(170, 0), false)
 		var brain := e.get_brain()
 		brain.behavior.opening_bar = c[2]
+		if c[5]:
+			var opener_strike: Ability = D_STRIKE.duplicate()
+			opener_strike.combo_roles = [&"opener", &"extender"] as Array[StringName]
+			e.abilities.set(&"e", opener_strike)
 		if c[3]:
 			e.abilities.start_cooldown(&"q")
 		var casts: Array = []
@@ -4649,7 +4679,7 @@ func _test_aid1_sandbox() -> void:
 	var opening_line := [false]
 	var setup_line := [false]
 	for text: String in texts:
-		opening_line[0] = opening_line[0] or text.contains("opening 0.50 ≥ 0.50 (escapes 0.50)")
+		opening_line[0] = opening_line[0] or text.contains("opening 0.50 ≥ 0.40 (escapes 0.50)")
 		setup_line[0] = setup_line[0] or text.contains(": setup (Snare)")
 	var crowding_text := ""
 	if is_instance_valid(d):
@@ -4657,8 +4687,8 @@ func _test_aid1_sandbox() -> void:
 		_place(knight, d.global_position + away * (knight.get_gameplay_radius_px() + d.get_gameplay_radius_px() + Units.to_px(80.0)))
 		await _frames(6)
 		crowding_text = sb.get_combo_text(d)
-	_check("its overlay: `opening 0.50 ≥ 0.50 (escapes 0.50)`, then `: setup (Snare)` as it opens; the Knight in its face: `crowding 0.60 ≥ 0.60 (near 0.60)` (%s)" % crowding_text.replace("\n", " | "),
-		[opening_line[0], setup_line[0], crowding_text.contains("crowding 0.60 ≥ 0.60 (near 0.60)")], [true, true, true])
+	_check("its overlay: `opening 0.50 ≥ 0.40 (escapes 0.50)` (its bar since the tuning pass), then `: setup (Snare)` as it opens; the Knight in its face: `crowding 0.60 ≥ 0.50 (near 0.60)` (%s)" % crowding_text.replace("\n", " | "),
+		[opening_line[0], setup_line[0], crowding_text.contains("crowding 0.60 ≥ 0.50 (near 0.60)")], [true, true, true])
 	sb.scenario_enemy = BRUTE_SCENE
 	var brute := sb.run_scenario(&"escapes_down")
 	await _frames(20)
