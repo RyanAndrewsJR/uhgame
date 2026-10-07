@@ -89,7 +89,7 @@ The rule for every combo with `attack_style` MELEE (the default; the Knight is t
   - **Who:** the player, the ally and enemies alike, except fodder (ENEMIES_AI's `RankRules.cc_diminishing` turns it off: fodder takes full crowd control). Bosses later fill a poise meter instead of being crowd-controlled (ENEMIES_AI.md; only the hook is designed).
   - **It shows:** the immunity is `status_cc_immune.tres` (tags `cc_immune`, `buff`), with a ring at the unit's feet as its VFX: a status look, not an icon over a head.
   - **Events:** `Events.cc_applied(unit, source, status, duration, dr_step)` when one takes (after tenacity and diminishing returns; step 0 full, 1 halved), and `Events.cc_refused(unit, source, status, reason)` when one is refused (`IMMUNE`, `UNSTOPPABLE`, `REFUSED_BY_TAG`, later `POISE`). Reserved names on approval.
-- **Combos against the player** (ENEMIES_AI.md, Combos; Ryan, 2026-10-05): **no combo budget and no kill protection.** Ryan: "if their abilities are off cool down they can use it whenever they please": an enemy's cooldowns are its only limit. Every enemy ability's telegraph, the combo's dodgeable opener, diminishing returns and, while enemies press, the one-heavy-hit window (0.8 s) still hold. This doc's health step gets no new hook. Crowd control on the player at first: a root (up to 1 s) and a short stun (up to 0.5 s), each from a telegraphed, dodgeable ability.
+- **Combos against the player** (ENEMIES_AI.md, Combos; Ryan, 2026-10-05): **no combo budget and no kill protection.** Ryan: "if their abilities are off cool down they can use it whenever they please": an enemy's cooldowns are its only limit. Every enemy ability's telegraph (a combo's follow-up may be fast, at least 0.25 s: Ryan, 2026-10-07), the combo's dodgeable opener, diminishing returns and, while enemies press, the one-heavy-hit window (0.8 s) still hold. This doc's health step gets no new hook. Crowd control on the player at first: a root (up to 1 s) and a short stun (up to 0.5 s), each from a telegraphed, dodgeable ability.
 
 ### Sustain
 - Every champion starts with zero sustain (health_regen 0). Healing comes only from build choices: abilities, passives and items (life on hit, life steal, regen).
@@ -147,6 +147,7 @@ Enemy damage bands (per hit, as % of the player's max health; a tuning guide for
 - swarm chip: 2–5%, telegraph 0–0.3 s. Slimes: 22 damage (3.4% of the Knight's 650), 0.25 s windup (`attack_windup` 0.175 at 0.7 attack speed; was 0.5 s), 12 px push
 - elite: 12–20%, telegraph 0.6–0.9 s. Elite slime slam (a test elite): 100 (15.4% of the Knight's 650), 0.65 s telegraph, 72 px circle, 20 px push (was 0.75 s / 40 px until M1: too easy to walk out of); its basic attack is 30 (4.6%), no telegraph
 - boss big hit: 25–40%, telegraph 0.9 s or more
+- *(Ryan, 2026-10-07: a combo's follow-up may be fast, at least 0.25 s; the telegraphs above are an opener's and a lone hit's. ENEMIES_AI.md, Combos. The test duelist's tuning pass puts its follow-ups at 15% (0.3 s) and 30% (0.35 s), its snare opener at 9.2% (0.7 s).)*
 - Telegraph: a floor shape that fills up until the hit; one consistent enemy-threat color (FREE which).
 
 Hit forgiveness: player attack hitboxes +10% over their visuals, enemy attack hitboxes −10% (each 0–20%).

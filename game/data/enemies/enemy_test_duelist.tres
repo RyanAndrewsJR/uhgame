@@ -8,6 +8,9 @@
 [ext_resource type="Resource" path="res://data/enemy_behaviors/enemy_behavior_brute.tres" id="6_behavior"]
 [ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="7_data"]
 [ext_resource type="Resource" path="res://data/units/test_duelist.tres" id="8_stats"]
+[ext_resource type="Script" path="res://scripts/data/combo_plan.gd" id="9_plan"]
+[ext_resource type="Script" path="res://scripts/data/combo_step.gd" id="10_step"]
+[ext_resource type="Script" path="res://scripts/data/condition.gd" id="11_condition"]
 
 [sub_resource type="Resource" id="slot_q"]
 script = ExtResource("1_slot")
@@ -28,6 +31,70 @@ script = ExtResource("1_slot")
 slot = &"r"
 ability = ExtResource("5_finisher")
 
+[sub_resource type="Resource" id="escapes_all_down"]
+script = ExtResource("11_condition")
+kind = 12
+negate = true
+
+[sub_resource type="Resource" id="not_held"]
+script = ExtResource("11_condition")
+kind = 1
+negate = true
+status_tag = &"cc"
+
+[sub_resource type="Resource" id="not_cornered"]
+script = ExtResource("11_condition")
+kind = 13
+negate = true
+
+[sub_resource type="Resource" id="sf_snare"]
+script = ExtResource("10_step")
+
+[sub_resource type="Resource" id="sf_strike"]
+script = ExtResource("10_step")
+slot = &"e"
+
+[sub_resource type="Resource" id="sf_finisher"]
+script = ExtResource("10_step")
+slot = &"r"
+
+[sub_resource type="Resource" id="plan_snare_first"]
+script = ExtResource("9_plan")
+id = &"snare_first"
+steps = Array[ExtResource("10_step")]([SubResource("sf_snare"), SubResource("sf_strike"), SubResource("sf_finisher")])
+conditions = Array[ExtResource("11_condition")]([SubResource("escapes_all_down"), SubResource("not_held"), SubResource("not_cornered")])
+
+[sub_resource type="Resource" id="kf_strike"]
+script = ExtResource("10_step")
+slot = &"e"
+
+[sub_resource type="Resource" id="kf_snare"]
+script = ExtResource("10_step")
+
+[sub_resource type="Resource" id="kf_finisher"]
+script = ExtResource("10_step")
+slot = &"r"
+
+[sub_resource type="Resource" id="plan_strike_first"]
+script = ExtResource("9_plan")
+id = &"strike_first"
+steps = Array[ExtResource("10_step")]([SubResource("kf_strike"), SubResource("kf_snare"), SubResource("kf_finisher")])
+weight = 0.8
+
+[sub_resource type="Resource" id="sk_strike"]
+script = ExtResource("10_step")
+slot = &"e"
+
+[sub_resource type="Resource" id="sk_finisher"]
+script = ExtResource("10_step")
+slot = &"r"
+
+[sub_resource type="Resource" id="plan_strike_finish"]
+script = ExtResource("9_plan")
+id = &"strike_finish"
+steps = Array[ExtResource("10_step")]([SubResource("sk_strike"), SubResource("sk_finisher")])
+weight = 0.6
+
 [resource]
 script = ExtResource("7_data")
 id = &"test_duelist"
@@ -36,8 +103,10 @@ rank = 2
 behavior = ExtResource("6_behavior")
 overrides = Dictionary[StringName, float]({
 &"aggression": 0.9,
+&"combo_greed": 0.2,
 &"confidence": 0.65,
 &"crowded_commit": 0.55,
+&"mixup": 0.3,
 &"opening_bar": 0.4,
 &"peel_threshold": 0.5,
 &"punish_greed": 0.75,
@@ -47,3 +116,4 @@ stats = ExtResource("8_stats")
 abilities = Array[ExtResource("1_slot")]([SubResource("slot_q"), SubResource("slot_w"), SubResource("slot_e"), SubResource("slot_r")])
 model_color = Color(0.35, 0.5, 0.75, 1)
 duelist = true
+combo_plans = Array[ExtResource("9_plan")]([SubResource("plan_snare_first"), SubResource("plan_strike_first"), SubResource("plan_strike_finish")])

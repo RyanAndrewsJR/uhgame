@@ -15,8 +15,9 @@ extends RefCounted
 ## and the target's walk for aim lead. AI3c added the odds and the press.
 ## AI-D1 (Combos) added crowding and the opening (ComboPlanner's two reads,
 ## their inputs and terms), the target's escapes, crowd control, cast and
-## cornered, the peel and the setup. Later steps add dodging (AI4) and the
-## punish window (AI6).
+## cornered, the peel and the setup. AI-D2 added the combo plans (the options,
+## the plan under way, the blind read, its own kit ready, its follow-ups).
+## Later steps add dodging (AI4) and the punish window (AI6).
 
 ## The intents a held key ability isn't used for (Spending the key ability:
 ## a poke, a defend, an escape and a gap-closer are never held).
@@ -211,6 +212,48 @@ var setup_opener: bool = false
 ## Its crowded episode's roll was a peel and its peel hasn't been cast yet.
 var peel_pending: bool = false
 
+# --- Combo plans (AI-D2) -------------------------------------------------------------
+## It has combo plans (EnemyData.combo_plans at the run's tier): only then does
+## it set up, pick plans and keep its follow-ups for them.
+var has_plans: bool = false
+## Each plan it could start now (built while it may start a commit): {plan:
+## ComboPlan, opener: CastPlan (null = its opener can't be cast now), ready
+## (every needed step's ability ready), conditions_ok, blind (its opener has
+## no `opener` role: it fits only on the blind read), cc_ok (its opener's
+## crowd control wouldn't be wasted)}. ComboPlanner.pick_plan() reads them.
+var plan_options: Array[Dictionary] = []
+## A plan runs in the commit under way; a fresh commit (still in its tell, no
+## plan yet) may still pick one; the running plan's opener is still to cast,
+## with its plan now (a fresh aim).
+var plan_running: bool = false
+var commit_plan_open: bool = false
+var plan_opener_pending: bool = false
+var plan_opener_plan: CastPlan
+## The blind read (Ryan, 2026-10-07; ComboPlanner.get_blind_reason()): why its
+## target can't answer a combo now (&"held", &"low_health", &"escapes_down",
+## &"ultimate_down"; &"" = it can, so it waits for its opener to land). Its
+## inputs: the target's ultimates (how many, how many ready), any crowd
+## control on it (target_cc) and the longest one's time left, CC-immune; the
+## table's switches, copied in.
+var blind_reason: StringName = &""
+var blind_reads: Dictionary = {}
+var target_ultimates: int = 0
+var target_ultimates_ready: int = 0
+var target_held_left: float = 0.0
+var target_cc_immune: bool = false
+## Its own kit ready: the share of its slots' respect value ready now (not
+## zeroed while its key is down, unlike own_ready_share): the follow-through's
+## lean.
+var own_kit_ready: float = 0.0
+## Its follow-ups (abilities with combo roles but no `opener`): kept for its
+## plans unless the blind read passes (kept_slots, what get_best_use() leaves
+## out of a commit's own hits).
+var follow_up_slots: Array[StringName] = []
+var kept_slots: Array[StringName] = []
+## mixup's held beat (EnemyAITable), copied in.
+var mixup_delay_min: float = 0.4
+var mixup_delay_max: float = 0.8
+
 
 ## An attack it has seen coming lands within `within` seconds (0 = any). With
 ## `tag` (AI-D1), only one whose ability carries it; &"major" = any of
@@ -248,14 +291,17 @@ var target_unit: Unit
 
 ## The listed use with the best plan value × weight among `intents`, or {}.
 ## A held key's damage, cc and zone uses are left out (AI3b). With `slots`
-## (AI-D1: a setup's opener), only those slots' uses.
-func get_best_use(intents: Array[StringName], slots: Array[StringName] = []) -> Dictionary:
+## (AI-D1: a setup's opener), only those slots' uses; `exclude` (AI-D2: its
+## kept follow-ups) leaves those slots out.
+func get_best_use(intents: Array[StringName], slots: Array[StringName] = [], exclude: Array[StringName] = []) -> Dictionary:
 	var best := {}
 	var best_value := -INF
 	for u in uses:
 		if not intents.has(u.intent):
 			continue
 		if not slots.is_empty() and not slots.has(u.slot):
+			continue
+		if exclude.has(u.slot):
 			continue
 		if held_slot != &"" and u.slot == held_slot and HELD_INTENTS.has(u.intent):
 			continue

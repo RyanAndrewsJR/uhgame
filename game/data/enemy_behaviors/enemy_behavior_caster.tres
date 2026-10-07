@@ -25,3 +25,6 @@ spend_eagerness = 0.8
 nerve = 0.4
 peel_threshold = 0.5
 opening_bar = 0.6
+follow_through = 0.0
+combo_greed = 0.1
+mixup = 0.2

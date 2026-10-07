@@ -50,7 +50,9 @@ extends Node
 ## AI-D1: the overlay adds crowding (with its biggest term; at its
 ## peel_threshold, the peel), the opening (for an enemy with an opener; at its
 ## opening_bar, the setup's opener) and a recovery; the panel the two new
-## sliders.
+## sliders. AI-D2: the plan under way (or the last one's end and
+## follow-through), a missed step's carry-on, the blind read; the panel its
+## three new sliders (follow_through, combo_greed, mixup).
 ## It never touches the player's saves. room_01 has none of this.
 
 const TEXT_COLOR := Color(0.92, 0.92, 0.92)
@@ -59,6 +61,8 @@ const SOURCE_ID := &"sandbox_brains"
 ## The tuning panel's slider list height (px; AI3b): 11 rows of 16 show, the
 ## rest scroll, so the panel ends inside the 360 px canvas.
 const SLIDER_LIST_HEIGHT := 176.0
+## How long the overlay shows a plan's end and follow-through (s; AI-D2).
+const PLAN_LINE_TIME := 2.0
 const SCENARIOS: Array[StringName] = [&"all_ready", &"none_ready", &"low_health", &"ally", &"whiff", &"incoming_shot", &"pack", &"fodder", &"mixed", &"odds",
 	&"escapes_down"]
 const SCENARIO_NAMES := {
@@ -356,11 +360,47 @@ func get_combo_text(enemy: Enemy) -> String:
 		if big[0] != &"":
 			text += " (%s %.2f)" % [String(big[0]).replace("_", " ").replace("escapes down", "escapes"), big[1]]
 		if brain.is_setup_commit():
-			text += ": setup (%s)" % _slot_name(enemy, brain.get_setup_slot())
+			var setup_plan := brain.get_plan()
+			text += ": setup %s(%s)" % [String(setup_plan.id) + " " if setup_plan != null else "", _slot_name(enemy, brain.get_setup_slot())]
 		lines.append(text)
+	if not brain.get_plans().is_empty():
+		lines.append_array(_plan_lines(enemy, brain, s))   # AI-D2
 	if brain.is_in_ability_recovery():
 		lines.append("recover %.1f s" % enemy.abilities.get_recovery_left())
 	return "\n".join(lines)
+
+
+## The overlay's plan lines (AI-D2): the plan under way (`plan: snare_first
+## 2/3 (Strike)`, with `runner-up` or mixup's `beat 0.5 s`), or for
+## PLAN_LINE_TIME s the last one's end and follow-through (`plan:
+## snare_first done, after: stay (lean 0.60 ≥ 0.40)`); how a missed step was
+## decided (`missed: carry on (0.12 < 0.20)`, `missed: end`); the blind read
+## (`blind: escapes down`).
+func _plan_lines(enemy: Enemy, brain: EnemyBrain, s: SituationContext) -> PackedStringArray:
+	var lines: PackedStringArray = []
+	var plan := brain.get_plan()
+	var recent := false
+	if plan != null:
+		var step := clampi(brain.get_plan_step(), 0, plan.steps.size() - 1)
+		var text := "plan: %s %d/%d (%s)" % [plan.id, step + 1, plan.steps.size(), _slot_name(enemy, plan.steps[step].slot)]
+		if brain.is_plan_runner_up():
+			text += " runner-up"
+		if brain.get_plan_delay_left() > 0.0:
+			text += " beat %.1f s" % brain.get_plan_delay_left()
+		lines.append(text)
+	elif brain.get_last_plan() != null and Brains.get_time() - brain.get_last_plan_at() <= PLAN_LINE_TIME:
+		recent = true
+		var text := "plan: %s %s" % [brain.get_last_plan().id, String(brain.get_last_plan_reason()).replace("_", " ")]
+		var follow := brain.get_last_follow()
+		if follow != &"":
+			var need := 1.0 - brain.behavior.follow_through
+			text += ", after: %s (lean %.2f %s %.2f)" % [follow, brain.get_last_lean(), "≥" if follow == &"stay" else "<", need]
+		lines.append(text)
+	if brain.get_last_carry() != "" and (plan != null or recent):
+		lines.append("missed: " + brain.get_last_carry())
+	if s != null and s.blind_reason != &"":
+		lines.append("blind: " + String(s.blind_reason).replace("_", " "))
+	return lines
 
 
 ## The display name of `enemy`'s ability in `slot` ("-" when none).

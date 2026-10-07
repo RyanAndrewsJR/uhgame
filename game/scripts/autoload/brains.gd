@@ -683,9 +683,31 @@ func _prune_queue(target: Variant) -> void:
 		_token_queue.erase(target)
 
 
+## How long `enemy` may hold the tokens it holds now, from now on (AI-D2: a
+## commit running a combo plan keeps them up to plan_max_time; a commit that
+## stays on its target after a plan starts its token_hold_time again).
+## Nothing when it holds none.
+func set_token_hold(enemy: Enemy, seconds: float) -> void:
+	for target: Variant in _tokens:
+		for entry: Dictionary in _tokens[target]:
+			if entry.enemy == enemy:
+				entry.since = _time
+				entry.hold = seconds
+
+
+## Seconds `enemy` may still hold the tokens it holds (0 = none held).
+func get_token_hold_left(enemy: Enemy) -> float:
+	for target: Variant in _tokens:
+		for entry: Dictionary in _tokens[target]:
+			if entry.enemy == enemy:
+				return maxf(float(entry.get("hold", table.token_hold_time)) - (_time - float(entry.since)), 0.0)
+	return 0.0
+
+
 ## Each tick: tokens free the moment a holder dies or goes, its target dies
 ## or turns untargetable, it's stunned or rooted (anything that blocks moving
-## or attacking: it rests), or it held them token_hold_time s (it rests).
+## or attacking: it rests), or it held them token_hold_time s (AI-D2: or its
+## own hold, set_token_hold(); it rests).
 ## A brain that lost its token thinks on the next tick.
 func _update_tokens() -> void:
 	for target: Variant in _tokens.keys():
@@ -697,7 +719,7 @@ func _update_tokens() -> void:
 			var gone: bool = not is_instance_valid(e) or not (e as Enemy).is_alive()
 			var rest := false
 			if not gone and not target_gone:
-				if _time - float(entry.since) >= table.token_hold_time - 0.0001 or (e as Enemy).is_cc_blocked():
+				if _time - float(entry.since) >= float(entry.get("hold", table.token_hold_time)) - 0.0001 or (e as Enemy).is_cc_blocked():
 					rest = true
 				else:
 					continue

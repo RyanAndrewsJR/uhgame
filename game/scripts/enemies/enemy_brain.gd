@@ -89,6 +89,22 @@ extends UnitController
 ##   opener, whose end doesn't end the commit (combo plans come in AI-D2);
 ## - an ability's recovery (Ability.recovery_time) holds it still in the
 ##   `recover` pose.
+## AI-D2, combo plans (ENEMIES_AI.md, Combo plans; ComboPlanner):
+## - an enemy with combo plans (EnemyData.combo_plans) sets up when a plan
+##   fits (not with an opener alone, as in AI-D1), and every commit of its
+##   picks a plan when one fits (mixup: the runner-up, or a held beat first);
+## - the plan runs inside the commit: its opener after the tell, then each
+##   step on the tick its trigger comes (never a reaction time); it prefers
+##   to wait for a hit to land, and a missed step carries on only on the blind
+##   read (Ryan, 2026-10-07) or one combo_greed roll; no finisher after a
+##   missed opener otherwise;
+## - its token is kept to the plan's end (up to plan_max_time); the plan ends
+##   when done, missed, out of its window, interrupted, its token or target
+##   lost, its own health low (a fall-back role), or the odds turned;
+## - then the follow-through: it stays on its target (a new commit at once,
+##   its tell first) when its lean passes 1 − follow_through, else resets;
+## - outside a plan it keeps its follow-ups (abilities with combo roles but
+##   no `opener`) for its plans, unless the blind read passes.
 
 signal intent_changed(intent: StringName)
 signal pose_changed(pose: StringName)
@@ -108,6 +124,8 @@ const STAND := &"stand"
 const CORNERED := &"cornered"
 ## The combo role a setup opens with (AI-D1; Ability.combo_roles).
 const OPENER_ROLE := &"opener"
+## The combo role of a plan's last, heavy hit (AI-D2: no blind finisher).
+const FINISHER_ROLE := &"finisher"
 ## The pose an attack intent holds for tell_time before its move (the tell;
 ## Ryan, I7). AI6 adds punish's and finish's.
 const TELL_POSES := {&"commit": &"crouch"}
@@ -145,6 +163,10 @@ var scheduled_thinks: int = 0
 ## Its peels cast and its setups started (AI-D1; tests, the overlay).
 var peel_count: int = 0
 var setup_count: int = 0
+## Its combo plans started, and how they ended (reason -> count; AI-D2: tests,
+## the overlay).
+var plan_count: int = 0
+var plan_ends: Dictionary = {}
 
 var _enemy: Enemy
 var _patience := 0.0
@@ -204,6 +226,24 @@ var _peel_pending := false       # its episode's roll was a peel, not cast yet
 var _peel_cast := false          # its peel's cast is under way
 var _peel_slot: StringName = &""    # the peel's slot (the roll's, then the cast's)
 var _seen_open: Dictionary = {}  # the opening's casts and crowd control: key -> when first seen
+# AI-D2
+var _plans: Array[ComboPlan] = []   # its plans at the run's difficulty tier
+var _plan: ComboPlan                # the plan under way (null = none)
+var _plan_target: Unit
+var _plan_started := 0.0
+var _plan_odds := 0.0               # the odds when it started
+var _plan_runner_up := false
+var _plan_delay_left := 0.0         # mixup's held beat before its tell
+var _plan_step_casting := -1        # the step whose cast is under way (−1 = none)
+var _plan_progress: Dictionary = {} # ComboPlanner.next_step()'s progress, plus landed_at per step
+var _plan_damage := 0.0             # its damage on the target in the plan so far
+var _commit_plan_open := false      # a fresh commit (in its tell) may still pick a plan
+var _last_plan: ComboPlan           # the overlay: the last plan, how it ended, the follow-through
+var _last_plan_reason: StringName = &""
+var _last_plan_at := -INF
+var _last_follow: StringName = &""   # &"stay" / &"reset"
+var _last_lean := 0.0
+var _last_carry: String = ""         # how a miss was decided: "blind (escapes_down)", "0.12 < 0.20", "end"
 
 
 func setup(p_data: EnemyData, p_rank_rules: RankRules) -> void:
@@ -224,9 +264,11 @@ func _ready() -> void:
 	if _enemy.abilities != null:
 		_enemy.abilities.cast_started.connect(_on_cast_started)
 		_enemy.abilities.cast_finished.connect(_on_cast_ended)
+		_enemy.abilities.cast_cancelled.connect(_on_cast_cancelled)   # AI-D2: first, so a plan's cut step ends it
 		_enemy.abilities.cast_cancelled.connect(_on_cast_ended)
-		_enemy.abilities.cast_cancelled.connect(_on_cast_cancelled)
 	Events.unit_damaged.connect(_on_unit_damaged)
+	Events.unit_hit.connect(_on_unit_hit)   # AI-D2: its plan's steps landing
+	_plans = data.get_plans_at(Brains.difficulty_tier) if data != null else []
 
 
 func _exit_tree() -> void:
@@ -235,6 +277,8 @@ func _exit_tree() -> void:
 		Brains.release_token(_enemy, false)
 	if Events.unit_damaged.is_connected(_on_unit_damaged):
 		Events.unit_damaged.disconnect(_on_unit_damaged)
+	if Events.unit_hit.is_connected(_on_unit_hit):
+		Events.unit_hit.disconnect(_on_unit_hit)
 
 
 ## Rebuilds the behavior it reads from its data (the tuning panel calls it
@@ -427,6 +471,70 @@ func is_in_ability_recovery() -> bool:
 	return is_instance_valid(_enemy) and _enemy.abilities != null and _enemy.abilities.is_recovering()
 
 
+## Its combo plans at the run's difficulty tier (AI-D2).
+func get_plans() -> Array[ComboPlan]:
+	return _plans.duplicate()
+
+
+## The plan under way (null = none), the step it's on (its next to start, or
+## the one casting), whether that's mixup's runner-up, and mixup's beat left.
+func get_plan() -> ComboPlan:
+	return _plan
+
+
+func get_plan_step() -> int:
+	if _plan == null:
+		return -1
+	return _plan_step_casting if _plan_step_casting >= 0 else int(_plan_progress.get("index", 0))
+
+
+func is_plan_runner_up() -> bool:
+	return _plan != null and _plan_runner_up
+
+
+func get_plan_delay_left() -> float:
+	return _plan_delay_left if _plan != null else 0.0
+
+
+## The running plan's progress (a copy; ComboPlanner.next_step()'s keys plus
+## landed_at per step), its damage on the target so far.
+func get_plan_progress() -> Dictionary:
+	return _plan_progress.duplicate(true)
+
+
+func get_plan_damage() -> float:
+	return _plan_damage
+
+
+## The last plan that ended (null = none yet), why, and when (game time).
+func get_last_plan() -> ComboPlan:
+	return _last_plan
+
+
+func get_last_plan_reason() -> StringName:
+	return _last_plan_reason
+
+
+func get_last_plan_at() -> float:
+	return _last_plan_at
+
+
+## The last plan's follow-through (&"stay", &"reset", &"" = none: it ended
+## another way) and its lean; how a missed step was decided in its last plan
+## ("carry on (blind: escapes down)", "carry on (0.12 < 0.20)", "end (0.31 ≥
+## 0.20)", "end"; "" = none missed).
+func get_last_follow() -> StringName:
+	return _last_follow
+
+
+func get_last_lean() -> float:
+	return _last_lean
+
+
+func get_last_carry() -> String:
+	return _last_carry
+
+
 ## Its attack token, for the overlay: "held", "waiting" (in the queue),
 ## "rest" (it can't ask yet), "-" (none), or "none needed" (its rank or role
 ## takes none).
@@ -480,6 +588,7 @@ func think() -> bool:
 		_situation = s
 		return false
 	_check_token_lost(s)
+	_check_plan(s, now)   # AI-D2
 	if not _committing:
 		_patience = clampf(_patience + get_patience_rate(s, behavior, Brains.table) * dt, 0.0, 1.0)
 		if _patience > 1.0 - PATIENCE_EPSILON:
@@ -600,7 +709,8 @@ func build_situation() -> SituationContext:
 	_perceive(s, snap, now)
 	_gather_uses(s)
 	_update_spend(s, snap, now)
-	s.setup = _wants_setup(s)   # AI-D1
+	_read_plans(s, m, target)   # AI-D2
+	s.setup = _wants_setup(s)   # AI-D1 (AI-D2: with a plan that fits)
 	return s
 
 
@@ -1085,20 +1195,20 @@ func _target_cornered(target: Unit) -> bool:
 	return not WorldQuery.shape_sweep(from, to, 2.0, MovementComponent.GHOST_KEEP_MASK).is_empty()
 
 
-## The setup (ENEMIES_AI.md, Peel and setup): an enemy with an opener, not
-## crowded (no episode, crowding under its peel_threshold), not committing
-## or walking out, its target reachable, the opening at its opening_bar or
-## more, and an opener castable with a plan now. Never under its alert pose
-## (found building AI-D1: Enemy.get_pose() shows `alert` first for its 0.4 s,
-## so a setup on the think it woke hid its tell).
+## The setup (ENEMIES_AI.md, Peel and setup): an enemy with combo plans (AI-D2;
+## in AI-D1 an opener), not crowded (no episode, crowding under its
+## peel_threshold), not committing or walking out, its target reachable, the
+## opening at its opening_bar or more, and a plan that fits now. Never under
+## its alert pose (found building AI-D1: Enemy.get_pose() shows `alert` first
+## for its 0.4 s, so a setup on the think it woke hid its tell).
 func _wants_setup(s: SituationContext) -> bool:
-	if s.opener_slots.is_empty() or not s.has_target or _committing or s.crowded or s.walking_out or not s.target_reachable:
+	if not s.has_plans or not s.has_target or _committing or s.crowded or s.walking_out or not s.target_reachable:
 		return false
 	if _enemy.get_pose() == &"alert":
 		return false
 	if s.crowding >= behavior.peel_threshold - 0.0001 or s.opening < behavior.opening_bar - 0.0001:
 		return false
-	return not s.get_opener_use().is_empty()
+	return ComboPlanner.has_fitting_plan(s)
 
 
 ## A peel rolled but not cast whose use no longer passes (its target walked
@@ -1109,6 +1219,357 @@ func _check_peel(s: SituationContext, now: float) -> void:
 	if not s.has_use([PEEL] as Array[StringName]):
 		_peel_pending = false
 		_start_walk_out(now, false)
+
+
+# --- Combo plans (AI-D2) --------------------------------------------------------------------
+
+## Its follow-up slots: abilities with combo roles and none of them `opener`
+## (kept for its plans unless the blind read passes).
+static func find_follow_up_slots(abilities: AbilityComponent) -> Array[StringName]:
+	var out: Array[StringName] = []
+	if abilities == null:
+		return out
+	for slot in AbilityComponent.SLOTS:
+		var ability := abilities.get_ability(slot)
+		if ability != null and not ability.combo_roles.is_empty() and not ability.combo_roles.has(OPENER_ROLE):
+			out.append(slot)
+	return out
+
+
+## Its own kit ready (the follow-through's lean): the share of its slots'
+## respect value ready now, its key's included whether it's up or not.
+static func get_own_kit_ready(abilities: AbilityComponent, table: EnemyAITable) -> float:
+	if abilities == null:
+		return 0.0
+	var total := 0.0
+	var ready_value := 0.0
+	for slot in AbilityComponent.SLOTS:
+		var ability := abilities.get_ability(slot)
+		if ability == null:
+			continue
+		var value := table.get_respect_value(ability)
+		total += value
+		if abilities.is_ready(slot) and abilities.can_afford(slot):
+			ready_value += value
+	return ready_value / total if total > 0.0 else 0.0
+
+
+## Seconds after `ability`'s cast ends during which its hit can still land on
+## `target` (a plan step's miss time, before whiff_time): a projectile's
+## flight past it (at most its range), a dash's dash_time, else 0.
+static func get_travel_time(ability: Ability, caster: Unit, target: Unit) -> float:
+	if ability == null:
+		return 0.0
+	if ability.tags.has(&"projectile") and ability.projectile_speed > 0.0:
+		var range_px := Units.to_px(ability.get_param(caster, &"cast_range"))
+		var distance := range_px
+		if is_instance_valid(caster) and is_instance_valid(target):
+			distance = minf(caster.global_position.distance_to(target.global_position) + target.get_gameplay_radius_px(), range_px)
+		return distance / Units.to_px(ability.projectile_speed)
+	var dash: Variant = ability.get(&"dash_time")
+	return float(dash) if dash is float else 0.0
+
+
+## The combo plans' reads (AI-D2): the blind read and its inputs, its own kit
+## ready, its follow-ups (kept unless the blind read passes), and, while it
+## may start a commit (or its fresh commit is still in its tell), each plan's
+## option; while its plan's opener is still to cast, that opener's plan now.
+## `m` is its target's snapshot entry.
+func _read_plans(s: SituationContext, m: Dictionary, target: Unit) -> void:
+	var table := Brains.table
+	s.has_plans = not _plans.is_empty()
+	s.plan_running = _plan != null
+	s.blind_reads = table.blind_reads
+	s.mixup_delay_min = table.mixup_delay_min
+	s.mixup_delay_max = table.mixup_delay_max
+	s.own_kit_ready = get_own_kit_ready(_enemy.abilities, table)
+	s.target_cc_immune = target.status_component != null and target.status_component.has_tag(&"cc_immune")
+	if not m.is_empty():
+		s.target_ultimates = m.get("ultimates", 0)
+		s.target_ultimates_ready = m.get("ultimates_ready", 0)
+		for cc: Dictionary in m.get("ccs", []):
+			s.target_held_left = maxf(s.target_held_left, float(cc.left) if float(cc.left) >= 0.0 else 999.0)
+	s.blind_reason = ComboPlanner.get_blind_reason(s, behavior.finish_threshold)
+	if not s.has_plans:
+		return
+	s.follow_up_slots = find_follow_up_slots(_enemy.abilities)
+	if s.blind_reason == &"":
+		s.kept_slots = s.follow_up_slots
+	s.commit_plan_open = _committing and _commit_plan_open and _plan == null and _tell_left > 0.0
+	if _plan == null and (not _committing or s.commit_plan_open):
+		_build_plan_options(s)
+	elif _plan != null and int(_plan_progress.get("index", 0)) == 0 and _plan_step_casting < 0:
+		s.plan_opener_pending = true
+		s.plan_opener_plan = _step_cast_plan(_plan.steps[0].slot, s)
+
+
+## Each plan's option now (SituationContext.plan_options): its conditions, its
+## needed steps' abilities ready, its opener's plan (one a slot a think: the
+## one its gathered uses already have, else get_ai_plan()), its opener's crowd
+## control not wasted, blind or not.
+func _build_plan_options(s: SituationContext) -> void:
+	var abilities := _enemy.abilities
+	if abilities == null or not s.has_target:
+		return
+	var cached := {}   # slot -> CastPlan (null = none now)
+	for u in s.uses:
+		if not cached.has(u.slot) and u.plan != null:
+			cached[u.slot] = u.plan
+	for plan in _plans:
+		var opener_slot := plan.get_opener_slot()
+		var opener := abilities.get_ability(opener_slot)
+		var o := {"plan": plan, "opener": null, "ready": true, "conditions_ok": true, "cc_ok": true,
+			"blind": opener == null or not opener.combo_roles.has(OPENER_ROLE)}
+		for step in plan.steps:
+			if step != null and not step.optional and not _is_slot_ready(step.slot):
+				o.ready = false
+				break
+		o.conditions_ok = Condition.all_met(plan.conditions, _enemy, s.target_unit, null, s)
+		if o.ready and o.conditions_ok and opener != null and abilities.can_cast(opener_slot):
+			if not cached.has(opener_slot):
+				cached[opener_slot] = _step_cast_plan(opener_slot, s)
+			o.opener = cached[opener_slot]
+			if o.opener != null and Brains.table.ability_applies_cc(opener):
+				o.cc_ok = ComboPlanner.can_crowd_control(s, opener.get_param(_enemy, &"cast_time"))
+		s.plan_options.append(o)
+
+
+## `slot`'s ability's plan against its target now (Ability.get_ai_plan()), or
+## null when it has none or its cast would fail at that aim.
+func _step_cast_plan(slot: StringName, s: SituationContext) -> CastPlan:
+	var abilities := _enemy.abilities
+	var ability := abilities.get_ability(slot) if abilities != null else null
+	if ability == null or s == null or not s.has_target:
+		return null
+	var plan := ability.get_ai_plan(_enemy, s)
+	if plan == null:
+		return null
+	plan.slot = slot
+	var aim := plan.vector_start if plan.is_vector() else plan.point
+	if abilities.get_fail_reason(slot, aim, plan.target) != "":
+		return null
+	return plan
+
+
+## A plan starts in the commit just started (AI-D2): its opener is the
+## decision's cast, after its tell (and mixup's beat when it holds one); its
+## token is kept to the plan's end, up to plan_max_time.
+func _start_plan(d: BrainDecision, now: float) -> void:
+	_plan = d.combo_plan
+	_plan_target = _enemy.get_brain_target()
+	_plan_started = now
+	_plan_odds = float(Brains.get_odds().odds)
+	_plan_runner_up = d.plan_runner_up
+	_plan_delay_left = d.plan_delay
+	_plan_step_casting = -1
+	_plan_damage = 0.0
+	_commit_plan_open = false
+	_last_carry = ""
+	var finishers: Array[int] = []
+	var landed_at: Array[float] = []
+	for i in _plan.steps.size():
+		landed_at.append(-1.0)
+		var ability := _enemy.abilities.get_ability(_plan.steps[i].slot) if _enemy.abilities != null else null
+		if ability != null and ability.combo_roles.has(FINISHER_ROLE):
+			finishers.append(i)
+	_plan_progress = {"index": 0, "prev_end": -1.0, "prev_landed": -1.0, "prev_miss_at": INF, "opener_landed": false,
+		"carried": false, "greed": -1.0, "finishers": finishers, "target_tags": [], "landed_at": landed_at}
+	plan_count += 1
+	Brains.set_token_hold(_enemy, Brains.table.plan_max_time)
+	Events.combo_plan_started.emit(_enemy, _plan_target, _plan)
+
+
+## The plan's next move (the drive, every physics tick after the tell; never
+## mid-cast): its opener goes through _try_plan() (the decision's cast) and
+## ends the plan (WINDOW, the commit then plays as AI1's) if it can't start
+## within its window; each later step starts on the tick ComboPlanner.next_step()
+## says, is skipped, or the plan ends.
+func _drive_plan(now: float, target: Unit) -> void:
+	if _plan == null or _plan_step_casting >= 0:
+		return
+	var p := _plan_progress
+	if int(p.index) == 0:
+		if not p.has("opener_from"):
+			p.opener_from = now
+		elif now - float(p.opener_from) > _plan.steps[0].window + 0.0001:
+			_end_plan(ComboPlanner.WINDOW, false)
+		return
+	if target != _plan_target or not is_instance_valid(_plan_target) or not _plan_target.is_targetable():
+		_end_plan(ComboPlanner.TARGET_LOST)
+		_end_commit()
+		return
+	p.target_tags = _plan_target.get_status_tags()
+	var s := _situation if _situation != null else SituationContext.new()
+	var r := ComboPlanner.next_step(_plan, p, s, behavior, now, rng)
+	if r.has("greed"):
+		p.greed = r.greed
+	if r.get("carried", false) and not bool(p.carried):
+		p.carried = true
+		_last_carry = "carry on (blind: %s)" % String(s.blind_reason).replace("_", " ") if s.blind_reason != &"" else "carry on (%.2f < %.2f)" % [float(p.greed), behavior.combo_greed]
+	var action: StringName = r.action
+	if action == ComboPlanner.START:
+		_try_step(int(r.index), s)
+	elif action == ComboPlanner.SKIP:
+		_skip_step()
+	elif action == ComboPlanner.END:
+		if r.reason == ComboPlanner.MISSED:
+			_last_carry = "end (%.2f ≥ %.2f)" % [float(r.greed), behavior.combo_greed] if r.has("greed") else "end"
+		_end_plan(r.reason)
+
+
+## Step `i`'s trigger came: it starts now when it can (its ability ready, a
+## crowd control that wouldn't be wasted, a plan now, the heavy-hit rule while
+## pressing; a basic attack's windup is cut for it), else it tries again next
+## tick, inside its window. An optional step whose ability is down, or whose
+## crowd control would be wasted, is skipped.
+func _try_step(i: int, s: SituationContext) -> void:
+	var step := _plan.steps[i]
+	var abilities := _enemy.abilities
+	var ability := abilities.get_ability(step.slot) if abilities != null else null
+	if ability == null or not abilities.is_ready(step.slot) or not abilities.can_afford(step.slot):
+		if step.optional:
+			_skip_step()
+		return
+	if Brains.table.ability_applies_cc(ability) and not ComboPlanner.can_crowd_control(s, ability.get_param(_enemy, &"cast_time")):
+		if step.optional:
+			_skip_step()
+		return
+	var plan := _step_cast_plan(step.slot, s)
+	if plan == null or not _heavy_hit_allowed(ability, plan):
+		return
+	if _enemy.attack.is_winding_up():
+		_enemy.attack.cancel()   # the step comes first (the windup is refunded)
+	abilities.set_aim_hint(plan.point)
+	_last_lead_px = plan.lead_px
+	var cast: bool
+	if plan.is_vector():
+		cast = abilities.try_cast_vector(step.slot, plan.vector_start, plan.vector_direction)
+	else:
+		cast = abilities.try_cast(step.slot, plan.point, plan.target)
+	if cast:
+		_note_heavy_hit(plan)
+
+
+## An optional step skipped: the next one triggers off the same previous cast.
+func _skip_step() -> void:
+	_plan_progress.index = int(_plan_progress.index) + 1
+	if int(_plan_progress.index) >= _plan.steps.size():
+		_end_plan(ComboPlanner.DONE)
+
+
+## A plan step's cast ended: the last one ends the plan (DONE: its effect is
+## out); otherwise the next step's trigger can come (its miss time: the
+## travel, then whiff_time). A cast a stun cut ends it (INTERRUPTED).
+func _on_plan_step_ended(ability: Ability) -> void:
+	var i := _plan_step_casting
+	_plan_step_casting = -1
+	if not _enemy.is_alive() or _enemy.is_cast_blocked():
+		_end_plan(ComboPlanner.INTERRUPTED)
+		_break_commit()
+		return
+	if i >= _plan.steps.size() - 1:
+		_end_plan(ComboPlanner.DONE)
+		return
+	var now := Brains.get_time()
+	var p := _plan_progress
+	p.index = i + 1
+	p.prev_end = now
+	p.prev_landed = float((p.landed_at as Array)[i])
+	p.prev_miss_at = now + get_travel_time(ability, _enemy, _plan_target) + Brains.table.whiff_time
+
+
+## Ends the plan under way (AI-D2), with Events.combo_plan_ended. Done,
+## missed, out of a window or the odds turned: the follow-through decides
+## (unless `follow` is false). For the other reasons the caller ends or
+## breaks the commit.
+func _end_plan(reason: StringName, follow: bool = true) -> void:
+	if _plan == null:
+		return
+	var plan := _plan
+	var target := _plan_target
+	_plan = null
+	_plan_step_casting = -1
+	_plan_delay_left = 0.0
+	_last_plan = plan
+	_last_plan_reason = reason
+	_last_plan_at = Brains.get_time()
+	plan_ends[reason] = int(plan_ends.get(reason, 0)) + 1
+	_last_follow = &""
+	Events.combo_plan_ended.emit(_enemy, target, plan, reason)
+	if follow and reason in [ComboPlanner.DONE, ComboPlanner.MISSED, ComboPlanner.WINDOW, ComboPlanner.ODDS]:
+		_follow_through()
+
+
+## After a plan (ENEMIES_AI.md, After the plan): it stays on its target when
+## its lean (ComboPlanner.get_lean(): its last think's effective respect, its
+## health and its own kit ready now) reaches 1 − follow_through and it still
+## holds the token it needs: a new commit at once, its tell first, on the same
+## token (its hold starts again), which may pick another plan in its tell.
+## Otherwise it resets: the commit ends (patience empties, it walks out).
+func _follow_through() -> void:
+	if not _committing:
+		return
+	var s := SituationContext.new()
+	s.effective_respect = _situation.effective_respect if _situation != null else 1.0
+	var max_health := _enemy.health.max_health
+	s.health_ratio = _enemy.health.current / max_health if max_health > 0.0 else 0.0
+	s.own_kit_ready = get_own_kit_ready(_enemy.abilities, Brains.table)
+	s.needs_token = Brains.get_token_cost(_enemy) > 0
+	s.has_token = Brains.has_token(_enemy)
+	_last_lean = ComboPlanner.get_lean(s)
+	if ComboPlanner.wants_stay(s, behavior.follow_through):
+		_last_follow = &"stay"
+		_start_commit(Brains.get_time())
+		_patience = 1.0
+		Brains.set_token_hold(_enemy, Brains.table.token_hold_time)
+	else:
+		_last_follow = &"reset"
+		_end_commit()
+
+
+## A running plan's ends the situation shows (AI-D2): its target changed,
+## crowd-controlled (a stun or a root: Brains takes its token too), its own
+## health under retreat_health (a fall-back role), the odds turned (below
+## (1 − plan_odds_drop) of their start), or plan_max_time past.
+func _check_plan(s: SituationContext, now: float) -> void:
+	if _plan == null:
+		return
+	var table := Brains.table
+	if s.target_unit != _plan_target:
+		_end_plan(ComboPlanner.TARGET_LOST)
+		_end_commit()
+	elif _enemy.is_cc_blocked():
+		_end_plan(ComboPlanner.INTERRUPTED)
+		_break_commit()
+	elif behavior.low_health == EnemyBehavior.LowHealth.FALL_BACK and s.health_ratio < behavior.retreat_health:
+		_end_plan(ComboPlanner.LOW_HEALTH)
+		_end_commit()
+	elif _plan_odds > 0.0 and s.odds < _plan_odds * (1.0 - table.plan_odds_drop) - 0.0001:
+		_end_plan(ComboPlanner.ODDS)
+	elif now - _plan_started >= table.plan_max_time - 0.0001:
+		_end_plan(ComboPlanner.TOKEN_LOST)
+		_end_commit()
+
+
+## A hit of its own on its plan's target (AI-D2): the step whose ability it
+## was has landed (its opener's landing frees a finisher).
+func _on_unit_hit(ctx: HitContext) -> void:
+	if _plan == null or ctx.source != _enemy or ctx.target != _plan_target or ctx.ability == null or _enemy.abilities == null:
+		return
+	var p := _plan_progress
+	var last: int = _plan_step_casting if _plan_step_casting >= 0 else int(p.index) - 1
+	for i in range(mini(last, _plan.steps.size() - 1), -1, -1):
+		if _enemy.abilities.get_ability(_plan.steps[i].slot) != ctx.ability:
+			continue
+		var landed_at: Array = p.landed_at
+		if float(landed_at[i]) < 0.0:
+			var now := Brains.get_time()
+			landed_at[i] = now
+			if i == 0:
+				p.opener_landed = true
+			if i == int(p.index) - 1 and _plan_step_casting < 0:
+				p.prev_landed = now
+		return
 
 
 static func _has_use_for(ability: Ability, intents: Array[StringName]) -> bool:
@@ -1127,8 +1588,10 @@ func _check_token_lost(s: SituationContext) -> void:
 	if not _committing or not s.needs_token or s.taunted or Brains.has_token(_enemy):
 		return
 	if _enemy.is_cc_blocked():
+		_end_plan(ComboPlanner.INTERRUPTED)   # AI-D2: no follow-through
 		_break_commit()
 	else:
+		_end_plan(ComboPlanner.TOKEN_LOST)
 		_end_commit()
 	s.has_token = false
 
@@ -1171,7 +1634,10 @@ func _patience_full_soon(s: SituationContext) -> bool:
 ## kiting step, the cautious walk) as a retreat, a held key's uses left out
 ## (SituationContext.get_best_use()). AI-D1: peel (its episode rolled a peel
 ## and its peel use passes; like defend it answers something already
-## happening), and a setup's commit opens with its best opener.
+## happening), and a setup's commit opens with its best opener. AI-D2: an
+## enemy with combo plans opens a commit with one when one fits
+## (ComboPlanner.pick_plan(): weight, jitter, mixup), and its own hits leave
+## out its follow-ups unless the blind read passes.
 static func decide(s: SituationContext, b: EnemyBehavior, stream: RandomNumberGenerator) -> BrainDecision:
 	var d := BrainDecision.new()
 	if not s.has_target:
@@ -1216,20 +1682,30 @@ static func decide(s: SituationContext, b: EnemyBehavior, stream: RandomNumberGe
 		POKE:
 			d.plan = poke.plan
 		COMMIT:
-			# AI-D1: a setup opens with its best opener (a new commit, or one
-			# whose opener is still to come).
-			var use := {}
-			if (s.setup and not s.committing) or s.setup_opener:
-				use = s.get_opener_use()
-				d.setup = not use.is_empty() and not s.committing
-			if use.is_empty():
-				# Its hits: damage uses, and a gap-closer while out of its reach.
+			# AI-D2: an enemy with plans opens a commit with one when one fits
+			# (a setup is such a commit; AI-D1 opened with its best opener);
+			# the running plan's opener still to come keeps a fresh aim; its
+			# later steps come from the drive.
+			if s.has_plans and (not s.committing or s.commit_plan_open):
+				var pick := ComboPlanner.pick_plan(s, b, stream)
+				if not pick.is_empty():
+					d.combo_plan = pick.plan
+					d.plan = pick.opener
+					d.plan_runner_up = pick.runner_up
+					d.plan_delay = pick.delay if not s.committing else 0.0
+					d.setup = s.setup and not s.committing
+			elif s.plan_opener_pending:
+				d.plan = s.plan_opener_plan
+			if d.combo_plan == null and not s.plan_running:
+				# Its hits: damage uses, and a gap-closer while out of its
+				# reach; its follow-ups kept for its plans unless the blind
+				# read passes (AI-D2).
 				var intents: Array[StringName] = [&"damage"]
 				if s.target_edge_distance_px > s.attack_reach_px:
 					intents.append(&"gap_close")
-				use = s.get_best_use(intents)
-			if not use.is_empty():
-				d.plan = use.plan
+				var use := s.get_best_use(intents, [] as Array[StringName], s.kept_slots)
+				if not use.is_empty():
+					d.plan = use.plan
 		HOLD:
 			var zone := s.get_best_use([&"zone"])
 			if not zone.is_empty():
@@ -1318,16 +1794,24 @@ func _apply_decision(d: BrainDecision, now: float) -> void:
 		if not (d.intent in HOLD_INTENTS and was in HOLD_INTENTS):
 			_hold_edge = -1.0   # a new hold measures its distance again (poke and defend keep hold's)
 		if was == COMMIT and _committing:
+			_end_plan(ComboPlanner.INTERRUPTED, false)   # AI-D2: something urgent came first (between steps)
 			_committing = false   # broken off (not done): patience stays
 			_tell_left = 0.0
+			_plan_delay_left = 0.0
 		if d.intent == COMMIT:
 			_start_commit(now)
+			if d.combo_plan != null:
+				_start_plan(d, now)
 			if d.setup:
 				_start_setup(d)
 		intent_changed.emit(d.intent)
 	elif d.intent == COMMIT and d.setup and not _committing:
 		_start_commit(now)   # AI-D1: a setup on the think its last commit ended
+		if d.combo_plan != null:
+			_start_plan(d, now)
 		_start_setup(d)
+	elif d.intent == COMMIT and d.combo_plan != null and _committing and _plan == null:
+		_start_plan(d, now)   # AI-D2: a fresh commit (a stay, or one that found none at first) picks one in its tell
 	if d.intent == ESCAPE:
 		if d.plan != null:
 			_escaping = false   # its escape ability is the escape: a walk after it gets its own 2 s (AI3d)
@@ -1381,7 +1865,15 @@ func drive(delta: float) -> void:
 
 ## Commit: stand in the tell for tell_time, then go in with the basic attack
 ## (AutoAttackComponent chases and swings); its casts come from the plans.
+## AI-D2: mixup's held beat comes before the tell (it holds its ground); a
+## combo plan's steps start here, each on the tick its trigger comes.
 func _drive_commit(delta: float, target: Unit) -> void:
+	if _plan_delay_left > 0.0:
+		_plan_delay_left = maxf(_plan_delay_left - delta, 0.0)
+		_enemy.movement.stop()
+		if _enemy.attack.target != null and not _enemy.attack.is_winding_up():
+			_enemy.attack.cancel()
+		return
 	if _tell_left > 0.0:
 		_tell_left = maxf(_tell_left - delta, 0.0)
 		_enemy.movement.stop()
@@ -1390,6 +1882,10 @@ func _drive_commit(delta: float, target: Unit) -> void:
 		return
 	if _commit_engaged_at < 0.0 and _enemy.edge_distance_to(target) <= _enemy.attack.get_range_px():
 		_commit_engaged_at = Brains.get_time()
+	if _plan != null:
+		_drive_plan(Brains.get_time(), target)
+		if not _committing or _tell_left > 0.0 or (_enemy.abilities != null and _enemy.abilities.casting):
+			return   # the plan ended (a reset, or a stay's tell) or a step started
 	if _enemy.attack.target != target:
 		_enemy.attack.attack(target)
 
@@ -1595,7 +2091,7 @@ func _corner(now: float) -> void:
 ## Casts the decision's plan once (after a commit's tell; never mid-windup or
 ## mid-cast), checked again first so a plan that went stale fails quietly.
 func _try_plan() -> void:
-	if _pending_plan == null or (_committing and _tell_left > 0.0):
+	if _pending_plan == null or (_committing and (_tell_left > 0.0 or _plan_delay_left > 0.0)):
 		return
 	var abilities := _enemy.abilities
 	if abilities == null or abilities.casting or _enemy.attack.is_winding_up():
@@ -1632,6 +2128,8 @@ func _start_commit(now: float) -> void:
 	_setup_opener = false
 	_setup_commit = false
 	_opener_cast = false
+	_commit_plan_open = true   # AI-D2: in its tell it may still pick a plan
+	_plan_delay_left = 0.0
 
 
 ## A commit is done after commit_max_time (the tell included), or:
@@ -1639,7 +2137,10 @@ func _start_commit(now: float) -> void:
 ##   reset_time after it got to its target;
 ## - anyone else: its first cast ended (not a gap-closer's), or commit_hits
 ##   landed basic attacks.
+## AI-D2: a commit running a plan ends with its plan (_check_plan()).
 func _is_commit_done(now: float) -> bool:
+	if _plan != null:
+		return false
 	var table := Brains.table
 	if now - _commit_started >= table.commit_max_time:
 		return true
@@ -1658,12 +2159,15 @@ func _is_commit_done(now: float) -> bool:
 ## instead (a retreat; a skirmisher's reset already walks it out).
 func _end_commit() -> void:
 	var table := Brains.table
+	_end_plan(ComboPlanner.INTERRUPTED, false)   # AI-D2: none left running (its callers end it first)
 	_committing = false
 	_tell_left = 0.0
 	_pending_plan = null
 	_setup_opener = false
 	_setup_commit = false
 	_opener_cast = false
+	_commit_plan_open = false
+	_plan_delay_left = 0.0
 	_back_off_left = table.back_off_time
 	Brains.release_token(_enemy, true)
 	if behavior.role == EnemyBehavior.Role.SKIRMISHER:
@@ -1694,20 +2198,27 @@ func _hop_out() -> void:
 ## A commit broken off (stunned: its token went): patience stays, so it asks
 ## again once its rest is over.
 func _break_commit() -> void:
+	_end_plan(ComboPlanner.INTERRUPTED, false)   # AI-D2: none left running (its callers end it first)
 	_committing = false
 	_tell_left = 0.0
 	_pending_plan = null
 	_setup_opener = false
 	_setup_commit = false
 	_opener_cast = false
+	_commit_plan_open = false
+	_plan_delay_left = 0.0
 
 
+## AI-D2: a recovery shows first (a stay's tell waits for it), and mixup's
+## held beat shows as a hold.
 func _update_pose(now: float) -> void:
 	var pose: StringName = &""
-	if _committing and _tell_left > 0.0:
-		pose = TELL_POSES.get(COMMIT, &"")
-	elif is_in_ability_recovery():
+	if is_in_ability_recovery():
 		pose = &"recover"   # AI-D1: the player's opening shows
+	elif _committing and _plan_delay_left > 0.0 and behavior != null:
+		pose = get_intent_pose(HOLD, behavior.role, is_cornered(), is_resetting(), is_pressing())
+	elif _committing and _tell_left > 0.0:
+		pose = TELL_POSES.get(COMMIT, &"")
 	elif behavior != null:
 		pose = get_intent_pose(_intent, behavior.role, is_cornered(), is_resetting(), is_pressing())
 	if pose != _pose:
@@ -1719,6 +2230,9 @@ func _update_pose(now: float) -> void:
 ## Out of the fight (de-aggroed, no target): everything back to the start.
 func _reset() -> void:
 	var had_intent := _intent != &""
+	_end_plan(ComboPlanner.TARGET_LOST, false)   # AI-D2
+	_commit_plan_open = false
+	_plan_delay_left = 0.0
 	_intent = &""
 	_committing = false
 	_patience = 0.0
@@ -1766,17 +2280,31 @@ func _on_attack_landed(_target: Unit, _damage: float) -> void:
 func _on_unit_damaged(ctx: HitContext) -> void:
 	if _committing and _tell_left <= 0.0 and ctx.source == _enemy and not ctx.tags.has(&"basic_attack"):
 		_commit_ability_hits += 1
+	if _plan != null and ctx.source == _enemy and ctx.target == _plan_target:
+		_plan_damage += ctx.taken_damage   # AI-D2: the overlay
 
 
 ## A cast cut short lands nothing: its heavy hit on its way is off (AI3c).
+## AI-D2: a plan's step cut short ends the plan (connected before
+## _on_cast_ended, so the plan is gone when that runs).
 func _on_cast_cancelled(_slot: StringName, _ability: Ability) -> void:
 	Brains.clear_heavy_hits(_enemy)
+	if _plan != null and _plan_step_casting >= 0:
+		_end_plan(ComboPlanner.INTERRUPTED)
+		_break_commit()
 
 
 ## AI-D1: a setup's first cast is its opener (when it has the opener role;
 ## its end won't end the commit); a peel's cast starts (its end takes the
 ## kiting step).
 func _on_cast_started(slot: StringName, ability: Ability, _ctx: CastContext) -> void:
+	if _committing and _tell_left <= 0.0 and _plan != null:
+		var i: int = _plan_progress.get("index", 0)   # AI-D2: its plan's step, when it's the one due
+		if _plan_step_casting < 0 and i < _plan.steps.size() and _plan.steps[i].slot == slot:
+			_plan_step_casting = i
+			if i == 0:
+				_setup_opener = false
+		return
 	if _committing and _tell_left <= 0.0:
 		_commit_cast = true
 		if _setup_opener:
@@ -1802,6 +2330,10 @@ func _on_cast_ended(slot: StringName, ability: Ability) -> void:
 		peel_count += 1
 		_start_walk_out(Brains.get_time(), false)
 		return
+	if _plan != null:
+		if _plan_step_casting >= 0 and slot == _plan.steps[_plan_step_casting].slot:
+			_on_plan_step_ended(ability)
+		return   # AI-D2: a plan's commit ends with its plan
 	if not (_committing and _commit_cast):
 		return
 	if _opener_cast:

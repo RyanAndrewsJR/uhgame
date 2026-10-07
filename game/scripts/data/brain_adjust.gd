@@ -30,6 +30,10 @@ extends Resource
 ## AI-D1's (Combos).
 @export var peel_threshold: float = 1.0
 @export var opening_bar: float = 1.0
+## AI-D2's (Combos: combo plans).
+@export var follow_through: float = 1.0
+@export var combo_greed: float = 1.0
+@export var mixup: float = 1.0
 ## Attack tokens added to each target's pool (difficulty tiers; AI2).
 @export var token_bonus: int = 0
 

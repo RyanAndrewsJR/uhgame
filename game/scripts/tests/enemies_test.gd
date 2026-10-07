@@ -203,7 +203,7 @@ var _odds_threshold_saved := -1.0   # _no_press() (AI3c)
 
 
 func _ready() -> void:
-	print("\n=== Enemies test (ENEMIES_AI AI1–AI3d, AI3b, AI3c, AI-D1) ===")
+	print("\n=== Enemies test (ENEMIES_AI AI1–AI3d, AI3b, AI3c, AI-D1, AI-D2) ===")
 	Progress.get_progress(KNIGHT)   # the save guards latch off first (a test scene)
 	Loot.get_inventory(KNIGHT)
 	Brains.rng.seed = 20261004
@@ -309,6 +309,21 @@ func _ready() -> void:
 	await _test_aid1_guard()
 	await _test_aid1_sandbox()
 
+	# AI-D2: combo plans and the follow-through.
+	_test_aid2_data()
+	_test_aid2_blind_read()
+	_test_aid2_pick_plan()
+	_test_aid2_next_step()
+	_test_aid2_lean()
+	await _test_aid2_snapshot()
+	await _test_aid2_snare_first()
+	await _test_aid2_missed_opener()
+	await _test_aid2_strike_plans()
+	await _test_aid2_follow_through()
+	await _test_aid2_token()
+	await _test_aid2_ends()
+	await _test_aid2_sandbox()
+
 	# TEMP: the enemy attack speed test multiplier (DECISIONS.md, Testing).
 	await _test_temp_attack_speed()
 
@@ -354,9 +369,9 @@ func _test_brute_preset() -> void:
 	var values: Array = []
 	for s in EnemyBehavior.SLIDERS:
 		values.append(b.get_slider(s))
-	_check("aggression .5, respect 1, patience 3, band 350–500, reaction .35, dodge .4 / 6, greed .6, finish .3, pressure 12, breather 5, jitter .15; AI3b: confidence .5, all in .6, lead 0, spend .4; AI3c: nerve .6; AI-D1: peel .6, opening .5",
-		values, [0.5, 1.0, 3.0, 350.0, 500.0, 0.35, 0.4, 6.0, 0.6, 0.3, 12.0, 5.0, 0.15, 0.5, 0.6, 0.0, 0.4, 0.6, 0.6, 0.5])
-	_check("20 fields, 19 sliders (the band is one, with two ends; AI3b added four, AI3c nerve, AI-D1 peel_threshold and opening_bar)", [EnemyBehavior.SLIDERS.size(), EnemyBehavior.LIMITS.size()], [20, 20])
+	_check("aggression .5, respect 1, patience 3, band 350–500, reaction .35, dodge .4 / 6, greed .6, finish .3, pressure 12, breather 5, jitter .15; AI3b: confidence .5, all in .6, lead 0, spend .4; AI3c: nerve .6; AI-D1: peel .6, opening .5; AI-D2: follow-through .6, greed .6, mixup .15",
+		values, [0.5, 1.0, 3.0, 350.0, 500.0, 0.35, 0.4, 6.0, 0.6, 0.3, 12.0, 5.0, 0.15, 0.5, 0.6, 0.0, 0.4, 0.6, 0.6, 0.5, 0.6, 0.6, 0.15])
+	_check("23 fields, 22 sliders (the band is one, with two ends; AI3b added four, AI3c nerve, AI-D1 peel_threshold and opening_bar, AI-D2 follow_through, combo_greed and mixup)", [EnemyBehavior.SLIDERS.size(), EnemyBehavior.LIMITS.size()], [23, 23])
 	var in_limits := true
 	for s in EnemyBehavior.SLIDERS:
 		var lim: Array = EnemyBehavior.LIMITS[s]
@@ -1669,16 +1684,16 @@ func _test_ai3_data() -> void:
 	var values: Array = []
 	for slider in EnemyBehavior.SLIDERS:
 		values.append(SKIRMISHER_BEHAVIOR.get_slider(slider))
-	_check("skirmisher: aggression .7, respect .8, patience 2, band 400–600, reaction .3, dodge .6 / 4, greed .8, finish .3, pressure 12, breather 5, jitter .2; AI3b: confidence .6, all in .4, lead .3, spend .7; AI3c: nerve .8; AI-D1: peel .6, opening .4",
-		values, [0.7, 0.8, 2.0, 400.0, 600.0, 0.3, 0.6, 4.0, 0.8, 0.3, 12.0, 5.0, 0.2, 0.6, 0.4, 0.3, 0.7, 0.8, 0.6, 0.4])
+	_check("skirmisher: aggression .7, respect .8, patience 2, band 400–600, reaction .3, dodge .6 / 4, greed .8, finish .3, pressure 12, breather 5, jitter .2; AI3b: confidence .6, all in .4, lead .3, spend .7; AI3c: nerve .8; AI-D1: peel .6, opening .4; AI-D2: follow-through .2, greed .3, mixup .3",
+		values, [0.7, 0.8, 2.0, 400.0, 600.0, 0.3, 0.6, 4.0, 0.8, 0.3, 12.0, 5.0, 0.2, 0.6, 0.4, 0.3, 0.7, 0.8, 0.6, 0.4, 0.2, 0.3, 0.3])
 	_check("its kind: role SKIRMISHER, hits and resets, uses tokens",
 		[SKIRMISHER_BEHAVIOR.role, SKIRMISHER_BEHAVIOR.low_health, SKIRMISHER_BEHAVIOR.uses_tokens],
 		[EnemyBehavior.Role.SKIRMISHER, EnemyBehavior.LowHealth.HIT_AND_RESET, true])
 	values = []
 	for slider in EnemyBehavior.SLIDERS:
 		values.append(CASTER_BEHAVIOR.get_slider(slider))
-	_check("caster: aggression .3, respect 1.2, patience 4, band 550–800, reaction .35, dodge .5 / 5, greed .4, finish .3, pressure 12, breather 5, jitter .15; AI3b: confidence .3, all in .2, lead .5, spend .8; AI3c: nerve .4; AI-D1: peel .5, opening .6",
-		values, [0.3, 1.2, 4.0, 550.0, 800.0, 0.35, 0.5, 5.0, 0.4, 0.3, 12.0, 5.0, 0.15, 0.3, 0.2, 0.5, 0.8, 0.4, 0.5, 0.6])
+	_check("caster: aggression .3, respect 1.2, patience 4, band 550–800, reaction .35, dodge .5 / 5, greed .4, finish .3, pressure 12, breather 5, jitter .15; AI3b: confidence .3, all in .2, lead .5, spend .8; AI3c: nerve .4; AI-D1: peel .5, opening .6; AI-D2: follow-through 0, greed .1, mixup .2",
+		values, [0.3, 1.2, 4.0, 550.0, 800.0, 0.35, 0.5, 5.0, 0.4, 0.3, 12.0, 5.0, 0.15, 0.3, 0.2, 0.5, 0.8, 0.4, 0.5, 0.6, 0.0, 0.1, 0.2])
 	_check("its kind: role CASTER, falls back below 35%, never commits (commit weight 0)",
 		[CASTER_BEHAVIOR.role, CASTER_BEHAVIOR.low_health, CASTER_BEHAVIOR.retreat_health, CASTER_BEHAVIOR.get_intent_weight(&"commit")],
 		[EnemyBehavior.Role.CASTER, EnemyBehavior.LowHealth.FALL_BACK, 0.35, 0.0])
@@ -3952,9 +3967,9 @@ func _temp_windup_frames(entry: Dictionary) -> Array:
 
 func _test_aid1_data() -> void:
 	_section("AI-D1 data: the two sliders, the table's reads, peel, the condition kinds, the recover pose, the duelist")
-	_check("peel_threshold 0.1–1 and opening_bar 0–1, last in the panel's list (twenty rows: nineteen sliders, the band's two ends)",
-		[EnemyBehavior.LIMITS[&"peel_threshold"], EnemyBehavior.LIMITS[&"opening_bar"], EnemyBehavior.SLIDERS.slice(18), EnemyBehavior.SLIDERS.size()],
-		[[0.1, 1.0], [0.0, 1.0], [&"peel_threshold", &"opening_bar"], 20])
+	_check("peel_threshold 0.1–1 and opening_bar 0–1, after nerve in the panel's list (AI-D2's three come after them)",
+		[EnemyBehavior.LIMITS[&"peel_threshold"], EnemyBehavior.LIMITS[&"opening_bar"], EnemyBehavior.SLIDERS.slice(18, 20)],
+		[[0.1, 1.0], [0.0, 1.0], [&"peel_threshold", &"opening_bar"]])
 	_check("the role starts: brute .6 / .5, skirmisher .6 / .4, caster .5 / .6",
 		[BRUTE_BEHAVIOR.peel_threshold, BRUTE_BEHAVIOR.opening_bar, SKIRMISHER_BEHAVIOR.peel_threshold, SKIRMISHER_BEHAVIOR.opening_bar,
 			CASTER_BEHAVIOR.peel_threshold, CASTER_BEHAVIOR.opening_bar], [0.6, 0.5, 0.6, 0.4, 0.5, 0.6])
@@ -4018,9 +4033,9 @@ func _test_aid1_data() -> void:
 	var overrides := {}
 	for slider: StringName in d.overrides:
 		overrides[slider] = d.overrides[slider]
-	_check("the test duelist: an elite brute flagged duelist (25 thinks a second), four abilities on q w e r; its overrides (Ryan's tuning pass, 2026-10-07): aggression .9, confidence .65, crowded_commit .55, opening_bar .4, peel_threshold .5, punish_greed .75, reaction .3",
+	_check("the test duelist: an elite brute flagged duelist (25 thinks a second), four abilities on q w e r; its overrides (Ryan's tuning pass, 2026-10-07; AI-D2 combo_greed and mixup): aggression .9, combo_greed .2, confidence .65, crowded_commit .55, mixup .3, opening_bar .4, peel_threshold .5, punish_greed .75, reaction .3",
 		[d.rank, d.duelist, d.behavior == BRUTE_BEHAVIOR, t.get_think_rate_for(d), overrides, slots],
-		[EnemyData.Rank.ELITE, true, true, 25.0, {&"aggression": 0.9, &"confidence": 0.65, &"crowded_commit": 0.55, &"opening_bar": 0.4,
+		[EnemyData.Rank.ELITE, true, true, 25.0, {&"aggression": 0.9, &"combo_greed": 0.2, &"confidence": 0.65, &"crowded_commit": 0.55, &"mixup": 0.3, &"opening_bar": 0.4,
 			&"peel_threshold": 0.5, &"punish_greed": 0.75, &"reaction_time": 0.3}, [[&"q", D_SNARE], [&"w", D_GUARD], [&"e", D_STRIKE], [&"r", D_FINISHER]]])
 	var st := d.stats
 	_check("its stats (the tuning pass): 2800 health, 30 armor, 36 attack damage (5.5% of the Knight's 650), 0.8 attack speed, 320 move speed, 150 u range, radius 55",
@@ -4494,13 +4509,13 @@ func _test_aid1_brain_opening() -> void:
 
 
 func _test_aid1_setup() -> void:
-	_section("The setup (a real duelist about 4 m away): his escapes down fill its patience at once and it opens with its best opener")
+	_section("The setup (a real duelist about 4 m away; AI-D2: with a plan, mixup and jitter 0): his escapes down fill its patience at once and it opens with its best plan")
 	var cases := [
-		["Lunge and Iron Resolve down, its bar 0.5", true, 0.5, false, &"q", false],
-		["the same at a bar of 0.6", true, 0.6, false, &"", false],
-		["his escapes up", false, 0.5, false, &"", false],
-		["escapes down, its snare (its one opener since the tuning pass) on cooldown", true, 0.5, true, &"", false],
-		["the same with a test copy of the strike that is an opener: its next opener", true, 0.5, true, &"e", true],
+		["Lunge and Iron Resolve down, its bar 0.5: snare_first", true, 0.5, false, &"q", false, &"snare_first"],
+		["the same at a bar of 0.6", true, 0.6, false, &"", false, &""],
+		["his escapes up", false, 0.5, false, &"", false, &""],
+		["escapes down, its snare on cooldown: strike_finish (a blind plan, on the blind read: escapes down)", true, 0.5, true, &"e", false, &"strike_finish"],
+		["escapes down, its snare and strike on cooldown: no plan fits (no setup)", true, 0.5, true, &"", true, &""],
 	]
 	for c: Array in cases:
 		await _reset_knight()
@@ -4512,12 +4527,14 @@ func _test_aid1_setup() -> void:
 		var e := _spawn(DUELIST_SCENE, knight.global_position + Vector2(170, 0), false)
 		var brain := e.get_brain()
 		brain.behavior.opening_bar = c[2]
+		brain.behavior.mixup = 0.0
+		brain.behavior.jitter = 0.0
 		if c[5]:
-			var opener_strike: Ability = D_STRIKE.duplicate()
-			opener_strike.combo_roles = [&"opener", &"extender"] as Array[StringName]
-			e.abilities.set(&"e", opener_strike)
+			e.abilities.start_cooldown(&"e")
 		if c[3]:
 			e.abilities.start_cooldown(&"q")
+		var plan_ids: Array = []
+		e.abilities.cast_started.connect(func(_slot: StringName, _a: Ability, _c: CastContext) -> void: plan_ids.append(brain.get_plan().id if brain.get_plan() != null else &""))
 		var casts: Array = []
 		e.abilities.cast_started.connect(func(slot: StringName, _a: Ability, _c: CastContext) -> void: casts.append(slot))
 		var spawned := Brains.get_time()
@@ -4529,8 +4546,8 @@ func _test_aid1_setup() -> void:
 				break
 		var took := Brains.get_time() - spawned
 		if c[4] != &"":
-			_check("%s: it sets up within about a second (got %.2f s; patience alone takes about 5 s): its tell, then %s first" % [c[0], took, c[4]],
-				[casts.slice(0, 1), brain.setup_count, brain.get_setup_slot(), tell[0]], [[c[4]], 1, c[4], true])
+			_check("%s: it sets up within about a second (got %.2f s; patience alone takes about 5 s): its tell, then %s first, its plan running" % [c[0], took, c[4]],
+				[casts.slice(0, 1), brain.setup_count, brain.get_setup_slot(), tell[0], plan_ids.slice(0, 1)], [[c[4]], 1, c[4], true, [c[6]]])
 			await _wait_until(func() -> bool: return not e.abilities.casting, 90)
 			await _frames(12)   # several thinks: a commit its opener ended would be over by then
 			_check("%s: its opener's end doesn't end the commit (still on 0.2 s later)" % c[0], brain.is_committing(), true)
@@ -4665,6 +4682,9 @@ func _test_aid1_sandbox() -> void:
 		["test_skirmisher.tscn", "test_caster.tscn", "test_caster_elite.tscn", "test_duelist.tscn", "test_brute.tscn"])
 	sb.scenario_enemy = DUELIST_SCENE
 	var d := sb.run_scenario(&"escapes_down")
+	if d != null and d.get_brain() != null:
+		d.get_brain().behavior.mixup = 0.0   # AI-D2: its best plan, every time
+		d.get_brain().behavior.jitter = 0.0
 	await _frames(2)
 	var slots_ready: Array = []
 	for slot in AbilityComponent.SLOTS:
@@ -4680,14 +4700,14 @@ func _test_aid1_sandbox() -> void:
 	var setup_line := [false]
 	for text: String in texts:
 		opening_line[0] = opening_line[0] or text.contains("opening 0.50 ≥ 0.40 (escapes 0.50)")
-		setup_line[0] = setup_line[0] or text.contains(": setup (Snare)")
+		setup_line[0] = setup_line[0] or text.contains(": setup snare_first (Snare)")
 	var crowding_text := ""
 	if is_instance_valid(d):
 		var away := (knight.global_position - d.global_position).normalized()
 		_place(knight, d.global_position + away * (knight.get_gameplay_radius_px() + d.get_gameplay_radius_px() + Units.to_px(80.0)))
 		await _frames(6)
 		crowding_text = sb.get_combo_text(d)
-	_check("its overlay: `opening 0.50 ≥ 0.40 (escapes 0.50)` (its bar since the tuning pass), then `: setup (Snare)` as it opens; the Knight in its face: `crowding 0.60 ≥ 0.50 (near 0.60)` (%s)" % crowding_text.replace("\n", " | "),
+	_check("its overlay: `opening 0.50 ≥ 0.40 (escapes 0.50)` (its bar since the tuning pass), then `: setup snare_first (Snare)` as it opens (AI-D2: its plan); the Knight in its face: `crowding 0.60 ≥ 0.50 (near 0.60)` (%s)" % crowding_text.replace("\n", " | "),
 		[opening_line[0], setup_line[0], crowding_text.contains("crowding 0.60 ≥ 0.50 (near 0.60)")], [true, true, true])
 	sb.scenario_enemy = BRUTE_SCENE
 	var brute := sb.run_scenario(&"escapes_down")
@@ -4696,13 +4716,622 @@ func _test_aid1_sandbox() -> void:
 	sb.set_panel(true)
 	await _frames(2)
 	var rows: Dictionary = sb.get(&"_rows")
-	_check("the panel: twenty rows (nineteen sliders; the band's two ends), peel_threshold and opening_bar among them",
-		[rows.size(), rows.has(&"peel_threshold"), rows.has(&"opening_bar")], [20, true, true])
+	_check("the panel: twenty-three rows (twenty-two sliders; the band's two ends), peel_threshold and opening_bar among them (AI-D2: and follow_through, combo_greed, mixup)",
+		[rows.size(), rows.has(&"peel_threshold"), rows.has(&"opening_bar"), rows.has(&"follow_through"), rows.has(&"combo_greed"), rows.has(&"mixup")], [23, true, true, true, true, true])
 	sb.set_panel(false)
 	sb.clear_scenario()
 	sb.queue_free()
 	await _reset_knight()
 	await _frames(30)
+
+
+# --- AI-D2: combo plans and the follow-through (ENEMIES_AI.md, Combo plans) --------------------
+
+func _test_aid2_data() -> void:
+	_section("AI-D2 data: ComboPlan and ComboStep, the duelist's three plans, the opener check, the sliders, the table, the Events")
+	var step := ComboStep.new()
+	var plan := ComboPlan.new()
+	_check("a step: AFTER_LANDED, a 1 s window, no delay, not optional; a plan: weight 1, from tier 1, no steps (no opener slot)",
+		[step.timing, step.window, step.delay, step.optional, plan.weight, plan.min_difficulty_tier, plan.get_opener_slot()],
+		[ComboStep.Timing.AFTER_LANDED, 1.0, 0.0, false, 1.0, 1, &""])
+	var rows: Array = []
+	for p in DUELIST_DATA.combo_plans:
+		var slots: Array = []
+		var timings: Array = []
+		for s in p.steps:
+			slots.append(s.slot)
+			timings.append(s.timing)
+		rows.append([p.id, slots, timings.slice(1), p.weight])
+	var landed := ComboStep.Timing.AFTER_LANDED
+	_check("the duelist's plans: snare_first (q, e, r; weight 1), strike_first (e, q, r; 0.8), strike_finish (e, r; 0.6); each later step as the one before lands",
+		rows, [[&"snare_first", [&"q", &"e", &"r"], [landed, landed], 1.0], [&"strike_first", [&"e", &"q", &"r"], [landed, landed], 0.8],
+			[&"strike_finish", [&"e", &"r"], [landed], 0.6]])
+	var conds: Array = []
+	for c in DUELIST_DATA.combo_plans[0].conditions:
+		conds.append([c.kind, c.negate, c.status_tag])
+	_check("snare_first fits with all his escapes down, him not held, not cornered; the other two have no conditions",
+		[conds, DUELIST_DATA.combo_plans[1].conditions.size(), DUELIST_DATA.combo_plans[2].conditions.size()],
+		[[[Condition.Kind.TARGET_ESCAPES_READY, true, &""], [Condition.Kind.TARGET_HAS_STATUS, true, &"cc"], [Condition.Kind.TARGET_CORNERED, true, &""]], 0, 0])
+	_check("at the run's tier all three exist (get_plans_at())", DUELIST_DATA.get_plans_at(1).size(), 3)
+	var breaches: Array = []
+	var blind: Array = []
+	for f in DirAccess.open(ENEMY_DATA_DIR).get_files():
+		if not f.ends_with(".tres"):
+			continue
+		var data := load(ENEMY_DATA_DIR + f) as EnemyData
+		for p in data.combo_plans:
+			for s in p.steps:
+				if _slot_ability(data, s.slot) == null:
+					breaches.append("%s %s: nothing on %s" % [data.id, p.id, s.slot])
+			var opener := _slot_ability(data, p.get_opener_slot())
+			if opener == null:
+				continue
+			if not opener.combo_roles.has(&"opener"):
+				blind.append(p.id)
+			elif _telegraph_time(opener) < TELEGRAPH_MIN - 0.0001 or opener.targeting == Ability.Targeting.UNIT:
+				breaches.append("%s %s: its opener %s" % [data.id, p.id, opener.id])
+	_check("the opener check: every plan's steps name abilities it has, every `opener` that opens one telegraphs at least 0.6 s and can be dodged; the rest are blind plans (on the blind read only)",
+		[breaches, blind], [[], [&"strike_first", &"strike_finish"]])
+	_check("follow_through 0–1, combo_greed 0–1, mixup 0–0.5, last in the panel's list",
+		[EnemyBehavior.LIMITS[&"follow_through"], EnemyBehavior.LIMITS[&"combo_greed"], EnemyBehavior.LIMITS[&"mixup"], EnemyBehavior.SLIDERS.slice(20)],
+		[[0.0, 1.0], [0.0, 1.0], [0.0, 0.5], [&"follow_through", &"combo_greed", &"mixup"]])
+	var adj := BrainAdjust.new()
+	_check("starts: brute .6 / .6 / .15, skirmisher .2 / .3 / .3, caster 0 / .1 / .2; the duelist's combo_greed .2 and mixup .3 (overrides); BrainAdjust's three at 1",
+		[[BRUTE_BEHAVIOR.follow_through, BRUTE_BEHAVIOR.combo_greed, BRUTE_BEHAVIOR.mixup],
+			[SKIRMISHER_BEHAVIOR.follow_through, SKIRMISHER_BEHAVIOR.combo_greed, SKIRMISHER_BEHAVIOR.mixup],
+			[CASTER_BEHAVIOR.follow_through, CASTER_BEHAVIOR.combo_greed, CASTER_BEHAVIOR.mixup],
+			[DUELIST_DATA.overrides.get(&"combo_greed", -1.0), DUELIST_DATA.overrides.get(&"mixup", -1.0)],
+			[adj.follow_through, adj.combo_greed, adj.mixup]],
+		[[0.6, 0.6, 0.15], [0.2, 0.3, 0.3], [0.0, 0.1, 0.2], [0.2, 0.3], [1.0, 1.0, 1.0]])
+	var t := Brains.table
+	var keys: Array = []
+	var values: Array = []
+	for k: StringName in t.blind_reads:
+		keys.append(k)
+		values.append(t.blind_reads[k])
+	_check("the table: plan_max_time 6 s, plan_odds_drop 0.33, mixup's beat 0.4–0.8 s, whiff_time 0.3 s, the four blind reads on",
+		[t.plan_max_time, t.plan_odds_drop, t.mixup_delay_min, t.mixup_delay_max, t.whiff_time, keys, values],
+		[6.0, 0.33, 0.4, 0.8, 0.3, [&"low_health", &"escapes_down", &"ultimate_down", &"held"], [true, true, true, true]])
+	_check("Events: combo_plan_started, combo_plan_ended", [Events.has_signal("combo_plan_started"), Events.has_signal("combo_plan_ended")], [true, true])
+
+
+## A plan built in a test: `slots` in order, each later step's timing from
+## `timings` (AFTER_LANDED when missing).
+func _combo_plan(slots: Array, timings: Array = [], id: StringName = &"test_plan") -> ComboPlan:
+	var p := ComboPlan.new()
+	p.id = id
+	for i in slots.size():
+		var st := ComboStep.new()
+		st.slot = slots[i]
+		if i > 0 and i - 1 < timings.size():
+			st.timing = timings[i - 1]
+		p.steps.append(st)
+	return p
+
+
+func _blind_situation() -> SituationContext:
+	var s := _situation(0.5, 0.0)
+	s.blind_reads = Brains.table.blind_reads
+	s.target_health_ratio = 0.8
+	s.target_escapes = 2
+	s.target_escapes_ready = 1
+	s.target_ultimates = 1
+	s.target_ultimates_ready = 1
+	return s
+
+
+func _test_aid2_blind_read() -> void:
+	_section("The blind read (Ryan, 2026-10-07: it doesn't HAVE to wait for its opener to land): held, low, his escapes down, his ultimate down; otherwise none")
+	var rows: Array = []
+	var s := _blind_situation()
+	rows.append(ComboPlanner.get_blind_reason(s, 0.3))
+	s = _blind_situation()
+	s.target_cc = true
+	rows.append(ComboPlanner.get_blind_reason(s, 0.3))
+	s = _blind_situation()
+	s.target_health_ratio = 0.25
+	rows.append(ComboPlanner.get_blind_reason(s, 0.3))
+	s = _blind_situation()
+	s.target_health_ratio = 0.3
+	rows.append(ComboPlanner.get_blind_reason(s, 0.3))
+	s = _blind_situation()
+	s.target_escapes_ready = 0
+	rows.append(ComboPlanner.get_blind_reason(s, 0.3))
+	s = _blind_situation()
+	s.target_escapes = 0
+	s.target_escapes_ready = 0
+	rows.append(ComboPlanner.get_blind_reason(s, 0.3))
+	s = _blind_situation()
+	s.target_ultimates_ready = 0
+	rows.append(ComboPlanner.get_blind_reason(s, 0.3))
+	s = _blind_situation()
+	s.target_cc = true
+	s.target_ultimates_ready = 0
+	rows.append(ComboPlanner.get_blind_reason(s, 0.3))
+	s = _blind_situation()
+	s.target_ultimates_ready = 0
+	s.blind_reads = {&"low_health": true, &"escapes_down": true, &"ultimate_down": false, &"held": true}
+	rows.append(ComboPlanner.get_blind_reason(s, 0.3))
+	_check("all up and healthy: none; held; 25% (under its 0.3): low; at 30%: none; escapes 0 of 2: escapes down; no escapes at all: none; Judgement down: ultimate down; held and ult down: held (first); ultimate_down switched off: none",
+		rows, [&"", &"held", &"low_health", &"", &"escapes_down", &"", &"ultimate_down", &"held", &""])
+
+
+func _plan_option(plan: ComboPlan, blind: bool, value: float = 1.0) -> Dictionary:
+	return {"plan": plan, "opener": _plan(plan.get_opener_slot(), value), "ready": true, "conditions_ok": true, "cc_ok": true, "blind": blind}
+
+
+func _test_aid2_pick_plan() -> void:
+	_section("Picking a plan (pure): it fits (conditions, ready, an opener plan, no wasted crowd control, a blind plan only on the blind read), then weight × the opener's value, then mixup")
+	var plans := DUELIST_DATA.combo_plans
+	var b := DUELIST_DATA.behavior.resolve(DUELIST_DATA.overrides, [] as Array[BrainAdjust])
+	b.jitter = 0.0
+	b.mixup = 0.0
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var pick_id := func(sc: SituationContext) -> StringName:
+		var pick := ComboPlanner.pick_plan(sc, b, rng)
+		return (pick.plan as ComboPlan).id if not pick.is_empty() else &""
+	var rows: Array = []
+	var s := _situation(0.5, 1.0)
+	for i in 3:
+		s.plan_options.append(_plan_option(plans[i], i > 0))
+	rows.append(pick_id.call(s))   # no blind read: the strike plans don't fit
+	s.blind_reason = &"escapes_down"
+	rows.append(pick_id.call(s))   # all fit: the heaviest
+	s.plan_options[0].conditions_ok = false
+	rows.append(pick_id.call(s))
+	s.plan_options[1].ready = false
+	rows.append(pick_id.call(s))
+	s.plan_options[2].opener = null
+	rows.append(pick_id.call(s))
+	s.blind_reason = &""
+	s.plan_options[0].conditions_ok = true
+	s.plan_options[0].cc_ok = false
+	rows.append(pick_id.call(s))
+	_check("no blind read: snare_first only; blind: snare_first (weight 1); its conditions failing: strike_first (0.8); that one not ready: strike_finish; its opener with no plan: none; snare_first wasting its snare: none",
+		rows, [&"snare_first", &"snare_first", &"strike_first", &"strike_finish", &"", &""])
+	s = _situation(0.5, 1.0)
+	s.blind_reason = &"escapes_down"
+	s.plan_options.append(_plan_option(plans[0], false, 0.5))
+	s.plan_options.append(_plan_option(plans[1], true, 1.0))
+	_check("weight × the opener's plan value: snare_first 1 × 0.5 < strike_first 0.8 × 1", pick_id.call(s), &"strike_first")
+	b.mixup = 0.3
+	var runner_ups := 0
+	var delays := 0
+	var in_range := true
+	for i in 1000:
+		var two := _situation(0.5, 1.0)
+		two.blind_reason = &"escapes_down"
+		two.plan_options.append(_plan_option(plans[0], false))
+		two.plan_options.append(_plan_option(plans[1], true))
+		var pick := ComboPlanner.pick_plan(two, b, rng)
+		runner_ups += int(pick.runner_up and (pick.plan as ComboPlan).id == &"strike_first")
+		var one := _situation(0.5, 1.0)
+		one.mixup_delay_min = Brains.table.mixup_delay_min
+		one.mixup_delay_max = Brains.table.mixup_delay_max
+		one.plan_options.append(_plan_option(plans[0], false))
+		var single := ComboPlanner.pick_plan(one, b, rng)
+		if float(single.delay) > 0.0:
+			delays += 1
+			in_range = in_range and float(single.delay) >= 0.4 - 0.0001 and float(single.delay) <= 0.8 + 0.0001
+		in_range = in_range and not single.runner_up
+	_check("mixup 0.3 over 1,000 seeded setups: two fitting, the runner-up about 30%% (%d); one fitting, a held beat of 0.4–0.8 s about 30%% (%d), never a runner-up" % [runner_ups, delays],
+		[absi(runner_ups - 300) <= 50, absi(delays - 300) <= 50, in_range], [true, true, true])
+	b.mixup = 0.0
+	var never := 0
+	for i in 200:
+		var two := _situation(0.5, 1.0)
+		two.blind_reason = &"held"
+		two.plan_options.append(_plan_option(plans[0], false))
+		two.plan_options.append(_plan_option(plans[1], true))
+		var pick := ComboPlanner.pick_plan(two, b, rng)
+		never += int(pick.runner_up) + int(float(pick.delay) > 0.0)
+	_check("mixup 0: never a runner-up or a beat", never, 0)
+
+
+func _plan_progress(index: int, prev_end: float, landed: float, miss_at: float, opener_landed: bool = true) -> Dictionary:
+	return {"index": index, "prev_end": prev_end, "prev_landed": landed, "prev_miss_at": miss_at, "opener_landed": opener_landed,
+		"carried": false, "greed": -1.0, "finishers": [2], "target_tags": []}
+
+
+func _test_aid2_next_step() -> void:
+	_section("A plan's steps (pure next_step()): each starts on the tick its trigger comes (no reaction time), prefers to wait for a landing, a miss carries on on the blind read or one combo_greed roll, no blind finisher, a 1 s window")
+	var plan := DUELIST_DATA.combo_plans[0]   # snare_first: q, e (as it lands), r (as it lands; the finisher)
+	var b := DUELIST_DATA.behavior.resolve(DUELIST_DATA.overrides, [] as Array[BrainAdjust])
+	var s := _situation(0.5, 1.0)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 11
+	var rows: Array = []
+	rows.append(ComboPlanner.next_step(plan, _plan_progress(1, -1.0, -1.0, INF), s, b, 5.0, rng).action)
+	rows.append(ComboPlanner.next_step(plan, _plan_progress(1, 5.0, -1.0, 5.5), s, b, 5.2, rng).action)
+	var landed := ComboPlanner.next_step(plan, _plan_progress(1, 5.0, 5.3, 5.5), s, b, 5.3, rng)
+	rows.append([landed.action, landed.get("trigger", -1.0)])
+	rows.append(ComboPlanner.next_step(plan, _plan_progress(1, 5.0, 5.3, 5.5), s, b, 6.35, rng).get("reason", &""))
+	var optional_plan := _combo_plan([&"q", &"e", &"r"])
+	optional_plan.steps[1].optional = true
+	rows.append(ComboPlanner.next_step(optional_plan, _plan_progress(1, 5.0, 5.3, 5.5), s, b, 6.35, rng).action)
+	_check("its snare's cast not ended: wait; ended, not landed before its miss time: wait (it prefers to); landed at 5.3: the strike starts at 5.3 (the same tick); 1.05 s after its trigger: the window ends the plan; an optional step is skipped",
+		rows, [ComboPlanner.WAIT, ComboPlanner.WAIT, [ComboPlanner.START, 5.3], ComboPlanner.WINDOW, ComboPlanner.SKIP])
+	rows = []
+	b.combo_greed = 0.0
+	var miss := ComboPlanner.next_step(plan, _plan_progress(1, 5.0, -1.0, 5.5), s, b, 5.5, rng)
+	rows.append([miss.action, miss.get("reason", &""), miss.has("greed")])
+	b.combo_greed = 1.0
+	miss = ComboPlanner.next_step(plan, _plan_progress(1, 5.0, -1.0, 5.5), s, b, 5.5, rng)
+	rows.append([miss.action, miss.get("carried", false), miss.has("greed")])
+	b.combo_greed = 0.0
+	s.blind_reason = &"escapes_down"
+	miss = ComboPlanner.next_step(plan, _plan_progress(1, 5.0, -1.0, 5.5), s, b, 5.5, rng)
+	rows.append([miss.action, miss.get("carried", false), miss.has("greed")])
+	_check("its snare missed (nothing by its miss time): at combo_greed 0 the plan ends (missed); at 1 it carries on; at 0 with the blind read (escapes down) it carries on without a roll",
+		rows, [[ComboPlanner.END, ComboPlanner.MISSED, true], [ComboPlanner.START, true, true], [ComboPlanner.START, true, false]])
+	s.blind_reason = &""
+	b.combo_greed = 0.2
+	var carried := 0
+	var finishers := 0
+	for i in 1000:
+		var p := _plan_progress(1, 5.0, -1.0, 5.5, false)
+		var r := ComboPlanner.next_step(plan, p, s, b, 5.5, rng)
+		if r.action == ComboPlanner.START:
+			carried += 1
+	b.combo_greed = 0.0
+	for i in 200:
+		var p := _plan_progress(2, 6.0, 6.2, 6.5, false)   # the strike landed, the snare had missed
+		finishers += int(ComboPlanner.next_step(plan, p, s, b, 6.2, rng).action == ComboPlanner.START)
+	_check("combo_greed 0.2 over 1,000 seeded missed snares: it carries on in about 20%% (%d); at 0, never a finisher after a missed opener (%d of 200)" % [carried, finishers],
+		[absi(carried - 200) <= 40, finishers], [true, 0])
+	rows = []
+	var fin := _plan_progress(2, 6.0, 6.2, 6.5, false)
+	fin.carried = true
+	rows.append(ComboPlanner.next_step(plan, fin, s, b, 6.2, rng).action)
+	rows.append(ComboPlanner.next_step(plan, _plan_progress(2, 6.0, 6.2, 6.5, true), s, b, 6.2, rng).action)
+	s.blind_reason = &"low_health"
+	rows.append(ComboPlanner.next_step(plan, _plan_progress(2, 6.0, 6.2, 6.5, false), s, b, 6.2, rng).action)
+	s.blind_reason = &""
+	_check("the finisher after a missed snare: carried on (greed or blind before), it starts; its snare landed, it starts; the blind read now (low), it starts",
+		rows, [ComboPlanner.START, ComboPlanner.START, ComboPlanner.START])
+	rows = []
+	var timed := _combo_plan([&"q", &"e", &"r", &"w"], [ComboStep.Timing.AFTER_ENDED, ComboStep.Timing.AFTER_DELAY, ComboStep.Timing.ON_STATUS])
+	timed.steps[2].delay = 0.5
+	timed.steps[3].status_tag = &"root"
+	rows.append(ComboPlanner.next_step(timed, _plan_progress(1, 5.0, -1.0, 5.5), s, b, 5.0, rng).action)
+	rows.append(ComboPlanner.next_step(timed, _plan_progress(2, 5.0, -1.0, 5.5), s, b, 5.3, rng).action)
+	rows.append(ComboPlanner.next_step(timed, _plan_progress(2, 5.0, -1.0, 5.5), s, b, 5.5, rng).action)
+	var status := _plan_progress(3, 5.0, -1.0, 5.5)
+	rows.append(ComboPlanner.next_step(timed, status, s, b, 5.2, rng).action)
+	status.target_tags = [&"cc", &"root"]
+	rows.append(ComboPlanner.next_step(timed, status, s, b, 5.2, rng).action)
+	status.target_tags = []
+	rows.append(ComboPlanner.next_step(timed, status, s, b, 6.1, rng).get("reason", &""))
+	rows.append(ComboPlanner.next_step(timed, _plan_progress(4, 7.0, -1.0, 7.5), s, b, 7.0, rng).get("reason", &""))
+	_check("AFTER_ENDED starts as the cast ends; AFTER_DELAY 0.5 waits until then; ON_STATUS root waits for a root, starts with one, its window runs from the cast's end; past the last step: done",
+		rows, [ComboPlanner.START, ComboPlanner.WAIT, ComboPlanner.START, ComboPlanner.WAIT, ComboPlanner.START, ComboPlanner.WINDOW, ComboPlanner.DONE])
+
+
+func _test_aid2_lean() -> void:
+	_section("The follow-through (pure): the lean and the worked example's four cases at follow_through 0.6 (reset, stay, stay, reset); the no-waste rule")
+	var b := DUELIST_DATA.behavior.resolve(DUELIST_DATA.overrides, [] as Array[BrainAdjust])
+	b.confidence = 0.5
+	b.nerve = 0.6
+	b.respect_weight = 1.0
+	var cases: Array[SituationContext] = []
+	for c: Array in [[0.8, 0.0, 0.0, 1.5], [0.15, 0.0, 0.0, 1.5], [0.42, 7.5 / 10.5, 0.0, 7.5], [0.8, 0.0, 0.5, 1.5]]:
+		var s := SituationContext.new()
+		s.respect = c[0]
+		s.own_ready_share = c[1]
+		s.press = c[2]
+		s.effective_respect = EnemyBrain.get_effective_respect(s, b)
+		s.health_ratio = 0.9
+		s.own_kit_ready = float(c[3]) / 10.5
+		cases.append(s)
+	var leans: Array = []
+	var stays: Array = []
+	for s in cases:
+		leans.append(roundi(ComboPlanner.get_lean(s) * 100.0))
+		stays.append(ComboPlanner.wants_stay(s, 0.6))
+	_check("lean × 100 [its kit spent, his up: 11; both spent: 46; cut short, his Judgement down: 59; the first case pressing: 24]; stays at 0.6",
+		[leans, stays], [[11, 46, 59, 24], [false, true, true, false]])
+	var rows: Array = []
+	for f in [0.0, 1.0]:
+		var row: Array = []
+		for s in cases:
+			row.append(ComboPlanner.wants_stay(s, f))
+		rows.append(row)
+	var tokenless := cases[1]
+	tokenless.needs_token = true
+	tokenless.has_token = false
+	rows.append(ComboPlanner.wants_stay(tokenless, 1.0))
+	_check("follow_through 0: always a reset; 1: always a stay; its token gone: a reset", rows,
+		[[false, false, false, false], [true, true, true, true], false])
+	var held := SituationContext.new()
+	var cc_rows: Array = [ComboPlanner.can_crowd_control(held, 0.7)]
+	held.target_held_left = 0.5
+	cc_rows.append(ComboPlanner.can_crowd_control(held, 0.7))
+	held.target_held_left = 1.0
+	cc_rows.append(ComboPlanner.can_crowd_control(held, 0.7))
+	held.target_held_left = 0.0
+	held.target_cc_immune = true
+	cc_rows.append(ComboPlanner.can_crowd_control(held, 0.7))
+	_check("the no-waste rule for a 0.7 s crowd control: free, yes; held 0.5 s more, yes; held 1 s more, no; CC-immune, no", cc_rows, [true, true, false, false])
+
+
+func _test_aid2_snapshot() -> void:
+	_section("The snapshot's ultimates (the blind read): the Knight's Judgement")
+	await _reset_knight()
+	await _frames(2)
+	var m := Brains.get_snapshot().get_member(knight)
+	var up := [m.get("ultimates", -1), m.get("ultimates_ready", -1)]
+	knight.abilities.start_cooldown(&"r")
+	await _frames(2)
+	m = Brains.get_snapshot().get_member(knight)
+	_check("one ultimate, ready; Judgement spent: none ready", [up, [m.get("ultimates", -1), m.get("ultimates_ready", -1)]], [[1, 1], [1, 0]])
+	_reset_cooldowns()
+
+
+## A real duelist 170 px from the Knight, mixup and jitter 0 (its best plan),
+## the press off (the heavy-hit window doesn't space its steps); the record of
+## its casts, its hits on the Knight and its plans' ends: {casts: [[slot,
+## t]], hits: [[ability id, t]], ended: [[plan id, reason]], started: [plan
+## ids]}. Free it with _free_plan_duelist().
+func _plan_duelist(record: Dictionary) -> Enemy:
+	_no_press()
+	var e := _spawn(DUELIST_SCENE, knight.global_position + Vector2(170, 0), false)
+	var brain := e.get_brain()
+	brain.behavior.mixup = 0.0
+	brain.behavior.jitter = 0.0
+	record.casts = []
+	record.hits = []
+	record.ended = []
+	record.started = []
+	e.abilities.cast_started.connect(func(slot: StringName, _a: Ability, _c: CastContext) -> void: (record.casts as Array).append([slot, Brains.get_time()]))
+	record.on_hit = func(ctx: HitContext) -> void:
+		if ctx.source == e and ctx.target == knight and ctx.ability != null:
+			(record.hits as Array).append([ctx.ability.id, Brains.get_time()])
+	record.on_start = func(u: Unit, _t: Unit, plan: ComboPlan) -> void:
+		if u == e:
+			(record.started as Array).append(plan.id)
+	record.on_end = func(u: Unit, _t: Unit, plan: ComboPlan, reason: StringName) -> void:
+		if u == e:
+			(record.ended as Array).append([plan.id, reason])
+	Events.unit_hit.connect(record.on_hit)
+	Events.combo_plan_started.connect(record.on_start)
+	Events.combo_plan_ended.connect(record.on_end)
+	return e
+
+
+func _free_plan_duelist(e: Enemy, record: Dictionary) -> void:
+	Events.unit_hit.disconnect(record.on_hit)
+	Events.combo_plan_started.disconnect(record.on_start)
+	Events.combo_plan_ended.disconnect(record.on_end)
+	record.clear()   # its lambdas capture `record`: the cycle would outlive the test (a leak at exit)
+	_restore_press()
+	await _free_duelist(e)
+
+
+## The time of the first record row with `key` (a slot or an ability id), −1.
+func _first_at(rows: Array, key: StringName) -> float:
+	for r: Array in rows:
+		if r[0] == key:
+			return float(r[1])
+	return -1.0
+
+
+func _test_aid2_snare_first() -> void:
+	_section("snare_first, end to end (a real duelist, his escapes down): the snare; the strike on the tick the root lands; the finisher on the tick the strike lands, inside the 1 s root; its own steps wait no reaction time")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	knight.abilities.start_cooldown(&"e")
+	knight.abilities.start_cooldown(&"w")
+	var record := {}
+	var e := _plan_duelist(record)
+	var brain := e.get_brain()
+	await _wait_until(func() -> bool: return not (record.ended as Array).is_empty(), 360)
+	var casts: Array = []
+	for c: Array in record.casts:
+		casts.append(c[0])
+	var snare_hit := _first_at(record.hits, D_SNARE.id)
+	var strike_cast := _first_at(record.casts, &"e")
+	var strike_hit := _first_at(record.hits, D_STRIKE.id)
+	var finisher_cast := _first_at(record.casts, &"r")
+	var finisher_hit := _first_at(record.hits, D_FINISHER.id)
+	var tick := 1.0 / 60.0 + 0.001
+	_check("it ran snare_first to its end: started once, done; casts q, e, r; all three landed",
+		[record.started, record.ended, casts.slice(0, 3), [snare_hit >= 0.0, strike_hit >= 0.0, finisher_hit >= 0.0]],
+		[[&"snare_first"], [[&"snare_first", ComboPlanner.DONE]], [&"q", &"e", &"r"], [true, true, true]])
+	var dash: float = D_STRIKE.get(&"dash_time")
+	_check("the strike starts on the tick the snare lands (got %.3f s after; its reaction time is %.2f s); the finisher as the strike lands, or as its %.2f s dash ends when the hit came mid-dash (%.3f s; it can't cast while it dashes)" % [strike_cast - snare_hit, brain.behavior.reaction_time, dash, finisher_cast - strike_hit],
+		[strike_cast - snare_hit >= -0.0001 and strike_cast - snare_hit <= tick, finisher_cast - strike_hit >= -0.0001 and finisher_cast - strike_hit <= dash + tick], [true, true])
+	_check("the finisher lands inside the snare's 1 s root (%.2f s after it)" % (finisher_hit - snare_hit), finisher_hit - snare_hit < 1.0, true)
+	await _free_plan_duelist(e, record)
+
+
+func _test_aid2_missed_opener() -> void:
+	_section("Its snare dodged (the Knight steps 3 m aside as it's cast): at combo_greed 0 with the blind reads off the plan ends (missed), no finisher; at 1 it carries on; with the blind read (his escapes down) it carries on without a roll")
+	var saved := Brains.table.blind_reads
+	var off: Dictionary[StringName, bool] = {}
+	for c: Array in [[0.0, false, ComboPlanner.MISSED, false, "end"], [1.0, false, ComboPlanner.DONE, true, "carry on (0."], [0.0, true, ComboPlanner.DONE, true, "carry on (blind: escapes down)"]]:
+		Brains.table.blind_reads = saved if c[1] else off
+		await _reset_knight()
+		await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+		knight.abilities.start_cooldown(&"e")
+		knight.abilities.start_cooldown(&"w")
+		var record := {}
+		var e := _plan_duelist(record)
+		var brain := e.get_brain()
+		brain.behavior.combo_greed = c[0]
+		var sidestep := func(slot: StringName, _a: Ability, _c: CastContext) -> void:
+			if slot == &"q":
+				_place(knight, knight.global_position + Vector2(0, 96))
+		e.abilities.cast_started.connect(sidestep)
+		await _wait_until(func() -> bool: return not (record.ended as Array).is_empty(), 420)
+		var casts: Array = []
+		for r: Array in record.casts:
+			casts.append(r[0])
+		_check("combo_greed %.0f, blind reads %s: the snare missed; ends %s; the finisher cast %s; `missed: %s...`" % [c[0], "on" if c[1] else "off", c[2], c[3], c[4]],
+			[_first_at(record.hits, D_SNARE.id) < 0.0, record.ended.slice(0, 1), casts.has(&"r"), brain.get_last_carry().begins_with(c[4])],
+			[true, [[&"snare_first", c[2]]], c[3], true])
+		await _free_plan_duelist(e, record)
+	Brains.table.blind_reads = saved
+
+
+func _test_aid2_strike_plans() -> void:
+	_section("Its snare down: strike_finish (blind: his escapes down) opens with the strike, finishes as it lands, never waits for the snare; his kit up and healthy: no plan fits and it keeps its follow-ups; Judgement down: blind again")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	knight.abilities.start_cooldown(&"e")
+	knight.abilities.start_cooldown(&"w")
+	var record := {}
+	var e := _plan_duelist(record)
+	e.abilities.start_cooldown(&"q")
+	await _wait_until(func() -> bool: return not (record.ended as Array).is_empty(), 360)
+	var casts: Array = []
+	for r: Array in record.casts:
+		casts.append(r[0])
+	_check("strike_finish: the strike, then the finisher as it lands; done", [record.started, casts.slice(0, 2), record.ended],
+		[[&"strike_finish"], [&"e", &"r"], [[&"strike_finish", ComboPlanner.DONE]]])
+	await _free_plan_duelist(e, record)
+
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	knight.resource_pool.restore(1000.0)   # Cleave payable: his whole kit up
+	knight.status_component.apply_status(_tag_status(&"test_unstoppable", [&"unstoppable"]))
+	record = {}
+	e = _plan_duelist(record)
+	var brain := e.get_brain()
+	brain.behavior.patience_time = 0.5   # it commits soon
+	e.abilities.start_cooldown(&"q")
+	var committed := [false]
+	for i in 300:
+		await get_tree().physics_frame
+		committed[0] = committed[0] or brain.is_committing()
+		knight.resource_pool.restore(1000.0)
+	casts = []
+	for r: Array in record.casts:
+		casts.append(r[0])
+	_check("his kit up, healthy, not held: it commits (%s) but runs no plan and casts neither its strike nor its finisher in 5 s (its follow-ups kept; blind read `%s`)" % [committed[0], brain.get_situation().blind_reason],
+		[committed[0], brain.plan_count, casts.has(&"e"), casts.has(&"r")], [true, 0, false, false])
+	knight.abilities.start_cooldown(&"r")
+	await _wait_until(func() -> bool: return not (record.started as Array).is_empty(), 300)
+	_check("Judgement spent (ultimate down): blind, so its strike plans fit again (%s)" % [record.started], record.started.slice(0, 1), [&"strike_finish"])
+	knight.status_component.remove_status(&"test_unstoppable")
+	await _free_plan_duelist(e, record)
+
+
+func _test_aid2_follow_through() -> void:
+	_section("The follow-through, for real: his kit spent, it stays (a new commit at once: its tell, its token kept, held 4 s again); at follow_through 0 it resets (patience 0, the token let go)")
+	for stay in [true, false]:
+		await _reset_knight()
+		await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+		_spend_kit()
+		var record := {}
+		var e := _plan_duelist(record)
+		var brain := e.get_brain()
+		if not stay:
+			brain.behavior.follow_through = 0.0
+		var hold := [0.0]
+		var plan_over := func() -> bool:
+			if brain.get_plan() != null and hold[0] <= 0.0:
+				hold[0] = Brains.get_token_hold_left(e)
+			return not (record.ended as Array).is_empty()
+		await _wait_until(plan_over, 360)
+		var row := [brain.get_last_follow(), brain.is_committing(), Brains.has_token(e)]
+		if stay:
+			_check("its plan's token held up to plan_max_time (%.2f s left at its start); done, his kit spent (lean %.2f ≥ 0.40): stay, committing, its tell, its token held again for 4 s (%.2f)" % [hold[0], brain.get_last_lean(), Brains.get_token_hold_left(e)],
+				[hold[0] > 5.5, row, brain.get_tell_left() > 0.0, Brains.get_token_hold_left(e) > 3.9 and Brains.get_token_hold_left(e) <= 4.0001],
+				[true, [&"stay", true, true], true, true])
+		else:
+			_check("follow_through 0: reset (not committing, patience %.2f, the token let go)" % brain.get_patience(), [row, brain.get_patience()], [[&"reset", false, false], 0.0])
+		await _free_plan_duelist(e, record)
+
+
+func _test_aid2_token() -> void:
+	_section("A plan never holds its token past plan_max_time (6 s): a test plan stuck waiting for a status ends there (token lost)")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	knight.abilities.start_cooldown(&"e")
+	knight.abilities.start_cooldown(&"w")
+	var record := {}
+	var e := _plan_duelist(record)
+	var stuck := _combo_plan([&"q", &"r"], [ComboStep.Timing.ON_STATUS], &"stuck")
+	stuck.steps[1].status_tag = &"never"
+	stuck.steps[1].window = 20.0
+	var plans: Array[ComboPlan] = [stuck]
+	e.get_brain()._plans = plans
+	await _wait_until(func() -> bool: return not (record.started as Array).is_empty(), 240)
+	var started := Brains.get_time()
+	await _wait_until(func() -> bool: return not (record.ended as Array).is_empty(), 480)
+	var took := Brains.get_time() - started
+	_check("it ended after %.2f s (6 s), its token lost" % took, [record.ended, took >= 5.9 and took <= 6.15], [[[&"stuck", ComboPlanner.TOKEN_LOST]], true])
+	await _free_plan_duelist(e, record)
+
+
+func _test_aid2_ends() -> void:
+	_section("A plan's other ends (snare_first, after its snare lands): stunned (interrupted), him untargetable (target lost), the strike out of reach (window), its health under a fall-back role's retreat health (low health), the ally coming in (odds)")
+	var saved_leash := Brains.table.leash_px
+	Brains.table.leash_px = 5000.0
+	for c in [ComboPlanner.INTERRUPTED, ComboPlanner.TARGET_LOST, ComboPlanner.WINDOW, ComboPlanner.LOW_HEALTH, ComboPlanner.ODDS]:
+		await _reset_knight()
+		await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+		knight.abilities.start_cooldown(&"e")
+		knight.abilities.start_cooldown(&"w")
+		var record := {}
+		var e := _plan_duelist(record)
+		var brain := e.get_brain()
+		if c == ComboPlanner.LOW_HEALTH:
+			brain.behavior.low_health = EnemyBehavior.LowHealth.FALL_BACK
+		await _wait_until(func() -> bool: return _first_at(record.hits, D_SNARE.id) >= 0.0, 300)
+		var friend: Enemy = null
+		if c == ComboPlanner.INTERRUPTED:
+			await _wait_until(func() -> bool: return e.abilities.casting, 30)
+			e.status_component.apply_status(load("res://data/statuses/status_stun.tres"), knight)
+		elif c == ComboPlanner.TARGET_LOST:
+			knight.status_component.apply_status(_tag_status(&"test_untargetable", [&"untargetable"]))
+		elif c == ComboPlanner.WINDOW:
+			await _wait_until(func() -> bool: return not e.abilities.casting, 30)
+			_place(knight, e.global_position + (knight.global_position - e.global_position).normalized() * 400.0)
+		elif c == ComboPlanner.LOW_HEALTH:
+			e.health.take_damage(e.health.max_health * 0.7)
+		elif c == ComboPlanner.ODDS:
+			friend = _friend(knight.global_position + Vector2(-60, 0))
+		await _wait_until(func() -> bool: return not (record.ended as Array).is_empty(), 180)
+		_check("%s: the plan ends so" % c, record.ended.slice(0, 1), [[&"snare_first", c]])
+		knight.status_component.remove_status(&"test_untargetable")
+		if friend != null:
+			friend.queue_free()
+		await _free_plan_duelist(e, record)
+	Brains.table.leash_px = saved_leash
+
+
+func _test_aid2_sandbox() -> void:
+	_section("The overlay's plan lines (AI-D2): the plan under way, its end and the follow-through, the blind read")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	_spend_kit()
+	var record := {}
+	var e := _plan_duelist(record)
+	var overlay := SandboxBrains.new()   # its combo lines only (not in the tree)
+	var texts := {}
+	for i in 360:
+		await get_tree().physics_frame
+		for line in overlay.get_combo_text(e).split("\n"):
+			texts[line] = true
+		if not (record.ended as Array).is_empty() and i > 0:
+			for j in 3:
+				await get_tree().physics_frame
+				for line in overlay.get_combo_text(e).split("\n"):
+					texts[line] = true
+			break
+	overlay.free()
+	var running := false
+	var after := false
+	var blind := false
+	for line: String in texts:
+		running = running or line.begins_with("plan: snare_first 2/3 (Strike)")
+		after = after or (line.begins_with("plan: snare_first done, after: ") and line.contains("(lean "))
+		blind = blind or line == "blind: escapes down"
+	_check("`plan: snare_first 2/3 (Strike)` while it runs, `plan: snare_first done, after: stay (lean ...)` after it, `blind: escapes down`",
+		[running, after, blind], [true, true, true])
+	await _free_plan_duelist(e, record)
 
 
 # --- Helpers ----------------------------------------------------------------------------

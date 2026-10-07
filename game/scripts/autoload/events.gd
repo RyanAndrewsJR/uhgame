@@ -39,3 +39,14 @@ signal item_unequipped(unit: Unit, item: Item)
 ## its own has a pack of one).
 @warning_ignore("unused_signal")
 signal pack_alerted(pack: Node, target: Unit)
+## An enemy started a combo plan on `target` (ENEMIES_AI AI-D2): its opener
+## comes after its tell. For an audio sting, the overlay and, later, the HUD.
+@warning_ignore("unused_signal")
+signal combo_plan_started(unit: Unit, target: Unit, plan: ComboPlan)
+## Its plan ended, with `reason`: &"done", &"missed" (a step missed and it
+## didn't carry on), &"window" (a step couldn't start in time), &"interrupted"
+## (its cast cut, it was crowd-controlled, or something urgent came first),
+## &"token_lost", &"target_lost", &"low_health", &"odds". The follow-through
+## decides next.
+@warning_ignore("unused_signal")
+signal combo_plan_ended(unit: Unit, target: Unit, plan: ComboPlan, reason: StringName)

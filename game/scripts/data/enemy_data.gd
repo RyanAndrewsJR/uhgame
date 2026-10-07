@@ -42,11 +42,23 @@ enum Rank { FODDER, REGULAR, ELITE, BOSS }
 ## A duelist (ENEMIES_AI.md, Kits; AI3c; Ryan, 2026-10-04): rank ELITE in
 ## everything, but it thinks at the boss's rate. Read only at rank ELITE.
 @export var duelist: bool = false
+## Its combo plans (ENEMIES_AI.md, Combo plans; AI-D2): it sets up and runs
+## plans only with some. Each names its steps' abilities by slot.
+@export var combo_plans: Array[ComboPlan] = []
 
 
 ## The source id its twist goes under.
 func get_source_id() -> StringName:
 	return StringName("enemy_" + String(id))
+
+
+## Its combo plans that exist at `difficulty_tier` (AI-D2).
+func get_plans_at(difficulty_tier: int) -> Array[ComboPlan]:
+	var out: Array[ComboPlan] = []
+	for plan in combo_plans:
+		if plan != null and not plan.steps.is_empty() and difficulty_tier >= plan.min_difficulty_tier:
+			out.append(plan)
+	return out
 
 
 ## Its abilities that exist at `difficulty_tier` (slot -> Ability).

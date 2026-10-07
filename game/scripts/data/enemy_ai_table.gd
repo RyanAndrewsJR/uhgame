@@ -9,8 +9,9 @@ extends Resource
 ## pick's; AI3b the duel's (cautious, spending, crowded, smell blood, the
 ## walk read for aim lead), AI3c the odds' (strength, the press, the heavy
 ## hit) and the think budget, AI-D1 the combos' reads (crowding, the opening)
-## and the major tags; dodging's and the whiff's come with their steps (AI4,
-## AI6).
+## and the major tags, AI-D2 the combo plans' (the token's plan time, the
+## odds drop, mixup's beat, the whiff time, the blind read); dodging's comes
+## with AI4.
 
 ## The four ranks (fodder, regular, elite, boss), each a RankRules.
 @export var ranks: Array[RankRules] = []
@@ -265,8 +266,36 @@ extends Resource
 @export var opening_cc_min_left: float = 0.5
 @export var cornered_check_px: float = 48.0
 
+@export_group("Combo plans (AI-D2)")
+## A commit running a plan keeps its token until the plan ends, up to this
+## (s; in place of token_hold_time).
+@export var plan_max_time: float = 6.0
+## A plan ends when the odds fall below (1 − this) × their value when it
+## started (a packmate died, the ally came in).
+@export_range(0.0, 1.0) var plan_odds_drop: float = 0.33
+## mixup's held beat with one plan fitting (s).
+@export var mixup_delay_min: float = 0.4
+@export var mixup_delay_max: float = 0.8
+## A plan step misses when none of its hits lands on the target within this
+## long after its cast ended (a projectile: after its flight past the target;
+## a dash: after the dash). Punish's whiff rule (AI6), read on its own cast.
+@export var whiff_time: float = 0.3
+## The blind read (Ryan, 2026-10-07): an enemy prefers to wait for its opener
+## to land, but goes on without it when its target can't answer: its health
+## below the enemy's finish_threshold (low_health), none of its mobility or
+## defensive abilities ready (escapes_down), an ultimate of its on cooldown
+## (ultimate_down), or a crowd control on it with time left (held). Each read
+## can be switched off here. On the blind read a missed step carries on, a
+## plan may open without its `opener`, and its follow-ups may be cast outside
+## a plan.
+@export var blind_reads: Dictionary[StringName, bool] = {
+	&"low_health": true, &"escapes_down": true, &"ultimate_down": true, &"held": true,
+}
+
 ## Derived respect values, cached per ability (they read only data).
 var _respect_cache: Dictionary = {}
+## applies_cc() per ability, cached (AI-D2).
+var _cc_cache: Dictionary = {}
 
 
 ## The rules of `rank`, or null.
@@ -329,6 +358,16 @@ func get_respect_value(ability: Ability) -> float:
 		value += respect_cc_bonus
 	_respect_cache[ability] = value
 	return value
+
+
+## applies_cc() through a cache (AI-D2: the combo plans ask every think; it
+## walks the ability's property list).
+func ability_applies_cc(ability: Ability) -> bool:
+	if ability == null:
+		return false
+	if not _cc_cache.has(ability):
+		_cc_cache[ability] = applies_cc(ability)
+	return _cc_cache[ability]
 
 
 ## True when the ability's data applies a status tagged `cc`: a StatusEffect

@@ -26,7 +26,9 @@ extends RefCounted
 ## escapes_ready (its `mobility` and `defensive` abilities: how many, how many
 ## ready), escape_value and escape_ready_value (their respect values), ccs
 ## (each `cc` status on it: {id, source, left (s; −1 = until removed), key}),
-## gap_closer (Brains.get_last_gap_closer(): {at, position} or {}).
+## gap_closer (Brains.get_last_gap_closer(): {at, position} or {}). AI-D2:
+## ultimates and ultimates_ready (its `ultimate` abilities: how many, how many
+## ready; the blind read).
 var members: Array[Dictionary] = []
 ## Every projectile in flight (AI3): {node, caster, ability, team, position,
 ## direction, speed_px, range_left_px, half_width_px, key}.
@@ -75,6 +77,8 @@ static func build(units: Array[Unit], table: EnemyAITable, idle: Dictionary, p_f
 		var escapes_ready := 0
 		var escape_value := 0.0
 		var escape_ready_value := 0.0
+		var ultimates := 0
+		var ultimates_ready := 0
 		if u.abilities != null:
 			for slot in AbilityComponent.SLOTS:
 				var ability := u.abilities.get_ability(slot)
@@ -88,7 +92,9 @@ static func build(units: Array[Unit], table: EnemyAITable, idle: Dictionary, p_f
 				var defensive := ability.tags.has(&"defensive")
 				defensives += int(defensive)
 				var escape := defensive or ability.tags.has(&"mobility")   # AI-D1: the opening's escapes
+				var ultimate := ability.tags.has(&"ultimate")   # AI-D2: the blind read
 				escapes += int(escape)
+				ultimates += int(ultimate)
 				if escape:
 					escape_value += value
 				if is_ready:
@@ -99,6 +105,8 @@ static func build(units: Array[Unit], table: EnemyAITable, idle: Dictionary, p_f
 					if escape:
 						escapes_ready += 1
 						escape_ready_value += value
+					if ultimate:
+						ultimates_ready += 1
 		m.kit_ready = ready / total if total > 0.0 else 0.0
 		m.share = get_share(m.kit_ready, m.health_ratio) if m.up else 0.0
 		m.total_value = total
@@ -114,6 +122,8 @@ static func build(units: Array[Unit], table: EnemyAITable, idle: Dictionary, p_f
 		m.escape_ready_value = escape_ready_value
 		m.ccs = read_ccs(u)
 		m.gap_closer = gap_closers.get(u, {})
+		m.ultimates = ultimates
+		m.ultimates_ready = ultimates_ready
 		snap.members.append(m)
 	for node in projectile_nodes:
 		var p := node as Projectile

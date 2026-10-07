@@ -22,3 +22,6 @@ aim_lead = 0.3
 spend_eagerness = 0.7
 nerve = 0.8
 opening_bar = 0.4
+follow_through = 0.2
+combo_greed = 0.3
+mixup = 0.3

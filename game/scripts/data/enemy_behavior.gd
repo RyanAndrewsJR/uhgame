@@ -10,7 +10,7 @@ extends Resource
 ## AI3b (Duels and odds) added four sliders (confidence, crowded_commit,
 ## aim_lead, spend_eagerness: sixteen in all) and crowded_range (kind); AI3c
 ## added nerve (seventeen); AI-D1 (Combos) peel_threshold and opening_bar
-## (nineteen).
+## (nineteen); AI-D2 follow_through, combo_greed and mixup (twenty-two).
 ## The brain reads a resolved copy (resolve()): the preset's values or the
 ## enemy's overrides, times its rank's, faction's, difficulty tier's and elite
 ## modifiers' BrainAdjust multipliers, each clamped to its limits.
@@ -23,7 +23,7 @@ const SLIDERS: Array[StringName] = [&"aggression", &"respect_weight", &"patience
 	&"range_band_min", &"range_band_max", &"reaction_time", &"dodge_skill", &"dodge_cooldown",
 	&"punish_greed", &"finish_threshold", &"pressure_time", &"breather_time", &"jitter",
 	&"confidence", &"crowded_commit", &"aim_lead", &"spend_eagerness", &"nerve",
-	&"peel_threshold", &"opening_bar"]
+	&"peel_threshold", &"opening_bar", &"follow_through", &"combo_greed", &"mixup"]
 ## Each slider's limits [min, max], as its @export_range says (floats, not a
 ## Vector2: a Vector2 holds 32-bit floats, and 0.2 would clamp to 0.2000000030).
 const LIMITS := {
@@ -47,6 +47,9 @@ const LIMITS := {
 	&"nerve": [0.0, 1.0],
 	&"peel_threshold": [0.1, 1.0],
 	&"opening_bar": [0.0, 1.0],
+	&"follow_through": [0.0, 1.0],
+	&"combo_greed": [0.0, 1.0],
+	&"mixup": [0.0, 0.5],
 }
 
 @export_group("Kind")
@@ -120,9 +123,22 @@ const LIMITS := {
 ## How open its target must be before it sets up (AI-D1): the opening (0–1:
 ## its escapes down, crowd-controlled by another, casting, cornered) at this
 ## or more, while it isn't crowded, fills its patience at once and it commits
-## with its best opener. Only for an enemy with an `opener`-role ability
-## (from AI-D2, with combo plans).
+## with a combo plan. Only for an enemy with combo plans (AI-D2; in AI-D1 an
+## `opener`-role ability).
 @export_range(0.0, 1.0) var opening_bar: float = 0.5
+## After a combo plan (AI-D2): 0 = it always resets (patience empties, it
+## walks back out), 1 = it always stays on its target (a new commit at once,
+## its tell first, on the same token). It stays when its lean ((1 − effective
+## respect) × its health × its own kit ready) is at least 1 − this.
+@export_range(0.0, 1.0) var follow_through: float = 0.6
+## The chance it carries on after a plan step misses, rolled once a plan (0 =
+## the plan ends: no blind finisher). The blind read carries it on without a
+## roll (Ryan, 2026-10-07).
+@export_range(0.0, 1.0) var combo_greed: float = 0.6
+## The chance a setup doesn't go the way the read says: with two plans that
+## fit it takes the runner-up; with one it holds a beat
+## (mixup_delay_min–max s) before starting.
+@export_range(0.0, 0.5) var mixup: float = 0.15
 
 
 func get_slider(slider: StringName) -> float:

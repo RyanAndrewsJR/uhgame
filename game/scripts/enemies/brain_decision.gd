@@ -18,6 +18,12 @@ var reason: String = ""
 ## AI-D1: a new commit that is a setup (it opens with its best opener; the
 ## brain keeps that until the opener is cast).
 var setup: bool = false
+## AI-D2: the combo plan a new commit runs (null = none; `plan` is then its
+## opener's cast), whether it's mixup's runner-up, and mixup's held beat
+## before its tell (s; 0 = none).
+var combo_plan: ComboPlan
+var plan_runner_up: bool = false
+var plan_delay: float = 0.0
 
 
 ## The top `count` scores, best first: [[intent, score], ...].
