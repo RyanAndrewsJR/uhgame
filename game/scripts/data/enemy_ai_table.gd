@@ -8,8 +8,9 @@ extends Resource
 ## numbers (tokens, the fodder ring, the alert, the leash) and the target
 ## pick's; AI3b the duel's (cautious, spending, crowded, smell blood, the
 ## walk read for aim lead), AI3c the odds' (strength, the press, the heavy
-## hit) and the think budget; dodging's and the whiff's come with their steps
-## (AI4, AI6).
+## hit) and the think budget, AI-D1 the combos' reads (crowding, the opening)
+## and the major tags; dodging's and the whiff's come with their steps (AI4,
+## AI6).
 
 ## The four ranks (fodder, regular, elite, boss), each a RankRules.
 @export var ranks: Array[RankRules] = []
@@ -33,6 +34,7 @@ extends Resource
 @export var intent_scores: Dictionary[StringName, float] = {
 	&"hold": 0.3, &"poke": 0.5, &"commit": 0.65,
 	&"defend": 0.9, &"escape": 0.75, &"retreat": 0.7,
+	&"peel": 0.9,
 }
 ## A caster's poke scores this instead (it pokes the whole time).
 @export var caster_poke_score: float = 0.6
@@ -225,6 +227,43 @@ extends Resource
 ## whose own rate is lower keeps its own).
 @export var think_budget: float = 200.0
 @export var think_rate_floor: float = 5.0
+
+@export_group("Combos (AI-D1)")
+## The attacks a THREATENED use rule's &"major" filter counts (ENEMIES_AI.md,
+## Intents): an ability carrying any of these tags (charge_up also matches a
+## CHARGE_UP cast style). AI6's whiff rule reads the same list.
+@export var major_tags: Array[StringName] = [&"ultimate", &"charge_up", &"dash", &"leap"]
+## Crowding (ENEMIES_AI.md, Two reads): how hard its target pushes an enemy,
+## the sum (clamped to 1) of: near (1 inside its crowded range, falling to 0
+## at its band's minimum), closing (the target's walk toward it ÷
+## crowding_closing_full, while within its band's far edge), gap_closer (in
+## the last crowding_recent_time s the target dashed or cast an ability that
+## moves it, ending inside its band's minimum) and hits (the party's hits on
+## it in the last crowding_hit_window s ÷ crowding_hits_full), each × its
+## weight. `cc` is read only by the ally (AI-D4: a crowd control on the
+## player).
+@export var crowding_weights: Dictionary[StringName, float] = {
+	&"near": 0.6, &"closing": 0.15, &"gap_closer": 0.3, &"hits": 0.3, &"cc": 0.4,
+}
+## LoL units a second (400: about the Knight's walk).
+@export var crowding_closing_full: float = 400.0
+@export var crowding_recent_time: float = 1.0
+@export var crowding_hit_window: float = 3.0
+@export var crowding_hits_full: int = 3
+## The opening: how open its target is to its crowd control and burst, the
+## sum (clamped to 1) of: escapes_down (the target's mobility and defensive
+## abilities on cooldown, as a share of their respect value), cc_by_other (a
+## crowd control from another unit with at least opening_cc_min_left s left),
+## recovering (its punish window open: 0 until AI6), committed (casting: a
+## cast time, a channel, a held charge-up) and cornered (a wall or a ledge
+## within cornered_check_px behind it, seen from the enemy), each × its
+## weight. A cast and a crowd control count once its reaction time has
+## passed; cooldowns are read at once.
+@export var opening_weights: Dictionary[StringName, float] = {
+	&"escapes_down": 0.5, &"cc_by_other": 0.5, &"recovering": 0.4, &"committed": 0.4, &"cornered": 0.2,
+}
+@export var opening_cc_min_left: float = 0.5
+@export var cornered_check_px: float = 48.0
 
 ## Derived respect values, cached per ability (they read only data).
 var _respect_cache: Dictionary = {}

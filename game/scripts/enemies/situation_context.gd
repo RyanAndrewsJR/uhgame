@@ -13,7 +13,10 @@ extends RefCounted
 ## states. AI3b (Duels and odds) added its key ability and own kit, cautious,
 ## the spend hold, the crowded episode, the walk out, smell blood's numbers
 ## and the target's walk for aim lead. AI3c added the odds and the press.
-## Later steps add dodging (AI4) and the punish window (AI6).
+## AI-D1 (Combos) added crowding and the opening (ComboPlanner's two reads,
+## their inputs and terms), the target's escapes, crowd control, cast and
+## cornered, the peel and the setup. Later steps add dodging (AI4) and the
+## punish window (AI6).
 
 ## The intents a held key ability isn't used for (Spending the key ability:
 ## a poke, a defend, an escape and a gap-closer are never held).
@@ -21,6 +24,9 @@ const HELD_INTENTS: Array[StringName] = [&"damage", &"cc", &"zone"]
 ## The intents an answer can come from when crowded (an escape is step 2's;
 ## a poke isn't one: ENEMIES_AI.md, Crowded).
 const ANSWER_INTENTS: Array[StringName] = [&"cc", &"damage", &"zone", &"punish", &"finish"]
+## The uses a setup's opener can come from (AI-D1: its best `opener`-role
+## ability's; a plan can open with crowd control, a strike or a poke).
+const OPENER_INTENTS: Array[StringName] = [&"cc", &"damage", &"gap_close", &"poke"]
 
 # --- Self ---------------------------------------------------------------------
 var rank: EnemyData.Rank = EnemyData.Rank.REGULAR
@@ -126,7 +132,8 @@ var right_moment_reason: String = ""
 ## that slot's damage, cc and zone uses aren't picked (get_best_use()).
 var held_slot: StringName = &""
 ## A crowded episode is on (its target came inside its crowded range), and
-## its roll: &"all_in", &"back_up", &"stand", &"escape", &"cornered", &"".
+## its roll: &"all_in", &"back_up", &"stand", &"escape", &"cornered", &""
+## (AI-D1: &"peel"; since AI-D1 crowding at its peel_threshold starts it).
 var crowded: bool = false
 var crowded_roll: StringName = &""
 ## Walking back out (the crowded kiting step, or a cautious walk to its
@@ -156,11 +163,76 @@ var spend_min_champions: int = 2
 var odds: float = 0.0
 var press: float = 0.0
 
+# --- Combos: crowding and the opening (AI-D1) ------------------------------------------
+## Crowding (0–1; ComboPlanner.get_crowding()): how hard its target pushes it.
+## Its inputs: its crowded range and band (px, edge to edge), the target's
+## walk toward it (px/s), a gap-closer of the target's that ended inside its
+## band's minimum within crowding_recent_time s, the party's hits on it in the
+## last crowding_hit_window s; the table's two numbers, copied in. Its terms
+## (term -> weighted value) for the overlay.
+var crowding: float = 0.0
+var crowding_terms: Dictionary = {}
+var crowded_range_px: float = 0.0
+var band_min_px: float = 0.0
+var band_max_px: float = 0.0
+var target_closing_px: float = 0.0
+var target_gap_closer_in: bool = false
+var recent_hits: int = 0
+var crowding_closing_full_px: float = 128.0
+var crowding_hits_full: int = 3
+## The opening (0–1; ComboPlanner.get_opening()): how open its target is to
+## its crowd control and burst. Its inputs: the target's mobility and
+## defensive abilities (how many, how many ready, the share of their respect
+## value on cooldown), the longest crowd control on it from another unit
+## (seen after its reaction time) and who applied it, it casting (seen after
+## its reaction time), its punish window (AI6), a wall or a ledge just behind
+## it; the table's number, copied in. Its terms for the overlay.
+var opening: float = 0.0
+var opening_terms: Dictionary = {}
+var target_escapes: int = 0
+var target_escapes_ready: int = 0
+var target_escapes_down: float = 0.0
+var target_cc_left: float = 0.0
+var target_cc_source: Unit
+var target_committed: bool = false
+var target_recovering: bool = false
+var target_cornered: bool = false
+var opening_cc_min_left: float = 0.5
+## The attacks THREATENED's &"major" filter counts (EnemyAITable.major_tags).
+var major_tags: Array[StringName] = []
+## Its `opener`-role slots (it reads the opening and sets up only with one,
+## until AI-D2's plans), and this think's setup: the opening at its
+## opening_bar or more while it isn't crowded, an opener ready (its patience
+## fills at once and it commits with that opener). setup_opener: the commit
+## under way is a setup whose opener hasn't been cast yet.
+var opener_slots: Array[StringName] = []
+var setup: bool = false
+var setup_opener: bool = false
+## Its crowded episode's roll was a peel and its peel hasn't been cast yet.
+var peel_pending: bool = false
 
-## An attack it has seen coming lands within `within` seconds (0 = any).
-func is_threatened(within: float) -> bool:
+
+## An attack it has seen coming lands within `within` seconds (0 = any). With
+## `tag` (AI-D1), only one whose ability carries it; &"major" = any of
+## major_tags.
+func is_threatened(within: float, tag: StringName = &"") -> bool:
 	for a in incoming:
+		if tag != &"" and not ability_has_tag(a.get("ability") as Ability, tag, major_tags):
+			continue
 		if within <= 0.0 or float(a.time_to_hit) <= within:
+			return true
+	return false
+
+
+## `ability` carries `tag`; &"major" = any of `majors` (charge_up also
+## matches a CHARGE_UP cast style).
+static func ability_has_tag(ability: Ability, tag: StringName, majors: Array[StringName]) -> bool:
+	if ability == null:
+		return false
+	if tag != &"major":
+		return ability.tags.has(tag) or (tag == &"charge_up" and ability.cast_style == Ability.CastStyle.CHARGE_UP)
+	for t in majors:
+		if t != &"major" and ability_has_tag(ability, t, majors):
 			return true
 	return false
 
@@ -175,12 +247,15 @@ var target_unit: Unit
 
 
 ## The listed use with the best plan value × weight among `intents`, or {}.
-## A held key's damage, cc and zone uses are left out (AI3b).
-func get_best_use(intents: Array[StringName]) -> Dictionary:
+## A held key's damage, cc and zone uses are left out (AI3b). With `slots`
+## (AI-D1: a setup's opener), only those slots' uses.
+func get_best_use(intents: Array[StringName], slots: Array[StringName] = []) -> Dictionary:
 	var best := {}
 	var best_value := -INF
 	for u in uses:
 		if not intents.has(u.intent):
+			continue
+		if not slots.is_empty() and not slots.has(u.slot):
 			continue
 		if held_slot != &"" and u.slot == held_slot and HELD_INTENTS.has(u.intent):
 			continue
@@ -192,8 +267,16 @@ func get_best_use(intents: Array[StringName]) -> Dictionary:
 	return best
 
 
-func has_use(intents: Array[StringName]) -> bool:
-	return not get_best_use(intents).is_empty()
+func has_use(intents: Array[StringName], slots: Array[StringName] = []) -> bool:
+	return not get_best_use(intents, slots).is_empty()
+
+
+## Its best setup opener now (AI-D1): the best opener-intent use of its
+## `opener`-role slots, or {} (none, or none of them castable with a plan).
+func get_opener_use() -> Dictionary:
+	if opener_slots.is_empty():
+		return {}
+	return get_best_use(OPENER_INTENTS, opener_slots)
 
 
 ## An answer to being crowded is ready (ENEMIES_AI.md, Crowded): a cc use, or

@@ -11,7 +11,9 @@ extends RefCounted
 ## AI3 added the casts in progress and the projectiles in flight (what's on
 ## screen: enemies see them as a person would, after their reaction time);
 ## AI3b the values behind the share (for the panic-button rule), its
-## defensives and its walk (aim lead); AI6 adds the punish window.
+## defensives and its walk (aim lead); AI-D1 its escapes, its crowd control
+## and its last gap-closer (the opening and crowding); AI6 adds the punish
+## window.
 
 ## One entry per champion: {unit, position, health_ratio, up, targetable,
 ## kit_ready, share, idle_time, casting, slots: {slot: {ability, ready,
@@ -20,7 +22,11 @@ extends RefCounted
 ## (Ability.get_effect_area()), time_left (s to its effect), key (one per
 ## cast)}. AI3b: total_value, ready_value, ready_defensive_value (its ready
 ## slots' with the `defensive` role), defensives and defensives_ready (how
-## many), walk_velocity (px/s; Brains.get_walk_velocity()).
+## many), walk_velocity (px/s; Brains.get_walk_velocity()). AI-D1: escapes and
+## escapes_ready (its `mobility` and `defensive` abilities: how many, how many
+## ready), escape_value and escape_ready_value (their respect values), ccs
+## (each `cc` status on it: {id, source, left (s; −1 = until removed), key}),
+## gap_closer (Brains.get_last_gap_closer(): {at, position} or {}).
 var members: Array[Dictionary] = []
 ## Every projectile in flight (AI3): {node, caster, ability, team, position,
 ## direction, speed_px, range_left_px, half_width_px, key}.
@@ -40,8 +46,10 @@ func get_member(unit: Node) -> Dictionary:
 ## Builds the read of `units` (living Units) against `table`'s respect values;
 ## `idle` holds each unit's idle seconds (Brains tracks them every tick);
 ## `projectile_nodes` the projectiles in flight (the group Projectile.GROUP);
-## `walk` each unit's walk velocity (AI3b).
-static func build(units: Array[Unit], table: EnemyAITable, idle: Dictionary, p_frame: int, projectile_nodes: Array = [], walk: Dictionary = {}) -> PartySnapshot:
+## `walk` each unit's walk velocity (AI3b); `gap_closers` each unit's last
+## gap-closer (AI-D1).
+static func build(units: Array[Unit], table: EnemyAITable, idle: Dictionary, p_frame: int, projectile_nodes: Array = [], walk: Dictionary = {},
+		gap_closers: Dictionary = {}) -> PartySnapshot:
 	var snap := PartySnapshot.new()
 	snap.frame = p_frame
 	for u in units:
@@ -63,6 +71,10 @@ static func build(units: Array[Unit], table: EnemyAITable, idle: Dictionary, p_f
 		var ready_defensive := 0.0
 		var defensives := 0
 		var defensives_ready := 0
+		var escapes := 0
+		var escapes_ready := 0
+		var escape_value := 0.0
+		var escape_ready_value := 0.0
 		if u.abilities != null:
 			for slot in AbilityComponent.SLOTS:
 				var ability := u.abilities.get_ability(slot)
@@ -75,11 +87,18 @@ static func build(units: Array[Unit], table: EnemyAITable, idle: Dictionary, p_f
 				total += value
 				var defensive := ability.tags.has(&"defensive")
 				defensives += int(defensive)
+				var escape := defensive or ability.tags.has(&"mobility")   # AI-D1: the opening's escapes
+				escapes += int(escape)
+				if escape:
+					escape_value += value
 				if is_ready:
 					ready += value
 					if defensive:
 						ready_defensive += value
 						defensives_ready += 1
+					if escape:
+						escapes_ready += 1
+						escape_ready_value += value
 		m.kit_ready = ready / total if total > 0.0 else 0.0
 		m.share = get_share(m.kit_ready, m.health_ratio) if m.up else 0.0
 		m.total_value = total
@@ -89,6 +108,12 @@ static func build(units: Array[Unit], table: EnemyAITable, idle: Dictionary, p_f
 		m.defensives_ready = defensives_ready
 		m.walk_velocity = walk.get(u, Vector2.ZERO)
 		m.cast = read_cast(u)
+		m.escapes = escapes
+		m.escapes_ready = escapes_ready
+		m.escape_value = escape_value
+		m.escape_ready_value = escape_ready_value
+		m.ccs = read_ccs(u)
+		m.gap_closer = gap_closers.get(u, {})
 		snap.members.append(m)
 	for node in projectile_nodes:
 		var p := node as Projectile
@@ -129,6 +154,23 @@ static func read_cast(u: Unit) -> Dictionary:
 	held.direction = to_aim.normalized() if to_aim.length() > 0.01 else Vector2.RIGHT
 	return {"ability": ability, "ctx": held, "kind": &"charge_up", "area": ability.get_effect_area(u, held),
 		"time_left": ability.cast_time, "key": "charge:%d" % u.get_instance_id()}
+
+
+## `u`'s crowd control as enemies see it (AI-D1): each status tagged `cc` on
+## it, {id, source (null = none or freed), left (s; −1 = until removed), key
+## (one per status while it stays on)}.
+static func read_ccs(u: Unit) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var sc := u.status_component
+	if sc == null or not sc.has_tag(&"cc"):
+		return out
+	for id in sc.get_status_ids():
+		var effect := sc.get_status(id)
+		if effect == null or not effect.tags.has(&"cc"):
+			continue
+		out.append({"id": id, "source": sc.get_source(id), "left": sc.get_time_left(id),
+			"key": "cc:%d:%s" % [u.get_instance_id(), id]})
+	return out
 
 
 ## A champion's respect share: its kit ready × (0.5 + 0.5 × its health

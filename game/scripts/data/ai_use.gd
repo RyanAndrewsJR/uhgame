@@ -10,9 +10,10 @@ extends Resource
 
 ## The intent tags, one list for the enemy and the ally brains: the moment
 ## tags, then the effect tags (ENEMIES_AI.md, Intents; ALLIES' `engage` is
-## `gap_close`).
+## `gap_close`). AI-D1 appends `peel`: cast to make space when crowded, then
+## step back (a crowd control's other use, the setup, is a combo plan's).
 const INTENT_TAGS: Array[StringName] = [&"poke", &"gap_close", &"escape", &"defend", &"punish",
-	&"finish", &"zone", &"damage", &"heal", &"shield", &"buff", &"cc"]
+	&"finish", &"zone", &"damage", &"heal", &"shield", &"buff", &"cc", &"peel"]
 
 ## One of INTENT_TAGS.
 @export var intent: StringName = &"damage"

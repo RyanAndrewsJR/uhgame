@@ -9,7 +9,8 @@ extends Resource
 ## not magnitude). Fodder needs none (it has no brain).
 ## AI3b (Duels and odds) added four sliders (confidence, crowded_commit,
 ## aim_lead, spend_eagerness: sixteen in all) and crowded_range (kind); AI3c
-## added nerve (seventeen).
+## added nerve (seventeen); AI-D1 (Combos) peel_threshold and opening_bar
+## (nineteen).
 ## The brain reads a resolved copy (resolve()): the preset's values or the
 ## enemy's overrides, times its rank's, faction's, difficulty tier's and elite
 ## modifiers' BrainAdjust multipliers, each clamped to its limits.
@@ -21,7 +22,8 @@ enum LowHealth { FIGHT_ON, FALL_BACK, HIT_AND_RESET }
 const SLIDERS: Array[StringName] = [&"aggression", &"respect_weight", &"patience_time",
 	&"range_band_min", &"range_band_max", &"reaction_time", &"dodge_skill", &"dodge_cooldown",
 	&"punish_greed", &"finish_threshold", &"pressure_time", &"breather_time", &"jitter",
-	&"confidence", &"crowded_commit", &"aim_lead", &"spend_eagerness", &"nerve"]
+	&"confidence", &"crowded_commit", &"aim_lead", &"spend_eagerness", &"nerve",
+	&"peel_threshold", &"opening_bar"]
 ## Each slider's limits [min, max], as its @export_range says (floats, not a
 ## Vector2: a Vector2 holds 32-bit floats, and 0.2 would clamp to 0.2000000030).
 const LIMITS := {
@@ -43,6 +45,8 @@ const LIMITS := {
 	&"aim_lead": [0.0, 1.0],
 	&"spend_eagerness": [0.0, 1.0],
 	&"nerve": [0.0, 1.0],
+	&"peel_threshold": [0.1, 1.0],
+	&"opening_bar": [0.0, 1.0],
 }
 
 @export_group("Kind")
@@ -108,6 +112,17 @@ const LIMITS := {
 ## (1 − nerve × the press) (AI3c). At 0 the press still adds its patience
 ## push, its token and its pick (they're the group's).
 @export_range(0.0, 1.0) var nerve: float = 0.6
+## How crowded it must be before it reacts (AI-D1): its crowding (0–1: its
+## target near, closing, gap-closing in, hitting it) at this or more starts
+## the crowded episode (all in, or a peel with a `peel` use). At 0.6 its
+## target inside crowded_range is enough on its own; lower reacts sooner.
+@export_range(0.1, 1.0) var peel_threshold: float = 0.6
+## How open its target must be before it sets up (AI-D1): the opening (0–1:
+## its escapes down, crowd-controlled by another, casting, cornered) at this
+## or more, while it isn't crowded, fills its patience at once and it commits
+## with its best opener. Only for an enemy with an `opener`-role ability
+## (from AI-D2, with combo plans).
+@export_range(0.0, 1.0) var opening_bar: float = 0.5
 
 
 func get_slider(slider: StringName) -> float:

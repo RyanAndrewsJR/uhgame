@@ -27,6 +27,9 @@ extends Resource
 @export var spend_eagerness: float = 1.0
 ## AI3c's (Odds).
 @export var nerve: float = 1.0
+## AI-D1's (Combos).
+@export var peel_threshold: float = 1.0
+@export var opening_bar: float = 1.0
 ## Attack tokens added to each target's pool (difficulty tiers; AI2).
 @export var token_bonus: int = 0
 

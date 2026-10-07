@@ -42,9 +42,15 @@ extends Node
 ##                AI3c adds the odds: three test brutes and the elite slime
 ##                (strength 5 against the full-health Knight's 1.5: a full
 ##                press; it eases as they fall and ends with the elite alone).
+##                AI-D1 adds escapes down: Lunge and Iron Resolve spent, the
+##                rest ready (the opening's escapes term: 0.5).
 ##   Shift+H      (AI3) the next test enemy the scenarios spawn: the test
-##                brute, skirmisher, caster, elite caster; the scenario
-##                running now spawns it again.
+##                brute, skirmisher, caster, elite caster (AI-D1: and the test
+##                duelist); the scenario running now spawns it again.
+## AI-D1: the overlay adds crowding (with its biggest term; at its
+## peel_threshold, the peel), the opening (for an enemy with an opener; at its
+## opening_bar, the setup's opener) and a recovery; the panel the two new
+## sliders.
 ## It never touches the player's saves. room_01 has none of this.
 
 const TEXT_COLOR := Color(0.92, 0.92, 0.92)
@@ -53,22 +59,25 @@ const SOURCE_ID := &"sandbox_brains"
 ## The tuning panel's slider list height (px; AI3b): 11 rows of 16 show, the
 ## rest scroll, so the panel ends inside the 360 px canvas.
 const SLIDER_LIST_HEIGHT := 176.0
-const SCENARIOS: Array[StringName] = [&"all_ready", &"none_ready", &"low_health", &"ally", &"whiff", &"incoming_shot", &"pack", &"fodder", &"mixed", &"odds"]
+const SCENARIOS: Array[StringName] = [&"all_ready", &"none_ready", &"low_health", &"ally", &"whiff", &"incoming_shot", &"pack", &"fodder", &"mixed", &"odds",
+	&"escapes_down"]
 const SCENARIO_NAMES := {
 	&"all_ready": "all cooldowns ready", &"none_ready": "none ready", &"low_health": "low health (25%)",
 	&"ally": "an ally present", &"whiff": "a whiff (Judgement spent)", &"incoming_shot": "an incoming shot",
 	&"pack": "a pack of five brutes (9 m away, idle)", &"fodder": "a pack of eight slimes (9 m away, idle)",
 	&"mixed": "a mixed pack: brute, skirmisher, elite caster, three slimes (9 m away, idle)",
 	&"odds": "the odds: three test brutes and the elite slime (9 m away, idle; they press)",
+	&"escapes_down": "escapes down: Lunge and Iron Resolve spent (the opening's escapes 0.5)",
 }
 const FRIENDLY_SCENE := preload("res://scenes/enemies/slime.tscn")
 
 ## What H spawns (the test brute; Shift+H picks another of scenario_enemies).
 @export var scenario_enemy: PackedScene = preload("res://scenes/enemies/test_brute.tscn")
-## The test enemies Shift+H cycles through (AI3).
+## The test enemies Shift+H cycles through (AI3; AI-D1 the test duelist).
 @export var scenario_enemies: Array[PackedScene] = [
 	preload("res://scenes/enemies/test_brute.tscn"), preload("res://scenes/enemies/test_skirmisher.tscn"),
 	preload("res://scenes/enemies/test_caster.tscn"), preload("res://scenes/enemies/test_caster_elite.tscn"),
+	preload("res://scenes/enemies/test_duelist.tscn"),
 ]
 ## The mixed pack (AI3), spawned in this order (members after the first stand
 ## around it).
@@ -245,6 +254,9 @@ func get_overlay_text(enemy: Enemy) -> String:
 	var duel := get_duel_text(enemy)   # AI3b
 	if duel != "":
 		lines.append(duel)
+	var combo := get_combo_text(enemy)   # AI-D1
+	if combo != "":
+		lines.append(combo)
 	var state: PackedStringArray = []
 	if s != null and not s.incoming.is_empty():
 		state.append("threats %d (next %.2f s)" % [s.incoming.size(), s.incoming.map(func(a: Dictionary) -> float: return a.time_to_hit).min()])
@@ -310,6 +322,52 @@ func get_duel_text(enemy: Enemy) -> String:
 		else:
 			lines.append("odds %.1f" % s.odds)
 	return "\n".join(lines)
+
+
+## The overlay's combo lines (ENEMIES_AI.md, Combos; AI-D1), "" when there's
+## nothing to show: crowding with its biggest term (`crowding 0.42 (near
+## 0.36)`; at its peel_threshold `crowding 0.66 ≥ 0.60 (near 0.60)`, and
+## `: peel (Snare)` once its episode peels), the opening for an enemy with an
+## opener (`opening 0.29 (escapes 0.29)`; at its bar `opening 0.50 ≥ 0.50
+## (escapes 0.50): setup (Snare)` while its setup runs), and a recovery
+## (`recover 0.8 s`).
+func get_combo_text(enemy: Enemy) -> String:
+	var brain := enemy.get_brain()
+	if brain == null or brain.behavior == null:
+		return ""
+	var b := brain.behavior
+	var s := brain.get_situation()
+	var lines: PackedStringArray = []
+	if s != null and s.has_target and (s.crowding > 0.0 or brain.is_peeling()):
+		var big := ComboPlanner.get_biggest_term(s.crowding_terms)
+		var text := "crowding %.2f" % s.crowding
+		if s.crowding >= b.peel_threshold - 0.0001:
+			text += " ≥ %.2f" % b.peel_threshold
+		if big[0] != &"":
+			text += " (%s %.2f)" % [String(big[0]).replace("_", " "), big[1]]
+		if brain.is_peeling() or (brain.is_crowded() and brain.get_crowded_roll() == EnemyBrain.PEEL):
+			text += ": peel (%s)" % _slot_name(enemy, brain.get_peel_slot())
+		lines.append(text)
+	if s != null and s.has_target and not brain.get_opener_slots().is_empty():
+		var big := ComboPlanner.get_biggest_term(s.opening_terms)
+		var text := "opening %.2f" % s.opening
+		if s.opening >= b.opening_bar - 0.0001:
+			text += " ≥ %.2f" % b.opening_bar
+		if big[0] != &"":
+			text += " (%s %.2f)" % [String(big[0]).replace("_", " ").replace("escapes down", "escapes"), big[1]]
+		if brain.is_setup_commit():
+			text += ": setup (%s)" % _slot_name(enemy, brain.get_setup_slot())
+		lines.append(text)
+	if brain.is_in_ability_recovery():
+		lines.append("recover %.1f s" % enemy.abilities.get_recovery_left())
+	return "\n".join(lines)
+
+
+## The display name of `enemy`'s ability in `slot` ("-" when none).
+static func _slot_name(enemy: Enemy, slot: StringName) -> String:
+	if slot == &"" or enemy.abilities == null or enemy.abilities.get_ability(slot) == null:
+		return "-"
+	return enemy.abilities.get_ability(slot).display_name
 
 
 func _update_overlay() -> void:
@@ -685,6 +743,8 @@ func run_scenario(scenario: StringName) -> Enemy:
 			_player.abilities.start_cooldown(&"r")   # AI6 reads a real whiff from the cast
 		&"ally":
 			_spawn_friendly()
+		&"escapes_down":
+			_spend_escapes()
 	var enemy: Enemy
 	match scenario:
 		&"pack":
@@ -748,6 +808,16 @@ func _set_knight_ready(all_ready: bool) -> void:
 	if all_ready and _player.resource_pool != null:
 		_player.resource_pool.restore(_player.resource_pool.max_resource)
 	_player.health.heal(_player.health.max_health)
+
+
+## The Knight's escapes spent (AI-D1): his `mobility` and `defensive`
+## abilities (Lunge, Iron Resolve) on cooldown, the rest ready.
+func _spend_escapes() -> void:
+	var abilities := _player.abilities
+	for slot in AbilityComponent.SLOTS:
+		var ability := abilities.get_ability(slot)
+		if ability != null and (ability.tags.has(&"mobility") or ability.tags.has(&"defensive")):
+			abilities.start_cooldown(slot)
 
 
 func _spawn_point(distance_px: float) -> Vector2:

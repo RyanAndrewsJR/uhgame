@@ -25,6 +25,10 @@ extends Node
 ##   its rank's rate (a duelist elite at the boss's), the regulars' rates
 ##   scaled down evenly past think_budget (get_think_rate(); elites and
 ##   bosses exempt).
+## - (AI-D1) crowding's terms: the party's hits on each enemy with data
+##   (get_recent_hits(): DoT ticks don't count) and each champion's last
+##   gap-closer (get_last_gap_closer(): when and where its dash, or an
+##   ability that moves it, ended; the snapshot carries it).
 ## AI6 adds the whiffs, AI7 sleeping.
 
 const TABLE_PATH := "res://data/enemy_ai_tables/enemy_ai_table_default.tres"
@@ -89,11 +93,20 @@ var _heavy_hits: Array[Dictionary] = []
 ## second the awake brains ask for before it.
 var _think_scale := 1.0
 var _think_demand := 0.0
+## Crowding's terms (AI-D1): the party's hits on each enemy with data (Enemy
+## -> Array of game times, pruned past the longest window asked for), each
+## champion's last gap-closer (Unit -> {at, position}: when and where it
+## ended) and the champions whose dash or moving ability is under way.
+var _hits_on: Dictionary = {}
+var _gap_closers: Dictionary = {}
+var _self_moving: Dictionary = {}
 
 
 func _ready() -> void:
 	table = load(TABLE_PATH)
 	rng.randomize()
+	Events.unit_hit.connect(_on_unit_hit)
+	Events.ability_cast.connect(_on_ability_cast)
 
 
 ## Game time (s): the physics deltas summed (hitstop slows it; paused, it stops).
@@ -193,6 +206,7 @@ func _physics_process(delta: float) -> void:
 			_timed_wakes.remove_at(i)
 	_update_idle(delta)
 	_update_walk()
+	_update_gap_closers()
 	_update_think_budget()
 	var due: Array[EnemyBrain] = []
 	for b in _brains:
@@ -238,7 +252,7 @@ func get_party() -> Array[Unit]:
 func get_snapshot() -> PartySnapshot:
 	var frame := Engine.get_physics_frames()
 	if _snapshot == null or _snapshot.frame != frame:
-		_snapshot = PartySnapshot.build(get_party(), table, _idle, frame, get_tree().get_nodes_in_group(Projectile.GROUP), _walk_velocity)
+		_snapshot = PartySnapshot.build(get_party(), table, _idle, frame, get_tree().get_nodes_in_group(Projectile.GROUP), _walk_velocity, _gap_closers)
 		_snapshot_builds += 1
 	return _snapshot
 
@@ -293,6 +307,80 @@ func _update_walk() -> void:
 			history.pop_front()
 		var dt: float = float(history[-1][0]) - float(history[0][0])
 		_walk_velocity[u] = ((history[-1][1] as Vector2) - (history[0][1] as Vector2)) / dt if dt >= 0.05 else Vector2.ZERO
+
+
+# --- Crowding's terms (ENEMIES_AI.md, Combos: Two reads; AI-D1) ------------------------------
+
+## The party's hits that landed on `enemy` (an enemy with data) in the last
+## `window` s (−1 = the table's crowding_hit_window). DoT ticks don't count.
+func get_recent_hits(enemy: Node, window: float = -1.0) -> int:
+	var times: Array = _hits_on.get(enemy, [])
+	if times.is_empty():
+		return 0
+	var span := table.crowding_hit_window if window < 0.0 else window
+	var n := 0
+	for t: float in times:
+		if t >= _time - span - 0.0001:
+			n += 1
+	return n
+
+
+## `unit`'s last gap-closer (a champion): {at (game time), position (where it
+## ended)}, or {} when it has none since it joined.
+func get_last_gap_closer(unit: Node) -> Dictionary:
+	return _gap_closers.get(unit, {})
+
+
+## Notes a gap-closer of `unit` that ended at `position` now (the tracker
+## below; tests).
+func note_gap_closer(unit: Unit, position: Vector2) -> void:
+	_gap_closers[unit] = {"at": _time, "position": position}
+
+
+## A hit from a party member on an enemy with data (not a DoT tick).
+func _on_unit_hit(ctx: HitContext) -> void:
+	var enemy := ctx.target as Enemy
+	if enemy == null or enemy.data == null or ctx.has_tag(&"dot") or not is_instance_valid(ctx.source):
+		return
+	if not get_party().has(ctx.source):
+		return
+	var times: Array = _hits_on.get_or_add(enemy, [])
+	times.append(_time)
+	while not times.is_empty() and float(times[0]) < _time - table.crowding_hit_window - 0.0001:
+		times.pop_front()
+
+
+## A champion's ability that moves it (a dash, a leap, a blink: moves_caster())
+## started its effect: its gap-closer ends when it stops moving.
+func _on_ability_cast(unit: Unit, ability: Ability, _ctx: CastContext) -> void:
+	if ability != null and ability.moves_caster() and get_party().has(unit):
+		_self_moving[unit] = true
+
+
+## Each tick while brains exist: a champion that dashes (its DashComponent) or
+## cast a moving ability is under way; once it no longer moves (not
+## displaced, not leaping, not dashing) its gap-closer ends where it stands.
+## A push alone is never a gap-closer.
+func _update_gap_closers() -> void:
+	var party := get_party()
+	for d: Dictionary in [_gap_closers, _self_moving]:
+		for u: Variant in d.keys():
+			if not is_instance_valid(u) or not party.has(u):
+				d.erase(u)
+	for e: Variant in _hits_on.keys():
+		if not is_instance_valid(e):
+			_hits_on.erase(e)
+	for u in party:
+		var dash_node := u.get(&"dash") as Node
+		var dashing := dash_node != null and dash_node.has_method(&"is_dashing") and bool(dash_node.call(&"is_dashing"))
+		if dashing:
+			_self_moving[u] = true
+		if not _self_moving.has(u):
+			continue
+		var moving := dashing or (u.movement != null and (u.movement.is_displaced() or u.movement.is_leaping()))
+		if not moving:
+			note_gap_closer(u, u.global_position)
+			_self_moving.erase(u)
 
 
 # --- The odds (ENEMIES_AI.md, Odds; AI3c) ---------------------------------------------------

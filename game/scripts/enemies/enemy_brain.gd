@@ -73,6 +73,22 @@ extends UnitController
 ##   fails that think: it holds or swings); one it starts is noted in Brains;
 ## - think rates by rank (Brains: a regular 10, an elite 15, a boss and a
 ##   duelist elite 25 a second, scaled down past think_budget).
+## AI-D1, combos' two reads (ENEMIES_AI.md, Combos, crowd control and the
+## test duelist; ComboPlanner):
+## - crowding (its target near, closing, gap-closing in, hitting it) at its
+##   peel_threshold starts the crowded episode (at the role starts the target
+##   inside crowded_range is enough on its own, as in AI3b); the episode ends
+##   once crowding is below it and the target has stayed out
+##   crowded_clear_time s;
+## - a failed all-in roll peels when a `peel` use passes: it casts that use's
+##   plan (no token), then takes the kiting step back to its band;
+## - the opening (its target's escapes down, crowd-controlled by another,
+##   casting, cornered), read only by an enemy with an `opener`-role ability:
+##   at its opening_bar while it isn't crowded it sets up: its patience fills
+##   at once and its commit (its tell, its token as usual) opens with its best
+##   opener, whose end doesn't end the commit (combo plans come in AI-D2);
+## - an ability's recovery (Ability.recovery_time) holds it still in the
+##   `recover` pose.
 
 signal intent_changed(intent: StringName)
 signal pose_changed(pose: StringName)
@@ -83,11 +99,15 @@ const COMMIT := &"commit"
 const DEFEND := &"defend"
 const ESCAPE := &"escape"
 const RETREAT := &"retreat"
-## A crowded episode's outcomes (AI3b).
+## Cast a crowd control to make space when crowded, then step back (AI-D1).
+const PEEL := &"peel"
+## A crowded episode's outcomes (AI3b; AI-D1: PEEL).
 const ALL_IN := &"all_in"
 const BACK_UP := &"back_up"
 const STAND := &"stand"
 const CORNERED := &"cornered"
+## The combo role a setup opens with (AI-D1; Ability.combo_roles).
+const OPENER_ROLE := &"opener"
 ## The pose an attack intent holds for tell_time before its move (the tell;
 ## Ryan, I7). AI6 adds punish's and finish's.
 const TELL_POSES := {&"commit": &"crouch"}
@@ -122,6 +142,9 @@ var next_think_tick: float = 0.0
 ## those were scheduled (not urgent wakes; AI3c: think rates).
 var think_calls: int = 0
 var scheduled_thinks: int = 0
+## Its peels cast and its setups started (AI-D1; tests, the overlay).
+var peel_count: int = 0
+var setup_count: int = 0
 
 var _enemy: Enemy
 var _patience := 0.0
@@ -171,6 +194,16 @@ var _outside_since := -1.0
 var _walking_out_until := -1.0
 var _walk_out_far := false
 var _last_lead_px := 0.0
+# AI-D1
+var _opener_slots: Array[StringName] = []
+var _setup_opener := false       # the commit under way is a setup whose opener isn't cast yet
+var _setup_commit := false       # the commit under way is a setup (the overlay)
+var _opener_cast := false        # the commit's cast under way is its setup's opener
+var _setup_slot: StringName = &""   # the last setup's opener (the overlay)
+var _peel_pending := false       # its episode's roll was a peel, not cast yet
+var _peel_cast := false          # its peel's cast is under way
+var _peel_slot: StringName = &""    # the peel's slot (the roll's, then the cast's)
+var _seen_open: Dictionary = {}  # the opening's casts and crowd control: key -> when first seen
 
 
 func setup(p_data: EnemyData, p_rank_rules: RankRules) -> void:
@@ -357,6 +390,43 @@ func is_pressing() -> bool:
 	return _situation != null and _situation.press > 0.0
 
 
+## Its `opener`-role slots (AI-D1): it reads the opening and sets up only
+## with one (until AI-D2's combo plans).
+func get_opener_slots() -> Array[StringName]:
+	return _opener_slots.duplicate()
+
+
+## A peel under way (AI-D1): its episode's roll was a peel and its cast hasn't
+## ended yet; and the peel's slot (&"" = none yet).
+func is_peeling() -> bool:
+	return _peel_pending or _peel_cast
+
+
+func get_peel_slot() -> StringName:
+	return _peel_slot
+
+
+## Its last setup's opener slot (AI-D1; &"" = none yet), and whether the
+## commit under way is a setup whose opener hasn't been cast yet.
+func get_setup_slot() -> StringName:
+	return _setup_slot
+
+
+func is_setting_up() -> bool:
+	return _committing and _setup_opener
+
+
+## The commit under way is a setup (its opener cast or still to come).
+func is_setup_commit() -> bool:
+	return _committing and _setup_commit
+
+
+## In an ability's recovery (AI-D1: Ability.recovery_time): it can't move,
+## attack or cast (the `recover` pose).
+func is_in_ability_recovery() -> bool:
+	return is_instance_valid(_enemy) and _enemy.abilities != null and _enemy.abilities.is_recovering()
+
+
 ## Its attack token, for the overlay: "held", "waiting" (in the queue),
 ## "rest" (it can't ask yet), "-" (none), or "none needed" (its rank or role
 ## takes none).
@@ -416,9 +486,13 @@ func think() -> bool:
 			_patience = 1.0   # summed float steps fall a hair short of 1
 	if _episode_needs_roll:
 		_roll_episode(s, now)
+	_check_peel(s, now)   # AI-D1
+	if s.setup:
+		_patience = 1.0   # AI-D1: the setup fills it at once (then its token, as any commit)
 	s.patience = _patience
 	s.committing = _committing
 	s.walking_out = is_walking_out()
+	s.peel_pending = _peel_pending
 	_ask_token(s)
 	var d := decide(s, behavior, rng)
 	if d.intent != COMMIT and Brains.has_token(_enemy):
@@ -475,6 +549,10 @@ func build_situation() -> SituationContext:
 	s.smell_blood_mult = table.smell_blood_mult
 	s.smell_blood_cap = table.smell_blood_cap
 	s.spend_min_champions = table.spend_min_champions
+	s.major_tags = table.major_tags   # AI-D1: THREATENED's major filter
+	_opener_slots = find_opener_slots(_enemy.abilities)
+	s.opener_slots = _opener_slots
+	s.setup_opener = _committing and _setup_opener
 	var target := _enemy.get_brain_target()
 	if target == null or not target.is_targetable():
 		return s
@@ -483,6 +561,9 @@ func build_situation() -> SituationContext:
 	s.target_position = target.global_position
 	s.target_edge_distance_px = _enemy.edge_distance_to(target)
 	s.target_cc = target.status_component != null and target.status_component.has_tag(&"cc")
+	var snap := Brains.get_snapshot()
+	var m := snap.get_member(target)
+	_read_crowding(s, m, target, now)   # AI-D1: crowding starts the episode
 	_update_episode(s, target, now)
 	s.target_in_sight = WorldQuery.has_line_of_sight(_enemy.global_position, target.global_position)
 	s.target_reachable = _enemy.is_target_reachable()
@@ -491,10 +572,8 @@ func build_situation() -> SituationContext:
 	if _escaping and s.target_edge_distance_px >= Units.to_px(behavior.range_band_min):
 		_escaping = false   # it got away
 	s.escaping = _escaping
-	var snap := Brains.get_snapshot()
 	s.party_size = snap.members.size()
 	var target_share := 0.0
-	var m := snap.get_member(target)
 	if not m.is_empty():
 		s.target_health_ratio = m.health_ratio
 		s.target_kit_ready = m.kit_ready
@@ -517,9 +596,11 @@ func build_situation() -> SituationContext:
 	s.odds = float(odds.odds)
 	s.press = 0.0 if data.rank == EnemyData.Rank.BOSS else float(odds.press)   # bosses don't press
 	s.effective_respect = get_effective_respect(s, behavior)
+	_read_opening(s, m, target, now)   # AI-D1
 	_perceive(s, snap, now)
 	_gather_uses(s)
 	_update_spend(s, snap, now)
+	s.setup = _wants_setup(s)   # AI-D1
 	return s
 
 
@@ -589,7 +670,9 @@ static func get_projectile_time_to_hit(p: Dictionary, unit: Unit) -> float:
 ## (asking for plans is most of a think's cost): poke and zone always, its
 ## hits (damage, gap_close) only while a commit is possible, defend while it
 ## sees an attack coming, escape while its target is inside its band's
-## minimum (AI3).
+## minimum (AI3). AI-D1: its answers and peels while crowding is at its
+## peel_threshold, its openers' uses while the opening is at its opening_bar
+## (or its setup's opener is still to come), defend while anything crowds it.
 func _gather_uses(s: SituationContext) -> void:
 	var abilities := _enemy.abilities
 	if abilities == null:
@@ -597,12 +680,17 @@ func _gather_uses(s: SituationContext) -> void:
 	var wanted: Array[StringName] = [POKE, &"zone"]
 	if s.committing or s.patience >= 1.0 - PATIENCE_EPSILON or _patience_full_soon(s):
 		wanted.append_array([&"damage", &"gap_close"] as Array[StringName])
-	if s.crowded or s.target_edge_distance_px < Units.to_px(behavior.get_crowded_range()):
-		for intent in SituationContext.ANSWER_INTENTS:   # AI3b: its answers, for the crowded roll
+	if s.crowded or s.target_edge_distance_px < Units.to_px(behavior.get_crowded_range()) \
+			or s.crowding >= behavior.peel_threshold - 0.0001:
+		for intent in SituationContext.ANSWER_INTENTS + [PEEL]:   # AI3b: its answers, for the crowded roll (AI-D1: its peels)
 			if not wanted.has(intent):
 				wanted.append(intent)
-	if not s.incoming.is_empty():
-		wanted.append(DEFEND)
+	if not s.opener_slots.is_empty() and (s.setup_opener or s.opening >= behavior.opening_bar - 0.0001):
+		for intent in SituationContext.OPENER_INTENTS:   # AI-D1: a setup's opener
+			if not wanted.has(intent):
+				wanted.append(intent)
+	if not s.incoming.is_empty() or s.crowding > 0.0:
+		wanted.append(DEFEND)   # AI-D1: a defend use may read crowding (the duelist's guard)
 	if not s.cornered and s.target_edge_distance_px < Units.to_px(behavior.range_band_min):
 		wanted.append(ESCAPE)
 	abilities.set_aim_hint(s.target_position)   # conditions look at the target (AB12)
@@ -685,13 +773,17 @@ func _is_slot_ready(slot: StringName) -> bool:
 ## (think() rolls it, once the uses are gathered). It lasts until the target
 ## has stayed crowded_clear_px outside it for crowded_clear_time s; a new
 ## target ends it.
+## AI-D1: "inside" is its crowding at its peel_threshold or more (at the role
+## starts the target inside its crowded range is enough on its own; a Lunge
+## in or a string of hits near the edge brings it forward), and the target
+## stays out only while its crowding is also below it.
 func _update_episode(s: SituationContext, target: Unit, now: float) -> void:
 	var table := Brains.table
 	if target != _crowded_target:
 		_end_episode()
 		_crowded_target = target
 	var crowded_px := Units.to_px(behavior.get_crowded_range())
-	if s.target_edge_distance_px < crowded_px:
+	if s.crowding >= behavior.peel_threshold - 0.0001:
 		_outside_since = -1.0
 		if not _episode:
 			if _committing or _back_off_left > 0.0:
@@ -724,13 +816,15 @@ func _end_episode() -> void:
 	_crowded_answer = false
 	_crowded_seen = -1.0
 	_outside_since = -1.0
+	_peel_pending = false   # AI-D1: a peel still to cast isn't needed any more (one under way finishes)
 
 
 ## The episode's one roll, carried out: all in fills patience at once (a melee
 ## role then commits, its tell first, on its token; with none free it holds
 ## its ground and swings, first in the queue); backing up starts the kiting
 ## step. Standing, escaping and the cornered stand need nothing more: the
-## rules already built play them.
+## rules already built play them. AI-D1: a peel waits for its cast (decide()
+## picks `peel` while it's pending; its end starts the kiting step).
 func _roll_episode(s: SituationContext, now: float) -> void:
 	_episode_needs_roll = false
 	var r := roll_crowded(s, behavior, rng)
@@ -744,15 +838,19 @@ func _roll_episode(s: SituationContext, now: float) -> void:
 				_patience = 1.0
 		BACK_UP:
 			_start_walk_out(now, false)
+		PEEL:
+			_peel_pending = true
+			_peel_slot = s.get_best_use([PEEL] as Array[StringName]).get("slot", &"")
 
 
 ## One crowded episode's roll (ENEMIES_AI.md, Crowded; pure, seeded), in
 ## order: cornered (the cornered stand wins); escape (a caster, or any role
-## with a passing escape use); an answer ready: crowded_commit to go all in;
-## else (no answer, or that roll failed) the mix, Ryan's: back up once with
-## the chance 1 − aggression, otherwise stand and swing. {result, roll (the
-## roll that decided it, −1 = none), answer (it had one)}. `stream` is the
-## brain's rng.
+## with a passing escape use); an answer ready: crowded_commit to go all in,
+## and (AI-D1) when that roll fails, a peel if a `peel` use passes (its roll
+## is the one that failed); else (no answer, or no peel) the mix, Ryan's: back
+## up once with the chance 1 − aggression, otherwise stand and swing.
+## {result, roll (the roll that decided it, −1 = none), answer (it had one)}.
+## `stream` is the brain's rng.
 static func roll_crowded(s: SituationContext, b: EnemyBehavior, stream: RandomNumberGenerator) -> Dictionary:
 	var answer := s.has_answer()
 	if s.cornered:
@@ -763,6 +861,8 @@ static func roll_crowded(s: SituationContext, b: EnemyBehavior, stream: RandomNu
 		var roll := stream.randf()
 		if roll < b.crowded_commit:
 			return {"result": ALL_IN, "roll": roll, "answer": true}
+		if s.has_use([PEEL] as Array[StringName]):
+			return {"result": PEEL, "roll": roll, "answer": true}
 	var mix := stream.randf()
 	return {"result": BACK_UP if mix < 1.0 - b.aggression else STAND, "roll": mix, "answer": answer}
 
@@ -892,6 +992,125 @@ func _note_heavy_hit(plan: CastPlan) -> void:
 		Brains.note_heavy_hit(_enemy, target, Brains.get_time() + get_time_to_land(plan.ability, _enemy, target))
 
 
+# --- Combos: crowding, the opening, the peel and the setup (AI-D1) ---------------------------
+
+## Its `opener`-role slots (Ability.combo_roles), in slot order.
+static func find_opener_slots(abilities: AbilityComponent) -> Array[StringName]:
+	var out: Array[StringName] = []
+	if abilities == null:
+		return out
+	for slot in AbilityComponent.SLOTS:
+		var ability := abilities.get_ability(slot)
+		if ability != null and ability.combo_roles.has(OPENER_ROLE):
+			out.append(slot)
+	return out
+
+
+## Crowding's inputs and the read (ComboPlanner.get_crowding()): its crowded
+## range and band, its target's walk toward it (the snapshot's walk), its
+## target's last gap-closer if it ended inside its band's minimum within
+## crowding_recent_time s, and the party's hits on it in the last
+## crowding_hit_window s (Brains). `m` is its target's snapshot entry.
+func _read_crowding(s: SituationContext, m: Dictionary, target: Unit, now: float) -> void:
+	var table := Brains.table
+	s.crowded_range_px = Units.to_px(behavior.get_crowded_range())
+	s.band_min_px = Units.to_px(behavior.range_band_min)
+	s.band_max_px = Units.to_px(behavior.range_band_max)
+	s.crowding_closing_full_px = Units.to_px(table.crowding_closing_full)
+	s.crowding_hits_full = table.crowding_hits_full
+	var to_self := _enemy.global_position - target.global_position
+	var walk: Vector2 = m.get("walk_velocity", Vector2.ZERO)
+	s.target_closing_px = maxf(walk.dot(to_self.normalized()), 0.0) if to_self.length() > 0.01 else 0.0
+	var gap: Dictionary = m.get("gap_closer", {})
+	if not gap.is_empty() and now - float(gap.at) <= table.crowding_recent_time + 0.0001:
+		var end: Vector2 = gap.position
+		var edge := end.distance_to(_enemy.global_position) - _enemy.get_gameplay_radius_px() - target.get_gameplay_radius_px()
+		s.target_gap_closer_in = edge < s.band_min_px
+	s.recent_hits = Brains.get_recent_hits(_enemy, table.crowding_hit_window)
+	s.crowding = ComboPlanner.get_crowding(s, table.crowding_weights, s.crowding_terms)
+
+
+## The opening's inputs and the read (ComboPlanner.get_opening()): its
+## target's escapes (cooldowns: read at once), the longest crowd control on
+## it from another unit and its cast in progress (things it reacts to: each
+## counts once its reaction time has passed since it first saw it; Brains
+## wakes it then), a wall or a ledge just behind it. Its punish window
+## (recovering) waits for AI6.
+func _read_opening(s: SituationContext, m: Dictionary, target: Unit, now: float) -> void:
+	var table := Brains.table
+	s.opening_cc_min_left = table.opening_cc_min_left
+	var still: Dictionary = {}
+	if not m.is_empty():
+		s.target_escapes = m.get("escapes", 0)
+		s.target_escapes_ready = m.get("escapes_ready", 0)
+		var total: float = m.get("escape_value", 0.0)
+		s.target_escapes_down = 1.0 - float(m.get("escape_ready_value", 0.0)) / total if total > 0.0 else 0.0
+		for cc: Dictionary in m.get("ccs", []):
+			if cc.source == _enemy:
+				continue   # its own crowd control isn't another's
+			if not _seen_long_enough(cc.key, still, now):
+				continue
+			var left: float = cc.left if float(cc.left) >= 0.0 else 999.0   # until removed
+			if left > s.target_cc_left:
+				s.target_cc_left = left
+				s.target_cc_source = cc.source
+		var cast: Dictionary = m.get("cast", {})
+		if not cast.is_empty():
+			s.target_committed = _seen_long_enough("open:" + String(cast.key), still, now)
+	_seen_open = still
+	s.target_recovering = false   # its punish window: AI6
+	s.target_cornered = _target_cornered(target)
+	s.opening = ComboPlanner.get_opening(s, table.opening_weights, s.opening_terms)
+
+
+## `key` (a thing it reacts to) has been in view for its reaction time; the
+## first sight asks Brains for a think then.
+func _seen_long_enough(key: String, still: Dictionary, now: float) -> bool:
+	var first: float = _seen_open.get(key, now)
+	still[key] = first
+	if not _seen_open.has(key):
+		Brains.wake_at(self, now + behavior.reaction_time)
+	return now - first + 0.0001 >= behavior.reaction_time
+
+
+## A wall or a ledge within cornered_check_px behind its target's edge, on
+## the line from this enemy through it (a WorldQuery sweep on the walls' and
+## ledges' layers).
+func _target_cornered(target: Unit) -> bool:
+	var dir := target.global_position - _enemy.global_position
+	if dir.length() < 0.01:
+		return false
+	var from := target.global_position
+	var to := from + dir.normalized() * (target.get_gameplay_radius_px() + Brains.table.cornered_check_px)
+	return not WorldQuery.shape_sweep(from, to, 2.0, MovementComponent.GHOST_KEEP_MASK).is_empty()
+
+
+## The setup (ENEMIES_AI.md, Peel and setup): an enemy with an opener, not
+## crowded (no episode, crowding under its peel_threshold), not committing
+## or walking out, its target reachable, the opening at its opening_bar or
+## more, and an opener castable with a plan now. Never under its alert pose
+## (found building AI-D1: Enemy.get_pose() shows `alert` first for its 0.4 s,
+## so a setup on the think it woke hid its tell).
+func _wants_setup(s: SituationContext) -> bool:
+	if s.opener_slots.is_empty() or not s.has_target or _committing or s.crowded or s.walking_out or not s.target_reachable:
+		return false
+	if _enemy.get_pose() == &"alert":
+		return false
+	if s.crowding >= behavior.peel_threshold - 0.0001 or s.opening < behavior.opening_bar - 0.0001:
+		return false
+	return not s.get_opener_use().is_empty()
+
+
+## A peel rolled but not cast whose use no longer passes (its target walked
+## out of its range, the ability went down) takes the kiting step without it.
+func _check_peel(s: SituationContext, now: float) -> void:
+	if not _peel_pending or _peel_cast or s.casting or s.cast_blocked or is_in_ability_recovery():
+		return
+	if not s.has_use([PEEL] as Array[StringName]):
+		_peel_pending = false
+		_start_walk_out(now, false)
+
+
 static func _has_use_for(ability: Ability, intents: Array[StringName]) -> bool:
 	for use in ability.get_ai_uses():
 		if use != null and intents.has(use.intent):
@@ -950,7 +1169,9 @@ func _patience_full_soon(s: SituationContext) -> bool:
 ## reset); while retreating it keeps poking. AI3b: smell blood (commit ×
 ## smell_blood_mult below its finish threshold, capped), the walk out (the
 ## kiting step, the cautious walk) as a retreat, a held key's uses left out
-## (SituationContext.get_best_use()).
+## (SituationContext.get_best_use()). AI-D1: peel (its episode rolled a peel
+## and its peel use passes; like defend it answers something already
+## happening), and a setup's commit opens with its best opener.
 static func decide(s: SituationContext, b: EnemyBehavior, stream: RandomNumberGenerator) -> BrainDecision:
 	var d := BrainDecision.new()
 	if not s.has_target:
@@ -969,6 +1190,9 @@ static func decide(s: SituationContext, b: EnemyBehavior, stream: RandomNumberGe
 	var defend := s.get_best_use([DEFEND])
 	if not defend.is_empty():
 		raw[DEFEND] = float(s.intent_scores.get(DEFEND, 0.0))
+	var peel := s.get_best_use([PEEL])
+	if s.peel_pending and not peel.is_empty():
+		raw[PEEL] = float(s.intent_scores.get(PEEL, 0.0))   # AI-D1 (after defend: a tie keeps defend)
 	var escape := s.get_best_use([ESCAPE])
 	if wants_escape(s, b, not escape.is_empty()):
 		raw[ESCAPE] = float(s.intent_scores.get(ESCAPE, 0.0))
@@ -992,11 +1216,18 @@ static func decide(s: SituationContext, b: EnemyBehavior, stream: RandomNumberGe
 		POKE:
 			d.plan = poke.plan
 		COMMIT:
-			# Its hits: damage uses, and a gap-closer while out of its reach.
-			var intents: Array[StringName] = [&"damage"]
-			if s.target_edge_distance_px > s.attack_reach_px:
-				intents.append(&"gap_close")
-			var use := s.get_best_use(intents)
+			# AI-D1: a setup opens with its best opener (a new commit, or one
+			# whose opener is still to come).
+			var use := {}
+			if (s.setup and not s.committing) or s.setup_opener:
+				use = s.get_opener_use()
+				d.setup = not use.is_empty() and not s.committing
+			if use.is_empty():
+				# Its hits: damage uses, and a gap-closer while out of its reach.
+				var intents: Array[StringName] = [&"damage"]
+				if s.target_edge_distance_px > s.attack_reach_px:
+					intents.append(&"gap_close")
+				use = s.get_best_use(intents)
 			if not use.is_empty():
 				d.plan = use.plan
 		HOLD:
@@ -1005,6 +1236,8 @@ static func decide(s: SituationContext, b: EnemyBehavior, stream: RandomNumberGe
 				d.plan = zone.plan
 		DEFEND:
 			d.plan = defend.plan
+		PEEL:
+			d.plan = peel.plan
 		ESCAPE:
 			if not escape.is_empty():
 				d.plan = escape.plan   # else it walks away
@@ -1089,7 +1322,12 @@ func _apply_decision(d: BrainDecision, now: float) -> void:
 			_tell_left = 0.0
 		if d.intent == COMMIT:
 			_start_commit(now)
+			if d.setup:
+				_start_setup(d)
 		intent_changed.emit(d.intent)
+	elif d.intent == COMMIT and d.setup and not _committing:
+		_start_commit(now)   # AI-D1: a setup on the think its last commit ended
+		_start_setup(d)
 	if d.intent == ESCAPE:
 		if d.plan != null:
 			_escaping = false   # its escape ability is the escape: a walk after it gets its own 2 s (AI3d)
@@ -1098,6 +1336,15 @@ func _apply_decision(d: BrainDecision, now: float) -> void:
 	_pending_plan = d.plan
 	_decision = d
 	_update_pose(now)
+
+
+## A new commit is a setup (AI-D1): it opens with its opener (the decision's
+## plan); that cast's end doesn't end the commit.
+func _start_setup(d: BrainDecision) -> void:
+	_setup_opener = true
+	_setup_commit = true
+	_setup_slot = d.plan.slot if d.plan != null else &""
+	setup_count += 1
 
 
 ## Carries out the current intent: its movement and presses (cheap, every
@@ -1110,11 +1357,16 @@ func drive(delta: float) -> void:
 		return
 	if _enemy.is_stunned() or (_enemy.abilities != null and _enemy.abilities.casting):
 		return
+	if is_in_ability_recovery():
+		_update_pose(Brains.get_time())   # AI-D1: still, in the recover pose
+		return
 	match _intent:
 		COMMIT:
 			_drive_commit(delta, target)
 		HOLD, POKE, DEFEND:
 			_drive_hold(delta, target)
+		PEEL:
+			_drive_peel()
 		ESCAPE:
 			if _escaping:
 				_drive_escape(delta, target)
@@ -1140,6 +1392,15 @@ func _drive_commit(delta: float, target: Unit) -> void:
 		_commit_engaged_at = Brains.get_time()
 	if _enemy.attack.target != target:
 		_enemy.attack.attack(target)
+
+
+## Peel (AI-D1): it stands for its peel's cast (decide()'s plan; _try_plan()
+## casts it), no swing; the cast's end starts the kiting step.
+func _drive_peel() -> void:
+	if _enemy.movement.has_order():
+		_enemy.movement.stop()
+	if _enemy.attack.target != null and not _enemy.attack.is_winding_up():
+		_enemy.attack.cancel()
 
 
 ## Hold: a spot in its range band around the target, strafing one way and
@@ -1368,6 +1629,9 @@ func _start_commit(now: float) -> void:
 	_commit_cast_done = false
 	_commit_engaged_at = -1.0
 	_tell_left = Brains.table.tell_time
+	_setup_opener = false
+	_setup_commit = false
+	_opener_cast = false
 
 
 ## A commit is done after commit_max_time (the tell included), or:
@@ -1397,6 +1661,9 @@ func _end_commit() -> void:
 	_committing = false
 	_tell_left = 0.0
 	_pending_plan = null
+	_setup_opener = false
+	_setup_commit = false
+	_opener_cast = false
 	_back_off_left = table.back_off_time
 	Brains.release_token(_enemy, true)
 	if behavior.role == EnemyBehavior.Role.SKIRMISHER:
@@ -1430,12 +1697,17 @@ func _break_commit() -> void:
 	_committing = false
 	_tell_left = 0.0
 	_pending_plan = null
+	_setup_opener = false
+	_setup_commit = false
+	_opener_cast = false
 
 
 func _update_pose(now: float) -> void:
 	var pose: StringName = &""
 	if _committing and _tell_left > 0.0:
 		pose = TELL_POSES.get(COMMIT, &"")
+	elif is_in_ability_recovery():
+		pose = &"recover"   # AI-D1: the player's opening shows
 	elif behavior != null:
 		pose = get_intent_pose(_intent, behavior.role, is_cornered(), is_resetting(), is_pressing())
 	if pose != _pose:
@@ -1467,6 +1739,11 @@ func _reset() -> void:
 	_crowded_target = null
 	_walking_out_until = -1.0
 	_walk_out_far = false
+	_setup_opener = false
+	_setup_commit = false
+	_opener_cast = false
+	_peel_cast = false
+	_seen_open.clear()
 	if is_instance_valid(_enemy):
 		Brains.release_token(_enemy, false)
 	if had_intent:
@@ -1496,21 +1773,41 @@ func _on_cast_cancelled(_slot: StringName, _ability: Ability) -> void:
 	Brains.clear_heavy_hits(_enemy)
 
 
-func _on_cast_started(_slot: StringName, _ability: Ability, _ctx: CastContext) -> void:
+## AI-D1: a setup's first cast is its opener (when it has the opener role;
+## its end won't end the commit); a peel's cast starts (its end takes the
+## kiting step).
+func _on_cast_started(slot: StringName, ability: Ability, _ctx: CastContext) -> void:
 	if _committing and _tell_left <= 0.0:
 		_commit_cast = true
+		if _setup_opener:
+			_setup_opener = false
+			_opener_cast = ability != null and ability.combo_roles.has(OPENER_ROLE)
+	elif _peel_pending and _intent == PEEL:
+		_peel_pending = false
+		_peel_cast = true
+		_peel_slot = slot
 
 
 ## A commit's first cast ending ends it, except a gap-closer's: it only got it
 ## there (AI3). AI3b: its key cast (landed or not; its cooldown running, so
-## not refunded) makes it cautious for cautious_time.
+## not refunded) makes it cautious for cautious_time. AI-D1: a setup's opener
+## doesn't end it either; a peel's end (or its cut) starts the kiting step.
 func _on_cast_ended(slot: StringName, ability: Ability) -> void:
 	if slot == _key_slot and _key_slot != &"" and _enemy.abilities != null and not _enemy.abilities.is_ready(slot):
 		_cautious_until = Brains.get_time() + Brains.table.cautious_time
 		_spend_free = false
 		_next_spend_roll = -1.0
+	if _peel_cast and slot == _peel_slot:
+		_peel_cast = false
+		peel_count += 1
+		_start_walk_out(Brains.get_time(), false)
+		return
 	if not (_committing and _commit_cast):
 		return
+	if _opener_cast:
+		_opener_cast = false
+		_commit_cast = false
+		return   # a setup's opener only opens it
 	if ability != null and _has_use_for(ability, [&"gap_close"] as Array[StringName]):
 		if _commit_engaged_at < 0.0:
 			_commit_engaged_at = Brains.get_time()

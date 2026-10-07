@@ -1,0 +1,47 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/abilities/test_caster/guard.gd" id="1_script"]
+[ext_resource type="Script" path="res://scripts/data/ai_use.gd" id="2_use"]
+[ext_resource type="Script" path="res://scripts/data/condition.gd" id="3_condition"]
+
+[sub_resource type="Resource" id="threatened_major"]
+script = ExtResource("3_condition")
+kind = 9
+status_tag = &"major"
+value = 1.0
+
+[sub_resource type="Resource" id="use_defend_major"]
+script = ExtResource("2_use")
+intent = &"defend"
+conditions = Array[ExtResource("3_condition")]([SubResource("threatened_major")])
+
+[sub_resource type="Resource" id="low_health"]
+script = ExtResource("3_condition")
+kind = 2
+comparison = 1
+value = 0.4
+
+[sub_resource type="Resource" id="crowded"]
+script = ExtResource("3_condition")
+kind = 10
+value = 0.6
+
+[sub_resource type="Resource" id="use_defend_crowded"]
+script = ExtResource("2_use")
+intent = &"defend"
+conditions = Array[ExtResource("3_condition")]([SubResource("low_health"), SubResource("crowded")])
+
+[resource]
+script = ExtResource("1_script")
+shield_amount = 250.0
+shield_duration = 2.0
+id = &"test_duelist_guard"
+tags = Array[StringName]([&"defensive", &"buff"])
+display_name = "Guard"
+description = "A shield of {shield_amount} on itself for {shield_duration} s. It goes up when a big ability comes at it, or when it's low and crowded."
+icon_color = Color(0.85, 0.9, 1, 1)
+targeting = 0
+cooldown = 8.0
+cast_time = 0.0
+resets_auto_attack = false
+ai_uses = Array[ExtResource("2_use")]([SubResource("use_defend_major"), SubResource("use_defend_crowded")])

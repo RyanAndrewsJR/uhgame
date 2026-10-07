@@ -76,6 +76,11 @@ lean_deg = 10.0
 rim_color = Color(1, 0.72, 0.2, 0.6)
 pulse_hz = 1.0
 
+[sub_resource type="Resource" id="Resource_recover"]
+script = ExtResource("1_ttykm")
+lean_deg = -10.0
+squash = 0.9
+
 [resource]
 script = ExtResource("2_v8hyr")
 poses = Dictionary[StringName, ExtResource("1_ttykm")]({
@@ -90,6 +95,7 @@ poses = Dictionary[StringName, ExtResource("1_ttykm")]({
 &"press": SubResource("Resource_press"),
 &"pressure": SubResource("Resource_gcybp"),
 &"recoil": SubResource("Resource_ejg0a"),
+&"recover": SubResource("Resource_recover"),
 &"return": SubResource("Resource_8uet0"),
 &"sidestep": SubResource("Resource_tkby7"),
 &"stalk": SubResource("Resource_grkk2"),

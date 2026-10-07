@@ -24,6 +24,9 @@ extends Node
 ##   tick by delta x the cast speed); the cast's telegraph follows it, and the
 ##   3D view positions the model's cast_anim by it (UnitView); the
 ##   presentation hook cast_vfx fires at cast start
+## - a recovery after the effect (Ability.recovery_time; ENEMIES_AI AI-D1): the
+##   caster can't move, attack or cast for that long (the locks &"recovery";
+##   is_recovering()). A free cast isn't blocked by it
 
 signal cast_started(slot: StringName, ability: Ability, ctx: CastContext)
 signal cast_finished(slot: StringName, ability: Ability)
@@ -84,6 +87,9 @@ const VECTOR_WALL_RADIUS_PX := 2.0
 ## (0.2 - 12 x 1/60) doesn't add a physics frame (AB14b; the swings'
 ## SWING_TIME_EPSILON). 0.2 s = 12 ticks, as written.
 const CAST_TIME_EPSILON := 0.0001
+## The move and attack lock id of an ability's recovery (Ability.recovery_time;
+## ENEMIES_AI AI-D1).
+const RECOVERY_LOCK := &"recovery"
 
 @export var q: Ability
 @export var w: Ability
@@ -144,6 +150,9 @@ var _cast_time_running: bool = false
 var _cast_time_left: float = 0.0
 var _cast_time_total: float = 0.0
 var _cast_speed_warned: bool = false
+## The recovery after an effect (AI-D1): seconds left (0 = none) and its ability.
+var _recovery_left: float = 0.0
+var _recovery_ability: Ability
 
 
 func _ready() -> void:
@@ -321,7 +330,22 @@ func get_max_charges(slot: StringName) -> int:
 ## Costs and Conditions). get_fail_reason() is the full check (the enemy AI
 ## uses it).
 func can_cast(slot: StringName) -> bool:
-	return is_ready(slot) and not casting and unit.is_alive() and not unit.is_cast_blocked()
+	return is_ready(slot) and not casting and not is_recovering() and unit.is_alive() and not unit.is_cast_blocked()
+
+
+## In an ability's recovery (Ability.recovery_time; ENEMIES_AI AI-D1): it
+## can't move, attack or cast until it's over.
+func is_recovering() -> bool:
+	return _recovery_left > 0.0
+
+
+## Seconds of the recovery left (0 = none), and the ability it follows.
+func get_recovery_left() -> float:
+	return _recovery_left
+
+
+func get_recovery_ability() -> Ability:
+	return _recovery_ability if is_recovering() else null
 
 
 ## The ability's resource_cost after scoped modifiers.
@@ -359,7 +383,7 @@ func get_fail_reason(slot: StringName, aim: Vector2 = Vector2.INF, target: Unit 
 		return FAIL_SILENCED
 	if not is_ready(slot):
 		return FAIL_NOT_READY
-	if casting:
+	if casting or is_recovering():
 		return FAIL_BUSY
 	if not can_afford(slot):
 		return FAIL_NO_RESOURCE
@@ -930,6 +954,7 @@ func _physics_process(delta: float) -> void:
 	# frame (deferred), where the old SceneTreeTimer was counted: a cast
 	# started anywhere in this frame's node pass counts this tick.
 	_advance_cast_time.call_deferred(delta)
+	_update_recovery(delta)
 	_update_charge(delta)
 	_update_recast_windows(delta)
 	for s in SLOTS:
@@ -1048,7 +1073,35 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext, precharged: 
 	casting_slot = &""
 	if not interrupted:
 		_advance_recast(slot, ctx.part)
+		_start_recovery(ability)
 	cast_finished.emit(slot, ability)
+
+
+## Its recovery after the effect (ENEMIES_AI AI-D1): the caster can't move
+## (the move lock &"recovery"), attack (the attack lock) or cast (can_cast(),
+## get_fail_reason(): busy) for the ability's recovery_time. Nothing at 0.
+func _start_recovery(ability: Ability) -> void:
+	var time := ability.get_param(unit, &"recovery_time") if ability != null else 0.0
+	if time <= 0.0 or not unit.is_alive():
+		return
+	_recovery_left = time
+	_recovery_ability = ability
+	unit.movement.add_move_lock(RECOVERY_LOCK)
+	unit.movement.stop()
+	unit.attack.add_lock(RECOVERY_LOCK)
+
+
+## The recovery counts down in game time; its locks go when it's over.
+func _update_recovery(delta: float) -> void:
+	if _recovery_left <= 0.0:
+		return
+	_recovery_left -= delta
+	if _recovery_left <= CAST_TIME_EPSILON:
+		_recovery_left = 0.0
+		_recovery_ability = null
+		if is_instance_valid(unit):
+			unit.movement.remove_move_lock(RECOVERY_LOCK)
+			unit.attack.remove_lock(RECOVERY_LOCK)
 
 
 ## The cast's locks and walking rules: the &"casting" attack lock (it also

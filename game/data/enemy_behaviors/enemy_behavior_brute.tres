@@ -4,3 +4,13 @@
 
 [resource]
 script = ExtResource("1_ea813")
+aggression = 0.81
+patience_time = 3.02
+range_band_min = 650.0
+range_band_max = 640.0
+reaction_time = 0.34
+dodge_skill = 0.59
+punish_greed = 0.59
+finish_threshold = 0.29
+pressure_time = 11.99
+jitter = 0.14

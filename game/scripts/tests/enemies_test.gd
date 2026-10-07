@@ -87,6 +87,26 @@ extends Node2D
 ##   reaction time; three brutes and an elite pressing (a third attacker, the
 ##   press pose, never two heavy hits within 0.8 s), one brute changing
 ##   nothing, the ally down; the overlay's odds line and think rate.
+## Step AI-D1, the test duelist, crowding and the opening (Combos):
+## - the two sliders, the table's weights and numbers, the `peel` intent tag,
+##   the four condition kinds, the recover pose, the duelist's data and kit
+##   (library copies, respect 10.5, combo roles, the finisher's recovery);
+## - crowding's terms by hand (inside, a Lunge in to 2.75 m, 1 m outside,
+##   closing, a string of hits) and Brains' reads (a real Lunge is a
+##   gap-closer, a push isn't; the party's hits, DoT ticks not counted); the
+##   opening's terms by hand and a real brain's read (escapes, a crowd control
+##   by another after its reaction time, committed, cornered);
+## - the roll: a peel in every episode at crowded_commit 0, all in at its
+##   rate, no peel use = AI3b's mix; THREATENED's major filter (Judgement yes,
+##   Cleave no); the guard's two defend uses;
+## - a real duelist: the episode from crowding (inside, not 1 m out, a Lunge
+##   in at 0.6 but not 0.7, a string of hits), the peel (the snare, then a
+##   step back), the setup (escapes down: snare first without waiting for
+##   patience; not below the bar; the strike when the snare is down; none for
+##   an enemy with no opener), the finisher's recovery (still, no swing, no
+##   cast, the recover pose), its guard against Judgement (not Cleave) and
+##   when low and crowded; SandboxBrains (Shift+H, escapes down, the overlay's
+##   combo lines, the panel's nineteen rows).
 ## Tests of older rules pin AI3b's sliders (and AI3c's nerve) to their AI3
 ## values (_pin_ai3()); AI2's five brutes play with the press off (_no_press()).
 ## TEMP, the enemy attack speed test multiplier (DECISIONS.md, Testing): off
@@ -161,6 +181,14 @@ const TELEGRAPH_MIN := 0.6
 const CHIP_SHARE := 0.05
 ## Where the fights happen, away from the origin.
 const ARENA := Vector2(3000, 0)
+# AI-D1
+const DUELIST_SCENE: PackedScene = preload("res://scenes/enemies/test_duelist.tscn")
+const DUELIST_DATA: EnemyData = preload("res://data/enemies/enemy_test_duelist.tres")
+const D_SNARE: Ability = preload("res://data/abilities/test_duelist_q_snare.tres")
+const D_GUARD: Ability = preload("res://data/abilities/test_duelist_w_guard.tres")
+const D_STRIKE: Ability = preload("res://data/abilities/test_duelist_e_strike.tres")
+const D_FINISHER: Ability = preload("res://data/abilities/test_duelist_r_finisher.tres")
+const CHARGED_LINE: Ability = preload("res://data/abilities/test_q_charged_line.tres")
 
 @onready var entities: Node2D = $Entities
 
@@ -171,7 +199,7 @@ var _odds_threshold_saved := -1.0   # _no_press() (AI3c)
 
 
 func _ready() -> void:
-	print("\n=== Enemies test (ENEMIES_AI AI1–AI3d, AI3b, AI3c) ===")
+	print("\n=== Enemies test (ENEMIES_AI AI1–AI3d, AI3b, AI3c, AI-D1) ===")
 	Progress.get_progress(KNIGHT)   # the save guards latch off first (a test scene)
 	Loot.get_inventory(KNIGHT)
 	Brains.rng.seed = 20261004
@@ -261,6 +289,22 @@ func _ready() -> void:
 	await _test_ai3c_pack_presses()
 	await _test_ai3c_overlay()
 
+	# AI-D1: the test duelist, crowding and the opening (Combos).
+	_test_aid1_data()
+	_test_aid1_crowding()
+	await _test_aid1_brains_reads()
+	_test_aid1_opening()
+	_test_aid1_peel_roll()
+	_test_aid1_threatened()
+	await _test_aid1_guard_uses()
+	await _test_aid1_episode_start()
+	await _test_aid1_peel()
+	await _test_aid1_brain_opening()
+	await _test_aid1_setup()
+	await _test_aid1_recovery()
+	await _test_aid1_guard()
+	await _test_aid1_sandbox()
+
 	# TEMP: the enemy attack speed test multiplier (DECISIONS.md, Testing).
 	await _test_temp_attack_speed()
 
@@ -306,9 +350,9 @@ func _test_brute_preset() -> void:
 	var values: Array = []
 	for s in EnemyBehavior.SLIDERS:
 		values.append(b.get_slider(s))
-	_check("aggression .5, respect 1, patience 3, band 350–500, reaction .35, dodge .4 / 6, greed .6, finish .3, pressure 12, breather 5, jitter .15; AI3b: confidence .5, all in .6, lead 0, spend .4; AI3c: nerve .6",
-		values, [0.5, 1.0, 3.0, 350.0, 500.0, 0.35, 0.4, 6.0, 0.6, 0.3, 12.0, 5.0, 0.15, 0.5, 0.6, 0.0, 0.4, 0.6])
-	_check("18 fields, 17 sliders (the band is one, with two ends; AI3b added four, AI3c nerve)", [EnemyBehavior.SLIDERS.size(), EnemyBehavior.LIMITS.size()], [18, 18])
+	_check("aggression .5, respect 1, patience 3, band 350–500, reaction .35, dodge .4 / 6, greed .6, finish .3, pressure 12, breather 5, jitter .15; AI3b: confidence .5, all in .6, lead 0, spend .4; AI3c: nerve .6; AI-D1: peel .6, opening .5",
+		values, [0.5, 1.0, 3.0, 350.0, 500.0, 0.35, 0.4, 6.0, 0.6, 0.3, 12.0, 5.0, 0.15, 0.5, 0.6, 0.0, 0.4, 0.6, 0.6, 0.5])
+	_check("20 fields, 19 sliders (the band is one, with two ends; AI3b added four, AI3c nerve, AI-D1 peel_threshold and opening_bar)", [EnemyBehavior.SLIDERS.size(), EnemyBehavior.LIMITS.size()], [20, 20])
 	var in_limits := true
 	for s in EnemyBehavior.SLIDERS:
 		var lim: Array = EnemyBehavior.LIMITS[s]
@@ -987,7 +1031,7 @@ func _test_sandbox_brains() -> void:
 	await _wait_until(func() -> bool: return not casts.is_empty(), 60)   # (AI3: once it's fighting)
 	Events.ability_cast.disconnect(on_cast)
 	_check("incoming_shot: the Knight fires the test bolt at it (once it's aggroed)", casts.size() == 1 and casts[0][0] == knight and casts[0][1] == sb.test_bolt and brute.ai == Enemy.AI.AGGRO, true)
-	_check("H cycles the ten (AI2 added the two packs, AI3 the mixed one, AI3c the odds)", [sb.next_scenario(), sb.next_scenario(), sb.next_scenario(), sb.next_scenario(), sb.next_scenario()], [&"pack", &"fodder", &"mixed", &"odds", &"all_ready"])
+	_check("H cycles the eleven (AI2 added the two packs, AI3 the mixed one, AI3c the odds, AI-D1 escapes down)", [sb.next_scenario(), sb.next_scenario(), sb.next_scenario(), sb.next_scenario(), sb.next_scenario()], [&"pack", &"fodder", &"mixed", &"odds", &"escapes_down"])
 
 	# The panel: a live change for every enemy sharing the data; no saving here.
 	brute = sb.run_scenario(&"all_ready")
@@ -1621,16 +1665,16 @@ func _test_ai3_data() -> void:
 	var values: Array = []
 	for slider in EnemyBehavior.SLIDERS:
 		values.append(SKIRMISHER_BEHAVIOR.get_slider(slider))
-	_check("skirmisher: aggression .7, respect .8, patience 2, band 400–600, reaction .3, dodge .6 / 4, greed .8, finish .3, pressure 12, breather 5, jitter .2; AI3b: confidence .6, all in .4, lead .3, spend .7; AI3c: nerve .8",
-		values, [0.7, 0.8, 2.0, 400.0, 600.0, 0.3, 0.6, 4.0, 0.8, 0.3, 12.0, 5.0, 0.2, 0.6, 0.4, 0.3, 0.7, 0.8])
+	_check("skirmisher: aggression .7, respect .8, patience 2, band 400–600, reaction .3, dodge .6 / 4, greed .8, finish .3, pressure 12, breather 5, jitter .2; AI3b: confidence .6, all in .4, lead .3, spend .7; AI3c: nerve .8; AI-D1: peel .6, opening .4",
+		values, [0.7, 0.8, 2.0, 400.0, 600.0, 0.3, 0.6, 4.0, 0.8, 0.3, 12.0, 5.0, 0.2, 0.6, 0.4, 0.3, 0.7, 0.8, 0.6, 0.4])
 	_check("its kind: role SKIRMISHER, hits and resets, uses tokens",
 		[SKIRMISHER_BEHAVIOR.role, SKIRMISHER_BEHAVIOR.low_health, SKIRMISHER_BEHAVIOR.uses_tokens],
 		[EnemyBehavior.Role.SKIRMISHER, EnemyBehavior.LowHealth.HIT_AND_RESET, true])
 	values = []
 	for slider in EnemyBehavior.SLIDERS:
 		values.append(CASTER_BEHAVIOR.get_slider(slider))
-	_check("caster: aggression .3, respect 1.2, patience 4, band 550–800, reaction .35, dodge .5 / 5, greed .4, finish .3, pressure 12, breather 5, jitter .15; AI3b: confidence .3, all in .2, lead .5, spend .8; AI3c: nerve .4",
-		values, [0.3, 1.2, 4.0, 550.0, 800.0, 0.35, 0.5, 5.0, 0.4, 0.3, 12.0, 5.0, 0.15, 0.3, 0.2, 0.5, 0.8, 0.4])
+	_check("caster: aggression .3, respect 1.2, patience 4, band 550–800, reaction .35, dodge .5 / 5, greed .4, finish .3, pressure 12, breather 5, jitter .15; AI3b: confidence .3, all in .2, lead .5, spend .8; AI3c: nerve .4; AI-D1: peel .5, opening .6",
+		values, [0.3, 1.2, 4.0, 550.0, 800.0, 0.35, 0.5, 5.0, 0.4, 0.3, 12.0, 5.0, 0.15, 0.3, 0.2, 0.5, 0.8, 0.4, 0.5, 0.6])
 	_check("its kind: role CASTER, falls back below 35%, never commits (commit weight 0)",
 		[CASTER_BEHAVIOR.role, CASTER_BEHAVIOR.low_health, CASTER_BEHAVIOR.retreat_health, CASTER_BEHAVIOR.get_intent_weight(&"commit")],
 		[EnemyBehavior.Role.CASTER, EnemyBehavior.LowHealth.FALL_BACK, 0.35, 0.0])
@@ -2065,8 +2109,8 @@ func _test_sandbox_ai3() -> void:
 	var order: Array = []
 	for i in 4:
 		order.append(sb.cycle_scenario_enemy().resource_path.get_file())
-	_check("Shift+H: brute → skirmisher → caster → elite caster → brute", order,
-		["test_skirmisher.tscn", "test_caster.tscn", "test_caster_elite.tscn", "test_brute.tscn"])
+	_check("Shift+H: brute → skirmisher → caster → elite caster → duelist (AI-D1)", order,
+		["test_skirmisher.tscn", "test_caster.tscn", "test_caster_elite.tscn", "test_duelist.tscn"])
 	sb.scenario_enemy = CASTER_ELITE_SCENE
 	var caster := sb.run_scenario(&"all_ready")
 	await _frames(2)
@@ -3098,8 +3142,8 @@ func _test_ai3b_overlay_and_poses() -> void:
 
 func _test_ai3c_data() -> void:
 	_section("AI3c data: nerve, the table's odds numbers, think rates by rank, duelist, the press pose")
-	_check("nerve: 0–1, last in the panel's list; brute .6, skirmisher .8, caster .4",
-		[EnemyBehavior.LIMITS[&"nerve"], EnemyBehavior.SLIDERS[-1], BRUTE_BEHAVIOR.nerve, SKIRMISHER_BEHAVIOR.nerve, CASTER_BEHAVIOR.nerve],
+	_check("nerve: 0–1, after AI3b's in the panel's list (AI-D1's two follow); brute .6, skirmisher .8, caster .4",
+		[EnemyBehavior.LIMITS[&"nerve"], EnemyBehavior.SLIDERS[17], BRUTE_BEHAVIOR.nerve, SKIRMISHER_BEHAVIOR.nerve, CASTER_BEHAVIOR.nerve],
 		[[0.0, 1.0], &"nerve", 0.6, 0.8, 0.4])
 	var regular := Brains.table.get_rank_rules(EnemyData.Rank.REGULAR).brain_adjust
 	_check("a BrainAdjust leaves nerve at × 1; resolve() carries it, an override included",
@@ -3882,6 +3926,753 @@ func _temp_windup_frames(entry: Dictionary) -> Array:
 	for i in mini(windups.size(), hits.size()):
 		out.append(int(hits[i][0]) - int(windups[i][0]))
 	return out
+
+
+# --- AI-D1: the test duelist, crowding and the opening (Combos) --------------------------
+
+func _test_aid1_data() -> void:
+	_section("AI-D1 data: the two sliders, the table's reads, peel, the condition kinds, the recover pose, the duelist")
+	_check("peel_threshold 0.1–1 and opening_bar 0–1, last in the panel's list (twenty rows: nineteen sliders, the band's two ends)",
+		[EnemyBehavior.LIMITS[&"peel_threshold"], EnemyBehavior.LIMITS[&"opening_bar"], EnemyBehavior.SLIDERS.slice(18), EnemyBehavior.SLIDERS.size()],
+		[[0.1, 1.0], [0.0, 1.0], [&"peel_threshold", &"opening_bar"], 20])
+	_check("the role starts: brute .6 / .5, skirmisher .6 / .4, caster .5 / .6",
+		[BRUTE_BEHAVIOR.peel_threshold, BRUTE_BEHAVIOR.opening_bar, SKIRMISHER_BEHAVIOR.peel_threshold, SKIRMISHER_BEHAVIOR.opening_bar,
+			CASTER_BEHAVIOR.peel_threshold, CASTER_BEHAVIOR.opening_bar], [0.6, 0.5, 0.6, 0.4, 0.5, 0.6])
+	var regular := Brains.table.get_rank_rules(EnemyData.Rank.REGULAR).brain_adjust
+	_check("a BrainAdjust leaves both at × 1; resolve() carries them, an override included",
+		[BrainAdjust.new().get_multiplier(&"peel_threshold"), BrainAdjust.new().get_multiplier(&"opening_bar"),
+			BRUTE_BEHAVIOR.resolve({&"opening_bar": 0.3}, [regular] as Array[BrainAdjust]).opening_bar,
+			BRUTE_BEHAVIOR.resolve({}, [regular] as Array[BrainAdjust]).peel_threshold], [1.0, 1.0, 0.3, 0.6])
+	var t := Brains.table
+	var cw := t.crowding_weights
+	_check("crowding: near .6, closing .15, a gap-closer in .3, hits .3 (the ally's cc .4); closing full at 400 u/s, a gap-closer within 1 s, hits over 3 s ÷ 3",
+		[cw[&"near"], cw[&"closing"], cw[&"gap_closer"], cw[&"hits"], cw[&"cc"], t.crowding_closing_full, t.crowding_recent_time, t.crowding_hit_window, t.crowding_hits_full],
+		[0.6, 0.15, 0.3, 0.3, 0.4, 400.0, 1.0, 3.0, 3])
+	var ow := t.opening_weights
+	_check("the opening: escapes .5, cc by another .5, recovering .4, committed .4, cornered .2; a crowd control with 0.5 s left; a wall within 48 px (1.5 m)",
+		[ow[&"escapes_down"], ow[&"cc_by_other"], ow[&"recovering"], ow[&"committed"], ow[&"cornered"], t.opening_cc_min_left, t.cornered_check_px, Units.px_to_m(t.cornered_check_px)],
+		[0.5, 0.5, 0.4, 0.4, 0.2, 0.5, 48.0, 1.5])
+	_check("major tags: ultimate, charge_up, dash, leap; peel scores 0.9 (like defend); `peel` is an intent tag",
+		[t.major_tags, t.intent_scores[&"peel"], AIUse.INTENT_TAGS.has(&"peel")], [[&"ultimate", &"charge_up", &"dash", &"leap"], 0.9, true])
+	var kinds: Array = []
+	for k: Condition.Kind in [Condition.Kind.CROWDING, Condition.Kind.OPENING, Condition.Kind.TARGET_ESCAPES_READY, Condition.Kind.TARGET_CORNERED]:
+		var c := Condition.new()
+		c.kind = k
+		var negated := Condition.new()
+		negated.kind = k
+		negated.negate = true
+		kinds.append([c.is_situation_kind(), c.is_met(knight, knight), negated.is_met(knight, knight)])
+	_check("CROWDING, OPENING, TARGET_ESCAPES_READY, TARGET_CORNERED read the situation: without one, false even negated", kinds,
+		[[true, false, false], [true, false, false], [true, false, false], [true, false, false]])
+	var s := SituationContext.new()
+	s.has_target = true
+	s.crowding = 0.7
+	s.opening = 0.4
+	s.target_escapes_ready = 1
+	s.target_cornered = true
+	var crowd := Condition.new()
+	crowd.kind = Condition.Kind.CROWDING
+	crowd.value = 0.6
+	var open := Condition.new()
+	open.kind = Condition.Kind.OPENING
+	open.value = 0.5
+	var one := Condition.new()
+	one.kind = Condition.Kind.TARGET_ESCAPES_READY
+	var two := Condition.new()
+	two.kind = Condition.Kind.TARGET_ESCAPES_READY
+	two.count = 2
+	var corner := Condition.new()
+	corner.kind = Condition.Kind.TARGET_CORNERED
+	_check("with one: crowding 0.7 ≥ 0.6 yes, opening 0.4 ≥ 0.5 no, one escape ready (at least 1 yes, 2 no), cornered yes",
+		[crowd.is_met(knight, null, null, s), open.is_met(knight, null, null, s), one.is_met(knight, null, null, s), two.is_met(knight, null, null, s),
+			corner.is_met(knight, null, null, s)], [true, false, true, false, true])
+	var recover := POSE_SET.get_look(&"recover")
+	_check("the recover pose: slumped back 10°, squashed to 0.9, no rim",
+		[recover != null, recover.lean_deg if recover != null else 0.0, recover.squash if recover != null else 0.0, recover.rim_color.a if recover != null else -1.0],
+		[true, -10.0, 0.9, 0.0])
+
+	var d := DUELIST_DATA
+	var slots: Array = []
+	for entry in d.abilities:
+		slots.append([entry.slot, entry.ability])
+	_check("the test duelist: an elite brute flagged duelist (25 thinks a second), crowded_commit 0.4 its one override, four abilities on q w e r",
+		[d.rank, d.duelist, d.behavior == BRUTE_BEHAVIOR, t.get_think_rate_for(d), d.overrides.size(), d.overrides.get(&"crowded_commit", -1.0), slots],
+		[EnemyData.Rank.ELITE, true, true, 25.0, 1, 0.4, [[&"q", D_SNARE], [&"w", D_GUARD], [&"e", D_STRIKE], [&"r", D_FINISHER]]])
+	var st := d.stats
+	_check("its stats: 1000 health, 30 attack damage (4.6% of the Knight's 650: chip), 0.8 attack speed, 320 move speed, 150 u range, radius 55",
+		[st.max_health, st.attack_damage, st.base_attack_speed, st.move_speed, st.attack_range, st.gameplay_radius], [1000.0, 30.0, 0.8, 320.0, 150.0, 55.0])
+	var values := [t.get_respect_value(D_SNARE), t.get_respect_value(D_GUARD), t.get_respect_value(D_STRIKE), t.get_respect_value(D_FINISHER)]
+	_check("respect: snare 3 (core 2 + its root), guard 1.5, strike 2, finisher 4: 10.5, the Knight's too",
+		[values, values[0] + values[1] + values[2] + values[3]], [[3.0, 1.5, 2.0, 4.0], 10.5])
+	_check("its uses: snare peel and cc; guard two defends; strike gap-close and damage; finisher damage, punish, finish",
+		[_intents(D_SNARE), _intents(D_GUARD), _intents(D_STRIKE), _intents(D_FINISHER)],
+		[[&"peel", &"cc"], [&"defend", &"defend"], [&"gap_close", &"damage"], [&"damage", &"punish", &"finish"]])
+	var peel_rule: Condition = D_SNARE.ai_uses[0].conditions[0]
+	_check("the snare's peel rule: its target within 400 u", [peel_rule.kind, peel_rule.comparison, peel_rule.value], [Condition.Kind.TARGET_DISTANCE, Condition.Comparison.LESS_THAN, 400.0])
+	_check("combo roles: snare and strike opener + extender, finisher finisher, guard none; only the finisher recovers (1.2 s)",
+		[D_SNARE.combo_roles, D_STRIKE.combo_roles, D_FINISHER.combo_roles, D_GUARD.combo_roles.is_empty(), D_FINISHER.recovery_time, D_SNARE.recovery_time, D_STRIKE.recovery_time],
+		[[&"opener", &"extender"], [&"opener", &"extender"], [&"finisher"], true, 1.2, 0.0, 0.0])
+	_check("its openers telegraph 0.7 s and can be dodged (not point-and-click); the finisher 1.0 s",
+		[D_SNARE.cast_time, D_STRIKE.cast_time, D_FINISHER.cast_time, D_SNARE.targeting != Ability.Targeting.UNIT, D_STRIKE.targeting != Ability.Targeting.UNIT],
+		[0.7, 0.7, 1.0, true, true])
+	_check("numbers: snare 750 u at 700 u/s, 60 wide, 20 magic, 10 s; guard 250 for 2 s, 8 s; strike 60, reaching 6 m (the charge's range: from its band's far edge), its band 5 m + 1 m past, 7 s; finisher 130 (20% of 650), an 80 px circle, 12 s",
+		[D_SNARE.cast_range, D_SNARE.projectile_speed, D_SNARE.projectile_width, D_SNARE.base_damage, D_SNARE.cooldown,
+			D_GUARD.get(&"shield_amount"), D_GUARD.get(&"shield_duration"), D_GUARD.cooldown,
+			D_STRIKE.base_damage, D_STRIKE.cast_range, D_STRIKE.get(&"length_px"), D_STRIKE.get(&"overshoot_px"), D_STRIKE.cooldown,
+			D_FINISHER.base_damage, D_FINISHER.get(&"radius_px"), D_FINISHER.cooldown],
+		[750.0, 700.0, 60.0, 20.0, 10.0, 250.0, 2.0, 8.0, 60.0, 600.0, 192.0, 32.0, 7.0, 130.0, 80.0, 12.0])
+
+
+## A situation for crowding by hand: a brute's crowded range (200 u) and band
+## (350–500 u), its target `edge_units` away.
+func _crowd_situation(edge_units: float) -> SituationContext:
+	var t := Brains.table
+	var s := SituationContext.new()
+	s.has_target = true
+	s.target_edge_distance_px = Units.to_px(edge_units)
+	s.crowded_range_px = Units.to_px(200.0)
+	s.band_min_px = Units.to_px(350.0)
+	s.band_max_px = Units.to_px(500.0)
+	s.crowding_closing_full_px = Units.to_px(t.crowding_closing_full)
+	s.crowding_hits_full = t.crowding_hits_full
+	return s
+
+
+func _test_aid1_crowding() -> void:
+	_section("Crowding's terms by hand (ComboPlanner.get_crowding()): near, closing, a gap-closer in, hits")
+	var w := Brains.table.crowding_weights
+	var near: Array = []
+	for edge: float in [150.0, 200.0, 275.0, 300.0, 350.0, 450.0]:
+		near.append(roundi(ComboPlanner.get_crowding(_crowd_situation(edge), w) * 1000))
+	_check("near alone (× 1,000): inside its 200 u 600, at its edge 600, 2.75 m 300, 1 m outside (3 m) 200, its band's minimum 0, past it 0",
+		near, [600, 600, 300, 200, 0, 0])
+	var s := _crowd_situation(300.0)
+	s.target_closing_px = Units.to_px(400.0)
+	var walking := ComboPlanner.get_crowding(s, w)
+	s.target_closing_px = Units.to_px(200.0)
+	var half := ComboPlanner.get_crowding(s, w)
+	var far := _crowd_situation(600.0)
+	far.target_closing_px = Units.to_px(400.0)
+	_check("closing at 3 m: walking in at 400 u/s adds 0.15, at half speed 0.075; beyond its band's far edge nothing",
+		[roundi(walking * 1000), roundi(half * 1000), roundi(ComboPlanner.get_crowding(far, w) * 1000)], [350, 275, 0])
+	var lunge := _crowd_situation(275.0)
+	lunge.target_gap_closer_in = true
+	var hits: Array = []
+	for n: int in [1, 3, 6]:
+		var h := _crowd_situation(250.0)
+		h.recent_hits = n
+		hits.append(roundi(ComboPlanner.get_crowding(h, w) * 1000))
+	_check("a Lunge in to 2.75 m: 0.3 + 0.3 = 0.6; at 2.5 m (near 0.4) one hit 0.5, three 0.7, six still 0.7",
+		[roundi(ComboPlanner.get_crowding(lunge, w) * 1000), hits], [600, [500, 700, 700]])
+	var all := _crowd_situation(100.0)
+	all.target_closing_px = Units.to_px(400.0)
+	all.target_gap_closer_in = true
+	all.recent_hits = 3
+	var terms := {}
+	var total := ComboPlanner.get_crowding(all, w, terms)
+	_check("everything: 1.35 clamped to 1; its terms near .6, closing .15, gap-closer .3, hits .3; the biggest near",
+		[total, terms, ComboPlanner.get_biggest_term(terms)[0]], [1.0, {&"near": 0.6, &"closing": 0.15, &"gap_closer": 0.3, &"hits": 0.3}, &"near"])
+	var caster := _crowd_situation(500.0)
+	caster.crowded_range_px = Units.to_px(550.0)
+	caster.band_min_px = Units.to_px(550.0)
+	var out := _crowd_situation(560.0)
+	out.crowded_range_px = Units.to_px(550.0)
+	out.band_min_px = Units.to_px(550.0)
+	_check("a caster (its crowded range its band's minimum): 1 or 0", [roundi(ComboPlanner.get_crowding(caster, w) * 1000), roundi(ComboPlanner.get_crowding(out, w) * 1000)], [600, 0])
+	var none := SituationContext.new()
+	_check("no target: 0", ComboPlanner.get_crowding(none, w), 0.0)
+
+
+## A fake hit on `enemy` from `source` (Events.unit_hit), for the hits term.
+func _fake_hit(source: Unit, enemy: Unit, tags: Array[StringName] = []) -> void:
+	var ctx := HitContext.new()
+	ctx.source = source
+	ctx.target = enemy
+	ctx.tags = tags
+	Events.unit_hit.emit(ctx)
+
+
+func _test_aid1_brains_reads() -> void:
+	_section("Brains' reads for crowding: each champion's gap-closer (a real Lunge, not a push), the party's hits on each enemy")
+	await _reset_knight()
+	var e := _spawn(DUELIST_SCENE, ARENA + Vector2(-1500, -1500), true)   # a brain: Brains reads every tick
+	var other := _spawn(BRUTE_SCENE, ARENA + Vector2(-1500, -1300), true)
+	await _frames(3)
+	knight.resource_pool.restore(1000.0)
+	var lunged := knight.abilities.try_cast(&"e", knight.global_position + Vector2(200, 0))
+	await _wait_until(func() -> bool: return not knight.abilities.casting and not knight.movement.is_displaced(), 60)
+	await _frames(2)
+	var gap := Brains.get_last_gap_closer(knight)
+	var where: Vector2 = gap.get("position", Vector2.INF)
+	_check("a real Lunge: a gap-closer, noted where it ended (%.1f px from him), just now" % where.distance_to(knight.global_position),
+		[lunged, not gap.is_empty(), where.distance_to(knight.global_position) < 1.0, Brains.get_time() - float(gap.get("at", -10.0)) < 0.1],
+		[true, true, true, true])
+	var lunge_at := float(gap.get("at", -1.0))
+	await _frames(5)
+	knight.movement.displace(Vector2(300, 0), 0.2)
+	await _wait_until(func() -> bool: return not knight.movement.is_displaced(), 60)
+	await _frames(2)
+	_check("a push alone isn't one (the note stays the Lunge's)", float(Brains.get_last_gap_closer(knight).get("at", -1.0)), lunge_at)
+	_fake_hit(knight, e)
+	_fake_hit(knight, e)
+	_fake_hit(knight, e, [&"dot"] as Array[StringName])
+	_fake_hit(other, e)
+	_fake_hit(knight, other)
+	_check("the party's hits on it: two (a DoT tick and a hit from an enemy don't count); its packmate's own one",
+		[Brains.get_recent_hits(e), Brains.get_recent_hits(other), Brains.get_recent_hits(e, 0.05)], [2, 1, 2])
+	await _frames(190)
+	_check("3 s later: none left in the window", Brains.get_recent_hits(e), 0)
+	e.queue_free()
+	other.queue_free()
+	await _frames(2)
+
+
+func _test_aid1_opening() -> void:
+	_section("The opening's terms by hand (ComboPlanner.get_opening()): escapes down, crowd control by another, recovering, committed, cornered")
+	var w := Brains.table.opening_weights
+	var s := SituationContext.new()
+	s.has_target = true
+	s.opening_cc_min_left = Brains.table.opening_cc_min_left
+	var out: Array = []
+	out.append(roundi(ComboPlanner.get_opening(s, w) * 1000))
+	s.target_escapes_down = 1.0
+	out.append(roundi(ComboPlanner.get_opening(s, w) * 1000))
+	s.target_escapes_down = 2.0 / 3.5
+	out.append(roundi(ComboPlanner.get_opening(s, w) * 1000))
+	s.target_escapes_down = 0.0
+	s.target_cc_left = 0.6
+	out.append(roundi(ComboPlanner.get_opening(s, w) * 1000))
+	s.target_cc_left = 0.4
+	out.append(roundi(ComboPlanner.get_opening(s, w) * 1000))
+	s.target_cc_left = 0.0
+	s.target_committed = true
+	out.append(roundi(ComboPlanner.get_opening(s, w) * 1000))
+	s.target_committed = false
+	s.target_cornered = true
+	out.append(roundi(ComboPlanner.get_opening(s, w) * 1000))
+	s.target_recovering = true
+	out.append(roundi(ComboPlanner.get_opening(s, w) * 1000))
+	_check("(× 1,000) nothing 0; Lunge and Iron Resolve down 500; Lunge only (2 of 3.5) 286; crowd control 0.6 s left 500, 0.4 s 0; casting 400; cornered 200; cornered and recovering 600",
+		out, [0, 500, 286, 500, 0, 400, 200, 600])
+	s.target_escapes_down = 1.0
+	s.target_cc_left = 1.0
+	s.target_committed = true
+	var terms := {}
+	_check("everything: clamped to 1; the biggest term escapes (the first of the ties)",
+		[ComboPlanner.get_opening(s, w, terms), terms.size(), ComboPlanner.get_biggest_term(terms)[0]], [1.0, 5, &"escapes_down"])
+
+
+func _test_aid1_peel_roll() -> void:
+	_section("The crowded roll (AI-D1): a failed all-in peels when a peel use passes; with none, AI3b's mix")
+	var b := DUELIST_DATA.behavior.resolve(DUELIST_DATA.overrides, [] as Array[BrainAdjust])
+	_check("the duelist's crowded_commit: 0.4 (its override)", b.crowded_commit, 0.4)
+	b.crowded_commit = 0.0
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 41
+	var peels := 0
+	for i in 1000:
+		var s := _situation(1.0, 0.0)
+		s.target_edge_distance_px = Units.to_px(80.0)
+		s.add_use(&"q", &"cc", _plan(&"q"))
+		s.add_use(&"q", &"peel", _plan(&"q"))
+		peels += int(EnemyBrain.roll_crowded(s, b, rng).result == EnemyBrain.PEEL)
+	_check("crowded_commit 0, its snare ready (cc and peel): a peel in every one of 1,000 episodes", peels, 1000)
+	b.crowded_commit = 0.4
+	var all_in := 0
+	var peeled := 0
+	for i in 1000:
+		var s := _situation(1.0, 0.0)
+		s.add_use(&"q", &"cc", _plan(&"q"))
+		s.add_use(&"q", &"peel", _plan(&"q"))
+		var r := EnemyBrain.roll_crowded(s, b, rng)
+		all_in += int(r.result == EnemyBrain.ALL_IN)
+		peeled += int(r.result == EnemyBrain.PEEL and r.roll >= 0.4)
+	_check("crowded_commit 0.4: all in about 40%% (%d), a peel otherwise (its roll the failed one: %d)" % [all_in, peeled],
+		[absi(all_in - 400) <= 50, all_in + peeled], [true, 1000])
+	var results := {}
+	for i in 1000:
+		var s := _situation(1.0, 0.0)
+		s.add_use(&"q", &"damage", _plan(&"q"))
+		var r := EnemyBrain.roll_crowded(s, b, rng)
+		results[r.result] = int(results.get(r.result, 0)) + 1
+	_check("no peel use: all in, back up or stand, never a peel (AI3b's episode)",
+		[results.has(EnemyBrain.PEEL), results.has(EnemyBrain.ALL_IN), results.has(EnemyBrain.BACK_UP), results.has(EnemyBrain.STAND)], [false, true, true, true])
+	var only := _situation(1.0, 0.0)
+	only.add_use(&"q", &"peel", _plan(&"q"))
+	var lone: StringName = EnemyBrain.roll_crowded(only, b, rng).result
+	_check("a peel use with no answer beside it: the mix (the order: an answer, then its roll)", lone == EnemyBrain.BACK_UP or lone == EnemyBrain.STAND, true)
+	var cornered := _situation(1.0, 0.0)
+	cornered.cornered = true
+	cornered.add_use(&"q", &"cc", _plan(&"q"))
+	cornered.add_use(&"q", &"peel", _plan(&"q"))
+	_check("cornered still wins first", EnemyBrain.roll_crowded(cornered, b, rng).result, EnemyBrain.CORNERED)
+	var runs: Array = []
+	for run in 2:
+		var seeded := RandomNumberGenerator.new()
+		seeded.seed = 778
+		var seq: Array = []
+		for i in 300:
+			var s := _situation(1.0, 0.0)
+			s.add_use(&"q", &"cc", _plan(&"q"))
+			if i % 2 == 0:
+				s.add_use(&"q", &"peel", _plan(&"q"))
+			seq.append(EnemyBrain.roll_crowded(s, b, seeded).result)
+		runs.append(seq)
+	_check("the same seed gives the same rolls (300 episodes, twice)", runs[0] == runs[1], true)
+	var d := _situation(1.0, 0.0)
+	d.peel_pending = true
+	d.add_use(&"q", &"peel", _plan(&"q"))
+	var j := RandomNumberGenerator.new()
+	j.seed = 5
+	var decided := EnemyBrain.decide(d, b, j)
+	_check("decide(): a pending peel scores 0.9 and casts its plan (no token needed)", [decided.intent, decided.plan != null and decided.plan.slot == &"q"], [EnemyBrain.PEEL, true])
+
+
+func _test_aid1_threatened() -> void:
+	_section("THREATENED's tag filter (AI-D1): major = ultimate, charge-up, dash, leap")
+	var s := SituationContext.new()
+	s.has_target = true
+	s.major_tags = Brains.table.major_tags
+	s.incoming.append({"ability": JUDGEMENT, "time_to_hit": 0.5})
+	var j := [s.is_threatened(1.0, &"major"), s.is_threatened(1.0), s.is_threatened(0.3, &"major")]
+	s.incoming.clear()
+	s.incoming.append({"ability": CLEAVE, "time_to_hit": 0.5})
+	var c := [s.is_threatened(1.0, &"major"), s.is_threatened(1.0), s.is_threatened(1.0, &"core")]
+	_check("Judgement coming in 0.5 s: major yes, any attack yes, not within 0.3 s", j, [true, true, false])
+	_check("a Cleave: not major; any attack yes; tagged core yes", c, [false, true, true])
+	var charge := _bare_ability(1.0, 10.0)
+	charge.cast_style = Ability.CastStyle.CHARGE_UP
+	var majors := Brains.table.major_tags
+	_check("major: Lunge (dash) yes, a charged line (charge_up) yes, a CHARGE_UP cast style yes, the test bolt (core) no",
+		[SituationContext.ability_has_tag(LUNGE, &"major", majors), SituationContext.ability_has_tag(CHARGED_LINE, &"major", majors),
+			SituationContext.ability_has_tag(charge, &"major", majors), SituationContext.ability_has_tag(TEST_BOLT, &"major", majors)],
+		[true, true, true, false])
+	var cond := Condition.new()
+	cond.kind = Condition.Kind.THREATENED
+	cond.value = 1.0
+	cond.status_tag = &"major"
+	var with_cleave := cond.is_met(knight, null, null, s)
+	s.incoming.clear()
+	s.incoming.append({"ability": JUDGEMENT, "time_to_hit": 0.5})
+	_check("the condition with status_tag major: Judgement yes, a Cleave no", [cond.is_met(knight, null, null, s), with_cleave], [true, false])
+
+
+func _test_aid1_guard_uses() -> void:
+	_section("The duelist's guard: two defend uses (a major ability coming within 1 s; low health while crowded)")
+	var e := _spawn(DUELIST_SCENE, ARENA + Vector2(-1500, -1100), true)
+	await _frames(2)
+	var uses := D_GUARD.get_ai_uses()
+	var s := SituationContext.new()
+	s.has_target = true
+	s.major_tags = Brains.table.major_tags
+	var rows: Array = []
+	s.incoming.append({"ability": JUDGEMENT, "time_to_hit": 0.6})
+	rows.append([uses[0].passes(e, knight, s), uses[1].passes(e, knight, s)])
+	s.incoming.clear()
+	s.incoming.append({"ability": CLEAVE, "time_to_hit": 0.3})
+	rows.append([uses[0].passes(e, knight, s), uses[1].passes(e, knight, s)])
+	s.incoming.clear()
+	e.health.take_damage(e.health.max_health * 0.7)   # 30%
+	s.crowding = 0.7
+	rows.append([uses[0].passes(e, knight, s), uses[1].passes(e, knight, s)])
+	s.crowding = 0.5
+	rows.append([uses[0].passes(e, knight, s), uses[1].passes(e, knight, s)])
+	e.health.heal(e.health.max_health * 0.2)   # 50%
+	s.crowding = 0.7
+	rows.append([uses[0].passes(e, knight, s), uses[1].passes(e, knight, s)])
+	_check("[major, low and crowded]: Judgement in 0.6 s [yes, no]; a Cleave [no, no]; at 30% crowding 0.7 [no, yes], 0.5 [no, no]; at 50% crowding 0.7 [no, no]",
+		rows, [[true, false], [false, false], [false, true], [false, false], [false, false]])
+	e.queue_free()
+	await _frames(2)
+
+
+## A real duelist rooted where it stands, the Knight unstoppable and placed
+## `edge_units` from it (edge to edge); returns the duelist.
+func _rooted_duelist(edge_units: float) -> Enemy:
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	knight.status_component.apply_status(_tag_status(&"test_unstoppable", [&"unstoppable"]))
+	var e := _spawn(DUELIST_SCENE, knight.global_position + Vector2(140, 0), false)
+	e.status_component.apply_status(_tag_status(&"test_root", [&"root"], true))
+	e.get_brain().behavior.opening_bar = 1.0   # no setup in these
+	await _wait_until(func() -> bool: return e.get_brain().get_intent() != &"", 120)
+	await _frames(10)
+	var away := (knight.global_position - e.global_position).normalized()
+	var radii := knight.get_gameplay_radius_px() + e.get_gameplay_radius_px()
+	_place(knight, e.global_position + away * (radii + Units.to_px(edge_units)))
+	return e
+
+
+func _free_duelist(e: Enemy) -> void:
+	knight.status_component.remove_status(&"test_unstoppable")
+	if is_instance_valid(e):
+		e.passive = true
+		e.attack.cancel()
+		e.queue_free()
+	await _frames(30)
+
+
+func _test_aid1_episode_start() -> void:
+	_section("Crowding starts the crowded episode (a real duelist, rooted where it stands; reaction 0.35 s)")
+	var cases := [
+		["the Knight inside its 2 m (0.8 m)", 80.0, 0.6, false, 0, true],
+		["1 m outside it (3 m), nothing else", 300.0, 0.6, false, 0, false],
+		["a Lunge in to 2.75 m at peel_threshold 0.6", 275.0, 0.6, true, 0, true],
+		["a Lunge in to 2.75 m at 0.7", 275.0, 0.7, true, 0, false],
+		["a string of three hits at 2.5 m", 250.0, 0.6, false, 3, true],
+	]
+	for c: Array in cases:
+		var e: Enemy = await _rooted_duelist(c[1])
+		var brain := e.get_brain()
+		brain.behavior.peel_threshold = c[2]
+		if c[3]:
+			Brains.note_gap_closer(knight, knight.global_position)
+		for i in int(c[4]):
+			_fake_hit(knight, e)
+		var started := Brains.get_time()
+		var peak := [0.0]
+		for i in 50:   # 0.83 s: inside the gap-closer's 1 s
+			await get_tree().physics_frame
+			if brain.get_situation() != null:
+				peak[0] = maxf(peak[0], brain.get_situation().crowding)
+			if brain.is_crowded():
+				break
+		var took := Brains.get_time() - started
+		if c[5]:
+			_check("%s: crowding %.2f ≥ %.1f starts an episode after its reaction time (got %.2f s)" % [c[0], peak[0], c[2], took],
+				[brain.is_crowded(), took >= 0.33 and took <= 0.5], [true, true])
+		else:
+			_check("%s: crowding %.2f < %.1f, no episode" % [c[0], peak[0], c[2]], brain.is_crowded(), false)
+		if c[0] == "the Knight inside its 2 m (0.8 m)":
+			var away := (knight.global_position - e.global_position).normalized()
+			_place(knight, e.global_position + away * (knight.get_gameplay_radius_px() + e.get_gameplay_radius_px() + Units.to_px(400.0)))
+			await _frames(50)
+			var still_on := brain.is_crowded()
+			await _frames(30)
+			_check("he leaves (4 m): crowding below it, the episode ends 1 s later", [still_on, brain.is_crowded()], [true, false])
+		await _free_duelist(e)
+
+
+func _test_aid1_peel() -> void:
+	_section("The peel (a real duelist, crowded_commit 0): the snare at the Knight, then a step back to its band")
+	for episode in 2:
+		await _reset_knight()
+		await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+		knight.status_component.apply_status(_tag_status(&"test_unstoppable", [&"unstoppable"]))
+		var e := _spawn(DUELIST_SCENE, knight.global_position + Vector2(160, 0), false)
+		var brain := e.get_brain()
+		brain.behavior.crowded_commit = 0.0
+		brain.behavior.opening_bar = 1.0
+		await _wait_until(func() -> bool: return brain.get_intent() == &"hold", 120)
+		await _frames(10)
+		var casts: Array = []
+		e.abilities.cast_started.connect(func(slot: StringName, _a: Ability, _c: CastContext) -> void: casts.append(slot))
+		var intents := {}
+		brain.intent_changed.connect(func(intent: StringName) -> void: intents[intent] = true)
+		var overlay := SandboxBrains.new()   # its combo line only (not in the tree)
+		var away := (knight.global_position - e.global_position).normalized()
+		var radii := knight.get_gameplay_radius_px() + e.get_gameplay_radius_px()
+		_place(knight, e.global_position + away * (radii + Units.to_px(80.0)))
+		await _wait_until(func() -> bool: return brain.is_crowded(), 60)
+		var roll := brain.get_crowded_roll()
+		var step_back := [false]
+		var max_edge := [0.0]
+		var peel_line := [""]
+		for i in 150:
+			await get_tree().physics_frame
+			step_back[0] = step_back[0] or (brain.peel_count > 0 and e.get_pose() == &"step_back")
+			if brain.peel_count > 0:
+				max_edge[0] = maxf(max_edge[0], Units.to_units(e.edge_distance_to(knight)))
+			var text := overlay.get_combo_text(e)
+			if peel_line[0] == "" and text.contains(": peel (Snare)"):   # the first: as it peels
+				peel_line[0] = text.get_slice("\n", 0)
+		overlay.free()
+		_check("episode %d: the roll peels; it casts the snare (q) at him, then retreats (step_back) out toward its band (got %d u)" % [episode + 1, roundi(max_edge[0])],
+			[roll, casts.slice(0, 1), brain.peel_count, intents.has(EnemyBrain.PEEL), intents.has(&"retreat"), step_back[0], max_edge[0] >= 300.0],
+			[EnemyBrain.PEEL, [&"q"], 1, true, true, true, true])
+		if episode == 0:
+			_check("its overlay line: %s" % peel_line[0], peel_line[0].begins_with("crowding ") and peel_line[0].contains(" ≥ 0.60 (near ") and peel_line[0].ends_with(": peel (Snare)"), true)
+		await _free_duelist(e)
+
+
+func _test_aid1_brain_opening() -> void:
+	_section("The opening read by a real brain (a rooted test brute about 4 m away): escapes at once; a crowd control by another and a cast after its reaction time; a wall behind him")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	knight.resource_pool.restore(1000.0)
+	var e := _spawn(BRUTE_SCENE, knight.global_position + Vector2(170, 0), false)
+	e.status_component.apply_status(_tag_status(&"test_root", [&"root"], true))
+	var brain := e.get_brain()
+	_pin_ai3(brain.get_unit() as Enemy)
+	await _wait_until(func() -> bool: return brain.get_situation() != null and brain.get_situation().has_target, 120)
+	await _frames(8)
+	var read := func() -> int: return roundi(brain.get_situation().opening * 1000)
+	var reads: Array = [read.call(), brain.get_situation().target_escapes_ready]
+	knight.abilities.start_cooldown(&"e")
+	await _frames(8)
+	reads.append(read.call())
+	reads.append(brain.get_situation().target_escapes_ready)
+	knight.abilities.start_cooldown(&"w")
+	await _frames(8)
+	reads.append(read.call())
+	_check("(× 1,000) all ready 0 (2 escapes ready); Lunge spent 286 (1 ready); Iron Resolve too 500: cooldowns read at once", reads, [0, 2, 286, 1, 500])
+	_check("an enemy with no opener never sets up from it", [brain.get_opener_slots().is_empty(), brain.setup_count, brain.get_patience() < 1.0], [true, 0, true])
+	_reset_cooldowns()
+	knight.resource_pool.restore(1000.0)
+	await _frames(8)
+	var other := _spawn(SLIME_SCENE, ARENA + Vector2(-1500, 900), true)
+	var root: StatusEffect = STATUS_ROOT.duplicate()
+	root.duration = 2.0
+	knight.status_component.apply_status(root, other)
+	await _frames(6)   # 0.1 s: inside its 0.455 s reaction
+	var early: int = read.call()
+	await _frames(30)
+	var seen: int = read.call()
+	var source_ok := brain.get_situation().target_cc_source == other
+	knight.status_component.remove_status(root.id)
+	await _frames(8)
+	var own: StatusEffect = STATUS_ROOT.duplicate()
+	own.duration = 2.0
+	knight.status_component.apply_status(own, e)
+	await _frames(36)
+	var own_read: int = read.call()
+	knight.status_component.remove_status(own.id)
+	_check("a root from another unit (2 s): 0 before its reaction time, 500 after (its source kept); its own root: 0",
+		[early, seen, source_ok, own_read], [0, 500, true, 0])
+	await _frames(8)
+	var q_before: Ability = knight.abilities.q
+	var long_bolt: Ability = TEST_BOLT.duplicate()
+	long_bolt.cast_time = 2.0
+	long_bolt.resource_cost = 0.0
+	knight.abilities.set(&"q", long_bolt)
+	var cast := knight.abilities.try_cast(&"q", knight.global_position + Vector2(0, -200))
+	await _frames(6)
+	var casting_early: int = read.call()
+	await _frames(30)
+	var casting_seen: int = read.call()
+	knight.abilities.interrupt_cast()
+	knight.abilities.set(&"q", q_before)
+	_check("the Knight casting (a 2 s cast): 0 before its reaction time, 400 after", [cast, casting_early, casting_seen], [true, 0, 400])
+	await _frames(8)
+	var away := (knight.global_position - e.global_position).normalized()
+	var wall := _wall_at(knight.global_position + away * (knight.get_gameplay_radius_px() + 30.0), Vector2(16, 240))
+	await _frames(8)
+	var cornered: int = read.call()
+	var cornered_flag := brain.get_situation().target_cornered
+	wall.queue_free()
+	await _frames(8)
+	_check("a wall 30 px behind him, seen from it: cornered 200; gone: 0", [cornered_flag, cornered, read.call()], [true, 200, 0])
+	e.passive = true
+	e.queue_free()
+	other.queue_free()
+	await _frames(30)
+
+
+func _test_aid1_setup() -> void:
+	_section("The setup (a real duelist about 4 m away): his escapes down fill its patience at once and it opens with its best opener")
+	var cases := [
+		["Lunge and Iron Resolve down, its bar 0.5", true, 0.5, false, &"q"],
+		["the same at a bar of 0.6", true, 0.6, false, &""],
+		["his escapes up", false, 0.5, false, &""],
+		["escapes down, its snare on cooldown", true, 0.5, true, &"e"],
+	]
+	for c: Array in cases:
+		await _reset_knight()
+		await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+		knight.status_component.apply_status(_tag_status(&"test_unstoppable", [&"unstoppable"]))
+		if c[1]:
+			knight.abilities.start_cooldown(&"e")
+			knight.abilities.start_cooldown(&"w")
+		var e := _spawn(DUELIST_SCENE, knight.global_position + Vector2(170, 0), false)
+		var brain := e.get_brain()
+		brain.behavior.opening_bar = c[2]
+		if c[3]:
+			e.abilities.start_cooldown(&"q")
+		var casts: Array = []
+		e.abilities.cast_started.connect(func(slot: StringName, _a: Ability, _c: CastContext) -> void: casts.append(slot))
+		var spawned := Brains.get_time()
+		var tell := [false]
+		for i in 90:
+			await get_tree().physics_frame
+			tell[0] = tell[0] or (brain.is_setup_commit() and e.get_pose() == &"crouch")
+			if not casts.is_empty():
+				break
+		var took := Brains.get_time() - spawned
+		if c[4] != &"":
+			_check("%s: it sets up within about a second (got %.2f s; patience alone takes about 5 s): its tell, then %s first" % [c[0], took, c[4]],
+				[casts.slice(0, 1), brain.setup_count, brain.get_setup_slot(), tell[0]], [[c[4]], 1, c[4], true])
+			await _wait_until(func() -> bool: return not e.abilities.casting, 90)
+			await _frames(12)   # several thinks: a commit its opener ended would be over by then
+			_check("%s: its opener's end doesn't end the commit (still on 0.2 s later)" % c[0], brain.is_committing(), true)
+		else:
+			_check("%s: no setup in 1.5 s (it holds while patience fills: %.2f)" % [c[0], brain.get_patience()],
+				[brain.setup_count, casts.is_empty(), brain.get_patience() < 1.0], [0, true, true])
+		await _free_duelist(e)
+
+
+func _test_aid1_recovery() -> void:
+	_section("The finisher's recovery (Ability.recovery_time 1.2 s): no moving, swinging or casting; the recover pose")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	knight.status_component.apply_status(_tag_status(&"test_unstoppable", [&"unstoppable"]))
+	var e := _spawn(DUELIST_SCENE, knight.global_position + Vector2(70, 0), true)   # passive: a direct cast
+	await _frames(2)
+	var cast := e.abilities.try_cast(&"r", knight.global_position)
+	await _wait_until(func() -> bool: return not e.abilities.casting, 90)
+	var row := [e.abilities.is_recovering(), roundi(e.abilities.get_recovery_left() * 10), e.movement.can_move(), e.abilities.can_cast(&"q"),
+		e.abilities.get_fail_reason(&"q"), e.abilities.try_cast(&"q", knight.global_position)]
+	_check("right after its effect: recovering 1.2 s; it can't move; it can't cast (busy)", [cast, row], [true, [true, 12, false, false, AbilityComponent.FAIL_BUSY, false]])
+	e.attack.attack(knight)
+	var wound := [false]
+	for i in 30:
+		await get_tree().physics_frame
+		wound[0] = wound[0] or e.attack.is_winding_up()
+	_check("an attack order with him in its reach: no swing during it", wound[0], false)
+	await _wait_until(func() -> bool: return not e.abilities.is_recovering(), 90)
+	var free_row := [e.movement.can_move(), e.abilities.can_cast(&"q")]
+	await _wait_until(func() -> bool: return e.attack.is_winding_up(), 60)
+	_check("after it: it moves, casts and swings again", [free_row, e.attack.is_winding_up()], [[true, true], true])
+	e.attack.cancel()
+	e.queue_free()
+	await _frames(10)
+
+	# In a fight: the recover pose, standing still.
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	_spend_kit()
+	var f := _spawn(DUELIST_SCENE, knight.global_position + Vector2(150, 0), false)
+	_pin_ai3(f)
+	f.abilities.set(&"q", null)   # only its finisher
+	f.abilities.set(&"w", null)
+	f.abilities.set(&"e", null)
+	await _wait_until(func() -> bool: return f.abilities.is_recovering(), 480)
+	var at := f.global_position
+	var seen := [false]
+	var still := [true]
+	var frames := [0]
+	for i in 80:
+		await get_tree().physics_frame
+		if f.abilities.is_recovering():
+			frames[0] += 1
+			seen[0] = seen[0] or f.get_pose() == &"recover"
+			still[0] = still[0] and f.global_position.distance_to(at) < 0.5
+	_check("in a fight, after its finisher: it stands still in the recover pose (%d frames of 72)" % frames[0], [frames[0] >= 70, seen[0], still[0]], [true, true, true])
+	await _free_duelist(f)
+
+
+func _test_aid1_guard() -> void:
+	_section("Its guard (a real duelist): up when Judgement is aimed at it, not for a plain bolt; up when it's low and crowded")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	knight.resource_pool.restore(1000.0)
+	var e := _spawn(DUELIST_SCENE, knight.global_position + Vector2(130, 0), false)
+	e.status_component.apply_status(_tag_status(&"test_root", [&"root"], true))
+	var guards := [0]
+	e.abilities.cast_started.connect(func(slot: StringName, _a: Ability, _c: CastContext) -> void:
+		if slot == &"w":
+			guards[0] += 1)
+	await _wait_until(func() -> bool: return e.get_brain().get_intent() != &"", 120)
+	await _frames(5)
+	var judged := knight.abilities.try_cast(&"r", e.global_position, e)
+	await _wait_until(func() -> bool: return guards[0] > 0 or not knight.abilities.casting, 60)
+	_check("Judgement cast on it (major): its guard goes up before it lands", [judged, guards[0]], [true, 1])
+	e.passive = true
+	e.queue_free()
+	await _reset_knight()
+	await _frames(30)
+
+	# A slow plain bolt (core): seen coming, no guard (inside its 450 u notice range).
+	var b := _spawn(DUELIST_SCENE, knight.global_position + Vector2(160, 0), false)
+	b.status_component.apply_status(_tag_status(&"test_root", [&"root"], true))
+	var bolt_guards := [0]
+	var saw := [false]
+	b.abilities.cast_started.connect(func(slot: StringName, _a: Ability, _c: CastContext) -> void:
+		if slot == &"w":
+			bolt_guards[0] += 1)
+	await _wait_until(func() -> bool: return b.get_brain().get_intent() != &"", 120)
+	await _frames(5)
+	var slow: Ability = TEST_BOLT.duplicate()
+	slow.projectile_speed = 300.0
+	slow.cast_time = 0.0
+	knight.abilities.try_cast_free(slow, b.global_position, null, &"enemies_test")
+	for i in 120:
+		await get_tree().physics_frame
+		var s := b.get_brain().get_situation()
+		saw[0] = saw[0] or (s != null and not s.incoming.is_empty())
+	_check("a slow test bolt at it (core, not major): seen coming, no guard", [saw[0], bolt_guards[0]], [true, 0])
+	b.passive = true
+	b.queue_free()
+	await _frames(30)
+
+	# Low and crowded: no snare (no peel), at 30%, the Knight in its face.
+	var low: Enemy = await _rooted_duelist(400.0)
+	low.abilities.set(&"q", null)
+	var low_guards := [0]
+	low.abilities.cast_started.connect(func(slot: StringName, _a: Ability, _c: CastContext) -> void:
+		if slot == &"w":
+			low_guards[0] += 1)
+	low.health.take_damage(low.health.max_health * 0.7)
+	await _frames(20)
+	var calm: int = low_guards[0]
+	var away := (knight.global_position - low.global_position).normalized()
+	_place(knight, low.global_position + away * (knight.get_gameplay_radius_px() + low.get_gameplay_radius_px() + Units.to_px(80.0)))
+	await _wait_until(func() -> bool: return low_guards[0] > 0, 60)
+	_check("at 30%% and 4 m away: no guard; the Knight in its face (crowding %.2f): its guard goes up" % low.get_brain().get_situation().crowding,
+		[calm, low_guards[0] > 0], [0, true])
+	await _free_duelist(low)
+
+
+func _test_aid1_sandbox() -> void:
+	_section("SandboxBrains (AI-D1): Shift+H gains the duelist, escapes down, the overlay's combo lines, the panel's two new sliders")
+	await _reset_knight()
+	var sb := SandboxBrains.new()
+	add_child(sb)
+	await _frames(2)
+	var order: Array = []
+	for i in 5:
+		order.append(sb.cycle_scenario_enemy().resource_path.get_file())
+	_check("Shift+H: brute → skirmisher → caster → elite caster → duelist → brute", order,
+		["test_skirmisher.tscn", "test_caster.tscn", "test_caster_elite.tscn", "test_duelist.tscn", "test_brute.tscn"])
+	sb.scenario_enemy = DUELIST_SCENE
+	var d := sb.run_scenario(&"escapes_down")
+	await _frames(2)
+	var slots_ready: Array = []
+	for slot in AbilityComponent.SLOTS:
+		slots_ready.append(knight.abilities.is_ready(slot))
+	_check("escapes down (H's eleventh): the duelist; Lunge and Iron Resolve spent, Cleave and Judgement ready",
+		[sb.get_scenario(), d != null and d.data == DUELIST_DATA, slots_ready], [&"escapes_down", true, [true, false, false, true]])
+	var texts := {}
+	for i in 90:
+		await get_tree().physics_frame
+		if is_instance_valid(d):
+			texts[sb.get_combo_text(d)] = true
+	var opening_line := [false]
+	var setup_line := [false]
+	for text: String in texts:
+		opening_line[0] = opening_line[0] or text.contains("opening 0.50 ≥ 0.50 (escapes 0.50)")
+		setup_line[0] = setup_line[0] or text.contains(": setup (Snare)")
+	var crowding_text := ""
+	if is_instance_valid(d):
+		var away := (knight.global_position - d.global_position).normalized()
+		_place(knight, d.global_position + away * (knight.get_gameplay_radius_px() + d.get_gameplay_radius_px() + Units.to_px(80.0)))
+		await _frames(6)
+		crowding_text = sb.get_combo_text(d)
+	_check("its overlay: `opening 0.50 ≥ 0.50 (escapes 0.50)`, then `: setup (Snare)` as it opens; the Knight in its face: `crowding 0.60 ≥ 0.60 (near 0.60)` (%s)" % crowding_text.replace("\n", " | "),
+		[opening_line[0], setup_line[0], crowding_text.contains("crowding 0.60 ≥ 0.60 (near 0.60)")], [true, true, true])
+	sb.scenario_enemy = BRUTE_SCENE
+	var brute := sb.run_scenario(&"escapes_down")
+	await _frames(20)
+	_check("a brute (no opener): no opening line", sb.get_combo_text(brute).contains("opening"), false)
+	sb.set_panel(true)
+	await _frames(2)
+	var rows: Dictionary = sb.get(&"_rows")
+	_check("the panel: twenty rows (nineteen sliders; the band's two ends), peel_threshold and opening_bar among them",
+		[rows.size(), rows.has(&"peel_threshold"), rows.has(&"opening_bar")], [20, true, true])
+	sb.set_panel(false)
+	sb.clear_scenario()
+	sb.queue_free()
+	await _reset_knight()
+	await _frames(30)
 
 
 # --- Helpers ----------------------------------------------------------------------------

@@ -1487,7 +1487,39 @@ Docs only; no code or tests changed.
 
 ## Enemies AI (ENEMIES_AI.md)
 
-### AI3c follow-up – the think budget, Ryan's answer: 2026-10-05, Built (awaiting Ryan's play test)
+### AI-D1 – The test duelist, crowding and the opening: 2026-10-06, Built (awaiting Ryan's play test)
+Ryan passed AI3c and committed it (the tree was clean), then started AI-D1, the first Combos step (ENEMIES_AI.md, Combos, crowd control and the test duelist). Combo plans come in AI-D2.
+- **Data:**
+  - `EnemyBehavior`: `peel_threshold` (0.1–1) and `opening_bar` (0–1), nineteen sliders (twenty fields). Brute 0.6 / 0.5 (the class defaults), skirmisher 0.6 / 0.4, caster 0.5 / 0.6. `BrainAdjust` has both.
+  - `EnemyAITable`: a Combos (AI-D1) group: `major_tags`, `crowding_weights` (near 0.6, closing 0.15, gap-closer 0.3, hits 0.3; the ally's cc 0.4), `crowding_closing_full` 400, `crowding_recent_time` 1, `crowding_hit_window` 3, `crowding_hits_full` 3, `opening_weights` (escapes 0.5, cc by another 0.5, recovering 0.4, committed 0.4, cornered 0.2), `opening_cc_min_left` 0.5, `cornered_check_px` 48. `intent_scores` gains `peel` 0.9. The .tres is unchanged (class defaults).
+  - `Ability.recovery_time` and `Ability.combo_roles`. `AIUse.INTENT_TAGS` gains `peel`. `Condition.Kind` gains `CROWDING`, `OPENING`, `TARGET_ESCAPES_READY`, `TARGET_CORNERED` (10–13), and THREATENED's `status_tag` filters by the incoming ability's tag (`major` = any of `major_tags`).
+  - `pose_set_default.tres`: `recover` (slumped back 10°, squashed to 0.9, no rim).
+  - The test duelist: `data/units/test_duelist.tres`, `data/abilities/test_duelist_q_snare.tres`, `_w_guard`, `_e_strike`, `_r_finisher` (copies of the library's snare, guard, charge and big hit, at the doc's numbers), `data/enemies/enemy_test_duelist.tres` (an elite brute, `duelist`, `crowded_commit` 0.4), `scenes/enemies/test_duelist.tscn` (a steel blue capsule).
+- **Code:**
+  - `ComboPlanner` (new: `scripts/units/combo_planner.gd`): `get_crowding()`, `get_opening()`, `get_near()`, `get_biggest_term()`.
+  - `AbilityComponent`: the recovery after an effect (`is_recovering()`, `get_recovery_left()`, `get_recovery_ability()`, the locks `recovery`; casting is busy meanwhile).
+  - `Brains`: `get_recent_hits()`, `get_last_gap_closer()`, `note_gap_closer()` (from `Events.unit_hit`, `Events.ability_cast` and each champion's `DashComponent`). `PartySnapshot`: each champion's escapes, crowd control (`read_ccs()`) and last gap-closer.
+  - `SituationContext`: the two reads with their inputs and terms, `major_tags`, the opener slots, the setup and the peel; `get_best_use()`'s slot filter and `get_opener_use()`.
+  - `EnemyBrain`: reads both values each think. Crowding at `peel_threshold` starts the episode, and a failed all-in roll peels (the cast, then the kiting step). An enemy with an opener sets up at `opening_bar`, and its opener's end doesn't end the commit. The drive holds still for a peel and through a recovery (`recover`). `BrainDecision.setup`.
+  - `SandboxBrains`: Shift+H's test duelist, H's eleventh scenario (escapes down), `get_combo_text()` on the overlay; the panel shows the two sliders.
+- **Changed during the step** (DECISIONS.md, Enemies; ENEMIES_AI.md's built notes):
+  - **The setup's gate is an `opener`-role ability until AI-D2's plans**, so `combo_roles` came a step early. A setup opens with the best `cc`, `damage`, `gap_close` or `poke` use of its opener slots (a tie to the earlier slot: the duelist's snare on Q). That opener's end doesn't end the commit, as a gap-closer's doesn't; then the commit plays as AI1's.
+  - **No setup under the alert pose.** `Enemy.get_pose()` shows `alert` first for 0.4 s after waking. A setup on its first think (0.33 s) crouched under it, so the test saw no tell; it waits the alert out now.
+  - **The strike reaches 600 u** (the library charge's range), not the 500 u written first. At 500 u it couldn't open from the duelist's band's far edge (about 620 u center to center), so with the snare down the duelist never set up (the test caught it).
+  - **The episode ends** once crowding is under the threshold *and* the target has stayed out 1 s; a string of hits can keep it on.
+  - **A peel follows the roll's order** (an answer, then its roll); a peel use alone falls to the mix. A rolled peel that can't be cast any more takes the kiting step alone.
+  - **The reads:** a push is never a gap-closer, DoT ticks aren't hits, no escapes means none down, a crowd control with no end counts as plenty left. Every brained enemy reads both values; only one with an opener acts on the opening.
+  - **`EnemyBrain.is_in_ability_recovery()`**, since `Enemy.is_recovering()` already means the walk home's heal.
+  - **Walking in brings the episode forward a little for every enemy:** at a full-speed walk the closing term starts a brute's about 0.35 m outside its 2 m. Placed or standing, it starts at 2 m as before.
+- **Older checks whose expectations changed** (seven, all counts that AI-D1 lengthens): the brute, skirmisher and caster presets' slider lists (two more values each); "18 fields, 17 sliders" (now 20 and 19); `nerve` "last in the list" (now index 17); H's cycle (eleven scenarios, escapes down after the odds); Shift+H's cycle in the AI3 sandbox check (the duelist after the elite caster). Every behavior check from AI1 to AI3c passed unchanged with crowding starting the episode.
+- **Measured:**
+  - **The test duelist in the sandbox** (scratch `aid1_harness.gd`: saving off; the Knight invulnerable and standing). With his escapes down it set up once, then cast the snare, the strike twice and the finisher in 15 s, showing crouch, recover and step_back. With him put in its face four times it peeled once (snare, then a step back) and went all in once (the strike). Its overlay read `crowding 0.60 ≥ 0.60 (near 0.60): peel (Snare)` and `recover 1.0 s`.
+  - **In the test:** the episode starts 0.37 s after crowding passes (its reaction 0.35 s) for the Knight inside 2 m, a Lunge in to 2.75 m (crowding 0.68) and three hits at 2.5 m (0.83); 1 m outside (0.23) and the Lunge at a threshold of 0.7 start none. The setup: the snare first, its tell shown, with Lunge and Iron Resolve down; none at a bar of 0.6 or with his escapes up; the strike first with the snare down. A real brute reads the opening: 0, 0.286 with Lunge down, 0.5 with Iron Resolve too (at once), 0.5 for another's root and 0.4 for his cast (each only after its reaction time), 0.2 against a wall. The finisher's recovery holds it 1.2 s, still, in `recover`. Its guard rises for Judgement, not for a slow test bolt it sees coming, and when it's at 30% with him in its face.
+  - **A think's cost** (headless, debug build): 508–519 µs on average with the odds pack, the mixed pack and the duelist in its band (AI3c: 410–480). With the Knight in the duelist's face 470–720 µs (it gathers its answers, peels and openers too); p99 under 1.1 ms. One duelist at 25 a second costs about 0.3 ms a tick. The odds read is unchanged (33–51 µs).
+- **Sensitivity:** eight rules broken on purpose, in two runs plus one, each caught. The peel branch failed 5 checks; the recovery lock 3; the DoT filter 1; the major filter 4; crowding starting the episode 2; the opening's reaction delay 2; the alert rule 2. The opener's end was missed at first, because the check looked before the next think; the check now waits 0.2 s and fails on it. Everything was restored and diff-checked.
+- **Tests:** enemies 525/525 (74 new). Stats 180/180, combat 486/486, abilities 593/593, audio 110/110, champions 238/238, talents 310/310, view 469/469, loot 750/750: 3,661/3,661. The warnings probe (every script under `-d`) found none. The smoke runs (`sandbox_main`, `main_layout`) had no errors, and the saves stayed byte-identical.
+
+### AI3c follow-up – the think budget, Ryan's answer: 2026-10-05, Passed (with AI3c)
 Ryan committed AI3c and the warnings cleanup (the tree was clean). He asked what an optimization sweep and a budget cut would do, then decided: **keep 200; elites and bosses are exempt.**
 - `RankRules.think_budget_exempt`, data: true for the elite and boss ranks in `enemy_ai_table_default.tres`. A duelist is an elite, so it's exempt.
 - `EnemyBrain.is_budget_exempt()`.
@@ -1500,7 +1532,7 @@ Ryan committed AI3c and the warnings cleanup (the tree was clean). He asked what
   Enemies 451/451. All suites 3,587/3,587, all nine at once. The warnings probe found 0.
 - **Sensitivity:** ignoring the exemption, and not taking the exempt thinks off the top, each failed 3 checks. The file was restored and diff-checked.
 
-### AI3c – Odds, and think rates by rank: 2026-10-05, Built (awaiting Ryan's play test)
+### AI3c – Odds, and think rates by rank: 2026-10-05, Passed (Ryan's play test, 2026-10-05; he committed it and started AI-D1)
 Ryan committed the AI3b fix (the tree was clean) and asked for the warnings cleanup and "the next step", which was AI3c in Claude's proposed order. It's built on Duels and odds and his 2026-10-04 answers: a champion weighs 1.5; a heavy hit is 10% of max health, one per 0.8 s, only while pressing; think rates by rank.
 - **Built:**
   - **Data:**
@@ -1554,7 +1586,7 @@ Ryan committed the AI3b fix (the tree was clean) and asked for the warnings clea
   - The saves were byte-identical.
 - **Measured** (the step's "measured again"; ENEMIES_AI.md, Performance): a think in a fight now costs 410–480 µs (p99 0.8–0.9 ms; AI1: 130–230 µs). The odds read costs 42–56 µs a tick, and the odds scenario asks 45 thinks a second (about 0.32 ms a tick). At this cost the budget's 200 is about 1.5 ms a tick, which is Ryan's call (Open from AI3c).
 
-### Warnings cleanup (every system's scripts): 2026-10-05, Built (awaiting Ryan's check)
+### Warnings cleanup (every system's scripts): 2026-10-05, Passed (committed with AI3c, whose play test ran on it)
 The AI3b fix passed and Ryan committed it (the tree was clean). He asked for the other script warnings to be cleaned up in one pass, before AI3c. The pass covers every system, not only enemies.
 - **Found:** a scratch probe scene (under `scenes/tests/`, so the save guards applied; deleted after) loaded all 170 scripts with the debugger on (`-d`): **67 warnings in 18 files**, 13 of them in the game's scripts and the rest in the test suites. None was a bug.
 - **Fixed:**

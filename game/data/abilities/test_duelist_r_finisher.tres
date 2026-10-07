@@ -1,0 +1,42 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/abilities/slime/slam.gd" id="1_script"]
+[ext_resource type="Script" path="res://scripts/data/ai_use.gd" id="2_use"]
+[ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_hit.tres" id="3_hit"]
+[ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_telegraph.tres" id="4_telegraph"]
+
+[sub_resource type="Resource" id="use_damage"]
+script = ExtResource("2_use")
+intent = &"damage"
+weight = 1.3
+
+[sub_resource type="Resource" id="use_punish"]
+script = ExtResource("2_use")
+intent = &"punish"
+
+[sub_resource type="Resource" id="use_finish"]
+script = ExtResource("2_use")
+intent = &"finish"
+
+[resource]
+script = ExtResource("1_script")
+radius_px = 80.0
+knockback_px = 32.0
+hitstop = 0.08
+shake = 4.0
+id = &"test_duelist_finisher"
+tags = Array[StringName]([&"ultimate", &"area"])
+display_name = "Finisher"
+description = "Marks a {radius_px} px circle where the target stands, fills it over {cast_time} s, then crashes down: {damage} physical damage and a {knockback_px} px push to everyone inside. It stands slumped for {recovery_time} s after."
+icon_color = Color(1, 0.25, 0.15, 1)
+targeting = 2
+cooldown = 12.0
+cast_time = 1.0
+cast_range = 300.0
+resets_auto_attack = false
+recovery_time = 1.2
+base_damage = 130.0
+hit_sound = ExtResource("3_hit")
+telegraph_sound = ExtResource("4_telegraph")
+ai_uses = Array[ExtResource("2_use")]([SubResource("use_damage"), SubResource("use_punish"), SubResource("use_finish")])
+combo_roles = Array[StringName]([&"finisher"])

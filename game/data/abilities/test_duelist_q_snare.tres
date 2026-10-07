@@ -1,0 +1,47 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/abilities/test/bolt.gd" id="1_script"]
+[ext_resource type="Script" path="res://scripts/data/ai_use.gd" id="2_use"]
+[ext_resource type="Script" path="res://scripts/data/conditional_bonus.gd" id="3_bonus"]
+[ext_resource type="Resource" path="res://data/statuses/status_root.tres" id="4_root"]
+[ext_resource type="Script" path="res://scripts/data/status_effect.gd" id="5_status"]
+[ext_resource type="Script" path="res://scripts/data/condition.gd" id="6_condition"]
+
+[sub_resource type="Resource" id="always_roots"]
+script = ExtResource("3_bonus")
+target_statuses = Array[ExtResource("5_status")]([ExtResource("4_root")])
+description = "Roots the one it hits for 1 s."
+
+[sub_resource type="Resource" id="within_400"]
+script = ExtResource("6_condition")
+kind = 4
+comparison = 1
+value = 400.0
+
+[sub_resource type="Resource" id="use_peel"]
+script = ExtResource("2_use")
+intent = &"peel"
+conditions = Array[ExtResource("6_condition")]([SubResource("within_400")])
+
+[sub_resource type="Resource" id="use_cc"]
+script = ExtResource("2_use")
+intent = &"cc"
+
+[resource]
+script = ExtResource("1_script")
+id = &"test_duelist_snare"
+tags = Array[StringName]([&"core", &"projectile"])
+display_name = "Snare"
+description = "Throws a snare up to {range} units at where the target stands: {damage} magic damage to the first one it hits. Walls stop it; it can be walked out of."
+icon_color = Color(0.45, 0.85, 0.55, 1)
+cooldown = 10.0
+cast_time = 0.7
+cast_range = 750.0
+resets_auto_attack = false
+base_damage = 20.0
+damage_type = 1
+conditional_bonuses = Array[ExtResource("3_bonus")]([SubResource("always_roots")])
+projectile_speed = 700.0
+projectile_width = 60.0
+ai_uses = Array[ExtResource("2_use")]([SubResource("use_peel"), SubResource("use_cc")])
+combo_roles = Array[StringName]([&"opener", &"extender"])

@@ -23,7 +23,11 @@ enum Kind {
 	RESOURCE_AT_LEAST,      ## Self's resource pool >= value; a unit without a pool fails.
 	LAST_PART_HIT,          ## In a recast sequence, the previous part hit something (reads the cast).
 	RESPECT,                ## The brain's situation: its respect (0-1) compared with value (ENEMIES_AI AI1).
-	THREATENED,             ## The brain's situation: an attack it sees coming at it lands within value s (0 = any time; ENEMIES_AI AI3).
+	THREATENED,             ## The brain's situation: an attack it sees coming at it lands within value s (0 = any time; ENEMIES_AI AI3). With status_tag set, only an attack whose ability carries that tag; &"major" = any of the table's major_tags (AI-D1).
+	CROWDING,               ## The brain's situation: its crowding (0-1, how hard its target pushes it) compared with value (ENEMIES_AI AI-D1).
+	OPENING,                ## The brain's situation: the opening (0-1, how open its target is to its crowd control and burst) compared with value (AI-D1).
+	TARGET_ESCAPES_READY,   ## The brain's situation: at least count of its target's mobility and defensive abilities ready, as the HUD shows them (AI-D1).
+	TARGET_CORNERED,        ## The brain's situation: a wall or a ledge just behind its target, seen from self (AI-D1).
 }
 
 enum Comparison {
@@ -36,17 +40,18 @@ enum Comparison {
 ## fails either way).
 @export var negate: bool = false
 ## SELF_ / TARGET_HAS_STATUS, ENEMIES_IN_RANGE (empty there = any enemy).
-## Stacks are summed over every status with the tag.
+## Stacks are summed over every status with the tag. THREATENED (AI-D1): the
+## incoming ability's tag (empty = any attack; &"major" = any of major_tags).
 @export var status_tag: StringName = &""
 ## SELF_ / TARGET_HAS_STATUS.
 @export var min_stacks: int = 1
-## The *_HEALTH_PERCENT kinds, TARGET_DISTANCE and RESPECT.
+## The *_HEALTH_PERCENT kinds, TARGET_DISTANCE, RESPECT, CROWDING and OPENING.
 @export var comparison: Comparison = Comparison.AT_LEAST
 ## *_HEALTH_PERCENT: 0-1 of max health. TARGET_DISTANCE: LoL units, edge to
-## edge. RESOURCE_AT_LEAST: the amount. RESPECT: 0-1. THREATENED: seconds
-## (0 = any attack coming, whenever it lands).
+## edge. RESOURCE_AT_LEAST: the amount. RESPECT, CROWDING, OPENING: 0-1.
+## THREATENED: seconds (0 = any attack coming, whenever it lands).
 @export var value: float = 0.0
-## ENEMIES_IN_RANGE: at least this many.
+## ENEMIES_IN_RANGE and TARGET_ESCAPES_READY: at least this many.
 @export var count: int = 1
 ## ENEMIES_IN_RANGE: LoL units from self's feet, each enemy's gameplay
 ## radius counted.
@@ -58,8 +63,10 @@ enum Comparison {
 ## The kind's check, then negate. `cast` is the CastContext when there is one
 ## (LAST_PART_HIT reads it); null otherwise. `situation` is an enemy brain's
 ## SituationContext when an AI use rule is checked (ENEMIES_AI AI1, AI3); the
-## situation kinds (RESPECT, THREATENED) read it, and without one they're false, even
-## when negated (a cast condition, a reaction rule). The other kinds ignore it.
+## situation kinds (RESPECT, THREATENED; AI-D1: CROWDING, OPENING,
+## TARGET_ESCAPES_READY, TARGET_CORNERED) read it, and without one they're
+## false, even when negated (a cast condition, a reaction rule). The other
+## kinds ignore it.
 func is_met(self_unit: Unit, target: Unit, cast: CastContext = null, situation: SituationContext = null) -> bool:
 	if not is_instance_valid(self_unit):
 		return false
@@ -78,10 +85,12 @@ func is_target_kind() -> bool:
 	return kind == Kind.TARGET_HAS_STATUS or kind == Kind.TARGET_HEALTH_PERCENT or kind == Kind.TARGET_DISTANCE
 
 
-## A kind that reads a brain's SituationContext (RESPECT, THREATENED; later
+## A kind that reads a brain's SituationContext (RESPECT, THREATENED; AI-D1's
+## CROWDING, OPENING, TARGET_ESCAPES_READY, TARGET_CORNERED; later
 ## TARGET_WHIFFED, ENEMIES_AI AI6).
 func is_situation_kind() -> bool:
-	return kind == Kind.RESPECT or kind == Kind.THREATENED
+	return kind == Kind.RESPECT or kind == Kind.THREATENED or kind == Kind.CROWDING or kind == Kind.OPENING \
+		or kind == Kind.TARGET_ESCAPES_READY or kind == Kind.TARGET_CORNERED
 
 
 ## All of `conditions` pass (AND). An empty list passes.
@@ -133,12 +142,26 @@ func _check(self_unit: Unit, target: Unit, cast: CastContext) -> bool:
 ## enemy's respect_weight slider: the same for every enemy).
 ## THREATENED: an attack the brain has seen coming at it (after its reaction
 ## time: SituationContext.incoming) lands within `value` seconds; 0 = any.
+## With status_tag, only one whose ability carries it (&"major": any of the
+## situation's major_tags; AI-D1).
+## AI-D1: CROWDING and OPENING compare the situation's reads (0-1);
+## TARGET_ESCAPES_READY: at least `count` of the target's mobility and
+## defensive abilities ready; TARGET_CORNERED: a wall or a ledge just behind
+## the target.
 func _check_situation(situation: SituationContext) -> bool:
 	match kind:
 		Kind.RESPECT:
 			return _compare(situation.respect)
 		Kind.THREATENED:
-			return situation.is_threatened(value)
+			return situation.is_threatened(value, status_tag)
+		Kind.CROWDING:
+			return _compare(situation.crowding)
+		Kind.OPENING:
+			return _compare(situation.opening)
+		Kind.TARGET_ESCAPES_READY:
+			return situation.has_target and situation.target_escapes_ready >= count
+		Kind.TARGET_CORNERED:
+			return situation.has_target and situation.target_cornered
 	return false
 
 

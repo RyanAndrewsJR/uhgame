@@ -141,6 +141,10 @@ const DEFAULT_AREA_RADIUS_PX := 40.0
 ## once the swing's hit has landed. Cutting a swing after its hit keeps the
 ## combo (the swing counts); cutting its windup resets it.
 @export var cancels_swing: SwingCancel = SwingCancel.AFTER_HIT
+## After its effect the caster can't move, attack or cast for this long (s;
+## the locks &"recovery": AbilityComponent.is_recovering(); ENEMIES_AI AI-D1):
+## a finisher's long recovery, the player's opening. 0 = none.
+@export var recovery_time: float = 0.0
 
 @export_group("Damage")
 @export var base_damage: float = 0.0
@@ -265,6 +269,10 @@ const DEFAULT_AREA_RADIUS_PX := 40.0
 ## Respect; Ryan, I2). −1 = derived from its role tag (+1 if it applies crowd
 ## control; EnemyAITable.get_respect_value()); set it for the outliers.
 @export var respect_value: float = -1.0
+## Its places in a combo plan (ENEMIES_AI.md, Combo plans; AI-D1): &"opener"
+## (a plan's first step; until AI-D2's plans, a setup's first cast),
+## &"extender" (a middle step), &"finisher" (a last step). Empty = none.
+@export var combo_roles: Array[StringName] = []
 
 ## pull_airborne()'s knock-up (loaded at its first use, LOOT L5).
 const AIRBORNE_STATUS_PATH := "res://data/statuses/status_airborne.tres"
