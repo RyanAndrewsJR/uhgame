@@ -9,6 +9,11 @@
 - Status: **Built (awaiting play test)** or **Passed** (Ryan's play test). When a play test passes, update the entry's status.
 - Entries up to 2026-09-27 were moved here word for word from the system docs.
 
+## Archetypes (ARCHETYPES.md)
+
+### The doc: 2026-10-07, Written (docs only; awaiting Ryan's review)
+`docs/ARCHETYPES.md` written from Ryan's fifteen decisions (his interview with his design advisor, the same day; DECISIONS.md, Archetypes): the Assassin layer complete for champions and enemies, the other four archetypes as placeholders, strings and the beat, perilous attacks, duel pressure, weak basic attacks, rank × archetype, proposed data, the view, build steps AR1–AR8 and AR-M, and the edits ENEMIES_AI, CHAMPIONS, COMBAT, CONVENTIONS and MOVEMENT need (listed, not applied). No code changed. **Compared with the code** (the prototype, the brain, the data): the meter drains to 0 in code and fills to a break by D1; the deflect window is 0.15 s in code (0.2 s); every dash is 400 u (the Assassin's 500 u); Korsavil has two dashes from her passive (one); the riposte is +3.0 AD over a 1.5 s window, banked only with `streak_persists` (+3.0 AD plus 12% of max health, always banked; the 6 m projectile snap and the jab are new); the break is 1.8 s at ×1.5 for every meter (1.5 / 1.8 / 1.4 s by rank; Korsavil 1.0 s at ×1.25); meters are 100 on the elite slime and the test duelist, 0 elsewhere (60 / 100 / 160 on Assassins only); the TEMP weak-auto lever weakens only the Knight (a per-champion stat); a commit's tell is 0.3 s plus a League-style windup and it ends after 2 landed hits, its first cast or 4 s (strings on a 0.5 s beat, the token held to the string's end); patience's pressure reads idleness, never damage dealt (duel pressure). Unchanged: refund 3 s, the test recharge 1.5 s, deflect poise damage 25 / 50 / 40, decay and regen numbers (15/s after 3 s), immunity 4 s, the Knight's chips. Two conflicts found: D5's "60% kill-protection rule" against the recorded "no kill protection" (Ryan, 2026-10-05), and a 0.5 s beat against string spacings under 0.5 s (Open questions 1 and 2).
+
 ## Tools (docs/champion_board/)
 
 ### Expansion to v2 (kinds, archetypes, races, compound casts, weapons, enemy kits, paperdoll): 2026-10-07, Built (awaiting Ryan's look)
