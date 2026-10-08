@@ -43,3 +43,10 @@ extends Resource
 ## control with the reason &"poise". Off for every rank until poise is built
 ## (bosses, later).
 @export var poise: bool = false
+## ARCHETYPES AR1a, a string's length by rank (D8): false = only its short end
+## (AttackCombo.get_string_hits_min(): a regular); true = its full range up to
+## its swings' count, and at low respect one more hit at a chance of its
+## aggression (an elite, a boss; proposed).
+@export var string_full_range: bool = false
+## Hits on top of its string's full length (D8: a boss 1).
+@export var string_extra_hits: int = 0

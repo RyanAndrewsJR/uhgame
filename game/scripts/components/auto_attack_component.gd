@@ -33,6 +33,11 @@ extends Node
 ## and a dash replaces it. Any combo: after the hit, moving ends the root
 ## (walk_cancels_recovery), but the next swing still waits for the swing's
 ## full duration.
+##
+## Strings (enemies; ARCHETYPES.md, Strings and the beat; AR1a): a brain runs
+## its enemy's string (EnemyData.attack_string, an AttackCombo) through
+## run_string(): combo mode's swing code for that string's hits only, then the
+## League-style attack again. See run_string().
 
 signal windup_started(target: Unit, windup_time: float)
 ## League-style attack: the hit is about to resolve. `damage` is the hit's
@@ -51,6 +56,10 @@ signal swing_landed(index: int, targets: Array[Unit])
 ## was still winding up. The combo resets unless the hit had landed and the
 ## player chose the cancel (cancel_swing(true)).
 signal swing_cancelled
+## A string ended (AR1a): `completed` = every hit swung and the last swing's
+## recovery is over; false = cut short (a lock: a stun, a break, a cast;
+## cancel(); its target turned invalid). `swung` = the swings it started.
+signal string_ended(completed: bool, swung: int)
 
 enum State { IDLE, CHASING, WINDUP, BACKSWING }
 
@@ -135,6 +144,13 @@ var _assist_target: Unit               # the last swing's aimed enemy, or null
 var _debug_plan: Dictionary = {}       # the last swing's assist, for debug_draw
 var _debug_node: Node2D
 
+# Strings (AR1a)
+var _string: AttackCombo               # the string running, or null
+var _string_target: Unit
+var _string_hits: int = 0              # the hits it runs
+var _string_next: int = 0              # the next hit (= the swings started)
+var _string_opener_windup: float = -1.0   # its first hit's windup (the beat); −1 = the swing's own
+
 
 func _ready() -> void:
 	unit = get_parent() as Unit
@@ -170,8 +186,9 @@ func is_in_range(other: Unit) -> bool:
 	return unit.edge_distance_to(other) <= get_range_px() * (1.0 - enemy_hit_forgiveness)
 
 
+## A League-style attack's windup, or (AR1a) a string's swing before its hit.
 func is_winding_up() -> bool:
-	return state == State.WINDUP
+	return state == State.WINDUP or (_string != null and _swing != null and not _swing_landed)
 
 
 # --- TEMP: the enemy attack speed test multiplier --------------------------------
@@ -303,6 +320,11 @@ func get_swing_direction() -> Vector2:
 	return _swing_direction
 
 
+## Seconds until the running swing's hit (0 = none, or it landed).
+func get_swing_windup_left() -> float:
+	return maxf(_swing_windup_left, 0.0) if _swing != null and not _swing_landed else 0.0
+
+
 ## ABILITIES AB14: how far the running swing is, 0 (start) to 1 (it ends):
 ## the time since it started ÷ its length at the combo speed. 0 when not
 ## swinging. The 3D view positions the model's swing_anim by it (UnitView).
@@ -314,8 +336,12 @@ func get_swing_progress() -> float:
 
 ## Combo speed multiplier: attack_speed / base attack speed (1.0 at base;
 ## +20% bonus attack speed = 1.2), times the combo's speed_scale. Every
-## swing timing is divided by it.
+## swing timing is divided by it. AR1a: a string's is its speed_scale alone
+## (the beat and its spacing are fixed reads, so attack speed doesn't change
+## them; proposed).
 func get_swing_speed() -> float:
+	if _string != null:
+		return maxf(_string.speed_scale, 0.01)
 	var scale := combo.speed_scale if combo != null else 1.0
 	var base := unit.stats_component.get_base_value(&"attack_speed")
 	if base <= 0.0:
@@ -345,28 +371,35 @@ func try_swing(direction: Vector2, dash_strike: bool = false) -> bool:
 		_dash_strike_resume = index
 		index = -1
 	var speed := get_swing_speed()
+	_begin_swing(swing, index, direction, swing.windup / speed, maxf(swing.duration, swing.windup) / speed)
+	return true
+
+
+## Starts `swing` (index `index`) toward `direction`, winding up for `windup`
+## s and lasting `total` s in all: the root, the melee step, the sound, the
+## swing_vfx hook, swing_started. Combo mode's swings and a string's (AR1a).
+func _begin_swing(swing: AttackSwing, index: int, direction: Vector2, windup: float, total: float) -> void:
 	_swing = swing
 	_swing_index = index
 	_swing_direction = direction.normalized()
 	_swing_landed = false
 	_root_released = false
 	_since_hit = 0.0
-	_swing_windup_left = swing.windup / speed
-	_swing_left = maxf(swing.duration, swing.windup) / speed
+	_swing_windup_left = windup
+	_swing_left = total
 	_swing_total = _swing_left
 	_swing_fresh = true
 	_combo_reset_left = 0.0
 	_assist_target = null
 	_step_serial = -1
 	unit.movement.add_move_lock(SWING_LOCK)
-	if combo.attack_style == AttackCombo.AttackStyle.MELEE:
+	if _get_swing_combo().attack_style == AttackCombo.AttackStyle.MELEE:
 		_start_melee_step(swing, _swing_windup_left)
 	Audio.play_on(swing.swing_sound, unit, swing.sound_pitch)   # whiffs included (AUDIO.md)
 	# AB14 hook (nothing while empty): swing_vfx now. The 3D view positions the
 	# model's swing_anim by swing progress (UnitView).
 	VFX.spawn_scene(swing.swing_vfx, unit, unit.global_position, _swing_direction.angle(), [unit, swing])
 	swing_started.emit(index, _swing_direction, swing)
-	return true
 
 
 ## Stops the current swing (no hit if it hasn't landed yet) and releases
@@ -374,9 +407,16 @@ func try_swing(direction: Vector2, dash_strike: bool = false) -> bool:
 ## keep_combo_if_landed (a cancel the player chose: a dash, a cast) and the
 ## hit already landed, the combo moves on as if the swing had finished, and
 ## combo_reset_time counts from now. Otherwise (the windup, or a forced
-## interruption: stun, death) the combo resets.
+## interruption: stun, death) the combo resets. A string's swing (AR1a):
+## the string ends there, cut short.
 func cancel_swing(keep_combo_if_landed: bool = false) -> void:
 	if _swing == null:
+		return
+	if _string != null:
+		_stop_step()
+		_end_swing()
+		swing_cancelled.emit()
+		_end_string(false)
 		return
 	var landed := _swing_landed
 	if landed:
@@ -409,6 +449,8 @@ func attack(new_target: Unit) -> void:
 
 func cancel() -> void:
 	cancel_swing()
+	if _string != null:
+		_end_string(false)   # AR1a: a string still chasing, or between swings
 	if state == State.WINDUP:
 		_cancel_windup()
 	target = null
@@ -513,10 +555,187 @@ func add_lock(id: StringName) -> void:
 	_locks[id] = true
 	interrupt()
 	cancel_swing(id == CASTING_LOCK)
+	if _string != null:
+		_end_string(false)   # AR1a: a stun, a break or a cast cuts a string short
 
 
 func remove_lock(id: StringName) -> void:
 	_locks.erase(id)
+
+
+# --- Strings (ARCHETYPES.md, Strings and the beat; AR1a) ---------------------------
+
+## Runs `hits` hits of `attack_string` (an enemy's EnemyData.attack_string) at
+## `new_target`, on combo mode's swing code (the windup, the melee step and
+## pull, the swing's timings and knockback), in place of the League-style
+## attack until it ends:
+## - it chases until the target is within its first swing's reach (less
+##   enemy_hit_forgiveness, like a League-style attack), then swings;
+## - each later hit starts as the swing before it ends (after its
+##   pause_after), aimed at the target where it stands then; its hit lands
+##   on whatever is in the swing's arc (reach and arc × (1 −
+##   enemy_hit_forgiveness)). Hits past the string's last swing repeat it;
+## - once its first swing starts it runs to its end: a dodge or a deflect
+##   doesn't end it (D10; a commit can't be taken back);
+## - its first swing winds up for `opener_windup` s when that's 0 or more (the
+##   beat, EnemyAITable.beat), keeping the swing's own recovery (duration −
+##   windup); every other timing is the swing's ÷ get_swing_speed();
+## - a lock (a stun, a poise break, a cast), cancel(), death or its target
+##   turning invalid (dead, untargetable) cuts it short.
+## string_ended when it ends. False (nothing runs) in combo mode, under a
+## lock, for no swings, hits under 1 or an invalid target.
+func run_string(new_target: Unit, attack_string: AttackCombo, hits: int, opener_windup: float = -1.0) -> bool:
+	if combo != null or attack_string == null or attack_string.swings.is_empty() or hits < 1 \
+			or not _is_valid_target(new_target) or not _locks.is_empty() or not unit.is_alive():
+		return false
+	if _string != null:
+		cancel_swing()
+		_end_string(false)
+	if state == State.WINDUP:
+		_cancel_windup()
+	target = null
+	state = State.IDLE
+	_string = attack_string
+	_string_target = new_target
+	_string_hits = hits
+	_string_next = 0
+	_string_opener_windup = opener_windup
+	_pause_left = 0.0
+	_repath_timer = 0.0
+	return true
+
+
+## A string is running (chasing for its first swing, swinging, or between
+## swings).
+func is_running_string() -> bool:
+	return _string != null
+
+
+## The running string's length in hits (0 = none).
+func get_string_hits() -> int:
+	return _string_hits if _string != null else 0
+
+
+## The running string's swings started so far, the one under way included
+## (0 = still chasing, or none).
+func get_string_swung() -> int:
+	return _string_next if _string != null else 0
+
+
+func get_string_target() -> Unit:
+	return _string_target if _string != null and is_instance_valid(_string_target) else null
+
+
+## Seconds until the running string ends on its rhythm: the swing under way
+## (or the pause before the next), then each hit left; before its first swing,
+## its whole length (the chase not counted). 0 = none.
+func get_string_time_left() -> float:
+	if _string == null:
+		return 0.0
+	var left := maxf(_swing_left, 0.0) if _swing != null else 0.0
+	if _swing != null and _string_next < _string_hits:
+		left += _swing.pause_after / get_swing_speed()
+	elif _swing == null and _string_next > 0:
+		left += _pause_left
+	for k in range(_string_next, _string_hits):
+		left += get_string_hit_length(k)
+		if k < _string_hits - 1:
+			left += _get_string_swing(k).pause_after / get_swing_speed()
+	return left
+
+
+## Seconds until the running string's next hit lands (the swing under way's,
+## else the next swing's; −1 = none, or still chasing).
+func get_string_next_hit_in() -> float:
+	if _string == null or (_swing == null and _string_next == 0):
+		return -1.0
+	if _swing != null and not _swing_landed:
+		return maxf(_swing_windup_left, 0.0)
+	if _string_next >= _string_hits:
+		return -1.0
+	var wait := 0.0
+	if _swing != null:
+		wait = maxf(_swing_left, 0.0) + _swing.pause_after / get_swing_speed()
+	else:
+		wait = _pause_left
+	return wait + get_string_hit_windup(_string_next)
+
+
+## Hit `k` of the running string: its windup (s; the opener's is the beat
+## when run_string() got one).
+func get_string_hit_windup(k: int) -> float:
+	if _string == null:
+		return 0.0
+	if k == 0 and _string_opener_windup >= 0.0:
+		return _string_opener_windup
+	return _get_string_swing(k).windup / get_swing_speed()
+
+
+## Hit `k` of the running string: its whole swing, windup and recovery (s).
+func get_string_hit_length(k: int) -> float:
+	if _string == null:
+		return 0.0
+	var swing := _get_string_swing(k)
+	return get_string_hit_windup(k) + maxf(swing.duration - swing.windup, 0.0) / get_swing_speed()
+
+
+## The swing hit `k` of the running string uses: its own, past the last one
+## the last.
+func _get_string_swing(k: int) -> AttackSwing:
+	return _string.swings[clampi(k, 0, _string.swings.size() - 1)]
+
+
+## The combo the swing code reads: the running string, else combo mode's.
+func _get_swing_combo() -> AttackCombo:
+	return _string if _string != null else combo
+
+
+## Each physics tick while a string runs: it ends when its target turns
+## invalid or its last swing is over; else the next hit starts as soon as no
+## swing, pause or lock holds it (the first one once the target is in reach;
+## until then it chases, like the League-style attack).
+func _update_string(delta: float) -> void:
+	if not _is_valid_target(_string_target):
+		cancel_swing()   # a string's swing: ends it too
+		_end_string(false)
+		return
+	if _swing != null:
+		return
+	if _string_next >= _string_hits:
+		_end_string(true)
+		return
+	if not _locks.is_empty() or _pause_left > 0.0:
+		return
+	if _string_next == 0 and unit.edge_distance_to(_string_target) > get_swing_reach_px(_get_string_swing(0)) * (1.0 - enemy_hit_forgiveness):
+		_repath_timer -= delta
+		if _repath_timer <= 0.0 or not unit.movement.has_order():
+			_repath_timer = chase_repath_interval
+			unit.movement.move_to(_approach_point_to(_string_target))
+		return
+	var k := _string_next
+	var to := _string_target.global_position - unit.global_position
+	var direction := to.normalized() if to.length() > 0.01 else _swing_direction
+	unit.movement.stop()
+	_string_next += 1
+	_begin_swing(_get_string_swing(k), k, direction, get_string_hit_windup(k), get_string_hit_length(k))
+	# Started inside this tick's update (after _update_combo()), unlike a
+	# player's swing, which starts before it: the next tick is its first, so
+	# it isn't skipped (or every hit would come a tick late).
+	_swing_fresh = false
+
+
+## Ends the running string (string_ended). The caller stops its swing first.
+func _end_string(completed: bool) -> void:
+	if _string == null:
+		return
+	var swung := _string_next
+	_string = null
+	_string_target = null
+	_string_hits = 0
+	_string_next = 0
+	_string_opener_windup = -1.0
+	_pause_left = 0.0
+	string_ended.emit(completed, swung)
 
 
 # --- Update ---------------------------------------------------------------------
@@ -525,9 +744,15 @@ func _physics_process(delta: float) -> void:
 	_update_temp_test_speed()   # TEMP: the enemy attack speed test multiplier
 	_attack_timer = maxf(_attack_timer - delta, 0.0)
 	if not unit.is_alive():
+		if _string != null:
+			cancel_swing()
+			_end_string(false)   # AR1a: death cuts a string short
 		return
-	if combo != null:
+	if combo != null or _string != null:
 		_update_combo(delta)
+	if _string != null:
+		_update_string(delta)   # AR1a: the League-style attack waits for the string's end
+		return
 
 	if target != null and not _is_valid_target(target):
 		target = null
@@ -588,6 +813,8 @@ func _update_combo(delta: float) -> void:
 ## recovery_move_cancel_after has passed. The swing itself runs on, so the
 ## next swing still waits for its full duration and the combo continues.
 func _update_walk_cancel() -> void:
+	if _string != null:
+		return   # AR1a: a string's swings run their whole length (no input walks them out)
 	if _root_released or not combo.walk_cancels_recovery:
 		return
 	if _since_hit + SWING_TIME_EPSILON < combo.recovery_move_cancel_after:
@@ -603,17 +830,18 @@ func _update_walk_cancel() -> void:
 ## Picks the aimed enemy, snaps the aim toward it, and starts the step for
 ## the swing's windup (`duration`). COMBAT.md, Melee basic attacks.
 func _start_melee_step(swing: AttackSwing, duration: float) -> void:
+	var c := _get_swing_combo()
 	var reach := get_swing_reach_px(swing)
 	var raw_aim := _swing_direction
 	var assist := _find_assist_target(raw_aim, reach)
 	var step_dir := raw_aim
 	var step_len := swing.lunge_px
 	var max_step := maxf(swing.lunge_max_px, swing.lunge_px)
-	var snap_deg := combo.assist_snap_deg
+	var snap_deg := c.assist_snap_deg
 	# PROTOTYPE (deflect): a riposte swing snaps to the attacker it answers, aim
 	# and all, a step of up to riposte_snap_range (DeflectComponent). Null when
 	# the flag is off or there's no riposte: the step is exactly as before.
-	var riposte := unit.deflect_component.get_riposte_snap_target(combo.stop_at_reach_fraction * reach) \
+	var riposte := unit.deflect_component.get_riposte_snap_target(c.stop_at_reach_fraction * reach) \
 		if unit.deflect_component != null else null
 	if riposte != null:
 		assist = riposte
@@ -626,7 +854,7 @@ func _start_melee_step(swing: AttackSwing, duration: float) -> void:
 		if to.length() > 0.01:
 			step_dir = to.normalized()
 		var edge := to.length() - assist.get_gameplay_radius_px()
-		var wanted := edge - combo.stop_at_reach_fraction * reach
+		var wanted := edge - c.stop_at_reach_fraction * reach
 		if wanted > swing.lunge_px:
 			step_len = minf(wanted, max_step)
 		# Never into its body: stop at its edge.
@@ -643,7 +871,7 @@ func _start_melee_step(swing: AttackSwing, duration: float) -> void:
 			_step_serial = unit.movement.get_displacement_serial()
 	if debug_draw:
 		_debug_plan = {"from": unit.global_position, "raw_aim": raw_aim, "aim": _swing_direction,
-			"range": reach + combo.assist_range_bonus_px, "target": assist,
+			"range": reach + c.assist_range_bonus_px, "target": assist,
 			"step": step_dir * step_len}
 		_update_debug_draw()
 
@@ -652,8 +880,9 @@ func _start_melee_step(swing: AttackSwing, duration: float) -> void:
 ## assist_range_bonus_px of the feet, within assist_angle_deg of the aim, in
 ## line of sight. Smallest angle off the aim wins; ties go to the nearer one.
 func _find_assist_target(aim: Vector2, reach: float) -> Unit:
-	var max_range := reach + combo.assist_range_bonus_px
-	var max_angle := deg_to_rad(combo.assist_angle_deg)
+	var c := _get_swing_combo()
+	var max_range := reach + c.assist_range_bonus_px
+	var max_angle := deg_to_rad(c.assist_angle_deg)
 	var best: Unit = null
 	var best_angle := INF
 	var best_dist := INF
@@ -669,7 +898,7 @@ func _find_assist_target(aim: Vector2, reach: float) -> Unit:
 			continue
 		# Melee aim help never snaps to a target the swing can't hit (a perched
 		# enemy from below; 3D.md, Terrain and height 2).
-		if combo.attack_style == AttackCombo.AttackStyle.MELEE and not AbilityUtil.can_reach(unit, other, [&"melee"] as Array[StringName]):
+		if c.attack_style == AttackCombo.AttackStyle.MELEE and not AbilityUtil.can_reach(unit, other, [&"melee"] as Array[StringName]):
 			continue
 		if angle < best_angle - 0.001 or (absf(angle - best_angle) <= 0.001 and dist < best_dist):
 			best = other
@@ -704,7 +933,8 @@ func _on_debug_node_draw() -> void:
 	var from: Vector2 = _debug_plan.from
 	var raw_aim: Vector2 = _debug_plan.raw_aim
 	var r: float = _debug_plan.range
-	var half := deg_to_rad(combo.assist_angle_deg)
+	var c := _get_swing_combo()
+	var half := deg_to_rad(c.assist_angle_deg if c != null else 0.0)
 	var grey := Color(1, 1, 1, 0.35)
 	_debug_node.draw_arc(from, r, raw_aim.angle() - half, raw_aim.angle() + half, 24, grey, 1.0)
 	_debug_node.draw_line(from, from + raw_aim.rotated(-half) * r, grey, 1.0)
@@ -719,11 +949,16 @@ func _on_debug_node_draw() -> void:
 ## The hit moment: every enemy in the arc (with hit forgiveness) takes a
 ## basic attack hit. Basic attack empowers (Iron Resolve's, AB10) are used up
 ## by the first swing that hits anything, and apply to every enemy it hits.
+## A swing marked deflectable (AttackSwing.deflectable) gives its hits that
+## mark (AR1a). The swing is read once: a hit that locks the attacker (a
+## deflect that breaks its poise) cancels it mid-loop.
 func _land_swing() -> void:
 	_swing_landed = true
-	var forgiveness := 1.0 + combo.hit_forgiveness
-	var reach := get_swing_reach_px(_swing) * forgiveness
-	var half_arc := deg_to_rad(_swing.arc_deg) * 0.5 * forgiveness
+	var swing := _swing
+	var index := _swing_index
+	var forgiveness := _get_hit_scale()
+	var reach := get_swing_reach_px(swing) * forgiveness
+	var half_arc := deg_to_rad(swing.arc_deg) * 0.5 * forgiveness
 	var targets := AbilityUtil.in_sight(unit.global_position,
 		AbilityUtil.in_cone(unit, unit.global_position, _swing_direction, reach, half_arc))   # no hits through walls
 	var on_hits: Array[Callable] = []
@@ -734,7 +969,8 @@ func _land_swing() -> void:
 	var crit_roll := HitContext.CritRoll.new()   # one crit roll per swing
 	var weak := not empowered and _is_prototype_weak_auto()   # TEMP: the weak-auto lever
 	for t in targets:
-		var ctx := HitPipeline.basic_attack(unit, t, _swing)
+		var ctx := HitPipeline.basic_attack(unit, t, swing)
+		ctx.deflectable = swing.deflectable   # AR1a
 		ctx.crit_roll = crit_roll
 		if _is_dash_strike:
 			ctx.add_tag(&"dash_strike")   # hit:dash_strike bonuses, reaction rules (C12)
@@ -748,12 +984,24 @@ func _land_swing() -> void:
 				if is_instance_valid(t):
 					f.call(t)
 			if is_instance_valid(t):   # AB14 hook: nothing while impact_vfx is empty
-				VFX.spawn_scene(_swing.impact_vfx, t, t.global_position, (t.global_position - unit.global_position).angle(), [unit, ctx])
-	swing_landed.emit(_swing_index, targets)
+				VFX.spawn_scene(swing.impact_vfx, t, t.global_position, (t.global_position - unit.global_position).angle(), [unit, ctx])
+	swing_landed.emit(index, targets)
+
+
+## Reach and arc at a swing's hit: combo mode's × (1 + its hit_forgiveness:
+## the player's attacks hit a bit beyond what they show); a string's (AR1a)
+## × (1 − enemy_hit_forgiveness: a bit shorter, like a League-style attack).
+func _get_hit_scale() -> float:
+	if _string != null:
+		return 1.0 - enemy_hit_forgiveness
+	return 1.0 + combo.hit_forgiveness
 
 
 func _finish_swing() -> void:
 	_pause_left = _swing.pause_after / get_swing_speed()
+	if _string != null:
+		_end_swing()   # AR1a: the string's next hit comes from _update_string()
+		return
 	_next_swing_index = _get_index_after_swing()
 	_combo_reset_left = combo.combo_reset_time
 	_end_swing()
@@ -838,21 +1086,26 @@ func _cancel_windup() -> void:
 ## This is what makes a group of melee units surround a target instead of
 ## queueing up behind each other.
 func _approach_point() -> Vector2:
-	var tpos := target.global_position
+	return _approach_point_to(target)
+
+
+## _approach_point() for any target (AR1a: a string's chase uses it too).
+func _approach_point_to(t: Unit) -> Vector2:
+	var tpos := t.global_position
 	var my_pos := unit.global_position
-	var reach := get_range_px() + unit.get_gameplay_radius_px() + target.get_gameplay_radius_px()
+	var reach := get_range_px() + unit.get_gameplay_radius_px() + t.get_gameplay_radius_px()
 	var dist := my_pos.distance_to(tpos)
 	# Far away: just head for the target; pick a slot when we get close.
 	if dist > reach + 60.0:
 		return tpos
-	var slot_dist := maxf(reach * 0.85, unit.get_pathing_radius_px() + target.get_pathing_radius_px() + 2.0)
+	var slot_dist := maxf(reach * 0.85, unit.get_pathing_radius_px() + t.get_pathing_radius_px() + 2.0)
 	var base := (my_pos - tpos).angle() if dist > 0.01 else 0.0
 	var map := unit.get_world_2d().navigation_map
 	var map_ready := NavigationServer2D.map_get_iteration_id(map) > 0
 	var others: Array = []
 	for node in unit.get_tree().get_nodes_in_group("units"):
 		var o := node as Unit
-		if o != unit and o != target and o.is_alive():
+		if o != unit and o != t and o.is_alive():
 			others.append(o)
 	for step in 10:
 		for side: float in ([1.0, -1.0] if step > 0 else [1.0]):

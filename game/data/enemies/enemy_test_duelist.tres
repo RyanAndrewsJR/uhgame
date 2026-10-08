@@ -11,6 +11,7 @@
 [ext_resource type="Script" path="res://scripts/data/combo_plan.gd" id="9_plan"]
 [ext_resource type="Script" path="res://scripts/data/combo_step.gd" id="10_step"]
 [ext_resource type="Script" path="res://scripts/data/condition.gd" id="11_condition"]
+[ext_resource type="Resource" path="res://data/combos/combo_test_duelist.tres" id="20_string"]
 
 [sub_resource type="Resource" id="slot_q"]
 script = ExtResource("1_slot")
@@ -118,3 +119,4 @@ abilities = Array[ExtResource("1_slot")]([SubResource("slot_q"), SubResource("sl
 model_color = Color(0.35, 0.5, 0.75, 1)
 duelist = true
 combo_plans = Array[ExtResource("9_plan")]([SubResource("plan_snare_first"), SubResource("plan_strike_first"), SubResource("plan_strike_finish")])
+attack_string = ExtResource("20_string")

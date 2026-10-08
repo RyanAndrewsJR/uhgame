@@ -105,6 +105,22 @@ extends UnitController
 ##   its tell first) when its lean passes 1 − follow_through, else resets;
 ## - outside a plan it keeps its follow-ups (abilities with combo roles but
 ##   no `opener`) for its plans, unless the blind read passes.
+## ARCHETYPES AR1a, strings (ARCHETYPES.md, Strings and the beat; D6):
+## - an enemy with a string (EnemyData.attack_string) commits into it when no
+##   plan runs: after its tell, its string (AutoAttackComponent.run_string())
+##   closes in and swings, its first hit on the beat (EnemyAITable.beat), the
+##   rest at its swings' rhythm. Until its first swing a cast its decision
+##   picks still goes first, as in AI1 (a gap-closer gets it there; a damage
+##   cast's end ends the commit); once it swings nothing cuts into it (no
+##   cast), a deflect or a dodge doesn't end it, and its end ends the commit
+##   (a skirmisher's reset after it); a stun or a poise break cuts it (the
+##   commit breaks off, its token goes);
+## - its length by respect (get_string_length()): 2 hits at high respect, its
+##   full length (or one more) at low respect or against a low target, else
+##   rolled in its rank's range;
+## - its token is held for the whole string (from its first swing:
+##   Brains.set_token_hold() to its end) and goes at its last swing's end;
+## - a plan's STRING step (ComboStep.Kind.STRING) runs it as a step.
 
 signal intent_changed(intent: StringName)
 signal pose_changed(pose: StringName)
@@ -143,6 +159,9 @@ const PATIENCE_EPSILON := 0.0001
 const FALL_BACK_GAP_PX := 16.0
 ## Walking away, it counts as blocked once it has barely moved for this long (s).
 const ESCAPE_STUCK_TIME := 0.3
+## A string's token is held this much past the string's end on its rhythm (s;
+## AR1a), so Brains' timeout never takes it before the commit lets it go.
+const STRING_HOLD_SLACK := 0.1
 
 var data: EnemyData
 var rank_rules: RankRules
@@ -167,6 +186,10 @@ var setup_count: int = 0
 ## the overlay).
 var plan_count: int = 0
 var plan_ends: Dictionary = {}
+## Its strings started, and the last one's length in hits (AR1a: tests, the
+## overlay).
+var string_count: int = 0
+var last_string_hits: int = 0
 
 var _enemy: Enemy
 var _patience := 0.0
@@ -244,6 +267,10 @@ var _last_plan_at := -INF
 var _last_follow: StringName = &""   # &"stay" / &"reset"
 var _last_lean := 0.0
 var _last_carry: String = ""         # how a miss was decided: "blind (escapes_down)", "0.12 < 0.20", "end"
+# AR1a
+var _commit_string := false          # the commit under way has started its string
+var _string_done := false            # ... and it ran to its end (the next think ends the commit)
+var _string_step := -1               # the plan step running its string (−1 = none)
 
 
 func setup(p_data: EnemyData, p_rank_rules: RankRules) -> void:
@@ -261,6 +288,8 @@ func _ready() -> void:
 	_strafe_dir = 1.0 if rng.randf() < 0.5 else -1.0
 	_strafe_turn_left = _strafe_turn_time()
 	_enemy.attack.attack_landed.connect(_on_attack_landed)
+	_enemy.attack.swing_started.connect(_on_swing_started)   # AR1a: a string's first swing holds its token
+	_enemy.attack.string_ended.connect(_on_string_ended)
 	if _enemy.abilities != null:
 		_enemy.abilities.cast_started.connect(_on_cast_started)
 		_enemy.abilities.cast_finished.connect(_on_cast_ended)
@@ -533,6 +562,21 @@ func get_last_lean() -> float:
 
 func get_last_carry() -> String:
 	return _last_carry
+
+
+## It has a string to run (AR1a: EnemyData.attack_string with swings).
+func has_attack_string() -> bool:
+	return data != null and data.attack_string != null and not data.attack_string.swings.is_empty()
+
+
+## Its string is running (its commit's or a plan step's; AR1a).
+func is_stringing() -> bool:
+	return is_instance_valid(_enemy) and _enemy.attack.is_running_string()
+
+
+## The plan step running its string (−1 = none; AR1a).
+func get_string_step() -> int:
+	return _string_step
 
 
 ## Its attack token, for the overlay: "held", "waiting" (in the queue),
@@ -1320,10 +1364,16 @@ func _build_plan_options(s: SituationContext) -> void:
 		var opener := abilities.get_ability(opener_slot)
 		var o := {"plan": plan, "opener": null, "ready": true, "conditions_ok": true, "cc_ok": true,
 			"blind": opener == null or not opener.combo_roles.has(OPENER_ROLE)}
+		if plan.steps[0] != null and plan.steps[0].kind == ComboStep.Kind.STRING:
+			o.ready = false   # AR1a: a string is never a plan's opener
 		for step in plan.steps:
-			if step != null and not step.optional and not _is_slot_ready(step.slot):
+			if step == null or not o.ready:
+				continue
+			if step.kind == ComboStep.Kind.STRING:
+				if not step.optional and not has_attack_string():
+					o.ready = false   # AR1a: a STRING step needs its string
+			elif not step.optional and not _is_slot_ready(step.slot):
 				o.ready = false
-				break
 		o.conditions_ok = Condition.all_met(plan.conditions, _enemy, s.target_unit, null, s)
 		if o.ready and o.conditions_ok and opener != null and abilities.can_cast(opener_slot):
 			if not cached.has(opener_slot):
@@ -1369,6 +1419,8 @@ func _start_plan(d: BrainDecision, now: float) -> void:
 	var landed_at: Array[float] = []
 	for i in _plan.steps.size():
 		landed_at.append(-1.0)
+		if _plan.steps[i].kind == ComboStep.Kind.STRING:
+			continue   # AR1a: a string is never the finisher
 		var ability := _enemy.abilities.get_ability(_plan.steps[i].slot) if _enemy.abilities != null else null
 		if ability != null and ability.combo_roles.has(FINISHER_ROLE):
 			finishers.append(i)
@@ -1385,8 +1437,8 @@ func _start_plan(d: BrainDecision, now: float) -> void:
 ## within its window; each later step starts on the tick ComboPlanner.next_step()
 ## says, is skipped, or the plan ends.
 func _drive_plan(now: float, target: Unit) -> void:
-	if _plan == null or _plan_step_casting >= 0:
-		return
+	if _plan == null or _plan_step_casting >= 0 or _string_step >= 0:
+		return   # a step's cast, or its string (AR1a), plays out
 	var p := _plan_progress
 	if int(p.index) == 0:
 		if not p.has("opener_from"):
@@ -1424,6 +1476,9 @@ func _drive_plan(now: float, target: Unit) -> void:
 ## crowd control would be wasted, is skipped.
 func _try_step(i: int, s: SituationContext) -> void:
 	var step := _plan.steps[i]
+	if step.kind == ComboStep.Kind.STRING:
+		_try_string_step(i, step)   # AR1a
+		return
 	var abilities := _enemy.abilities
 	var ability := abilities.get_ability(step.slot) if abilities != null else null
 	if ability == null or not abilities.is_ready(step.slot) or not abilities.can_afford(step.slot):
@@ -1455,6 +1510,43 @@ func _skip_step() -> void:
 	_plan_progress.index = int(_plan_progress.index) + 1
 	if int(_plan_progress.index) >= _plan.steps.size():
 		_end_plan(ComboPlanner.DONE)
+
+
+## A STRING step's trigger came (AR1a): its string starts now on the plan's
+## target (a basic attack's windup is cut for it), its length by respect;
+## with no string the step is skipped (optional) or tried again next tick
+## (inside its window).
+func _try_string_step(i: int, step: ComboStep) -> void:
+	if not has_attack_string():
+		if step.optional:
+			_skip_step()
+		return
+	if _enemy.attack.is_winding_up():
+		_enemy.attack.cancel()   # the step comes first (the windup is refunded)
+	_start_string(_plan_target, i)
+
+
+## A plan's string ended (AR1a): done, it's the step's end (the next step's
+## miss time: whiff_time, as a melee hit has no travel); its last step ends
+## the plan (DONE). Cut short, the plan ends at the frame's end
+## (_resolve_string_cut()).
+func _on_plan_string_ended(completed: bool) -> void:
+	var i := _string_step
+	_string_step = -1
+	if _plan == null:
+		return
+	if not completed:
+		_resolve_string_cut.call_deferred(true)
+		return
+	if i >= _plan.steps.size() - 1:
+		_end_plan(ComboPlanner.DONE)
+		return
+	var now := Brains.get_time()
+	var p := _plan_progress
+	p.index = i + 1
+	p.prev_end = now
+	p.prev_landed = float((p.landed_at as Array)[i])
+	p.prev_miss_at = now + Brains.table.whiff_time
 
 
 ## A plan step's cast ended: the last one ends the plan (DONE: its effect is
@@ -1490,6 +1582,8 @@ func _end_plan(reason: StringName, follow: bool = true) -> void:
 	_plan = null
 	_plan_step_casting = -1
 	_plan_delay_left = 0.0
+	if _string_step >= 0:
+		_stop_string()   # AR1a: a step's string goes with its plan
 	_last_plan = plan
 	_last_plan_reason = reason
 	_last_plan_at = Brains.get_time()
@@ -1541,6 +1635,8 @@ func _check_plan(s: SituationContext, now: float) -> void:
 	elif _enemy.is_cc_blocked():
 		_end_plan(ComboPlanner.INTERRUPTED)
 		_break_commit()
+	elif _string_step >= 0:
+		pass   # AR1a: a step's string runs to its end (its token is held for it)
 	elif behavior.low_health == EnemyBehavior.LowHealth.FALL_BACK and s.health_ratio < behavior.retreat_health:
 		_end_plan(ComboPlanner.LOW_HEALTH)
 		_end_commit()
@@ -1552,14 +1648,22 @@ func _check_plan(s: SituationContext, now: float) -> void:
 
 
 ## A hit of its own on its plan's target (AI-D2): the step whose ability it
-## was has landed (its opener's landing frees a finisher).
+## was has landed (its opener's landing frees a finisher). AR1a: a basic
+## attack hit while its STRING step runs is that step's landing.
 func _on_unit_hit(ctx: HitContext) -> void:
-	if _plan == null or ctx.source != _enemy or ctx.target != _plan_target or ctx.ability == null or _enemy.abilities == null:
+	if _plan == null or ctx.source != _enemy or ctx.target != _plan_target:
 		return
 	var p := _plan_progress
+	if _string_step >= 0 and ctx.ability == null and ctx.has_tag(&"basic_attack"):
+		var string_landed: Array = p.landed_at
+		if float(string_landed[_string_step]) < 0.0:
+			string_landed[_string_step] = Brains.get_time()
+		return
+	if ctx.ability == null or _enemy.abilities == null:
+		return
 	var last: int = _plan_step_casting if _plan_step_casting >= 0 else int(p.index) - 1
 	for i in range(mini(last, _plan.steps.size() - 1), -1, -1):
-		if _enemy.abilities.get_ability(_plan.steps[i].slot) != ctx.ability:
+		if _plan.steps[i].kind == ComboStep.Kind.STRING or _enemy.abilities.get_ability(_plan.steps[i].slot) != ctx.ability:
 			continue
 		var landed_at: Array = p.landed_at
 		if float(landed_at[i]) < 0.0:
@@ -1784,6 +1888,35 @@ static func get_patience_rate(s: SituationContext, b: EnemyBehavior, table: Enem
 	return rate
 
 
+## A string's length in hits (ARCHETYPES.md, Strings and the beat; D6, D8;
+## AR1a), pure over the situation and the brain's seeded stream. Its rank's
+## range: its short end (AttackCombo.get_string_hits_min(): a regular's
+## length), up to its swings' count with string_full_range (an elite), plus
+## string_extra_hits (a boss's 1). Effective respect at or above
+## string_respect_short cuts it to string_short_hits; at or below
+## string_respect_full, or its target under the table's low_health, it runs
+## the range's top, and with string_full_range one hit more at a chance of
+## its aggression; in between, a length rolled in the range. 0 = no string.
+static func get_string_length(s: SituationContext, attack_string: AttackCombo, rules: RankRules, table: EnemyAITable,
+		b: EnemyBehavior, stream: RandomNumberGenerator) -> int:
+	if attack_string == null or attack_string.swings.is_empty():
+		return 0
+	var low := attack_string.get_string_hits_min()
+	var high := low
+	var full := rules != null and rules.string_full_range
+	if full:
+		high = maxi(attack_string.swings.size(), low)
+	if rules != null:
+		high += maxi(rules.string_extra_hits, 0)
+	if s.effective_respect >= table.string_respect_short - 0.0001:
+		return clampi(table.string_short_hits, 1, high)
+	if s.effective_respect <= table.string_respect_full + 0.0001 or s.target_health_ratio < table.low_health:
+		if full and b != null and stream.randf() < b.aggression:
+			return high + 1
+		return high
+	return stream.randi_range(low, high)
+
+
 # --- Act (Enemy calls drive() every physics tick while aggroed) -------------------------
 
 func _apply_decision(d: BrainDecision, now: float) -> void:
@@ -1798,6 +1931,7 @@ func _apply_decision(d: BrainDecision, now: float) -> void:
 			_committing = false   # broken off (not done): patience stays
 			_tell_left = 0.0
 			_plan_delay_left = 0.0
+			_stop_string()   # AR1a: its string goes with it
 		if d.intent == COMMIT:
 			_start_commit(now)
 			if d.combo_plan != null:
@@ -1867,6 +2001,11 @@ func drive(delta: float) -> void:
 ## (AutoAttackComponent chases and swings); its casts come from the plans.
 ## AI-D2: mixup's held beat comes before the tell (it holds its ground); a
 ## combo plan's steps start here, each on the tick its trigger comes.
+## AR1a: with no plan, an enemy with a string runs it (D6) unless its
+## decision's cast comes first (AI1's commit: a gap-closer gets it there, a
+## damage cast's end ends the commit; _try_plan() may still cast while the
+## string closes in); once it swings nothing cuts into it, and its end ends
+## the commit (_on_string_ended()).
 func _drive_commit(delta: float, target: Unit) -> void:
 	if _plan_delay_left > 0.0:
 		_plan_delay_left = maxf(_plan_delay_left - delta, 0.0)
@@ -1886,6 +2025,12 @@ func _drive_commit(delta: float, target: Unit) -> void:
 		_drive_plan(Brains.get_time(), target)
 		if not _committing or _tell_left > 0.0 or (_enemy.abilities != null and _enemy.abilities.casting):
 			return   # the plan ended (a reset, or a stay's tell) or a step started
+	if _enemy.attack.is_running_string():
+		return   # AR1a: its string plays out (the commit's, or a plan step's)
+	if _plan == null and has_attack_string():
+		if _committing and not _commit_string and _pending_plan == null:
+			_start_string(target)   # AR1a: no cast to make first: the string
+		return
 	if _enemy.attack.target != target:
 		_enemy.attack.attack(target)
 
@@ -2093,6 +2238,8 @@ func _corner(now: float) -> void:
 func _try_plan() -> void:
 	if _pending_plan == null or (_committing and (_tell_left > 0.0 or _plan_delay_left > 0.0)):
 		return
+	if _string_done or _string_step >= 0 or _enemy.attack.get_string_swung() > 0:
+		return   # AR1a: nothing cuts into a string once it swings (kept pending; its commit's end drops it)
 	var abilities := _enemy.abilities
 	if abilities == null or abilities.casting or _enemy.attack.is_winding_up():
 		return
@@ -2130,6 +2277,8 @@ func _start_commit(now: float) -> void:
 	_opener_cast = false
 	_commit_plan_open = true   # AI-D2: in its tell it may still pick a plan
 	_plan_delay_left = 0.0
+	_commit_string = false   # AR1a
+	_string_done = false
 
 
 ## A commit is done after commit_max_time (the tell included), or:
@@ -2138,10 +2287,20 @@ func _start_commit(now: float) -> void:
 ## - anyone else: its first cast ended (not a gap-closer's), or commit_hits
 ##   landed basic attacks.
 ## AI-D2: a commit running a plan ends with its plan (_check_plan()).
+## AR1a: an enemy with a string (any role): its string's end ends it
+## (_on_string_ended()), or commit_max_time while it hasn't swung yet; a cast
+## commit (its decision's cast went first) its cast's end, as above.
 func _is_commit_done(now: float) -> bool:
 	if _plan != null:
 		return false
 	var table := Brains.table
+	if has_attack_string():
+		if _commit_string:
+			if _string_done:
+				return true
+			if _enemy.attack.get_string_swung() > 0:
+				return false
+		return now - _commit_started >= table.commit_max_time or (not _commit_string and _commit_cast_done)
 	if now - _commit_started >= table.commit_max_time:
 		return true
 	if behavior.role == EnemyBehavior.Role.SKIRMISHER:
@@ -2168,6 +2327,7 @@ func _end_commit() -> void:
 	_opener_cast = false
 	_commit_plan_open = false
 	_plan_delay_left = 0.0
+	_stop_string()   # AR1a: one cut short (its token lost, commit_max_time while it chased)
 	_back_off_left = table.back_off_time
 	Brains.release_token(_enemy, true)
 	if behavior.role == EnemyBehavior.Role.SKIRMISHER:
@@ -2207,6 +2367,7 @@ func _break_commit() -> void:
 	_opener_cast = false
 	_commit_plan_open = false
 	_plan_delay_left = 0.0
+	_stop_string()   # AR1a
 
 
 ## AI-D2: a recovery shows first (a stay's tell waits for it), and mixup's
@@ -2259,6 +2420,7 @@ func _reset() -> void:
 	_peel_cast = false
 	_seen_open.clear()
 	if is_instance_valid(_enemy):
+		_stop_string()   # AR1a
 		Brains.release_token(_enemy, false)
 	if had_intent:
 		intent_changed.emit(_intent)
@@ -2273,6 +2435,88 @@ func _strafe_turn_time() -> float:
 func _on_attack_landed(_target: Unit, _damage: float) -> void:
 	if _committing and _tell_left <= 0.0:
 		_commit_hits += 1
+
+
+# --- Strings (ARCHETYPES AR1a) -----------------------------------------------------------
+
+## Starts its string on `target` (its length by respect: get_string_length()
+## over its last think's situation), its first hit on the beat. `step` >= 0:
+## the plan step it runs; else the commit's string. False when it can't run
+## (AutoAttackComponent.run_string()).
+func _start_string(target: Unit, step: int = -1) -> bool:
+	var s := _situation if _situation != null else SituationContext.new()
+	var hits := get_string_length(s, data.attack_string, rank_rules, Brains.table, behavior, rng)
+	if not _enemy.attack.run_string(target, data.attack_string, hits, Brains.table.beat):
+		return false
+	string_count += 1
+	last_string_hits = hits
+	if step >= 0:
+		_string_step = step
+	else:
+		_commit_string = true
+	return true
+
+
+## Stops its string if one runs, its commit's or a plan step's (the commit
+## ended or broke off first, so string_ended changes nothing).
+func _stop_string() -> void:
+	_commit_string = false
+	_string_step = -1
+	if is_instance_valid(_enemy) and _enemy.attack.is_running_string():
+		_enemy.attack.cancel()
+
+
+## A string's first swing: its token is held to the string's end on its
+## rhythm (D6), or longer when it already holds it longer (a plan's).
+func _on_swing_started(index: int, _direction: Vector2, _swing: AttackSwing) -> void:
+	if index != 0 or not _enemy.attack.is_running_string() or not Brains.has_token(_enemy):
+		return
+	var hold := _enemy.attack.get_string_time_left() + STRING_HOLD_SLACK
+	Brains.set_token_hold(_enemy, maxf(Brains.get_token_hold_left(_enemy), hold))
+
+
+## Its string ended. A plan step's: _on_plan_string_ended(). The commit's: done,
+## its next think (woken for the next tick) ends the commit and decides at
+## once, as a commit's end always does (its token goes, it walks out; a
+## skirmisher resets); cut before its first swing by a cast of its own (a cast
+## may go first while the string only closes in: a gap-closer, a damage use
+## now in reach), the commit goes on by AI1's rules; cut short otherwise (a
+## stun, a break, its target gone), it's settled at the frame's end, once the
+## status that cut it is on (_resolve_string_cut()).
+func _on_string_ended(completed: bool, swung: int) -> void:
+	if _string_step >= 0:
+		_on_plan_string_ended(completed)
+		return
+	if not (_committing and _commit_string):
+		return
+	if completed:
+		_string_done = true
+		Brains.wake(self)
+	elif swung == 0 and _enemy.abilities != null and _enemy.abilities.casting:
+		_commit_string = false   # its cast went first while it closed in: the commit goes on by AI1's rules (a gap-closer's end lets the string start)
+	else:
+		_resolve_string_cut.call_deferred(false)
+
+
+## A string cut short, settled: stunned, broken or dead, the commit breaks off
+## (its patience stays; Brains takes its token); otherwise (its target gone)
+## the commit ends. `in_plan`: a plan step's string: the plan ends too
+## (INTERRUPTED or TARGET_LOST).
+func _resolve_string_cut(in_plan: bool) -> void:
+	if not is_instance_valid(_enemy):
+		return
+	var held := not _enemy.is_alive() or _enemy.is_cc_blocked()
+	if in_plan:
+		if _plan == null:
+			return
+		_end_plan(ComboPlanner.INTERRUPTED if held else ComboPlanner.TARGET_LOST)
+	elif not (_committing and _commit_string) or _string_done or _enemy.attack.is_running_string():
+		return
+	if held:
+		_break_commit()
+	else:
+		_end_commit()
+	Brains.wake(self)
 
 
 ## A hit its casts landed during its commit (its basic attacks count through
@@ -2300,7 +2544,8 @@ func _on_cast_cancelled(_slot: StringName, _ability: Ability) -> void:
 func _on_cast_started(slot: StringName, ability: Ability, _ctx: CastContext) -> void:
 	if _committing and _tell_left <= 0.0 and _plan != null:
 		var i: int = _plan_progress.get("index", 0)   # AI-D2: its plan's step, when it's the one due
-		if _plan_step_casting < 0 and i < _plan.steps.size() and _plan.steps[i].slot == slot:
+		if _plan_step_casting < 0 and i < _plan.steps.size() and _plan.steps[i].kind == ComboStep.Kind.ABILITY \
+				and _plan.steps[i].slot == slot:
 			_plan_step_casting = i
 			if i == 0:
 				_setup_opener = false

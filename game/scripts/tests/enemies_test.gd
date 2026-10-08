@@ -109,6 +109,24 @@ extends Node2D
 ##   combo lines, the panel's nineteen rows).
 ## Tests of older rules pin AI3b's sliders (and AI3c's nerve) to their AI3
 ## values (_pin_ai3()); AI2's five brutes play with the press off (_no_press()).
+## ARCHETYPES AR1a, strings (ARCHETYPES.md, Strings and the beat):
+## - the table's beat and respect numbers, the ranks' lengths, the new
+##   fields' defaults; every test string's shape, its first wind-up the beat,
+##   later wind-ups 0.25 s or more, its spacing ±0.05 s (the repeated last
+##   swing too), deflectable swings in the chip band; the casters have none
+##   yet (AR1b); the AI3 skirmisher checks run on a copy with no string;
+## - get_string_length() by respect, a low target and rank (pure, seeded);
+## - run_string() on passive enemies: the first hit on the beat (or any
+##   opener), the spacing, the end, no League-style windup; cut short by a
+##   stun, cancel(), death and its target turning untargetable; refused in
+##   combo mode, under a lock, for 0 hits or no string; a deflect pair inside
+##   one string (the Knight's test deflect) not ending it;
+## - real brains: a brute's commit into its string (the tell, the beat, its
+##   2 hits, its token held to the end), the elite slime's 3–4; the token
+##   freed on a stun (patience kept), a poise break and death; a deflect not
+##   ending a brain's string; the skirmisher's leap, string and reset; a
+##   plan's STRING step after the duelist's snare; a string opener never
+##   fitting; the overlay's string line.
 ## TEMP, the enemy attack speed test multiplier (DECISIONS.md, Testing): off
 ## by default; at x1.0 every number is today's exactly; at x1.5 with keep DPS
 ## the same damage per second over 10 s, more swings, the windup floor; the
@@ -203,7 +221,7 @@ var _odds_threshold_saved := -1.0   # _no_press() (AI3c)
 
 
 func _ready() -> void:
-	print("\n=== Enemies test (ENEMIES_AI AI1–AI3d, AI3b, AI3c, AI-D1, AI-D2, AI-D3) ===")
+	print("\n=== Enemies test (ENEMIES_AI AI1–AI3d, AI3b, AI3c, AI-D1, AI-D2, AI-D3; ARCHETYPES AR1a) ===")
 	Progress.get_progress(KNIGHT)   # the save guards latch off first (a test scene)
 	Loot.get_inventory(KNIGHT)
 	Brains.rng.seed = 20261004
@@ -330,6 +348,18 @@ func _ready() -> void:
 	await _test_aid3_boss()
 	await _test_aid3_brain_sees_the_ring()
 	await _test_aid3_panel_scroll()
+
+	# ARCHETYPES AR1a: strings, the beat and token holding.
+	_test_ar1a_data()
+	_test_ar1a_length()
+	await _test_ar1a_timing()
+	await _test_ar1a_cut()
+	await _test_ar1a_deflect_pair()
+	await _test_ar1a_brain_commit()
+	await _test_ar1a_token_freed()
+	await _test_ar1a_skirmisher()
+	await _test_ar1a_plan_step()
+	await _test_ar1a_sandbox()
 
 	# TEMP: the enemy attack speed test multiplier (DECISIONS.md, Testing).
 	await _test_temp_attack_speed()
@@ -2019,11 +2049,11 @@ func _test_caster_falls_back() -> void:
 ## The step's "Done means": the skirmisher dives when respect drops and hops
 ## out after its hit.
 func _test_skirmisher() -> void:
-	_section("The skirmisher stalks while the kit is up, leaps in when it drops, hits and hops out")
+	_section("The skirmisher stalks while the kit is up, leaps in when it drops, hits and hops out (AI3's commit: no string, ARCHETYPES AR1a)")
 	await _reset_knight()
 	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
 	knight.resource_pool.restore(1000.0)
-	var sk := _spawn(SKIRMISHER_SCENE, knight.global_position + Vector2(170, 0), false)
+	var sk := _spawn_no_string(SKIRMISHER_SCENE, knight.global_position + Vector2(170, 0), false)
 	_pin_ai3(sk)   # AI3's stalk: no confidence (AI3b)
 	var brain := sk.get_brain()
 	var leaps := [0]
@@ -2067,11 +2097,11 @@ func _test_skirmisher() -> void:
 ## A gap-closer only gets it there: its leap missing (he stepped aside) ends
 ## nothing; the commit goes on until a hit lands or reset_time runs out.
 func _test_skirmisher_miss() -> void:
-	_section("The skirmisher's leap misses: its commit goes on (a gap-closer's cast doesn't end it)")
+	_section("The skirmisher's leap misses: its commit goes on (a gap-closer's cast doesn't end it; AI3's commit: no string)")
 	await _reset_knight()
 	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
 	_spend_kit()
-	var sk := _spawn(SKIRMISHER_SCENE, knight.global_position + Vector2(170, 0), false)
+	var sk := _spawn_no_string(SKIRMISHER_SCENE, knight.global_position + Vector2(170, 0), false)
 	_pin_ai3(sk)   # AI3's stalk: no confidence (AI3b)
 	var brain := sk.get_brain()
 	var leaps := [0]
@@ -5525,6 +5555,624 @@ func _test_aid3_panel_scroll() -> void:
 	await _frames(2)
 
 
+# --- ARCHETYPES AR1a: strings, the beat and token holding ------------------------------------
+
+const STRING_BRUTE: AttackCombo = preload("res://data/combos/combo_test_brute.tres")
+const STRING_SKIRMISHER: AttackCombo = preload("res://data/combos/combo_test_skirmisher.tres")
+const STRING_DUELIST: AttackCombo = preload("res://data/combos/combo_test_duelist.tres")
+## Each test string's archetype shape (ARCHETYPES.md, Strings and the beat;
+## D8): [its short end, its full length, its spacing hit to hit in s].
+const STRING_TARGETS := {
+	&"test_brute": [2, 3, 0.9], &"slime_elite": [2, 3, 0.9],   # Bruiser
+	&"test_skirmisher": [2, 3, 0.35],                           # Skirmisher
+	&"test_duelist": [4, 5, 0.5],                               # Duelist
+}
+## The authoring tolerance on a string's spacing (s; ARCHETYPES.md, Data).
+const STRING_SPACING_TOLERANCE := 0.05
+
+
+func _test_ar1a_data() -> void:
+	_section("AR1a data: the table's beat and respect numbers, the ranks' string lengths, the new fields' defaults; every test string's shape, its first wind-up the beat, later wind-ups 0.25 s or more, its spacing (the last swing repeated too), deflectable swings with no hit feel in the chip band; none on the slime or the casters (AR1b)")
+	var t := Brains.table
+	_check("the table: the beat 0.5 s; respect at 0.6 or more cuts a string to 2 hits, at 0.3 or less runs it full",
+		[t.beat, t.string_respect_short, t.string_respect_full, t.string_short_hits], [0.5, 0.6, 0.3, 2])
+	var ranks: Array = []
+	for rank in [EnemyData.Rank.FODDER, EnemyData.Rank.REGULAR, EnemyData.Rank.ELITE, EnemyData.Rank.BOSS]:
+		var rules := t.get_rank_rules(rank)
+		ranks.append([rules.string_full_range, rules.string_extra_hits])
+	_check("the ranks (D8): fodder and regulars a string's short end; elites its full range; bosses its full range +1",
+		ranks, [[false, 0], [false, 0], [true, 0], [true, 1]])
+	var bare := AttackCombo.new()
+	for i in 3:
+		bare.swings.append(AttackSwing.new())
+	var bare_min := bare.get_string_hits_min()
+	bare.string_hits_min = 9
+	_check("defaults: a plan step is an ABILITY step; a swing is deflectable; a string's short end 0 = all its swings (3), never past them (9 → 3); EnemyData has no string",
+		[ComboStep.new().kind, AttackSwing.new().deflectable, bare_min, bare.get_string_hits_min(), EnemyData.new().attack_string],
+		[ComboStep.Kind.ABILITY, true, 3, 3, null])
+	var chip := CHIP_SHARE * knight.health.max_health
+	var found: Array[String] = []
+	var breaches: Array[String] = []
+	var dir := DirAccess.open(ENEMY_DATA_DIR)
+	for f in dir.get_files():
+		if not f.ends_with(".tres"):
+			continue
+		var d: EnemyData = load(ENEMY_DATA_DIR + f)
+		if d.attack_string == null:
+			continue
+		found.append(String(d.id))
+		var s := d.attack_string
+		var shape: Array = STRING_TARGETS.get(d.id, [])
+		if shape.is_empty():
+			breaches.append("%s: no archetype shape in the test" % d.id)
+			continue
+		if [s.get_string_hits_min(), s.swings.size()] != [shape[0], shape[1]]:
+			breaches.append("%s: %d–%d hits, not %d–%d" % [d.id, s.get_string_hits_min(), s.swings.size(), shape[0], shape[1]])
+		if s.attack_style != AttackCombo.AttackStyle.MELEE:
+			breaches.append("%s: not melee" % d.id)
+		if not is_equal_approx(s.swings[0].windup, t.beat):
+			breaches.append("%s: its first wind-up %.2f s, not the beat" % [d.id, s.swings[0].windup])
+		for i in s.swings.size():
+			var w := s.swings[i]
+			if i > 0 and w.windup < FOLLOW_UP_MIN - 0.0001:
+				breaches.append("%s hit %d: a %.2f s wind-up" % [d.id, i + 1, w.windup])
+			var after := s.swings[mini(i + 1, s.swings.size() - 1)]
+			var gap := (w.duration - w.windup) + w.pause_after + after.windup
+			if absf(gap - float(shape[2])) > STRING_SPACING_TOLERANCE + 0.0001:
+				breaches.append("%s hit %d → %d: %.2f s apart, not %.2f" % [d.id, i + 1, i + 2, gap, shape[2]])
+			if not w.deflectable or w.feel != HitContext.Feel.NONE:
+				breaches.append("%s hit %d: deflectable %s, feel %d" % [d.id, i + 1, w.deflectable, w.feel])
+			if d.stats.attack_damage * w.ad_ratio > chip + 0.0001:
+				breaches.append("%s hit %d: %.0f damage, over the chip band's %.1f" % [d.id, i + 1, d.stats.attack_damage * w.ad_ratio, chip])
+	found.sort()
+	_check("the test strings: the brute and the elite slime (Bruiser), the skirmisher, the duelist; none on the slime or the casters", found,
+		["slime_elite", "test_brute", "test_duelist", "test_skirmisher"] as Array[String])
+	_check("each string: Bruiser 2–3 at 0.9 s, Skirmisher 2–3 at 0.35 s, Duelist 4–5 at 0.5 s (±%.2f s, the repeated last swing too); its first wind-up the beat, later ones %.2f s or more; melee, deflectable, no hit feel, each hit %d%% of the Knight's health or less" % [STRING_SPACING_TOLERANCE, FOLLOW_UP_MIN, roundi(CHIP_SHARE * 100.0)],
+		breaches, [] as Array[String])
+
+
+func _test_ar1a_length() -> void:
+	_section("A string's length (EnemyBrain.get_string_length(), pure; D6, D8): high respect 2 hits; low respect or a low target its rank's top, an elite or boss one more at its aggression; in between rolled in its rank's range (a regular: always its short end)")
+	var t := Brains.table
+	var reg := t.get_rank_rules(EnemyData.Rank.REGULAR)
+	var elite := t.get_rank_rules(EnemyData.Rank.ELITE)
+	var boss := t.get_rank_rules(EnemyData.Rank.BOSS)
+	var calm: EnemyBehavior = BRUTE_BEHAVIOR.duplicate()
+	calm.aggression = 0.0
+	var wild: EnemyBehavior = BRUTE_BEHAVIOR.duplicate()
+	wild.aggression = 1.0
+	var stream := RandomNumberGenerator.new()
+	stream.seed = 7
+	var s := SituationContext.new()
+	s.target_health_ratio = 1.0
+	var lengths := func(rows: Array) -> Array:
+		var out: Array = []
+		for r: Array in rows:
+			out.append(EnemyBrain.get_string_length(s, r[0], r[1], t, r[2], stream))
+		return out
+	s.effective_respect = 0.8
+	_check("respect 0.8: 2 hits for a regular, an elite and a boss Bruiser, and the elite Duelist (cut from 4–5)",
+		lengths.call([[STRING_BRUTE, reg, wild], [STRING_BRUTE, elite, wild], [STRING_BRUTE, boss, wild], [STRING_DUELIST, elite, wild]]), [2, 2, 2, 2])
+	s.effective_respect = 0.6
+	_check("respect 0.6 (the cut): 2 hits", lengths.call([[STRING_DUELIST, elite, wild]]), [2])
+	s.effective_respect = 0.1
+	_check("respect 0.1, aggression 0: a regular Bruiser 2, an elite 3, a boss 4; an elite Duelist 5, a boss 6",
+		lengths.call([[STRING_BRUTE, reg, calm], [STRING_BRUTE, elite, calm], [STRING_BRUTE, boss, calm], [STRING_DUELIST, elite, calm], [STRING_DUELIST, boss, calm]]),
+		[2, 3, 4, 5, 6])
+	_check("respect 0.1, aggression 1: an elite or a boss one hit more (a regular never)",
+		lengths.call([[STRING_BRUTE, reg, wild], [STRING_BRUTE, elite, wild], [STRING_BRUTE, boss, wild], [STRING_DUELIST, elite, wild]]), [2, 4, 5, 6])
+	s.effective_respect = 0.3
+	_check("respect 0.3 (the cut): its full length", lengths.call([[STRING_BRUTE, elite, calm]]), [3])
+	s.effective_respect = 0.45
+	s.target_health_ratio = 0.3
+	_check("respect 0.45 with its target at 30% (under the table's 40%): its full length", lengths.call([[STRING_BRUTE, elite, calm], [STRING_DUELIST, elite, calm]]), [3, 5])
+	s.target_health_ratio = 1.0
+	var rolled := func(attack_string: AttackCombo, rules: RankRules) -> Array:
+		var seen := {}
+		for i in 300:
+			seen[EnemyBrain.get_string_length(s, attack_string, rules, t, wild, stream)] = true
+		var keys := seen.keys()
+		keys.sort()
+		return keys
+	_check("respect 0.45: rolled in its rank's range over 300 rolls: a regular Bruiser {2}, an elite {2, 3}, a boss {2, 3, 4}; an elite Duelist {4, 5}",
+		[rolled.call(STRING_BRUTE, reg), rolled.call(STRING_BRUTE, elite), rolled.call(STRING_BRUTE, boss), rolled.call(STRING_DUELIST, elite)],
+		[[2], [2, 3], [2, 3, 4], [4, 5]])
+	var a := RandomNumberGenerator.new()
+	var b := RandomNumberGenerator.new()
+	a.seed = 99
+	b.seed = 99
+	var same := true
+	for i in 50:
+		same = same and EnemyBrain.get_string_length(s, STRING_DUELIST, boss, t, wild, a) == EnemyBrain.get_string_length(s, STRING_DUELIST, boss, t, wild, b)
+	_check("no string 0 hits; no rank rules its short end; the same seed the same lengths",
+		[EnemyBrain.get_string_length(s, null, elite, t, wild, stream), EnemyBrain.get_string_length(s, STRING_DUELIST, null, t, wild, stream), same], [0, 4, true])
+
+
+## A passive `scene` enemy right by the Knight runs `hits` hits of
+## `attack_string` at him (its first wind-up `opener`): each swing's start
+## [index, time], each hit [index, time, he was in it], League-style windups,
+## its end [completed, swung, time], in game time. The Knight is unstoppable
+## (no push) and healed after.
+func _run_string_at_knight(scene: PackedScene, attack_string: AttackCombo, hits: int, opener: float) -> Dictionary:
+	var steady := _tag_status(&"test_unstoppable", [&"unstoppable"] as Array[StringName])
+	knight.status_component.apply_status(steady)
+	var e := _spawn(scene, knight.global_position + Vector2(52, 0), true)
+	await get_tree().physics_frame
+	var rec := {"started": [], "landed": [], "ended": [], "league": 0, "wound": false}
+	var on_start := func(i: int, _d: Vector2, _s: AttackSwing) -> void: (rec.started as Array).append([i, Brains.get_time()])
+	var on_land := func(i: int, targets: Array[Unit]) -> void: (rec.landed as Array).append([i, Brains.get_time(), targets.has(knight)])
+	var on_end := func(done: bool, swung: int) -> void: (rec.ended as Array).append([done, swung, Brains.get_time()])
+	var on_league := func(_t: Unit, _w: float) -> void: rec.league = int(rec.league) + 1
+	e.attack.swing_started.connect(on_start)
+	e.attack.swing_landed.connect(on_land)
+	e.attack.string_ended.connect(on_end)
+	e.attack.windup_started.connect(on_league)
+	rec.ok = e.attack.run_string(knight, attack_string, hits, opener)
+	rec.hits = e.attack.get_string_hits()
+	rec.time_left = e.attack.get_string_time_left()
+	await _wait_until(func() -> bool:
+		rec.wound = bool(rec.wound) or e.attack.is_winding_up()
+		return not (rec.ended as Array).is_empty(), 600)
+	e.attack.swing_started.disconnect(on_start)
+	e.attack.swing_landed.disconnect(on_land)
+	e.attack.string_ended.disconnect(on_end)
+	e.attack.windup_started.disconnect(on_league)
+	e.queue_free()
+	knight.status_component.remove_status(steady.id)
+	knight.health.heal(100000.0)
+	await _frames(2)
+	return rec
+
+
+## Seconds between rows' times (column 1).
+func _gaps(rows: Array) -> Array:
+	var out: Array = []
+	for i in range(1, rows.size()):
+		out.append(snappedf(float(rows[i][1]) - float(rows[i - 1][1]), 0.001))
+	return out
+
+
+func _all_near(values: Array, target: float, tolerance: float) -> bool:
+	for v: float in values:
+		if absf(v - target) > tolerance + 0.0001:
+			return false
+	return true
+
+
+func _test_ar1a_timing() -> void:
+	_section("run_string() on a passive enemy at the Knight: its first hit on the beat, then its spacing (a Bruiser's 0.9 s, the last swing repeated past its 3; a Skirmisher's 0.35 s with a 0.7 s opener; a Duelist's 0.5 s), the end at its last swing's end; a wind-up shows as one; no League-style windup")
+	await _reset_knight()
+	var t := Brains.table
+	var tick := 1.0 / 60.0 + 0.001
+	for c: Array in [[BRUTE_SCENE, STRING_BRUTE, 4, t.beat, 0.9, "the brute (Bruiser)"], [SKIRMISHER_SCENE, STRING_SKIRMISHER, 3, 0.7, 0.35, "the skirmisher"],
+			[DUELIST_SCENE, STRING_DUELIST, 5, t.beat, 0.5, "the duelist"]]:
+		var hits: int = c[2]
+		var opener: float = c[3]
+		var r: Dictionary = await _run_string_at_knight(c[0], c[1], hits, opener)
+		var started: Array = r.started
+		var landed: Array = r.landed
+		var first := float(landed[0][1]) - float(started[0][1]) if not landed.is_empty() and not started.is_empty() else -1.0
+		var indexes: Array = []
+		var reached := true
+		for row: Array in landed:
+			indexes.append(row[0])
+			reached = reached and bool(row[2])
+		var span := float(r.ended[0][2]) - float(started[0][1]) if not (r.ended as Array).is_empty() and not started.is_empty() else -1.0
+		_check("%s: it runs %d hits, all swung on him in order, then ends done" % [c[5], hits],
+			[r.ok, r.hits, indexes, reached, (r.ended as Array).map(func(row: Array) -> Array: return row.slice(0, 2))],
+			[true, hits, range(hits), true, [[true, hits]]])
+		_check("%s: its first hit %.2f s after its wind-up starts (got %.3f s); then %.2f s apart (got %s)" % [c[5], opener, first, c[4], _gaps(landed)],
+			[absf(first - opener) <= tick, _all_near(_gaps(landed), c[4], STRING_SPACING_TOLERANCE)], [true, true])
+		_check("%s: it ends as its last swing ends, its rhythm's %.2f s from its first swing (got %.3f s); it winds up (is_winding_up()); no League-style windup" % [c[5], r.time_left, span],
+			[absf(span - float(r.time_left)) <= 2.0 * tick, r.wound, r.league], [true, true, 0])
+
+
+func _test_ar1a_cut() -> void:
+	_section("A string cut short: a stun after its first hit (no swing after), cancel(), its attacker's death, its target turning untargetable; run_string() refused in combo mode, under a lock, for 0 hits or no string; the League-style attack after a string")
+	await _reset_knight()
+	var t := Brains.table
+	var steady := _tag_status(&"test_unstoppable", [&"unstoppable"] as Array[StringName])
+	knight.status_component.apply_status(steady)
+	var cases := {}
+	for how: StringName in [&"stun", &"cancel", &"death", &"untargetable"]:
+		var e := _spawn(BRUTE_SCENE, knight.global_position + Vector2(52, 0), true)
+		await get_tree().physics_frame
+		var rec := {"started": 0, "landed": 0, "ended": []}
+		var on_start := func(_i: int, _d: Vector2, _s: AttackSwing) -> void: rec.started = int(rec.started) + 1
+		var on_land := func(_i: int, _targets: Array[Unit]) -> void: rec.landed = int(rec.landed) + 1
+		var on_end := func(done: bool, count: int) -> void: (rec.ended as Array).append([done, count])
+		e.attack.swing_started.connect(on_start)
+		e.attack.swing_landed.connect(on_land)
+		e.attack.string_ended.connect(on_end)
+		e.attack.run_string(knight, STRING_BRUTE, 3, t.beat)
+		var cloak := _tag_status(&"test_untargetable", [&"untargetable"] as Array[StringName])
+		match how:
+			&"stun":
+				await _wait_until(func() -> bool: return int(rec.landed) >= 1, 120)
+				e.status_component.apply_status(STATUS_STUN, knight)
+				cases.refused_stunned = e.attack.run_string(knight, STRING_BRUTE, 3, t.beat)
+			&"cancel":
+				await _wait_until(func() -> bool: return int(rec.started) >= 1, 60)
+				e.attack.cancel()
+			&"death":
+				await _wait_until(func() -> bool: return int(rec.started) >= 2, 120)
+				e.health.take_damage(100000.0)
+			&"untargetable":
+				await _wait_until(func() -> bool: return int(rec.landed) >= 1, 120)
+				knight.status_component.apply_status(cloak)
+		var swung := int(rec.started)
+		await _frames(60)
+		cases[how] = [rec.ended, int(rec.started) == swung, e.attack.is_running_string() if is_instance_valid(e) else false]
+		if how == &"untargetable":
+			knight.status_component.remove_status(cloak.id)
+		if is_instance_valid(e):
+			e.attack.swing_started.disconnect(on_start)
+			e.attack.swing_landed.disconnect(on_land)
+			e.attack.string_ended.disconnect(on_end)
+			e.queue_free()
+		await _frames(2)
+	_check("a stun after its first hit: cut short (1 swung), no swing after it; run_string() refused while stunned",
+		[cases[&"stun"], cases.refused_stunned], [[[[false, 1]], true, false], false])
+	_check("cancel() in its first wind-up: cut short (1 swung, no hit)", cases[&"cancel"], [[[false, 1]], true, false])
+	_check("its death in its second swing: cut short (2 swung)", cases[&"death"], [[[false, 2]], true, false])
+	_check("the Knight untargetable after its first hit: cut short", (cases[&"untargetable"][0] as Array).map(func(row: Array) -> bool: return row[0]), [false])
+	var brute := _spawn(BRUTE_SCENE, knight.global_position + Vector2(52, 0), true)
+	await get_tree().physics_frame
+	var empty := AttackCombo.new()
+	_check("refused: in combo mode (the Knight), 0 hits, no string, a string with no swings",
+		[knight.attack.run_string(brute, STRING_BRUTE, 2, t.beat), brute.attack.run_string(knight, STRING_BRUTE, 0, t.beat),
+			brute.attack.run_string(knight, null, 2, t.beat), brute.attack.run_string(knight, empty, 2, t.beat), brute.attack.is_running_string()],
+		[false, false, false, false, false])
+	var league := [0]
+	var on_league := func(_t: Unit, _w: float) -> void: league[0] += 1
+	brute.attack.windup_started.connect(on_league)
+	brute.attack.run_string(knight, STRING_BRUTE, 2, t.beat)
+	await _wait_until(func() -> bool: return not brute.attack.is_running_string(), 240)
+	var during: int = league[0]
+	brute.attack.attack(knight)
+	await _wait_until(func() -> bool: return league[0] > during, 120)
+	_check("after a string the League-style attack works again (no League windup during it, one after)", [during, league[0] > during], [0, true])
+	brute.attack.windup_started.disconnect(on_league)
+	brute.attack.cancel()
+	brute.queue_free()
+	knight.status_component.remove_status(steady.id)
+	await _reset_knight()
+
+
+func _test_ar1a_deflect_pair() -> void:
+	_section("A deflect doesn't end a string (D10): with the Knight's test deflect on, a deflect pair inside one brute string (its first two hits), the riposte his, its third hit still on its rhythm")
+	await _reset_knight()
+	var t := Brains.table
+	var was_on := DeflectComponent.deflect_test_enabled
+	DeflectComponent.deflect_test_enabled = true
+	var steady := _tag_status(&"test_unstoppable", [&"unstoppable"] as Array[StringName])
+	knight.status_component.apply_status(steady)
+	var e := _spawn(BRUTE_SCENE, knight.global_position + Vector2(52, 0), true)
+	await get_tree().physics_frame
+	var rec := {"landed": [], "ended": [], "deflects": []}
+	var on_land := func(i: int, _targets: Array[Unit]) -> void: (rec.landed as Array).append([i, Brains.get_time()])
+	var on_end := func(done: bool, swung: int) -> void: (rec.ended as Array).append([done, swung])
+	var on_deflect := func(attacker: Unit, defender: Unit, _ctx: HitContext) -> void: (rec.deflects as Array).append([attacker == e, defender == knight])
+	e.attack.swing_landed.connect(on_land)
+	e.attack.string_ended.connect(on_end)
+	Events.hit_deflected.connect(on_deflect)
+	e.attack.run_string(knight, STRING_BRUTE, 3, t.beat)
+	for k in 2:
+		await _wait_until(func() -> bool:
+			var next := e.attack.get_string_next_hit_in()
+			return e.attack.get_string_swung() == k + 1 and next >= 0.0 and next <= 0.1, 180)
+		knight.deflect_component.open_window()
+		await _wait_until(func() -> bool: return (rec.landed as Array).size() >= k + 1, 60)
+	await _wait_until(func() -> bool: return not (rec.ended as Array).is_empty(), 180)
+	_check("both deflected (from it, by him); its string ran all 3 hits to its end; the riposte is his",
+		[rec.deflects, rec.ended, knight.deflect_component.has_riposte()], [[[true, true], [true, true]], [[true, 3]], true])
+	_check("its hits kept their 0.9 s rhythm through the deflects (got %s)" % [_gaps(rec.landed)], _all_near(_gaps(rec.landed), 0.9, STRING_SPACING_TOLERANCE), true)
+	e.attack.swing_landed.disconnect(on_land)
+	e.attack.string_ended.disconnect(on_end)
+	Events.hit_deflected.disconnect(on_deflect)
+	e.queue_free()
+	knight.status_component.remove_status(DeflectComponent.get_riposte_status_id())
+	knight.status_component.remove_status(steady.id)
+	DeflectComponent.deflect_test_enabled = was_on
+	await _frames(2)
+	await _reset_knight()
+
+
+## A real `scene` enemy 4.4 m from the Knight, his kit spent (respect 0), its
+## own abilities on cooldown, AI3b's confidence pinned: it commits into its
+## string. Records each swing's start [index, time, it holds its token] and
+## hit [index, time, token], its strings' ends [completed, swung, time], when
+## its commit started, League-style windups and casts. `data`: in place of the
+## scene's EnemyData.
+func _committing_enemy(scene: PackedScene, rec: Dictionary, data: EnemyData = null) -> Enemy:
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	var steady := _tag_status(&"test_unstoppable", [&"unstoppable"] as Array[StringName])
+	knight.status_component.apply_status(steady)
+	_spend_kit()
+	var e := scene.instantiate() as Enemy
+	if data != null:
+		e.data = data
+	entities.add_child(e)
+	_place(e, knight.global_position + Vector2(140, 0))
+	_pin_ai3(e)
+	for slot in AbilityComponent.SLOTS:
+		if e.abilities != null and e.abilities.get_ability(slot) != null:
+			e.abilities.start_cooldown(slot)
+	rec.started = []
+	rec.landed = []
+	rec.ended = []
+	rec.commit_at = -1.0
+	rec.league = 0
+	rec.casts = 0
+	rec.on_start = func(i: int, _d: Vector2, _s: AttackSwing) -> void: (rec.started as Array).append([i, Brains.get_time(), Brains.has_token(e)])
+	rec.on_land = func(i: int, _targets: Array[Unit]) -> void: (rec.landed as Array).append([i, Brains.get_time(), Brains.has_token(e)])
+	rec.on_end = func(done: bool, swung: int) -> void: (rec.ended as Array).append([done, swung, Brains.get_time()])
+	rec.on_intent = func(intent: StringName) -> void:
+		if intent == EnemyBrain.COMMIT and float(rec.commit_at) < 0.0:
+			rec.commit_at = Brains.get_time()
+	rec.on_league = func(_t: Unit, _w: float) -> void: rec.league = int(rec.league) + 1
+	rec.on_cast = func(_slot: StringName, _a: Ability, _c: CastContext) -> void: rec.casts = int(rec.casts) + 1
+	e.attack.swing_started.connect(rec.on_start)
+	e.attack.swing_landed.connect(rec.on_land)
+	e.attack.string_ended.connect(rec.on_end)
+	e.get_brain().intent_changed.connect(rec.on_intent)
+	e.attack.windup_started.connect(rec.on_league)
+	if e.abilities != null:
+		e.abilities.cast_started.connect(rec.on_cast)
+	return e
+
+
+func _free_committing_enemy(e: Enemy, rec: Dictionary) -> void:
+	if is_instance_valid(e):
+		for pair: Array in [[e.attack.swing_started, rec.on_start], [e.attack.swing_landed, rec.on_land], [e.attack.string_ended, rec.on_end],
+				[e.attack.windup_started, rec.on_league]]:
+			if (pair[0] as Signal).is_connected(pair[1]):
+				(pair[0] as Signal).disconnect(pair[1])
+		var brain := e.get_brain()
+		if brain != null and is_instance_valid(brain) and brain.intent_changed.is_connected(rec.on_intent):
+			brain.intent_changed.disconnect(rec.on_intent)
+		if e.abilities != null and e.abilities.cast_started.is_connected(rec.on_cast):
+			e.abilities.cast_started.disconnect(rec.on_cast)
+		e.passive = true
+		e.attack.cancel()
+		e.queue_free()
+	rec.clear()   # its lambdas capture `rec`: the cycle would outlive the test (a leak at exit)
+	knight.status_component.remove_status(&"test_unstoppable")
+	await _frames(2)
+	await _reset_knight()
+
+
+func _test_ar1a_brain_commit() -> void:
+	_section("A real brute (his kit spent: respect 0) commits into its string: its tell, its first hit on the beat (0.8 s or more from its commit), its second 0.9 s later, a regular's 2 hits; its token held at every swing (with token_hold_time cut to 1.6 s: the string stretches it) and let go at the end; no League-style windup; its abilities ready again after its first swing, no cast until its string ends; then it walks out. The elite slime: its 3–4")
+	var t := Brains.table
+	var tick := 1.0 / 60.0 + 0.001
+	var hold_was := t.token_hold_time
+	t.token_hold_time = 1.6   # shorter than its tell, its walk in and its string: the string must stretch its hold
+	var rec := {}
+	var e := await _committing_enemy(BRUTE_SCENE, rec)
+	var brain := e.get_brain()
+	await _wait_until(func() -> bool: return not (rec.started as Array).is_empty(), 900)
+	for slot in AbilityComponent.SLOTS:
+		if e.abilities.get_ability(slot) != null:
+			e.abilities.reset_cooldown(slot)   # its smash and cleave arc ready mid-string: they wait
+	await _wait_until(func() -> bool: return not (rec.ended as Array).is_empty(), 300)
+	var ended_at := Brains.get_time()
+	var casts_in_string: int = rec.casts
+	t.token_hold_time = hold_was
+	await _wait_until(func() -> bool: return not brain.is_committing(), 30)
+	var after := [brain.is_committing(), Brains.has_token(e), brain.get_patience() < 0.2, brain.get_intent() != EnemyBrain.COMMIT,
+		Brains.get_time() - ended_at <= 3.0 / 60.0 + 0.001]   # its own end, on the next think (not its token's slack running out)
+	var started: Array = rec.started
+	var landed: Array = rec.landed
+	var tell := float(started[0][1]) - float(rec.commit_at) if not started.is_empty() else -1.0
+	var first := float(landed[0][1]) - float(started[0][1]) if not landed.is_empty() and not started.is_empty() else -1.0
+	_check("one string, a regular's 2 hits, done (last_string_hits 2)", [(rec.ended as Array).map(func(r: Array) -> Array: return r.slice(0, 2)), brain.last_string_hits, brain.string_count], [[[true, 2]], 2, 1])
+	_check("its tell first (%.2f s from its commit to its first swing, at least %.2f), its first hit on the beat (%.3f s after its wind-up), so it reads %.2f s from its commit (0.8 or more)" % [tell, t.tell_time, first, tell + first],
+		[tell >= t.tell_time - tick, absf(first - t.beat) <= tick, tell + first >= 0.8 - tick], [true, true, true])
+	_check("its second hit 0.9 s after its first (got %s)" % [_gaps(landed)], _all_near(_gaps(landed), 0.9, STRING_SPACING_TOLERANCE), true)
+	var held := true
+	for row: Array in started + landed:
+		held = held and bool(row[2])
+	_check("its token held at every swing's start and hit; then let go, the commit over, its patience emptied (under 0.2: it refills from 0), its intent no longer commit, within 3 ticks of the end (its next think, not its token's slack: got %.3f s)" % (Brains.get_time() - ended_at),
+		[held, after], [true, [false, false, true, true, true]])
+	_check("no League-style windup; no cast during it though its abilities were ready again after its first swing", [rec.league, casts_in_string], [0, 0])
+	await _free_committing_enemy(e, rec)
+	rec = {}
+	e = await _committing_enemy(ELITE_SCENE, rec)
+	brain = e.get_brain()
+	await _wait_until(func() -> bool: return not (rec.ended as Array).is_empty(), 900)
+	_check("the elite slime (an elite Bruiser) at respect 0: its full 3 hits, or 4 at its aggression's chance (got %d), done, 0.9 s apart (got %s)" % [brain.last_string_hits, _gaps(rec.landed)],
+		[brain.last_string_hits in [3, 4], (rec.ended as Array).map(func(r: Array) -> Array: return r.slice(0, 2)), _all_near(_gaps(rec.landed), 0.9, STRING_SPACING_TOLERANCE)],
+		[true, [[true, brain.last_string_hits]], true])
+	await _free_committing_enemy(e, rec)
+
+
+func _test_ar1a_token_freed() -> void:
+	_section("A string's token goes on a stun (the commit breaks off, its patience kept), a poise break (the prototype's meter on) and its death; a deflect doesn't end a brain's string either (the commit ends after its last hit)")
+	var rec := {}
+	var e := await _committing_enemy(BRUTE_SCENE, rec)
+	var brain := e.get_brain()
+	await _wait_until(func() -> bool: return (rec.landed as Array).size() >= 1, 900)
+	var had := Brains.has_token(e)
+	e.status_component.apply_status(STATUS_STUN, knight)
+	await _frames(3)
+	_check("stunned after its first hit: it held its token, then the string is cut, the token gone, the commit broken off with its patience kept",
+		[had, e.attack.is_running_string(), Brains.has_token(e), brain.is_committing(), brain.get_patience()], [true, false, false, false, 1.0])
+	await _free_committing_enemy(e, rec)
+	# With no token, the string's own cut is the only thing that breaks the commit off.
+	var tokenless: EnemyData = BRUTE_DATA.duplicate()
+	tokenless.behavior = BRUTE_BEHAVIOR.duplicate()
+	tokenless.behavior.uses_tokens = false
+	rec = {}
+	e = await _committing_enemy(BRUTE_SCENE, rec, tokenless)
+	brain = e.get_brain()
+	await _wait_until(func() -> bool: return (rec.landed as Array).size() >= 1, 900)
+	e.status_component.apply_status(STATUS_STUN, knight)
+	await _frames(3)
+	_check("a brute that takes no token, stunned after its first hit: the string cut and the commit broken off by the cut itself (no token to lose), its patience kept",
+		[Brains.get_token_cost(e), e.attack.is_running_string(), brain.get_patience()], [0, false, 1.0])
+	await _free_committing_enemy(e, rec)
+	var poise_was := PoiseComponent.poise_test_enabled
+	PoiseComponent.poise_test_enabled = true
+	rec = {}
+	e = await _committing_enemy(ELITE_SCENE, rec)
+	brain = e.get_brain()
+	await _wait_until(func() -> bool: return (rec.started as Array).size() >= 1, 900)
+	had = Brains.has_token(e)
+	e.poise_component.take_poise_damage(1000.0, knight)
+	await _frames(3)
+	_check("the elite slime's poise broken in its first swing: it held its token, then the string is cut, the token gone, the commit broken off",
+		[had, e.poise_component.is_broken(), e.attack.is_running_string(), Brains.has_token(e), brain.is_committing()], [true, true, false, false, false])
+	await _free_committing_enemy(e, rec)
+	PoiseComponent.poise_test_enabled = poise_was
+	rec = {}
+	e = await _committing_enemy(BRUTE_SCENE, rec)
+	await _wait_until(func() -> bool: return (rec.started as Array).size() >= 1, 900)
+	had = Brains.has_token(e)
+	var gone := e   # (freed below: read it before)
+	e.health.take_damage(100000.0)
+	await _frames(3)
+	_check("killed in its first swing: it held its token, then none (Brains frees a dead holder's)", [had, Brains.has_token(gone)], [true, false])
+	await _free_committing_enemy(e, rec)
+	var was_on := DeflectComponent.deflect_test_enabled
+	DeflectComponent.deflect_test_enabled = true
+	rec = {}
+	e = await _committing_enemy(BRUTE_SCENE, rec)
+	brain = e.get_brain()
+	await _wait_until(func() -> bool:
+		var next := e.attack.get_string_next_hit_in()
+		return e.attack.get_string_swung() == 1 and next >= 0.0 and next <= 0.1, 900)
+	var deflects := [0]
+	var on_deflect := func(attacker: Unit, _d: Unit, _c: HitContext) -> void:
+		if attacker == e:
+			deflects[0] += 1
+	Events.hit_deflected.connect(on_deflect)
+	knight.deflect_component.open_window()
+	await _wait_until(func() -> bool: return (rec.landed as Array).size() >= 1, 60)
+	var committing_after := brain.is_committing() and Brains.has_token(e)
+	await _wait_until(func() -> bool: return not (rec.ended as Array).is_empty(), 180)
+	_check("its first hit deflected: still committing with its token, its second hit swung, the string done",
+		[deflects[0], committing_after, (rec.ended as Array).map(func(r: Array) -> Array: return r.slice(0, 2))], [1, true, [[true, 2]]])
+	Events.hit_deflected.disconnect(on_deflect)
+	knight.status_component.remove_status(DeflectComponent.get_riposte_status_id())
+	DeflectComponent.deflect_test_enabled = was_on
+	await _free_committing_enemy(e, rec)
+
+
+func _test_ar1a_skirmisher() -> void:
+	_section("The skirmisher with its string (D6: 2–3 fast hits, then its reset): it leaps in, strings its 2 hits 0.35 s apart, then hops out and resets, recoiling")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	_spend_kit()
+	var sk := _spawn(SKIRMISHER_SCENE, knight.global_position + Vector2(170, 0), false)
+	_pin_ai3(sk)
+	sk.abilities.start_cooldown(&"w")   # its leap only: the stab and the flurry would go first in reach
+	sk.abilities.start_cooldown(&"e")
+	var brain := sk.get_brain()
+	var rec := {"leaps": 0, "landed": [], "ended": [], "reset_at": -1.0}
+	var on_cast := func(slot: StringName, _a: Ability, _c: CastContext) -> void:
+		if slot == &"q":
+			rec.leaps = int(rec.leaps) + 1
+	var on_land := func(i: int, _targets: Array[Unit]) -> void: (rec.landed as Array).append([i, Brains.get_time()])
+	var on_end := func(done: bool, swung: int) -> void: (rec.ended as Array).append([done, swung, Brains.get_time()])
+	sk.abilities.cast_started.connect(on_cast)
+	sk.attack.swing_landed.connect(on_land)
+	sk.attack.string_ended.connect(on_end)
+	await _wait_until(func() -> bool: return brain.is_resetting(), 480)
+	var reset_at := Brains.get_time()
+	var pose := sk.get_pose()
+	var ended: Array = rec.ended
+	_check("it leapt once, then its string: 2 hits, done, 0.35 s apart (got %s); then it resets (after the string's end), recoiling" % [_gaps(rec.landed)],
+		[rec.leaps, ended.map(func(r: Array) -> Array: return r.slice(0, 2)), _all_near(_gaps(rec.landed), 0.35, STRING_SPACING_TOLERANCE),
+			not ended.is_empty() and reset_at >= float(ended[0][2]), pose],
+		[1, [[true, 2]], true, true, &"recoil"])
+	sk.abilities.cast_started.disconnect(on_cast)
+	sk.attack.swing_landed.disconnect(on_land)
+	sk.attack.string_ended.disconnect(on_end)
+	sk.passive = true
+	sk.attack.cancel()
+	sk.queue_free()
+	await _reset_knight()
+	await _frames(30)
+
+
+func _test_ar1a_plan_step() -> void:
+	_section("A plan's STRING step (ComboStep.Kind.STRING): the duelist's snare, then its string as the plan's second step once the snare's cast ends, its token held through it, the plan done when the string ends; a string as a plan's opener never fits")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	knight.abilities.start_cooldown(&"e")   # his escapes down: it sets up (as snare_first's test)
+	knight.abilities.start_cooldown(&"w")
+	var record := {}
+	var e := _plan_duelist(record)
+	var brain := e.get_brain()
+	var plan := _combo_plan([&"q", &"q"], [ComboStep.Timing.AFTER_ENDED], &"snare_string")
+	plan.steps[1].kind = ComboStep.Kind.STRING
+	var plans: Array[ComboPlan] = [plan]
+	brain._plans = plans
+	var rows := {"started": [], "ended": []}
+	var on_start := func(i: int, _d: Vector2, _s: AttackSwing) -> void: (rows.started as Array).append([i, Brains.get_time(), brain.get_string_step(), Brains.has_token(e)])
+	var on_end := func(done: bool, swung: int) -> void: (rows.ended as Array).append([done, swung])
+	e.attack.swing_started.connect(on_start)
+	e.attack.string_ended.connect(on_end)
+	await _wait_until(func() -> bool: return not (record.ended as Array).is_empty(), 480)
+	var casts: Array = []
+	for c: Array in record.casts:
+		casts.append(c[0])
+	var snare_at := _first_at(record.casts, &"q")
+	var started: Array = rows.started
+	var steps := true
+	var tokens := true
+	for r: Array in started:
+		steps = steps and int(r[2]) == 1
+		tokens = tokens and bool(r[3])
+	var after_snare := not started.is_empty() and snare_at >= 0.0 and float(started[0][1]) - snare_at >= D_SNARE.cast_time - 0.02
+	_check("snare_string ran to its end: started once, done; its one cast the snare (q), none during its string", [record.started, record.ended, casts],
+		[[&"snare_string"], [[&"snare_string", ComboPlanner.DONE]], [&"q"]])
+	_check("its string as step 2 (every swing), after the snare's %.1f s cast, its token held through it; done with its %d hits" % [D_SNARE.cast_time, brain.last_string_hits],
+		[steps, after_snare, tokens, rows.ended], [true, true, true, [[true, brain.last_string_hits]]])
+	e.attack.swing_started.disconnect(on_start)
+	e.attack.string_ended.disconnect(on_end)
+	var opener := _combo_plan([&"q", &"e"], [], &"string_first")
+	opener.steps[0].kind = ComboStep.Kind.STRING
+	var only: Array[ComboPlan] = [opener]
+	brain._plans = only
+	await _wait_until(func() -> bool: return not brain.is_committing(), 360)
+	var s := brain.build_situation()
+	_check("a plan opening with its string never fits (its option isn't ready)", s.plan_options.map(func(o: Dictionary) -> bool: return o.ready), [false])
+	await _free_plan_duelist(e, record)
+
+
+func _test_ar1a_sandbox() -> void:
+	_section("The overlay's string line (SandboxBrains): `string 0/2 (closing in)` before its first swing, `string 1/2 (next hit …)` while it swings, nothing after")
+	await _reset_knight()
+	var steady := _tag_status(&"test_unstoppable", [&"unstoppable"] as Array[StringName])
+	knight.status_component.apply_status(steady)
+	var e := _spawn(BRUTE_SCENE, knight.global_position + Vector2(150, 0), true)
+	await get_tree().physics_frame
+	var overlay := SandboxBrains.new()   # its string line only (not in the tree)
+	var before := overlay.get_string_text(e)
+	e.attack.run_string(knight, STRING_BRUTE, 2, Brains.table.beat)
+	var texts := {}
+	for i in 240:
+		await get_tree().physics_frame
+		texts[overlay.get_string_text(e)] = true
+		if not e.attack.is_running_string():
+			break
+	var closing := false
+	var first := false
+	var second := false
+	for line: String in texts:
+		closing = closing or line == "string 0/2 (closing in)"
+		first = first or line.begins_with("string 1/2 (next hit 0.")
+		second = second or line.begins_with("string 2/2")
+	_check("nothing before, `closing in`, `string 1/2 (next hit 0.…)`, `string 2/2`, nothing after", [before, closing, first, second, overlay.get_string_text(e)], ["", true, true, true, ""])
+	overlay.free()
+	e.queue_free()
+	knight.status_component.remove_status(steady.id)
+	await _frames(2)
+
+
 # --- Helpers ----------------------------------------------------------------------------
 
 ## The Knight's kit all ready again (every charge back).
@@ -5583,6 +6231,20 @@ func _add_navigation() -> void:
 
 func _spawn(scene: PackedScene, pos: Vector2, passive: bool) -> Enemy:
 	var e := scene.instantiate() as Enemy
+	e.passive = passive
+	entities.add_child(e)
+	_place(e, pos)
+	return e
+
+
+## `scene`'s enemy on a copy of its data with no string (ARCHETYPES AR1a: an
+## enemy not given one keeps AI1's commit), for checks of the older commit
+## rules.
+func _spawn_no_string(scene: PackedScene, pos: Vector2, passive: bool) -> Enemy:
+	var e := scene.instantiate() as Enemy
+	var plain: EnemyData = e.data.duplicate()
+	plain.attack_string = null
+	e.data = plain
 	e.passive = passive
 	entities.add_child(e)
 	_place(e, pos)

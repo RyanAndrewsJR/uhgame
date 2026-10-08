@@ -7,6 +7,7 @@
 [ext_resource type="Resource" path="res://data/units/slime_elite.tres" id="5_ydf3l"]
 [ext_resource type="Resource" path="res://data/abilities/slime_elite_w_shockwave.tres" id="6_shockwave"]
 [ext_resource type="Resource" path="res://data/abilities/slime_elite_e_big_hit.tres" id="7_big_hit"]
+[ext_resource type="Resource" path="res://data/combos/combo_test_brute.tres" id="20_string"]
 
 [sub_resource type="Resource" id="Resource_6yaba"]
 script = ExtResource("1_wtxja")
@@ -32,3 +33,4 @@ behavior = ExtResource("3_hxwqn")
 stats = ExtResource("5_ydf3l")
 abilities = Array[ExtResource("1_wtxja")]([SubResource("Resource_6yaba"), SubResource("slot_w"), SubResource("slot_e")])
 model_color = Color(0.62, 0.35, 0.85, 1)
+attack_string = ExtResource("20_string")

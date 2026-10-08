@@ -41,6 +41,11 @@ extends Resource
 ## PROTOTYPE (poise, 2026-10-07): poise damage each hit of this swing deals
 ## once it gets through (HitContext.poise_damage; PoiseComponent). 0 = none.
 @export var poise_damage: float = 0.0
+## ARCHETYPES AR1a: this swing's hits can be deflected by a deflect window
+## (HitContext.deflectable; DeflectComponent). Every string swing is (D6);
+## every melee combo swing is by default (D4; read only by an enemy's deflect
+## window, AR3); a ranged combo's shots set it false (never projectiles).
+@export var deflectable: bool = true
 
 @export_group("Sounds")
 ## At swing start, whiffs included (AUDIO.md). null = silent.

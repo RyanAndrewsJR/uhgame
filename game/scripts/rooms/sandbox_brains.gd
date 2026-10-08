@@ -52,7 +52,8 @@ extends Node
 ## opening_bar, the setup's opener) and a recovery; the panel the two new
 ## sliders. AI-D2: the plan under way (or the last one's end and
 ## follow-through), a missed step's carry-on, the blind read; the panel its
-## three new sliders (follow_through, combo_greed, mixup).
+## three new sliders (follow_through, combo_greed, mixup). ARCHETYPES AR1a:
+## the overlay's string line (its hit, its length, the next hit's time).
 ## It never touches the player's saves. room_01 has none of this.
 
 const TEXT_COLOR := Color(0.92, 0.92, 0.92)
@@ -261,6 +262,9 @@ func get_overlay_text(enemy: Enemy) -> String:
 	var combo := get_combo_text(enemy)   # AI-D1
 	if combo != "":
 		lines.append(combo)
+	var string_text := get_string_text(enemy)   # AR1a
+	if string_text != "":
+		lines.append(string_text)
 	var state: PackedStringArray = []
 	if s != null and not s.incoming.is_empty():
 		state.append("threats %d (next %.2f s)" % [s.incoming.size(), s.incoming.map(func(a: Dictionary) -> float: return a.time_to_hit).min()])
@@ -401,6 +405,23 @@ func _plan_lines(enemy: Enemy, brain: EnemyBrain, s: SituationContext) -> Packed
 	if s != null and s.blind_reason != &"":
 		lines.append("blind: " + String(s.blind_reason).replace("_", " "))
 	return lines
+
+
+## The overlay's string line (ARCHETYPES AR1a), "" when none runs: its hit
+## and length, the next hit's time (`string 2/3 (next hit 0.32 s)`;
+## `string 0/3 (closing in)` before its first swing), `plan step` for a
+## plan's STRING step.
+func get_string_text(enemy: Enemy) -> String:
+	var brain := enemy.get_brain()
+	if brain == null or not brain.is_stringing():
+		return ""
+	var attack := enemy.attack
+	var text := "string %d/%d" % [attack.get_string_swung(), attack.get_string_hits()]
+	var next := attack.get_string_next_hit_in()
+	text += " (next hit %.2f s)" % next if next >= 0.0 else " (closing in)"
+	if brain.get_string_step() >= 0:
+		text += " plan step"
+	return text
 
 
 ## The display name of `enemy`'s ability in `slot` ("-" when none).

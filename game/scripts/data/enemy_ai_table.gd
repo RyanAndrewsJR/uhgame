@@ -292,6 +292,20 @@ extends Resource
 	&"low_health": true, &"escapes_down": true, &"ultimate_down": true, &"held": true,
 }
 
+@export_group("Strings (ARCHETYPES AR1a)")
+## The beat (D8): a string's first hit lands this long after its wind-up
+## starts (after the commit's tell_time pose: 0.8 s to read in all, the
+## opener's rule of 0.6 s or more). Its later hits follow its swings' timings.
+@export var beat: float = 0.5
+## Respect sets a string's length (D6): effective respect at or above
+## string_respect_short cuts it to string_short_hits; at or below
+## string_respect_full (or its target under low_health) it runs its full
+## length, and an elite or boss may add one; in between its length is rolled
+## in its rank's range (EnemyBrain.get_string_length()).
+@export_range(0.0, 1.0) var string_respect_short: float = 0.6
+@export_range(0.0, 1.0) var string_respect_full: float = 0.3
+@export var string_short_hits: int = 2
+
 ## Derived respect values, cached per ability (they read only data).
 var _respect_cache: Dictionary = {}
 ## applies_cc() per ability, cached (AI-D2).

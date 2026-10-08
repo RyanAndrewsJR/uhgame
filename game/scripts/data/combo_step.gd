@@ -4,6 +4,14 @@ extends Resource
 ## slot, when it starts after the step before it, and how long it may wait.
 ## Inline in its plan (the EnemyData's .tres). The first step is the opener:
 ## its timing is the commit's (its tell, then its cast).
+## ARCHETYPES AR1a: a step can be the enemy's string instead (kind STRING).
+
+## What the step runs (D6: plans stay the ability layer, strings the basic
+## attack layer):
+enum Kind {
+	ABILITY,   ## the ability in `slot`
+	STRING,    ## the enemy's string (EnemyData.attack_string), its length by respect; `slot` ignored. Never the opener
+}
 
 ## When the step starts after the previous step:
 enum Timing {
@@ -13,6 +21,7 @@ enum Timing {
 	ON_STATUS,      ## when the target carries a status tagged `status_tag` (`root`)
 }
 
+@export var kind: Kind = Kind.ABILITY
 ## Its ability's slot in the enemy's kit (&"q", &"w", &"e", &"r").
 @export var slot: StringName = &"q"
 @export var timing: Timing = Timing.AFTER_LANDED

@@ -3,6 +3,9 @@ extends Resource
 ## A basic attack combo: the swings in order (the last one is the finisher)
 ## and when it resets (COMBAT.md, Data). Set it on AutoAttackComponent.combo;
 ## null there keeps the League-style attack (enemies).
+## ARCHETYPES AR1a: an enemy's string is an AttackCombo too
+## (EnemyData.attack_string, run by AutoAttackComponent.run_string()): its
+## swings are its hits in order, and string_hits_min its shortest length.
 
 ## MELEE: every swing steps forward and pulls toward an aimed enemy, with an
 ## aim snap (COMBAT.md, Melee basic attacks). RANGED: none of that (ranged
@@ -42,3 +45,17 @@ enum AttackStyle { MELEE, RANGED }
 @export var walk_cancels_recovery: bool = true
 ## Seconds after the hit before moving can end the root.
 @export_range(0.0, 0.2) var recovery_move_cancel_after: float = 0.1
+
+@export_group("String (enemies)")
+## ARCHETYPES AR1a, a string's length range (its archetype's shape: a
+## Bruiser's 2–3): this is the short end, a regular's length; its swings'
+## count is the full length, an elite's top (a boss's +1). 0 = its swings'
+## count. Read only as EnemyData.attack_string (EnemyBrain.get_string_length()).
+@export_range(0, 8) var string_hits_min: int = 0
+
+
+## A string's shortest length (AR1a): string_hits_min, or its swings' count
+## when that's 0 (never more than the count, never under 1).
+func get_string_hits_min() -> int:
+	var count := maxi(swings.size(), 1)
+	return clampi(string_hits_min, 1, count) if string_hits_min > 0 else count

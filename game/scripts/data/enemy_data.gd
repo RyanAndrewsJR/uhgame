@@ -49,6 +49,11 @@ enum Rank { FODDER, REGULAR, ELITE, BOSS }
 ## given at spawn); 0 = none (the default: fodder, regulars). Acts as 0 while
 ## PoiseComponent.poise_test_enabled is off.
 @export var poise_max: float = 0.0
+## ARCHETYPES AR1a: its string (D6): the chain of basic attack swings a commit
+## with no combo plan runs (and a plan's STRING step), at its archetype's
+## rhythm (AttackCombo: its swings' timings, string_hits_min). null = no
+## string: fodder, and an enemy not yet given one keeps AI1's commit.
+@export var attack_string: AttackCombo
 
 
 ## The source id its twist goes under.

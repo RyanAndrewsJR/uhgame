@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="5_data"]
 [ext_resource type="Resource" path="res://data/units/test_skirmisher.tres" id="6_stats"]
 [ext_resource type="Resource" path="res://data/abilities/test_skirmisher_e_flurry.tres" id="7_flurry"]
+[ext_resource type="Resource" path="res://data/combos/combo_test_skirmisher.tres" id="20_string"]
 
 [sub_resource type="Resource" id="slot_q"]
 script = ExtResource("1_slot")
@@ -30,3 +31,4 @@ behavior = ExtResource("4_behavior")
 stats = ExtResource("6_stats")
 abilities = Array[ExtResource("1_slot")]([SubResource("slot_q"), SubResource("slot_w"), SubResource("slot_e")])
 model_color = Color(0.95, 0.75, 0.25, 1)
+attack_string = ExtResource("20_string")

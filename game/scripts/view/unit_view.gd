@@ -194,7 +194,8 @@ func _connect_signals() -> void:
 	unit.damaged.connect(_on_damaged)
 	unit.died.connect(_on_died)
 	unit.attack.swing_started.connect(_on_swing_started)
-	unit.attack.swing_cancelled.connect(_end_action)
+	unit.attack.swing_cancelled.connect(_on_swing_cancelled)
+	unit.attack.swing_landed.connect(_on_swing_landed)
 	unit.attack.windup_started.connect(_on_windup_started)
 	unit.attack.attack_landed.connect(_on_attack_landed)
 	unit.attack.windup_cancelled.connect(_on_windup_cancelled)
@@ -571,10 +572,27 @@ func _end_action() -> void:
 
 
 func _on_swing_started(_index: int, _direction: Vector2, swing: AttackSwing) -> void:
+	if unit.attack.is_running_string():
+		# ARCHETYPES AR1a: each string swing shows its wind-up as a League-style
+		# attack's does (the capsule's squash), so the beat reads as body language.
+		_on_windup_started(unit.attack.get_string_target(), unit.attack.get_swing_windup_left())
 	if not _start_action(swing.swing_anim, false):
 		return
 	_hit_share = clampf(swing.windup / swing.duration, 0.0, 1.0) if swing.duration > 0.0 else 0.0
 	_phase = Phase.LEAD_BY_PROGRESS
+
+
+## A swing stopped early: its clip ends; a string's (AR1a) squash too.
+func _on_swing_cancelled() -> void:
+	if unit.attack.is_running_string():
+		_windup_left = 0.0
+	_end_action()
+
+
+## A string's swing (AR1a) lands: the hit stretch, as a League-style attack's.
+func _on_swing_landed(_index: int, _targets: Array[Unit]) -> void:
+	if unit.attack.is_running_string():
+		_on_attack_landed(null, 0.0)
 
 
 func _on_cast_started(_slot: StringName, ability: Ability, ctx: CastContext) -> void:

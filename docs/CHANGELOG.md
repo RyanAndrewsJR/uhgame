@@ -11,6 +11,68 @@
 
 ## Archetypes (ARCHETYPES.md)
 
+### AR1a, the melee strings: 2026-10-08, Built (awaiting Ryan's play test)
+Ryan split AR1 (2026-10-08; DECISIONS.md, Archetypes): AR1a the melee strings, then AR1b the Mage volley.
+- **Built:**
+  - `auto_attack_component.gd`: `run_string()`, an enemy's string run on combo mode's swing code, in place of the League-style attack until it ends:
+    - it closes in to its first swing's reach, then swings each hit as the swing before it ends, aimed at the target as it stands;
+    - its first wind-up is the beat, keeping its own recovery; hits past its last swing repeat that swing;
+    - its timings use its `speed_scale` only, not attack speed;
+    - a lock (stun, break, cast), `cancel()`, death, or its target dying or turning untargetable cuts it short;
+    - `string_ended`, plus the queries (`is_running_string()`, `get_string_swung()`, `get_string_time_left()`, `get_string_next_hit_in()` and the rest);
+    - `is_winding_up()` is also true in a string swing's wind-up;
+    - `AttackSwing.deflectable` goes into every swing's hit;
+    - `_land_swing()` reads its swing once, so a hit that locks its attacker mid-loop (a deflect breaking its poise) can't lose it;
+    - `_approach_point_to()`.
+  - Data:
+    - scripts: `attack_swing.gd` (`deflectable`, true), `attack_combo.gd` (`string_hits_min`, `get_string_hits_min()`), `combo_step.gd` (`Kind`, `kind`), `enemy_data.gd` (`attack_string`), `rank_rules.gd` (`string_full_range`, `string_extra_hits`), `enemy_ai_table.gd` (`beat` 0.5, `string_respect_short` 0.6, `string_respect_full` 0.3, `string_short_hits` 2);
+    - `enemy_ai_table_default.tres`: elite full range; boss full range +1.
+  - `enemy_brain.gd`:
+    - a commit with no plan runs its string. Until its first swing, a cast its decision picks goes first (AI1's commit). Once it swings, no cast cuts in, and its end ends the commit on the next think (woken at once);
+    - `get_string_length()` (pure);
+    - the token's hold is stretched to the string's end at its first swing;
+    - a stun or break breaks the commit off (patience kept); its target gone ends it;
+    - a plan's STRING step: never the opener; `plan_max_time`, the odds and low health don't cut it.
+  - The strings:
+    - `data/combos/combo_test_brute.tres` (Bruiser: 2–3 hits, 0.9 s apart, 1.0 AD each);
+    - `combo_test_skirmisher.tres` (2–3 at 0.35 s, 0.8 AD);
+    - `combo_test_duelist.tres` (4–5 at 0.5 s, 0.7 AD);
+    - each first wind-up is the 0.5 s beat, with no hit feel and within the chip band (at most 5% of the Knight's 650);
+    - `attack_string` is set on the test brute, the elite slime (the Bruiser string), the test skirmisher and the test duelist. The casters have none until AR1b.
+  - View and overlay:
+    - `unit_view.gd`: each string swing squashes the capsule for its wind-up and stretches it on the hit, as a League-style attack does;
+    - `sandbox_brains.gd`: the overlay's string line (`string 1/2 (next hit 0.32 s)`, `(closing in)`, `plan step`).
+- **Found while building** (the rules, *proposed*, are in ARCHETYPES.md, Strings and the beat):
+  - **The swing-start frame:** combo mode skips the frame a swing starts in, because a player's swing starts before the component's tick. A string swing starts inside that tick, so every hit came one tick late (0.917 s apart instead of 0.9) until a string swing stopped skipping it.
+  - **A finished string ends the commit on the brain's next think, not in the signal:** the commit's end and the next decision then come in the same think. Otherwise the skirmisher showed no pose for a tick before its recoil.
+  - **The cast-first rule, with two bugs on the way:**
+    - first, the commit chose on its first tick after the tell between its cast and its string. An enemy out of its ability's range then strung, and the cast never came: the elite slime's big hit opener and the brute's cautious smash (AI3b) both broke;
+    - so a cast may go first until the string's first swing.
+  - **Damage:** the elite slime's third Bruiser hit at 1.2 AD was 36 (5.5%, over the chip band), so it went back to 1.0.
+  - **The older AI3 skirmisher checks** run on a copy with no string. Its commit now runs its string before its reset (AI3's first-hit end holds only for an enemy with no string), so a new AR1a check covers the leap, the string and the reset.
+- **Measured** (game time):
+  - Passive enemies at the Knight:
+    - the brute's 4 hits: the first 0.500 s after its wind-up, then 0.900 / 0.900 / 0.900, done at 3.650 s (its rhythm's 3.65);
+    - the skirmisher with a 0.7 s opener: 0.700, then 0.350 / 0.350, done at 1.500 s;
+    - the duelist's 5: 0.500, then 0.500 ×4, done at 2.700 s.
+  - A deflect pair inside a brute string (the Knight's test deflect): its hits stayed 0.904 s apart (the deflect's hitstop), all 3 swung, the riposte his.
+  - A real brute with his kit spent:
+    - 1.10 s from its commit to its first swing (the 0.3 s tell, then walking in from 4.4 m);
+    - its first hit 0.500 s later (1.60 s to read), its second 0.900 s after that;
+    - its token held throughout, and let go 0.017 s after the string's end.
+  - The elite slime at respect 0: 3 hits. The duelist's STRING step after its snare: 6 hits (an elite Duelist's 5, +1 at low respect).
+  - **Smoke** (the real sandbox, saving off, the Knight beside the elite slime with his kit spent; four runs of 20–30 s):
+    - no error;
+    - no string cut after its first swing;
+    - one full string of 3–4 hits per run, against 2–7 commits whose slam or shockwave went first (its slam has a 4 s cooldown);
+    - the saves byte-identical.
+- **Tests:**
+  - enemies 621/621. 46 new: the data, the lengths, the timing, the cuts, the deflect pair, the brains' commits, the tokens (with no token too), the skirmisher, the plan step, the overlay. The AI3 skirmisher checks run on a string-less copy.
+  - Stats 180/180, combat 510/510, abilities 593/593, audio 110/110, champions 238/238, talents 310/310, view 469/469, loot 750/750, deflect 146/146: 3,927/3,927.
+  - Twelve rules broken on purpose, every one caught: the beat ignored, the swing-start frame skipped again, a deflect ending the string, a string started under a lock, respect reversed, the full range ignored, a cast cutting into a string, a stun ending the commit instead of breaking it off, the hold not stretched, a string opener allowed, a finished string not ending the commit, the duelist's spacing broken.
+  - Two of the twelve first passed, each caught only by a second guard (Brains taking a stunned holder's token; the token's slack ending the commit). The checks were tightened, with a brute that takes no token and the commit ending within 3 ticks of the string, and then both were caught.
+  - No GDScript warnings: all 180 scripts under `-d`.
+
 ### Edits to other docs applied: 2026-10-07, Done (docs only; awaiting Ryan's review)
 ARCHETYPES.md's approved edit list applied to ENEMIES_AI.md, CHAMPIONS.md, COMBAT.md, CONVENTIONS.md and MOVEMENT.md: superseded text struck through with its date, not deleted; each doc's header notes the sync. COMBAT.md gained the deflect prototype's built pieces (Current code, Data, Architecture), which it had never described. Also: CLAUDE.md's Docs index row for ARCHETYPES.md; DECISIONS.md's two "boss poise later" mentions (2026-10-05) struck as superseded by D9. Left for their own steps: ABILITIES, ALLIES, DUNGEONS, STATS, AUDIO (ARCHETYPES.md, Also). No code changed.
 
