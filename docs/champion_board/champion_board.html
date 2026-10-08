@@ -127,6 +127,34 @@ details.more .row{margin-top:8px}
 .race .used{font:400 11px var(--f-mono);color:var(--ink-2);white-space:nowrap}
 .hints{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 10px;align-items:center}
 .hints label{font:500 12px var(--f-body);color:var(--ink-2)}
+/* v2: compound casts (effects list and timeline) */
+.fx{display:grid;gap:5px;padding:8px 12px;border-bottom:1px solid var(--line)}
+.fx:empty{display:none}
+.fx-row{display:flex;flex-wrap:wrap;align-items:center;gap:5px;border:1px solid var(--line);border-radius:6px;padding:4px 5px}
+.fx-row.on{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.fx-pick{flex:1 1 150px;min-width:0;display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:7px;text-align:left;background:transparent;border:0;padding:2px;cursor:pointer}
+.fx-pick b{grid-row:span 2;align-self:center;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:var(--ink);color:var(--bg);font:600 12px/1 var(--f-mono)}
+.fx-pick span{font:500 12.5px/1.2 var(--f-body)}
+.fx-pick small{font:400 10.5px/1.3 var(--f-mono);color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fx-row select,.fx-row input{background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:3px 4px;font:400 11.5px var(--f-mono)}
+.fx-row input{width:58px;text-align:right}
+.fx-start{font:400 11px var(--f-mono);color:var(--ink-2);padding:0 4px}
+.fx-btn{background:transparent;border:1px solid var(--line);border-radius:4px;min-width:26px;height:24px;padding:0 5px;cursor:pointer;font:500 12px var(--f-mono);color:var(--ink-2)}
+.fx-btn:disabled{opacity:.35;cursor:default}
+.fx-btn.warn{color:var(--heat);border-color:var(--heat)}
+.editing{font:400 11.5px/1.4 var(--f-mono);color:var(--accent)}
+.tl{display:grid;gap:5px;padding:8px 12px;border-bottom:1px solid var(--line)}
+.tl:empty{display:none}
+.tl-head{display:flex;align-items:center;gap:8px}
+.tl-head input{flex:1;min-width:0;accent-color:var(--accent)}
+.tl-play{padding:4px 9px;font-size:12px}
+.tl-time{font:400 11px var(--f-mono);color:var(--ink-2);min-width:46px;text-align:right}
+.tl-rows{position:relative;display:grid;gap:3px}
+.tl-row{display:grid;grid-template-columns:34px minmax(0,1fr);align-items:center;gap:6px;font:400 10px/1 var(--f-mono);color:var(--ink-2)}
+.tl-track{position:relative;height:9px;background:var(--panel-2);border-radius:3px}
+.tl-bar{position:absolute;top:0;bottom:0;min-width:3px;border-radius:3px;background:var(--ink-2);opacity:.55}
+.tl-bar.on{background:var(--accent);opacity:1}
+.tl-head-mark{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--heat);pointer-events:none}
 svg .gl{stroke:var(--grid);stroke-width:.03}
 svg .gl.m{stroke:var(--line);stroke-width:.04}
 svg text{font-family:var(--f-mono);fill:var(--ink-2)}
@@ -256,6 +284,13 @@ var SEED_RACES = [
   ["giant","Giant","huge","huge and heavy, boss scale","the old ones of the mountains","enemy"],
   ["voidborn","Voidborn","medium","eldritch: tentacles, wrong geometry, too many eyes","from between the stars","enemy"]
 ];
+// Compound casts: the per-effect fields, how an effect starts, and how each one is drawn so overlaps stay readable.
+var PART_KEYS = ["cast","range","width","angle","length","inner","count","duration"];
+var PART_DEFAULTS = {range:6,width:3,angle:90,length:4,inner:1,count:3,duration:0};
+var TRIGGERS = {with:"with the previous", after:"after the previous ends", on_hit:"when the previous hits", on_recast:"on recast"};
+var MAX_PARTS = 6, FLASH = 0.35;   // FLASH: how long an instant effect stays lit on the timeline, s
+var PART_LOOK = [{op:1,dash:""},{op:.9,dash:".34 .18"},{op:.85,dash:".1 .14"},{op:.8,dash:".6 .18 .1 .18"},{op:.75,dash:".22 .22"},{op:.7,dash:".9 .25"}];
+var REDUCED = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 function seedRaces(){ return SEED_RACES.map(function(r){ return {id:r[0],name:r[1],size:r[2],silhouette:r[3],identity:r[4],side:r[5]}; }); }
 var board = {races:[], settings:{}};
 var ui = {newKind:"champion", fKind:"all", fArch:"", fRace:""};
@@ -268,8 +303,28 @@ function upgradeAbility(a){
   if(!a||typeof a!=="object") return a;
   EXTRAS.forEach(function(e){ if(a[e[0]]===undefined) a[e[0]]=e[6]; });
   if(!Array.isArray(a.tags)) a.tags=[];
+  // Compound casts: `parts` is the ordered list of effects. Part 0 always mirrors the top-level cast fields
+  // (an older board only writes those, so they win); an ability without parts loads as one part.
+  if(!Array.isArray(a.parts)||!a.parts.length) a.parts=[{}];
+  a.parts[0]=partFrom(a);
+  for(var i=1;i<a.parts.length;i++){
+    var p=a.parts[i]; if(!p||typeof p!=="object") p=a.parts[i]={};
+    if(!CASTS[p.cast]) p.cast="ring";
+    Object.keys(PART_DEFAULTS).forEach(function(k){ num(p,k,PART_DEFAULTS[k]); });
+    if(!TRIGGERS[p.trigger]) p.trigger="after";
+    num(p,"delay",0);
+  }
   return a;
 }
+// Part 0's cast fields copy the top level. Its trigger and delay are kept (they don't count while it is first) so an
+// effect moved to the front and back again keeps how it starts.
+function partFrom(a){
+  var old=(Array.isArray(a.parts)&&a.parts[0]&&typeof a.parts[0]==="object")?a.parts[0]:{}, p={};
+  PART_KEYS.forEach(function(k){ p[k]=a[k]; });
+  p.trigger=TRIGGERS[old.trigger]?old.trigger:"with"; p.delay=(typeof old.delay==="number"&&old.delay>=0)?old.delay:0;
+  return p;
+}
+function sync0(a){ if(!Array.isArray(a.parts)||!a.parts.length) a.parts=[{}]; a.parts[0]=partFrom(a); }
 function upgrade(c){
   if(!c||typeof c!=="object") return c;
   c.kind = c.kind==="enemy" ? "enemy" : "champion";
@@ -592,31 +647,40 @@ function passiveCard(c){
     el("div",{class:"body"},[ds,tagRow(TAGS,p.tags,touch)])]);
 }
 
+var activePart = new WeakMap();   // which effect of an ability the card's controls edit (not saved)
 function abilityCard(c,a){
-  EXTRAS.forEach(function(e){ if(a[e[0]]===undefined) a[e[0]]=e[6]; });
+  upgradeAbility(a);
+  var act=activePart.get(a)||0; if(act>=a.parts.length) act=0;
+  var multi=a.parts.length>1;
   var card=el("article",{class:"card"});
+  function rebuild(){ stopPlay(); var n=abilityCard(c,a); if(card.parentNode) card.parentNode.replaceChild(n,card); }
+  function T(key){ return (act>0 && PART_KEYS.indexOf(key)>=0) ? a.parts[act] : a; }   // the object a control writes to
   var nm=el("input",{value:a.name||"","aria-label":a.slot+" name",placeholder:"Ability name"});
   nm.addEventListener("input",function(){ a.name=nm.value; touch(); });
   card.appendChild(el("div",{class:"card-head"},[el("div",{class:"slot",text:a.slot}),nm]));
   var pv=el("div",{class:"preview"}); card.appendChild(pv);
+  var tlBox=el("div",{class:"tl"}); card.appendChild(tlBox);
+  var fx=el("div",{class:"fx"}); card.appendChild(fx);
   var body=el("div",{class:"body"}); card.appendChild(body);
 
   var castSel=el("select",{"aria-label":a.slot+" cast type"});
   var groups={};
   Object.keys(CASTS).forEach(function(k){
     var g=CASTS[k].group; if(!groups[g]){ groups[g]=el("optgroup",{label:g}); castSel.appendChild(groups[g]); }
-    var o=el("option",{value:k,text:CASTS[k].label}); if(k===a.cast) o.selected=true; groups[g].appendChild(o);
+    var o=el("option",{value:k,text:CASTS[k].label}); if(k===T("cast").cast) o.selected=true; groups[g].appendChild(o);
   });
   var dmgSel=el("select",{"aria-label":a.slot+" damage type"});
   Object.keys(DMG).forEach(function(k){ var o=el("option",{value:k,text:DMG[k]}); if(k===a.dmg) o.selected=true; dmgSel.appendChild(o); });
-  body.appendChild(el("div",{class:"two"},[el("label",{class:"fld"},[document.createTextNode("Cast type"),castSel]),el("label",{class:"fld"},[document.createTextNode("Damage"),dmgSel])]));
+  if(multi) body.appendChild(el("div",{class:"editing",text:"Editing effect "+(act+1)+" of "+a.parts.length+(act>0?": its cast and size. Cast time, cooldown, cost and damage belong to the whole ability.":"")}));
+  body.appendChild(el("div",{class:"two"},[el("label",{class:"fld"},[document.createTextNode(multi?"Effect "+(act+1)+" cast":"Cast type"),castSel]),el("label",{class:"fld"},[document.createTextNode("Damage"),dmgSel])]));
 
   var rows={};
   function slider(parent,key,label,min,max,step,unit){
-    var r=el("input",{type:"range",min:min,max:max,step:step,value:a[key],"aria-label":a.slot+" "+label});
-    var n=el("input",{type:"number",min:min,max:max,step:step,value:a[key],"aria-label":a.slot+" "+label+" value"});
+    var tg=T(key);
+    var r=el("input",{type:"range",min:min,max:max,step:step,value:tg[key],"aria-label":a.slot+" "+label});
+    var n=el("input",{type:"number",min:min,max:max,step:step,value:tg[key],"aria-label":a.slot+" "+label+" value"});
     var lab=el("label",{text:label+(unit?" ("+unit+")":"")});
-    function set(v){ v=parseFloat(v); if(isNaN(v)) return; a[key]=v; draw(); touch(); }
+    function set(v){ v=parseFloat(v); if(isNaN(v)) return; tg[key]=v; if(tg===a) sync0(a); draw(); touch(); }
     r.addEventListener("input",function(){ n.value=r.value; set(r.value); });
     n.addEventListener("input",function(){ r.value=n.value; set(n.value); });
     var row=el("div",{class:"row"},[lab,r,n]); rows[key]={row:row,label:lab,unit:unit}; parent.appendChild(row); return row;
@@ -636,38 +700,161 @@ function abilityCard(c,a){
   ds.addEventListener("input",function(){ a.desc=ds.value; touch(); });
   body.appendChild(ds);
 
-  castSel.addEventListener("change",function(){ a.cast=castSel.value; draw(); touch(); });
+  castSel.addEventListener("change",function(){ var tg=T("cast"); tg.cast=castSel.value; if(tg===a) sync0(a); draw(); touch(); });
   dmgSel.addEventListener("change",function(){ a.dmg=dmgSel.value; draw(); touch(); });
 
+  // the effects list: pick the effect the controls edit, how it starts, its order
+  var capEls=[], labelEls=[];
+  function buildFx(){
+    fx.textContent=""; capEls=[]; labelEls=[];
+    var n=a.parts.length, ro=!state.canWrite;
+    if(n>1) a.parts.forEach(function(p,i){
+      var small=el("small"), lab=el("span",{text:CASTS[p.cast].label}); capEls.push(small); labelEls.push(lab);
+      var row=el("div",{class:"fx-row"+(i===act?" on":"")});
+      row.appendChild(el("button",{type:"button",class:"fx-pick","aria-pressed":String(i===act),title:"Edit this effect with the controls below",onclick:function(){ activePart.set(a,i); rebuild(); }},[el("b",{text:String(i+1)}),lab,small]));
+      if(i===0) row.appendChild(el("span",{class:"fx-start",text:"starts after the cast"}));
+      else{
+        var trig=el("select",{"aria-label":a.slot+" effect "+(i+1)+" starts"});
+        Object.keys(TRIGGERS).forEach(function(k){ var o=el("option",{value:k,text:TRIGGERS[k]}); if(k===p.trigger) o.selected=true; trig.appendChild(o); });
+        trig.addEventListener("change",function(){ p.trigger=trig.value; draw(); touch(); });
+        var dl=el("input",{type:"number",min:0,max:20,step:0.05,value:p.delay,"aria-label":a.slot+" effect "+(i+1)+" delay (s)",title:"delay, seconds"});
+        dl.addEventListener("input",function(){ var v=parseFloat(dl.value); p.delay=(isNaN(v)||v<0)?0:v; draw(); touch(); });
+        row.appendChild(trig); row.appendChild(el("span",{class:"fx-start",text:"+"})); row.appendChild(dl); row.appendChild(el("span",{class:"fx-start",text:"s"}));
+      }
+      var up=el("button",{type:"button",class:"fx-btn",text:"↑","aria-label":"Move effect "+(i+1)+" earlier",onclick:function(){ movePart(i,i-1); }}); if(i===0) up.disabled=true;
+      var dn=el("button",{type:"button",class:"fx-btn",text:"↓","aria-label":"Move effect "+(i+1)+" later",onclick:function(){ movePart(i,i+1); }}); if(i===n-1) dn.disabled=true;
+      var rm=el("button",{type:"button",class:"fx-btn",text:"×","aria-label":"Remove effect "+(i+1)});
+      rm.addEventListener("click",function(){ if(rm.dataset.armed){ removePart(i); return; } rm.dataset.armed="1"; rm.textContent="remove?"; rm.classList.add("warn"); });
+      [up,dn,rm].forEach(function(b){ if(ro) b.disabled=true; row.appendChild(b); });
+      fx.appendChild(row);
+    });
+    if(!ro){
+      if(n<MAX_PARTS) fx.appendChild(el("button",{class:"tag add",type:"button",text:n>1?"+ add effect":"+ add effect (layer several effects into one graphic)",onclick:addPart}));
+      else fx.appendChild(el("span",{class:"muted",text:"Six effects is the most one ability holds."}));
+    }
+  }
+  function applyParts(L){ var f=L[0]; PART_KEYS.forEach(function(k){ if(f[k]!==undefined) a[k]=f[k]; }); a.parts=L; sync0(a); }
+  function addPart(){ if(a.parts.length>=MAX_PARTS) return; sync0(a); var p={cast:"ring"}; Object.keys(PART_DEFAULTS).forEach(function(k){ p[k]=PART_DEFAULTS[k]; }); p.trigger="after"; p.delay=0; a.parts.push(p); activePart.set(a,a.parts.length-1); touch(); rebuild(); }
+  function movePart(i,j){ if(j<0||j>=a.parts.length) return; sync0(a); var L=a.parts.slice(), x=L[i]; L[i]=L[j]; L[j]=x; applyParts(L); activePart.set(a,j); touch(); rebuild(); }
+  function removePart(i){ sync0(a); var L=a.parts.slice(); L.splice(i,1); if(!L.length) return; applyParts(L); var k=activePart.get(a)||0; activePart.set(a,k===i?Math.max(0,i-1):(k>i?k-1:k)); touch(); rebuild(); }
+
+  // the timeline: one bar per effect from its triggers and delays; Play (Step under reduced motion) or scrub to reveal them in order
+  var tl=null;
+  function buildTimeline(){
+    tlBox.textContent=""; tl=null;
+    if(!multi) return;
+    var play=el("button",{type:"button",class:"btn tl-play",text:REDUCED?"Step":"Play","aria-label":REDUCED?"Show the next effect":"Play the effects in order"});
+    var scrub=el("input",{type:"range",min:0,max:1,step:0.01,value:1,"aria-label":a.slot+" timeline"});
+    var time=el("span",{class:"tl-time"}), rowsBox=el("div",{class:"tl-rows"});
+    tlBox.appendChild(el("div",{class:"tl-head"},[play,scrub,time])); tlBox.appendChild(rowsBox);
+    tl={t:null,T:1,times:[],play:play,scrub:scrub,time:time,rows:rowsBox,mark:null,raf:0};
+    scrub.addEventListener("input",function(){ stopPlay(); applyT(parseFloat(scrub.value)); });
+    play.addEventListener("click",function(){
+      if(REDUCED){
+        var pts=[0].concat(tl.times.map(function(x){ return x.start; }),[tl.T]).sort(function(x,y){ return x-y; }), nx=null;
+        for(var i=0;i<pts.length;i++) if(pts[i]>tl.t+1e-6){ nx=pts[i]; break; }
+        applyT(nx===null?0:nx); return;
+      }
+      if(tl.raf){ stopPlay(); return; }
+      // a light 30 fps timer (it also runs where animation frames don't, such as a hidden tab or a headless test)
+      var speed=Math.max(1,1.5/tl.T), t0=performance.now(); play.textContent="Stop";
+      (function stepFrame(){
+        if(!card.isConnected||!tl){ return; }
+        var t=(performance.now()-t0)/1000/speed;
+        if(t>=tl.T){ applyT(tl.T); stopPlay(); return; }
+        applyT(t); tl.raf=setTimeout(stepFrame,33);
+      })();
+    });
+  }
+  function stopPlay(){ if(tl&&tl.raf){ clearTimeout(tl.raf); tl.raf=0; } if(tl&&!REDUCED) tl.play.textContent="Play"; }
+  function bar(label,s0,s1,i){
+    var b=el("span",{class:"tl-bar"}); b.style.left=(s0/tl.T*100)+"%"; b.style.width=(Math.max(0,s1-s0)/tl.T*100)+"%"; if(i>=0) b.setAttribute("data-i",String(i));
+    return el("div",{class:"tl-row"},[el("span",{text:label}),el("div",{class:"tl-track"},[b])]);
+  }
+  function paintTimeline(){
+    if(!tl) return;
+    var times=timeline(a), end=0.15;
+    times.forEach(function(x){ end=Math.max(end,x.end,x.start+FLASH); });
+    tl.times=times; tl.T=Math.round((end+0.15)*100)/100; tl.scrub.max=tl.T;
+    if(tl.t===null||tl.t>tl.T) tl.t=tl.T;
+    tl.rows.textContent="";
+    tl.rows.appendChild(bar("cast",0,a.castTime||0,-1));
+    times.forEach(function(x,i){ tl.rows.appendChild(bar(String(i+1),x.start,Math.max(x.end,x.start+0.02),i)); });
+    tl.mark=el("div",{class:"tl-head-mark"}); tl.rows.appendChild(tl.mark);
+    applyT(tl.t);
+  }
+  function applyT(t){
+    if(!tl) return;
+    tl.t=t; tl.scrub.value=t; tl.time.textContent=fmt(t,2)+" s";
+    if(tl.mark) tl.mark.style.left="calc(40px + (100% - 40px) * "+(tl.T>0?Math.min(1,t/tl.T):1)+")";
+    var atEnd=t>=tl.T-1e-6;
+    tl.times.forEach(function(x,i){
+      var seen=t>=x.start-1e-6, on=seen && t<=Math.max(x.end,x.start+FLASH)+1e-6, op=(PART_LOOK[i]||PART_LOOK[5]).op;
+      var vis=String(!seen?0:(on||atEnd?op:op*0.4));
+      pv.querySelectorAll('[data-part="'+i+'"],[data-label="'+i+'"]').forEach(function(g){ g.style.opacity=vis; });
+      var b=tl.rows.querySelector('.tl-bar[data-i="'+i+'"]'); if(b) b.classList.toggle("on",on);
+    });
+  }
+
   function draw(){
-    var def=CASTS[a.cast];
+    var tg=T("cast"), def=CASTS[tg.cast];
     ["range","width","angle","length","inner","count"].forEach(function(k){ rows[k].row.classList.toggle("unused",def.uses.indexOf(k)<0); });
     rows.width.label.textContent=(def.w||"Width")+" (m)";
-    pv.textContent=""; pv.appendChild(preview(a));
+    pv.textContent=""; var pw=preview(a); pv.appendChild(pw);
+    (pw.caps||[]).forEach(function(cp,i){ if(capEls[i]) capEls[i].textContent=cp||""; if(labelEls[i]) labelEls[i].textContent=CASTS[a.parts[i].cast].label; });
+    paintTimeline();
     var parts=[];
-    if(def.uses.indexOf("range")>=0){
-      parts.push("<b>"+fmt(a.range,2)+" m</b> ("+Math.round(a.range*100)+" u), "+Math.round(a.range/SCREEN_W_M*100)+"% of screen width");
-      if(a.speed>0) parts.push("<b>"+fmt(a.range/a.speed,2)+" s</b> to arrive");
-    }else parts.push("centered on the champion");
-    parts.push("<b>"+fmt(a.castTime,2)+" s</b> cast");
-    if(a.duration>0) parts.push((def.dur||"lasts")+" <b>"+fmt(a.duration,1)+" s</b>");
-    parts.push("<b>"+fmt(a.cooldown,1)+" s</b> cooldown"+(a.charges>1?" ("+a.charges+" charges)":""));
-    if(a.cost) parts.push("cost <b>"+a.cost+"</b>");
+    if(act===0){
+      if(def.uses.indexOf("range")>=0){
+        parts.push("<b>"+fmt(a.range,2)+" m</b> ("+Math.round(a.range*100)+" u), "+Math.round(a.range/SCREEN_W_M*100)+"% of screen width");
+        if(a.speed>0) parts.push("<b>"+fmt(a.range/a.speed,2)+" s</b> to arrive");
+      }else parts.push("centered on the champion");
+      parts.push("<b>"+fmt(a.castTime,2)+" s</b> cast");
+      if(a.duration>0) parts.push((def.dur||"lasts")+" <b>"+fmt(a.duration,1)+" s</b>");
+      parts.push("<b>"+fmt(a.cooldown,1)+" s</b> cooldown"+(a.charges>1?" ("+a.charges+" charges)":""));
+      if(a.cost) parts.push("cost <b>"+a.cost+"</b>");
+    }else{
+      var p=a.parts[act], x=timeline(a)[act];
+      parts.push("effect <b>"+(act+1)+"</b> of "+a.parts.length);
+      if(def.uses.indexOf("range")>=0) parts.push("<b>"+fmt(p.range,2)+" m</b> ("+Math.round(p.range*100)+" u), "+Math.round(p.range/SCREEN_W_M*100)+"% of screen width");
+      else parts.push("centered on the champion");
+      if(p.duration>0) parts.push((def.dur||"lasts")+" <b>"+fmt(p.duration,1)+" s</b>");
+      parts.push("starts at <b>"+fmt(x.start,2)+" s</b> ("+TRIGGERS[p.trigger]+(p.delay>0?" + "+fmt(p.delay,2)+" s":"")+")");
+    }
     read.innerHTML=parts.join(" · ");
   }
+  buildFx(); buildTimeline();
   draw();
   return card;
+}
+
+// When each effect starts, hits and ends, in seconds from the start of the cast (Part 0 starts when the cast ends).
+// with: the previous effect's start + delay; after: the previous effect's end + delay; on hit: when the previous hits + delay;
+// on recast: the previous effect's start + delay (the delay stands for when the player recasts).
+function timeline(a){
+  var out=[];
+  (Array.isArray(a.parts)&&a.parts.length?a.parts:[a]).forEach(function(p,i){
+    var start;
+    if(i===0) start=a.castTime||0;
+    else{ var q=out[i-1], d=Math.max(0,p.delay||0);
+      start = p.trigger==="with"?q.start+d : p.trigger==="on_hit"?q.hit+d : p.trigger==="on_recast"?q.start+d : q.end+d; }
+    var def=CASTS[p.cast]||CASTS.skillshot;
+    var travel=(def.group==="Projectiles"&&a.speed>0&&def.uses.indexOf("range")>=0)?p.range/a.speed:0;
+    var hit=start+travel; if(p.cast==="delayed") hit=start+Math.max(0,p.duration||0);
+    out.push({start:start,hit:hit,end:Math.max(hit,start+Math.max(0,p.duration||0))});
+  });
+  return out;
 }
 
 /* ---------- to-scale preview (top-down, champion faces right, grid in meters) ---------- */
 var NS="http://www.w3.org/2000/svg";
 function s(tag,attrs){ var e=document.createElementNS(NS,tag); for(var k in attrs) e.setAttribute(k,attrs[k]); return e; }
 function colorFor(a){ return a.cast==="ally"?"var(--heal)":a.dmg==="physical"?"var(--heat)":a.dmg==="magic"?"var(--magic)":a.dmg==="true"?"var(--ink)":"var(--accent)"; }
-function preview(a){
-  var R=a.range, W=a.width, h=W/2, L=a.length, I=Math.min(a.inner,W-0.05), N=Math.max(1,Math.round(a.count)), A=a.angle, cast=a.cast;
-  var BODY=0.45, c=colorFor(a), deg=Math.PI/180;
+// The area one effect needs around the champion: x from x0 to x1, y from -y1 to y1 (meters).
+function castBox(p){
+  var R=p.range, W=p.width, h=W/2, L=p.length, N=Math.max(1,Math.round(p.count)), A=p.angle, deg=Math.PI/180;
   var x0=-1.4,x1=1,y1=1.5;
-  switch(cast){
+  switch(p.cast){
     case "skillshot": case "charge": case "beam": case "dash": x1=R+1; y1=Math.max(h,1.5); break;
     case "boomerang": x1=R+1; y1=Math.max(h*2+1,1.5); break;
     case "fan": x1=R+0.8; y1=A>=180?R+0.8:Math.max(Math.sin(A/2*deg)*R+h+0.6,1.5); if(A>180) x0=-R-0.8; break;
@@ -688,16 +875,32 @@ function preview(a){
     case "recast": x1=R+L+1; y1=Math.max(h,1.5)+0.8; break;
     case "global": x1=14; y1=Math.max(h,3); break;
   }
-  var bw=x1-x0, y0=-y1, bh=2*y1; if(bh<bw*0.5){ y1=bw*0.25; y0=-y1; bh=2*y1; }
-  var svg=s("svg",{viewBox:x0+" "+y0+" "+bw+" "+bh,preserveAspectRatio:"xMidYMid meet",role:"img","aria-label":CASTS[cast].label+" to scale"});
-  var step = Math.max(bw,bh)>26?5:Math.max(bw,bh)>12?2:1;
-  for(var gx=Math.ceil(x0/step)*step; gx<=x1; gx+=step) svg.appendChild(s("line",{class:"gl"+(gx===0?" m":""),x1:gx,y1:y0,x2:gx,y2:y1}));
-  for(var gy=Math.ceil(y0/step)*step; gy<=y1; gy+=step) svg.appendChild(s("line",{class:"gl"+(gy===0?" m":""),x1:x0,y1:gy,x2:x1,y2:gy}));
+  return {x0:x0,x1:x1,y1:y1};
+}
+// Where an effect's number goes in a compound preview.
+function castAnchor(p){
+  var R=p.range, W=p.width, h=W/2, L=p.length, A=Math.min(p.angle,180), deg=Math.PI/180;
+  switch(p.cast){
+    case "ring": case "self": case "orbit": case "aura": case "toggle": return [W*0.7071,W*0.7071];
+    case "cone": case "fan": return [Math.cos(A/2*deg)*R,-Math.sin(A/2*deg)*R-(p.cast==="fan"?h:0)];
+    case "ground": case "summon": case "delayed": case "trap": case "leap": return [R,-W];
+    case "vector": case "recast": return [R+L,-h];
+    case "wall": return [R,-L/2];
+    case "chain": return [R,-0.7];
+    case "global": return [12,-Math.max(h,0.4)];
+    case "homing": return [R,-Math.max(h,0.25)-0.45];
+    case "unit": case "ally": case "pull": case "blink": return [R,-0.6];
+    default: return [R,-h];
+  }
+}
+// Draws one effect through add(); returns its caption.
+function drawCast(add,p,c){
+  var R=p.range, W=p.width, h=W/2, L=p.length, I=Math.min(p.inner,W-0.05), N=Math.max(1,Math.round(p.count)), A=p.angle, cast=p.cast;
+  var BODY=0.45, deg=Math.PI/180;
   var fill="fill:"+c+";fill-opacity:.28;stroke:"+c+";stroke-width:.07";
   var soft="fill:"+c+";fill-opacity:.12;stroke:"+c+";stroke-width:.05;stroke-dasharray:.3 .25";
   var dash="fill:none;stroke:"+c+";stroke-width:.06;stroke-dasharray:.3 .25";
   var line="fill:none;stroke:"+c+";stroke-width:.09";
-  var add=function(e){ svg.appendChild(e); };
   var cap;
   switch(cast){
     case "skillshot":
@@ -783,11 +986,11 @@ function preview(a){
       add(s("circle",{cx:R,cy:0,r:W,style:soft}));
       add(s("circle",{cx:R,cy:0,r:W*0.45,style:fill}));
       add(s("path",{d:"M"+(R-W*0.3)+" 0 H"+(R+W*0.3)+" M"+R+" "+(-W*0.3)+" V"+(W*0.3),style:line}));
-      cap="marker within "+fmt(R,1)+" m, "+fmt(W,1)+" m radius"+(a.duration>0?", hits after "+fmt(a.duration,1)+" s":""); break;
+      cap="marker within "+fmt(R,1)+" m, "+fmt(W,1)+" m radius"+(p.duration>0?", hits after "+fmt(p.duration,1)+" s":""); break;
     case "aura":
       add(s("circle",{cx:0,cy:0,r:W,style:fill}));
       add(s("circle",{cx:0,cy:0,r:W*0.66,style:dash})); add(s("circle",{cx:0,cy:0,r:W*0.33,style:dash}));
-      cap=fmt(W,1)+" m aura that moves with you"+(a.duration>0?", up to "+fmt(a.duration,1)+" s":""); break;
+      cap=fmt(W,1)+" m aura that moves with you"+(p.duration>0?", up to "+fmt(p.duration,1)+" s":""); break;
     case "toggle":
       add(s("circle",{cx:0,cy:0,r:W,style:dash}));
       add(s("rect",{x:-0.5,y:-W-0.45,width:1,height:0.5,rx:0.25,style:fill}));
@@ -804,7 +1007,7 @@ function preview(a){
       add(s("circle",{cx:R,cy:0,r:W,style:soft}));
       add(s("circle",{cx:R,cy:0,r:Math.min(0.3,W/3),style:fill}));
       for(var tk=0;tk<8;tk++){ var tt=tk/8*2*Math.PI, r0=Math.min(0.3,W/3); add(s("line",{x1:R+Math.cos(tt)*r0,y1:Math.sin(tt)*r0,x2:R+Math.cos(tt)*(r0+0.25),y2:Math.sin(tt)*(r0+0.25),style:line})); }
-      cap="trap within "+fmt(R,1)+" m, triggers in "+fmt(W,1)+" m"+(a.duration>0?", armed "+fmt(a.duration,1)+" s":""); break;
+      cap="trap within "+fmt(R,1)+" m, triggers in "+fmt(W,1)+" m"+(p.duration>0?", armed "+fmt(p.duration,1)+" s":""); break;
     case "recast":
       add(s("rect",{x:BODY,y:-h,width:Math.max(R-BODY,0.05),height:W,style:fill}));
       add(s("circle",{cx:R,cy:0,r:0.38,style:"fill:var(--panel);stroke:"+c+";stroke-width:.08"}));
@@ -812,18 +1015,53 @@ function preview(a){
       add(s("rect",{x:R,y:-h,width:Math.max(L,0.05),height:W,style:soft}));
       add(s("circle",{cx:R+L,cy:0,r:0.38,style:"fill:var(--panel);stroke:"+c+";stroke-width:.08"}));
       add(s("path",{d:"M"+(R+L-0.2)+" -.15 q.2 -.2 .4 0 l-.4 .35 h.42",style:line}));
-      cap="1st: "+fmt(R,1)+" m, then recast +"+fmt(L,1)+" m"+(a.duration>0?" within "+fmt(a.duration,1)+" s":""); break;
+      cap="1st: "+fmt(R,1)+" m, then recast +"+fmt(L,1)+" m"+(p.duration>0?" within "+fmt(p.duration,1)+" s":""); break;
     case "global":
       add(s("rect",{x:BODY,y:-Math.max(h,0.01),width:13.5-BODY,height:Math.max(W,0.05),style:W>0.3?fill:"fill:"+c}));
       add(s("path",{d:"M12.6 -.5 l.8 .5 l-.8 .5 M11.4 -.5 l.8 .5 l-.8 .5",style:line}));
       cap=(W>0?fmt(W,1)+" m wide lane across":"hits everyone on")+" the whole map"; break;
   }
+  return cap;
+}
+// One ability's to-scale preview. A single effect draws exactly as it always has; several effects are drawn in the one
+// grid, numbered in order, each with its own dash and opacity, fitted to the area they cover together.
+function preview(a){
+  var parts=(Array.isArray(a.parts)&&a.parts.length>1)?a.parts:null;
+  var x0=Infinity,x1=-Infinity,y1=-Infinity;
+  (parts||[a]).forEach(function(p){ var b=castBox(p); x0=Math.min(x0,b.x0); x1=Math.max(x1,b.x1); y1=Math.max(y1,b.y1); });
+  var BODY=0.45;
+  var bw=x1-x0, y0=-y1, bh=2*y1; if(bh<bw*0.5){ y1=bw*0.25; y0=-y1; bh=2*y1; }
+  var svg=s("svg",{viewBox:x0+" "+y0+" "+bw+" "+bh,preserveAspectRatio:"xMidYMid meet",role:"img","aria-label":(parts?parts.length+" effects":CASTS[a.cast].label)+" to scale"});
+  var step = Math.max(bw,bh)>26?5:Math.max(bw,bh)>12?2:1;
+  for(var gx=Math.ceil(x0/step)*step; gx<=x1; gx+=step) svg.appendChild(s("line",{class:"gl"+(gx===0?" m":""),x1:gx,y1:y0,x2:gx,y2:y1}));
+  for(var gy=Math.ceil(y0/step)*step; gy<=y1; gy+=step) svg.appendChild(s("line",{class:"gl"+(gy===0?" m":""),x1:x0,y1:gy,x2:x1,y2:gy}));
+  var caps=[], labels=[];
+  if(!parts){
+    caps.push(drawCast(function(e){ svg.appendChild(e); },a,colorFor(a)));
+  }else{
+    var fs=Math.max(bw,bh)*0.04, placed=[];
+    parts.forEach(function(p,i){
+      var look=PART_LOOK[i]||PART_LOOK[PART_LOOK.length-1];
+      var g=s("g",{"data-part":i,style:"opacity:"+look.op+(look.dash?";stroke-dasharray:"+look.dash:"")});
+      caps.push(drawCast(function(e){ g.appendChild(e); },p,colorFor({cast:p.cast,dmg:a.dmg})));
+      svg.appendChild(g);
+      var an=castAnchor(p), ax=an[0], ay=an[1];
+      for(var t=0;t<8&&placed.some(function(q){ return Math.abs(q[0]-ax)<fs*2&&Math.abs(q[1]-ay)<fs*2; });t++) ax+=fs*2.2;
+      ax=Math.min(Math.max(ax,x0+fs*1.2),x1-fs*1.2); ay=Math.min(Math.max(ay,y0+bh*0.2),y1-bh*0.15); placed.push([ax,ay]);
+      var lg=s("g",{"data-label":i});
+      lg.appendChild(s("circle",{cx:ax,cy:ay,r:fs,style:"fill:var(--ink);stroke:var(--panel-2);stroke-width:"+(fs*0.18)}));
+      var tx=s("text",{x:ax,y:ay,"text-anchor":"middle","dominant-baseline":"central",style:"font-size:"+(fs*1.25)+"px;font-weight:600;fill:var(--bg)"}); tx.textContent=String(i+1);
+      lg.appendChild(tx); labels.push(lg);
+    });
+  }
   svg.appendChild(s("circle",{cx:0,cy:0,r:BODY,style:"fill:var(--ink)"}));
   svg.appendChild(s("path",{d:"M"+(BODY-.02)+" 0 l.28 -.2 v.4 z",style:"fill:var(--ink)"}));
+  labels.forEach(function(lg){ svg.appendChild(lg); });
   var wrap=document.createElement("div"); wrap.appendChild(svg);
-  wrap.appendChild(el("span",{class:"cap tl",text:cap}));
+  wrap.appendChild(el("span",{class:"cap tl",text:parts?parts.length+" effects, numbered in the order they start":caps[0]}));
   wrap.appendChild(el("span",{class:"cap",text:"grid = "+step+" m"}));
   wrap.appendChild(el("span",{class:"cap r",text:"champion faces right"}));
+  wrap.caps=caps;
   return wrap;
 }
 
@@ -856,21 +1094,41 @@ function makeBrief(c){
   if(c.archetype_layer) L.push("Archetype layer: "+c.archetype_layer);
   if(c.fantasy) L.push((isE?"What it is: ":"Fantasy: ")+c.fantasy);
   var p=c.passive; L.push("","Passive"+(p.name?" - "+p.name:"")+": "+(p.desc||"(not written)")+(p.tags.length?" Tags: "+p.tags.join(", ")+".":""));
-  c.abilities.forEach(function(a){
-    var def=CASTS[a.cast], u=def.uses, parts=[def.label];
-    if(u.indexOf("range")>=0) parts.push(fmt(a.range,2)+" m ("+Math.round(a.range*100)+" u) range");
-    if(u.indexOf("width")>=0) parts.push(fmt(a.width,2)+" m "+(def.w||"width").toLowerCase());
-    if(u.indexOf("angle")>=0) parts.push(a.angle+" degree arc");
-    if(u.indexOf("length")>=0) parts.push(fmt(a.length||0,2)+" m long");
-    if(u.indexOf("inner")>=0) parts.push(fmt(a.inner||0,2)+" m inner radius");
-    if(u.indexOf("count")>=0) parts.push((a.count||1)+(a.cast==="chain"?" bounces":a.cast==="orbit"?" blades":" projectiles"));
-    if(a.speed>0) parts.push(fmt(a.speed,1)+" m/s projectile speed");
-    if(a.duration>0) parts.push((def.dur||"lasts")+" "+fmt(a.duration,1)+" s");
-    parts.push(fmt(a.castTime,2)+" s cast", fmt(a.cooldown,1)+" s cooldown"); if(a.charges>1) parts.push(a.charges+" charges"); if(a.cost) parts.push("cost "+a.cost); parts.push(DMG[a.dmg].toLowerCase());
-    L.push("",a.slot+(a.name?" - "+a.name:"")+": "+parts.join(", ")+"."+(a.tags.length?" Tags: "+a.tags.join(", ")+".":""),(a.desc||"(not written)"));
-  });
+  c.abilities.forEach(function(a){ abilityBrief(L,a); });
   if(c.notes) L.push("","Notes: "+c.notes);
   return L.join("\n");
+}
+// The cast and size words for one effect (an ability's top-level fields are its first effect).
+function sizeWords(p){
+  var def=CASTS[p.cast], u=def.uses, parts=[def.label];
+  if(u.indexOf("range")>=0) parts.push(fmt(p.range,2)+" m ("+Math.round(p.range*100)+" u) range");
+  if(u.indexOf("width")>=0) parts.push(fmt(p.width,2)+" m "+(def.w||"width").toLowerCase());
+  if(u.indexOf("angle")>=0) parts.push(p.angle+" degree arc");
+  if(u.indexOf("length")>=0) parts.push(fmt(p.length||0,2)+" m long");
+  if(u.indexOf("inner")>=0) parts.push(fmt(p.inner||0,2)+" m inner radius");
+  if(u.indexOf("count")>=0) parts.push((p.count||1)+(p.cast==="chain"?" bounces":p.cast==="orbit"?" blades":" projectiles"));
+  return parts;
+}
+function triggerWords(p){
+  var d=p.delay>0?fmt(p.delay,2)+" s ":"";
+  return p.trigger==="with"?(d?d+"after the previous starts":"with the previous")
+       : p.trigger==="on_hit"?(d?d+"after the previous hits":"when the previous hits")
+       : p.trigger==="on_recast"?"on recast"+(d?" (about "+d.trim()+" after the previous starts)":"")
+       : (d?d+"after the previous ends":"when the previous ends");
+}
+function abilityBrief(L,a){
+  var def=CASTS[a.cast], parts=sizeWords(a);
+  if(a.speed>0) parts.push(fmt(a.speed,1)+" m/s projectile speed");
+  if(a.duration>0) parts.push((def.dur||"lasts")+" "+fmt(a.duration,1)+" s");
+  parts.push(fmt(a.castTime,2)+" s cast", fmt(a.cooldown,1)+" s cooldown"); if(a.charges>1) parts.push(a.charges+" charges"); if(a.cost) parts.push("cost "+a.cost); parts.push(DMG[a.dmg].toLowerCase());
+  L.push("",a.slot+(a.name?" - "+a.name:"")+": "+parts.join(", ")+"."+(a.tags.length?" Tags: "+a.tags.join(", ")+".":""),(a.desc||"(not written)"));
+  if(Array.isArray(a.parts)&&a.parts.length>1){
+    var times=timeline(a);
+    L.push("Effects in order (one graphic, layered): "+a.parts.map(function(p,i){
+      var w=sizeWords(p), pd=CASTS[p.cast]; if(i>0&&p.duration>0) w.push((pd.dur||"lasts")+" "+fmt(p.duration,1)+" s");
+      return (i+1)+") "+(i===0?"after the cast":triggerWords(p))+" (at "+fmt(times[i].start,2)+" s): "+w.join(", ");
+    }).join("; ")+".");
+  }
 }
 function copyBrief(){
   var t=makeBrief(cur()); var note=function(m){ var n=document.getElementById("copyNote"); if(n) n.textContent=m; };
