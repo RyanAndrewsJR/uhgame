@@ -31,6 +31,7 @@
 | 2026-09-29 | Order of work: ABILITIES AB14 (cast progress and presentation hooks) → CHAMPIONS CH1–CH5 → milestone CH-M, one step at a time. | Ryan's call. AB14 changes the cast flow every champion ability uses, so it goes first. |
 | 2026-09-29 | `ACHIEVEMENTS.md` (cross-system achievements and accolades) joins CLAUDE.md's Future docs, last, written much later once most other systems exist. Nothing is designed or built for it now. | Ryan's call. |
 | 2026-10-02 | "Tactical and methodical" (VISION.md, One sentence) means readable and decision-heavy combat: reading telegraphs, spacing, choosing when to spend a cooldown and where to stand. It never means slower movement: fast movement and the dash stay (pillars 3 and 4). Written into VISION.md, Pillar 1 and Decision priorities. | Ryan's definition. The decisions come from reading the fight (Clarity, Skill expression), not from taking speed away, which would cost feel (decision priority 1). |
+| 2026-10-07 | The Champion Kit Board (an offline, single-file design page) lives in `docs/champion_board/` with its README, Ryan's `my_champions.json` and a `.gdignore`; it is a tool, not a system doc, and is never part of the game export (`game/` is the Godot project, so nothing outside it is scanned or exported). | Ryan picked `docs/` over a new top-level `tools/` folder (2026-10-07). The board had been committed at the repo root; moving it keeps the root to CLAUDE.md, PROMPTS.md, `docs/` and `game/`. |
 ## Game structure
 | Date | Decision | Why |
 |---|---|---|

@@ -9,6 +9,11 @@
 - Status: **Built (awaiting play test)** or **Passed** (Ryan's play test). When a play test passes, update the entry's status.
 - Entries up to 2026-09-27 were moved here word for word from the system docs.
 
+## Tools (docs/champion_board/)
+
+### Setup: the Champion Kit Board moved into the repo: 2026-10-07, Done
+`champion_board.html` moved from the repo root to `docs/champion_board/` (unchanged), with `my_champions.json` (Ryan's 3 champions, export of 2026-10-04), an empty `.gdignore` and a README. There is no `export_presets.cfg` yet; when one exists, nothing outside `game/` can be in it.
+
 ## Loot (LOOT.md)
 
 ### L-M – A looting session: 2026-10-04, Passed (Ryan's play test; LOOT is done)

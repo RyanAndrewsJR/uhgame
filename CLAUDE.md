@@ -8,6 +8,7 @@ uhgame/
   CLAUDE.md        # this file
   PROMPTS.md       # Ryan's prompt playbook (for Ryan; don't read it unless asked)
   docs/            # one doc per system (see Docs index)
+  docs/champion_board/  # offline champion concepting page (a tool, not a doc); see its README
   game/            # the Godot project. res:// = uhgame/game/
 ```
 All paths in the docs are `res://` paths inside `game/`, unless they start with `docs/`.

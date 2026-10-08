@@ -1,0 +1,311 @@
+{
+  "format": "champion-kit-board",
+  "version": 1,
+  "exported": "2026-10-04",
+  "champions": {
+    "knight": {
+      "abilities": [
+        {
+          "angle": 120,
+          "cast": "cone",
+          "castTime": 0.2,
+          "cooldown": 3,
+          "cost": 20,
+          "desc": "Sweep your sword in a wide arc, damaging and knocking back enemies. Heals the Knight.",
+          "dmg": "physical",
+          "name": "Cleave",
+          "range": 3,
+          "slot": "Q",
+          "tags": [
+            "core",
+            "area",
+            "cone",
+            "knockback",
+            "heal"
+          ],
+          "width": 1.5
+        },
+        {
+          "angle": 90,
+          "cast": "self",
+          "castTime": 0,
+          "cooldown": 10,
+          "cost": 0,
+          "desc": "Move 35% faster for 2 s. Your next basic attack deals bonus damage and slows.",
+          "dmg": "none",
+          "name": "Iron Resolve",
+          "range": 6,
+          "slot": "W",
+          "tags": [
+            "buff",
+            "defensive",
+            "empower"
+          ],
+          "width": 1.2
+        },
+        {
+          "angle": 90,
+          "cast": "dash",
+          "castTime": 0.05,
+          "cooldown": 8,
+          "cost": 0,
+          "desc": "Dash to the aimed point, hitting enemies along the path and staggering them.",
+          "dmg": "physical",
+          "name": "Lunge",
+          "range": 5,
+          "slot": "E",
+          "tags": [
+            "mobility",
+            "dash",
+            "movement"
+          ],
+          "width": 0.8
+        },
+        {
+          "angle": 90,
+          "cast": "unit",
+          "castTime": 0.75,
+          "cooldown": 30,
+          "cost": 0,
+          "desc": "Channel on a target, then strike for damage that rises with their missing health, and stun. At 60+ Fury it hits harder, stuns longer and spends all your Fury.",
+          "dmg": "physical",
+          "name": "Judgement",
+          "range": 6,
+          "slot": "R",
+          "tags": [
+            "ultimate",
+            "channel",
+            "stun"
+          ],
+          "width": 1.5
+        }
+      ],
+      "fantasy": "A skilled fighter who wins by execution: dodging, comboing and using the room. Gets stronger as health drops.",
+      "id": "knight",
+      "name": "The Knight",
+      "notes": "Cleave's 3 m reach and arc width, the cooldowns for Iron Resolve and Lunge, and the ranges of Lunge and Judgement are approximate placeholders. Real numbers live in ABILITIES.md and CHAMPIONS.md.",
+      "passive": {
+        "desc": "Attack damage rises as health falls: +0% at full health, up to +40% at 30% health or less.",
+        "name": "Unbroken",
+        "tags": [
+          "defensive"
+        ]
+      },
+      "resource": "Fury",
+      "role": "Bruiser",
+      "updated": 1791157608312
+    },
+    "cmuuhjvd5agp0": {
+      "abilities": [
+        {
+          "angle": 130,
+          "cast": "unit",
+          "castTime": 0.25,
+          "charges": 1,
+          "cooldown": 8,
+          "cost": 0,
+          "count": 3,
+          "desc": "",
+          "dmg": "physical",
+          "duration": 0,
+          "inner": 1,
+          "length": 4,
+          "name": "",
+          "range": 6,
+          "slot": "Q",
+          "speed": 0,
+          "tags": [],
+          "width": 1.5
+        },
+        {
+          "angle": 90,
+          "cast": "self",
+          "castTime": 0.25,
+          "charges": 1,
+          "cooldown": 12,
+          "cost": 0,
+          "count": 3,
+          "desc": "",
+          "dmg": "none",
+          "duration": 0,
+          "inner": 1,
+          "length": 4,
+          "name": "",
+          "range": 6,
+          "slot": "W",
+          "speed": 0,
+          "tags": [],
+          "width": 1.2
+        },
+        {
+          "angle": 90,
+          "cast": "dash",
+          "castTime": 0.25,
+          "charges": 1,
+          "cooldown": 9,
+          "cost": 0,
+          "count": 3,
+          "desc": "",
+          "dmg": "physical",
+          "duration": 0,
+          "inner": 1,
+          "length": 4,
+          "name": "",
+          "range": 5,
+          "slot": "E",
+          "speed": 0,
+          "tags": [],
+          "width": 1
+        },
+        {
+          "angle": 90,
+          "cast": "unit",
+          "castTime": 0.5,
+          "charges": 1,
+          "cooldown": 60,
+          "cost": 0,
+          "count": 3,
+          "desc": "",
+          "dmg": "physical",
+          "duration": 0,
+          "inner": 1,
+          "length": 4,
+          "name": "",
+          "range": 7,
+          "slot": "R",
+          "speed": 0,
+          "tags": [],
+          "width": 1.5
+        }
+      ],
+      "fantasy": "",
+      "id": "cmuuhjvd5agp0",
+      "name": "Unnamed champion",
+      "notes": "",
+      "passive": {
+        "desc": "",
+        "name": "",
+        "tags": []
+      },
+      "resource": "None",
+      "role": "Bruiser",
+      "updated": 1791158619054
+    },
+    "cmuuhghg7j0s3": {
+      "abilities": [
+        {
+          "angle": 120,
+          "cast": "cone",
+          "castTime": 0.2,
+          "charges": 1,
+          "cooldown": 3,
+          "cost": 20,
+          "count": 3,
+          "desc": "Sweep your sword in a wide arc, damaging and knocking back enemies. Heals the Knight.",
+          "dmg": "physical",
+          "duration": 0,
+          "inner": 1,
+          "length": 4,
+          "name": "Cleave",
+          "range": 3,
+          "slot": "Q",
+          "speed": 0,
+          "tags": [
+            "core",
+            "area",
+            "cone",
+            "knockback",
+            "heal"
+          ],
+          "width": 1.5
+        },
+        {
+          "angle": 90,
+          "cast": "self",
+          "castTime": 0,
+          "charges": 1,
+          "cooldown": 10,
+          "cost": 0,
+          "count": 3,
+          "desc": "Move 35% faster for 2 s. Your next basic attack deals bonus damage and slows.",
+          "dmg": "none",
+          "duration": 0,
+          "inner": 1,
+          "length": 4,
+          "name": "Iron Resolve",
+          "range": 6,
+          "slot": "W",
+          "speed": 0,
+          "tags": [
+            "buff",
+            "defensive",
+            "empower"
+          ],
+          "width": 1.2
+        },
+        {
+          "angle": 90,
+          "cast": "dash",
+          "castTime": 0.05,
+          "charges": 1,
+          "cooldown": 8,
+          "cost": 0,
+          "count": 3,
+          "desc": "Dash to the aimed point, hitting enemies along the path and staggering them.",
+          "dmg": "physical",
+          "duration": 0,
+          "inner": 1,
+          "length": 4,
+          "name": "Lunge",
+          "range": 5,
+          "slot": "E",
+          "speed": 0,
+          "tags": [
+            "mobility",
+            "dash",
+            "movement"
+          ],
+          "width": 0.8
+        },
+        {
+          "angle": 90,
+          "cast": "unit",
+          "castTime": 0.75,
+          "charges": 1,
+          "cooldown": 30,
+          "cost": 0,
+          "count": 3,
+          "desc": "Channel on a target, then strike for damage that rises with their missing health, and stun. At 60+ Fury it hits harder, stuns longer and spends all your Fury.",
+          "dmg": "physical",
+          "duration": 0,
+          "inner": 1,
+          "length": 4,
+          "name": "Judgement",
+          "range": 6,
+          "slot": "R",
+          "speed": 0,
+          "tags": [
+            "ultimate",
+            "channel",
+            "stun"
+          ],
+          "width": 1.5
+        }
+      ],
+      "fantasy": "A skilled fighter who wins by execution: dodging, comboing and using the room. Gets stronger as health drops.",
+      "id": "cmuuhghg7j0s3",
+      "name": "The Knight",
+      "notes": "Cleave's 3 m reach and arc width, the cooldowns for Iron Resolve and Lunge, and the ranges of Lunge and Judgement are approximate placeholders. Real numbers live in ABILITIES.md and CHAMPIONS.md.",
+      "passive": {
+        "desc": "Attack damage rises as health falls: +0% at full health, up to +40% at 30% health or less.",
+        "name": "Unbroken",
+        "tags": [
+          "defensive"
+        ]
+      },
+      "resource": "Fury",
+      "role": "Bruiser",
+      "updated": 1791158388061
+    }
+  }
+}
