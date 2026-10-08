@@ -127,6 +127,22 @@ details.more .row{margin-top:8px}
 .race .used{font:400 11px var(--f-mono);color:var(--ink-2);white-space:nowrap}
 .hints{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 10px;align-items:center}
 .hints label{font:500 12px var(--f-body);color:var(--ink-2)}
+/* v2: paperdoll */
+.doll-wrap{display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:760px){.doll-wrap{grid-template-columns:minmax(0,1fr)}}
+.doll-left{display:grid;gap:6px;position:sticky;top:8px}
+@media (max-width:760px){.doll-left{position:static}}
+.doll-fig{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:6px}
+.doll-fig svg{display:block;width:100%;height:auto;max-height:420px}
+.doll-cap{font:400 11px/1.4 var(--f-mono);color:var(--ink-2)}
+.doll-slots{display:grid;gap:5px}
+.doll-slot{display:grid;grid-template-columns:120px minmax(0,150px) auto minmax(0,1fr);gap:6px;align-items:center;border-top:1px solid var(--line);padding-top:5px}
+@media (max-width:560px){.doll-slot{grid-template-columns:minmax(0,1fr) auto}.doll-slot .doll-label{grid-column:1/-1}.doll-slot input[type=text]{grid-column:1/-1}}
+.doll-label{font:500 12px/1.2 var(--f-body);color:var(--ink-2)}
+.doll-slot select,.doll-slot input[type=text]{background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:4px 6px;font:400 12.5px var(--f-body);min-width:0;width:100%}
+.doll-fixed{font:400 12px var(--f-mono);color:var(--ink-2)}
+.doll-color{display:flex;align-items:center;gap:3px}
+.doll-color input{width:34px;height:26px;padding:0 2px;border:1px solid var(--line);border-radius:4px;background:var(--panel-2)}
 /* v2: enemies */
 .sel.grow{flex:1 1 220px}
 .warnline{color:var(--warn)}
@@ -415,6 +431,7 @@ function upgrade(c){
   if(!Array.isArray(c.abilities)) c.abilities=[];
   c.abilities.forEach(upgradeAbility);
   if(c.kind==="enemy"){ str(c,"faction"); upgradeEnemy(c); }
+  upgradeDoll(c);
   if(c.kind==="champion"){
     // Weapons (1 to 3): weapon 1's kit is `abilities`; weapons 2 and 3 hold their own Q, W, E, R. No stats on weapons.
     if(!Array.isArray(c.weapons)||!c.weapons.length) c.weapons=[{}];
@@ -620,6 +637,8 @@ function renderMain(){
     m.appendChild(behaviorPanel(c));
     m.appendChild(plansPanel(c));
   }
+
+  m.appendChild(dollPanel(c));
 
   // notes
   var nt=el("textarea",{"aria-label":"Notes",placeholder:c.kind==="enemy"?"Open questions, what it should never do, how it tests the player…":"Synergies, open questions, what this champion should not do, how it feels against the Knight's kit…"}); nt.value=c.notes||"";
@@ -1220,6 +1239,303 @@ function makeEnemyBrief(c,L){
   L.push("Kit respect: "+n2(c.abilities.reduce(function(s,a){ return s+respectOf(a).value; },0))+".");
 }
 
+/* ---------- paperdoll: a front-view look and silhouette sheet (an art brief, not equipment) ---------- */
+var DOLL_SLOTS = [
+  ["head","Head",["short hair","long hair","bald","braids","topknot"]],
+  ["headgear","Headgear",["none","hood","horned helm","full helm","crown","wide hat","circlet","mask"]],
+  ["face","Face marks",["none","warpaint","scars","tattoo","veil","glowing eyes"]],
+  ["shoulders","Shoulders",["none","plate shoulder","fur mantle","spiked pauldrons","scarf"]],
+  ["chest","Chest",["tunic","plate","robe","leather vest","long coat"]],
+  ["arms","Arms",["sleeves","bare","bracers","armored"]],
+  ["hands","Hands",["bare","gloves","gauntlets","claws","wraps"]],
+  ["belt","Belt",["none","belt","sash","pouches","chain"]],
+  ["legs","Legs",["trousers","plate greaves","skirt"]],
+  ["feet","Feet",["boots","sandals","bare","sabatons"]],
+  ["back","Back (cape, wings, tail)",["none","cape","wings","tail","quiver","pack","banner"]],
+  ["main_hand","Main hand",["none"].concat(WEAPON_TYPES,["claws"])],
+  ["off_hand","Off hand",["none","shield","dagger","tome","orb","lantern","torch"]],
+  ["trinket","Trinket",["none","amulet","belt charm","floating rune"]],
+  ["aura","Aura or VFX colour",["none","glow","flames","sparks","mist"]]
+];
+var DOLL_DEFAULT = {skin:"#C8B6A2",head:"#5A4632",headgear:"#7D8792",face:"#B03A2E",shoulders:"#8A96A3",chest:"#6B7A8A",arms:"#6B7A8A",hands:"#C8B6A2",belt:"#7A5A3A",legs:"#4E5965",feet:"#3A3F46",back:"#8B3A3A",main_hand:"#B8C0C8",off_hand:"#8C6A3F",trinket:"#D4AF37",aura:"#7FD3E0"};
+var SIZE_SCALE = {tiny:0.45, small:0.68, medium:1, large:1.3, huge:1.65};
+function upgradeDoll(c){
+  if(!c.paperdoll||typeof c.paperdoll!=="object"||Array.isArray(c.paperdoll)) c.paperdoll={};
+  if(!c.paperdoll.slots||typeof c.paperdoll.slots!=="object"||Array.isArray(c.paperdoll.slots)) c.paperdoll.slots={};
+  if(!c.paperdoll.by_weapon||typeof c.paperdoll.by_weapon!=="object"||Array.isArray(c.paperdoll.by_weapon)) c.paperdoll.by_weapon={};
+}
+// A champion's main and off hand belong to the weapon on the selected tab; every other slot is shared.
+function dollSlot(c,key,wi,create){
+  var pd=c.paperdoll, box=pd.slots;
+  if(c.kind==="champion"&&(key==="main_hand"||key==="off_hand")){
+    var w=c.weapons[wi]||c.weapons[0]; box=pd.by_weapon[w.id];
+    if(!box){ if(!create) return {desc:"",color:"",shape:""}; box=pd.by_weapon[w.id]={}; }
+  }
+  if(!box[key]||typeof box[key]!=="object"){ if(!create) return {desc:"",color:"",shape:""}; box[key]={desc:"",color:"",shape:""}; }
+  return box[key];
+}
+function dollShape(c,key,wi){
+  if(key==="main_hand"&&c.kind==="champion"){ var w=c.weapons[wi]||c.weapons[0]; return w.type; }
+  var sl=dollSlot(c,key,wi,false), def=DOLL_SLOTS.filter(function(d){ return d[0]===key; })[0];
+  return sl.shape||def[2][0];
+}
+// What the race adds to the doll, read from its size class and the words in its silhouette note.
+function dollFeatures(c){
+  var r=raceById(c.race), sil=((c.race==="other"?c.race_other:(r?r.silhouette+" "+r.name:""))||"").toLowerCase();
+  var f={size:r?r.size:"medium", build:1, list:[], skin:DOLL_DEFAULT.skin};
+  function has(re,name){ if(re.test(sil)){ f[name]=true; f.list.push(name); } }
+  if(/stout|broad|heavy|bulky|hulking/.test(sil)){ f.build=1.3; f.list.push("broad build"); }
+  else if(/slender|graceful|wiry|lithe/.test(sil)){ f.build=0.82; f.list.push("slender build"); }
+  has(/\bears?\b|\belf\b/,"ears"); has(/horn/,"horns"); has(/tail/,"tail"); has(/wing/,"wings"); has(/digitigrade|hoof|hooves/,"digitigrade");
+  has(/skelet|bone/,"skeletal"); has(/incorporeal|wraith|fades/,"wisp"); has(/slime|blob|ooze/,"blob"); has(/mushroom|fung/,"cap");
+  has(/antenna|insect/,"antennae"); has(/leaf|plant|bark|thorn/,"leaves"); has(/\bfins?\b|merfolk/,"fins"); has(/beak|avian/,"beak");
+  has(/tusk/,"tusks"); has(/tentacle|eldritch/,"tentacles"); has(/glow|radiant|ember|wreathed/,"glow"); has(/beard/,"beard");
+  has(/block|golem|stone|clockwork/,"blocky"); has(/\bgears?\b/,"gears"); has(/crest/,"crest"); has(/snout/,"snout");
+  var tints=[[/pale/,"#E8E2DA"],[/slime|ooze/,"#7BC47F"],[/stone|metal|golem|clockwork/,"#8E8E86"],[/bark|plant/,"#7A8F5A"],[/scaled|lizard/,"#6F9A6A"],[/ember/,"#B5534A"],[/wraith|incorporeal/,"#AFC3D9"],[/chitin|insect/,"#5F6F4A"],[/fung|mushroom/,"#D9C7B0"],[/feather|avian/,"#C9B48A"],[/skelet/,"#E6E0D0"],[/fur/,"#8A6E52"]];
+  for(var i=0;i<tints.length;i++) if(tints[i][0].test(sil)){ f.skin=tints[i][1]; break; }
+  return f;
+}
+function drawDoll(c,wi){
+  var f=dollFeatures(c), sc=SIZE_SCALE[f.size]||1, b=f.build, cx=120, g=318;
+  var H=175*sc, hr=H*0.08, top=g-H, headY=top+hr, neckY=top+2*hr, shY=neckY+H*0.025, hipY=top+H*0.53, footY=g-H*0.02;
+  var tw=H*0.24*b, ww=tw*0.8, lw=Math.max(2.5,tw*0.3*(f.skeletal?0.55:1)), aw=Math.max(2,lw*(f.skeletal?0.8:0.78)), legX=tw*0.21, armX=tw/2+aw*0.6, handY=hipY+H*0.04;
+  var sw=Math.max(0.8,1.15*Math.sqrt(sc)), blocky=f.blocky;
+  function col(key){ var sl=dollSlot(c,key,wi,false); return sl.color||DOLL_DEFAULT[key]; }
+  function sh(key){ return dollShape(c,key,wi); }
+  function st(fill,extra){ return "fill:"+fill+";stroke:var(--ink);stroke-width:"+sw+";stroke-linejoin:round;stroke-linecap:round"+(extra||""); }
+  var svg=s("svg",{viewBox:"0 0 240 330",role:"img","aria-label":"Paperdoll of "+(c.name||"the sheet")+", front view"});
+  function add(tag,attrs,fill,extra){ attrs.style=st(fill,extra); var e=s(tag,attrs); svg.appendChild(e); return e; }
+  function line(x1,y1,x2,y2,color,w){ var e=s("line",{x1:x1,y1:y1,x2:x2,y2:y2,style:"stroke:"+color+";stroke-width:"+(w||sw)+";stroke-linecap:round"}); svg.appendChild(e); return e; }
+  var skin=f.skin, aura=sh("aura"), auraC=col("aura");
+  // ground and the medium reference
+  svg.appendChild(s("line",{x1:20,y1:g,x2:220,y2:g,style:"stroke:var(--line);stroke-width:1.5"}));
+  svg.appendChild(s("line",{x1:206,y1:g-175,x2:226,y2:g-175,style:"stroke:var(--line);stroke-width:1;stroke-dasharray:3 3"}));
+  var rt=s("text",{x:224,y:g-179,"text-anchor":"end",style:"font-size:8px;fill:var(--ink-2)"}); rt.textContent="medium"; svg.appendChild(rt);
+  // aura glow behind
+  if(aura==="glow"||f.glow) add("ellipse",{cx:cx,cy:top+H*0.5,rx:tw*1.5+10*sc,ry:H*0.62},aura==="glow"?auraC:"#F2C14E",";stroke:none;opacity:.22");
+  // back items and race parts behind the body
+  var back=sh("back"), backC=col("back");
+  if(back==="wings"||f.wings){ var wc=back==="wings"?backC:skin; [-1,1].forEach(function(d){ add("path",{d:"M"+(cx+d*tw*0.3)+" "+(shY+4)+" Q"+(cx+d*(tw*1.9+10*sc))+" "+(shY-H*0.32)+" "+(cx+d*(tw*1.6+8*sc))+" "+(hipY+H*0.05)+" Q"+(cx+d*tw*0.9)+" "+(shY+H*0.18)+" "+(cx+d*tw*0.3)+" "+(shY+H*0.2)+" Z"},wc); }); }
+  if(back==="tail"||f.tail){ add("path",{d:"M"+(cx+tw*0.15)+" "+(hipY-2)+" Q"+(cx+tw*1.4)+" "+(hipY+H*0.12)+" "+(cx+tw*1.15)+" "+(g-H*0.12)},"none",";stroke-width:"+(lw*0.75)+";stroke:"+(back==="tail"?backC:skin)); }
+  if(back==="cape") add("path",{d:"M"+(cx-tw*0.55)+" "+shY+" L"+(cx+tw*0.55)+" "+shY+" L"+(cx+tw*0.8)+" "+(top+H*0.86)+" L"+(cx-tw*0.8)+" "+(top+H*0.86)+" Z"},backC);
+  if(back==="quiver"){ add("rect",{x:cx+tw*0.15,y:shY-H*0.12,width:tw*0.22,height:H*0.3,rx:2,transform:"rotate(18 "+(cx+tw*0.26)+" "+(shY)+")"},backC); }
+  if(back==="pack") add("rect",{x:cx-tw*0.45,y:shY+2,width:tw*0.9,height:H*0.26,rx:4},backC);
+  if(back==="banner"){ line(cx+tw*0.35,shY+H*0.2,cx+tw*0.35,top-H*0.12,"var(--ink)",sw*1.5); add("path",{d:"M"+(cx+tw*0.35)+" "+(top-H*0.12)+" h"+(tw*0.9)+" l-"+(tw*0.2)+" "+(H*0.08)+" l"+(tw*0.2)+" "+(H*0.08)+" h-"+(tw*0.9)+" Z"},backC); }
+  // long hair falls behind the head
+  var hair=sh("head"), hairC=col("head");
+  if(hair==="long hair"&&!f.blob) add("path",{d:"M"+(cx-hr*1.05)+" "+headY+" Q"+(cx-hr*1.3)+" "+(shY+H*0.12)+" "+(cx-hr*0.8)+" "+(shY+H*0.16)+" L"+(cx+hr*0.8)+" "+(shY+H*0.16)+" Q"+(cx+hr*1.3)+" "+(shY+H*0.12)+" "+(cx+hr*1.05)+" "+headY+" Z"},hairC);
+  if(f.blob){
+    // an ooze: one body, no limbs
+    add("path",{d:"M"+(cx-tw*1.2)+" "+g+" Q"+(cx-tw*1.3)+" "+(top+H*0.25)+" "+cx+" "+(top+H*0.05)+" Q"+(cx+tw*1.3)+" "+(top+H*0.25)+" "+(cx+tw*1.2)+" "+g+" Z"},skin,";opacity:.92");
+    add("circle",{cx:cx-tw*0.3,cy:top+H*0.42,r:Math.max(2,hr*0.35)},"var(--ink)"); add("circle",{cx:cx+tw*0.3,cy:top+H*0.42,r:Math.max(2,hr*0.35)},"var(--ink)");
+  }else{
+    // legs and feet (a wraith fades out; tentacles replace legs)
+    var legs=sh("legs"), legC=col("legs");
+    if(f.wisp) add("path",{d:"M"+(cx-ww/2)+" "+hipY+" Q"+(cx-ww*0.2)+" "+(g-H*0.15)+" "+cx+" "+(g-H*0.04)+" Q"+(cx+ww*0.2)+" "+(g-H*0.15)+" "+(cx+ww/2)+" "+hipY+" Z"},skin,";opacity:.55");
+    else if(f.tentacles){ for(var t=-2;t<=2;t++) add("path",{d:"M"+(cx+t*lw*0.7)+" "+hipY+" Q"+(cx+t*lw*1.6)+" "+(hipY+H*0.25)+" "+(cx+t*lw*1.1+(t%2?6:-6)*sc)+" "+(footY)},"none",";stroke-width:"+(lw*0.6)+";stroke:"+skin); }
+    else{
+      [-1,1].forEach(function(d){
+        var x=cx+d*legX, knee=hipY+(footY-hipY)*0.5;
+        if(f.digitigrade) add("path",{d:"M"+(x-lw/2)+" "+hipY+" L"+(x+lw/2)+" "+hipY+" L"+(x+lw/2+d*lw*0.4)+" "+knee+" L"+(x+lw/2)+" "+(footY-H*0.04)+" L"+(x-lw/2)+" "+(footY-H*0.04)+" L"+(x-lw/2+d*lw*0.4)+" "+knee+" Z"},legC);
+        else add("rect",{x:x-lw/2,y:hipY,width:lw,height:footY-hipY-H*0.03,rx:blocky?0:lw*0.35},legC);
+        if(legs==="plate greaves") add("circle",{cx:x,cy:knee,r:lw*0.45},col("shoulders"));
+        var feet=sh("feet"), fc=feet==="bare"?skin:col("feet");
+        if(feet==="sabatons") add("path",{d:"M"+(x-lw*0.65)+" "+g+" L"+(x+d*lw*1.1)+" "+g+" L"+(x+lw*0.5*d)+" "+(g-H*0.05)+" L"+(x-lw*0.5*d)+" "+(g-H*0.05)+" Z"},fc);
+        else add("ellipse",{cx:x+d*lw*0.15,cy:g-H*0.025,rx:lw*(feet==="sandals"?0.55:0.7),ry:H*(feet==="sandals"?0.018:0.03)},fc);
+      });
+      if(legs==="skirt") add("path",{d:"M"+(cx-ww/2)+" "+hipY+" L"+(cx+ww/2)+" "+hipY+" L"+(cx+ww*0.75)+" "+(hipY+H*0.24)+" L"+(cx-ww*0.75)+" "+(hipY+H*0.24)+" Z"},legC);
+    }
+    // the torso by its chest piece
+    var chest=sh("chest"), chestC=col("chest");
+    if(chest==="robe") add("path",{d:"M"+(cx-tw/2)+" "+shY+" L"+(cx+tw/2)+" "+shY+" L"+(cx+tw*0.62)+" "+(g-H*0.06)+" L"+(cx-tw*0.62)+" "+(g-H*0.06)+" Z"},chestC);
+    else if(chest==="long coat"){ add("path",{d:"M"+(cx-tw/2)+" "+shY+" L"+(cx+tw/2)+" "+shY+" L"+(cx+tw*0.58)+" "+(hipY+H*0.22)+" L"+(cx+tw*0.06)+" "+(hipY+H*0.22)+" L"+cx+" "+hipY+" L"+(cx-tw*0.06)+" "+(hipY+H*0.22)+" L"+(cx-tw*0.58)+" "+(hipY+H*0.22)+" Z"},chestC); }
+    else add("path",{d:"M"+(cx-tw/2)+" "+shY+" L"+(cx+tw/2)+" "+shY+" L"+(cx+ww/2)+" "+hipY+" L"+(cx-ww/2)+" "+hipY+" Z"},chestC);
+    if(chest==="plate"){ line(cx,shY+3,cx,hipY-2,"var(--ink)",sw*0.8); add("path",{d:"M"+(cx-tw*0.38)+" "+(shY+H*0.1)+" Q"+cx+" "+(shY+H*0.16)+" "+(cx+tw*0.38)+" "+(shY+H*0.1)},"none"); }
+    if(chest==="leather vest") add("path",{d:"M"+(cx-tw*0.2)+" "+shY+" L"+cx+" "+(shY+H*0.14)+" L"+(cx+tw*0.2)+" "+shY},"none");
+    if(f.skeletal) for(var rb=1;rb<=3;rb++) line(cx-tw*0.28,shY+rb*H*0.045,cx+tw*0.28,shY+rb*H*0.045,"var(--ink)",sw*0.7);
+    if(f.gears) add("circle",{cx:cx+tw*0.18,cy:shY+H*0.11,r:tw*0.12},"#C9A24A",";stroke-dasharray:2 1.5");
+    var belt=sh("belt"), beltC=col("belt");
+    if(belt==="belt"||belt==="pouches") add("rect",{x:cx-ww/2-1,y:hipY-H*0.035,width:ww+2,height:H*0.035,rx:1},beltC);
+    if(belt==="pouches"){ add("rect",{x:cx-ww*0.42,y:hipY-H*0.01,width:ww*0.2,height:H*0.05,rx:1.5},beltC); add("rect",{x:cx+ww*0.22,y:hipY-H*0.01,width:ww*0.2,height:H*0.05,rx:1.5},beltC); }
+    if(belt==="sash") add("path",{d:"M"+(cx-tw/2)+" "+(shY+2)+" L"+(cx+ww/2)+" "+(hipY-H*0.02)+" L"+(cx+ww/2)+" "+(hipY-H*0.07)+" L"+(cx-tw/2+3)+" "+(shY-1)+" Z"},beltC);
+    if(belt==="chain") add("line",{x1:cx-ww/2,y1:hipY-H*0.02,x2:cx+ww/2,y2:hipY-H*0.02},"none",";stroke:"+beltC+";stroke-width:"+(sw*2.2)+";stroke-dasharray:2 2");
+    // arms and hands
+    var arms=sh("arms"), armC=arms==="bare"?skin:col("arms"), hands=sh("hands"), handC=hands==="bare"?skin:col("hands");
+    [-1,1].forEach(function(d){
+      var x=cx+d*armX;
+      add("rect",{x:x-aw/2,y:shY+1,width:aw,height:handY-shY-1,rx:blocky?0:aw*0.45},armC);
+      if(arms==="bracers") add("rect",{x:x-aw*0.6,y:handY-H*0.09,width:aw*1.2,height:H*0.06,rx:1},col("arms"));
+      if(arms==="armored") for(var k=1;k<=3;k++) line(x-aw/2,shY+k*(handY-shY)/4,x+aw/2,shY+k*(handY-shY)/4,"var(--ink)",sw*0.7);
+      if(hands==="gauntlets") add("rect",{x:x-aw*0.75,y:handY-2,width:aw*1.5,height:H*0.05,rx:1},handC);
+      else add("circle",{cx:x,cy:handY+aw*0.3,r:aw*0.68},handC);
+      if(hands==="claws") for(var q=-1;q<=1;q++) add("path",{d:"M"+(x+q*aw*0.4)+" "+(handY+aw*0.8)+" l"+(q*1.5)+" "+(H*0.04)},"none");
+      if(hands==="wraps") line(x-aw*0.6,handY,x+aw*0.6,handY+2,col("hands"),sw*1.6);
+    });
+    // shoulders
+    var sho=sh("shoulders"), shoC=col("shoulders");
+    if(sho==="plate shoulder") [-1,1].forEach(function(d){ add("path",{d:"M"+(cx+d*(tw/2-aw*0.6))+" "+(shY+H*0.05)+" A"+(aw*1.2)+" "+(aw*1.0)+" 0 0 "+(d>0?0:1)+" "+(cx+d*(tw/2+aw*1.6))+" "+(shY+H*0.05)+" Z"},shoC); });
+    if(sho==="fur mantle") add("ellipse",{cx:cx,cy:shY+2,rx:tw*0.7,ry:H*0.045},shoC);
+    if(sho==="spiked pauldrons") [-1,1].forEach(function(d){ add("path",{d:"M"+(cx+d*(tw/2-aw*0.4))+" "+(shY+H*0.04)+" L"+(cx+d*(tw/2+aw*0.5))+" "+(shY-H*0.07)+" L"+(cx+d*(tw/2+aw*1.4))+" "+(shY+H*0.04)+" Z"},shoC); });
+    if(sho==="scarf") add("rect",{x:cx-tw*0.32,y:shY-H*0.015,width:tw*0.64,height:H*0.04,rx:3},shoC);
+  }
+  // neck, head and the race's head parts
+  if(!f.blob){
+    add("rect",{x:cx-hr*0.35,y:neckY-hr*0.4,width:hr*0.7,height:shY-neckY+hr*0.5},skin);
+    if(f.ears) [-1,1].forEach(function(d){ add("path",{d:"M"+(cx+d*hr*0.85)+" "+(headY-hr*0.1)+" L"+(cx+d*hr*1.75)+" "+(headY-hr*0.85)+" L"+(cx+d*hr*0.9)+" "+(headY+hr*0.35)+" Z"},skin); });
+    if(f.fins) [-1,1].forEach(function(d){ add("path",{d:"M"+(cx+d*hr*0.9)+" "+(headY-hr*0.4)+" L"+(cx+d*hr*1.6)+" "+(headY)+" L"+(cx+d*hr*0.9)+" "+(headY+hr*0.4)+" Z"},skin); });
+    if(blocky) add("rect",{x:cx-hr,y:top,width:hr*2,height:hr*2,rx:hr*0.15},skin); else add("circle",{cx:cx,cy:headY,r:hr},skin);
+    if(f.snout||f.beak) add("path",{d:"M"+(cx-hr*0.35)+" "+(headY+hr*0.05)+" L"+cx+" "+(headY+hr*(f.beak?0.95:0.75))+" L"+(cx+hr*0.35)+" "+(headY+hr*0.05)+" Z"},f.beak?"#D9A23A":skin);
+    if(f.tusks) [-1,1].forEach(function(d){ add("path",{d:"M"+(cx+d*hr*0.35)+" "+(headY+hr*0.55)+" l"+(d*hr*0.12)+" "+(-hr*0.5)},"none",";stroke:#F1E9D6;stroke-width:"+(sw*1.8)); });
+    if(f.beard) add("path",{d:"M"+(cx-hr*0.75)+" "+(headY+hr*0.2)+" Q"+cx+" "+(headY+hr*2.1)+" "+(cx+hr*0.75)+" "+(headY+hr*0.2)+" Z"},hairC);
+    // hair on top
+    if(hair==="short hair"||hair==="long hair") add("path",{d:"M"+(cx-hr*0.98)+" "+(headY-hr*0.05)+" A"+hr+" "+hr+" 0 0 1 "+(cx+hr*0.98)+" "+(headY-hr*0.05)+" Q"+cx+" "+(headY-hr*0.55)+" "+(cx-hr*0.98)+" "+(headY-hr*0.05)+" Z"},hairC);
+    if(hair==="braids") [-1,1].forEach(function(d){ add("rect",{x:cx+d*hr*0.95-hr*0.15,y:headY,width:hr*0.3,height:hr*2.2,rx:hr*0.15},hairC); });
+    if(hair==="topknot") add("circle",{cx:cx,cy:top-hr*0.25,r:hr*0.35},hairC);
+    if(f.crest) add("path",{d:"M"+(cx-hr*0.2)+" "+(top+hr*0.2)+" L"+cx+" "+(top-hr*0.6)+" L"+(cx+hr*0.2)+" "+(top+hr*0.2)+" Z"},"#B5534A");
+    if(f.horns) [-1,1].forEach(function(d){ add("path",{d:"M"+(cx+d*hr*0.45)+" "+(headY-hr*0.7)+" Q"+(cx+d*hr*1.5)+" "+(headY-hr*1.2)+" "+(cx+d*hr*1.3)+" "+(headY-hr*2.0)},"none",";stroke:#E8DCC2;stroke-width:"+(hr*0.32)); });
+    if(f.antennae) [-1,1].forEach(function(d){ add("path",{d:"M"+(cx+d*hr*0.3)+" "+(top+hr*0.2)+" Q"+(cx+d*hr*0.6)+" "+(top-hr*1.2)+" "+(cx+d*hr*1.2)+" "+(top-hr*1.4)},"none"); });
+    if(f.cap) add("path",{d:"M"+(cx-hr*1.9)+" "+(headY-hr*0.1)+" Q"+cx+" "+(top-hr*1.6)+" "+(cx+hr*1.9)+" "+(headY-hr*0.1)+" Z"},"#B5534A");
+    if(f.leaves) for(var lf=-2;lf<=2;lf++) add("ellipse",{cx:cx+lf*hr*0.45,cy:top+hr*0.05,rx:hr*0.22,ry:hr*0.5,transform:"rotate("+(lf*18)+" "+(cx+lf*hr*0.45)+" "+(top+hr*0.05)+")"},"#6E9A4E");
+    // face marks
+    var face=sh("face"), faceC=col("face");
+    if(face==="warpaint"){ line(cx-hr*0.55,headY-hr*0.05,cx-hr*0.2,headY+hr*0.25,faceC,sw*1.6); line(cx+hr*0.55,headY-hr*0.05,cx+hr*0.2,headY+hr*0.25,faceC,sw*1.6); }
+    if(face==="scars") line(cx+hr*0.15,headY-hr*0.45,cx+hr*0.55,headY+hr*0.3,faceC,sw*1.2);
+    if(face==="tattoo") add("path",{d:"M"+cx+" "+(headY-hr*0.65)+" l"+(hr*0.15)+" "+(hr*0.2)+" l"+(-hr*0.15)+" "+(hr*0.2)+" l"+(-hr*0.15)+" "+(-hr*0.2)+" Z"},faceC);
+    if(face==="veil") add("rect",{x:cx-hr*0.75,y:headY+hr*0.1,width:hr*1.5,height:hr*0.7,rx:hr*0.2},faceC,";opacity:.85");
+    var eyesC=face==="glowing eyes"?faceC:"var(--ink)";
+    [-1,1].forEach(function(d){ add("circle",{cx:cx+d*hr*0.35,cy:headY-hr*0.08,r:Math.max(0.9,hr*(face==="glowing eyes"?0.16:0.1))},eyesC,face==="glowing eyes"?";stroke:none":";stroke:none"); });
+    // headgear over the head
+    var hg=sh("headgear"), hgC=col("headgear");
+    if(hg==="hood") add("path",{d:"M"+(cx-hr*1.25)+" "+(headY+hr*0.9)+" Q"+(cx-hr*1.3)+" "+(top-hr*0.6)+" "+cx+" "+(top-hr*0.55)+" Q"+(cx+hr*1.3)+" "+(top-hr*0.6)+" "+(cx+hr*1.25)+" "+(headY+hr*0.9)+" L"+(cx+hr*0.8)+" "+(headY+hr*0.9)+" Q"+(cx+hr*0.85)+" "+(top+hr*0.1)+" "+cx+" "+(top+hr*0.05)+" Q"+(cx-hr*0.85)+" "+(top+hr*0.1)+" "+(cx-hr*0.8)+" "+(headY+hr*0.9)+" Z"},hgC);
+    if(hg==="horned helm"||hg==="full helm"){ add("path",{d:"M"+(cx-hr*1.08)+" "+(headY+(hg==="full helm"?hr*0.9:hr*0.05))+" L"+(cx-hr*1.08)+" "+(headY-hr*0.2)+" A"+(hr*1.08)+" "+(hr*1.1)+" 0 0 1 "+(cx+hr*1.08)+" "+(headY-hr*0.2)+" L"+(cx+hr*1.08)+" "+(headY+(hg==="full helm"?hr*0.9:hr*0.05))+" Z"},hgC);
+      if(hg==="full helm") add("rect",{x:cx-hr*0.7,y:headY-hr*0.18,width:hr*1.4,height:hr*0.14},"var(--ink)",";stroke:none");
+      if(hg==="horned helm") [-1,1].forEach(function(d){ add("path",{d:"M"+(cx+d*hr*0.9)+" "+(headY-hr*0.5)+" Q"+(cx+d*hr*1.9)+" "+(headY-hr*0.9)+" "+(cx+d*hr*1.7)+" "+(headY-hr*1.9)},"none",";stroke:#E8DCC2;stroke-width:"+(hr*0.3)); }); }
+    if(hg==="crown") add("path",{d:"M"+(cx-hr*0.75)+" "+(top+hr*0.25)+" L"+(cx-hr*0.75)+" "+(top-hr*0.45)+" L"+(cx-hr*0.38)+" "+(top-hr*0.1)+" L"+cx+" "+(top-hr*0.6)+" L"+(cx+hr*0.38)+" "+(top-hr*0.1)+" L"+(cx+hr*0.75)+" "+(top-hr*0.45)+" L"+(cx+hr*0.75)+" "+(top+hr*0.25)+" Z"},hgC);
+    if(hg==="wide hat"){ add("ellipse",{cx:cx,cy:top+hr*0.25,rx:hr*2.1,ry:hr*0.35},hgC); add("path",{d:"M"+(cx-hr*0.8)+" "+(top+hr*0.2)+" L"+(cx-hr*0.55)+" "+(top-hr*1.1)+" L"+(cx+hr*0.6)+" "+(top-hr*0.9)+" L"+(cx+hr*0.8)+" "+(top+hr*0.2)+" Z"},hgC); }
+    if(hg==="circlet") add("rect",{x:cx-hr*0.98,y:headY-hr*0.55,width:hr*1.96,height:hr*0.18,rx:hr*0.09},hgC);
+    if(hg==="mask") add("rect",{x:cx-hr*0.85,y:headY-hr*0.32,width:hr*1.7,height:hr*0.42,rx:hr*0.15},hgC);
+  }
+  // what the hands hold: the main hand (the figure's right, the viewer's left) and the off hand
+  var mh=sh("main_hand"), mhC=col("main_hand"), wood="#6B4E31", hx=cx-armX, hy=handY+aw*0.3;
+  if(f.blob){ hx=cx-tw*1.25; hy=top+H*0.6; }
+  if(mh==="sword"){ add("rect",{x:hx-1.6*sc-1,y:hy-H*0.45,width:3.2*sc+2,height:H*0.43},mhC); add("rect",{x:hx-6*sc-2,y:hy-H*0.03,width:12*sc+4,height:2.5*sc+1.5},wood); }
+  if(mh==="dagger"){ add("path",{d:"M"+(hx-1.5*sc-1)+" "+(hy-1)+" L"+hx+" "+(hy-H*0.18)+" L"+(hx+1.5*sc+1)+" "+(hy-1)+" Z"},mhC); add("rect",{x:hx-4*sc-1,y:hy-2,width:8*sc+2,height:2*sc+1.5},wood); }
+  if(mh==="spear"){ line(hx,hy+H*0.18,hx,hy-H*0.62,wood,sw*2.2); add("path",{d:"M"+(hx-3*sc-1)+" "+(hy-H*0.6)+" L"+hx+" "+(hy-H*0.74)+" L"+(hx+3*sc+1)+" "+(hy-H*0.6)+" Z"},mhC); }
+  if(mh==="staff"){ line(hx,hy+H*0.3,hx,hy-H*0.5,wood,sw*2.2); add("circle",{cx:hx,cy:hy-H*0.54,r:5*sc+1.5},auraC); }
+  if(mh==="bow"){ add("path",{d:"M"+hx+" "+(hy-H*0.32)+" Q"+(hx-H*0.16)+" "+hy+" "+hx+" "+(hy+H*0.32)},"none",";stroke:"+mhC+";stroke-width:"+(sw*2)); line(hx,hy-H*0.32,hx,hy+H*0.32,"var(--ink-2)",sw*0.6); }
+  if(mh==="hammer"){ line(hx,hy+H*0.08,hx,hy-H*0.4,wood,sw*2.2); add("rect",{x:hx-8*sc-2,y:hy-H*0.46,width:16*sc+4,height:H*0.08,rx:1},mhC); }
+  if(mh==="other"){ line(hx,hy+H*0.05,hx,hy-H*0.25,mhC,sw*2); add("path",{d:"M"+hx+" "+(hy-H*0.33)+" l3 5 l-3 5 l-3 -5 Z"},mhC); }
+  if(mh==="claws") for(var cl=-1;cl<=1;cl++) add("path",{d:"M"+(hx+cl*3*sc)+" "+(hy+2)+" l"+(cl*2)+" "+(H*0.09)},"none",";stroke:"+mhC+";stroke-width:"+(sw*1.4));
+  var oh=sh("off_hand"), ohC=col("off_hand"), ox=cx+armX, oy=handY+aw*0.3;
+  if(f.blob){ ox=cx+tw*1.25; oy=top+H*0.6; }
+  if(oh==="shield") add("path",{d:"M"+(ox-H*0.08)+" "+(oy-H*0.1)+" L"+(ox+H*0.08)+" "+(oy-H*0.1)+" L"+(ox+H*0.08)+" "+(oy+H*0.02)+" Q"+ox+" "+(oy+H*0.14)+" "+(ox-H*0.08)+" "+(oy+H*0.02)+" Z"},ohC);
+  if(oh==="dagger"){ add("path",{d:"M"+(ox-1.5*sc-1)+" "+(oy-1)+" L"+ox+" "+(oy-H*0.16)+" L"+(ox+1.5*sc+1)+" "+(oy-1)+" Z"},ohC); }
+  if(oh==="tome") add("rect",{x:ox-H*0.04,y:oy-H*0.05,width:H*0.08,height:H*0.1,rx:1},ohC);
+  if(oh==="orb") add("circle",{cx:ox,cy:oy-H*0.03,r:H*0.035+1},ohC);
+  if(oh==="lantern"){ line(ox,oy,ox,oy+H*0.05,"var(--ink)",sw); add("rect",{x:ox-H*0.025,y:oy+H*0.05,width:H*0.05,height:H*0.07,rx:1},ohC); }
+  if(oh==="torch"){ line(ox,oy+H*0.06,ox,oy-H*0.18,wood,sw*2); add("path",{d:"M"+ox+" "+(oy-H*0.28)+" Q"+(ox+H*0.04)+" "+(oy-H*0.2)+" "+ox+" "+(oy-H*0.17)+" Q"+(ox-H*0.04)+" "+(oy-H*0.2)+" "+ox+" "+(oy-H*0.28)+" Z"},ohC); }
+  // trinket and aura effects in front
+  var tr=sh("trinket"), trC=col("trinket");
+  if(tr==="amulet"&&!f.blob){ add("path",{d:"M"+(cx-tw*0.18)+" "+shY+" Q"+cx+" "+(shY+H*0.1)+" "+(cx+tw*0.18)+" "+shY},"none",";stroke-width:"+(sw*0.7)); add("circle",{cx:cx,cy:shY+H*0.08,r:H*0.018+1},trC); }
+  if(tr==="belt charm"&&!f.blob) add("path",{d:"M"+(cx+ww*0.3)+" "+(hipY)+" l3 4 l-3 4 l-3 -4 Z"},trC);
+  if(tr==="floating rune") add("path",{d:"M"+(cx+tw*1.1)+" "+(top)+" l5 7 l-5 7 l-5 -7 Z"},trC,";opacity:.9");
+  if(aura==="flames") for(var fl=-3;fl<=3;fl++) add("path",{d:"M"+(cx+fl*tw*0.3)+" "+g+" Q"+(cx+fl*tw*0.3+5)+" "+(g-H*0.08)+" "+(cx+fl*tw*0.3)+" "+(g-H*0.14)+" Q"+(cx+fl*tw*0.3-5)+" "+(g-H*0.08)+" "+(cx+fl*tw*0.3)+" "+g+" Z"},auraC,";opacity:.75");
+  if(aura==="sparks") for(var sp=0;sp<9;sp++){ var ang=sp/9*Math.PI*2, rr=tw*1.3+((sp*37)%11); add("circle",{cx:cx+Math.cos(ang)*rr,cy:top+H*0.45+Math.sin(ang)*H*0.4,r:1.6},auraC,";stroke:none"); }
+  if(aura==="mist") add("ellipse",{cx:cx,cy:g-3,rx:tw*1.8,ry:H*0.05},auraC,";stroke:none;opacity:.45");
+  return svg;
+}
+function colorName(hex){
+  var m=/^#?([0-9a-f]{6})$/i.exec(hex||""); if(!m) return "";
+  var n=parseInt(m[1],16), r=(n>>16&255)/255, g=(n>>8&255)/255, b=(n&255)/255;
+  var mx=Math.max(r,g,b), mn=Math.min(r,g,b), l=(mx+mn)/2, d=mx-mn, sat=d===0?0:d/(1-Math.abs(2*l-1)), h=0, name="grey";
+  if(d){ if(mx===r) h=((g-b)/d)%6; else if(mx===g) h=(b-r)/d+2; else h=(r-g)/d+4; h*=60; if(h<0) h+=360; }
+  if(sat<0.12) name=l>0.88?"white":l<0.12?"black":l>0.62?"light grey":l<0.35?"dark grey":"grey";
+  else{
+    var hues=[[15,"red"],[40,"orange"],[66,"gold"],[160,"green"],[195,"teal"],[255,"blue"],[290,"purple"],[340,"magenta"],[361,"red"]];
+    for(var i=0;i<hues.length;i++) if(h<hues[i][0]){ name=hues[i][1]; break; }
+    if(name==="orange"&&l<0.4) name="brown"; if(name==="gold"&&l<0.3) name="olive";
+    name=(l<0.36?"dark ":l>0.75?"pale ":"")+name;
+  }
+  return name+" ("+("#"+m[1]).toLowerCase()+")";
+}
+// One plain paragraph for a 3D artist or an image tool.
+function artPrompt(c,wi){
+  var r=raceById(c.race), f=dollFeatures(c), out=[];
+  var race=c.race==="other"?(c.race_other||"a custom race"):r?r.name:"human-like figure";
+  var size={tiny:"tiny",small:"small",medium:"human-sized",large:"large",huge:"huge, boss-scale"}[f.size]||"human-sized";
+  out.push((c.name||"An unnamed character")+": a "+size+" "+race+(r&&(r.silhouette||r.identity)?" ("+[r.silhouette,r.identity].filter(Boolean).join("; ")+")":"")+", "+(c.kind==="enemy"?"an enemy ("+c.rank+(c.faction?", "+c.faction:"")+", "+c.archetype+" archetype)":"a "+c.archetype+" champion")+".");
+  out.push(f.build>1?"Broad, heavy build.":f.build<1?"Slender build.":"Average build.");
+  if(c.fantasy) out.push(c.fantasy.replace(/\s+$/,"").replace(/([^.!?])$/,"$1."));
+  var worn=[], palette=[];
+  DOLL_SLOTS.forEach(function(d){
+    var k=d[0]; if(k==="main_hand"||k==="off_hand"||k==="aura") return;
+    var sl=dollSlot(c,k,wi,false); if(!sl.shape&&!sl.color&&!sl.desc) return;
+    var shp=sl.shape||d[2][0], cn=colorName(sl.color);
+    if(shp==="none"&&!sl.desc) return;
+    worn.push(d[1].toLowerCase().replace(/ \(.*\)$/,"")+": "+[shp!=="none"?shp:"",cn,sl.desc].filter(Boolean).join(", "));
+    if(cn) palette.push(cn);
+  });
+  if(worn.length) out.push("Look, slot by slot: "+worn.join("; ")+".");
+  var mh=dollSlot(c,"main_hand",wi,false), oh=dollSlot(c,"off_hand",wi,false), mtype=dollShape(c,"main_hand",wi);
+  if(c.kind==="champion"){ var w=c.weapons[wi]||c.weapons[0]; out.push("Main hand: "+(w.name||"a "+w.type)+" ("+w.type+")"+[colorName(mh.color),mh.desc].filter(Boolean).map(function(x){ return ", "+x; }).join("")+(w.vfx_notes?"; its effects: "+w.vfx_notes:"")+"."); }
+  else if(mtype!=="none"||mh.desc) out.push("Main hand: "+[mtype,colorName(mh.color),mh.desc].filter(Boolean).join(", ")+".");
+  var otype=dollShape(c,"off_hand",wi);
+  if(otype!=="none"||oh.desc) out.push("Off hand: "+[otype!=="none"?otype:"",colorName(oh.color),oh.desc].filter(Boolean).join(", ")+".");
+  [mh,oh].forEach(function(x){ var cn=colorName(x.color); if(cn) palette.push(cn); });
+  if(f.list.length) out.push("Race features: "+f.list.join(", ")+".");
+  var au=dollSlot(c,"aura",wi,false), at=dollShape(c,"aura",wi);
+  if(at!=="none"||au.color||au.desc) out.push("Aura: "+[at!=="none"?at:"",colorName(au.color),au.desc].filter(Boolean).join(", ")+".");
+  if(palette.length) out.push("Palette: "+palette.filter(function(x,i){ return palette.indexOf(x)===i; }).join(", ")+".");
+  out.push("Full body, front view, neutral standing pose, plain background; a stylized hand-painted 3D game character with a clear silhouette that reads from a high, fixed top-down camera.");
+  return out.join(" ");
+}
+function dollPanel(c){
+  var wi=c.kind==="champion"?weaponIndex(c):0, pd=c.paperdoll;
+  var filled=Object.keys(pd.slots).length||Object.keys(pd.by_weapon).length;
+  var body=el("div",{class:"panel-body"});
+  var det=el("details",{class:"panel doll"},[el("summary",{text:"Paperdoll: look and silhouette"}),body]);
+  if(state.dollOpen!==undefined?state.dollOpen:!!filled) det.open=true;
+  det.addEventListener("toggle",function(){ state.dollOpen=det.open; });
+  var fig=el("div",{class:"doll-fig"}), cap=el("div",{class:"doll-cap"});
+  function redraw(){
+    fig.textContent=""; fig.appendChild(drawDoll(c,wi));
+    var f=dollFeatures(c), w=c.kind==="champion"?(c.weapons[wi]||c.weapons[0]):null;
+    cap.textContent="Size: "+f.size+(raceLabel(c)?" ("+raceLabel(c)+")":" (no race: a medium human)")+". From the race: "+(f.list.length?f.list.join(", "):"nothing extra")+"."+(w?" Holding weapon "+(wi+1)+": "+weaponName(w,wi)+" ("+w.type+").":"");
+  }
+  body.appendChild(el("p",{class:"muted",text:"A visual identity sheet for an art brief, not equipment: no stats. The race sets the height, build and extra parts (from its size and silhouette note)"+(c.kind==="champion"?"; the hands follow the selected weapon tab.":".")}));
+  var slots=el("div",{class:"doll-slots"});
+  DOLL_SLOTS.forEach(function(d){
+    var k=d[0], perW=c.kind==="champion"&&(k==="main_hand"||k==="off_hand"), cur0=dollSlot(c,k,wi,false);
+    var label=d[1]+(perW?" (weapon "+(wi+1)+")":"");
+    var shape;
+    if(k==="main_hand"&&c.kind==="champion"){ var w=c.weapons[wi]||c.weapons[0]; shape=el("span",{class:"doll-fixed",text:w.type+" (the weapon's type)"}); }
+    else{
+      shape=el("select",{"aria-label":d[1]+" shape"});
+      d[2].forEach(function(o,i){ var op=el("option",{value:i===0?"":o,text:o}); if((cur0.shape||"")===(i===0?"":o)) op.selected=true; shape.appendChild(op); });
+      if(cur0.shape&&d[2].indexOf(cur0.shape)<0){ var op=el("option",{value:cur0.shape,text:cur0.shape+" (saved)"}); op.selected=true; shape.appendChild(op); }
+      shape.addEventListener("change",function(){ dollSlot(c,k,wi,true).shape=shape.value; touch(); redraw(); });
+    }
+    var color=el("input",{type:"color","aria-label":d[1]+" colour"}); color.value=cur0.color||DOLL_DEFAULT[k];
+    var clear=el("button",{type:"button",class:"fx-btn",text:"×","aria-label":"Clear the "+d[1]+" colour",title:"back to the placeholder colour"}); if(!cur0.color) clear.disabled=true;
+    color.addEventListener("input",function(){ dollSlot(c,k,wi,true).color=color.value; clear.disabled=false; touch(); redraw(); });
+    clear.addEventListener("click",function(){ dollSlot(c,k,wi,true).color=""; color.value=DOLL_DEFAULT[k]; clear.disabled=true; touch(); redraw(); });
+    var desc=el("input",{type:"text","aria-label":d[1]+" description",placeholder:"a short description"}); desc.value=cur0.desc;
+    desc.addEventListener("input",function(){ dollSlot(c,k,wi,true).desc=desc.value; touch(); });
+    slots.appendChild(el("div",{class:"doll-slot"},[el("span",{class:"doll-label",text:label}),shape,el("span",{class:"doll-color"},[color,clear]),desc]));
+  });
+  body.appendChild(el("div",{class:"doll-wrap"},[el("div",{class:"doll-left"},[fig,cap]),slots]));
+  var ta=el("textarea",{class:"desc","aria-label":"Art prompt",readonly:"readonly"}); ta.hidden=true;
+  var note=el("span",{class:"status"});
+  body.appendChild(el("div",{class:"actions"},[el("button",{type:"button",class:"btn primary",text:"Copy art prompt",onclick:function(){
+    ta.value=artPrompt(c,wi); ta.hidden=false;
+    try{ navigator.clipboard.writeText(ta.value).then(function(){ note.textContent="Copied. Paste it to the artist or an image tool."; },function(){ ta.focus(); ta.select(); note.textContent="Select all and copy (the browser blocked the copy button)."; }); }catch(e){ ta.focus(); ta.select(); note.textContent="Select all and copy (the browser blocked the copy button)."; }
+  }}),note]));
+  body.appendChild(ta);
+  redraw();
+  state.live.push(function(){ if(det.isConnected) redraw(); });   // the race and the weapon can change from the header and tabs
+  return det;
+}
+
 /* ---------- weapons: tabs, the weapon's own fields, diff marks against weapon 1, workload ---------- */
 function weaponIndex(c){ var i=state.wsel[c.id]||0; return (c.weapons&&i<c.weapons.length)?i:0; }
 function nameKey(a){ return (a.name||"").trim().toLowerCase(); }
@@ -1332,7 +1648,7 @@ function weaponSection(c,wi){
     var rk="remove:"+c.id+":"+wi, rarmed=state.wDel===rk;
     acts.appendChild(el("button",{type:"button",class:"btn warn",text:rarmed?"Click again to remove this weapon":"Remove weapon",onclick:function(){
       if(state.wDel!==rk){ state.wDel=rk; renderMain(); return; }
-      state.wDel=null; c.weapons.splice(wi,1); state.wsel[c.id]=0; touch(); renderMain(); }}));
+      state.wDel=null; if(c.paperdoll&&c.paperdoll.by_weapon) delete c.paperdoll.by_weapon[w.id]; c.weapons.splice(wi,1); state.wsel[c.id]=0; touch(); renderMain(); }}));
   }
   var note=ui.diff&&wi===0&&c.weapons.length>1?el("p",{class:"muted",text:"Weapon 1 is the base kit. Pick weapon 2 or 3 to see what changed."}):null;
   return el("section",{class:"weapon"},[bar,el("div",{class:"wpanel"},[grid,acts,note])]);
@@ -1926,11 +2242,10 @@ function downloadBackup(){
   setStatus("Downloaded the copy of your sheets from before this update. Import it any time.",true);
 }
 // Import compare: both sides get the same back-filled defaults first, so an old sheet and its re-imported copy are identical.
-function norm(c){
-  var o=upgrade(JSON.parse(JSON.stringify(c)));
-  function sort(v){ if(Array.isArray(v)) return v.map(sort); if(v&&typeof v==="object"){ var r={}; Object.keys(v).sort().forEach(function(k){ r[k]=sort(v[k]); }); return r; } return v; }
-  return JSON.stringify(sort(o));
-}
+function sortDeep(v){ if(Array.isArray(v)) return v.map(sortDeep); if(v&&typeof v==="object"){ var r={}; Object.keys(v).sort().forEach(function(k){ r[k]=sortDeep(v[k]); }); return r; } return v; }
+function norm(c){ return JSON.stringify(sortDeep(upgrade(JSON.parse(JSON.stringify(c))))); }
+// The same compare without the id and under a given name: finds a renamed copy an earlier import already made.
+function normAs(c,name){ var o=upgrade(JSON.parse(JSON.stringify(c))); delete o.id; o.name=name; return JSON.stringify(sortDeep(o)); }
 function importBoard(data){
   var res={races:0,kept:0};
   if(data && Array.isArray(data.races)){
@@ -1965,7 +2280,9 @@ function importFile(file){
       if(typeof c.id!=="string"||!c.id) c.id=uid();
       if(state.champs[c.id]){
         if(norm(state.champs[c.id])===norm(c)) return;                          // identical, skip
-        c.id=uid(); c.name=(c.name||"Champion")+" (imported)"; copies++;       // never overwrite yours
+        var copyName=(c.name||"Champion")+" (imported)", key=normAs(c,copyName);
+        if(Object.keys(state.champs).some(function(id){ return normAs(state.champs[id],state.champs[id].name)===key; })) return;   // its copy came in before
+        c.id=uid(); c.name=copyName; copies++;       // never overwrite yours
       }
       c.updated=c.updated||Date.now(); state.champs[c.id]=upgrade(c); added++;
     });

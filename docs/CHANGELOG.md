@@ -11,6 +11,9 @@
 
 ## Tools (docs/champion_board/)
 
+### Expansion to v2 (kinds, archetypes, races, compound casts, weapons, enemy kits, paperdoll): 2026-10-07, Built (awaiting Ryan's look)
+Five slices in `docs/champion_board/champion_board.html` (186 KB, one file, no network requests), export version 2; headless Edge checks: the 27 single-effect previews byte-identical to before (108 comparisons), 181 scripted checks passing, no console errors, every view fitting at 390 px in both themes (README, What the board covers).
+
 ### Setup: the Champion Kit Board moved into the repo: 2026-10-07, Done
 `champion_board.html` moved from the repo root to `docs/champion_board/` (unchanged), with `my_champions.json` (Ryan's 3 champions, export of 2026-10-04), an empty `.gdignore` and a README. There is no `export_presets.cfg` yet; when one exists, nothing outside `game/` can be in it.
 
