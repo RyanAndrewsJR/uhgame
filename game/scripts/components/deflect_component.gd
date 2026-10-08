@@ -76,6 +76,29 @@ static var deflect_test_enabled: bool = false
 ## top of the swing's own).
 @export var riposte_poise_damage: float = 40.0
 
+@export_group("Feel (presentation only)")
+## Placeholders: none of these decide state (COMBAT's rule). The hit
+## pipeline's feel on a deflect: a hitstop (s; GameFeel.hitstop(), the
+## longest running one wins), 0 = none...
+@export var deflect_hitstop: float = 0.08
+## ...a small camera shake (GameFeel.shake(); a light swing has 0, a heavy 2), 0 = none...
+@export var deflect_shake: float = 1.5
+## ...and a flash on the attacker's model (UnitView reads it on
+## Events.hit_deflected); alpha 0 = none.
+@export var deflect_flash_color: Color = Color(1, 1, 1, 1)
+## The "RIPOSTE" cue: a ring under the unit while it's ready (VFX.aura());
+## alpha 0 = none.
+@export var riposte_aura_color: Color = Color(1.0, 0.82, 0.35, 1.0)
+## At the unit on each deflect (VFX.spawn_scene(): setup(unit, attacker)).
+## null = nothing.
+@export var deflect_vfx: PackedScene
+## On each enemy the riposte swing lands on (setup(unit, target)). null = nothing.
+@export var riposte_vfx: PackedScene
+## On each deflect (Audio; a ring-out clang later). null = silent.
+@export var deflect_sound: SoundEvent
+## When the riposte lands. null = silent.
+@export var riposte_sound: SoundEvent
+
 var unit: Unit
 
 var _dash: DashComponent
@@ -250,6 +273,7 @@ func _on_deflected(ctx: HitContext) -> void:
 		_dash.add_refund_charge(refund_lifetime)   # the second gives none: the normal recharge
 	Events.hit_deflected.emit(attacker, unit, ctx)
 	Events.deflect_streak_changed.emit(unit, _streak)
+	_play_deflect_feel(attacker)
 	if attacker != null and attacker.poise_component != null:   # the deflect itself is the source
 		attacker.poise_component.take_poise_damage(deflect_poise_damage_first if _streak == 1 else deflect_poise_damage_second, unit)
 	if _streak >= 2:
@@ -273,8 +297,34 @@ func _give_riposte(attacker: Unit) -> void:
 	empower.empower_consumed_by = StatusEffect.EmpowerTrigger.BASIC_ATTACK_HIT
 	empower.empower_ad_ratio = riposte_ad_ratio
 	empower.empower_poise_damage = riposte_poise_damage
-	if unit.status_component.apply_status(empower, unit):
-		Events.riposte_ready.emit(unit)
+	if not unit.status_component.apply_status(empower, unit):
+		return
+	unit.attack.set_empower_on_hit(empower.id, _on_riposte_landed)   # its feel, per enemy it lands on
+	if riposte_aura_color.a > 0.0:
+		var statuses := unit.status_component
+		var id := empower.id
+		VFX.aura(unit, riposte_aura_color, func() -> bool: return statuses.has_status(id), riposte_window + 0.1)
+	Events.riposte_ready.emit(unit)
+
+
+## A deflect's feel (presentation only): hitstop, shake, sound, VFX. The
+## attacker's flash is UnitView's (Events.hit_deflected).
+func _play_deflect_feel(attacker: Unit) -> void:
+	if deflect_hitstop > 0.0:
+		GameFeel.hitstop(deflect_hitstop)
+	if deflect_shake > 0.0:
+		GameFeel.shake(deflect_shake)
+	Audio.play_on(deflect_sound, unit)
+	var angle := (attacker.global_position - unit.global_position).angle() if attacker != null else 0.0
+	VFX.spawn_scene(deflect_vfx, unit, unit.global_position, angle, [unit, attacker])
+
+
+## The riposte landed on `target` (AutoAttackComponent's empower callback):
+## its sound and VFX.
+func _on_riposte_landed(target: Unit) -> void:
+	Audio.play_on(riposte_sound, unit)
+	var angle := (target.global_position - unit.global_position).angle()
+	VFX.spawn_scene(riposte_vfx, target, target.global_position, angle, [unit, target])
 
 
 func _set_streak(value: int) -> void:

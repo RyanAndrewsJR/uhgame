@@ -10,6 +10,12 @@ extends Node2D
 ## only blocked); the streak, the refund and the chain window; the riposte
 ## (its damage, a whiff keeps it, it runs out, its snap toward the attacker);
 ## the TEMP weak-auto lever; a deflect on sources it wasn't written for.
+## Slice B: poise (the flag off, the data, the meter and its regen, the break
+## and what it cuts, blocks and boosts, tenacity and diminishing returns left
+## out, the immunity, poise damage on hits and deflects, a pair plus a riposte
+## breaking both 100-poise elites). Slice C: the feel (hitstop, shake, the
+## riposte's ring; empty slots) and SandboxDeflect (keys, the panel's rows
+## applied live and to new enemies, its edits put back).
 ## The Knight's crit is held at 0 and his passive (Unbroken) is off, so
 ## damage checks are exact. Prints PASS/FAIL per check, then a total. Run
 ## headless and it quits with the number of failures as the exit code.
@@ -39,6 +45,7 @@ const BRUTE_DATA: EnemyData = preload("res://data/enemies/enemy_test_brute.tres"
 const SKIRMISHER_DATA: EnemyData = preload("res://data/enemies/enemy_test_skirmisher.tres")
 const CASTER_ELITE_DATA: EnemyData = preload("res://data/enemies/enemy_test_caster_elite.tres")
 const STATUS_POISE_BROKEN: StatusEffect = preload("res://data/statuses/status_poise_broken.tres")
+const AURA_SCRIPT: Script = preload("res://scripts/vfx/aura.gd")
 const FLAT := StatModifier.Type.FLAT
 const BASELINE_SOURCE := &"test_baseline"
 const ARENA := Vector2(-3000, 0)
@@ -59,6 +66,8 @@ var _ripostes: Array = []   # [unit]
 var _hits: Array[HitContext] = []
 var _poise_breaks: Array = []    # [unit]
 var _poise_changes: Array = []   # [unit, value, maximum]
+var _shakes: Array = []   # GameFeel.shake() amounts (the spy camera)
+var _feel_defaults: Array = []   # [deflect_hitstop, deflect_shake] as the scene has them
 var _defaults: Dictionary = {}   # the DeflectComponent's exports as the scene has them
 var _shipped: Array = []   # the flags and the lever as the scripts ship them
 
@@ -87,10 +96,11 @@ func _ready() -> void:
 	for p: String in ["deflect_window", "chain_window", "refund_lifetime", "deflect_test_charge_recharge",
 			"riposte_ad_ratio", "riposte_window", "riposte_snap_range"]:
 		_defaults[p] = deflect.get(p)
+	_feel_defaults = [deflect.deflect_hitstop, deflect.deflect_shake]
 	_baseline()
 
 	await _test_flags_off()
-	await _test_data()
+	_test_data()
 	await _test_window()
 	await _test_streak_and_refund()
 	await _test_riposte()
@@ -104,6 +114,9 @@ func _ready() -> void:
 	await _test_poise_break()
 	await _test_poise_sources()
 	await _test_pair_and_riposte_break()
+	# Slice C: feel, readouts and the sandbox.
+	await _test_feel()
+	await _test_sandbox()
 
 	DeflectComponent.deflect_test_enabled = false
 	PoiseComponent.poise_test_enabled = false
@@ -322,8 +335,8 @@ func _test_riposte_snap() -> void:
 	await _deflect_pair(brute)
 	_place(knight, ARENA)
 	_place(brute, ARENA + Vector2(center, 0))
-	var snapped := await _swing(Vector2.UP, brute)
-	_check("the riposte swing snaps to it (aim and step) and lands", [snapped.damage, snapped.moved > 60.0], [256.0, true])
+	var snap_swing := await _swing(Vector2.UP, brute)
+	_check("the riposte swing snaps to it (aim and step) and lands", [snap_swing.damage, snap_swing.moved > 60.0], [256.0, true])
 	await _fresh()
 	await _deflect_pair(brute)
 	_place(knight, ARENA)
@@ -471,7 +484,7 @@ func _test_poise_data() -> void:
 	_check("the elite slime and the duelist: 100", [ELITE_DATA.poise_max, DUELIST_DATA.poise_max], [100.0, 100.0])
 	_check("fodder, regulars and the elite caster: 0", [SLIME_DATA.poise_max, BRUTE_DATA.poise_max, SKIRMISHER_DATA.poise_max, CASTER_ELITE_DATA.poise_max], [0.0, 0.0, 0.0, 0.0])
 	_check("EnemyData defaults to 0; the player has no meter", [EnemyData.new().poise_max, knight.poise_component == null], [0.0, true])
-	var swings: Array = COMBO_KNIGHT.swings.map(func(s: AttackSwing) -> float: return s.poise_damage)
+	var swings: Array = COMBO_KNIGHT.swings.map(func(swing: AttackSwing) -> float: return swing.poise_damage)
 	swings.append(COMBO_KNIGHT.dash_strike.poise_damage)
 	_check("the Knight's swings 4 each (the dash-strike too)", swings, [4.0, 4.0, 4.0, 4.0])
 	_check("Cleave 20 (Cleave Wave too), Judgement 40 (its leap too)", [CLEAVE.poise_damage, CLEAVE_WAVE.poise_damage, JUDGEMENT.poise_damage, JUDGEMENT_LEAP.poise_damage], [20.0, 20.0, 40.0, 40.0])
@@ -644,6 +657,145 @@ func _test_pair_and_riposte_break() -> void:
 	await get_tree().physics_frame
 
 
+# --- Feel, readouts and the sandbox (slice C) ----------------------------------------
+
+func _test_feel() -> void:
+	_section("Feel (presentation only; it never decides state)")
+	DeflectComponent.deflect_test_enabled = true
+	PoiseComponent.poise_test_enabled = true
+	await _fresh()
+	var probe := PoiseComponent.new()
+	deflect.deflect_hitstop = _feel_defaults[0]
+	deflect.deflect_shake = _feel_defaults[1]
+	_check("a deflect's feel: 0.08 s hitstop, a small shake (1.5), a white flash on the attacker", [deflect.deflect_hitstop, deflect.deflect_shake, deflect.deflect_flash_color], [0.08, 1.5, Color(1, 1, 1, 1)])
+	_check("the presentation slots start empty", [deflect.deflect_vfx == null, deflect.riposte_vfx == null, deflect.deflect_sound == null, deflect.riposte_sound == null, probe.poise_break_vfx == null, probe.poise_break_sound == null], [true, true, true, true, true, true])
+	probe.free()
+	var cam := _spy_camera()
+	var brute := _spawn(BRUTE_SCENE, ARENA + Vector2(0, 200))
+	await _hitstop_over()
+	_shakes.clear()
+	knight.dash.try_dash(Vector2.RIGHT)
+	_brute_hit(brute)
+	_check("a deflect plays the hitstop and the shake", [GameFeel.is_hitstop_active(), absf(GameFeel.get_hitstop_left() - 0.08) < 0.03, _shakes], [true, true, [1.5]])
+	await _hitstop_over()
+	await _wait_until(func() -> bool: return not knight.dash.is_dashing(), 60)
+	_shakes.clear()
+	deflect.deflect_window = 0.05
+	knight.dash.try_dash(Vector2.LEFT)
+	await _frames(5)
+	var blocked := _brute_hit(brute)
+	_check("a hit the i-frames only block plays none", [blocked.deflected, GameFeel.is_hitstop_active(), _shakes], [false, false, []])
+	deflect.deflect_window = 0.15
+	deflect.deflect_hitstop = 0.0
+	deflect.deflect_shake = 0.0
+	await _fresh()
+	deflect.deflect_hitstop = 0.0
+	await _deflect_pair(brute)
+	_check("the riposte's cue: a ring (aura) under the Knight while it's ready", _auras_on(knight), 1)
+	_place(knight, ARENA)
+	_place(brute, ARENA + Vector2(50, 0))
+	await _swing(Vector2.RIGHT, brute)
+	await _frames(2)
+	_check("...gone once it's used", _auras_on(knight), 0)
+	cam.queue_free()
+	brute.queue_free()
+	await get_tree().physics_frame
+
+
+func _test_sandbox() -> void:
+	_section("SandboxDeflect: its keys, its panel, everything put back")
+	DeflectComponent.deflect_test_enabled = false
+	PoiseComponent.poise_test_enabled = false
+	AutoAttackComponent.prototype_unempowered_auto_mult = 1.0
+	await _fresh()
+	var sd := SandboxDeflect.new()
+	add_child(sd)
+	await _frames(2)
+	_check("in a test scene it leaves the flags and the lever alone", [DeflectComponent.deflect_test_enabled, PoiseComponent.poise_test_enabled, AutoAttackComponent.prototype_unempowered_auto_mult], [false, false, 1.0])
+	_check("its starting values: both flags on, the lever 0.5, readouts on", [sd.deflect_test_enabled, sd.poise_test_enabled, sd.prototype_unempowered_auto_mult, sd.is_readouts_on()], [true, true, 0.5, true])
+	_press(KEY_V, false)
+	_check("V: the deflect flag on", DeflectComponent.deflect_test_enabled, true)
+	_press(KEY_V, true)
+	_check("Shift+V: the poise flag on", PoiseComponent.poise_test_enabled, true)
+	_press(KEY_V, false)
+	_check("V again: deflect off", DeflectComponent.deflect_test_enabled, false)
+	DeflectComponent.deflect_test_enabled = true
+	_press(KEY_M, false)
+	_check("M: the panel", sd.is_panel_open(), true)
+	var keys := sd.get_row_keys()
+	var expected: Array[StringName] = [&"deflect_window", &"chain_window", &"refund_lifetime", &"deflect_test_charge_recharge",
+		&"riposte_ad_ratio", &"riposte_window", &"riposte_snap_range", &"deflect_poise_damage_first", &"deflect_poise_damage_second",
+		&"riposte_poise_damage", &"deflect_hitstop", &"deflect_shake", &"poise_max", &"poise_regen_delay", &"poise_regen_rate",
+		&"poise_break_time", &"poise_break_damage_bonus", &"poise_break_immunity", &"swing_poise", &"cleave_poise",
+		&"judgement_poise", &"weak_autos"]
+	_check("every tunable has a row (22)", keys == expected, true)
+	_check("its rows read the live values", [sd.get_value(&"deflect_window"), sd.get_value(&"poise_max"), sd.get_value(&"swing_poise"), sd.get_value(&"weak_autos")], [0.15, 100.0, 4.0, 1.0])
+	var elite := _spawn(ELITE_SCENE, ARENA + Vector2(0, 220))
+	sd.set_value(&"deflect_window", 0.2)
+	sd.set_value(&"poise_regen_rate", 30.0)
+	sd.set_value(&"poise_max", 150.0)
+	sd.set_value(&"swing_poise", 6.0)
+	sd.set_value(&"cleave_poise", 25.0)
+	sd.set_value(&"weak_autos", 0.7)
+	_check("a change applies at once: the Knight's window, a live elite's meter", [deflect.deflect_window, elite.poise_component.poise_regen_rate, elite.poise_component.poise_max], [0.2, 30.0, 150.0])
+	var later := _spawn(DUELIST_SCENE, ARENA + Vector2(0, 280))
+	_check("...and to an enemy spawned after (its data and its meter)", [later.poise_component.poise_regen_rate, later.poise_component.poise_max, _rd(DUELIST_DATA, &"poise_max")], [30.0, 150.0, 150.0])
+	_check("...the poise damage on the shared data, the lever", [_rd(COMBO_KNIGHT.swings[2], &"poise_damage"), _rd(COMBO_KNIGHT.dash_strike, &"poise_damage"), _rd(CLEAVE, &"poise_damage"), _rd(CLEAVE_WAVE, &"poise_damage"), AutoAttackComponent.prototype_unempowered_auto_mult], [6.0, 6.0, 25.0, 25.0, 0.7])
+	sd.queue_free()
+	await _frames(2)
+	_check("gone: the shared data is put back", [_rd(ELITE_DATA, &"poise_max"), _rd(DUELIST_DATA, &"poise_max"), _rd(COMBO_KNIGHT.swings[0], &"poise_damage"), _rd(COMBO_KNIGHT.dash_strike, &"poise_damage"), _rd(CLEAVE, &"poise_damage"), _rd(CLEAVE_WAVE, &"poise_damage")], [100.0, 100.0, 4.0, 4.0, 20.0, 20.0])
+	AutoAttackComponent.prototype_unempowered_auto_mult = 1.0
+	DeflectComponent.deflect_test_enabled = false
+	PoiseComponent.poise_test_enabled = false
+	for n: Node in [elite, later]:
+		n.queue_free()
+	await _frames(2)
+
+
+## A Camera3D recording GameFeel.shake() amounts (combat_test's spy).
+func _spy_camera() -> Camera3D:
+	var script := GDScript.new()
+	script.source_code = "extends Camera3D\nvar on_shake: Callable\nfunc shake(amount: float) -> void:\n\ton_shake.call(amount)\n"
+	script.reload()
+	var cam := Camera3D.new()
+	cam.set_script(script)
+	cam.set("on_shake", func(amount: float) -> void: _shakes.append(amount))
+	add_child(cam)
+	cam.make_current()
+	return cam
+
+
+func _hitstop_over() -> void:
+	while GameFeel.is_hitstop_active():
+		await get_tree().create_timer(0.02, true, false, true).timeout
+
+
+## The aura rings (VFX.aura()) on `unit` now.
+func _auras_on(unit: Unit) -> int:
+	var n := 0
+	for child in unit.get_children():
+		if child.get_script() == AURA_SCRIPT and not child.is_queued_for_deletion():
+			n += 1
+	return n
+
+
+## `object`'s `property` read now: a read through a const chain
+## (COMBO_KNIGHT.swings[0].poise_damage) is folded when the script compiles,
+## so it would never see an edit made since.
+func _rd(object: Object, property: StringName) -> Variant:
+	return object.get(property)
+
+
+## A raw key press, as the sandbox's keys read them (_unhandled_input).
+func _press(keycode: Key, shift: bool) -> void:
+	var ev := InputEventKey.new()
+	ev.physical_keycode = keycode
+	ev.keycode = keycode
+	ev.shift_pressed = shift
+	ev.pressed = true
+	get_viewport().push_input(ev)
+
+
 # --- Helpers ----------------------------------------------------------------------
 
 ## The last hit that got through to `unit` (Events.unit_hit), or null.
@@ -662,6 +814,10 @@ func _fresh() -> void:
 	for p: String in _defaults:
 		deflect.set(p, _defaults[p])
 	deflect.deflect_test_charge_recharge = 0.1
+	# No deflect feel: a real-time hitstop would blur the frame counts (the feel
+	# checks turn it back on).
+	deflect.deflect_hitstop = 0.0
+	deflect.deflect_shake = 0.0
 	await _wait_until(func() -> bool: return not knight.dash.is_dashing(), 60)
 	if knight.dash.has_refund():
 		DeflectComponent.deflect_test_enabled = false

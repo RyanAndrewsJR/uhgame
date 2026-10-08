@@ -207,6 +207,7 @@ func _connect_signals() -> void:
 	if dash:
 		dash.dash_started.connect(_on_dash_started.bind(dash))
 		dash.dash_ended.connect(_on_dash_ended)
+	Events.hit_deflected.connect(_on_hit_deflected)   # PROTOTYPE (deflect)
 
 
 # --- Build ----------------------------------------------------------------------------
@@ -716,6 +717,20 @@ func get_pose_look_now() -> Dictionary:
 
 func _on_damaged(_amount: float, _source: Unit) -> void:
 	_overlay.set_shader_parameter(&"flash_color", flash_color)   # a blink may have tinted it
+	_flash = 1.0
+	_set_flash(flash_strength)
+
+
+## PROTOTYPE (deflect, 2026-10-07): this unit's hit was deflected: it
+## flashes in the defender's DeflectComponent.deflect_flash_color (alpha 0 =
+## none), like the hit flash.
+func _on_hit_deflected(attacker: Unit, defender: Unit, _ctx: HitContext) -> void:
+	if attacker != unit or not is_instance_valid(defender) or defender.deflect_component == null:
+		return
+	var color := defender.deflect_component.deflect_flash_color
+	if color.a <= 0.0:
+		return
+	_overlay.set_shader_parameter(&"flash_color", color)
 	_flash = 1.0
 	_set_flash(flash_strength)
 

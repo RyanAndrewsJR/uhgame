@@ -49,6 +49,14 @@ static var poise_test_enabled: bool = false
 ## Seconds after a break during which poise damage does nothing.
 @export var poise_break_immunity: float = 4.0
 
+@export_group("Presentation")
+## Placeholders that never decide state. At the unit when it breaks
+## (VFX.spawn_scene(): setup(unit)); null = nothing. (The status itself shows
+## the stun stars while it lasts.)
+@export var poise_break_vfx: PackedScene
+## When it breaks (Audio). null = silent.
+@export var poise_break_sound: SoundEvent
+
 var unit: Unit
 
 var _poise: float = 0.0
@@ -176,6 +184,8 @@ func _break(source: Unit) -> void:
 		return
 	poise_broken.emit()
 	Events.poise_broken.emit(unit)
+	Audio.play_on(poise_break_sound, unit)
+	VFX.spawn_scene(poise_break_vfx, unit, unit.global_position, 0.0, [unit])
 
 
 ## status_poise_broken with the damage bonus now (a copy per value, so the
