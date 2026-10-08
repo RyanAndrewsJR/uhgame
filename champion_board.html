@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Champion Kit Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout concept: a war-table. Roster rail on the left, one champion's kit laid out as five cards, each with a to-scale top-down shape of the ability on a 1 m grid. */
+:root{
+  --bg:#E9EDF1; --panel:#F6F8FA; --panel-2:#EDF1F5; --ink:#13202C; --ink-2:#506172; --line:#C9D3DD; --grid:#D8E0E8;
+  --accent:#0B7A85; --accent-ink:#FFFFFF; --heat:#C4472A; --magic:#6D55C9; --heal:#2B8A57; --warn:#A8620A;
+  --f-display:"Barlow Condensed","Arial Narrow",sans-serif; --f-body:"IBM Plex Sans",system-ui,sans-serif; --f-mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0B121A; --panel:#121B25; --panel-2:#18232F; --ink:#E5ECF2; --ink-2:#97A9BA; --line:#26364A; --grid:#1A2735;
+  --accent:#43C5D0; --accent-ink:#06222A; --heat:#F07C5C; --magic:#A592FF; --heal:#5BCB8E; --warn:#E6A24C; color-scheme:dark; } }
+:root[data-theme="dark"]{
+  --bg:#0B121A; --panel:#121B25; --panel-2:#18232F; --ink:#E5ECF2; --ink-2:#97A9BA; --line:#26364A; --grid:#1A2735;
+  --accent:#43C5D0; --accent-ink:#06222A; --heat:#F07C5C; --magic:#A592FF; --heal:#5BCB8E; --warn:#E6A24C; color-scheme:dark; }
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--f-body);padding-inline:16px;padding-block:16px 40px}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+button,input,select,textarea{font:inherit;color:inherit}
+.app{display:grid;grid-template-columns:230px minmax(0,1fr);gap:20px;max-width:1500px;margin:0 auto;align-items:start}
+@media (max-width:820px){.app{grid-template-columns:minmax(0,1fr)}}
+
+/* roster */
+.rail{position:sticky;top:env(safe-area-inset-top,0px);display:flex;flex-direction:column;gap:10px;padding-top:4px}
+@media (max-width:820px){.rail{position:static}}
+.rail h2{font:600 13px/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);margin:0}
+.roster{display:flex;flex-direction:column;gap:6px}
+@media (max-width:820px){.roster{flex-direction:row;overflow-x:auto;padding-bottom:4px}}
+.chip{display:flex;flex-direction:column;gap:2px;min-width:0;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px;cursor:pointer}
+@media (max-width:820px){.chip{flex:0 0 170px}}
+.chip b{font:600 19px/1.05 var(--f-display);letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip span{font:400 11px/1.2 var(--f-mono);color:var(--ink-2)}
+.chip[aria-current="true"]{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.btn{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:7px 11px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.warn{border-color:var(--heat);color:var(--heat)}
+.btn:focus-visible,.chip:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.status{font:400 11px/1.3 var(--f-mono);color:var(--ink-2)}
+.status.off{color:var(--warn)}
+
+/* champion header */
+.head{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:grid;gap:10px;margin-bottom:16px}
+.head-top{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:end}
+.name{flex:1 1 260px;min-width:0;font:700 clamp(30px,5vw,46px)/1 var(--f-display);letter-spacing:.01em;background:transparent;border:0;border-bottom:2px solid var(--line);padding:2px 0;width:100%}
+.name:focus{border-bottom-color:var(--accent);outline:none}
+.sel{display:flex;flex-direction:column;gap:3px;font:500 11px/1 var(--f-mono);color:var(--ink-2);text-transform:uppercase;letter-spacing:.1em}
+.sel select,.sel input{background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:6px 8px;font:500 14px var(--f-body);text-transform:none;letter-spacing:0;color:var(--ink)}
+.fantasy{width:100%;resize:vertical;min-height:44px;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+
+/* kit */
+.kit{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;display:flex;flex-direction:column;min-width:0}
+.card-head{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.slot{flex:0 0 auto;width:34px;height:34px;display:grid;place-items:center;border-radius:5px;background:var(--ink);color:var(--bg);font:700 22px/1 var(--f-display)}
+.slot.p{background:transparent;border:1.5px solid var(--ink-2);color:var(--ink-2);font-size:16px}
+.card-head input{flex:1;min-width:0;background:transparent;border:0;border-bottom:1px solid transparent;font:600 21px/1.1 var(--f-display);letter-spacing:.02em;padding:2px 0}
+.card-head input:focus{border-bottom-color:var(--accent);outline:none}
+.preview{position:relative;background:var(--panel-2);border-bottom:1px solid var(--line)}
+.preview svg{display:block;width:100%;height:190px}
+.preview .cap{position:absolute;left:10px;bottom:6px;font:400 10.5px/1.2 var(--f-mono);color:var(--ink-2)}
+.preview .cap.r{left:auto;right:10px}
+.preview .cap.tl{left:10px;top:8px;bottom:auto;font:500 12px/1.2 var(--f-mono);color:var(--ink)}
+.tag.add{border-style:dashed}
+.grp{flex-basis:100%;font:500 10.5px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2);margin-top:6px}
+.row.unused label,.row.unused input[type=number]{opacity:.5}
+.row.unused input[type=range]{opacity:.45}
+details.more{border:1px solid var(--line);border-radius:6px;padding:0 10px}
+details.more summary{cursor:pointer;padding:7px 0;font:500 12px var(--f-mono);color:var(--ink-2)}
+details.more[open]{padding-bottom:10px}
+details.more .row{margin-top:8px}
+.customtag{display:flex;gap:6px;flex-basis:100%;margin-top:6px}
+.customtag input{flex:1;min-width:0;background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:4px 8px;font:400 12px var(--f-mono)}
+.body{padding:12px;display:grid;gap:11px}
+.row{display:grid;grid-template-columns:92px minmax(0,1fr) 64px;gap:8px;align-items:center}
+.row label{font:500 12px/1.2 var(--f-body);color:var(--ink-2)}
+.row input[type=range]{width:100%;accent-color:var(--accent);min-width:0}
+.row input[type=number]{width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:3px 5px;font:400 12.5px var(--f-mono);text-align:right}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.read{font:400 11.5px/1.45 var(--f-mono);color:var(--ink-2);background:var(--panel-2);border-radius:5px;padding:6px 8px}
+.read b{color:var(--ink);font-weight:500}
+.tags{display:flex;flex-wrap:wrap;gap:5px}
+.tag{border:1px solid var(--line);background:transparent;border-radius:99px;padding:2px 9px;font:400 11.5px var(--f-mono);color:var(--ink-2);cursor:pointer}
+.tag[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.desc{width:100%;resize:vertical;min-height:74px;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+.fld{display:flex;flex-direction:column;gap:3px;font:500 11px/1 var(--f-mono);color:var(--ink-2);text-transform:uppercase;letter-spacing:.1em}
+.fld select{background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:6px 7px;font:500 13px var(--f-body);text-transform:none;letter-spacing:0;width:100%}
+.notes{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;display:grid;gap:6px}
+.notes textarea{width:100%;min-height:70px;resize:vertical;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+.empty{background:var(--panel);border:1px dashed var(--line);border-radius:8px;padding:40px 20px;text-align:center;display:grid;gap:12px;justify-items:center}
+.empty h1{font:700 34px/1 var(--f-display);margin:0}
+.empty p{max-width:46ch;color:var(--ink-2);margin:0}
+.brief{margin-top:16px;display:grid;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.brief textarea{width:100%;min-height:200px;font:400 12px/1.5 var(--f-mono);background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:10px}
+.banner{background:var(--panel-2);border:1px solid var(--warn);color:var(--warn);border-radius:6px;padding:7px 10px;margin-bottom:12px;font-size:13px}
+svg .gl{stroke:var(--grid);stroke-width:.03}
+svg .gl.m{stroke:var(--line);stroke-width:.04}
+svg text{font-family:var(--f-mono);fill:var(--ink-2)}
+@media (prefers-reduced-motion:no-preference){.chip,.btn{transition:border-color .12s}}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="rail">
+    <h2>Champions</h2>
+    <div class="roster" id="roster"></div>
+    <button class="btn" id="newBlank">+ Blank sheet</button>
+    <button class="btn" id="newKnight">+ Knight example</button>
+    <button class="btn" id="exportBtn">Export all (.json)</button>
+    <button class="btn" id="importBtn">Import (.json)</button>
+    <input type="file" id="importFile" accept=".json,application/json" hidden>
+    <div class="status" id="status">Loading…</div>
+  </aside>
+  <main id="main"><div class="empty"><h1>Loading your champions</h1><p>One moment.</p></div></main>
+</div>
+
+<script>
+(function(){
+"use strict";
+var SCREEN_W_M = 28;              // visible width of the game's camera, in meters
+var TAG_GROUPS = [
+  ["Delivery",["projectile","melee","ranged","beam","channel","charge-up","recast","toggle","stance","delayed","homing","returning"]],
+  ["Damage",["core","area","cone","single-target","pierce","chain","dot","burst","execute","on-hit","spread"]],
+  ["Crowd control",["cc","stun","slow","root","knockback","knock-up","pull","silence","blind","fear","charm","taunt","suppress","sleep","disarm"]],
+  ["Movement",["movement","mobility","dash","blink","leap","teleport","speed-up","unstoppable","ghosted"]],
+  ["Defense",["defensive","shield","heal","lifesteal","damage-reduction","invulnerable","untargetable","cleanse","stealth","parry","reflect"]],
+  ["Utility",["buff","debuff","empower","aura","mark","reveal","summon","trap","zone","wall","terrain","resource-gain","cooldown-reset"]],
+  ["Role",["ultimate","generator","companion"]],
+  ["World",["wall-slam","grappleable","destructible","bounce","elevated"]]
+];
+var TAGS = [].concat.apply([], TAG_GROUPS.map(function(g){ return g[1]; }));
+var CASTS = {
+  skillshot:{group:"Projectiles",label:"Skillshot (line)", uses:["range","width"], w:"Width"},
+  charge:{group:"Projectiles",label:"Charge-up skillshot", uses:["range","width"], w:"Width"},
+  beam:{group:"Projectiles",label:"Channeled beam", uses:["range","width"], w:"Width"},
+  boomerang:{group:"Projectiles",label:"Boomerang (out and back)", uses:["range","width"], w:"Width"},
+  fan:{group:"Projectiles",label:"Fan of projectiles", uses:["range","width","angle","count"], w:"Width"},
+  chain:{group:"Projectiles",label:"Chain / bounce", uses:["range","width","count"], w:"Bounce range"},
+  cone:{group:"Areas",label:"Cone / arc", uses:["range","angle"]},
+  ground:{group:"Areas",label:"Ground-targeted area", uses:["range","width"], w:"Radius"},
+  vector:{group:"Areas",label:"Placed line (vector)", uses:["range","width","length"], w:"Width"},
+  wall:{group:"Areas",label:"Wall / barrier", uses:["range","width","length"], w:"Thickness"},
+  ring:{group:"Areas",label:"Ring around you", uses:["width","inner"], w:"Outer radius"},
+  self:{group:"Self",label:"Self (aura or buff)", uses:["width"], w:"Radius"},
+  orbit:{group:"Self",label:"Orbiting blades", uses:["width","count"], w:"Orbit radius"},
+  unit:{group:"Targeted",label:"Unit-targeted", uses:["range"]},
+  ally:{group:"Targeted",label:"Ally-targeted", uses:["range"]},
+  dash:{group:"Movement",label:"Dash", uses:["range","width"], w:"Width"},
+  leap:{group:"Movement",label:"Leap (lands in an area)", uses:["range","width"], w:"Landing radius"},
+  blink:{group:"Movement",label:"Blink / teleport", uses:["range"]},
+  summon:{group:"Summons",label:"Summon / turret", uses:["range","width"], w:"Unit size"},
+  homing:{group:"Projectiles",label:"Homing projectile", uses:["range","width"], w:"Hit size"},
+  delayed:{group:"Areas",label:"Delayed strike (marker, then hit)", uses:["range","width"], w:"Radius", dur:"hits after"},
+  aura:{group:"Self",label:"Channeled aura (follows you)", uses:["width"], w:"Radius", dur:"channels for"},
+  toggle:{group:"Self",label:"Toggle / stance", uses:["width"], w:"Radius", dur:"drain interval"},
+  pull:{group:"Targeted",label:"Pull target to you", uses:["range"]},
+  trap:{group:"Summons",label:"Trap (placed, triggers later)", uses:["range","width"], w:"Trigger radius", dur:"armed for"},
+  recast:{group:"Special",label:"Recast / two-stage", uses:["range","width","length"], w:"Width", dur:"recast window"},
+  global:{group:"Special",label:"Global (no range limit)", uses:["width"], w:"Lane width (0 = everyone)"}
+};
+var EXTRAS = [["length","Length",0.5,15,0.25,"m",4],["inner","Inner radius",0,8,0.25,"m",1],["count","Count",1,12,1,"",3],["duration","Duration",0,20,0.25,"s",0],["speed","Proj. speed",0,40,0.5,"m/s",0],["charges","Charges",1,5,1,"",1]];
+var DMG = {physical:"Physical", magic:"Magic", true:"True", none:"No damage"};
+var RESOURCES = ["None","Fury","Mana","Energy"];
+var ROLES = ["Bruiser","Tank","Marksman","Mage","Assassin","Support","Skirmisher"];
+
+var state = {champs:{}, current:null, db:null, canWrite:true, mode:"loading", dirty:false, saving:false, timer:null, lastJson:{}, briefOpen:false, confirmDelete:false, dirtyId:null, gone:{}};
+
+function uid(){ return "c"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function ab(slot,o){ var d={slot:slot,name:"",cast:"skillshot",range:6,width:1.5,angle:90,castTime:0.25,cooldown:8,cost:0,dmg:"physical",tags:[],desc:""}; for(var k in o) d[k]=o[k]; return d; }
+function blank(){ return {id:uid(),name:"Unnamed champion",role:"Bruiser",resource:"None",fantasy:"",passive:{name:"",desc:"",tags:[]},
+  abilities:[ab("Q",{}),ab("W",{cast:"self",width:1.2,cooldown:12,dmg:"none"}),ab("E",{cast:"dash",range:5,width:1,cooldown:9}),ab("R",{cast:"unit",range:7,cooldown:60,castTime:0.5})],notes:"",updated:Date.now()}; }
+function knight(){ return {id:"knight",name:"The Knight",role:"Bruiser",resource:"Fury",
+  fantasy:"A skilled fighter who wins by execution: dodging, comboing and using the room. Gets stronger as health drops.",
+  passive:{name:"Unbroken",desc:"Attack damage rises as health falls: +0% at full health, up to +40% at 30% health or less.",tags:["defensive"]},
+  abilities:[
+   ab("Q",{name:"Cleave",cast:"cone",range:3,angle:120,castTime:0.2,cooldown:3,cost:20,dmg:"physical",tags:["core","area","cone","knockback","heal"],desc:"Sweep your sword in a wide arc, damaging and knocking back enemies. Heals the Knight."}),
+   ab("W",{name:"Iron Resolve",cast:"self",width:1.2,castTime:0,cooldown:10,cost:0,dmg:"none",tags:["buff","defensive","empower"],desc:"Move 35% faster for 2 s. Your next basic attack deals bonus damage and slows."}),
+   ab("E",{name:"Lunge",cast:"dash",range:5,width:0.8,castTime:0.05,cooldown:8,cost:0,dmg:"physical",tags:["mobility","dash","movement"],desc:"Dash to the aimed point, hitting enemies along the path and staggering them."}),
+   ab("R",{name:"Judgement",cast:"unit",range:6,castTime:0.75,cooldown:30,cost:0,dmg:"physical",tags:["ultimate","channel","stun"],desc:"Channel on a target, then strike for damage that rises with their missing health, and stun. At 60+ Fury it hits harder, stuns longer and spends all your Fury."})],
+  notes:"Cleave's 3 m reach and arc width, the cooldowns for Iron Resolve and Lunge, and the ranges of Lunge and Judgement are approximate placeholders. Real numbers live in ABILITIES.md and CHAMPIONS.md.",updated:Date.now()}; }
+
+/* ---------- persistence ---------- */
+function setStatus(t,off){ var s=document.getElementById("status"); s.textContent=t; s.className="status"+(off?" off":""); }
+function lsGet(){ try{ var j=localStorage.getItem("champion-kit-board"); return j?JSON.parse(j):{}; }catch(e){ return {}; } }
+function lsSet(){ try{ localStorage.setItem("champion-kit-board",JSON.stringify(state.champs)); }catch(e){} }
+function rememberCurrent(){ try{ localStorage.setItem("champion-kit-current",state.current||""); }catch(e){} }
+function recallCurrent(){ try{ return localStorage.getItem("champion-kit-current")||null; }catch(e){ return null; } }
+
+function touch(){
+  if(!state.canWrite) return;
+  var c=cur(); if(!c) return;
+  c.updated=Date.now(); state.dirty=true; state.dirtyId=c.id; setStatus("Unsaved changes…");
+  clearTimeout(state.timer); state.timer=setTimeout(flush,700);
+}
+async function flush(){
+  clearTimeout(state.timer);
+  if(state.saving){ state.timer=setTimeout(flush,300); return; }
+  var id=state.dirtyId, c=id&&state.champs[id]; if(!c||!state.dirty){ state.dirty=false; return; }
+  var json=JSON.stringify(c);
+  if(state.mode==="db"){
+    state.saving=true; setStatus("Saving…");
+    try{
+      await state.db.collection("champions").doc(c.id).set(JSON.parse(json));
+      state.lastJson[c.id]=json;
+      state.dirty=(state.dirtyId===c.id && JSON.stringify(state.champs[c.id]||{})!==json);
+      setStatus("Saved. Shared with everyone who opens this page.");
+    }catch(e){ setStatus("Could not save ("+(e&&e.code||"error")+"). Your edits are still on screen.",true); }
+    state.saving=false;
+    if(state.dirty){ state.timer=setTimeout(flush,300); }
+  }else{
+    lsSet(); state.dirty=false; setStatus("Saved in this browser only. Use Export to back up.",true);
+  }
+}
+function cur(){ return state.current?state.champs[state.current]:null; }
+
+/* ---------- rendering ---------- */
+function el(tag,attrs,kids){ var e=document.createElement(tag); if(attrs) for(var k in attrs){ if(k==="class") e.className=attrs[k]; else if(k==="text") e.textContent=attrs[k]; else if(k.slice(0,2)==="on") e.addEventListener(k.slice(2),attrs[k]); else e.setAttribute(k,attrs[k]); } (kids||[]).forEach(function(c){ if(c) e.appendChild(c); }); return e; }
+function fmt(n,d){ return (Math.round(n*Math.pow(10,d))/Math.pow(10,d)).toFixed(d); }
+
+function renderRoster(){
+  var r=document.getElementById("roster"); r.textContent="";
+  var ids=Object.keys(state.champs).sort(function(a,b){ return (state.champs[a].name||"").localeCompare(state.champs[b].name||""); });
+  ids.forEach(function(id){
+    var c=state.champs[id];
+    var b=el("button",{class:"chip","aria-current":String(id===state.current),onclick:function(){ select(id); }},[
+      el("b",{text:c.name||"Unnamed"}), el("span",{text:[c.role,c.resource].filter(Boolean).join(" · ")})]);
+    r.appendChild(b);
+  });
+}
+function select(id){ if(state.dirty) flush(); state.current=id; state.confirmDelete=false; state.briefOpen=false; rememberCurrent(); renderRoster(); renderMain(); }
+
+function renderMain(){
+  var m=document.getElementById("main"); m.textContent="";
+  var c=cur();
+  if(!c){
+    m.appendChild(el("div",{class:"empty"},[
+      el("h1",{text:"No champions yet"}),
+      el("p",{text:"Start from the Knight to see a finished kit, or a blank sheet to sketch your own. Every ability gets a to-scale shape on a 1 m grid."}),
+      el("div",{class:"actions"},[
+        el("button",{class:"btn primary",text:"Start from the Knight",onclick:addKnight}),
+        el("button",{class:"btn",text:"Blank sheet",onclick:addBlank})])]));
+    return;
+  }
+  var ro=!state.canWrite;
+  if(ro) m.appendChild(el("div",{class:"banner",text:"View only: you can look at this champion but not change it."}));
+
+  // header
+  var name=el("input",{class:"name",value:c.name,"aria-label":"Champion name",id:"cname"});
+  name.addEventListener("input",function(){ c.name=name.value; renderRoster(); touch(); });
+  var role=selectBox("Role",ROLES,c.role,function(v){ c.role=v; renderRoster(); touch(); });
+  var res=selectBox("Resource",RESOURCES,c.resource,function(v){ c.resource=v; renderRoster(); touch(); });
+  var fan=el("textarea",{class:"fantasy","aria-label":"Player fantasy",placeholder:"The fantasy in a sentence or two: who is this champion and how does it feel to play?"}); fan.value=c.fantasy||"";
+  fan.addEventListener("input",function(){ c.fantasy=fan.value; touch(); });
+  var acts=el("div",{class:"actions"},[
+    el("button",{class:"btn primary",text:"Copy brief",onclick:function(){ state.briefOpen=!state.briefOpen; renderMain(); if(state.briefOpen) copyBrief(); }}),
+    el("button",{class:"btn",text:"Duplicate",onclick:duplicate}),
+    el("button",{class:"btn warn",id:"delBtn",text:state.confirmDelete?"Click again to delete":"Delete",onclick:del})]);
+  m.appendChild(el("section",{class:"head"},[el("div",{class:"head-top"},[name,role,res]),fan,acts]));
+
+  if(state.briefOpen){
+    var ta=el("textarea",{"aria-label":"Brief text",readonly:"readonly"}); ta.value=makeBrief(c);
+    m.appendChild(el("section",{class:"brief"},[el("div",{class:"status",id:"copyNote",text:"Copying…"}),ta]));
+  }
+
+  // kit
+  var kit=el("div",{class:"kit"});
+  kit.appendChild(passiveCard(c));
+  c.abilities.forEach(function(a){ kit.appendChild(abilityCard(c,a)); });
+  m.appendChild(kit);
+
+  // notes
+  var nt=el("textarea",{"aria-label":"Notes",placeholder:"Synergies, open questions, what this champion should not do, how it feels against the Knight's kit…"}); nt.value=c.notes||"";
+  nt.addEventListener("input",function(){ c.notes=nt.value; touch(); });
+  m.appendChild(el("section",{class:"notes"},[el("div",{class:"fld",text:"Notes and open questions"}),nt]));
+
+  if(ro){ m.querySelectorAll("input,select,textarea").forEach(function(x){ x.disabled=true; }); m.querySelectorAll(".actions .btn").forEach(function(x){ if(x.textContent!=="Copy brief") x.disabled=true; }); }
+}
+function selectBox(label,opts,val,fn){
+  var s=el("select",{"aria-label":label}); opts.forEach(function(o){ var op=el("option",{value:o,text:o}); if(o===val) op.selected=true; s.appendChild(op); });
+  s.addEventListener("change",function(){ fn(s.value); });
+  return el("label",{class:"sel"},[document.createTextNode(label),s]);
+}
+function tagRow(list,arr,onchange){
+  var wrap=el("div",{class:"tags"}), open=false;
+  function toggle(tg){ var i=arr.indexOf(tg); if(i>=0) arr.splice(i,1); else arr.push(tg); onchange(); paint(); }
+  function chip(tg){
+    var b=el("button",{class:"tag",type:"button","aria-pressed":String(arr.indexOf(tg)>=0),text:tg});
+    if(!state.canWrite) b.disabled=true;
+    b.addEventListener("click",function(){ toggle(tg); });
+    return b;
+  }
+  function paint(){
+    wrap.textContent="";
+    if(!open){
+      arr.forEach(function(tg){ wrap.appendChild(chip(tg)); });
+    }else{
+      TAG_GROUPS.forEach(function(g){
+        wrap.appendChild(el("div",{class:"grp",text:g[0]}));
+        g[1].forEach(function(tg){ wrap.appendChild(chip(tg)); });
+      });
+      var custom=arr.filter(function(x){ return TAGS.indexOf(x)<0; });
+      if(custom.length){ wrap.appendChild(el("div",{class:"grp",text:"Custom"})); custom.forEach(function(tg){ wrap.appendChild(chip(tg)); }); }
+      var inp=el("input",{type:"text",placeholder:"your own tag, then Enter","aria-label":"Custom tag"});
+      inp.addEventListener("keydown",function(e){ if(e.key==="Enter"){ var v=inp.value.trim().toLowerCase().replace(/\s+/g,"-"); if(v&&arr.indexOf(v)<0){ arr.push(v); onchange(); } paint(); } });
+      wrap.appendChild(el("div",{class:"customtag"},[inp]));
+    }
+    if(state.canWrite){
+      var tog=el("button",{class:"tag add",type:"button",text:open?"done":(arr.length?"+ edit tags":"+ add tags")});
+      tog.addEventListener("click",function(){ open=!open; paint(); });
+      wrap.appendChild(tog);
+    }
+  }
+  paint(); return wrap;
+}
+function passiveCard(c){
+  var p=c.passive;
+  var nm=el("input",{value:p.name||"","aria-label":"Passive name",placeholder:"Passive name"});
+  nm.addEventListener("input",function(){ p.name=nm.value; touch(); });
+  var ds=el("textarea",{class:"desc","aria-label":"Passive description",placeholder:"What it does, when it triggers, what it rewards."}); ds.value=p.desc||"";
+  ds.addEventListener("input",function(){ p.desc=ds.value; touch(); });
+  return el("article",{class:"card"},[
+    el("div",{class:"card-head"},[el("div",{class:"slot p",text:"Pas"}),nm]),
+    el("div",{class:"body"},[ds,tagRow(TAGS,p.tags,touch)])]);
+}
+
+function abilityCard(c,a){
+  EXTRAS.forEach(function(e){ if(a[e[0]]===undefined) a[e[0]]=e[6]; });
+  var card=el("article",{class:"card"});
+  var nm=el("input",{value:a.name||"","aria-label":a.slot+" name",placeholder:"Ability name"});
+  nm.addEventListener("input",function(){ a.name=nm.value; touch(); });
+  card.appendChild(el("div",{class:"card-head"},[el("div",{class:"slot",text:a.slot}),nm]));
+  var pv=el("div",{class:"preview"}); card.appendChild(pv);
+  var body=el("div",{class:"body"}); card.appendChild(body);
+
+  var castSel=el("select",{"aria-label":a.slot+" cast type"});
+  var groups={};
+  Object.keys(CASTS).forEach(function(k){
+    var g=CASTS[k].group; if(!groups[g]){ groups[g]=el("optgroup",{label:g}); castSel.appendChild(groups[g]); }
+    var o=el("option",{value:k,text:CASTS[k].label}); if(k===a.cast) o.selected=true; groups[g].appendChild(o);
+  });
+  var dmgSel=el("select",{"aria-label":a.slot+" damage type"});
+  Object.keys(DMG).forEach(function(k){ var o=el("option",{value:k,text:DMG[k]}); if(k===a.dmg) o.selected=true; dmgSel.appendChild(o); });
+  body.appendChild(el("div",{class:"two"},[el("label",{class:"fld"},[document.createTextNode("Cast type"),castSel]),el("label",{class:"fld"},[document.createTextNode("Damage"),dmgSel])]));
+
+  var rows={};
+  function slider(parent,key,label,min,max,step,unit){
+    var r=el("input",{type:"range",min:min,max:max,step:step,value:a[key],"aria-label":a.slot+" "+label});
+    var n=el("input",{type:"number",min:min,max:max,step:step,value:a[key],"aria-label":a.slot+" "+label+" value"});
+    var lab=el("label",{text:label+(unit?" ("+unit+")":"")});
+    function set(v){ v=parseFloat(v); if(isNaN(v)) return; a[key]=v; draw(); touch(); }
+    r.addEventListener("input",function(){ n.value=r.value; set(r.value); });
+    n.addEventListener("input",function(){ r.value=n.value; set(n.value); });
+    var row=el("div",{class:"row"},[lab,r,n]); rows[key]={row:row,label:lab,unit:unit}; parent.appendChild(row); return row;
+  }
+  slider(body,"range","Range",0,20,0.25,"m");
+  slider(body,"width","Width",0.25,10,0.05,"m");
+  slider(body,"angle","Arc",20,360,5,"°");
+  slider(body,"castTime","Cast time",0,2,0.05,"s");
+  slider(body,"cooldown","Cooldown",0,60,0.5,"s");
+  slider(body,"cost","Cost",0,100,1,"");
+  var more=el("details",{class:"more"},[el("summary",{text:"More parameters (length, count, speed…)"})]);
+  EXTRAS.forEach(function(e){ slider(more,e[0],e[1],e[2],e[3],e[4],e[5]); });
+  body.appendChild(more);
+  var read=el("div",{class:"read"}); body.appendChild(read);
+  body.appendChild(tagRow(TAGS,a.tags,touch));
+  var ds=el("textarea",{class:"desc","aria-label":a.slot+" description",placeholder:"What it does in one or two sentences."}); ds.value=a.desc||"";
+  ds.addEventListener("input",function(){ a.desc=ds.value; touch(); });
+  body.appendChild(ds);
+
+  castSel.addEventListener("change",function(){ a.cast=castSel.value; draw(); touch(); });
+  dmgSel.addEventListener("change",function(){ a.dmg=dmgSel.value; draw(); touch(); });
+
+  function draw(){
+    var def=CASTS[a.cast];
+    ["range","width","angle","length","inner","count"].forEach(function(k){ rows[k].row.classList.toggle("unused",def.uses.indexOf(k)<0); });
+    rows.width.label.textContent=(def.w||"Width")+" (m)";
+    pv.textContent=""; pv.appendChild(preview(a));
+    var parts=[];
+    if(def.uses.indexOf("range")>=0){
+      parts.push("<b>"+fmt(a.range,2)+" m</b> ("+Math.round(a.range*100)+" u), "+Math.round(a.range/SCREEN_W_M*100)+"% of screen width");
+      if(a.speed>0) parts.push("<b>"+fmt(a.range/a.speed,2)+" s</b> to arrive");
+    }else parts.push("centered on the champion");
+    parts.push("<b>"+fmt(a.castTime,2)+" s</b> cast");
+    if(a.duration>0) parts.push((def.dur||"lasts")+" <b>"+fmt(a.duration,1)+" s</b>");
+    parts.push("<b>"+fmt(a.cooldown,1)+" s</b> cooldown"+(a.charges>1?" ("+a.charges+" charges)":""));
+    if(a.cost) parts.push("cost <b>"+a.cost+"</b>");
+    read.innerHTML=parts.join(" · ");
+  }
+  draw();
+  return card;
+}
+
+/* ---------- to-scale preview (top-down, champion faces right, grid in meters) ---------- */
+var NS="http://www.w3.org/2000/svg";
+function s(tag,attrs){ var e=document.createElementNS(NS,tag); for(var k in attrs) e.setAttribute(k,attrs[k]); return e; }
+function colorFor(a){ return a.cast==="ally"?"var(--heal)":a.dmg==="physical"?"var(--heat)":a.dmg==="magic"?"var(--magic)":a.dmg==="true"?"var(--ink)":"var(--accent)"; }
+function preview(a){
+  var R=a.range, W=a.width, h=W/2, L=a.length, I=Math.min(a.inner,W-0.05), N=Math.max(1,Math.round(a.count)), A=a.angle, cast=a.cast;
+  var BODY=0.45, c=colorFor(a), deg=Math.PI/180;
+  var x0=-1.4,x1=1,y1=1.5;
+  switch(cast){
+    case "skillshot": case "charge": case "beam": case "dash": x1=R+1; y1=Math.max(h,1.5); break;
+    case "boomerang": x1=R+1; y1=Math.max(h*2+1,1.5); break;
+    case "fan": x1=R+0.8; y1=A>=180?R+0.8:Math.max(Math.sin(A/2*deg)*R+h+0.6,1.5); if(A>180) x0=-R-0.8; break;
+    case "cone": x1=R+0.8; y1=A>=180?R+0.8:Math.sin(A/2*deg)*R+0.8; if(A>180) x0=-R-0.8; break;
+    case "ground": case "summon": x0=-R-0.8; x1=R+W+0.8; y1=Math.max(R,W)+0.8; break;
+    case "vector": x0=-R-0.8; x1=R+L+0.8; y1=Math.max(R,h)+0.8; break;
+    case "wall": x1=R+W+1; y1=Math.max(L/2,1.5)+0.6; break;
+    case "ring": case "self": case "orbit": x0=-W-0.8; x1=W+0.8; y1=W+0.8; break;
+    case "unit": case "ally": case "blink": x1=R+1.2; y1=2.2; break;
+    case "chain": x1=R+N*W*0.9+1; y1=W*0.6+1.2; break;
+    case "leap": x1=R+W+1; y1=Math.max(W,R*0.3)+1; break;
+    case "homing": x1=R+1; y1=Math.max(R*0.35,1.5); break;
+    case "delayed": x0=-R-0.8; x1=R+W+0.8; y1=Math.max(R,W)+0.8; break;
+    case "aura": x0=-W-0.8; x1=W+0.8; y1=W+0.8; break;
+    case "toggle": x0=-W-1.5; x1=W+1.5; y1=W+1.2; break;
+    case "pull": x1=R+1.2; y1=2.2; break;
+    case "trap": x0=-R-0.8; x1=R+W+0.8; y1=Math.max(R,W)+0.8; break;
+    case "recast": x1=R+L+1; y1=Math.max(h,1.5)+0.8; break;
+    case "global": x1=14; y1=Math.max(h,3); break;
+  }
+  var bw=x1-x0, y0=-y1, bh=2*y1; if(bh<bw*0.5){ y1=bw*0.25; y0=-y1; bh=2*y1; }
+  var svg=s("svg",{viewBox:x0+" "+y0+" "+bw+" "+bh,preserveAspectRatio:"xMidYMid meet",role:"img","aria-label":CASTS[cast].label+" to scale"});
+  var step = Math.max(bw,bh)>26?5:Math.max(bw,bh)>12?2:1;
+  for(var gx=Math.ceil(x0/step)*step; gx<=x1; gx+=step) svg.appendChild(s("line",{class:"gl"+(gx===0?" m":""),x1:gx,y1:y0,x2:gx,y2:y1}));
+  for(var gy=Math.ceil(y0/step)*step; gy<=y1; gy+=step) svg.appendChild(s("line",{class:"gl"+(gy===0?" m":""),x1:x0,y1:gy,x2:x1,y2:gy}));
+  var fill="fill:"+c+";fill-opacity:.28;stroke:"+c+";stroke-width:.07";
+  var soft="fill:"+c+";fill-opacity:.12;stroke:"+c+";stroke-width:.05;stroke-dasharray:.3 .25";
+  var dash="fill:none;stroke:"+c+";stroke-width:.06;stroke-dasharray:.3 .25";
+  var line="fill:none;stroke:"+c+";stroke-width:.09";
+  var add=function(e){ svg.appendChild(e); };
+  var cap;
+  switch(cast){
+    case "skillshot":
+      add(s("rect",{x:BODY,y:-h,width:Math.max(R-BODY,0.05),height:W,style:fill}));
+      cap=fmt(R,1)+" m long, "+fmt(W,1)+" m wide"; break;
+    case "charge":
+      add(s("rect",{x:BODY,y:-h,width:Math.max(R*0.4-BODY,0.05),height:W,style:fill}));
+      add(s("rect",{x:R*0.4,y:-h,width:Math.max(R*0.6,0.05),height:W,style:soft}));
+      cap="charges out to "+fmt(R,1)+" m, "+fmt(W,1)+" m wide"; break;
+    case "beam":
+      add(s("rect",{x:BODY,y:-h,width:Math.max(R-BODY,0.05),height:W,style:"fill:"+c+";fill-opacity:.16;stroke:"+c+";stroke-width:.05"}));
+      add(s("line",{x1:BODY,y1:0,x2:R,y2:0,style:"stroke:"+c+";stroke-width:"+Math.min(0.25,W*0.4)}));
+      cap="beam "+fmt(R,1)+" m, "+fmt(W,1)+" m wide, held"; break;
+    case "boomerang":
+      add(s("rect",{x:BODY,y:-h,width:Math.max(R-BODY,0.05),height:W,style:fill}));
+      add(s("path",{d:"M"+R+" 0 Q"+(R/2)+" "+(-(h*2+0.8))+" 0 0",style:dash}));
+      cap="out "+fmt(R,1)+" m and back, "+fmt(W,1)+" m wide"; break;
+    case "fan":
+      for(var i=0;i<N;i++){ var ang=N===1?0:-A/2+i*A/(N-1); var g=s("g",{transform:"rotate("+ang+")"});
+        g.appendChild(s("rect",{x:BODY,y:-h,width:Math.max(R-BODY,0.05),height:W,style:fill})); add(g); }
+      cap=N+" projectiles over "+A+"°, "+fmt(R,1)+" m"; break;
+    case "cone":
+      var half=A/2*deg, px=Math.cos(half)*R, py=Math.sin(half)*R;
+      var d= A>=360 ? "M"+R+" 0 A"+R+" "+R+" 0 1 1 "+(-R)+" 0 A"+R+" "+R+" 0 1 1 "+R+" 0 Z"
+           : "M0 0 L"+px+" "+(-py)+" A"+R+" "+R+" 0 "+(A>180?1:0)+" 1 "+px+" "+py+" Z";
+      add(s("path",{d:d,style:fill})); cap=fmt(R,1)+" m reach, "+A+"° arc"; break;
+    case "ground":
+      add(s("circle",{cx:0,cy:0,r:Math.max(R,0.05),style:dash}));
+      add(s("circle",{cx:R,cy:0,r:W,style:fill})); cap="cast up to "+fmt(R,1)+" m, "+fmt(W,1)+" m radius"; break;
+    case "summon":
+      add(s("circle",{cx:0,cy:0,r:Math.max(R,0.05),style:dash}));
+      add(s("rect",{x:R-W/2,y:-W/2,width:W,height:W,rx:W*0.2,style:fill}));
+      add(s("circle",{cx:R,cy:0,r:Math.min(0.2,W/4),style:"fill:"+c})); cap="placed up to "+fmt(R,1)+" m, "+fmt(W,1)+" m across"; break;
+    case "vector":
+      add(s("circle",{cx:0,cy:0,r:Math.max(R,0.05),style:dash}));
+      add(s("rect",{x:R,y:-h,width:Math.max(L,0.05),height:W,style:fill}));
+      add(s("circle",{cx:R,cy:0,r:0.18,style:"fill:"+c}));
+      cap="start within "+fmt(R,1)+" m, line "+fmt(L,1)+" × "+fmt(W,1)+" m"; break;
+    case "wall":
+      add(s("line",{x1:BODY,y1:0,x2:R-W/2,y2:0,style:dash}));
+      add(s("rect",{x:R-W/2,y:-L/2,width:Math.max(W,0.05),height:Math.max(L,0.05),style:fill}));
+      cap="wall at "+fmt(R,1)+" m, "+fmt(L,1)+" m long, "+fmt(W,1)+" m thick"; break;
+    case "ring":
+      add(s("path",{d:"M"+W+" 0 A"+W+" "+W+" 0 1 0 "+(-W)+" 0 A"+W+" "+W+" 0 1 0 "+W+" 0 Z M"+I+" 0 A"+I+" "+I+" 0 1 0 "+(-I)+" 0 A"+I+" "+I+" 0 1 0 "+I+" 0 Z",style:fill+";fill-rule:evenodd"}));
+      cap="ring "+fmt(I,1)+" to "+fmt(W,1)+" m around you"; break;
+    case "self":
+      add(s("circle",{cx:0,cy:0,r:W,style:fill})); cap=fmt(W,1)+" m radius around you"; break;
+    case "orbit":
+      add(s("circle",{cx:0,cy:0,r:W,style:dash}));
+      for(var k=0;k<N;k++){ var t=k/N*2*Math.PI; add(s("circle",{cx:Math.cos(t)*W,cy:Math.sin(t)*W,r:0.28,style:fill})); }
+      cap=N+" blades orbiting at "+fmt(W,1)+" m"; break;
+    case "unit": case "ally":
+      add(s("line",{x1:BODY,y1:0,x2:R-0.5,y2:0,style:dash}));
+      add(s("circle",{cx:R,cy:0,r:0.5,style:"fill:none;stroke:"+c+";stroke-width:.1"}));
+      if(cast==="ally"){ add(s("path",{d:"M"+(R-0.22)+" 0 H"+(R+0.22)+" M"+R+" -0.22 V0.22",style:line})); }
+      else add(s("circle",{cx:R,cy:0,r:0.12,style:"fill:"+c}));
+      cap=(cast==="ally"?"ally":"target")+" within "+fmt(R,1)+" m"; break;
+    case "chain":
+      var pts=[]; for(var j=0;j<=N;j++) pts.push([R+j*W*0.9,(j%2?-1:1)*W*0.45*(j>0?1:0)]);
+      add(s("line",{x1:BODY,y1:0,x2:pts[0][0]-0.4,y2:0,style:dash}));
+      for(var q=1;q<pts.length;q++) add(s("line",{x1:pts[q-1][0],y1:pts[q-1][1],x2:pts[q][0],y2:pts[q][1],style:line}));
+      pts.forEach(function(pt,idx){ add(s("circle",{cx:pt[0],cy:pt[1],r:0.38,style:idx===0?fill:"fill:none;stroke:"+c+";stroke-width:.1"})); });
+      cap="first target within "+fmt(R,1)+" m, "+N+" bounces of "+fmt(W,1)+" m"; break;
+    case "dash":
+      add(s("rect",{x:0,y:-h,width:Math.max(R,0.05),height:W,rx:h,style:fill}));
+      add(s("path",{d:"M"+(R+0.15)+" 0 l-.5 -.35 m.5 .35 l-.5 .35",style:line})); cap=fmt(R,1)+" m dash, "+fmt(W,1)+" m wide"; break;
+    case "leap":
+      add(s("line",{x1:0,y1:0,x2:R,y2:0,style:dash}));
+      add(s("path",{d:"M0 0 Q"+(R/2)+" "+(-R*0.55)+" "+R+" 0",style:line}));
+      add(s("circle",{cx:R,cy:0,r:W,style:fill})); cap="leap "+fmt(R,1)+" m, lands in a "+fmt(W,1)+" m radius"; break;
+    case "blink":
+      add(s("line",{x1:BODY,y1:0,x2:R-0.55,y2:0,style:dash}));
+      add(s("path",{d:"M"+(R/2-0.2)+" -.3 l.3 .3 l-.3 .3 M"+(R/2+0.15)+" -.3 l.3 .3 l-.3 .3",style:line}));
+      add(s("circle",{cx:R,cy:0,r:0.5,style:fill+";stroke-dasharray:none"}));
+      cap="blink "+fmt(R,1)+" m, no travel"; break;
+    case "homing":
+      add(s("path",{d:"M"+BODY+" 0 C"+(R*0.3)+" "+(-R*0.45)+" "+(R*0.55)+" "+(R*0.35)+" "+R+" 0",style:line}));
+      add(s("circle",{cx:R,cy:0,r:Math.max(h,0.25),style:fill}));
+      add(s("circle",{cx:R,cy:0,r:Math.max(h,0.25)+0.45,style:"fill:none;stroke:"+c+";stroke-width:.06"}));
+      cap="curves to a target up to "+fmt(R,1)+" m, "+fmt(W,1)+" m hit size"; break;
+    case "delayed":
+      add(s("circle",{cx:0,cy:0,r:Math.max(R,0.05),style:dash}));
+      add(s("circle",{cx:R,cy:0,r:W,style:soft}));
+      add(s("circle",{cx:R,cy:0,r:W*0.45,style:fill}));
+      add(s("path",{d:"M"+(R-W*0.3)+" 0 H"+(R+W*0.3)+" M"+R+" "+(-W*0.3)+" V"+(W*0.3),style:line}));
+      cap="marker within "+fmt(R,1)+" m, "+fmt(W,1)+" m radius"+(a.duration>0?", hits after "+fmt(a.duration,1)+" s":""); break;
+    case "aura":
+      add(s("circle",{cx:0,cy:0,r:W,style:fill}));
+      add(s("circle",{cx:0,cy:0,r:W*0.66,style:dash})); add(s("circle",{cx:0,cy:0,r:W*0.33,style:dash}));
+      cap=fmt(W,1)+" m aura that moves with you"+(a.duration>0?", up to "+fmt(a.duration,1)+" s":""); break;
+    case "toggle":
+      add(s("circle",{cx:0,cy:0,r:W,style:dash}));
+      add(s("rect",{x:-0.5,y:-W-0.45,width:1,height:0.5,rx:0.25,style:fill}));
+      add(s("circle",{cx:0.25,cy:-W-0.2,r:0.18,style:"fill:"+c}));
+      cap="on/off, "+fmt(W,1)+" m radius, drains resource"; break;
+    case "pull":
+      add(s("circle",{cx:R,cy:0,r:0.5,style:"fill:none;stroke:"+c+";stroke-width:.1"}));
+      add(s("circle",{cx:BODY+0.7,cy:0,r:0.5,style:soft}));
+      add(s("line",{x1:R-0.6,y1:0,x2:BODY+1.4,y2:0,style:line}));
+      add(s("path",{d:"M"+(BODY+1.4)+" 0 l.35 -.28 m-.35 .28 l.35 .28",style:line}));
+      cap="grabs a target within "+fmt(R,1)+" m and drags it to you"; break;
+    case "trap":
+      add(s("circle",{cx:0,cy:0,r:Math.max(R,0.05),style:dash}));
+      add(s("circle",{cx:R,cy:0,r:W,style:soft}));
+      add(s("circle",{cx:R,cy:0,r:Math.min(0.3,W/3),style:fill}));
+      for(var tk=0;tk<8;tk++){ var tt=tk/8*2*Math.PI, r0=Math.min(0.3,W/3); add(s("line",{x1:R+Math.cos(tt)*r0,y1:Math.sin(tt)*r0,x2:R+Math.cos(tt)*(r0+0.25),y2:Math.sin(tt)*(r0+0.25),style:line})); }
+      cap="trap within "+fmt(R,1)+" m, triggers in "+fmt(W,1)+" m"+(a.duration>0?", armed "+fmt(a.duration,1)+" s":""); break;
+    case "recast":
+      add(s("rect",{x:BODY,y:-h,width:Math.max(R-BODY,0.05),height:W,style:fill}));
+      add(s("circle",{cx:R,cy:0,r:0.38,style:"fill:var(--panel);stroke:"+c+";stroke-width:.08"}));
+      add(s("path",{d:"M"+(R-0.1)+" -.15 l.12 -.1 v.45",style:line}));
+      add(s("rect",{x:R,y:-h,width:Math.max(L,0.05),height:W,style:soft}));
+      add(s("circle",{cx:R+L,cy:0,r:0.38,style:"fill:var(--panel);stroke:"+c+";stroke-width:.08"}));
+      add(s("path",{d:"M"+(R+L-0.2)+" -.15 q.2 -.2 .4 0 l-.4 .35 h.42",style:line}));
+      cap="1st: "+fmt(R,1)+" m, then recast +"+fmt(L,1)+" m"+(a.duration>0?" within "+fmt(a.duration,1)+" s":""); break;
+    case "global":
+      add(s("rect",{x:BODY,y:-Math.max(h,0.01),width:13.5-BODY,height:Math.max(W,0.05),style:W>0.3?fill:"fill:"+c}));
+      add(s("path",{d:"M12.6 -.5 l.8 .5 l-.8 .5 M11.4 -.5 l.8 .5 l-.8 .5",style:line}));
+      cap=(W>0?fmt(W,1)+" m wide lane across":"hits everyone on")+" the whole map"; break;
+  }
+  svg.appendChild(s("circle",{cx:0,cy:0,r:BODY,style:"fill:var(--ink)"}));
+  svg.appendChild(s("path",{d:"M"+(BODY-.02)+" 0 l.28 -.2 v.4 z",style:"fill:var(--ink)"}));
+  var wrap=document.createElement("div"); wrap.appendChild(svg);
+  wrap.appendChild(el("span",{class:"cap tl",text:cap}));
+  wrap.appendChild(el("span",{class:"cap",text:"grid = "+step+" m"}));
+  wrap.appendChild(el("span",{class:"cap r",text:"champion faces right"}));
+  return wrap;
+}
+
+/* ---------- actions ---------- */
+function addChamp(c){ state.champs[c.id]=c; select(c.id); state.dirty=true; touch(); flush(); }
+function addBlank(){ addChamp(blank()); }
+function addKnight(){ var k=knight(); if(state.champs[k.id]) k.id=uid(); addChamp(k); }
+function duplicate(){ var c=JSON.parse(JSON.stringify(cur())); c.id=uid(); c.name=(c.name||"Champion")+" copy"; addChamp(c); }
+function del(){
+  if(!state.confirmDelete){ state.confirmDelete=true; document.getElementById("delBtn").textContent="Click again to delete"; return; }
+  var id=state.current; state.confirmDelete=false; if(state.dirtyId===id){ clearTimeout(state.timer); state.dirty=false; } state.gone[id]=1; delete state.champs[id];
+  var rest=Object.keys(state.champs); state.current=rest.length?rest[0]:null; rememberCurrent();
+  if(state.mode==="db"){ state.db.collection("champions").doc(id).delete().then(function(){ setStatus("Deleted."); }).catch(function(){ setStatus("Could not delete.",true); }); } else lsSet();
+  renderRoster(); renderMain();
+}
+
+/* ---------- brief ---------- */
+function makeBrief(c){
+  var L=[]; L.push("# "+(c.name||"Unnamed")+" ("+c.role+", resource: "+c.resource+")");
+  if(c.fantasy) L.push("Fantasy: "+c.fantasy);
+  var p=c.passive; L.push("","Passive"+(p.name?" - "+p.name:"")+": "+(p.desc||"(not written)")+(p.tags.length?" Tags: "+p.tags.join(", ")+".":""));
+  c.abilities.forEach(function(a){
+    var def=CASTS[a.cast], u=def.uses, parts=[def.label];
+    if(u.indexOf("range")>=0) parts.push(fmt(a.range,2)+" m ("+Math.round(a.range*100)+" u) range");
+    if(u.indexOf("width")>=0) parts.push(fmt(a.width,2)+" m "+(def.w||"width").toLowerCase());
+    if(u.indexOf("angle")>=0) parts.push(a.angle+" degree arc");
+    if(u.indexOf("length")>=0) parts.push(fmt(a.length||0,2)+" m long");
+    if(u.indexOf("inner")>=0) parts.push(fmt(a.inner||0,2)+" m inner radius");
+    if(u.indexOf("count")>=0) parts.push((a.count||1)+(a.cast==="chain"?" bounces":a.cast==="orbit"?" blades":" projectiles"));
+    if(a.speed>0) parts.push(fmt(a.speed,1)+" m/s projectile speed");
+    if(a.duration>0) parts.push((def.dur||"lasts")+" "+fmt(a.duration,1)+" s");
+    parts.push(fmt(a.castTime,2)+" s cast", fmt(a.cooldown,1)+" s cooldown"); if(a.charges>1) parts.push(a.charges+" charges"); if(a.cost) parts.push("cost "+a.cost); parts.push(DMG[a.dmg].toLowerCase());
+    L.push("",a.slot+(a.name?" - "+a.name:"")+": "+parts.join(", ")+"."+(a.tags.length?" Tags: "+a.tags.join(", ")+".":""),(a.desc||"(not written)"));
+  });
+  if(c.notes) L.push("","Notes: "+c.notes);
+  return L.join("\n");
+}
+function copyBrief(){
+  var t=makeBrief(cur()); var note=function(m){ var n=document.getElementById("copyNote"); if(n) n.textContent=m; };
+  try{ navigator.clipboard.writeText(t).then(function(){ note("Copied. Paste it to Claude or the builder."); },function(){ sel(); }); }catch(e){ sel(); }
+  function sel(){ var ta=document.querySelector(".brief textarea"); if(ta){ ta.focus(); ta.select(); } note("Select all and copy this text (your browser blocked the copy button)."); }
+}
+
+/* ---------- boot ---------- */
+document.getElementById("newBlank").addEventListener("click",addBlank);
+document.getElementById("newKnight").addEventListener("click",addKnight);
+
+function adopt(){ var last=recallCurrent(); var ids=Object.keys(state.champs); if(!state.current || !state.champs[state.current]) state.current=(last&&state.champs[last])?last:(ids.length?ids.sort()[0]:null); renderRoster(); renderMain(); }
+
+async function boot(){
+  var db=null,user=null;
+  try{ if(window.claude&&window.claude.use){ db=await window.claude.use("db"); user=await window.claude.use("user"); } }catch(e){}
+  if(user&&user.can){ try{ var w=await user.can("data.write"); if(w===false) state.canWrite=false; }catch(e){} }
+  if(db){
+    state.db=db; state.mode="db"; setStatus("Connected. Changes save automatically.");
+    var first=true;
+    db.collection("champions").onSnapshot(function(snap){
+      var seen={};
+      snap.docs.forEach(function(d){ var data=d.data(); if(!data) return; seen[d.id]=1; if(state.gone[d.id]) return;
+        var json=JSON.stringify(data);
+        var isCur = d.id===state.current;
+        if((state.dirty||state.saving) && d.id===state.dirtyId) return;   // keep local edits
+        if(state.lastJson[d.id]===json && state.champs[d.id]) return; // echo of our own write
+        state.lastJson[d.id]=json; state.champs[d.id]=data;
+        if(isCur && !first) { renderMain(); }
+      });
+      Object.keys(state.gone).forEach(function(id){ if(!seen[id]) delete state.gone[id]; });
+      Object.keys(state.champs).forEach(function(id){ if(!seen[id] && state.lastJson[id]!==undefined){ delete state.champs[id]; delete state.lastJson[id]; } });
+      var wasFirst=first; first=false;
+      if(wasFirst||!state.current||!state.champs[state.current]) adopt(); else renderRoster();
+    },function(){ setStatus("Lost connection to saved champions.",true); });
+  }else{
+    state.mode="local"; state.champs=lsGet(); setStatus("Saved in this browser only. Use Export to back up.",true); adopt();
+  }
+  if(!state.canWrite){ document.getElementById("newBlank").disabled=true; document.getElementById("newKnight").disabled=true; setStatus("View only. Saved champions update live."); }
+}
+/* ---------- standalone: export / import ---------- */
+function exportAll(){
+  flush();
+  var payload={format:"champion-kit-board",version:1,exported:new Date().toISOString(),champions:state.champs};
+  var blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+  var a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="champions-"+new Date().toISOString().slice(0,10)+".json";
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(a.href); },1000);
+  setStatus("Exported "+Object.keys(state.champs).length+" champion(s). Check your Downloads folder.",true);
+}
+function norm(c){
+  var o=JSON.parse(JSON.stringify(c));
+  (o.abilities||[]).forEach(function(a){ EXTRAS.forEach(function(e){ if(a[e[0]]===undefined) a[e[0]]=e[6]; }); });
+  function sort(v){ if(Array.isArray(v)) return v.map(sort); if(v&&typeof v==="object"){ var r={}; Object.keys(v).sort().forEach(function(k){ r[k]=sort(v[k]); }); return r; } return v; }
+  return JSON.stringify(sort(o));
+}
+function importFile(file){
+  var rd=new FileReader();
+  rd.onload=function(){
+    var data; try{ data=JSON.parse(rd.result); }catch(e){ setStatus("That file is not valid JSON. Nothing imported.",true); return; }
+    var list = data && data.champions ? data.champions : data;
+    var items = Array.isArray(list) ? list : (list && typeof list==="object" ? (list.abilities&&list.passive ? [list] : Object.keys(list).map(function(k){ return list[k]; })) : []);
+    items=items.filter(function(c){ return c && typeof c==="object" && Array.isArray(c.abilities) && c.passive; });
+    if(!items.length){ setStatus("No champions found in that file. Nothing imported.",true); return; }
+    var added=0,copies=0;
+    items.forEach(function(c){
+      if(state.champs[c.id]){
+        if(norm(state.champs[c.id])===norm(c)) return;                          // identical, skip
+        c.id=uid(); c.name=(c.name||"Champion")+" (imported)"; copies++;       // never overwrite yours
+      }
+      c.updated=c.updated||Date.now(); state.champs[c.id]=c; added++;
+    });
+    lsSet();
+    var ids=Object.keys(state.champs); if(!state.current||!state.champs[state.current]) state.current=ids[0];
+    renderRoster(); renderMain();
+    setStatus("Imported "+added+" champion(s)"+(copies?" ("+copies+" renamed so nothing was overwritten)":"")+".",true);
+  };
+  rd.readAsText(file);
+}
+document.getElementById("exportBtn").addEventListener("click",exportAll);
+document.getElementById("importBtn").addEventListener("click",function(){ document.getElementById("importFile").click(); });
+document.getElementById("importFile").addEventListener("change",function(e){ var f=e.target.files&&e.target.files[0]; if(f) importFile(f); e.target.value=""; });
+
+boot();
+})();
+</script>
+
+</body>
+</html>
