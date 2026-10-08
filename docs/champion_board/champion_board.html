@@ -9,15 +9,15 @@
 /* No network requests: the fonts below are used when installed on this PC; otherwise the fallbacks in each stack apply. */
 :root{
   --bg:#E9EDF1; --panel:#F6F8FA; --panel-2:#EDF1F5; --ink:#13202C; --ink-2:#506172; --line:#C9D3DD; --grid:#D8E0E8;
-  --accent:#0B7A85; --accent-ink:#FFFFFF; --heat:#C4472A; --magic:#6D55C9; --heal:#2B8A57; --warn:#A8620A;
+  --accent:#0B7A85; --accent-ink:#FFFFFF; --heat:#C4472A; --magic:#6D55C9; --heal:#2B8A57; --warn:#A8620A; --nodeflect:rgba(168,98,10,.13);
   --f-display:"Barlow Condensed","Arial Narrow",sans-serif; --f-body:"IBM Plex Sans",system-ui,sans-serif; --f-mono:"IBM Plex Mono",ui-monospace,monospace;
 }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
   --bg:#0B121A; --panel:#121B25; --panel-2:#18232F; --ink:#E5ECF2; --ink-2:#97A9BA; --line:#26364A; --grid:#1A2735;
-  --accent:#43C5D0; --accent-ink:#06222A; --heat:#F07C5C; --magic:#A592FF; --heal:#5BCB8E; --warn:#E6A24C; color-scheme:dark; } }
+  --accent:#43C5D0; --accent-ink:#06222A; --heat:#F07C5C; --magic:#A592FF; --heal:#5BCB8E; --warn:#E6A24C; --nodeflect:rgba(230,162,76,.14); color-scheme:dark; } }
 :root[data-theme="dark"]{
   --bg:#0B121A; --panel:#121B25; --panel-2:#18232F; --ink:#E5ECF2; --ink-2:#97A9BA; --line:#26364A; --grid:#1A2735;
-  --accent:#43C5D0; --accent-ink:#06222A; --heat:#F07C5C; --magic:#A592FF; --heal:#5BCB8E; --warn:#E6A24C; color-scheme:dark; }
+  --accent:#43C5D0; --accent-ink:#06222A; --heat:#F07C5C; --magic:#A592FF; --heal:#5BCB8E; --warn:#E6A24C; --nodeflect:rgba(230,162,76,.14); color-scheme:dark; }
 body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--f-body);padding-inline:16px;padding-block:16px 40px}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -127,6 +127,56 @@ details.more .row{margin-top:8px}
 .race .used{font:400 11px var(--f-mono);color:var(--ink-2);white-space:nowrap}
 .hints{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 10px;align-items:center}
 .hints label{font:500 12px var(--f-body);color:var(--ink-2)}
+/* v2: enemies */
+.sel.grow{flex:1 1 220px}
+.warnline{color:var(--warn)}
+.enemy-read{display:grid;gap:3px;font:400 11.5px/1.45 var(--f-mono);color:var(--ink-2);background:var(--panel-2);border-radius:5px;padding:6px 8px}
+.enemy-read b{color:var(--ink);font-weight:500}
+.enemy-read .warnline,.enemy-read .warnline b{color:var(--warn)}
+details.more.enemy{display:grid;gap:8px}
+details.more.enemy[open]{display:grid}
+.egrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
+.egrid input,.egrid select{background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:5px 7px;font:400 13px var(--f-mono);text-transform:none;letter-spacing:0;width:100%}
+.uses{display:grid;gap:5px}
+.use{display:grid;grid-template-columns:minmax(0,1fr) 58px auto;gap:5px;align-items:center;border-top:1px dashed var(--line);padding-top:5px}
+.use input[type=text]{grid-column:1/-1}
+.kit.ekit{align-items:start}
+.use select,.use input{background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:4px 5px;font:400 12px var(--f-mono);min-width:0;width:100%}
+.card.nodeflect .preview{background-image:repeating-linear-gradient(135deg,var(--nodeflect) 0 7px,transparent 7px 14px)}
+.card.nodeflect .preview::after{content:"not deflectable";position:absolute;right:10px;top:8px;font:500 10.5px/1 var(--f-mono);color:var(--warn);border:1px solid var(--warn);border-radius:3px;padding:2px 4px;background:var(--panel-2)}
+.card.nodeflect-basic .card-head{background-image:repeating-linear-gradient(135deg,var(--nodeflect) 0 7px,transparent 7px 14px)}
+.eguide{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-bottom:14px;display:grid;gap:3px;font:400 12px/1.45 var(--f-mono);color:var(--ink-2)}
+.eguide h3{margin:0 0 4px;font:600 12px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase}
+.eguide b{color:var(--ink);font-weight:500}
+.eguide .warnline,.eguide .warnline b{color:var(--warn)}
+.addcard{border-style:dashed;min-height:90px;justify-content:center;align-items:center;cursor:pointer;font:600 18px var(--f-display);color:var(--ink-2)}
+.addcard:hover{border-color:var(--accent);color:var(--ink)}
+details.panel{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+details.panel > summary{cursor:pointer;padding:11px 14px;font:600 19px/1.1 var(--f-display);letter-spacing:.02em}
+.panel-body{padding:0 14px 14px;display:grid;gap:10px}
+.panel-body .sel select{width:auto}
+.sliders{display:grid;gap:0}
+.srow{display:grid;grid-template-columns:minmax(0,1fr) 64px 110px 30px;gap:8px;align-items:center;border-top:1px solid var(--line);padding:5px 0}
+.srow.head{border-top:0;font:500 10.5px/1 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2)}
+.srow label{display:grid;gap:1px;min-width:0}
+.srow label b{font:500 12.5px var(--f-mono)}
+.srow label small{font:400 11px/1.3 var(--f-body);color:var(--ink-2)}
+.srow.on label b{color:var(--accent)}
+.sdef{font:400 12.5px var(--f-mono);color:var(--ink-2);text-align:right}
+.srow input{width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:4px 6px;font:400 12.5px var(--f-mono);text-align:right}
+.srow small.warnline{display:block;font:400 10.5px var(--f-mono)}
+@media (max-width:560px){.srow{grid-template-columns:minmax(0,1fr) 46px 84px 28px}.srow label small{display:none}}
+.plan{border:1px solid var(--line);border-radius:6px;padding:10px;display:grid;gap:8px}
+.plan-top{display:grid;grid-template-columns:minmax(0,1fr) 80px minmax(0,2fr);gap:8px}
+@media (max-width:640px){.plan-top{grid-template-columns:minmax(0,1fr) 80px}.plan-top .wide{grid-column:1/-1}}
+.plan input,.plan select{background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:5px 7px;font:400 12.5px var(--f-body);text-transform:none;letter-spacing:0;width:100%;min-width:0}
+.steps{display:grid;gap:5px}
+.step{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.step select{width:auto;flex:1 1 140px}
+.step input{width:64px;flex:0 0 auto}
+.step small{flex:1 1 100%;font:400 11px var(--f-mono);color:var(--ink-2);padding-left:26px}
+.step small.warnline{color:var(--warn)}
+.stepn{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:var(--ink);color:var(--bg);font:600 11px/1 var(--f-mono)}
 /* v2: weapons, diff marks, workload */
 .kit + .weapon,.weapon + .kit{margin-top:14px}
 .kit + .kit{margin-top:14px}
@@ -200,6 +250,7 @@ svg text{font-family:var(--f-mono);fill:var(--ink-2)}
       <button class="btn" id="newBlank">+ New champion</button>
     </div>
     <button class="btn" id="newKnight">+ Knight example</button>
+    <button class="btn" id="newDuelist">+ Example enemy: test duelist</button>
     <button class="btn" id="boardBtn">Races and board settings</button>
     <button class="btn" id="exportBtn">Export all (.json)</button>
     <button class="btn" id="importBtn">Import (.json)</button>
@@ -363,7 +414,7 @@ function upgrade(c){
   if(!Array.isArray(c.passive.tags)) c.passive.tags=[];
   if(!Array.isArray(c.abilities)) c.abilities=[];
   c.abilities.forEach(upgradeAbility);
-  if(c.kind==="enemy") str(c,"faction");
+  if(c.kind==="enemy"){ str(c,"faction"); upgradeEnemy(c); }
   if(c.kind==="champion"){
     // Weapons (1 to 3): weapon 1's kit is `abilities`; weapons 2 and 3 hold their own Q, W, E, R. No stats on weapons.
     if(!Array.isArray(c.weapons)||!c.weapons.length) c.weapons=[{}];
@@ -385,6 +436,7 @@ function upgradeRace(r){ str(r,"id"); str(r,"name"); if(SIZES.indexOf(r.size)<0)
 function normSettings(s){
   s=(s&&typeof s==="object")?s:{};
   if(!s.archetype_hints||typeof s.archetype_hints!=="object") s.archetype_hints={};
+  num(s,"player_health",650);   // the player's max health for the damage bands (the Knight's 650)
   Object.keys(DEFAULT_HINTS).forEach(function(k){ if(typeof s.archetype_hints[k]!=="string") s.archetype_hints[k]=DEFAULT_HINTS[k]; });
   return s;
 }
@@ -403,7 +455,12 @@ function ab(slot,o){ var d={slot:slot,name:"",cast:"skillshot",range:6,width:1.5
 function blankKit(){ return [ab("Q",{}),ab("W",{cast:"self",width:1.2,cooldown:12,dmg:"none"}),ab("E",{cast:"dash",range:5,width:1,cooldown:9}),ab("R",{cast:"unit",range:7,cooldown:60,castTime:0.5})].map(upgradeAbility); }
 function blank(){ return upgrade({id:uid(),kind:"champion",name:"Unnamed champion",role:"Bruiser",archetype:"Bruiser",resource:"None",fantasy:"",passive:{name:"",desc:"",tags:[]},
   abilities:blankKit(),notes:"",updated:Date.now()}); }
-function blankEnemy(){ var c=blank(); c.kind="enemy"; c.name="Unnamed enemy"; return upgrade(c); }
+function blankEnemy(){
+  return upgrade({id:uid(),kind:"enemy",name:"Unnamed enemy",role:"Bruiser",archetype:"Bruiser",rank:"regular",resource:"None",fantasy:"",passive:{name:"",desc:"",tags:[]},
+    basic:{damage:0,range:1.5,windup:0.25,dmg:"physical",deflectable:null,notes:""},
+    abilities:[ab("1",{cast:"cone",range:2,angle:90,castTime:0.6,cooldown:8}),ab("2",{cast:"skillshot",range:6,width:1,castTime:0.7,cooldown:10})].map(upgradeAbility),
+    notes:"",updated:Date.now()});
+}
 function knight(){ return upgrade({id:"knight",kind:"champion",name:"The Knight",role:"Bruiser",archetype:"Bruiser",race:"human",resource:"Fury",
   fantasy:"A skilled fighter who wins by execution: dodging, comboing and using the room. Gets stronger as health drops.",
   passive:{name:"Unbroken",desc:"Attack damage rises as health falls: +0% at full health, up to +40% at 30% health or less.",tags:["defensive"]},
@@ -552,14 +609,20 @@ function renderMain(){
     m.appendChild(kit);
     if(ui.diff&&wi>0) markDiffs(c,wi,kit);
   }else{
-    var kit=el("div",{class:"kit"});
-    kit.appendChild(passiveCard(c));
+    // enemies: the kit guide, the basic attack, a passive only at rank boss, up to six abilities, sliders, combo plans
+    m.appendChild(enemyGuide(c));
+    var kit=el("div",{class:"kit ekit"});
+    kit.appendChild(basicCard(c));
+    kit.appendChild(c.rank==="boss"?passiveCard(c):passiveNote(c));
     c.abilities.forEach(function(a){ kit.appendChild(abilityCard(c,a)); });
+    if(c.abilities.length<MAX_ENEMY_ABILITIES&&!ro) kit.appendChild(el("button",{type:"button",class:"card addcard",text:"+ ability ("+c.abilities.length+" of "+MAX_ENEMY_ABILITIES+")",onclick:function(){ addEnemyAbility(c); }}));
     m.appendChild(kit);
+    m.appendChild(behaviorPanel(c));
+    m.appendChild(plansPanel(c));
   }
 
   // notes
-  var nt=el("textarea",{"aria-label":"Notes",placeholder:"Synergies, open questions, what this champion should not do, how it feels against the Knight's kit…"}); nt.value=c.notes||"";
+  var nt=el("textarea",{"aria-label":"Notes",placeholder:c.kind==="enemy"?"Open questions, what it should never do, how it tests the player…":"Synergies, open questions, what this champion should not do, how it feels against the Knight's kit…"}); nt.value=c.notes||"";
   nt.addEventListener("input",function(){ c.notes=nt.value; touch(); });
   m.appendChild(el("section",{class:"notes"},[el("div",{class:"fld",text:"Notes and open questions"}),nt]));
 
@@ -585,10 +648,20 @@ function headerSection(c){
   var top=[name,arch];
   if(!isE) top.push(selectBox("Resource",RESOURCES,c.resource,function(v){ c.resource=v; renderRoster(); touch(); }));
   top.push(race,other);
+  var extra=[];
   if(isE){
     var fac=el("input",{"aria-label":"Faction",placeholder:"e.g. Vampires"}); fac.value=c.faction||"";
     fac.addEventListener("input",function(){ c.faction=fac.value; touch(); });
     top.push(el("label",{class:"sel"},[document.createTextNode("Faction"),fac]));
+    top.splice(2,0,selectBox("Rank",RANKS,c.rank,function(v){ c.rank=v; renderRoster(); touch(); renderMain(); }));
+    var hn=el("input",{"aria-label":"Health band note",placeholder:"e.g. 900, an elite's bulk"}); hn.value=c.health_note;
+    hn.addEventListener("input",function(){ c.health_note=hn.value; touch(); });
+    var pm=el("input",{type:"number",min:0,max:1000,step:5,"aria-label":"Poise max"}); pm.value=c.poise_max;
+    pm.addEventListener("input",function(){ var v=parseFloat(pm.value); c.poise_max=isNaN(v)||v<0?0:v; touch(); });
+    var bn=el("textarea",{class:"layer","aria-label":"Behavior notes",placeholder:"Behavior notes: how it moves, holds, commits and retreats."}); bn.value=c.behavior_notes;
+    bn.addEventListener("input",function(){ c.behavior_notes=bn.value; touch(); });
+    extra=[el("div",{class:"head-top"},[el("label",{class:"sel grow"},[document.createTextNode("Health band note"),hn]),
+      el("label",{class:"sel",title:"0 = none. The prototype gives the elite slime and the test duelist 100 (EnemyData.poise_max); everyone else 0."},[document.createTextNode("Poise max (0 = none)"),pm])]),bn];
   }
   var fan=el("textarea",{class:"fantasy","aria-label":isE?"What it is":"Player fantasy",placeholder:isE?"What it is and how it fights, in a sentence or two.":"The fantasy in a sentence or two: who is this champion and how does it feel to play?"}); fan.value=c.fantasy||"";
   fan.addEventListener("input",function(){ c.fantasy=fan.value; touch(); });
@@ -596,7 +669,7 @@ function headerSection(c){
     el("button",{class:"btn primary",text:"Copy brief",onclick:function(){ state.briefOpen=!state.briefOpen; renderMain(); if(state.briefOpen) copyBrief(); }}),
     el("button",{class:"btn",text:"Duplicate",onclick:duplicate}),
     el("button",{class:"btn warn",id:"delBtn",text:state.confirmDelete?"Click again to delete":"Delete",onclick:del})]);
-  return el("section",{class:"head"},[el("div",{class:"head-top"},top),el("div",{class:"hint"},[el("span",{text:"Hint"}),hintIn]),layer,fan,acts]);
+  return el("section",{class:"head"},[el("div",{class:"head-top"},top)].concat(extra,[el("div",{class:"hint"},[el("span",{text:"Hint"}),hintIn]),layer,fan,acts]));
 }
 function raceSelect(c,fn){
   var s=el("select",{"aria-label":"Race"});
@@ -624,6 +697,11 @@ function renderBoard(m){
   sec.appendChild(el("div",{class:"head-top"},[el("h1",{text:"Races and board settings"}),
     el("button",{class:"btn",text:c?"Back to "+(c.name||"the sheet"):"Back",onclick:function(){ state.view="doc"; renderMain(); }})]));
   sec.appendChild(el("p",{class:"muted",text:"Shared by every sheet on this board and saved in Export all. Races are identity and look only: no numbers and no stats."}));
+  sec.appendChild(el("h3",{text:"Enemy checks"}));
+  var ph=el("input",{type:"number",min:1,max:100000,step:10,"aria-label":"Player max health for the damage bands",id:"set-ph"}); ph.value=playerHealth();
+  ph.addEventListener("input",function(){ var v=parseFloat(ph.value); if(v>0){ board.settings.player_health=v; saveSettings(); } });
+  sec.appendChild(el("div",{class:"hints"},[el("label",{for:"set-ph",text:"Player health"}),ph]));
+  sec.appendChild(el("p",{class:"muted",text:"The enemy damage bands are shares of this number (default 650, the Knight's max health)."}));
   sec.appendChild(el("h3",{text:"Archetype hints"}));
   var hints=el("div",{class:"hints"});
   Object.keys(DEFAULT_HINTS).forEach(function(k){
@@ -702,6 +780,444 @@ function passiveCard(c){
   return el("article",{class:"card"},[
     el("div",{class:"card-head"},[el("div",{class:"slot p",text:"Pas"}),nm]),
     el("div",{class:"body"},[ds,tagRow(TAGS,p.tags,touch)].concat(c.kind==="champion"&&c.weapons&&c.weapons.length>1?[el("p",{class:"muted",text:"Shared by every weapon: weapons change Q, W, E and R, never the passive."})]:[]))]);
+}
+
+/* ---------- enemies: rank, basic attack, AI fields, readouts, sliders, combo plans (names and numbers from ENEMIES_AI.md) ---------- */
+var RANKS = ["fodder","regular","elite","boss"];
+var RANK_GUIDE = {fodder:[0,0,"fodder: its basic attack only"], regular:[2,3,"regulars: 2-3 abilities"], elite:[3,5,"elites (and duelists): 3-5 abilities"], boss:[4,6,"bosses: 4-6 abilities plus a passive"]};
+var MAX_ENEMY_ABILITIES = 6;
+var INTENTS = ["poke","gap_close","escape","defend","punish","finish","zone","damage","heal","shield","buff","cc","peel"];   // AIUse's intent tags
+var COMBO_ROLES = ["opener","extender","finisher"];   // peel and guard are uses (peel, defend), not combo roles
+var STEP_TIMINGS = ["AFTER_LANDED","AFTER_ENDED","AFTER_DELAY","ON_STATUS"];
+var RESPECT_BY_ROLE = {ultimate:4, core:2, mobility:2, defensive:1.5, generator:1, companion:0};
+var CC_STATUS_TAGS = ["cc","stun","slow","root","knock-up","silence","blind","fear","charm","taunt","suppress","sleep","disarm"];   // displacements (knockback, pull) don't count
+var TELEGRAPH_MIN = 0.6, FOLLOW_UP_MIN = 0.25, CHIP_SHARE = 0.05;
+var BANDS = [["swarm chip",0.02,0.05],["elite",0.12,0.20],["boss big hit",0.25,0.40]];   // per hit, share of the player's max health
+var PRESETS = ["brute","skirmisher","caster"];
+var MAX_OVERRIDES = 3;
+// [slider, what it does, brute, skirmisher, caster, min, max]: ENEMIES_AI.md's sliders table (the range band is one slider with two ends)
+var SLIDERS = [
+  ["aggression","how much danger it shrugs off: speeds its patience (x 0.5 + aggression)",0.5,0.7,0.3,0,1],
+  ["respect_weight","how much what's ready on the party holds it back (0 = ignores it)",1.0,0.8,1.2,0,2],
+  ["patience_time","seconds to fill patience with nothing ready on the party (with everything up, up to 4x longer)",3,2,4,0.5,10],
+  ["range_band_min","where it likes to stand from its target: the near end (LoL units, edge to edge)",350,400,550,0,1500],
+  ["range_band_max","where it likes to stand from its target: the far end (LoL units, edge to edge)",500,600,800,0,1500],
+  ["reaction_time","delay before it reacts to anything new (the preset is the elite's; a regular's is x 1.3, a boss's x 0.85)",0.35,0.3,0.35,0.2,1.0],
+  ["dodge_skill","chance to try a sidestep out of a dodgeable attack (elites and bosses only)",0.4,0.6,0.5,0,1],
+  ["dodge_cooldown","seconds between dodges",6,4,5,1,15],
+  ["punish_greed","the chance it takes a whiff's opening (one roll per window; 0 = never punishes)",0.6,0.8,0.4,0,1],
+  ["finish_threshold","the target's health share below which finish opens",0.3,0.3,0.3,0,0.6],
+  ["pressure_time","a boss's pressure phase, seconds",12,12,12,3,30],
+  ["breather_time","a boss's breather, seconds (difficulty tiers shorten it)",5,5,5,1,15],
+  ["jitter","randomness: +/- this share on scores and timings, so a group never moves in lockstep",0.15,0.2,0.15,0,0.5],
+  ["confidence","how much its own ready key ability emboldens it, and how cautious it turns once it's spent",0.5,0.6,0.3,0,1],
+  ["crowded_commit","the chance it goes all in when you're in its face and it has an answer",0.6,0.4,0.2,0,1],
+  ["aim_lead","how far its aimed abilities lead a walking target: 0 = where you stand, 1 = where you'll be",0,0.3,0.5,0,1],
+  ["spend_eagerness","how freely it fires its key ability: 0 = holds it for the right moment, 1 = on cooldown",0.4,0.7,0.8,0,1],
+  ["nerve","how hard it presses when the odds are on its side",0.6,0.8,0.4,0,1],
+  ["peel_threshold","how crowded it must be before it reacts (all in or peel); lower reacts sooner",0.6,0.6,0.5,0.1,1],
+  ["opening_bar","how open the target must be before it sets up a combo plan (enemies with plans only)",0.5,0.4,0.6,0,1],
+  ["follow_through","after a plan: 0 = always resets, 1 = always stays on the target",0.6,0.2,0,0,1],
+  ["combo_greed","the chance it carries on after a plan step misses (0 = the plan ends: no blind finishers)",0.6,0.3,0.1,0,1],
+  ["mixup","the chance a setup takes its runner-up plan (or holds a beat), so it can't be read in two fights",0.15,0.3,0.2,0,0.5]
+];
+function upgradeEnemy(c){
+  if(RANKS.indexOf(c.rank)<0) c.rank="regular";
+  str(c,"health_note"); num(c,"poise_max",0); str(c,"behavior_notes");
+  if(!c.basic||typeof c.basic!=="object") c.basic={};
+  var b=c.basic; num(b,"damage",0); num(b,"range",1.5); num(b,"windup",0.25); if(!DMG[b.dmg]) b.dmg="physical"; if(b.deflectable!==true&&b.deflectable!==false) b.deflectable=null; str(b,"notes");
+  if(!c.behavior||typeof c.behavior!=="object") c.behavior={};
+  if(c.behavior.preset!=="none"&&PRESETS.indexOf(c.behavior.preset)<0) c.behavior.preset="";
+  if(!c.behavior.overrides||typeof c.behavior.overrides!=="object"||Array.isArray(c.behavior.overrides)) c.behavior.overrides={};
+  if(!Array.isArray(c.combo_plans)) c.combo_plans=[];
+  c.combo_plans=c.combo_plans.filter(function(p){ return p&&typeof p==="object"; }); c.combo_plans.forEach(upgradePlan);
+  c.abilities.forEach(upgradeEnemyAbility);
+}
+function upgradeEnemyAbility(a){
+  num(a,"damage",0); if(typeof a.telegraph!=="number") a.telegraph=null; num(a,"recovery",0);
+  if(!Array.isArray(a.ai_uses)) a.ai_uses=[];
+  a.ai_uses=a.ai_uses.filter(function(u){ return u&&typeof u==="object"; });
+  a.ai_uses.forEach(function(u){ str(u,"intent","damage"); num(u,"weight",1); str(u,"rule"); });
+  if(!Array.isArray(a.combo_roles)) a.combo_roles=[];
+  if(a.deflectable!==true&&a.deflectable!==false) a.deflectable=null;
+  return a;
+}
+function upgradePlan(p){
+  str(p,"name"); num(p,"weight",1); str(p,"fits"); str(p,"abort_notes");
+  if(!Array.isArray(p.steps)) p.steps=[];
+  p.steps=p.steps.filter(function(s){ return s&&typeof s==="object"; });
+  p.steps.forEach(function(s){ str(s,"ability"); if(STEP_TIMINGS.indexOf(s.timing)<0) s.timing="AFTER_LANDED"; num(s,"delay",0); });
+  return p;
+}
+function n2(x){ return String(Math.round(x*100)/100); }
+function playerHealth(){ var h=board.settings.player_health; return (typeof h==="number"&&h>0)?h:650; }
+function roleTags(a){ return (a.tags||[]).filter(function(t){ return RESPECT_BY_ROLE[t]!==undefined; }); }
+function appliesCC(a){ return (a.tags||[]).some(function(t){ return CC_STATUS_TAGS.indexOf(t)>=0; }); }
+// ENEMIES_AI.md, Respect: the role tag's value, +1 when it applies crowd control (only when the role value is above 0).
+function respectOf(a){
+  var roles=roleTags(a), best=null;
+  roles.forEach(function(t){ if(best===null||RESPECT_BY_ROLE[t]>RESPECT_BY_ROLE[best]) best=t; });
+  var v=best===null?0:RESPECT_BY_ROLE[best], cc=v>0&&appliesCC(a);
+  return {value:v+(cc?1:0), role:best, cc:cc, many:roles.length>1};
+}
+function respectWords(r){
+  if(r.role===null) return "0 (no role tag: ultimate, core, mobility, defensive or generator)";
+  return n2(r.value)+" ("+r.role+" "+n2(RESPECT_BY_ROLE[r.role])+(r.cc?", +1 crowd control":"")+")"+(r.many?"; more than one role tag, the highest counts":"");
+}
+function deflectState(a,basic){
+  if(a.dmg==="none") return null;
+  if(a.deflectable===true||a.deflectable===false) return a.deflectable;
+  if(basic) return a.range<=3;   // auto: a melee reach is deflectable, a ranged shot isn't
+  var d=CASTS[a.cast]; return !(d&&d.group==="Projectiles") && (a.tags||[]).indexOf("projectile")<0;
+}
+function deflectWords(a,basic){
+  var s=deflectState(a,basic), auto=a.deflectable!==true&&a.deflectable!==false;
+  if(s===null) return "no damage: nothing to deflect";
+  return (s?"deflectable":"not deflectable")+(auto?(basic?" (auto: "+(s?"melee reach":"a ranged shot")+")":" (auto: "+(s?"melee or contact":"a projectile")+")"):"");
+}
+function telegraphOf(a){ return a.telegraph!==null&&a.telegraph!==undefined?a.telegraph:a.castTime; }
+function isFollowUp(a){ return a.combo_roles.length>0 && a.combo_roles.indexOf("opener")<0; }
+// ENEMIES_AI.md, Kits: every enemy ability telegraphs at least 0.6 s unless it is chip damage; a combo follow-up
+// (combo roles without opener) at least 0.25 s; an ability with no damage needs none.
+function telegraphCheck(a){
+  if(a.dmg==="none") return {warn:false,text:"no damage: no telegraph needed"};
+  var t=telegraphOf(a), src=(a.telegraph===null?" (its cast time)":""), fu=isFollowUp(a), min=fu?FOLLOW_UP_MIN:TELEGRAPH_MIN;
+  var chip=a.damage>0&&a.damage<=CHIP_SHARE*playerHealth();
+  if(t>=min-1e-9) return {warn:false,text:fmt(t,2)+" s"+src+": at least "+min+" s"+(fu?" (a combo follow-up)":" (dash-answerable)")};
+  if(chip) return {warn:false,text:fmt(t,2)+" s"+src+": fast, but chip damage (5% or less), so it's allowed"};
+  return {warn:true,text:fmt(t,2)+" s"+src+" is under "+(fu?"the follow-up floor of 0.25 s":"the 0.6 s dash-answerable minimum")+(a.damage>0?"":" (no damage number set)")};
+}
+function bandName(share){
+  for(var i=0;i<BANDS.length;i++) if(share>=BANDS[i][1]-1e-9&&share<=BANDS[i][2]+1e-9) return BANDS[i][0]+" band";
+  if(share<BANDS[0][1]) return "under the chip band";
+  if(share<BANDS[1][1]) return "between the chip and elite bands";
+  if(share<BANDS[2][1]) return "between the elite and boss bands";
+  return "above the boss band";
+}
+// ENEMIES_AI.md and COMBAT.md damage bands (a tuning guide): what a hit of this rank should weigh.
+function bandCheck(dmg,rank,basic){
+  if(!(dmg>0)) return {warn:false,text:"no damage number set"};
+  var share=dmg/playerHealth(), pct=n2(Math.round(share*1000)/10)+"% of "+playerHealth(), where=bandName(share), want, warn;
+  if(basic||rank==="fodder"){ want="a basic attack or fodder hit sits in the swarm chip band (2-5%)"; warn=share>0.05+1e-9; }
+  else if(rank==="regular"){ want="a regular's abilities above chip sit in the elite band's lower part (12-20%)"; warn=(share>0.05+1e-9&&share<0.12-1e-9)||share>0.20+1e-9; }
+  else if(rank==="elite"){ want="elite hits: 12-20%"; warn=share<0.12-1e-9||share>0.20+1e-9; }
+  else { want="boss big hits: 25-40%"; warn=share>0.40+1e-9; }
+  return {warn:warn,text:n2(dmg)+" = "+pct+", "+where+(warn?"; "+want:"")};
+}
+function presetFor(c){ if(c.behavior.preset==="none") return null; if(PRESETS.indexOf(c.behavior.preset)>=0) return c.behavior.preset; return autoPreset(c); }
+// The old enemy roles map onto the archetypes (DECISIONS.md, 2026-10-07: brute -> Bruiser, caster -> Mage; ENEMIES_AI's
+// "skirmisher / assassin"); the test duelist plays the brute preset; fodder has no preset.
+function autoPreset(c){ if(c.rank==="fodder") return null; var m={Bruiser:"brute",Mage:"caster",Skirmisher:"skirmisher",Assassin:"skirmisher",Duelist:"brute",Tank:"brute",Marksman:"caster",Support:"caster",Basic:null}; return m.hasOwnProperty(c.archetype)?m[c.archetype]:"brute"; }
+function slotLetter(i){ return i<4?["q","w","e","r"][i]:null; }
+function enemyAbilityLabel(c,slot){
+  if(slot==="basic") return "basic attack";
+  for(var i=0;i<c.abilities.length;i++) if(c.abilities[i].slot===slot) return (c.abilities[i].name||"ability "+slot);
+  return "missing ability ("+slot+")";
+}
+function abilityBySlot(c,slot){ for(var i=0;i<c.abilities.length;i++) if(c.abilities[i].slot===slot) return c.abilities[i]; return null; }
+function nextEnemySlot(c){ for(var n=1;n<=MAX_ENEMY_ABILITIES+20;n++){ if(!abilityBySlot(c,String(n))) return String(n); } return uid(); }
+
+function numField(label,aria,val,min,max,step,onv,ph){
+  var i=el("input",{type:"number",min:min,max:max,step:step,"aria-label":aria,placeholder:ph||""}); i.value=(val===null||val===undefined)?"":val;
+  i.addEventListener("input",function(){ var t=i.value.trim(); if(t===""){ onv(null); return; } var v=parseFloat(t); if(!isNaN(v)) onv(v); });
+  return el("label",{class:"fld"},[document.createTextNode(label),i]);
+}
+function deflSelect(aria,o,changed){
+  var s=el("select",{"aria-label":aria});
+  [["auto","auto"],["yes","yes"],["no","no"]].forEach(function(x){ var op=el("option",{value:x[0],text:x[1]}); if((o.deflectable===true?"yes":o.deflectable===false?"no":"auto")===x[0]) op.selected=true; s.appendChild(op); });
+  s.addEventListener("change",function(){ o.deflectable=s.value==="yes"?true:s.value==="no"?false:null; changed(); });
+  return el("label",{class:"fld"},[document.createTextNode("Deflectable"),s]);
+}
+function readLine(box,k,v,warn){ box.appendChild(el("div",{class:warn?"warnline":""},[el("b",{text:k+": "}),document.createTextNode(v)])); }
+
+// The extra fields on an enemy's ability card.
+function enemyFields(c,a,card){
+  var out=el("div",{class:"enemy-read"});
+  function changed(){ touch(); refresh(); }
+  var grid=el("div",{class:"egrid"},[
+    numField("Damage",a.slot+" damage",a.damage||"",0,100000,1,function(v){ a.damage=v===null?0:v; changed(); },"hit points"),
+    numField("Telegraph (s)",a.slot+" telegraph",a.telegraph,0,5,0.05,function(v){ a.telegraph=v; changed(); },"= cast time"),
+    numField("Recovery (s)",a.slot+" recovery",a.recovery||"",0,5,0.05,function(v){ a.recovery=v===null?0:v; changed(); },"0"),
+    deflSelect(a.slot+" deflectable",a,changed)]);
+  var roles=el("div",{class:"tags"});
+  COMBO_ROLES.forEach(function(r){
+    var b=el("button",{type:"button",class:"tag","aria-pressed":String(a.combo_roles.indexOf(r)>=0),text:r,"aria-label":a.slot+" combo role "+r});
+    b.addEventListener("click",function(){ var i=a.combo_roles.indexOf(r); if(i>=0) a.combo_roles.splice(i,1); else a.combo_roles.push(r); b.setAttribute("aria-pressed",String(i<0)); changed(); });
+    roles.appendChild(b);
+  });
+  a.combo_roles.filter(function(r){ return COMBO_ROLES.indexOf(r)<0; }).forEach(function(r){ roles.appendChild(el("span",{class:"tag",text:r+" (saved)"})); });
+  var uses=el("div",{class:"uses"});
+  function paintUses(){
+    uses.textContent="";
+    a.ai_uses.forEach(function(u,i){
+      var sel=el("select",{"aria-label":a.slot+" use "+(i+1)+" intent"});
+      INTENTS.concat(INTENTS.indexOf(u.intent)<0?[u.intent]:[]).forEach(function(t){ var o=el("option",{value:t,text:t}); if(t===u.intent) o.selected=true; sel.appendChild(o); });
+      sel.addEventListener("change",function(){ u.intent=sel.value; changed(); });
+      var w=el("input",{type:"number",min:0,max:5,step:0.1,value:u.weight,"aria-label":a.slot+" use "+(i+1)+" weight",title:"weight"});
+      w.addEventListener("input",function(){ var v=parseFloat(w.value); if(!isNaN(v)){ u.weight=v; changed(); } });
+      var r=el("input",{type:"text","aria-label":a.slot+" use "+(i+1)+" rule",placeholder:"when, in plain words (e.g. the target within 400 u)"}); r.value=u.rule;
+      r.addEventListener("input",function(){ u.rule=r.value; changed(); });
+      var x=el("button",{type:"button",class:"fx-btn",text:"×","aria-label":"Remove use "+(i+1)});
+      x.addEventListener("click",function(){ if(!x.dataset.armed){ x.dataset.armed="1"; x.textContent="remove?"; x.classList.add("warn"); return; } a.ai_uses.splice(i,1); paintUses(); changed(); });
+      uses.appendChild(el("div",{class:"use"},[sel,w,x,r]));
+    });
+    if(!a.ai_uses.length) uses.appendChild(el("p",{class:"muted",text:"No uses: the brain treats it as one damage use with no rules."}));
+    if(state.canWrite) uses.appendChild(el("button",{type:"button",class:"tag add",text:"+ use",onclick:function(){ a.ai_uses.push({intent:"damage",weight:1,rule:""}); paintUses(); changed(); }}));
+  }
+  paintUses();
+  var key="abl:"+c.id+":"+a.slot, armed=state.wDel===key;
+  var rm=state.canWrite?el("button",{type:"button",class:"btn warn",text:armed?"Click again to remove this ability":"Remove ability",onclick:function(){
+    if(state.wDel!==key){ state.wDel=key; renderMain(); return; }
+    state.wDel=null; var i=c.abilities.indexOf(a); if(i>=0) c.abilities.splice(i,1); touch(); renderMain(); }}):null;
+  function refresh(){
+    out.textContent="";
+    readLine(out,"Respect",respectWords(respectOf(a)));
+    var tc=telegraphCheck(a); readLine(out,"Telegraph",tc.text,tc.warn);
+    if(a.dmg!=="none"){ var bc=bandCheck(a.damage,c.rank,false); readLine(out,"Damage",bc.text,bc.warn); }
+    if(a.recovery>0) readLine(out,"Recovery",fmt(a.recovery,2)+" s after the hit");
+    var ds=deflectState(a,false); readLine(out,"Deflect",deflectWords(a,false)+(ds===false?": the preview is tinted":""));
+    card.classList.toggle("nodeflect",ds===false);
+  }
+  refresh();
+  var box=el("details",{class:"more enemy",open:"open"},[el("summary",{text:"Enemy fields: damage, telegraph, uses, combo roles"}),grid,
+    el("div",{class:"fld",text:"Combo roles"}),roles,
+    el("p",{class:"muted",text:"Peel and guard are uses (peel, defend), not combo roles. A crowd control that sets up a combo goes in a combo plan, not a use."}),
+    el("div",{class:"fld",text:"AI uses: intent, weight, rule"}),uses,out,rm]);
+  return {el:box,refresh:refresh};
+}
+function basicCard(c){
+  var b=c.basic, out=el("div",{class:"enemy-read"});
+  function changed(){ touch(); refresh(); }
+  var dmgSel=el("select",{"aria-label":"Basic attack damage type"});
+  ["physical","magic","true"].forEach(function(k){ var o=el("option",{value:k,text:DMG[k]}); if(k===b.dmg) o.selected=true; dmgSel.appendChild(o); });
+  dmgSel.addEventListener("change",function(){ b.dmg=dmgSel.value; changed(); });
+  var notes=el("textarea",{class:"desc","aria-label":"Basic attack notes",placeholder:"The swing or shot, its rhythm, anything special."}); notes.value=b.notes;
+  notes.addEventListener("input",function(){ b.notes=notes.value; touch(); });
+  var card=el("article",{class:"card"});
+  function refresh(){
+    out.textContent="";
+    readLine(out,"Reach",fmt(b.range,2)+" m ("+Math.round(b.range*100)+" u), "+fmt(b.windup,2)+" s wind-up");
+    var bc=bandCheck(b.damage,c.rank,true); readLine(out,"Damage",bc.text,bc.warn);
+    readLine(out,"Deflect",deflectWords(b,true));
+    card.classList.toggle("nodeflect-basic",deflectState(b,true)===false);
+  }
+  card.appendChild(el("div",{class:"card-head"},[el("div",{class:"slot p",text:"BA"}),el("h3",{class:"tally-h",text:"Basic attack"})]));
+  card.appendChild(el("div",{class:"body"},[
+    el("p",{class:"muted",text:"Every enemy has one (UnitStats: attack_damage, attack_range, attack_windup)."}),
+    el("div",{class:"egrid"},[
+      numField("Damage","Basic attack damage",b.damage||"",0,100000,1,function(v){ b.damage=v===null?0:v; changed(); },"hit points"),
+      numField("Range (m)","Basic attack range",b.range,0,20,0.05,function(v){ b.range=v===null?0:v; changed(); }),
+      numField("Wind-up (s)","Basic attack wind-up",b.windup,0,3,0.05,function(v){ b.windup=v===null?0:v; changed(); }),
+      el("label",{class:"fld"},[document.createTextNode("Damage type"),dmgSel]),
+      deflSelect("Basic attack deflectable",b,changed)]),
+    notes,out]));
+  refresh();
+  return card;
+}
+function passiveNote(c){
+  var has=!!(c.passive.name||c.passive.desc||c.passive.tags.length);
+  return el("article",{class:"card"},[el("div",{class:"card-head"},[el("div",{class:"slot p",text:"Pas"}),el("h3",{class:"tally-h",text:"No passive"})]),
+    el("div",{class:"body"},[el("p",{class:"muted",text:"Passives are bosses only. Below boss, an enemy's identity is its abilities, and elite modifiers are the passive-like layer (ENEMIES_AI.md, Kits)."}),
+      has?el("p",{class:"muted",text:"A passive is saved on this sheet; it shows again when the rank is boss."}):null])]);
+}
+function enemyGuide(c){
+  var sec=el("section",{class:"eguide"});
+  function paint(){
+    sec.textContent="";
+    var g=RANK_GUIDE[c.rank], n=c.abilities.length, inside=n>=g[0]&&n<=g[1];
+    var kitR=c.abilities.reduce(function(s,a){ return s+respectOf(a).value; },0);
+    var tw=c.abilities.filter(function(a){ return telegraphCheck(a).warn; }).length;
+    var bw=c.abilities.filter(function(a){ return a.dmg!=="none"&&bandCheck(a.damage,c.rank,false).warn; }).length+(bandCheck(c.basic.damage,c.rank,true).warn?1:0);
+    sec.appendChild(el("h3",{text:"Kit guide (advisory, never blocking)"}));
+    readLine(sec,"Kit size",g[2]+". This sheet: "+n+" abilit"+(n===1?"y":"ies")+(inside?".":" (outside the guide)."),!inside);
+    readLine(sec,"Passive",c.rank==="boss"?"a boss has one.":"none below boss; elites use elite modifiers.");
+    readLine(sec,"Kit respect",n2(kitR)+" (from the role tags; what the ally brain and the odds read)");
+    readLine(sec,"Checks",tw+" telegraph warning"+(tw===1?"":"s")+", "+bw+" damage band note"+(bw===1?"":"s")+". Bands use the player's max health: "+playerHealth()+" (Races and board settings).",tw+bw>0);
+  }
+  paint(); state.live.push(paint); return sec;
+}
+function behaviorPanel(c){
+  var beh=c.behavior, body=el("div",{class:"panel-body"});
+  var det=el("details",{class:"panel"},[el("summary",{text:"Behavior sliders"}),body]);
+  if(state.behOpen) det.open=true; det.addEventListener("toggle",function(){ state.behOpen=det.open; });
+  function paint(){
+    body.textContent="";
+    var pre=presetFor(c), auto=autoPreset(c);
+    body.appendChild(el("p",{class:"muted",text:"ENEMIES_AI.md's sliders: twenty-two in all (the range band is one slider with two ends), near the twenty the brief asked for. The rest of a preset is kind, not magnitude. An enemy carries at most "+MAX_OVERRIDES+" overrides (the enemies test warns past that)."}));
+    var sel=el("select",{"aria-label":"Behavior preset"});
+    [["","auto: "+(auto||"none (fodder)")],["brute","brute"],["skirmisher","skirmisher"],["caster","caster"],["none","none (fodder: no brain)"]].forEach(function(o){ var op=el("option",{value:o[0],text:o[1]}); if(o[0]===beh.preset) op.selected=true; sel.appendChild(op); });
+    sel.addEventListener("change",function(){ beh.preset=sel.value; touch(); paint(); });
+    body.appendChild(el("label",{class:"sel"},[document.createTextNode("Preset (role defaults)"),sel]));
+    var keys=Object.keys(beh.overrides), n=keys.length;
+    readLine(body,"Overrides",n+" of "+MAX_OVERRIDES+(n>MAX_OVERRIDES?": past the doc's three (kind, not magnitude); the test duelist's nine are open question 41":""),n>MAX_OVERRIDES);
+    if(!pre){ body.appendChild(el("p",{class:"muted",text:"No preset: fodder has no brain (EnemyData.behavior is null), so it has no sliders."})); return; }
+    var col={brute:2,skirmisher:3,caster:4}[pre];
+    var tbl=el("div",{class:"sliders"});
+    tbl.appendChild(el("div",{class:"srow head"},["Slider","Default","Override",""].map(function(t){ return el("span",{text:t}); })));
+    SLIDERS.forEach(function(sd){
+      var k=sd[0], def=sd[col], has=beh.overrides.hasOwnProperty(k);
+      var inp=el("input",{type:"number",min:sd[5],max:sd[6],step:(sd[6]-sd[5])>20?10:0.05,placeholder:String(def),"aria-label":k+" override"}); if(has) inp.value=beh.overrides[k];
+      var warn=el("small",{class:"warnline"});
+      function check(){ var v=beh.overrides[k]; warn.textContent=(typeof v==="number"&&(v<sd[5]||v>sd[6]))?"outside "+sd[5]+"-"+sd[6]:""; }
+      inp.addEventListener("input",function(){ var t=inp.value.trim(), v=parseFloat(t); var had=beh.overrides.hasOwnProperty(k); if(t===""||isNaN(v)) delete beh.overrides[k]; else beh.overrides[k]=v; check(); touch(); if(had!==beh.overrides.hasOwnProperty(k)) paint(); });
+      var reset=el("button",{type:"button",class:"fx-btn",text:"×","aria-label":"Clear the "+k+" override",onclick:function(){ delete beh.overrides[k]; touch(); paint(); }}); if(!has) reset.disabled=true;
+      tbl.appendChild(el("div",{class:"srow"+(has?" on":"")},[el("label",{},[el("b",{text:k}),el("small",{text:sd[1]})]),el("span",{class:"sdef",text:String(def)}),el("div",{},[inp,warn]),reset]));
+      check();
+    });
+    body.appendChild(tbl);
+    var extra=Object.keys(beh.overrides).filter(function(k){ return !SLIDERS.some(function(s){ return s[0]===k; }); });
+    if(extra.length) readLine(body,"Other saved overrides",extra.map(function(k){ return k+" "+beh.overrides[k]; }).join(", "));
+  }
+  paint();
+  return det;
+}
+function plansPanel(c){
+  var body=el("div",{class:"panel-body"});
+  var det=el("details",{class:"panel"},[el("summary",{text:"Combo plans ("+c.combo_plans.length+")"}),body]);
+  if(state.plansOpen!==undefined?state.plansOpen:c.combo_plans.length>0) det.open=true;
+  det.addEventListener("toggle",function(){ state.plansOpen=det.open; });
+  function opts(sel,val){
+    var list=c.abilities.map(function(a){ return [a.slot,a.slot+" · "+(a.name||"unnamed")]; });
+    if(val&&!abilityBySlot(c,val)) list.push([val,"missing ability ("+val+")"]);
+    list.forEach(function(o){ var op=el("option",{value:o[0],text:o[1]}); if(o[0]===val) op.selected=true; sel.appendChild(op); });
+  }
+  function stepMark(p,i){
+    var s=p.steps[i], a=abilityBySlot(c,s.ability), n=p.steps.length, notes=[];
+    if(!a) return {text:"missing ability",warn:true};
+    var r=a.combo_roles;
+    if(i===0){
+      if(r.indexOf("opener")>=0){ notes.push("opener"); if(telegraphOf(a)<TELEGRAPH_MIN-1e-9) notes.push("an opener keeps the 0.6 s telegraph"); if(["unit","ally","pull"].indexOf(a.cast)>=0) notes.push("an opener must be dodgeable, never unit-targeted"); }
+      else notes.push("blind plan: no opener first, so it runs only on the blind read");
+    }else if(i===n-1){ notes.push(r.indexOf("finisher")>=0?"finisher":"last step without the finisher role"); }
+    else notes.push(r.indexOf("extender")>=0?"extender":"middle step without the extender role");
+    return {text:notes.join("; "),warn:notes.length>1||/without|blind/.test(notes[0])};
+  }
+  function paint(){
+    body.textContent="";
+    det.querySelector("summary").textContent="Combo plans ("+c.combo_plans.length+")";
+    body.appendChild(el("p",{class:"muted",text:"A plan is an ordered list of this enemy's abilities (ComboPlan: steps, conditions, weight). Its first step should hold the opener role and its last the finisher role. It ends early on a miss (unless combo_greed rolls), an interrupt or crowd control, a lost token, a lost target, low health or the odds turning (ENEMIES_AI.md, Combos). No simulation here."}));
+    c.combo_plans.forEach(function(p,pi){
+      var box=el("div",{class:"plan"});
+      var nm=el("input",{"aria-label":"Plan "+(pi+1)+" name",placeholder:"e.g. snare_first"}); nm.value=p.name; nm.addEventListener("input",function(){ p.name=nm.value; touch(); });
+      var wt=el("input",{type:"number",min:0,max:5,step:0.1,"aria-label":"Plan "+(pi+1)+" weight"}); wt.value=p.weight; wt.addEventListener("input",function(){ var v=parseFloat(wt.value); if(!isNaN(v)){ p.weight=v; touch(); } });
+      var fits=el("input",{"aria-label":"Plan "+(pi+1)+" fits when",placeholder:"fits when (its conditions, in plain words)"}); fits.value=p.fits; fits.addEventListener("input",function(){ p.fits=fits.value; touch(); });
+      box.appendChild(el("div",{class:"plan-top"},[el("label",{class:"fld"},[document.createTextNode("Plan"),nm]),el("label",{class:"fld"},[document.createTextNode("Weight"),wt]),el("label",{class:"fld wide"},[document.createTextNode("Fits when"),fits])]));
+      var steps=el("div",{class:"steps"});
+      p.steps.forEach(function(s,si){
+        var sel=el("select",{"aria-label":"Plan "+(pi+1)+" step "+(si+1)+" ability"}); opts(sel,s.ability);
+        sel.addEventListener("change",function(){ s.ability=sel.value; touch(); paint(); });
+        var tm=el("select",{"aria-label":"Plan "+(pi+1)+" step "+(si+1)+" timing"});
+        STEP_TIMINGS.forEach(function(t){ var o=el("option",{value:t,text:t}); if(t===s.timing) o.selected=true; tm.appendChild(o); });
+        tm.addEventListener("change",function(){ s.timing=tm.value; touch(); paint(); });
+        var kids=[el("b",{class:"stepn",text:String(si+1)}),sel];
+        if(si>0) kids.push(tm);
+        if(si>0&&s.timing==="AFTER_DELAY"){ var dl=el("input",{type:"number",min:0,max:5,step:0.05,value:s.delay,"aria-label":"Plan "+(pi+1)+" step "+(si+1)+" delay"}); dl.addEventListener("input",function(){ var v=parseFloat(dl.value); s.delay=isNaN(v)?0:v; touch(); }); kids.push(dl); }
+        var mk=stepMark(p,si); kids.push(el("small",{class:mk.warn?"warnline":"",text:mk.text}));
+        var up=el("button",{type:"button",class:"fx-btn",text:"↑","aria-label":"Move step "+(si+1)+" earlier",onclick:function(){ var x=p.steps[si]; p.steps[si]=p.steps[si-1]; p.steps[si-1]=x; touch(); paint(); }}); if(si===0) up.disabled=true;
+        var x=el("button",{type:"button",class:"fx-btn",text:"×","aria-label":"Remove step "+(si+1),onclick:function(){ p.steps.splice(si,1); touch(); paint(); }});
+        kids.push(up,x);
+        steps.appendChild(el("div",{class:"step"},kids));
+      });
+      box.appendChild(steps);
+      if(c.abilities.length) box.appendChild(el("button",{type:"button",class:"tag add",text:"+ step",onclick:function(){ var last=p.steps[p.steps.length-1]; p.steps.push({ability:c.abilities[0].slot,timing:"AFTER_LANDED",delay:0}); touch(); paint(); }}));
+      var ab=el("textarea",{class:"desc","aria-label":"Plan "+(pi+1)+" abort notes",placeholder:"Abort notes: when it should give up, and what it does then."}); ab.value=p.abort_notes;
+      ab.addEventListener("input",function(){ p.abort_notes=ab.value; touch(); });
+      box.appendChild(ab);
+      var key="plan:"+c.id+":"+pi, armed=state.wDel===key;
+      box.appendChild(el("div",{class:"actions"},[el("button",{type:"button",class:"btn warn",text:armed?"Click again to remove this plan":"Remove plan",onclick:function(){
+        if(state.wDel!==key){ state.wDel=key; paint(); return; } state.wDel=null; c.combo_plans.splice(pi,1); touch(); paint(); }})]));
+      body.appendChild(box);
+    });
+    if(state.canWrite) body.appendChild(el("button",{type:"button",class:"btn",text:"+ Combo plan",onclick:function(){
+      c.combo_plans.push(upgradePlan({name:"",weight:1,fits:"",abort_notes:"",steps:c.abilities.slice(0,2).map(function(a){ return {ability:a.slot,timing:"AFTER_LANDED",delay:0}; })})); touch(); paint(); }}));
+  }
+  paint();
+  return det;
+}
+function addEnemyAbility(c){
+  if(c.abilities.length>=MAX_ENEMY_ABILITIES) return;
+  c.abilities.push(upgradeEnemyAbility(upgradeAbility(ab(nextEnemySlot(c),{cast:"cone",range:2,angle:90,castTime:0.6,cooldown:8})))); touch(); renderMain();
+}
+// The worked example from ENEMIES_AI.md (Combos, the test duelist), with its current data (the tuning pass of 2026-10-07).
+function testDuelist(){
+  var d=upgrade({id:"test_duelist",kind:"enemy",name:"Test duelist",role:"Duelist",archetype:"Duelist",rank:"elite",race:"",faction:"",
+    health_note:"2800 health, 30 armor (test values, the tuning pass)",poise_max:100,
+    behavior_notes:"Rank elite with EnemyData.duelist on: it thinks at the boss's rate (25 a second); 2 attack tokens, 20% tenacity. The brute preset with nine overrides (open question 41).",
+    fantasy:"A one-on-one elite that sets up combos: snare, strike, finisher. The test bed for combo plans (ENEMIES_AI.md, Combos).",
+    archetype_layer:"",resource:"None",passive:{name:"",desc:"",tags:[]},
+    basic:{damage:36,range:1.5,windup:0.25,dmg:"physical",deflectable:null,notes:"0.8 attack speed; 320 move speed (test_duelist.tres)."},
+    abilities:[
+      ab("1",{name:"Snare",cast:"skillshot",range:7.5,width:0.6,castTime:0.7,cooldown:10,dmg:"magic",speed:7,tags:["core","projectile","root"],desc:"A bolt with an always-on root (1 s): the crowd control.",
+        damage:60,telegraph:null,recovery:0,deflectable:false,combo_roles:["opener","extender"],ai_uses:[{intent:"peel",weight:1,rule:"the target within 400 u"},{intent:"cc",weight:1,rule:"an answer when crowded"}]}),
+      ab("2",{name:"Guard",cast:"self",width:1,castTime:0,cooldown:8,dmg:"none",tags:["defensive","shield"],desc:"A 250 shield on itself for 2 s (the library's guard; Ryan picked it over a counter-strike stance, 2026-10-05).",
+        damage:0,telegraph:null,recovery:0,deflectable:null,combo_roles:[],ai_uses:[{intent:"defend",weight:1,rule:"THREATENED within 1 s by a major ability"},{intent:"defend",weight:1,rule:"SELF_HEALTH_PERCENT below 0.4 and CROWDING at least 0.6"}]}),
+      ab("3",{name:"Strike",cast:"dash",range:5,width:1.2,castTime:0.3,cooldown:7,dmg:"physical",tags:["mobility","dash"],desc:"The dash strike (enemy_charge): 5 m plus 1 m past, a 16 px push. Since the tuning pass a fast follow-up (extender only).",
+        damage:100,telegraph:null,recovery:0,deflectable:true,combo_roles:["extender"],ai_uses:[{intent:"gap_close",weight:0.9,rule:""},{intent:"damage",weight:1,rule:"in reach"}]}),
+      ab("4",{name:"Finisher",cast:"ground",range:3,width:2.5,castTime:0.35,cooldown:12,dmg:"physical",tags:["ultimate","area"],desc:"The big hit's script: a 2.5 m circle at the target, a 32 px push, then a 1.2 s recovery. Its ultimate tag makes it the key ability.",
+        damage:195,telegraph:null,recovery:1.2,deflectable:true,combo_roles:["finisher"],ai_uses:[{intent:"damage",weight:1.3,rule:""},{intent:"punish",weight:1,rule:""},{intent:"finish",weight:1,rule:""}]})],
+    behavior:{preset:"brute",overrides:{aggression:0.9,combo_greed:0.2,confidence:0.65,crowded_commit:0.55,mixup:0.3,opening_bar:0.4,peel_threshold:0.5,punish_greed:0.75,reaction_time:0.3}},
+    combo_plans:[
+      {name:"snare_first",weight:1,fits:"all the target's escapes are down (TARGET_ESCAPES_READY below 1), and it isn't crowd-controlled already (TARGET_HAS_STATUS cc, negated) or cornered (TARGET_CORNERED, negated)",
+        abort_notes:"Ends on a miss unless combo_greed rolls; on an interrupt or crowd control; when its token is lost; when the target turns untargetable or changes; when its health falls under retreat_health; when the odds turn.",
+        steps:[{ability:"1",timing:"AFTER_LANDED",delay:0},{ability:"3",timing:"AFTER_LANDED",delay:0},{ability:"4",timing:"AFTER_LANDED",delay:0}]},
+      {name:"strike_first",weight:0.8,fits:"its snare is ready (every step is needed)",abort_notes:"A blind plan since the tuning pass (the strike has no opener role): it fits only on the blind read.",
+        steps:[{ability:"3",timing:"AFTER_LANDED",delay:0},{ability:"1",timing:"AFTER_LANDED",delay:0},{ability:"4",timing:"AFTER_LANDED",delay:0}]},
+      {name:"strike_finish",weight:0.6,fits:"always: with the snare on cooldown or spent on a peel, it's the plan left",abort_notes:"A blind plan, like strike_first.",
+        steps:[{ability:"3",timing:"AFTER_LANDED",delay:0},{ability:"4",timing:"AFTER_LANDED",delay:0}]}],
+    notes:"Numbers from ENEMIES_AI.md (Combos, the test duelist) and its data files after the 2026-10-07 tuning pass. Shapes are approximate.",updated:Date.now()});
+  return d;
+}
+function addTestDuelist(){ var d=testDuelist(); if(state.champs[d.id]) d.id=uid(); addChamp(d); }
+
+/* ---------- the enemy brief, in the style of ENEMIES_AI.md's data tables ---------- */
+function cell(t){ return String(t==null?"":t).replace(/\|/g,"/").replace(/\n+/g," "); }
+function snake(t){ return (t||"enemy").toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"")||"enemy"; }
+function makeEnemyBrief(c,L){
+  var ph=playerHealth(), pre=presetFor(c), ov=Object.keys(c.behavior.overrides);
+  L.push("","## EnemyData");
+  L.push("- id: &\""+snake(c.name)+"\"; display_name: \""+(c.name||"")+"\"; rank: "+c.rank.toUpperCase()+(c.archetype==="Duelist"&&c.rank==="elite"?" (archetype Duelist: today's EnemyData.duelist flag, to be renamed with ARCHETYPES.md)":""));
+  L.push("- behavior: "+(pre?"enemy_behavior_"+pre+".tres (the "+pre+" preset"+(c.behavior.preset===""?", picked from the archetype":"")+")":"null (fodder: no brain)"));
+  L.push("- overrides: "+(ov.length?ov.map(function(k){ return k+" "+c.behavior.overrides[k]; }).join(", ")+" ("+ov.length+(ov.length>MAX_OVERRIDES?"; past the doc's three":"")+")":"none"));
+  var b=c.basic;
+  L.push("- stats (UnitStats): "+(c.health_note?"health note: "+c.health_note:"health: (not set)")+"; attack_damage "+(b.damage>0?n2(b.damage)+" ("+n2(Math.round(b.damage/ph*1000)/10)+"% of "+ph+")":"(not set)")+"; attack_range "+Math.round(b.range*100)+" u; attack_windup "+fmt(b.windup,2)+" s; "+DMG[b.dmg].toLowerCase()+"; "+deflectWords(b,true)+(b.notes?". "+b.notes:""));
+  L.push("- poise_max: "+fmt(c.poise_max,1)+(c.poise_max>0?" (PROTOTYPE: PoiseComponent)":" (none)"));
+  L.push("- abilities: "+c.abilities.length+" EnemyAbilitySlot ("+c.abilities.map(function(a,i){ return slotLetter(i)||"slot "+(i+1)+": needs more than four slots (AI6)"; }).join(", ")+"); kit guide: "+RANK_GUIDE[c.rank][2]);
+  L.push("- combo_plans: "+c.combo_plans.length+(c.rank==="boss"?"; passive: see below":""));
+  if(c.behavior_notes) L.push("Behavior notes: "+c.behavior_notes);
+  if(c.rank==="boss"){ var p=c.passive; L.push("","Passive (bosses only)"+(p.name?" - "+p.name:"")+": "+(p.desc||"(not written)")+(p.tags.length?" Tags: "+p.tags.join(", ")+".":"")); }
+  L.push("","## Kit","| Slot | Ability | Numbers | Uses | Combo roles | Respect |","|---|---|---|---|---|---|");
+  c.abilities.forEach(function(a,i){
+    var w=sizeWords(a), def=CASTS[a.cast], label=w.shift();
+    if(a.speed>0) w.push(fmt(a.speed,1)+" m/s");
+    if(a.duration>0) w.push((def.dur||"lasts")+" "+fmt(a.duration,1)+" s");
+    w.push(fmt(a.castTime,2)+" s cast"+(a.telegraph===null?" (the telegraph)":", telegraph "+fmt(a.telegraph,2)+" s"));
+    if(a.recovery>0) w.push(fmt(a.recovery,2)+" s recovery");
+    w.push(fmt(a.cooldown,1)+" s cooldown");
+    if(a.dmg!=="none") w.push((a.damage>0?n2(a.damage)+" ":"")+DMG[a.dmg].toLowerCase()+(a.damage>0?" ("+n2(Math.round(a.damage/ph*1000)/10)+"%)":""));
+    w.push(deflectWords(a,false));
+    var uses=a.ai_uses.length?a.ai_uses.map(function(u){ return "`"+u.intent+"`"+(u.weight!==1?" (weight "+u.weight+")":"")+(u.rule?" ("+u.rule+")":""); }).join("; "):"(none: one damage use)";
+    var r=respectOf(a);
+    L.push("| "+[(slotLetter(i)||"("+(i+1)+")"),cell((a.name||"unnamed")+" ("+label+")"),cell(w.join(", ")),cell(uses),cell(a.combo_roles.join(", ")||"none"),cell(respectWords(r))].join(" | ")+" |");
+  });
+  c.abilities.forEach(function(a,i){
+    L.push("",(slotLetter(i)||"("+(i+1)+")")+" - "+(a.name||"unnamed")+": "+(a.desc||"(not written)")+(a.tags.length?" Tags: "+a.tags.join(", ")+".":""));
+    L.push("AIUse list: ["+a.ai_uses.map(function(u){ return "{intent: &\""+u.intent+"\", weight: "+u.weight+(u.rule?", conditions: "+u.rule:"")+"}"; }).join(", ")+"]");
+    effectsLine(L,a);
+  });
+  if(c.combo_plans.length){
+    L.push("","## Combo plans","| Plan | Steps | Fits when | Weight |","|---|---|---|---|");
+    c.combo_plans.forEach(function(p){
+      var st=p.steps.map(function(s,si){ var a=abilityBySlot(c,s.ability); return (a?(a.name||"unnamed").toLowerCase():"missing ability")+(si>0?" ("+s.timing+(s.timing==="AFTER_DELAY"?" "+s.delay+" s":"")+")":""); }).join(" → ");
+      L.push("| "+[cell(p.name||"unnamed"),cell(st),cell(p.fits||"(not written)"),String(p.weight)].join(" | ")+" |");
+    });
+    c.combo_plans.forEach(function(p){ if(p.abort_notes) L.push("Abort notes, "+(p.name||"unnamed")+": "+p.abort_notes); });
+  }
+  var checks=[];
+  var g=RANK_GUIDE[c.rank]; if(c.abilities.length<g[0]||c.abilities.length>g[1]) checks.push("kit size "+c.abilities.length+" is outside the guide ("+g[2]+")");
+  c.abilities.forEach(function(a,i){ var t=telegraphCheck(a); if(t.warn) checks.push((a.name||"ability "+(i+1))+": telegraph "+t.text); if(a.dmg!=="none"){ var bc=bandCheck(a.damage,c.rank,false); if(bc.warn) checks.push((a.name||"ability "+(i+1))+": "+bc.text); } });
+  var bb=bandCheck(b.damage,c.rank,true); if(bb.warn) checks.push("basic attack: "+bb.text);
+  L.push("","## Checks (advisory)",checks.length?checks.map(function(x){ return "- "+x; }).join("\n"):"- none");
+  L.push("Kit respect: "+n2(c.abilities.reduce(function(s,a){ return s+respectOf(a).value; },0))+".");
 }
 
 /* ---------- weapons: tabs, the weapon's own fields, diff marks against weapon 1, workload ---------- */
@@ -880,6 +1396,8 @@ function abilityCard(c,a){
   var ds=el("textarea",{class:"desc","aria-label":a.slot+" description",placeholder:"What it does in one or two sentences."}); ds.value=a.desc||"";
   ds.addEventListener("input",function(){ a.desc=ds.value; touch(); });
   body.appendChild(ds);
+  var enemyBox=c.kind==="enemy"?enemyFields(c,a,card):null;
+  if(enemyBox) body.appendChild(enemyBox.el);
 
   castSel.addEventListener("change",function(){ var tg=T("cast"); tg.cast=castSel.value; if(tg===a) sync0(a); draw(); touch(); });
   dmgSel.addEventListener("change",function(){ a.dmg=dmgSel.value; draw(); touch(); });
@@ -984,7 +1502,10 @@ function abilityCard(c,a){
     pv.textContent=""; var pw=preview(a); pv.appendChild(pw);
     (pw.caps||[]).forEach(function(cp,i){ if(capEls[i]) capEls[i].textContent=cp||""; if(labelEls[i]) labelEls[i].textContent=CASTS[a.parts[i].cast].label; });
     paintTimeline();
-    var parts=[];
+    paintRead();
+  }
+  function paintRead(){
+    var def=CASTS[T("cast").cast], parts=[];
     if(act===0){
       if(def.uses.indexOf("range")>=0){
         parts.push("<b>"+fmt(a.range,2)+" m</b> ("+Math.round(a.range*100)+" u), "+Math.round(a.range/SCREEN_W_M*100)+"% of screen width");
@@ -1002,10 +1523,14 @@ function abilityCard(c,a){
       if(p.duration>0) parts.push((def.dur||"lasts")+" <b>"+fmt(p.duration,1)+" s</b>");
       parts.push("starts at <b>"+fmt(x.start,2)+" s</b> ("+TRIGGERS[p.trigger]+(p.delay>0?" + "+fmt(p.delay,2)+" s":"")+")");
     }
+    // what an enemy weighs when this is ready (ENEMIES_AI.md, Respect), from the role tags
+    parts.push("respect <b>"+n2(respectOf(a).value)+"</b>");
     read.innerHTML=parts.join(" · ");
+    if(enemyBox) enemyBox.refresh();
   }
   buildFx(); buildTimeline();
   draw();
+  state.live.push(function(){ if(card.isConnected) paintRead(); });   // tags change the respect line
   return card;
 }
 
@@ -1274,6 +1799,7 @@ function makeBrief(c){
   if(who.length) L.push(who.join(". ")+".");
   if(c.archetype_layer) L.push("Archetype layer: "+c.archetype_layer);
   if(c.fantasy) L.push((isE?"What it is: ":"Fantasy: ")+c.fantasy);
+  if(isE){ makeEnemyBrief(c,L); if(c.notes) L.push("","Notes: "+c.notes); return L.join("\n"); }
   var ws=(!isE&&Array.isArray(c.weapons))?c.weapons:[], multiW=ws.length>1;
   var showW=multiW||(ws.length===1&&weaponHasInfo(ws[0]));
   var p=c.passive; L.push("","Passive"+(multiW?" (shared by every weapon; weapons never change it)":"")+(p.name?" - "+p.name:"")+": "+(p.desc||"(not written)")+(p.tags.length?" Tags: "+p.tags.join(", ")+".":""));
@@ -1322,6 +1848,9 @@ function abilityBrief(L,a){
   if(a.duration>0) parts.push((def.dur||"lasts")+" "+fmt(a.duration,1)+" s");
   parts.push(fmt(a.castTime,2)+" s cast", fmt(a.cooldown,1)+" s cooldown"); if(a.charges>1) parts.push(a.charges+" charges"); if(a.cost) parts.push("cost "+a.cost); parts.push(DMG[a.dmg].toLowerCase());
   L.push("",a.slot+(a.name?" - "+a.name:"")+": "+parts.join(", ")+"."+(a.tags.length?" Tags: "+a.tags.join(", ")+".":""),(a.desc||"(not written)"));
+  effectsLine(L,a);
+}
+function effectsLine(L,a){
   if(Array.isArray(a.parts)&&a.parts.length>1){
     var times=timeline(a);
     L.push("Effects in order (one graphic, layered): "+a.parts.map(function(p,i){
@@ -1339,6 +1868,7 @@ function copyBrief(){
 /* ---------- boot ---------- */
 document.getElementById("newBlank").addEventListener("click",function(){ addBlank(ui.newKind); });
 document.getElementById("newKnight").addEventListener("click",addKnight);
+document.getElementById("newDuelist").addEventListener("click",addTestDuelist);
 document.getElementById("kindChamp").addEventListener("click",function(){ setNewKind("champion"); });
 document.getElementById("kindEnemy").addEventListener("click",function(){ setNewKind("enemy"); });
 document.getElementById("boardBtn").addEventListener("click",function(){ state.view=state.view==="board"?"doc":"board"; state.raceDel=null; renderMain(); });
@@ -1374,7 +1904,7 @@ async function boot(){
     state.mode="local"; state.champs=lsGet(); setStatus("Saved in this browser only. Use Export to back up.",true); renderFilters(); adopt();
     document.getElementById("backupBtn").hidden=!hasBackup();
   }
-  if(!state.canWrite){ document.getElementById("newBlank").disabled=true; document.getElementById("newKnight").disabled=true; setStatus("View only. Saved champions update live."); }
+  if(!state.canWrite){ document.getElementById("newBlank").disabled=true; document.getElementById("newKnight").disabled=true; document.getElementById("newDuelist").disabled=true; setStatus("View only. Saved champions update live."); }
 }
 /* ---------- standalone: export / import ---------- */
 function download(payload,name){
