@@ -4,11 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Champion Kit Board</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
 /* Layout concept: a war-table. Roster rail on the left, one champion's kit laid out as five cards, each with a to-scale top-down shape of the ability on a 1 m grid. */
+/* No network requests: the fonts below are used when installed on this PC; otherwise the fallbacks in each stack apply. */
 :root{
   --bg:#E9EDF1; --panel:#F6F8FA; --panel-2:#EDF1F5; --ink:#13202C; --ink-2:#506172; --line:#C9D3DD; --grid:#D8E0E8;
   --accent:#0B7A85; --accent-ink:#FFFFFF; --heat:#C4472A; --magic:#6D55C9; --heal:#2B8A57; --warn:#A8620A;
@@ -101,6 +99,34 @@ details.more .row{margin-top:8px}
 .brief{margin-top:16px;display:grid;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
 .brief textarea{width:100%;min-height:200px;font:400 12px/1.5 var(--f-mono);background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:10px}
 .banner{background:var(--panel-2);border:1px solid var(--warn);color:var(--warn);border-radius:6px;padding:7px 10px;margin-bottom:12px;font-size:13px}
+/* v2: kinds, filters, archetype hints, races and the board panel */
+.chip-top{display:flex;align-items:center;gap:6px;min-width:0}
+.chip-top b{flex:1 1 auto;min-width:0}
+.kind{flex:0 0 auto;font:500 9.5px/1 var(--f-mono);font-style:normal;letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--line);border-radius:3px;padding:2px 4px;color:var(--ink-2)}
+.kind.enemy{border-color:var(--heat);color:var(--heat)}
+.filters{display:grid;gap:6px}
+.filters select{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:5px 7px;font:400 12px var(--f-body)}
+.seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--panel)}
+.seg button{flex:1 1 0;min-width:0;background:transparent;border:0;border-right:1px solid var(--line);padding:5px 6px;cursor:pointer;font:500 12px var(--f-body);color:var(--ink-2)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.newrow{display:grid;gap:6px}
+.muted{color:var(--ink-2);font:400 12px/1.4 var(--f-body);margin:0}
+.hint{display:flex;gap:8px;align-items:center;font:400 12px/1.3 var(--f-mono);color:var(--ink-2)}
+.hint input{flex:1;min-width:0;background:transparent;border:0;border-bottom:1px dashed var(--line);padding:2px 0;font:400 12px var(--f-mono);color:var(--ink-2)}
+.hint input:focus{outline:none;border-bottom-color:var(--accent);color:var(--ink)}
+.layer{width:100%;resize:vertical;min-height:38px;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:7px 10px}
+.board{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:grid;gap:14px}
+.board h1{font:700 34px/1 var(--f-display);margin:0}
+.board h3{font:600 12px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2);margin:6px 0 0}
+.board input,.board select{background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:5px 7px;font:400 13px var(--f-body);min-width:0;width:100%}
+.race{display:grid;grid-template-columns:minmax(0,1.1fr) 92px 112px minmax(0,1.7fr) minmax(0,1.7fr) auto;gap:6px;align-items:center;border-top:1px solid var(--line);padding-top:8px}
+.race.head{border-top:0;padding-top:0;font:500 10.5px/1 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2)}
+@media (max-width:980px){.race{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.race.head{display:none}}
+.race .used{font:400 11px var(--f-mono);color:var(--ink-2);white-space:nowrap}
+.hints{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 10px;align-items:center}
+.hints label{font:500 12px var(--f-body);color:var(--ink-2)}
 svg .gl{stroke:var(--grid);stroke-width:.03}
 svg .gl.m{stroke:var(--line);stroke-width:.04}
 svg text{font-family:var(--f-mono);fill:var(--ink-2)}
@@ -111,13 +137,19 @@ svg text{font-family:var(--f-mono);fill:var(--ink-2)}
 
 <div class="app">
   <aside class="rail">
-    <h2>Champions</h2>
+    <h2>Roster</h2>
+    <div class="filters" id="filters"></div>
     <div class="roster" id="roster"></div>
-    <button class="btn" id="newBlank">+ Blank sheet</button>
+    <div class="newrow">
+      <div class="seg" role="group" aria-label="Kind of new sheet"><button type="button" id="kindChamp" aria-pressed="true">Champion</button><button type="button" id="kindEnemy" aria-pressed="false">Enemy</button></div>
+      <button class="btn" id="newBlank">+ New champion</button>
+    </div>
     <button class="btn" id="newKnight">+ Knight example</button>
+    <button class="btn" id="boardBtn">Races and board settings</button>
     <button class="btn" id="exportBtn">Export all (.json)</button>
     <button class="btn" id="importBtn">Import (.json)</button>
     <input type="file" id="importFile" accept=".json,application/json" hidden>
+    <button class="btn" id="backupBtn" hidden>Download the pre-update backup</button>
     <div class="status" id="status">Loading…</div>
   </aside>
   <main id="main"><div class="empty"><h1>Loading your champions</h1><p>One moment.</p></div></main>
@@ -172,13 +204,109 @@ var DMG = {physical:"Physical", magic:"Magic", true:"True", none:"No damage"};
 var RESOURCES = ["None","Fury","Mana","Energy"];
 var ROLES = ["Bruiser","Tank","Marksman","Mage","Assassin","Support","Skirmisher"];
 
-var state = {champs:{}, current:null, db:null, canWrite:true, mode:"loading", dirty:false, saving:false, timer:null, lastJson:{}, briefOpen:false, confirmDelete:false, dirtyId:null, gone:{}};
+/* ---------- v2 model: kinds, archetypes, races ---------- */
+var FORMAT_VERSION = 2;           // export envelope version; the importer accepts 1 and 2
+var KEY="champion-kit-board", KEY_BACKUP=KEY+".backup-v1", KEY_RACES=KEY+".races", KEY_SETTINGS=KEY+".settings", KEY_SCHEMA=KEY+".schema", KEY_UI="champion-kit-ui";
+var KINDS = {champion:"Champion", enemy:"Enemy"};
+var ARCHETYPES = ["Assassin","Mage","Bruiser","Duelist","Skirmisher"];          // shared by champions and enemies (DECISIONS.md, 2026-10-07)
+var ENEMY_ARCHETYPES = ["Basic"];                                               // fodder's archetype
+var LEGACY_ROLES = ROLES.filter(function(r){ return ARCHETYPES.indexOf(r)<0; }); // Tank, Marksman, Support: still work on saved sheets
+var LAYER_PLACEHOLDER = {Assassin:"e.g. the dash-deflect and poise", Skirmisher:"e.g. the rhythm", Duelist:"undecided", Mage:"undecided", Bruiser:"undecided", Basic:"none: fodder has its basic attack only"};
+var DEFAULT_HINTS = {
+  Assassin:"Fast hits, then out. Deflect and poise are the Assassin's; enemy strings of 3-4 fast hits.",
+  Mage:"Ranged spells and zones; enemy strings are 3-shot volleys.",
+  Bruiser:"Trades blows up close; enemy strings of 2-3 heavy hits.",
+  Duelist:"One-on-one pressure; enemy strings of 4-5 hits, the most pressure.",
+  Skirmisher:"Hit and reset; enemy strings of 2-3 fast hits, then reset.",
+  Basic:"Fodder: no string, its basic attack only.",
+  Tank:"Legacy role from before the archetypes (2026-10-07).", Marksman:"Legacy role from before the archetypes (2026-10-07).", Support:"Legacy role from before the archetypes (2026-10-07)."
+};
+var SIZES = ["tiny","small","medium","large","huge"];
+var SIDES = {both:"Both", champion:"Champions", enemy:"Enemies"};
+// Races are identity and look only: no numbers, no stats. Every entry is editable on the board.
+var SEED_RACES = [
+  ["human","Human","medium","average build, two arms, two legs: the baseline","adaptable, found everywhere","both"],
+  ["sunborn_elf","Sunborn Elf","medium","tall, slender and graceful; long pointed ears","proud, old magic, sunlit courts","both"],
+  ["dusk_elf","Dusk Elf","medium","slender, sharp features, long pointed ears","twilight wanderers, shadow and stealth","both"],
+  ["dwarf","Dwarf","small","short, stout and broad; heavy beard","forge-craft, stone halls, stubborn","both"],
+  ["orc","Orc","large","heavy and broad, tusks","brutal strength, war bands","both"],
+  ["goblin","Goblin","small","small and wiry, big pointed ears","swarms and tinkers, cheap tricks","both"],
+  ["gnome","Gnome","small","small and round, big hat or goggles","inventors and tinkerers","both"],
+  ["ratkin","Ratkin","small","small and hunched, pointed snout, long tail","skulking swarms, sewers and plague","enemy"],
+  ["beastkin","Beastkin","medium","digitigrade legs, furred, animal ears, tail","agile hunters, pack loyalty","both"],
+  ["saurian","Saurian","medium","scaled lizardfolk, crest, long tail","cold-blooded, swamp and jungle","both"],
+  ["drakin","Drakin","medium","scaled and dragon-blooded, small horns, tail","draconic pride, breath and fire","both"],
+  ["bloodkin","Bloodkin","medium","pale, slender and elegant, high collar","vampires: elegant, evasive, hungry","both"],
+  ["revenant","Revenant","medium","skeletal undead, bone-thin limbs","risen dead bound to old oaths","enemy"],
+  ["shade","Shade","medium","faint, incorporeal wraith; fades to mist below the waist","lingering spirits, cold and silent","both"],
+  ["construct","Construct","large","blocky golem of stone and metal","relentless, built for one purpose","enemy"],
+  ["automaton","Automaton","medium","blocky clockwork body, visible gears","clockwork minds, precise and tireless","both"],
+  ["fae","Fae","small","small and winged, pointed ears, a faint glow","capricious, bargains and glamour","both"],
+  ["infernal","Infernal","medium","horned, tail, ember-lit cracks in the skin","fire and pacts","both"],
+  ["celestial","Celestial","medium","tall and winged, a radiant glow","light, judgement, old vows","both"],
+  ["elementalkin","Elementalkin","medium","body wreathed in fire, ice or storm; a glowing core","a living element","both"],
+  ["tidebound","Tidebound","medium","merfolk: scaled, fins, finned tail","the sea's people, tides and storms","both"],
+  ["hive","Hive","medium","insectoid: antennae, chitin plates","one mind, many bodies","enemy"],
+  ["thornkin","Thornkin","medium","plant folk: bark skin, leaf crown, thorns","the wild grows back","both"],
+  ["sporekin","Sporekin","small","fungal: mushroom cap, soft stalk body","rot, spores and renewal","both"],
+  ["ooze","Ooze","small","slime blob, no limbs","slimes; already in the game","enemy"],
+  ["troll","Troll","large","large and hunched, long arms, tusks","regenerating brutes","enemy"],
+  ["horned","Horned","large","minotaur type: bull head, big horns, digitigrade hooves","labyrinth guardians, charging fury","both"],
+  ["skyborn","Skyborn","medium","avian: feathered, beak, wings","sky folk, swift and proud","both"],
+  ["giant","Giant","huge","huge and heavy, boss scale","the old ones of the mountains","enemy"],
+  ["voidborn","Voidborn","medium","eldritch: tentacles, wrong geometry, too many eyes","from between the stars","enemy"]
+];
+function seedRaces(){ return SEED_RACES.map(function(r){ return {id:r[0],name:r[1],size:r[2],silhouette:r[3],identity:r[4],side:r[5]}; }); }
+var board = {races:[], settings:{}};
+var ui = {newKind:"champion", fKind:"all", fArch:"", fRace:""};
+
+function str(o,k,d){ if(typeof o[k]!=="string") o[k]=(d===undefined?"":d); }
+function num(o,k,d){ if(typeof o[k]!=="number"||isNaN(o[k])) o[k]=d; }
+// Fills fields a sheet saved by an older board lacks. Deterministic and idempotent (no ids, no clock), never changes a field
+// that is already there, so an old sheet and its re-imported copy still compare as identical (norm()).
+function upgradeAbility(a){
+  if(!a||typeof a!=="object") return a;
+  EXTRAS.forEach(function(e){ if(a[e[0]]===undefined) a[e[0]]=e[6]; });
+  if(!Array.isArray(a.tags)) a.tags=[];
+  return a;
+}
+function upgrade(c){
+  if(!c||typeof c!=="object") return c;
+  c.kind = c.kind==="enemy" ? "enemy" : "champion";
+  // `role` is the field older boards read and write; `archetype` mirrors it (an old board's edit to role wins).
+  c.archetype = (typeof c.role==="string"&&c.role) ? c.role : ((typeof c.archetype==="string"&&c.archetype) ? c.archetype : "Bruiser");
+  c.role = c.archetype;
+  str(c,"archetype_layer"); str(c,"race"); str(c,"race_other"); str(c,"fantasy"); str(c,"notes"); str(c,"resource","None");
+  if(!c.passive||typeof c.passive!=="object") c.passive={name:"",desc:"",tags:[]};
+  if(!Array.isArray(c.passive.tags)) c.passive.tags=[];
+  if(!Array.isArray(c.abilities)) c.abilities=[];
+  c.abilities.forEach(upgradeAbility);
+  if(c.kind==="enemy") str(c,"faction");
+  return c;
+}
+function upgradeRace(r){ str(r,"id"); str(r,"name"); if(SIZES.indexOf(r.size)<0) r.size="medium"; str(r,"silhouette"); str(r,"identity"); if(!SIDES[r.side]) r.side="both"; return r; }
+function normSettings(s){
+  s=(s&&typeof s==="object")?s:{};
+  if(!s.archetype_hints||typeof s.archetype_hints!=="object") s.archetype_hints={};
+  Object.keys(DEFAULT_HINTS).forEach(function(k){ if(typeof s.archetype_hints[k]!=="string") s.archetype_hints[k]=DEFAULT_HINTS[k]; });
+  return s;
+}
+function raceById(id){ for(var i=0;i<board.races.length;i++) if(board.races[i].id===id) return board.races[i]; return null; }
+function raceLabel(c){ if(c.race==="other") return c.race_other||"other"; if(!c.race) return ""; var r=raceById(c.race); return r?r.name:"unknown race"; }
+function archetypeGroups(kind,val){
+  var g=[["Archetypes",ARCHETYPES.concat(kind==="enemy"?ENEMY_ARCHETYPES:[])],["Legacy",LEGACY_ROLES]];
+  var all=[].concat(g[0][1],g[1][1]); if(val&&all.indexOf(val)<0) g.push(["Saved",[val]]);
+  return g;
+}
+
+var state = {champs:{}, current:null, db:null, canWrite:true, mode:"loading", dirty:false, saving:false, timer:null, lastJson:{}, briefOpen:false, confirmDelete:false, dirtyId:null, gone:{}, view:"doc", raceDel:null};
 
 function uid(){ return "c"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function ab(slot,o){ var d={slot:slot,name:"",cast:"skillshot",range:6,width:1.5,angle:90,castTime:0.25,cooldown:8,cost:0,dmg:"physical",tags:[],desc:""}; for(var k in o) d[k]=o[k]; return d; }
-function blank(){ return {id:uid(),name:"Unnamed champion",role:"Bruiser",resource:"None",fantasy:"",passive:{name:"",desc:"",tags:[]},
-  abilities:[ab("Q",{}),ab("W",{cast:"self",width:1.2,cooldown:12,dmg:"none"}),ab("E",{cast:"dash",range:5,width:1,cooldown:9}),ab("R",{cast:"unit",range:7,cooldown:60,castTime:0.5})],notes:"",updated:Date.now()}; }
-function knight(){ return {id:"knight",name:"The Knight",role:"Bruiser",resource:"Fury",
+function blank(){ return upgrade({id:uid(),kind:"champion",name:"Unnamed champion",role:"Bruiser",archetype:"Bruiser",resource:"None",fantasy:"",passive:{name:"",desc:"",tags:[]},
+  abilities:[ab("Q",{}),ab("W",{cast:"self",width:1.2,cooldown:12,dmg:"none"}),ab("E",{cast:"dash",range:5,width:1,cooldown:9}),ab("R",{cast:"unit",range:7,cooldown:60,castTime:0.5})],notes:"",updated:Date.now()}); }
+function blankEnemy(){ var c=blank(); c.kind="enemy"; c.name="Unnamed enemy"; return upgrade(c); }
+function knight(){ return upgrade({id:"knight",kind:"champion",name:"The Knight",role:"Bruiser",archetype:"Bruiser",race:"human",resource:"Fury",
   fantasy:"A skilled fighter who wins by execution: dodging, comboing and using the room. Gets stronger as health drops.",
   passive:{name:"Unbroken",desc:"Attack damage rises as health falls: +0% at full health, up to +40% at 30% health or less.",tags:["defensive"]},
   abilities:[
@@ -186,12 +314,34 @@ function knight(){ return {id:"knight",name:"The Knight",role:"Bruiser",resource
    ab("W",{name:"Iron Resolve",cast:"self",width:1.2,castTime:0,cooldown:10,cost:0,dmg:"none",tags:["buff","defensive","empower"],desc:"Move 35% faster for 2 s. Your next basic attack deals bonus damage and slows."}),
    ab("E",{name:"Lunge",cast:"dash",range:5,width:0.8,castTime:0.05,cooldown:8,cost:0,dmg:"physical",tags:["mobility","dash","movement"],desc:"Dash to the aimed point, hitting enemies along the path and staggering them."}),
    ab("R",{name:"Judgement",cast:"unit",range:6,castTime:0.75,cooldown:30,cost:0,dmg:"physical",tags:["ultimate","channel","stun"],desc:"Channel on a target, then strike for damage that rises with their missing health, and stun. At 60+ Fury it hits harder, stuns longer and spends all your Fury."})],
-  notes:"Cleave's 3 m reach and arc width, the cooldowns for Iron Resolve and Lunge, and the ranges of Lunge and Judgement are approximate placeholders. Real numbers live in ABILITIES.md and CHAMPIONS.md.",updated:Date.now()}; }
+  notes:"Cleave's 3 m reach and arc width, the cooldowns for Iron Resolve and Lunge, and the ranges of Lunge and Judgement are approximate placeholders. Real numbers live in ABILITIES.md and CHAMPIONS.md.",updated:Date.now()}); }
 
 /* ---------- persistence ---------- */
 function setStatus(t,off){ var s=document.getElementById("status"); s.textContent=t; s.className="status"+(off?" off":""); }
-function lsGet(){ try{ var j=localStorage.getItem("champion-kit-board"); return j?JSON.parse(j):{}; }catch(e){ return {}; } }
-function lsSet(){ try{ localStorage.setItem("champion-kit-board",JSON.stringify(state.champs)); }catch(e){} }
+function lsGet(){ try{ var j=localStorage.getItem(KEY); var o=j?JSON.parse(j):{}; if(!o||typeof o!=="object"||Array.isArray(o)) return {}; Object.keys(o).forEach(function(k){ upgrade(o[k]); }); return o; }catch(e){ return {}; } }
+function lsSet(){ try{ localStorage.setItem(KEY,JSON.stringify(state.champs)); }catch(e){} }
+// Once, before this board first reads: copy the stored sheets as they were to KEY_BACKUP (never overwritten).
+function backupOnce(){
+  try{
+    if(localStorage.getItem(KEY_SCHEMA)===null){
+      var raw=localStorage.getItem(KEY);
+      if(raw!==null && localStorage.getItem(KEY_BACKUP)===null) localStorage.setItem(KEY_BACKUP,raw);
+      localStorage.setItem(KEY_SCHEMA,String(FORMAT_VERSION));
+    }
+  }catch(e){}
+}
+function hasBackup(){ try{ return localStorage.getItem(KEY_BACKUP)!==null; }catch(e){ return false; } }
+function loadBoard(){
+  var r=null, s=null;
+  try{ r=JSON.parse(localStorage.getItem(KEY_RACES)||"null"); }catch(e){ r=null; }
+  board.races=(Array.isArray(r)?r:seedRaces()).filter(function(x){ return x&&typeof x==="object"&&typeof x.id==="string"&&x.id; }).map(upgradeRace);
+  try{ s=JSON.parse(localStorage.getItem(KEY_SETTINGS)||"null"); }catch(e){ s=null; }
+  board.settings=normSettings(s);
+  try{ var u=JSON.parse(localStorage.getItem(KEY_UI)||"null"); if(u&&typeof u==="object") for(var k in ui) if(typeof u[k]===typeof ui[k]) ui[k]=u[k]; }catch(e){}
+}
+function saveRaces(){ try{ localStorage.setItem(KEY_RACES,JSON.stringify(board.races)); }catch(e){} }
+function saveSettings(){ try{ localStorage.setItem(KEY_SETTINGS,JSON.stringify(board.settings)); }catch(e){} }
+function saveUi(){ try{ localStorage.setItem(KEY_UI,JSON.stringify(ui)); }catch(e){} }
 function rememberCurrent(){ try{ localStorage.setItem("champion-kit-current",state.current||""); }catch(e){} }
 function recallCurrent(){ try{ return localStorage.getItem("champion-kit-current")||null; }catch(e){ return null; } }
 
@@ -226,45 +376,64 @@ function cur(){ return state.current?state.champs[state.current]:null; }
 function el(tag,attrs,kids){ var e=document.createElement(tag); if(attrs) for(var k in attrs){ if(k==="class") e.className=attrs[k]; else if(k==="text") e.textContent=attrs[k]; else if(k.slice(0,2)==="on") e.addEventListener(k.slice(2),attrs[k]); else e.setAttribute(k,attrs[k]); } (kids||[]).forEach(function(c){ if(c) e.appendChild(c); }); return e; }
 function fmt(n,d){ return (Math.round(n*Math.pow(10,d))/Math.pow(10,d)).toFixed(d); }
 
+function passesFilter(c){
+  if(ui.fKind!=="all" && c.kind!==ui.fKind) return false;
+  if(ui.fArch && c.archetype!==ui.fArch) return false;
+  if(ui.fRace==="none") return !c.race;
+  if(ui.fRace && c.race!==ui.fRace) return false;
+  return true;
+}
+function chipMeta(c){ return [c.archetype, c.kind==="enemy"?(c.rank||""):(c.resource&&c.resource!=="None"?c.resource:""), raceLabel(c)].filter(Boolean).join(" · "); }
+function renderFilters(){
+  var f=document.getElementById("filters"); f.textContent="";
+  var seg=el("div",{class:"seg",role:"group","aria-label":"Show kinds"});
+  [["all","All"],["champion","Champions"],["enemy","Enemies"]].forEach(function(k){
+    seg.appendChild(el("button",{type:"button","aria-pressed":String(ui.fKind===k[0]),text:k[1],onclick:function(){ ui.fKind=k[0]; saveUi(); renderFilters(); renderRoster(); }}));
+  });
+  var arch=el("select",{"aria-label":"Filter by archetype"}), seen={};
+  arch.appendChild(el("option",{value:"",text:"All archetypes"}));
+  ARCHETYPES.concat(ENEMY_ARCHETYPES,LEGACY_ROLES).concat(Object.keys(state.champs).map(function(id){ return state.champs[id].archetype; })).forEach(function(a){
+    if(!a||seen[a]) return; seen[a]=1; var o=el("option",{value:a,text:a}); if(a===ui.fArch) o.selected=true; arch.appendChild(o); });
+  arch.addEventListener("change",function(){ ui.fArch=arch.value; saveUi(); renderRoster(); });
+  var race=el("select",{"aria-label":"Filter by race"});
+  [["","All races"],["none","No race set"]].concat(board.races.map(function(r){ return [r.id,r.name]; }),[["other","Other"]]).forEach(function(r){
+    var o=el("option",{value:r[0],text:r[1]}); if(r[0]===ui.fRace) o.selected=true; race.appendChild(o); });
+  race.addEventListener("change",function(){ ui.fRace=race.value; saveUi(); renderRoster(); });
+  f.appendChild(seg); f.appendChild(arch); f.appendChild(race);
+}
 function renderRoster(){
   var r=document.getElementById("roster"); r.textContent="";
   var ids=Object.keys(state.champs).sort(function(a,b){ return (state.champs[a].name||"").localeCompare(state.champs[b].name||""); });
+  var shown=0;
   ids.forEach(function(id){
-    var c=state.champs[id];
+    var c=state.champs[id]; if(!passesFilter(c)) return; shown++;
     var b=el("button",{class:"chip","aria-current":String(id===state.current),onclick:function(){ select(id); }},[
-      el("b",{text:c.name||"Unnamed"}), el("span",{text:[c.role,c.resource].filter(Boolean).join(" · ")})]);
+      el("div",{class:"chip-top"},[el("b",{text:c.name||"Unnamed"}), el("i",{class:"kind"+(c.kind==="enemy"?" enemy":""),text:c.kind==="enemy"?"Enemy":"Champ"})]),
+      el("span",{text:chipMeta(c)})]);
     r.appendChild(b);
   });
+  if(!shown && ids.length) r.appendChild(el("p",{class:"muted",text:"Nothing matches the filters ("+ids.length+" hidden)."}));
 }
-function select(id){ if(state.dirty) flush(); state.current=id; state.confirmDelete=false; state.briefOpen=false; rememberCurrent(); renderRoster(); renderMain(); }
+function select(id){ if(state.dirty) flush(); state.current=id; state.view="doc"; state.confirmDelete=false; state.briefOpen=false; rememberCurrent(); renderRoster(); renderMain(); }
 
 function renderMain(){
   var m=document.getElementById("main"); m.textContent="";
+  if(state.view==="board"){ renderBoard(m); return; }
   var c=cur();
   if(!c){
     m.appendChild(el("div",{class:"empty"},[
       el("h1",{text:"No champions yet"}),
-      el("p",{text:"Start from the Knight to see a finished kit, or a blank sheet to sketch your own. Every ability gets a to-scale shape on a 1 m grid."}),
+      el("p",{text:"Start from the Knight to see a finished kit, or a blank sheet to sketch your own champion or enemy. Every ability gets a to-scale shape on a 1 m grid."}),
       el("div",{class:"actions"},[
         el("button",{class:"btn primary",text:"Start from the Knight",onclick:addKnight}),
-        el("button",{class:"btn",text:"Blank sheet",onclick:addBlank})])]));
+        el("button",{class:"btn",text:"Blank champion",onclick:function(){ addBlank("champion"); }}),
+        el("button",{class:"btn",text:"Blank enemy",onclick:function(){ addBlank("enemy"); }})])]));
     return;
   }
   var ro=!state.canWrite;
-  if(ro) m.appendChild(el("div",{class:"banner",text:"View only: you can look at this champion but not change it."}));
+  if(ro) m.appendChild(el("div",{class:"banner",text:"View only: you can look at this sheet but not change it."}));
 
-  // header
-  var name=el("input",{class:"name",value:c.name,"aria-label":"Champion name",id:"cname"});
-  name.addEventListener("input",function(){ c.name=name.value; renderRoster(); touch(); });
-  var role=selectBox("Role",ROLES,c.role,function(v){ c.role=v; renderRoster(); touch(); });
-  var res=selectBox("Resource",RESOURCES,c.resource,function(v){ c.resource=v; renderRoster(); touch(); });
-  var fan=el("textarea",{class:"fantasy","aria-label":"Player fantasy",placeholder:"The fantasy in a sentence or two: who is this champion and how does it feel to play?"}); fan.value=c.fantasy||"";
-  fan.addEventListener("input",function(){ c.fantasy=fan.value; touch(); });
-  var acts=el("div",{class:"actions"},[
-    el("button",{class:"btn primary",text:"Copy brief",onclick:function(){ state.briefOpen=!state.briefOpen; renderMain(); if(state.briefOpen) copyBrief(); }}),
-    el("button",{class:"btn",text:"Duplicate",onclick:duplicate}),
-    el("button",{class:"btn warn",id:"delBtn",text:state.confirmDelete?"Click again to delete":"Delete",onclick:del})]);
-  m.appendChild(el("section",{class:"head"},[el("div",{class:"head-top"},[name,role,res]),fan,acts]));
+  m.appendChild(headerSection(c));
 
   if(state.briefOpen){
     var ta=el("textarea",{"aria-label":"Brief text",readonly:"readonly"}); ta.value=makeBrief(c);
@@ -283,6 +452,97 @@ function renderMain(){
   m.appendChild(el("section",{class:"notes"},[el("div",{class:"fld",text:"Notes and open questions"}),nt]));
 
   if(ro){ m.querySelectorAll("input,select,textarea").forEach(function(x){ x.disabled=true; }); m.querySelectorAll(".actions .btn").forEach(function(x){ if(x.textContent!=="Copy brief") x.disabled=true; }); }
+}
+function layerPlaceholder(arch){ return "Archetype layer: what the passive and one or two abilities add on top of the kit ("+(LAYER_PLACEHOLDER[arch]||"a legacy role: pick an archetype")+")"; }
+function headerSection(c){
+  var isE=c.kind==="enemy";
+  var name=el("input",{class:"name",value:c.name,"aria-label":isE?"Enemy name":"Champion name",id:"cname"});
+  name.addEventListener("input",function(){ c.name=name.value; renderRoster(); touch(); });
+  var hintIn=el("input",{"aria-label":"Archetype hint (shared by every sheet with this archetype)",title:"Shared by every sheet with this archetype; also editable in Races and board settings."});
+  hintIn.value=board.settings.archetype_hints[c.archetype]||"";
+  hintIn.addEventListener("input",function(){ board.settings.archetype_hints[c.archetype]=hintIn.value; saveSettings(); });
+  var layer=el("textarea",{class:"layer","aria-label":"Archetype layer note",placeholder:layerPlaceholder(c.archetype)}); layer.value=c.archetype_layer||"";
+  layer.addEventListener("input",function(){ c.archetype_layer=layer.value; touch(); });
+  var arch=selectGroups("Archetype",archetypeGroups(c.kind,c.archetype),c.archetype,function(v){
+    c.archetype=v; c.role=v; hintIn.value=board.settings.archetype_hints[v]||""; layer.placeholder=layerPlaceholder(v); renderRoster(); touch(); });
+  var other=el("label",{class:"sel"},[document.createTextNode("Other race")]);
+  var otherIn=el("input",{"aria-label":"Other race",placeholder:"name it"}); otherIn.value=c.race_other||""; other.appendChild(otherIn);
+  otherIn.addEventListener("input",function(){ c.race_other=otherIn.value; renderRoster(); touch(); });
+  other.hidden=c.race!=="other";
+  var race=raceSelect(c,function(v){ c.race=v; other.hidden=v!=="other"; renderRoster(); touch(); });
+  var top=[name,arch];
+  if(!isE) top.push(selectBox("Resource",RESOURCES,c.resource,function(v){ c.resource=v; renderRoster(); touch(); }));
+  top.push(race,other);
+  if(isE){
+    var fac=el("input",{"aria-label":"Faction",placeholder:"e.g. Vampires"}); fac.value=c.faction||"";
+    fac.addEventListener("input",function(){ c.faction=fac.value; touch(); });
+    top.push(el("label",{class:"sel"},[document.createTextNode("Faction"),fac]));
+  }
+  var fan=el("textarea",{class:"fantasy","aria-label":isE?"What it is":"Player fantasy",placeholder:isE?"What it is and how it fights, in a sentence or two.":"The fantasy in a sentence or two: who is this champion and how does it feel to play?"}); fan.value=c.fantasy||"";
+  fan.addEventListener("input",function(){ c.fantasy=fan.value; touch(); });
+  var acts=el("div",{class:"actions"},[
+    el("button",{class:"btn primary",text:"Copy brief",onclick:function(){ state.briefOpen=!state.briefOpen; renderMain(); if(state.briefOpen) copyBrief(); }}),
+    el("button",{class:"btn",text:"Duplicate",onclick:duplicate}),
+    el("button",{class:"btn warn",id:"delBtn",text:state.confirmDelete?"Click again to delete":"Delete",onclick:del})]);
+  return el("section",{class:"head"},[el("div",{class:"head-top"},top),el("div",{class:"hint"},[el("span",{text:"Hint"}),hintIn]),layer,fan,acts]);
+}
+function raceSelect(c,fn){
+  var s=el("select",{"aria-label":"Race"});
+  function opt(parent,v,t){ var o=el("option",{value:v,text:t}); if(v===c.race) o.selected=true; parent.appendChild(o); }
+  opt(s,"","(none)");
+  var g=el("optgroup",{label:"Races"}); s.appendChild(g);
+  board.races.forEach(function(r){ opt(g,r.id,r.name+(r.side!=="both"&&r.side!==c.kind?" ("+SIDES[r.side].toLowerCase()+")":"")); });
+  if(c.race&&c.race!=="other"&&!raceById(c.race)) opt(s,c.race,"Deleted race ("+c.race+")");
+  opt(s,"other","Other…");
+  s.addEventListener("change",function(){ fn(s.value); });
+  return el("label",{class:"sel"},[document.createTextNode("Race"),s]);
+}
+function selectGroups(label,groups,val,fn){
+  var s=el("select",{"aria-label":label});
+  groups.forEach(function(g){ var og=el("optgroup",{label:g[0]}); g[1].forEach(function(o){ var op=el("option",{value:o,text:o}); if(o===val) op.selected=true; og.appendChild(op); }); s.appendChild(og); });
+  s.addEventListener("change",function(){ fn(s.value); });
+  return el("label",{class:"sel"},[document.createTextNode(label),s]);
+}
+
+/* ---------- board panel: races and settings ---------- */
+function racesInUse(id){ return Object.keys(state.champs).filter(function(k){ return state.champs[k].race===id; }).length; }
+function renderBoard(m){
+  var c=cur(), ro=!state.canWrite;
+  var sec=el("section",{class:"board"});
+  sec.appendChild(el("div",{class:"head-top"},[el("h1",{text:"Races and board settings"}),
+    el("button",{class:"btn",text:c?"Back to "+(c.name||"the sheet"):"Back",onclick:function(){ state.view="doc"; renderMain(); }})]));
+  sec.appendChild(el("p",{class:"muted",text:"Shared by every sheet on this board and saved in Export all. Races are identity and look only: no numbers and no stats."}));
+  sec.appendChild(el("h3",{text:"Archetype hints"}));
+  var hints=el("div",{class:"hints"});
+  Object.keys(DEFAULT_HINTS).forEach(function(k){
+    var inp=el("input",{"aria-label":k+" hint",id:"hint-"+k}); inp.value=board.settings.archetype_hints[k];
+    inp.addEventListener("input",function(){ board.settings.archetype_hints[k]=inp.value; saveSettings(); });
+    hints.appendChild(el("label",{for:"hint-"+k,text:k+(LEGACY_ROLES.indexOf(k)>=0?" (legacy)":"")})); hints.appendChild(inp);
+  });
+  sec.appendChild(hints);
+  sec.appendChild(el("h3",{text:"Races ("+board.races.length+")"}));
+  var list=el("div",{class:"racelist"});
+  list.appendChild(el("div",{class:"race head"},["Name","Size","Suits","Silhouette","Identity",""].map(function(t){ return el("span",{text:t}); })));
+  board.races.forEach(function(r){
+    function inp(key,label,ph){ var i=el("input",{"aria-label":r.name+" "+label,placeholder:ph||""}); i.value=r[key]; i.addEventListener("input",function(){ r[key]=i.value; saveRaces(); if(key==="name") renderRoster(); }); i.addEventListener("change",function(){ if(key==="name") renderFilters(); }); return i; }
+    function sel(key,label,opts){ var s=el("select",{"aria-label":r.name+" "+label}); opts.forEach(function(o){ var op=el("option",{value:o[0],text:o[1]}); if(o[0]===r[key]) op.selected=true; s.appendChild(op); }); s.addEventListener("change",function(){ r[key]=s.value; saveRaces(); }); return s; }
+    var n=racesInUse(r.id), confirm=state.raceDel===r.id;
+    var delB=el("button",{class:"btn warn",type:"button",text:confirm?"Click again":"Delete",onclick:function(){
+      if(state.raceDel!==r.id){ state.raceDel=r.id; renderMain(); return; }
+      state.raceDel=null; board.races=board.races.filter(function(x){ return x!==r; }); saveRaces(); renderFilters(); renderRoster(); renderMain(); }});
+    list.appendChild(el("div",{class:"race"},[inp("name","name"),
+      sel("size","size",SIZES.map(function(s){ return [s,s]; })),
+      sel("side","suits",Object.keys(SIDES).map(function(k){ return [k,SIDES[k]]; })),
+      inp("silhouette","silhouette","one line: the shape"),inp("identity","identity","one line: who they are"),
+      el("div",{class:"actions"},[el("span",{class:"used",text:n?"used by "+n:"unused"}),delB])]));
+  });
+  sec.appendChild(list);
+  sec.appendChild(el("div",{class:"actions"},[el("button",{class:"btn",type:"button",text:"+ Add race",onclick:function(){
+    var r=upgradeRace({id:"r"+uid().slice(1),name:"New race",size:"medium",silhouette:"",identity:"",side:"both"});
+    board.races.push(r); saveRaces(); renderFilters(); renderMain(); var ins=m.querySelectorAll(".race input"); if(ins.length>=3) ins[ins.length-3].focus(); }})]));
+  sec.appendChild(el("p",{class:"muted",text:"Deleting a race never touches a sheet: a sheet that used it keeps the id and shows \"Deleted race\" until you pick another."}));
+  m.appendChild(sec);
+  if(ro) m.querySelectorAll("input,select,button.warn").forEach(function(x){ x.disabled=true; });
 }
 function selectBox(label,opts,val,fn){
   var s=el("select",{"aria-label":label}); opts.forEach(function(o){ var op=el("option",{value:o,text:o}); if(o===val) op.selected=true; s.appendChild(op); });
@@ -569,9 +829,15 @@ function preview(a){
 
 /* ---------- actions ---------- */
 function addChamp(c){ state.champs[c.id]=c; select(c.id); state.dirty=true; touch(); flush(); }
-function addBlank(){ addChamp(blank()); }
+function addBlank(kind){ addChamp(kind==="enemy"?blankEnemy():blank()); }
 function addKnight(){ var k=knight(); if(state.champs[k.id]) k.id=uid(); addChamp(k); }
 function duplicate(){ var c=JSON.parse(JSON.stringify(cur())); c.id=uid(); c.name=(c.name||"Champion")+" copy"; addChamp(c); }
+function setNewKind(k){
+  ui.newKind=k; saveUi();
+  document.getElementById("kindChamp").setAttribute("aria-pressed",String(k==="champion"));
+  document.getElementById("kindEnemy").setAttribute("aria-pressed",String(k==="enemy"));
+  document.getElementById("newBlank").textContent=k==="enemy"?"+ New enemy":"+ New champion";
+}
 function del(){
   if(!state.confirmDelete){ state.confirmDelete=true; document.getElementById("delBtn").textContent="Click again to delete"; return; }
   var id=state.current; state.confirmDelete=false; if(state.dirtyId===id){ clearTimeout(state.timer); state.dirty=false; } state.gone[id]=1; delete state.champs[id];
@@ -582,8 +848,13 @@ function del(){
 
 /* ---------- brief ---------- */
 function makeBrief(c){
-  var L=[]; L.push("# "+(c.name||"Unnamed")+" ("+c.role+", resource: "+c.resource+")");
-  if(c.fantasy) L.push("Fantasy: "+c.fantasy);
+  var L=[], isE=c.kind==="enemy";
+  L.push("# "+(c.name||"Unnamed")+" ("+(isE?"enemy, "+c.archetype:c.archetype+", resource: "+c.resource)+")");
+  var who=[]; if(raceLabel(c)) who.push("Race: "+raceLabel(c)+(function(){ var r=raceById(c.race); return r?" ("+r.size+"; "+[r.silhouette,r.identity].filter(Boolean).join("; ")+")":""; })());
+  if(isE&&c.faction) who.push("Faction: "+c.faction);
+  if(who.length) L.push(who.join(". ")+".");
+  if(c.archetype_layer) L.push("Archetype layer: "+c.archetype_layer);
+  if(c.fantasy) L.push((isE?"What it is: ":"Fantasy: ")+c.fantasy);
   var p=c.passive; L.push("","Passive"+(p.name?" - "+p.name:"")+": "+(p.desc||"(not written)")+(p.tags.length?" Tags: "+p.tags.join(", ")+".":""));
   c.abilities.forEach(function(a){
     var def=CASTS[a.cast], u=def.uses, parts=[def.label];
@@ -608,12 +879,17 @@ function copyBrief(){
 }
 
 /* ---------- boot ---------- */
-document.getElementById("newBlank").addEventListener("click",addBlank);
+document.getElementById("newBlank").addEventListener("click",function(){ addBlank(ui.newKind); });
 document.getElementById("newKnight").addEventListener("click",addKnight);
+document.getElementById("kindChamp").addEventListener("click",function(){ setNewKind("champion"); });
+document.getElementById("kindEnemy").addEventListener("click",function(){ setNewKind("enemy"); });
+document.getElementById("boardBtn").addEventListener("click",function(){ state.view=state.view==="board"?"doc":"board"; state.raceDel=null; renderMain(); });
+document.getElementById("backupBtn").addEventListener("click",downloadBackup);
 
 function adopt(){ var last=recallCurrent(); var ids=Object.keys(state.champs); if(!state.current || !state.champs[state.current]) state.current=(last&&state.champs[last])?last:(ids.length?ids.sort()[0]:null); renderRoster(); renderMain(); }
 
 async function boot(){
+  loadBoard(); setNewKind(ui.newKind); renderFilters();
   var db=null,user=null;
   try{ if(window.claude&&window.claude.use){ db=await window.claude.use("db"); user=await window.claude.use("user"); } }catch(e){}
   if(user&&user.can){ try{ var w=await user.can("data.write"); if(w===false) state.canWrite=false; }catch(e){} }
@@ -627,7 +903,7 @@ async function boot(){
         var isCur = d.id===state.current;
         if((state.dirty||state.saving) && d.id===state.dirtyId) return;   // keep local edits
         if(state.lastJson[d.id]===json && state.champs[d.id]) return; // echo of our own write
-        state.lastJson[d.id]=json; state.champs[d.id]=data;
+        state.lastJson[d.id]=json; state.champs[d.id]=upgrade(data);
         if(isCur && !first) { renderMain(); }
       });
       Object.keys(state.gone).forEach(function(id){ if(!seen[id]) delete state.gone[id]; });
@@ -636,46 +912,79 @@ async function boot(){
       if(wasFirst||!state.current||!state.champs[state.current]) adopt(); else renderRoster();
     },function(){ setStatus("Lost connection to saved champions.",true); });
   }else{
-    state.mode="local"; state.champs=lsGet(); setStatus("Saved in this browser only. Use Export to back up.",true); adopt();
+    backupOnce();
+    state.mode="local"; state.champs=lsGet(); setStatus("Saved in this browser only. Use Export to back up.",true); renderFilters(); adopt();
+    document.getElementById("backupBtn").hidden=!hasBackup();
   }
   if(!state.canWrite){ document.getElementById("newBlank").disabled=true; document.getElementById("newKnight").disabled=true; setStatus("View only. Saved champions update live."); }
 }
 /* ---------- standalone: export / import ---------- */
+function download(payload,name){
+  var blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+  var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(a.href); },1000);
+}
 function exportAll(){
   flush();
-  var payload={format:"champion-kit-board",version:1,exported:new Date().toISOString(),champions:state.champs};
-  var blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
-  var a=document.createElement("a"); a.href=URL.createObjectURL(blob);
-  a.download="champions-"+new Date().toISOString().slice(0,10)+".json";
-  document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(a.href); },1000);
-  setStatus("Exported "+Object.keys(state.champs).length+" champion(s). Check your Downloads folder.",true);
+  download({format:"champion-kit-board",version:FORMAT_VERSION,exported:new Date().toISOString(),champions:state.champs,races:board.races,settings:board.settings},
+    "champions-"+new Date().toISOString().slice(0,10)+".json");
+  setStatus("Exported "+Object.keys(state.champs).length+" sheet(s) and "+board.races.length+" race(s). Check your Downloads folder.",true);
 }
+function downloadBackup(){
+  var raw=null; try{ raw=localStorage.getItem(KEY_BACKUP); }catch(e){}
+  if(raw===null){ setStatus("No backup in this browser.",true); return; }
+  var champs={}; try{ champs=JSON.parse(raw)||{}; }catch(e){ champs={}; }
+  download({format:"champion-kit-board",version:1,exported:new Date().toISOString(),champions:champs},"champions-before-update.json");
+  setStatus("Downloaded the copy of your sheets from before this update. Import it any time.",true);
+}
+// Import compare: both sides get the same back-filled defaults first, so an old sheet and its re-imported copy are identical.
 function norm(c){
-  var o=JSON.parse(JSON.stringify(c));
-  (o.abilities||[]).forEach(function(a){ EXTRAS.forEach(function(e){ if(a[e[0]]===undefined) a[e[0]]=e[6]; }); });
+  var o=upgrade(JSON.parse(JSON.stringify(c)));
   function sort(v){ if(Array.isArray(v)) return v.map(sort); if(v&&typeof v==="object"){ var r={}; Object.keys(v).sort().forEach(function(k){ r[k]=sort(v[k]); }); return r; } return v; }
   return JSON.stringify(sort(o));
+}
+function importBoard(data){
+  var res={races:0,kept:0};
+  if(data && Array.isArray(data.races)){
+    data.races.forEach(function(r){
+      if(!r||typeof r!=="object"||typeof r.id!=="string"||!r.id) return;
+      var mine=raceById(r.id); r=upgradeRace(JSON.parse(JSON.stringify(r)));
+      if(!mine){ board.races.push(r); res.races++; }
+      else if(JSON.stringify(mine)!==JSON.stringify(r)) res.kept++;   // same id, different text: yours is kept
+    });
+    if(res.races) saveRaces();
+  }
+  if(data && data.settings && typeof data.settings==="object"){
+    var theirs=normSettings(JSON.parse(JSON.stringify(data.settings))), changed=false;
+    Object.keys(theirs.archetype_hints).forEach(function(k){   // a hint you never edited takes theirs
+      if(board.settings.archetype_hints[k]===DEFAULT_HINTS[k] && theirs.archetype_hints[k]!==DEFAULT_HINTS[k]){ board.settings.archetype_hints[k]=theirs.archetype_hints[k]; changed=true; } });
+    if(changed) saveSettings();
+  }
+  return res;
 }
 function importFile(file){
   var rd=new FileReader();
   rd.onload=function(){
     var data; try{ data=JSON.parse(rd.result); }catch(e){ setStatus("That file is not valid JSON. Nothing imported.",true); return; }
+    var newer = data && data.format==="champion-kit-board" && typeof data.version==="number" && data.version>FORMAT_VERSION;
     var list = data && data.champions ? data.champions : data;
     var items = Array.isArray(list) ? list : (list && typeof list==="object" ? (list.abilities&&list.passive ? [list] : Object.keys(list).map(function(k){ return list[k]; })) : []);
     items=items.filter(function(c){ return c && typeof c==="object" && Array.isArray(c.abilities) && c.passive; });
-    if(!items.length){ setStatus("No champions found in that file. Nothing imported.",true); return; }
+    var rb=importBoard(data);
+    if(!items.length && !rb.races){ setStatus("No champions found in that file. Nothing imported.",true); return; }
     var added=0,copies=0;
     items.forEach(function(c){
+      if(typeof c.id!=="string"||!c.id) c.id=uid();
       if(state.champs[c.id]){
         if(norm(state.champs[c.id])===norm(c)) return;                          // identical, skip
         c.id=uid(); c.name=(c.name||"Champion")+" (imported)"; copies++;       // never overwrite yours
       }
-      c.updated=c.updated||Date.now(); state.champs[c.id]=c; added++;
+      c.updated=c.updated||Date.now(); state.champs[c.id]=upgrade(c); added++;
     });
     lsSet();
     var ids=Object.keys(state.champs); if(!state.current||!state.champs[state.current]) state.current=ids[0];
-    renderRoster(); renderMain();
-    setStatus("Imported "+added+" champion(s)"+(copies?" ("+copies+" renamed so nothing was overwritten)":"")+".",true);
+    renderFilters(); renderRoster(); renderMain();
+    setStatus("Imported "+added+" sheet(s)"+(copies?" ("+copies+" renamed so nothing was overwritten)":"")+(rb.races?", "+rb.races+" new race(s)":"")+(rb.kept?" ("+rb.kept+" race(s) kept as yours)":"")+"."+(newer?" The file came from a newer board; fields this board does not know were kept but are not shown.":""),true);
   };
   rd.readAsText(file);
 }
