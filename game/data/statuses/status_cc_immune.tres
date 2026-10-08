@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="StatusEffect" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/status_effect.gd" id="1_status"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/cc_immune_ring.tscn" id="2_vfx"]
+
+[resource]
+script = ExtResource("1_status")
+id = &"cc_immune"
+display_name = "Immune"
+tags = Array[StringName]([&"cc_immune", &"buff"])
+duration = 3.0
+stack_rule = 0
+vfx = ExtResource("2_vfx")

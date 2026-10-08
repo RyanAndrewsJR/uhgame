@@ -1487,7 +1487,24 @@ Docs only; no code or tests changed.
 
 ## Enemies AI (ENEMIES_AI.md)
 
-### AI-D2 – Combo plans and the follow-through: 2026-10-07, Built (awaiting Ryan's play test)
+### AI-D3 – Diminishing returns on crowd control: 2026-10-07, Built (awaiting Ryan's play test)
+Ryan passed AI-D2 and committed it, then started AI-D3 with the tuning panel's scroll fix folded in (DECISIONS.md, Enemies, 2026-10-07).
+- **Data:**
+  - `CrowdControlRules` (`scripts/data/crowd_control_rules.gd`) and `crowd_control_rules_default.tres` (4 s window, × 0.5, 3 s immune); `status_cc_immune.tres` (tags `cc_immune`, `buff`) and its look, `cc_immune_ring.tscn` (a pale pulsing ring drawn on the floor, like the hover ring).
+  - `RankRules.cc_diminishing` (fodder false in the default table) and `poise` (false for all four).
+- **Code:**
+  - `StatusComponent`: `cc_diminishing`, `cc_rules`, `poise`; in `apply_status()`, after tenacity, a counted crowd control (`counts_for_diminishing()`: `cc`, blocks something, keeps tenacity) is halved as the second in the window or refused as the third (the unit gets the immunity); one refused by the immunity, unstoppable or poise tells why. The signals `cc_applied` / `cc_refused`, re-emitted on `Events`; `get_dr_step()`, `get_dr_count()`, `get_dr_window_left()`, `get_cc_rules()`; the window closes in `_physics_process`; `clear()` starts the count over.
+  - `Enemy._apply_enemy_data()` gives the rank's `cc_diminishing` and `poise` to the StatusComponent.
+  - `SandboxBrains`: the panel's sliders (and the TEMP row's) have `scrollable` off.
+- **Changed during the step:**
+  - **Rules the spec left open** (COMBAT.md, Status effects): the window runs from the first, the refused third starts the count over, the immunity refuses only what counts (a slow still takes), a unit's own crowd control on itself is outside the rule, refusals and IGNORE re-applications don't count.
+  - **`cc_refused` gains a fifth argument,** the duration it would have had: the poise hook needs it.
+  - **The poise hook's refusal is built** (off for every rank), so the flag isn't dead data.
+  - **Older checks** that crowd-control one unit again and again turn the rule off for their stretch: combat's C9 re-stun (three stuns in a second: the third was refused, 2 checks failed) and abilities' AB15 root checks (10 failed: their later roots were refused). The rule has its own checks.
+- **Tests:** combat 510/510 (24 new: the data, what counts, rooted twice and the third refused with the ring, the events, the window, tenacity first, fodder, own crowd control, unstoppable, poise, IGNORE, death, three Judgements on an elite: 0.6 s, 0.3 s, refused); enemies 575/575 (7 new: the rank rules and their hand-off at spawn, every enemy ability's crowd control on the player (only the three snares' 1 s root; the check can fail), a boss's 0.6 s, 0.3 s, refused, the duelist seeing the ring and not the halving, the panel's sliders). Stats 180/180, abilities 593/593, audio 110/110, champions 238/238, talents 310/310, view 469/469, loot 750/750: 3,735/3,735. Fourteen rules broken on purpose (the halving, the refusal, the window from the first, its closing, slows counted, own crowd control counted, the immunity ignored, no immunity status, no events, poise ignored, death keeping the count, fodder on (twice), the brain blind to the ring, the wheel back): every one caught. No GDScript warnings (all 174 scripts under `-d`), no leak at exit.
+- **Measured** (the sandbox, headless, the Knight at his own health, healed every frame): the duelist in escapes down ran `snare_first` (its root took in full). The duelist and the elite caster together, 2 minutes, three runs: 0–4 roots a 30 s stretch, nearly all the caster's, each in full: none came within 4 s of another, so no halving or immunity came up (they share his two attack tokens: one elite attacks at a time). Two of the three runs had stretches of 30 s and more with no ability casts (the duelist holding the tokens in its commit at his feet, the caster waiting), and one of three on HEAD did the same (ENEMIES_AI.md, Open from AI-D3 45). Thinks unchanged (581–661 µs mean here, 543–688 on HEAD). room_01 clean. The saves byte-identical (backed up first).
+
+### AI-D2 – Combo plans and the follow-through: 2026-10-07, Passed (Ryan's play test, 2026-10-07; he committed it and started AI-D3)
 Ryan passed the tuning pass and committed it, then answered before AI-D2: restore the brute preset, use his telegraph rule (only the opener needs the long telegraph), T0–T3 for the ranks with how much each must be respected, and the blind read (an enemy prefers to wait for its opener to land, but may go on when you're low or your peel or ultimate is down). DECISIONS.md, Enemies, 2026-10-07.
 - **Data:**
   - `ComboPlan` and `ComboStep` (`scripts/data/`), `EnemyData.combo_plans` and `get_plans_at()`.

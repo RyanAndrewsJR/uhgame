@@ -4,7 +4,7 @@ extends Unit
 ## auto-attacks with the same AutoAttackComponent the player uses.
 ## Tune stats in its UnitStats resource; tune behaviour here.
 ## ENEMIES_AI AI1: an enemy with `data` (EnemyData) loads it when ready
-## (_apply_enemy_data(): its stats, abilities, twist, look, tenacity by rank)
+## (_apply_enemy_data(): its stats, abilities, twist, look, tenacity and diminishing returns by rank)
 ## and, when its rank has one, gets a brain (EnemyBrain) that drives it while
 ## it's aggroed: the cast loop and the chase below stand down.
 ## ENEMIES_AI AI2 (Ryan, 2026-10-04: every enemy with data): an enemy with data
@@ -148,8 +148,9 @@ func _apply_enemy_data_base() -> void:
 
 
 ## After: its abilities (those of the run's difficulty tier), its twist, its
-## rank's tenacity, and its brain when its rank has one (ENEMIES_AI.md,
-## Enemy). The scene needs an AbilityComponent for abilities.
+## rank's tenacity and diminishing returns (AI-D3), and its brain when its
+## rank has one (ENEMIES_AI.md, Enemy). The scene needs an AbilityComponent
+## for abilities.
 func _apply_enemy_data() -> void:
 	var by_slot := data.get_abilities_at(Brains.difficulty_tier)
 	if not by_slot.is_empty():
@@ -163,6 +164,9 @@ func _apply_enemy_data() -> void:
 	var rules := get_rank_rules()
 	if rules != null and rules.tenacity > 0.0:
 		stats_component.add_modifier(StatModifier.create(&"tenacity", StatModifier.Type.FLAT, rules.tenacity, RANK_SOURCE_ID))
+	if rules != null and status_component != null:   # AI-D3: fodder takes crowd control in full
+		status_component.cc_diminishing = rules.cc_diminishing
+		status_component.poise = rules.poise
 	if brain_enabled:
 		_add_brain()
 

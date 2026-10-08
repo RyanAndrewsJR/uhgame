@@ -20,6 +20,17 @@ signal status_applied(unit: Unit, status: StatusEffect)
 ## A status effect ended on a unit (ran out, removed, or the unit died).
 @warning_ignore("unused_signal")
 signal status_removed(unit: Unit, status: StatusEffect)
+## A crowd control diminishing returns counts (a stun, a root...; not a slow
+## or a knock-up) took on `unit` (COMBAT.md, Status effects; ENEMIES_AI
+## AI-D3): its duration after tenacity and diminishing returns, and its step
+## (0 full, 1 halved). StatusComponent re-emits its own signal here.
+@warning_ignore("unused_signal")
+signal cc_applied(unit: Unit, source: Unit, status: StatusEffect, duration: float, dr_step: int)
+## One was refused (AI-D3), with the reason (StatusComponent's &"immune",
+## &"unstoppable", &"poise"; &"refused_by_tag" reserved) and the duration it
+## would have had after tenacity. For an "Immune" text or a sound.
+@warning_ignore("unused_signal")
+signal cc_refused(unit: Unit, source: Unit, status: StatusEffect, reason: StringName, duration: float)
 ## An ability's effect started (ABILITIES AB8): after the cast time for
 ## INSTANT and CHANNEL, after the release windup for CHARGE_UP, at each recast
 ## part's effect, and when a free cast runs. Never for a cast that was

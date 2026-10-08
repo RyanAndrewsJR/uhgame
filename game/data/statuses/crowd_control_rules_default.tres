@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="CrowdControlRules" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/crowd_control_rules.gd" id="1_rules"]
+[ext_resource type="Resource" path="res://data/statuses/status_cc_immune.tres" id="2_immune"]
+
+[resource]
+script = ExtResource("1_rules")
+dr_window = 4.0
+dr_factor = 0.5
+dr_immune_time = 3.0
+immune_status = ExtResource("2_immune")

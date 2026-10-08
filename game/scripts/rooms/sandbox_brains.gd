@@ -668,6 +668,7 @@ func _build_panel() -> void:
 		s.max_value = limits[1]
 		s.step = 10.0 if limits[1] >= 100.0 else 0.01
 		s.custom_minimum_size = Vector2(80, 10)
+		s.scrollable = false   # the mouse wheel scrolls the list, never nudges a slider (Ryan, AI-D3)
 		s.value_changed.connect(_on_slider_value_changed.bind(slider))
 		row.add_child(s)
 		var value_label := _small_label("")
@@ -1008,6 +1009,7 @@ func _build_temp_test_rows(box: VBoxContainer) -> void:
 	_temp_slider.max_value = AutoAttackComponent.TEMP_TEST_MULT_MAX
 	_temp_slider.step = 0.05
 	_temp_slider.custom_minimum_size = Vector2(80, 10)
+	_temp_slider.scrollable = false
 	_temp_slider.value_changed.connect(_on_temp_slider_value_changed)
 	row.add_child(_temp_slider)
 	_temp_value = _small_label("")

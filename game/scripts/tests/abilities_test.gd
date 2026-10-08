@@ -238,9 +238,14 @@ func _ready() -> void:
 	print("\n=== Abilities test (ABILITIES AB15) ===")
 	_test_ab15_data()
 	await _test_ab15_blink()
+	# These root the Knight again and again within seconds: diminishing returns
+	# (ENEMIES_AI AI-D3) would halve and then refuse the roots they test. Its
+	# own checks are combat_test's.
+	knight.status_component.cc_diminishing = false
 	await _test_ab15_refusals()
 	await _test_ab15_test_blink()
 	await _test_roots_hold_still()
+	knight.status_component.cc_diminishing = true
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).

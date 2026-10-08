@@ -20,12 +20,51 @@ extends Node
 ## Shields (shield_amount > 0, COMBAT C10) absorb damage in Unit.on_hit
 ## through absorb_damage(), the one expiring soonest first, and end when
 ## used up.
+##
+## Diminishing returns on crowd control (COMBAT.md, Status effects; ENEMIES_AI
+## AI-D3): a second counted crowd control (counts_for_diminishing(): a `cc`
+## status that blocks something and keeps tenacity; not a slow or a knock-up)
+## within cc_rules.dr_window of the first lasts × dr_factor, after tenacity; a
+## third is refused, and the unit gets cc_rules.immune_status (tag
+## `cc_immune`, a ring) for dr_immune_time; then the count starts over. While
+## the unit carries `cc_immune`, counted crowd control is refused. Off
+## (cc_diminishing): it takes crowd control in full every time (fodder). A
+## unit's own crowd control on itself is outside the rule. cc_applied and
+## cc_refused tell about counted crowd control, re-emitted on Events.
 
 signal status_applied(effect: StatusEffect)
 signal status_removed(effect: StatusEffect)
+## A counted crowd control took: its duration after tenacity and diminishing
+## returns, and its step (0 full, 1 × dr_factor). AI-D3.
+signal cc_applied(source: Unit, effect: StatusEffect, duration: float, dr_step: int)
+## A counted crowd control was refused, why (IMMUNE, UNSTOPPABLE, POISE), and
+## the duration it would have had after tenacity. AI-D3.
+signal cc_refused(source: Unit, effect: StatusEffect, reason: StringName, duration: float)
 
 ## Timers at or below this are done (float residue, like combo swings).
 const EPSILON := 0.0001
+
+## Why a crowd control was refused (cc_refused): the unit is immune (its
+## third within the window, or a `cc_immune` status), unstoppable, refuses it
+## by tag (reserved: StatusEffect.refused_by_tags, a boss's fear, with
+## Korsavil), or has poise (the boss hook, off for every rank until poise is
+## built).
+const IMMUNE := &"immune"
+const UNSTOPPABLE := &"unstoppable"
+const REFUSED_BY_TAG := &"refused_by_tag"
+const POISE := &"poise"
+## The rule's numbers when cc_rules is null.
+const DEFAULT_CC_RULES: CrowdControlRules = preload("res://data/statuses/crowd_control_rules_default.tres")
+
+## Diminishing returns on crowd control (AI-D3). Enemies get their rank's
+## (RankRules.cc_diminishing: fodder off) at spawn.
+@export var cc_diminishing: bool = true
+## The rule's numbers; null = crowd_control_rules_default.tres.
+@export var cc_rules: CrowdControlRules
+## The poise hook (ENEMIES_AI.md, Enemies being combo'd): counted crowd
+## control is refused with POISE, for a later PoiseComponent to fill a meter
+## from. RankRules.poise, given at spawn; off for every rank today.
+@export var poise: bool = false
 
 
 ## One status on the unit.
@@ -59,6 +98,9 @@ class ActiveStatus:
 var unit: Unit
 
 var _active: Dictionary = {}   # StringName id -> ActiveStatus
+## Counted crowd control taken in the open window (0–2), and its time left.
+var _dr_count: int = 0
+var _dr_window_left: float = 0.0
 
 
 func _ready() -> void:
@@ -68,9 +110,10 @@ func _ready() -> void:
 # --- Commands -----------------------------------------------------------------
 
 ## Applies `effect` from `source` (null = the environment). duration_override
-## >= 0 replaces the effect's duration. Tenacity shortens &"cc" statuses.
+## >= 0 replaces the effect's duration. Tenacity shortens &"cc" statuses, then
+## diminishing returns (AI-D3) halve or refuse a counted one.
 ## Returns false if nothing was applied (dead unit, IGNORE while active, a
-## zero duration).
+## zero duration, refused).
 func apply_status(effect: StatusEffect, source: Unit = null, duration_override: float = -1.0) -> bool:
 	if effect == null or effect.id == &"":
 		push_error("StatusComponent: tried to apply a status without an id")
@@ -82,15 +125,46 @@ func apply_status(effect: StatusEffect, source: Unit = null, duration_override: 
 		duration *= 1.0 - _get_tenacity()
 	if duration >= 0.0 and duration <= EPSILON:
 		return false
+	# AI-D3: a unit's own crowd control on itself is outside diminishing returns.
+	var counted := counts_for_diminishing(effect) and not (is_instance_valid(source) and source == unit)
 	# ABILITIES AB10: unstoppable refuses new cc; untargetable refuses statuses
 	# from other units (the environment and the unit itself still apply them).
 	if effect.is_cc() and has_tag(&"unstoppable"):
+		if counted:
+			_refuse_cc(source, effect, UNSTOPPABLE, duration)
 		return false
 	if is_instance_valid(source) and source != unit and has_tag(&"untargetable"):
 		return false
 	if effect.tags.has(&"unstoppable"):
 		remove_statuses_with_tags([&"cc"])   # applying unstoppable ends every cc at once
 	var active: ActiveStatus = _active.get(effect.id)
+	var dr_step := -1   # not counted
+	if counted and not (active != null and active.effect.stack_rule == StatusEffect.StackRule.IGNORE):
+		if poise:
+			_refuse_cc(source, effect, POISE, duration)
+			return false
+		if has_tag(&"cc_immune"):
+			_refuse_cc(source, effect, IMMUNE, duration)
+			return false
+		dr_step = 0
+		if cc_diminishing:
+			var rules := get_cc_rules()
+			if _dr_count >= 2:   # the third: refused, and immune for a while
+				_dr_count = 0
+				_dr_window_left = 0.0
+				if rules.immune_status != null:
+					apply_status(rules.immune_status, unit, rules.dr_immune_time)
+				_refuse_cc(source, effect, IMMUNE, duration)
+				return false
+			if _dr_count == 1:
+				dr_step = 1
+				if duration > 0.0:
+					duration *= rules.dr_factor
+			else:
+				_dr_window_left = rules.dr_window
+			_dr_count += 1
+			if duration >= 0.0 and duration <= EPSILON:
+				return false
 	if active == null:
 		if effect.is_form():
 			_remove_other_forms(effect.id)   # one form at a time (ABILITIES AB9)
@@ -141,6 +215,10 @@ func apply_status(effect: StatusEffect, source: Unit = null, duration_override: 
 				_sync_modifiers(active)
 	status_applied.emit(active.effect)
 	Events.status_applied.emit(unit, active.effect)
+	if dr_step >= 0:
+		var from: Unit = source if is_instance_valid(source) else null
+		cc_applied.emit(from, active.effect, duration, dr_step)
+		Events.cc_applied.emit(unit, from, active.effect, duration, dr_step)
 	return true
 
 
@@ -174,10 +252,12 @@ func remove_statuses_with_tags(tags: Array[StringName]) -> int:
 	return removed
 
 
-## Removes every status (death).
+## Removes every status (death), and starts diminishing returns' count over.
 func clear() -> void:
 	for id: StringName in _active.keys():
 		remove_status(id)
+	_dr_count = 0
+	_dr_window_left = 0.0
 
 
 # --- Queries ------------------------------------------------------------------
@@ -334,9 +414,49 @@ func blocks_dash() -> bool:
 	return false
 
 
+## A crowd control diminishing returns counts (AI-D3): a `cc` status that
+## blocks moving, attacking, casting or dashing and keeps tenacity (a stun, a
+## root, a silence, fear). Not a slow, and not a knock-up (ignores_tenacity:
+## its arc keeps its shape).
+static func counts_for_diminishing(effect: StatusEffect) -> bool:
+	return effect != null and effect.is_cc() and not effect.ignores_tenacity \
+		and (effect.blocks_move or effect.blocks_attack or effect.blocks_cast or effect.blocks_dash)
+
+
+## The step the next counted crowd control from another unit would take: 0
+## full, 1 × dr_factor, 2 refused (the third, or immune). With cc_diminishing
+## off always 0, unless a `cc_immune` status is on.
+func get_dr_step() -> int:
+	if has_tag(&"cc_immune"):
+		return 2
+	if not cc_diminishing:
+		return 0
+	return mini(_dr_count, 2)
+
+
+## Counted crowd control taken in the open window (0–2).
+func get_dr_count() -> int:
+	return _dr_count
+
+
+## Seconds left in the window the first counted crowd control opened (0 = none).
+func get_dr_window_left() -> float:
+	return _dr_window_left
+
+
+## The rule's numbers (cc_rules, or the default).
+func get_cc_rules() -> CrowdControlRules:
+	return cc_rules if cc_rules != null else DEFAULT_CC_RULES
+
+
 # --- Update -------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
+	if _dr_window_left > 0.0:   # AI-D3: the window closes, the count starts over
+		_dr_window_left -= delta
+		if _dr_window_left <= EPSILON:
+			_dr_window_left = 0.0
+			_dr_count = 0
 	for id: StringName in _active.keys():
 		var active: ActiveStatus = _active.get(id)
 		if active == null:
@@ -478,6 +598,14 @@ func _shortest_stack(active: ActiveStatus) -> int:
 		if t >= 0.0 and (active.stack_times[index] < 0.0 or t < active.stack_times[index]):
 			index = i
 	return index
+
+
+## Tells about a refused counted crowd control (AI-D3), here and on Events.
+func _refuse_cc(source: Unit, effect: StatusEffect, reason: StringName, duration: float) -> void:
+	var from: Unit = source if is_instance_valid(source) else null
+	cc_refused.emit(from, effect, reason, duration)
+	if is_instance_valid(unit):
+		Events.cc_refused.emit(unit, from, effect, reason, duration)
 
 
 func _get_tenacity() -> float:

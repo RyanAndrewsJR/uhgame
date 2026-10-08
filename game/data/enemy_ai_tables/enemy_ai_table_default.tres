@@ -12,6 +12,7 @@ has_brain = false
 token_cost = 0
 max_abilities = 0
 think_rate = 0.0
+cc_diminishing = false
 
 [sub_resource type="Resource" id="Resource_6g70d"]
 script = ExtResource("2_vigi2")

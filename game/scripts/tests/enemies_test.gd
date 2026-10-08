@@ -203,7 +203,7 @@ var _odds_threshold_saved := -1.0   # _no_press() (AI3c)
 
 
 func _ready() -> void:
-	print("\n=== Enemies test (ENEMIES_AI AI1–AI3d, AI3b, AI3c, AI-D1, AI-D2) ===")
+	print("\n=== Enemies test (ENEMIES_AI AI1–AI3d, AI3b, AI3c, AI-D1, AI-D2, AI-D3) ===")
 	Progress.get_progress(KNIGHT)   # the save guards latch off first (a test scene)
 	Loot.get_inventory(KNIGHT)
 	Brains.rng.seed = 20261004
@@ -323,6 +323,13 @@ func _ready() -> void:
 	await _test_aid2_token()
 	await _test_aid2_ends()
 	await _test_aid2_sandbox()
+
+	# AI-D3: diminishing returns on crowd control.
+	await _test_aid3_rank_rules()
+	_test_aid3_enemy_cc()
+	await _test_aid3_boss()
+	await _test_aid3_brain_sees_the_ring()
+	await _test_aid3_panel_scroll()
 
 	# TEMP: the enemy attack speed test multiplier (DECISIONS.md, Testing).
 	await _test_temp_attack_speed()
@@ -5332,6 +5339,190 @@ func _test_aid2_sandbox() -> void:
 	_check("`plan: snare_first 2/3 (Strike)` while it runs, `plan: snare_first done, after: stay (lean ...)` after it, `blind: escapes down`",
 		[running, after, blind], [true, true, true])
 	await _free_plan_duelist(e, record)
+
+
+# --- AI-D3: diminishing returns on crowd control (ENEMIES_AI.md, Being combo'd) ----------------
+
+const STATUS_STUN: StatusEffect = preload("res://data/statuses/status_stun.tres")
+## The crowd control an enemy may put on the player at first (Ryan,
+## 2026-10-05): a root up to 1 s, a short stun up to 0.5 s.
+const PLAYER_CC_MAX := {&"root": 1.0, &"stun": 0.5}
+
+
+func _test_aid3_rank_rules() -> void:
+	_section("AI-D3: diminishing returns by rank (RankRules.cc_diminishing, given at spawn): fodder takes crowd control in full; poise is a hook, off")
+	var on: Array = []
+	var poise: Array = []
+	for rank in [EnemyData.Rank.FODDER, EnemyData.Rank.REGULAR, EnemyData.Rank.ELITE, EnemyData.Rank.BOSS]:
+		var rules := Brains.table.get_rank_rules(rank)
+		on.append(rules.cc_diminishing)
+		poise.append(rules.poise)
+	_check("fodder, regular, elite, boss: off, on, on, on; poise off for all four", [on, poise], [[false, true, true, true], [false, false, false, false]])
+	var slime := _spawn(SLIME_SCENE, ARENA + Vector2(-200, 400), true)
+	var brute := _spawn(BRUTE_SCENE, ARENA + Vector2(0, 400), true)
+	var elite := _spawn(ELITE_SCENE, ARENA + Vector2(200, 400), true)
+	await _frames(1)
+	var spawned: Array = []
+	for e: Enemy in [slime, brute, elite]:
+		spawned.append([e.status_component.cc_diminishing, e.status_component.poise])
+	_check("at spawn: the slime off, the test brute and the elite slime on; no poise", spawned, [[false, false], [true, false], [true, false]])
+	for e: Enemy in [slime, brute, elite]:
+		e.queue_free()
+	await _frames(2)
+
+
+## The crowd control an ability's data puts on what it hits, as [status,
+## duration] pairs: a `cc` StatusEffect (or a list of them) among its
+## exports, its conditional bonuses' target statuses, and a `stun_duration`
+## param (a stun its script applies). The same places
+## EnemyAITable.applies_cc() reads.
+func _cc_applied_by(ability: Ability) -> Array:
+	var out: Array = []
+	if ability.has_param(&"stun_duration") and ability.get_base_param(&"stun_duration") > 0.0:
+		out.append([STATUS_STUN, ability.get_base_param(&"stun_duration")])
+	for p in ability.get_property_list():
+		if not (p.usage & PROPERTY_USAGE_SCRIPT_VARIABLE):
+			continue
+		var value: Variant = ability.get(p.name)
+		var values: Array = value if value is Array else [value]
+		for v: Variant in values:
+			if v is StatusEffect and (v as StatusEffect).is_cc():
+				out.append([v, (v as StatusEffect).duration])
+	for bonus in ability.conditional_bonuses:
+		if bonus == null:
+			continue
+		for e in bonus.target_statuses:
+			if e != null and e.is_cc():
+				out.append([e, e.duration])
+	return out
+
+
+## Breaches of the player's crowd control at first: anything but a root up to
+## 1 s or a stun up to 0.5 s (a slow, a silence, a knock-up are later).
+func _player_cc_breaches(abilities: Array) -> Array:
+	var out: Array = []
+	for a: Ability in abilities:
+		for pair: Array in _cc_applied_by(a):
+			var status: StatusEffect = pair[0]
+			var kind := &"root" if status.tags.has(&"root") else (&"stun" if status.tags.has(&"stun") else &"")
+			if kind == &"" or float(pair[1]) > float(PLAYER_CC_MAX[kind]) + 0.0001:
+				out.append("%s: %s %.2f s" % [a.id, status.id, float(pair[1])])
+	return out
+
+
+func _test_aid3_enemy_cc() -> void:
+	_section("AI-D3: the crowd control enemies put on the player at first (Ryan, 2026-10-05): a root up to 1 s, a stun up to 0.5 s; every enemy ability checked")
+	var abilities: Array = []
+	for k: String in LIBRARY:
+		abilities.append(load(LIBRARY_DIR + "enemy_%s.tres" % k))
+	for f in DirAccess.open(ENEMY_DATA_DIR).get_files():
+		if f.ends_with(".tres"):
+			for a: Ability in (load(ENEMY_DATA_DIR + f) as EnemyData).get_abilities_at(5).values():
+				if not abilities.has(a):
+					abilities.append(a)
+	var found: Array = []
+	for a: Ability in abilities:
+		for pair: Array in _cc_applied_by(a):
+			var row := "%s: %s %.2f s" % [a.id, (pair[0] as StatusEffect).id, float(pair[1])]
+			if not found.has(row):
+				found.append(row)
+	found.sort()
+	_check("of %d enemy abilities, those with crowd control (%s) keep the limits" % [abilities.size(), ", ".join(found)],
+		[found.size() >= 3, _player_cc_breaches(abilities)], [true, []])
+	var long_root := _bare_ability(0.7, 0.0)
+	var root: StatusEffect = STATUS_ROOT.duplicate()
+	root.duration = 1.5
+	var bonus := ConditionalBonus.new()
+	bonus.target_statuses = [root] as Array[StatusEffect]
+	long_root.conditional_bonuses = [bonus] as Array[ConditionalBonus]
+	var long_stun := _bare_ability(0.7, 0.0)
+	var stun_bonus := ConditionalBonus.new()
+	var stun: StatusEffect = STATUS_STUN.duplicate()
+	stun.duration = 0.75
+	stun_bonus.target_statuses = [stun] as Array[StatusEffect]
+	long_stun.conditional_bonuses = [stun_bonus] as Array[ConditionalBonus]
+	var slowing := _bare_ability(0.7, 0.0)
+	var slow_bonus := ConditionalBonus.new()
+	slow_bonus.target_statuses = [STATUS_SLOW] as Array[StatusEffect]
+	slowing.conditional_bonuses = [slow_bonus] as Array[ConditionalBonus]
+	_check("the check can fail: a 1.5 s root, a 0.75 s stun, a slow each break it; a 1 s root doesn't",
+		[_player_cc_breaches([long_root]).size(), _player_cc_breaches([long_stun]).size(), _player_cc_breaches([slowing]).size(),
+			_player_cc_breaches([_slot_ability(DUELIST_DATA, &"q")]).size()], [1, 1, 1, 0])
+
+
+func _test_aid3_boss() -> void:
+	_section("AI-D3: a boss, until poise exists: its 40% tenacity, then diminishing returns")
+	var data: EnemyData = SLIME_DATA.duplicate()
+	data.rank = EnemyData.Rank.BOSS
+	var boss := SLIME_SCENE.instantiate() as Enemy
+	boss.data = data
+	boss.passive = true
+	entities.add_child(boss)
+	_place(boss, ARENA + Vector2(0, 500))
+	await _frames(1)
+	var sc := boss.status_component
+	var times: Array = []
+	for i in 3:
+		times.append(sc.apply_status(STATUS_STUN, knight, 1.0))
+		times.append(snappedf(sc.get_time_left(&"stun"), 0.001))
+		sc.remove_status(&"stun")
+	_check("tenacity 0.4, diminishing returns on, no poise; three 1 s stuns: 0.6 s, 0.3 s, refused (immune)",
+		[snappedf(boss.stats_component.get_stat(&"tenacity"), 0.001), sc.cc_diminishing, sc.poise, times, sc.has_tag(&"cc_immune")],
+		[0.4, true, false, [true, 0.6, true, 0.3, false, 0.0], true])
+	boss.queue_free()
+	await _frames(2)
+
+
+func _test_aid3_brain_sees_the_ring() -> void:
+	_section("AI-D3: the duelist reads only what the HUD shows: the immunity's ring (no snare thrown into it), not that a root would be halved")
+	await _reset_knight()
+	var e := _spawn(DUELIST_SCENE, knight.global_position + Vector2(170, 0), true)
+	await _frames(1)
+	e.status_component.apply_status(STATUS_STUN, null, 10.0)   # it stands still for the checks
+	e.passive = false
+	e.alert(knight)
+	await _frames(1)
+	var brain := e.get_brain()
+	var sc := knight.status_component
+	var rules := CrowdControlRules.new()   # short numbers: no lasting immunity for the later checks
+	rules.dr_window = 0.5
+	rules.dr_immune_time = 0.3
+	rules.immune_status = sc.get_cc_rules().immune_status
+	sc.cc_rules = rules
+	sc.apply_status(STATUS_ROOT, e)
+	sc.remove_status(&"root")
+	sc.apply_status(STATUS_ROOT, e)
+	sc.remove_status(&"root")
+	var halved := brain.build_situation()
+	var halved_row := [sc.get_dr_step(), halved.has_target, halved.target_cc_immune, ComboPlanner.can_crowd_control(halved, 0.7)]
+	var refused := sc.apply_status(STATUS_ROOT, e)
+	var immune := brain.build_situation()
+	var immune_row := [refused, immune.target_cc_immune, ComboPlanner.can_crowd_control(immune, 0.7)]
+	_check("his next root would be halved: the duelist sees nothing (not immune, its snare allowed); the third refused, the ring on: it sees it and holds its crowd control",
+		[halved_row, immune_row], [[2, true, false, true], [false, true, false]])
+	await _wait_until(func() -> bool: return not sc.has_tag(&"cc_immune"), 60)
+	sc.cc_rules = null
+	await _free_duelist(e)
+
+
+func _test_aid3_panel_scroll() -> void:
+	_section("The tuning panel (Ryan, at AI-D3): the mouse wheel scrolls its list and never nudges a slider")
+	var sb := SandboxBrains.new()
+	add_child(sb)
+	await _frames(2)
+	sb.set_panel(true)
+	await _frames(2)
+	var rows: Dictionary = sb.get(&"_rows")
+	var wheel: Array = []
+	for k: StringName in rows:
+		if (rows[k].slider as HSlider).scrollable:
+			wheel.append(k)
+	var temp: HSlider = sb.get(&"_temp_slider")
+	_check("none of its 23 rows' sliders takes the wheel (Slider.scrollable off), nor the TEMP row's",
+		[rows.size(), wheel, temp != null and temp.scrollable], [23, [], false])
+	sb.set_panel(false)
+	sb.queue_free()
+	await _frames(2)
 
 
 # --- Helpers ----------------------------------------------------------------------------

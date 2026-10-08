@@ -1988,6 +1988,7 @@ func _test_statuses() -> void:
 	await _test_c9_dot()
 	await _test_c9_hit_statuses_and_events()
 	await _test_k2_status_pieces()
+	await _test_diminishing_returns()
 
 
 func _test_c9_data() -> void:
@@ -2012,6 +2013,7 @@ func _test_c9_stun() -> void:
 		if unit == knight and status.id == &"stun":
 			removed_at[0] = _game_time
 	Events.status_removed.connect(on_removed)
+	sc.cc_diminishing = false   # three stuns in a second: the stack rule, not diminishing returns (AI-D3's own checks below)
 	var start := _game_time
 	knight.apply_stun(0.5)
 	await _frames(1)
@@ -2025,6 +2027,7 @@ func _test_c9_stun() -> void:
 	_check_near("a longer one extends it to 1.0 s", sc.get_time_left(&"stun"), 1.0, 0.001)
 	await _wait_until(func() -> bool: return not knight.is_stunned(), 120)
 	_check_near("it ends 1.0 s of game time after the re-stun (1.017 s after the first)", removed_at[0] - start, 1.0 + 1.0 / 60.0, 0.02)
+	sc.cc_diminishing = true
 	await _frames(1)
 	_check("after: can move and dash, stars gone",
 		[knight.movement.can_move(), knight.dash.can_dash(), knight.get_children().any(func(n: Node) -> bool: return n.get_script() == STARS_SCRIPT and not n.is_queued_for_deletion())],
@@ -2243,6 +2246,232 @@ func _test_c9_hit_statuses_and_events() -> void:
 	Events.status_applied.disconnect(on_applied)
 	Events.status_removed.disconnect(on_removed)
 	guarded.queue_free()
+	await _frames(2)
+
+
+# --- ENEMIES_AI AI-D3: diminishing returns on crowd control (COMBAT.md, Status effects) ---
+
+const STATUS_ROOT: StatusEffect = preload("res://data/statuses/status_root.tres")
+const STATUS_CC_IMMUNE: StatusEffect = preload("res://data/statuses/status_cc_immune.tres")
+const STATUS_AIRBORNE: StatusEffect = preload("res://data/statuses/status_airborne.tres")
+const CC_RULES_DEFAULT: CrowdControlRules = preload("res://data/statuses/crowd_control_rules_default.tres")
+const RING_SCRIPT := preload("res://scripts/vfx/cc_immune_ring.gd")
+
+## cc_applied / cc_refused on one unit: [&"applied", status id, from the
+## source?, duration, step] and [&"refused", status id, from the source?,
+## reason, duration].
+var _cc_events: Array = []
+var _cc_watched: Unit
+var _cc_source: Unit
+
+
+func _test_diminishing_returns() -> void:
+	Events.cc_applied.connect(_on_cc_applied)
+	Events.cc_refused.connect(_on_cc_refused)
+	_test_aid3_data()
+	await _test_aid3_rule()
+	await _test_aid3_window()
+	_test_aid3_tenacity_and_exceptions()
+	await _test_aid3_knight_stuns_an_elite()
+	Events.cc_applied.disconnect(_on_cc_applied)
+	Events.cc_refused.disconnect(_on_cc_refused)
+
+
+func _on_cc_applied(unit: Unit, source: Unit, status: StatusEffect, duration: float, dr_step: int) -> void:
+	if unit == _cc_watched:
+		_cc_events.append([&"applied", status.id, source == _cc_source, snappedf(duration, 0.001), dr_step])
+
+
+func _on_cc_refused(unit: Unit, source: Unit, status: StatusEffect, reason: StringName, duration: float) -> void:
+	if unit == _cc_watched:
+		_cc_events.append([&"refused", status.id, source == _cc_source, reason, snappedf(duration, 0.001)])
+
+
+## Starts recording `unit`'s crowd control events, `source` as the expected source.
+func _watch_cc(unit: Unit, source: Unit) -> void:
+	_cc_events.clear()
+	_cc_watched = unit
+	_cc_source = source
+
+
+## Short numbers for the timing checks: a 0.5 s window, × 0.5, 0.3 s immune.
+func _short_cc_rules() -> CrowdControlRules:
+	var rules := CrowdControlRules.new()
+	rules.dr_window = 0.5
+	rules.dr_factor = 0.5
+	rules.dr_immune_time = 0.3
+	rules.immune_status = STATUS_CC_IMMUNE
+	return rules
+
+
+func _test_aid3_data() -> void:
+	_section("AI-D3: diminishing returns' data (Ryan, 2026-10-05: every unit but fodder, the numbers as proposed)")
+	_check("crowd_control_rules_default: a 4 s window, the second × 0.5, a third refused and 3 s immune (status_cc_immune)",
+		[CC_RULES_DEFAULT.dr_window, CC_RULES_DEFAULT.dr_factor, CC_RULES_DEFAULT.dr_immune_time, CC_RULES_DEFAULT.immune_status == STATUS_CC_IMMUNE],
+		[4.0, 0.5, 3.0, true])
+	_check("status_cc_immune: tags cc_immune + buff, not crowd control itself, its look (the ring)",
+		[STATUS_CC_IMMUNE.id, STATUS_CC_IMMUNE.tags, STATUS_CC_IMMUNE.is_cc(), STATUS_CC_IMMUNE.vfx != null],
+		[&"cc_immune", [&"cc_immune", &"buff"], false, true])
+	var sc := knight.status_component
+	_check("the Knight's StatusComponent: diminishing returns on, poise off, the default rules",
+		[sc.cc_diminishing, sc.poise, sc.get_cc_rules() == CC_RULES_DEFAULT], [true, false, true])
+	var silence := _make_status(&"test_silence", [&"cc", &"silence", &"debuff"], 1.0)
+	silence.blocks_cast = true
+	var lock := _make_status(&"test_lock", [&"debuff"], 1.0)   # blocks moving, not tagged cc
+	lock.blocks_move = true
+	var mark := _make_status(&"test_cc_mark", [&"cc", &"debuff"], 1.0)   # cc that blocks nothing
+	var counts: Array = []
+	for e: StatusEffect in [STATUS_STUN, STATUS_ROOT, silence, STATUS_SLOW, STATUS_AIRBORNE, lock, mark]:
+		counts.append(StatusComponent.counts_for_diminishing(e))
+	_check("what counts: a stun, a root, a silence; not a slow, a knock-up (it ignores tenacity), a lock not tagged cc, a cc status that blocks nothing",
+		counts, [true, true, true, false, false, false, false])
+	_check("Events: cc_applied, cc_refused", [Events.has_signal("cc_applied"), Events.has_signal("cc_refused")], [true, true])
+
+
+func _test_aid3_rule() -> void:
+	_section("AI-D3: rooted twice in 4 s, the second lasts half as long; a third doesn't take and he's immune for 3 s, with a ring at his feet")
+	await _reset_knight()
+	await _hitstop_over()
+	var sc := knight.status_component
+	var source := _spawn_dummy()
+	_watch_cc(knight, source)
+	var first := sc.apply_status(STATUS_ROOT, source)
+	var t1 := sc.get_time_left(&"root")
+	sc.remove_status(&"root")
+	await _frames(30)   # half a second later
+	var second := sc.apply_status(STATUS_ROOT, source)
+	var t2 := sc.get_time_left(&"root")
+	_check("the first root takes in full (1 s); the second, half a second later, lasts 0.5 s", [first, t1, second, t2], [true, 1.0, true, 0.5])
+	_check_near("the count is 2 and the window, from the first, has 3.5 s left", sc.get_dr_window_left(), 3.5, 0.02)
+	_check("the next would be refused (get_dr_step() 2)", [sc.get_dr_count(), sc.get_dr_step()], [2, 2])
+	sc.remove_status(&"root")
+	var third := sc.apply_status(STATUS_STUN, source, 0.5)
+	_check("a third (a stun: any counted crowd control counts) is refused; he gets status_cc_immune for 3 s, from himself; the count starts over",
+		[third, sc.has_status(&"stun"), sc.has_tag(&"cc_immune"), sc.get_time_left(&"cc_immune"), sc.get_source(&"cc_immune") == knight, sc.get_dr_count()],
+		[false, false, true, 3.0, true, 0])
+	await _frames(1)
+	var rings := knight.get_children().filter(func(n: Node) -> bool: return n.get_script() == RING_SCRIPT and not n.is_queued_for_deletion())
+	_check("its look: one ring on the Knight, a floor drawing (FloorOverlay's layer), not an icon over his head",
+		[rings.size(), rings.size() == 1 and ((rings[0] as CanvasItem).visibility_layer & FloorOverlay.DRAWING_VISIBILITY_BIT) != 0], [1, true])
+	var while_immune := [sc.apply_status(STATUS_ROOT, source), sc.apply_status(STATUS_SLOW, source), sc.get_dr_step()]
+	sc.remove_status(&"slow")
+	_check("immune: a root is refused; a slow still takes (it doesn't count)", while_immune, [false, true, 2])
+	_check("the events: root applied (1 s, step 0), root applied (0.5 s, step 1), the stun refused (immune; it would have been 0.5 s), the root refused (immune, 1 s); a slow tells nothing",
+		_cc_events, [[&"applied", &"root", true, 1.0, 0], [&"applied", &"root", true, 0.5, 1],
+			[&"refused", &"stun", true, StatusComponent.IMMUNE, 0.5], [&"refused", &"root", true, StatusComponent.IMMUNE, 1.0]])
+	await _wait_until(func() -> bool: return not sc.has_tag(&"cc_immune"), 200)
+	await _frames(1)
+	rings = knight.get_children().filter(func(n: Node) -> bool: return n.get_script() == RING_SCRIPT and not n.is_queued_for_deletion())
+	_check("3 s later the immunity and its ring are gone, and the next would take in full", [sc.has_tag(&"cc_immune"), rings.size(), sc.get_dr_step(), sc.get_dr_count()], [false, 0, 0, 0])
+	source.queue_free()
+	await _frames(2)
+
+
+func _test_aid3_window() -> void:
+	_section("AI-D3: the window counts from the first; after it, and after the immunity, the count starts over (short numbers: a 0.5 s window, 0.3 s immune)")
+	var dummy := _spawn_dummy()
+	var sc := dummy.status_component
+	sc.cc_diminishing = true   # a slime is fodder: off at spawn
+	sc.cc_rules = _short_cc_rules()
+	sc.apply_status(STATUS_STUN, null, 1.0)   # the environment's crowd control counts too
+	await _frames(12)
+	sc.remove_status(&"stun")
+	sc.apply_status(STATUS_STUN, null, 1.0)
+	var halved := sc.get_time_left(&"stun")
+	sc.remove_status(&"stun")
+	await _frames(24)   # 0.6 s after the first
+	var after := [sc.get_dr_count(), sc.apply_status(STATUS_STUN, null, 1.0), sc.get_time_left(&"stun")]
+	sc.remove_status(&"stun")
+	_check("0.2 s after the first a second is halved (0.5 s); at 0.6 s the window has closed and a third takes in full", [halved, after], [0.5, [0, true, 1.0]])
+	sc.apply_status(STATUS_STUN, null, 1.0)
+	sc.remove_status(&"stun")
+	var refused := sc.apply_status(STATUS_STUN, null, 1.0)
+	var immune_for := sc.get_time_left(&"cc_immune")
+	await _wait_until(func() -> bool: return not sc.has_tag(&"cc_immune"), 60)
+	var again := [sc.apply_status(STATUS_STUN, null, 1.0), sc.get_time_left(&"stun"), sc.get_dr_count()]
+	_check("a second and a third at once: the third refused, immune 0.3 s (cc_rules.dr_immune_time); then a stun takes in full, the count at 1",
+		[refused, snappedf(immune_for, 0.001), again], [false, 0.3, [true, 1.0, 1]])
+	dummy.queue_free()
+	await _frames(2)
+
+
+func _test_aid3_tenacity_and_exceptions() -> void:
+	_section("AI-D3: tenacity first, then the step; fodder, a unit's own crowd control, unstoppable, poise, IGNORE, death")
+	var dummy := _spawn_dummy()
+	var sc := dummy.status_component
+	var full: Array = []
+	for i in 3:
+		full.append(sc.apply_status(STATUS_STUN, knight, 1.0))
+		full.append(sc.get_time_left(&"stun"))
+		sc.remove_status(&"stun")
+	_check("a slime (fodder: RankRules.cc_diminishing off, given at spawn) takes three 1 s stuns in full, never immune",
+		[sc.cc_diminishing, full, sc.has_tag(&"cc_immune")], [false, [true, 1.0, true, 1.0, true, 1.0], false])
+	sc.cc_diminishing = true
+	_watch_cc(dummy, knight)
+	dummy.stats_component.add_modifier(StatModifier.create(&"tenacity", FLAT, 0.5, &"test_aid3"))
+	sc.apply_status(STATUS_STUN, knight, 1.0)
+	var t1 := sc.get_time_left(&"stun")
+	sc.remove_status(&"stun")
+	sc.apply_status(STATUS_STUN, knight, 1.0)
+	var t2 := sc.get_time_left(&"stun")
+	sc.remove_status(&"stun")
+	_check("50% tenacity: a 1 s stun lasts 0.5 s, the second 0.25 s (× (1 − tenacity), then × 0.5); the events say so",
+		[t1, t2, _cc_events], [0.5, 0.25, [[&"applied", &"stun", true, 0.5, 0], [&"applied", &"stun", true, 0.25, 1]]])
+	dummy.stats_component.remove_modifiers_from(&"test_aid3")
+	sc.clear()
+	_check("death (clear()) starts the count over", [sc.get_dr_count(), sc.get_dr_window_left()], [0, 0.0])
+	var own: Array = []
+	for i in 3:
+		own.append(sc.apply_status(STATUS_ROOT, dummy))
+		sc.remove_status(&"root")
+	_check("its own crowd control on itself is outside the rule: three roots take, the count stays 0", [own, sc.get_dr_count()], [[true, true, true], 0])
+	sc.apply_status(STATUS_CC_IMMUNE, dummy, 1.0)
+	var immune_rows := [sc.apply_status(STATUS_ROOT, dummy), sc.apply_status(STATUS_STUN, knight, 1.0)]
+	sc.remove_status(&"root")
+	sc.remove_status(&"cc_immune")
+	_check("a cc_immune status from anything refuses another's stun, not its own root", immune_rows, [true, false])
+	var unstoppable := _make_status(&"test_unstoppable", [&"unstoppable", &"buff"], 1.0)
+	sc.apply_status(unstoppable, dummy)
+	_watch_cc(dummy, knight)
+	var stopped := sc.apply_status(STATUS_STUN, knight, 1.0)
+	sc.remove_status(&"test_unstoppable")
+	sc.poise = true
+	dummy.stats_component.add_modifier(StatModifier.create(&"tenacity", FLAT, 0.4, &"test_aid3"))
+	var poised := sc.apply_status(STATUS_STUN, knight, 1.0)
+	sc.poise = false
+	dummy.stats_component.remove_modifiers_from(&"test_aid3")
+	_check("unstoppable refuses it (`unstoppable`); poise (the boss hook) refuses it (`poise`, with the 0.6 s it would have had after 40% tenacity); neither counts",
+		[stopped, poised, sc.get_dr_count(), _cc_events],
+		[false, false, 0, [[&"refused", &"stun", true, StatusComponent.UNSTOPPABLE, 1.0], [&"refused", &"stun", true, StatusComponent.POISE, 0.6]]])
+	var hold := _make_status(&"test_hold", [&"cc", &"debuff"], 1.0)
+	hold.blocks_move = true
+	hold.stack_rule = StatusEffect.StackRule.IGNORE
+	var hold_rows := [sc.apply_status(hold, knight), sc.apply_status(hold, knight), sc.get_dr_count()]
+	_check("an IGNORE crowd control re-applied while active does nothing and isn't counted", hold_rows, [true, false, 1])
+	_cc_watched = null
+	dummy.queue_free()
+
+
+func _test_aid3_knight_stuns_an_elite() -> void:
+	_section("AI-D3: the Knight's own stuns on an elite: Judgement's 0.75 s, after its 20% tenacity 0.6 s; again within 4 s 0.3 s; a third is refused")
+	await _reset_knight()
+	await _hitstop_over()
+	var elite := _spawn_elite(knight.global_position + Vector2(60, 0), true)
+	await _frames(2)
+	elite.stats_component.add_modifier(StatModifier.create(&"max_health", FLAT, 50000.0, &"test_tough"))
+	elite.health.heal(100000.0)
+	var sc := elite.status_component
+	_check("the elite slime: diminishing returns on (its rank's), 20% tenacity", [sc.cc_diminishing, elite.stats_component.get_stat(&"tenacity")], [true, 0.2])
+	var times: Array = []
+	for i in 3:
+		if knight.resource_pool != null:
+			knight.resource_pool.try_spend(knight.resource_pool.current)   # under 60 Fury: no bonus stun
+		await _cast(&"r", elite.global_position, elite)
+		times.append(snappedf(sc.get_time_left(&"stun"), 0.001))
+		sc.remove_status(&"stun")
+		await _hitstop_over()
+	_check("three Judgements: 0.6 s, 0.3 s, refused (immune)", [times, sc.has_tag(&"cc_immune")], [[0.6, 0.3, 0.0], true])
+	elite.queue_free()
 	await _frames(2)
 
 

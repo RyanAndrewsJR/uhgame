@@ -35,3 +35,11 @@ extends Resource
 ## 2026-10-05: elites, of any role, and bosses). Their thinks still count:
 ## they come off the budget first, and the other ranks share what's left.
 @export var think_budget_exempt: bool = false
+## Diminishing returns on crowd control (AI-D3; Ryan, 2026-10-05), given to
+## the enemy's StatusComponent at spawn. Fodder false: it takes every crowd
+## control in full.
+@export var cc_diminishing: bool = true
+## The poise hook (ENEMIES_AI.md, Enemies being combo'd): refuses crowd
+## control with the reason &"poise". Off for every rank until poise is built
+## (bosses, later).
+@export var poise: bool = false
