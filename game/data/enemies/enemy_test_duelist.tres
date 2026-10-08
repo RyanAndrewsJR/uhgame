@@ -98,6 +98,7 @@ weight = 0.6
 [resource]
 script = ExtResource("7_data")
 id = &"test_duelist"
+poise_max = 100.0
 display_name = "Test Duelist"
 rank = 2
 behavior = ExtResource("6_behavior")

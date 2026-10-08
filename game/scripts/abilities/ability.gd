@@ -177,6 +177,9 @@ const DEFAULT_AREA_RADIUS_PX := 40.0
 ## ability's hits (HitContext.deflectable; DeflectComponent). Off = only the
 ## dash i-frames block them, as before.
 @export var deflectable: bool = false
+## PROTOTYPE (poise): poise damage each hit of it deals once it gets through
+## (HitContext.poise_damage; PoiseComponent). 0 = none.
+@export var poise_damage: float = 0.0
 
 @export_group("Sustain")
 ## Heals the caster for this share of the damage taken by each unit a hit of

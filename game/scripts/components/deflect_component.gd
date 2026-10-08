@@ -22,9 +22,11 @@ extends Node
 ##   passes after the last deflect, and once the riposte is given.
 ## - The first deflect of a streak gives the dash its charge back
 ##   (DashComponent.add_refund_charge(): for refund_lifetime, then the normal
-##   recharge; any dash spends it). The second gives no charge back and gives
-##   the riposte: an empower status (empower_riposte, tags empower and buff,
-##   BASIC_ATTACK_HIT, + riposte_ad_ratio of attack damage, riposte_window s),
+##   recharge; any dash spends it) and deals deflect_poise_damage_first to the
+##   attacker (PoiseComponent). The second deals deflect_poise_damage_second,
+##   gives no charge back and gives the riposte: an empower status
+##   (empower_riposte, tags empower and buff, BASIC_ATTACK_HIT, +
+##   riposte_ad_ratio of attack damage, + riposte_poise_damage, riposte_window s),
 ##   used up by the next swing that hits (a whiff keeps it). That swing snaps
 ##   toward the attacker when the step can't reach it, up to
 ##   riposte_snap_range (get_riposte_snap_target(); AutoAttackComponent).
@@ -64,6 +66,15 @@ static var deflect_test_enabled: bool = false
 ## LoL units (300 = 3 m): the riposte swing's step toward the attacker can
 ## be this long. 0 = no snap.
 @export var riposte_snap_range: float = 300.0
+
+@export_group("Poise damage")
+## To the attacker on the first deflect of a streak (PoiseComponent).
+@export var deflect_poise_damage_first: float = 25.0
+## To the attacker on the second.
+@export var deflect_poise_damage_second: float = 50.0
+## Added to the riposte swing's hits (its empower's empower_poise_damage, on
+## top of the swing's own).
+@export var riposte_poise_damage: float = 40.0
 
 var unit: Unit
 
@@ -239,6 +250,8 @@ func _on_deflected(ctx: HitContext) -> void:
 		_dash.add_refund_charge(refund_lifetime)   # the second gives none: the normal recharge
 	Events.hit_deflected.emit(attacker, unit, ctx)
 	Events.deflect_streak_changed.emit(unit, _streak)
+	if attacker != null and attacker.poise_component != null:   # the deflect itself is the source
+		attacker.poise_component.take_poise_damage(deflect_poise_damage_first if _streak == 1 else deflect_poise_damage_second, unit)
 	if _streak >= 2:
 		_give_riposte(attacker)
 		_chain_left = 0.0
@@ -259,6 +272,7 @@ func _give_riposte(attacker: Unit) -> void:
 	empower.stack_rule = StatusEffect.StackRule.REFRESH
 	empower.empower_consumed_by = StatusEffect.EmpowerTrigger.BASIC_ATTACK_HIT
 	empower.empower_ad_ratio = riposte_ad_ratio
+	empower.empower_poise_damage = riposte_poise_damage
 	if unit.status_component.apply_status(empower, unit):
 		Events.riposte_ready.emit(unit)
 

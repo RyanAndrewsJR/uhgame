@@ -77,6 +77,9 @@ const HIT_IFRAMES_ID := &"hit_iframes"
 ## PROTOTYPE (deflect, 2026-10-07): optional; the player's. Its window can
 ## deflect a hit in on_hit() before the i-frames block it.
 @onready var deflect_component: DeflectComponent = get_node_or_null("DeflectComponent")
+## PROTOTYPE (poise): optional; every enemy has one (slime.tscn). A hit's
+## poise_damage lowers it once the hit gets through (on_hit()).
+@onready var poise_component: PoiseComponent = get_node_or_null("PoiseComponent")
 
 var hovered: bool = false:
 	set(value):
@@ -264,6 +267,8 @@ func on_hit(ctx: HitContext) -> void:
 	if _alive and status_component:   # statuses after the damage (COMBAT C9)
 		for effect in ctx.statuses:
 			status_component.apply_status(effect, ctx.source)
+	# PROTOTYPE (poise): after the damage, so a breaking hit isn't boosted by its own break.
+	HitPipeline.apply_poise_damage(ctx)
 	GameFeel.play_hit_feel(ctx)   # hitstop and shake by tier (COMBAT C3)
 	Events.unit_hit.emit(ctx)
 	if ctx.taken_damage > 0.0:

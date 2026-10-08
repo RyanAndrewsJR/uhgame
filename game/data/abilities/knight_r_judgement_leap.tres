@@ -49,6 +49,7 @@ of = 3
 [resource]
 script = ExtResource("1_script")
 id = &"knight_judgement_leap"
+poise_damage = 40.0
 tags = Array[StringName]([&"ultimate", &"area", &"leap"])
 display_name = "Judgement Leap"
 supported_flags = Array[StringName]([&"judgement_shockwave"])

@@ -45,6 +45,10 @@ enum Rank { FODDER, REGULAR, ELITE, BOSS }
 ## Its combo plans (ENEMIES_AI.md, Combo plans; AI-D2): it sets up and runs
 ## plans only with some. Each names its steps' abilities by slot.
 @export var combo_plans: Array[ComboPlan] = []
+## PROTOTYPE (poise, 2026-10-07): its poise meter's size (PoiseComponent,
+## given at spawn); 0 = none (the default: fodder, regulars). Acts as 0 while
+## PoiseComponent.poise_test_enabled is off.
+@export var poise_max: float = 0.0
 
 
 ## The source id its twist goes under.

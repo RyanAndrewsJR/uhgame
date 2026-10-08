@@ -167,6 +167,8 @@ func _apply_enemy_data() -> void:
 	if rules != null and status_component != null:   # AI-D3: fodder takes crowd control in full
 		status_component.cc_diminishing = rules.cc_diminishing
 		status_component.poise = rules.poise
+	if poise_component != null:   # PROTOTYPE (poise): its meter's size
+		poise_component.poise_max = data.poise_max
 	if brain_enabled:
 		_add_brain()
 

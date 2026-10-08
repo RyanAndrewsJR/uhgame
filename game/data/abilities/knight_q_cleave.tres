@@ -44,6 +44,7 @@ description = "+50% damage to Staggered enemies."
 [resource]
 script = ExtResource("1_script")
 id = &"knight_cleave"
+poise_damage = 20.0
 tags = Array[StringName]([&"area", &"core", &"cone", &"melee"])
 display_name = "Cleave"
 supported_flags = Array[StringName]([&"cleave_whirl", &"cleave_rend"])

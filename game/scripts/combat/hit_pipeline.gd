@@ -80,6 +80,7 @@ static func from_ability(caster: Unit, ability: Ability, target: Node, cast: Cas
 	ctx.damage_type = ability.damage_type
 	ctx.proc_coefficient = ability.proc_coefficient
 	ctx.deflectable = ability.deflectable   # PROTOTYPE (deflect)
+	ctx.poise_damage = ability.poise_damage   # PROTOTYPE (poise)
 	ctx.hit_sound = ability.hit_sound   # AUDIO.md: CombatSounds plays it once per cast
 	ctx.add_tag(&"ability")
 	for t in ability.tags:   # the ability's own tags (STATS step 6)
@@ -98,6 +99,7 @@ static func add_empowers(ctx: HitContext, empowers: Array[StatusEffect]) -> void
 	for e in empowers:
 		ctx.base_damage += e.empower_base_damage
 		ctx.ad_ratio += e.empower_ad_ratio
+		ctx.poise_damage += e.empower_poise_damage   # PROTOTYPE (poise): the riposte's
 		for s in e.empower_statuses:
 			if s is StatusEffect:
 				ctx.statuses.append(s)
@@ -117,6 +119,7 @@ static func basic_attack(source: Unit, target: Node, swing: AttackSwing) -> HitC
 	ctx.knockback_duration = swing.knockback_duration
 	ctx.knockback_from = source.global_position
 	ctx.feel = swing.feel
+	ctx.poise_damage = swing.poise_damage   # PROTOTYPE (poise)
 	ctx.hit_sound = swing.hit_sound   # AUDIO.md: CombatSounds plays it
 	ctx.hit_sound_pitch = swing.sound_pitch
 	ctx.add_tag(&"basic_attack")
@@ -281,6 +284,18 @@ static func apply_on_hit(ctx: HitContext) -> void:
 	var gain := stats.get_scoped_stat(&"resource_on_hit", get_hit_scopes(ctx)) * coefficient
 	if gain > 0.0 and source.resource_pool != null:
 		source.resource_pool.restore(gain)
+
+
+## PROTOTYPE (poise, 2026-10-07): a hit that got through lowers its target's
+## poise by ctx.poise_damage (PoiseComponent.take_poise_damage(); nothing
+## while the poise flag is off, or for a unit without a meter). Called by
+## Unit.on_hit() after the damage and statuses. Not for a blocked hit or a kill.
+static func apply_poise_damage(ctx: HitContext) -> void:
+	if ctx.blocked or ctx.killed or ctx.poise_damage <= 0.0:
+		return
+	var target := ctx.target as Unit
+	if target != null and target.poise_component != null:
+		target.poise_component.take_poise_damage(ctx.poise_damage, ctx.source)
 
 
 ## A proc hit (on-hit damage; later reaction damage): tagged &"proc" so it

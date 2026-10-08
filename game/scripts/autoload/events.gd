@@ -74,3 +74,10 @@ signal deflect_streak_changed(unit: Unit, streak: int)
 ## (its next basic attack that hits).
 @warning_ignore("unused_signal")
 signal riposte_ready(unit: Unit)
+## PROTOTYPE (poise; PoiseComponent): `unit`'s poise changed (damage, filling
+## back, full again after a break).
+@warning_ignore("unused_signal")
+signal poise_changed(unit: Unit, value: float, maximum: float)
+## PROTOTYPE (poise): `unit`'s poise hit 0: it's poise-broken (status_poise_broken).
+@warning_ignore("unused_signal")
+signal poise_broken(unit: Unit)

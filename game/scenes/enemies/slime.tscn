@@ -11,6 +11,7 @@
 [ext_resource type="Script" path="res://scripts/components/status_component.gd" id="10_status_component"]
 [ext_resource type="Resource" path="res://data/sounds/sound_slime_death.tres" id="11_death_sound"]
 [ext_resource type="Resource" path="res://data/enemies/enemy_slime.tres" id="12_data"]
+[ext_resource type="Script" path="res://scripts/components/poise_component.gd" id="13_poise"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_body"]
 radius = 14.0
@@ -70,3 +71,6 @@ collision_mask = 1
 position = Vector2(0, -32)
 script = ExtResource("7_bar")
 width = 30.0
+
+[node name="PoiseComponent" type="Node" parent="."]
+script = ExtResource("13_poise")

@@ -38,6 +38,9 @@ extends Resource
 ## CHAMPIONS K1), so a HIT reaction rule can tell which swing landed:
 ## `finisher` on the last swing of each of Korsavil's cycles (her detonation).
 @export var hit_tags: Array[StringName] = []
+## PROTOTYPE (poise, 2026-10-07): poise damage each hit of this swing deals
+## once it gets through (HitContext.poise_damage; PoiseComponent). 0 = none.
+@export var poise_damage: float = 0.0
 
 @export_group("Sounds")
 ## At swing start, whiffs included (AUDIO.md). null = silent.

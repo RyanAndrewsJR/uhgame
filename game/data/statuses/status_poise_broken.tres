@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="StatusEffect" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/status_effect.gd" id="1_status"]
+[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="2_modifier"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/stun_stars.tscn" id="3_vfx"]
+
+[sub_resource type="Resource" id="poise_broken_incoming_damage"]
+script = ExtResource("2_modifier")
+stat = &"incoming_damage"
+type = 2
+value = 0.5
+
+[resource]
+script = ExtResource("1_status")
+id = &"poise_broken"
+display_name = "Poise broken"
+tags = Array[StringName]([&"poise_broken", &"debuff"])
+duration = 1.8
+stack_rule = 3
+ignores_tenacity = true
+cleansable = false
+modifiers = Array[ExtResource("2_modifier")]([SubResource("poise_broken_incoming_damage")])
+blocks_move = true
+blocks_attack = true
+blocks_cast = true
+blocks_dash = true
+vfx = ExtResource("3_vfx")

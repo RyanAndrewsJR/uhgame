@@ -25,6 +25,7 @@ ability = ExtResource("7_big_hit")
 [resource]
 script = ExtResource("4_bbqio")
 id = &"slime_elite"
+poise_max = 100.0
 display_name = "Elite Slime"
 rank = 2
 behavior = ExtResource("3_hxwqn")

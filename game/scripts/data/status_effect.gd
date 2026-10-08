@@ -83,6 +83,9 @@ enum EmpowerTrigger {
 ## StatusEffect resources, typed as Resource: a typed array of its own class
 ## made the script reference itself (a leak reported at exit).
 @export var empower_statuses: Array[Resource] = []
+## PROTOTYPE (poise, 2026-10-07): poise damage added to every hit of the
+## swing or cast that uses it up (HitContext.poise_damage; the riposte's).
+@export var empower_poise_damage: float = 0.0
 
 @export_group("Blocks")
 @export var blocks_move: bool = false

@@ -27,6 +27,18 @@ const FINISHER: Ability = preload("res://data/abilities/test_duelist_r_finisher.
 const SNARE: Ability = preload("res://data/abilities/test_duelist_q_snare.tres")
 const BOLT: Ability = preload("res://data/abilities/test_caster_q_bolt.tres")
 const STATUS_SLOW: StatusEffect = preload("res://data/statuses/status_slow.tres")
+const CLEAVE: Ability = preload("res://data/abilities/knight_q_cleave.tres")
+const CLEAVE_WAVE: Ability = preload("res://data/abilities/knight_q_cleave_wave.tres")
+const JUDGEMENT: Ability = preload("res://data/abilities/knight_r_judgement.tres")
+const JUDGEMENT_LEAP: Ability = preload("res://data/abilities/knight_r_judgement_leap.tres")
+const COMBO_KNIGHT: AttackCombo = preload("res://data/combos/combo_knight.tres")
+const ELITE_DATA: EnemyData = preload("res://data/enemies/enemy_slime_elite.tres")
+const DUELIST_DATA: EnemyData = preload("res://data/enemies/enemy_test_duelist.tres")
+const SLIME_DATA: EnemyData = preload("res://data/enemies/enemy_slime.tres")
+const BRUTE_DATA: EnemyData = preload("res://data/enemies/enemy_test_brute.tres")
+const SKIRMISHER_DATA: EnemyData = preload("res://data/enemies/enemy_test_skirmisher.tres")
+const CASTER_ELITE_DATA: EnemyData = preload("res://data/enemies/enemy_test_caster_elite.tres")
+const STATUS_POISE_BROKEN: StatusEffect = preload("res://data/statuses/status_poise_broken.tres")
 const FLAT := StatModifier.Type.FLAT
 const BASELINE_SOURCE := &"test_baseline"
 const ARENA := Vector2(-3000, 0)
@@ -45,13 +57,15 @@ var _deflects: Array = []   # [attacker, defender, ctx]
 var _streaks: Array = []   # the Knight's streak events, in order
 var _ripostes: Array = []   # [unit]
 var _hits: Array[HitContext] = []
+var _poise_breaks: Array = []    # [unit]
+var _poise_changes: Array = []   # [unit, value, maximum]
 var _defaults: Dictionary = {}   # the DeflectComponent's exports as the scene has them
 var _shipped: Array = []   # the flags and the lever as the scripts ship them
 
 
 func _ready() -> void:
 	print("\n=== Deflect test (PROTOTYPE: dash-deflect, riposte, poise) ===")
-	_shipped = [DeflectComponent.deflect_test_enabled, AutoAttackComponent.prototype_unempowered_auto_mult]
+	_shipped = [DeflectComponent.deflect_test_enabled, AutoAttackComponent.prototype_unempowered_auto_mult, PoiseComponent.poise_test_enabled]
 	Progress.get_progress(KNIGHT)   # the save guards latch off first (a test scene)
 	Loot.get_inventory(KNIGHT)
 	HitPipeline.crit_rng.seed = 20261007
@@ -61,6 +75,8 @@ func _ready() -> void:
 			_streaks.append(s))
 	Events.riposte_ready.connect(func(u: Unit) -> void: _ripostes.append(u))
 	Events.unit_hit.connect(func(ctx: HitContext) -> void: _hits.append(ctx))
+	Events.poise_broken.connect(func(u: Unit) -> void: _poise_breaks.append(u))
+	Events.poise_changed.connect(func(u: Unit, v: float, m: float) -> void: _poise_changes.append([u, v, m]))
 	_add_navigation()
 	await _frames(3)
 	knight = PLAYER_SCENE.instantiate()
@@ -81,8 +97,16 @@ func _ready() -> void:
 	await _test_riposte_snap()
 	await _test_weak_autos()
 	await _test_other_sources()
+	# Slice B: poise.
+	await _test_poise_flags_off()
+	_test_poise_data()
+	await _test_poise_meter()
+	await _test_poise_break()
+	await _test_poise_sources()
+	await _test_pair_and_riposte_break()
 
 	DeflectComponent.deflect_test_enabled = false
+	PoiseComponent.poise_test_enabled = false
 	AutoAttackComponent.prototype_unempowered_auto_mult = 1.0
 	Audio.stop_all()
 	await _frames(10)
@@ -107,7 +131,7 @@ func _test_flags_off() -> void:
 	_section("Flags off: nothing changes")
 	DeflectComponent.deflect_test_enabled = false
 	await _fresh()
-	_check("flags are off as shipped (deflect off, the lever 1.0)", _shipped, [false, 1.0])
+	_check("flags are off as shipped (deflect off, the lever 1.0, poise off)", _shipped, [false, 1.0, false])
 	_check("the dash recharge is its own 0.35 s", knight.dash.get_recharge_time(), 0.35)
 	_check("no test recharge while off", deflect.get_test_recharge(), -1.0)
 	var brute := _spawn(BRUTE_SCENE, ARENA + Vector2(0, 200))
@@ -421,7 +445,214 @@ func _test_other_sources() -> void:
 	await _frames(2)
 
 
+# --- Poise (slice B) ----------------------------------------------------------------
+
+func _test_poise_flags_off() -> void:
+	_section("Poise: the flag off changes nothing")
+	PoiseComponent.poise_test_enabled = false
+	DeflectComponent.deflect_test_enabled = false
+	await _fresh()
+	_poise_breaks.clear()
+	_poise_changes.clear()
+	var elite := _spawn(ELITE_SCENE, ARENA + Vector2(55, 0))
+	var p := elite.poise_component
+	_check("the elite has its meter's 100 from its data, but off it acts as 0", [p != null, p.poise_max, p.get_max_poise(), p.get_poise()], [true, 100.0, 0.0, 0.0])
+	p.take_poise_damage(1000.0, knight)
+	_check("1000 poise damage: no break, no status, no events", [p.is_broken(), elite.status_component.has_status(STATUS_POISE_BROKEN.id), _poise_breaks.size(), _poise_changes.size()], [false, false, 0, 0])
+	var swing := await _swing(Vector2.RIGHT, elite)
+	var hit := _last_hit_on(elite)
+	_check("a Knight swing deals its 64 as before; its 4 poise damage does nothing", [swing.damage, hit.poise_damage if hit else -1.0, p.get_poise(), _poise_changes.size()], [64.0, 4.0, 0.0, 0])
+	elite.queue_free()
+	await get_tree().physics_frame
+
+
+func _test_poise_data() -> void:
+	_section("Poise: who has it, and the sources (data)")
+	_check("the elite slime and the duelist: 100", [ELITE_DATA.poise_max, DUELIST_DATA.poise_max], [100.0, 100.0])
+	_check("fodder, regulars and the elite caster: 0", [SLIME_DATA.poise_max, BRUTE_DATA.poise_max, SKIRMISHER_DATA.poise_max, CASTER_ELITE_DATA.poise_max], [0.0, 0.0, 0.0, 0.0])
+	_check("EnemyData defaults to 0; the player has no meter", [EnemyData.new().poise_max, knight.poise_component == null], [0.0, true])
+	var swings: Array = COMBO_KNIGHT.swings.map(func(s: AttackSwing) -> float: return s.poise_damage)
+	swings.append(COMBO_KNIGHT.dash_strike.poise_damage)
+	_check("the Knight's swings 4 each (the dash-strike too)", swings, [4.0, 4.0, 4.0, 4.0])
+	_check("Cleave 20 (Cleave Wave too), Judgement 40 (its leap too)", [CLEAVE.poise_damage, CLEAVE_WAVE.poise_damage, JUDGEMENT.poise_damage, JUDGEMENT_LEAP.poise_damage], [20.0, 20.0, 40.0, 40.0])
+	_check("enemy abilities carry none", [SLAM.poise_damage, FINISHER.poise_damage, AttackSwing.new().poise_damage], [0.0, 0.0, 0.0])
+	_check("the deflects 25 and 50, the riposte 40", [deflect.deflect_poise_damage_first, deflect.deflect_poise_damage_second, deflect.riposte_poise_damage], [25.0, 50.0, 40.0])
+	var p := PoiseComponent.new()
+	_check("the meter's numbers: 3 s delay, 15/s, a 1.8 s break, +50%, 4 s immune", [p.poise_max, p.poise_regen_delay, p.poise_regen_rate, p.poise_break_time, p.poise_break_damage_bonus, p.poise_break_immunity], [0.0, 3.0, 15.0, 1.8, 0.5, 4.0])
+	p.free()
+	var s := STATUS_POISE_BROKEN
+	_check("status_poise_broken: tags poise_broken + debuff, not cc, not counted", [s.id, s.tags.size() == 2 and s.tags.has(&"poise_broken") and s.tags.has(&"debuff"), s.is_cc(), StatusComponent.counts_for_diminishing(s)], [&"poise_broken", true, false, false])
+	_check("...it blocks moving, attacking, casting and dashing; no cleanse", [s.blocks_move, s.blocks_attack, s.blocks_cast, s.blocks_dash, s.cleansable], [true, true, true, true, false])
+
+
+func _test_poise_meter() -> void:
+	_section("Poise: the meter")
+	PoiseComponent.poise_test_enabled = true
+	DeflectComponent.deflect_test_enabled = false
+	await _fresh()
+	_poise_changes.clear()
+	var elite := _spawn(ELITE_SCENE, ARENA + Vector2(0, 200))
+	var p := elite.poise_component
+	_check("on: it starts full", [p.get_max_poise(), p.get_poise()], [100.0, 100.0])
+	p.take_poise_damage(25.0, knight)
+	_check("damage lowers it", p.get_poise(), 75.0)
+	var last: Array = _poise_changes.back() if not _poise_changes.is_empty() else []
+	_check("...Events.poise_changed(unit, 75, 100)", last, [elite, 75.0, 100.0])
+	await _seconds(2.9)
+	_check("it doesn't fill back before the 3 s delay", p.get_poise(), 75.0)
+	await _seconds(1.1)
+	_check("then it fills at 15/s (about 90 at 4 s)", absf(p.get_poise() - 90.0) <= 0.6, true)
+	await _seconds(1.0)
+	_check("...up to 100, no more", p.get_poise(), 100.0)
+	p.take_poise_damage(10.0, knight)
+	await _seconds(2.0)
+	p.take_poise_damage(10.0, knight)
+	await _seconds(2.0)
+	_check("new poise damage restarts the delay", p.get_poise(), 80.0)
+	var brute := _spawn(BRUTE_SCENE, ARENA + Vector2(0, 260))
+	brute.poise_component.take_poise_damage(1000.0, knight)
+	_check("poise_max 0 (a regular): nothing happens", [brute.poise_component.get_poise(), brute.poise_component.is_broken(), brute.status_component.has_status(STATUS_POISE_BROKEN.id)], [0.0, false, false])
+	elite.queue_free()
+	brute.queue_free()
+	await get_tree().physics_frame
+
+
+func _test_poise_break() -> void:
+	_section("Poise: the break")
+	PoiseComponent.poise_test_enabled = true
+	DeflectComponent.deflect_test_enabled = false
+	await _fresh()
+	_poise_breaks.clear()
+	var elite := _spawn(ELITE_SCENE, ARENA + Vector2(60, 0))
+	var p := elite.poise_component
+	var health := knight.health.current
+	_check("the elite starts its slam at the Knight", elite.abilities.try_cast(&"q", knight.global_position, knight), true)
+	await _frames(3)
+	p.take_poise_damage(4.0, knight)
+	_check("poise damage short of 0 doesn't flinch it: still casting", [elite.abilities.casting, p.is_broken()], [true, false])
+	p.take_poise_damage(96.0, knight)
+	_check("at 0 it breaks: poise_broken, Events.poise_broken", [p.is_broken(), elite.status_component.has_status(STATUS_POISE_BROKEN.id), _poise_breaks], [true, true, [elite]])
+	_check("...its cast is cut at once", elite.abilities.casting, false)
+	_check("...its 20% elite tenacity doesn't shorten the 1.8 s", [elite.stats_component.get_stat(&"tenacity"), p.get_break_left()], [0.2, 1.8])
+	_check("...diminishing returns don't count it", elite.status_component.get_dr_count(), 0)
+	_check("...no moving, casting, dashing; its brain rests (is_cc_blocked)", [elite.movement.can_move(), elite.is_cast_blocked(), elite.is_dash_blocked(), elite.is_cc_blocked()], [false, true, true, true])
+	var before := elite.health.current
+	elite.take_damage(100.0)
+	_check("...it takes 50% more damage (100 -> 150)", before - elite.health.current, 150.0)
+	p.take_poise_damage(50.0, knight)
+	_check("...poise damage does nothing while broken", [p.get_poise(), _poise_breaks.size()], [0.0, 1])
+	await _seconds(1.0)
+	_check("the slam never landed", knight.health.current, health)
+	await _wait_until(func() -> bool: return not p.is_broken(), 120)
+	_check("after the break: full again, immune for 4 s", [p.get_poise(), p.is_immune(), absf(p.get_immunity_left() - 4.0) < 0.05], [100.0, true, true])
+	before = elite.health.current
+	elite.take_damage(100.0)
+	_check("...the damage bonus is gone", before - elite.health.current, 100.0)
+	p.take_poise_damage(1000.0, knight)
+	_check("immune: no second break, poise stays full", [p.is_broken(), p.get_poise(), _poise_breaks.size()], [false, 100.0, 1])
+	await _seconds(4.05)
+	p.take_poise_damage(30.0, knight)
+	_check("after the immunity it takes poise damage again", [p.is_immune(), p.get_poise()], [false, 70.0])
+
+	var dummy := _spawn(SLIME_SCENE, ARENA + Vector2(0, 260))
+	dummy.team = Unit.Team.PLAYER
+	var brute := _spawn(BRUTE_SCENE, ARENA + Vector2(30, 260))
+	brute.poise_component.poise_max = 100.0   # a regular given a meter for this check
+	brute.attack.attack(dummy)
+	await _wait_until(func() -> bool: return brute.attack.is_winding_up(), 90)
+	_check("a brute winds up its basic attack", brute.attack.is_winding_up(), true)
+	var dummy_health := dummy.health.current
+	brute.poise_component.take_poise_damage(100.0, knight)
+	_check("a break cuts its windup", [brute.poise_component.is_broken(), brute.attack.is_winding_up()], [true, false])
+	await _seconds(1.0)
+	_check("...and no hit lands while it's broken", dummy.health.current, dummy_health)
+	brute.attack.cancel()
+	for n: Node in [elite, dummy, brute]:
+		n.queue_free()
+	await _frames(2)
+
+
+func _test_poise_sources() -> void:
+	_section("Poise damage rides the hits (HitContext.poise_damage)")
+	PoiseComponent.poise_test_enabled = true
+	DeflectComponent.deflect_test_enabled = true
+	await _fresh()
+	var elite := _spawn(ELITE_SCENE, ARENA + Vector2(55, 0))
+	var p := elite.poise_component
+	await _swing(Vector2.RIGHT, elite)
+	_check("a Knight swing: 4", p.get_poise(), 96.0)
+	await _swing(Vector2.RIGHT, elite, true)
+	_check("a dash-strike: 4", p.get_poise(), 92.0)
+	HitPipeline.resolve(HitPipeline.from_ability(knight, CLEAVE, elite))
+	_check("Cleave: 20", p.get_poise(), 72.0)
+	HitPipeline.resolve(HitPipeline.from_ability(knight, JUDGEMENT, elite))
+	_check("Judgement: 40", p.get_poise(), 32.0)
+	elite.add_invulnerability(&"test")
+	HitPipeline.resolve(HitPipeline.from_ability(knight, JUDGEMENT, elite))
+	elite.remove_invulnerability(&"test")
+	_check("a blocked hit carries none", p.get_poise(), 32.0)
+	var fresh := _spawn(ELITE_SCENE, ARENA + Vector2(0, 220))
+	knight.dash.try_dash(Vector2.RIGHT)
+	_slam_hit(fresh)
+	_check("the first deflect: 25 to the attacker", fresh.poise_component.get_poise(), 75.0)
+	await _wait_until(func() -> bool: return not knight.dash.is_dashing(), 60)
+	knight.dash.try_dash(Vector2.LEFT)
+	_slam_hit(fresh)
+	_check("the second: 50", fresh.poise_component.get_poise(), 25.0)
+	var e := knight.status_component.get_status(DeflectComponent.get_riposte_status_id())
+	_check("the riposte empower carries 40", e.empower_poise_damage if e else -1.0, 40.0)
+	for n: Node in [elite, fresh]:
+		n.queue_free()
+	await _frames(2)
+
+
+func _test_pair_and_riposte_break() -> void:
+	_section("A deflect pair plus a riposte breaks a 100-poise elite (the starting numbers)")
+	PoiseComponent.poise_test_enabled = true
+	DeflectComponent.deflect_test_enabled = true
+	for scene: PackedScene in [ELITE_SCENE, DUELIST_SCENE]:
+		await _fresh()
+		var enemy := _spawn(scene, ARENA + Vector2(0, 220))
+		var p := enemy.poise_component
+		knight.dash.try_dash(Vector2.RIGHT)
+		_slam_hit(enemy)
+		await _wait_until(func() -> bool: return not knight.dash.is_dashing(), 60)
+		knight.dash.try_dash(Vector2.LEFT)
+		_slam_hit(enemy)
+		await _wait_until(func() -> bool: return not knight.dash.is_dashing(), 60)
+		var label := "the elite slime" if scene == ELITE_SCENE else "the duelist"
+		_check("%s: the pair leaves 25 of 100, not broken" % label, [p.get_poise(), p.is_broken(), deflect.has_riposte()], [25.0, false, true])
+		_place(knight, ARENA)
+		_place(enemy, ARENA + Vector2(55, 0))
+		var riposte := await _swing(Vector2.RIGHT, enemy)
+		var hit := _last_hit_on(enemy)
+		_check("...the riposte (40 + the swing's 4) breaks it", [hit.poise_damage if hit else -1.0, p.is_broken()], [44.0, true])
+		var expected := 256.0 * HitPipeline.get_mitigation_multiplier(enemy.stats_component.get_stat(&"armor"))
+		_check("...the riposte isn't boosted by its own break (%.0f)" % expected, roundi(riposte.damage * 100.0), roundi(expected * 100.0))
+		print("  INFO  %s: the riposte dealt %.0f, %.1f%% of its %.0f health" % [label, riposte.damage, riposte.damage / enemy.health.max_health * 100.0, enemy.health.max_health])
+		enemy.queue_free()
+		await get_tree().physics_frame
+	await _fresh()
+	var elite := _spawn(ELITE_SCENE, ARENA + Vector2(0, 220))
+	for i in 3:
+		await _wait_until(func() -> bool: return knight.dash.get_charges() > 0 and not knight.dash.is_dashing(), 120)
+		knight.dash.try_dash(Vector2.RIGHT if i % 2 == 0 else Vector2.LEFT)
+		_slam_hit(elite)
+	_check("three deflects in a row also break it (25 + 50 + 25)", [elite.poise_component.is_broken(), _deflects.size()], [true, 3])
+	print("  INFO  deflects alone to break a 100-poise elite: 3 (25 + 50 + 25, inside the 3 s regen delay)")
+	elite.queue_free()
+	await get_tree().physics_frame
+
+
 # --- Helpers ----------------------------------------------------------------------
+
+## The last hit that got through to `unit` (Events.unit_hit), or null.
+func _last_hit_on(unit: Unit) -> HitContext:
+	for i in range(_hits.size() - 1, -1, -1):
+		if _hits[i].target == unit:
+			return _hits[i]
+	return null
+
 
 ## Back to a clean state: dash over and recharged, no refund, no streak, no
 ## riposte, no i-frames, full health, the DeflectComponent's exports as the
