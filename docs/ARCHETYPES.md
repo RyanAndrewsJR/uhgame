@@ -4,7 +4,7 @@
 **Read when:** the task involves an archetype (Assassin, Mage, Skirmisher, Bruiser, Duelist; Basic for fodder) on a champion or an enemy; deflecting (the deflect window, the refund, the streak, the jab, the riposte, being rebuffed); the poise meter and its break; an enemy's string and the beat; perilous attacks and their icon; duel pressure; weak basic attacks; which archetypes each rank may have; a boss's scripted events; the Knight's deflect test version and its removal.
 **Depends on:** VISION.md (Pillar 1, decision priorities), CONVENTIONS.md, DECISIONS.md (the 2026-10-07 rows in Conventions, Combat and Enemies), COMBAT.md (hits, statuses, damage bands, diminishing returns), MOVEMENT.md (Dash), ABILITIES.md (Empowers, `recovery_time`), CHAMPIONS.md (the Knight, Korsavil), ENEMIES_AI.md (the brain, ranks and roles, tells and poses, attack tokens, combo plans, "Poise: no flinch", the poise hook, bosses).
 **Used by:** CHAMPIONS (each champion's archetype layer), ENEMIES_AI (archetypes in place of roles, strings, perilous attacks, duel pressure), COMBAT (deflects, poise, rebuffed, the beat), MOVEMENT (the Assassin's dash), DUNGEONS (which archetypes a roster may hold), UI (the perilous icon, the poise meter), AUDIO (hooks).
-**Status:** written 2026-10-07. Ryan's fifteen decisions (2026-10-07, with his design advisor) are MUST, cited **D1–D15** below; the decisions settled before them (DECISIONS.md, 2026-10-07) are MUST too. **Only the Assassin layer is locked** (D2): the Mage, Skirmisher, Bruiser and Duelist layers are placeholders that give only their window source and string shape, with the advisor's proposals kept as *(proposed, placeholder)*. Claude's picks are *(proposed)* and listed in Open questions. CONVENTIONS, ENEMIES_AI, CHAMPIONS, COMBAT and MOVEMENT are unchanged: Edits to other docs lists what they need, for Ryan's approval; a later step applies them. Units: League units, 100 u = 1 m = 32 px.
+**Status:** written 2026-10-07. Ryan's fifteen decisions (2026-10-07, with his design advisor) are MUST, cited **D1–D15** below; the decisions settled before them (DECISIONS.md, 2026-10-07) are MUST too. **Only the Assassin layer is locked** (D2): the Mage, Skirmisher, Bruiser and Duelist layers are placeholders that give only their window source and string shape, with the advisor's proposals kept as *(proposed, placeholder)*. Claude's picks are *(proposed)*; Ryan can overrule any. **Ryan answered all 17 open questions the same day** (Open questions; DECISIONS.md, Archetypes), and those answers are MUST too. CONVENTIONS, ENEMIES_AI, CHAMPIONS, COMBAT and MOVEMENT are unchanged: Edits to other docs lists what they need, for Ryan's approval; a later step applies them. Units: League units, 100 u = 1 m = 32 px.
 
 ## How to read this doc
 As in ENEMIES_AI.md: MUST (Ryan's; never changed without asking him), TARGET (every number: a start value for the play tests), *(proposed)* (Claude's pick; Ryan can overrule it).
@@ -48,6 +48,8 @@ As Korsavil you walk up to an elite. It crouches, its blade goes back, and half 
   - `EnemyData.duelist`, read by `EnemyAITable.get_think_rate_for()`, the enemies test (9 places) and the deflect test.
   - `EnemyAITable.caster_poke_score` and `caster_spacing_px`. "Caster" also means any unit casting an ability (`PartySnapshot`'s projectiles carry a `caster`), one more reason the role becomes Mage.
 - **Korsavil's dashes:** her passive carries a FLAT +1 `dash_charges` (`data/champions/korsavil.tres`): two dashes.
+- **Rooms:** `Main` builds one room per scene (`layout.build_sim()`); nothing signals leaving a room yet (DUNGEONS' traversal between spaces isn't built).
+- **Deflectable shapes today:** the elite slime's slam (`slime_elite_q_slam.tres`) and the test duelist's finisher (`test_duelist_r_finisher.tres`) both run `slime/slam.gd`, a circle placed "where the target stood": areas placed at the player, marked deflectable.
 - **The Champion Kit Board** (`docs/champion_board/`, v2) already uses the five archetypes and Basic, with Tank, Marksman and Support kept as Legacy (DECISIONS.md, General, 2026-10-07).
 
 ## Goal / feel
@@ -63,18 +65,19 @@ Sekiro inside League-style kits (Ryan, 2026-10-07): readable rhythm, a payoff fo
 | Hit-to-hit spacing in a string | Assassin 0.4 s, Skirmisher 0.35 s, Mage bolts 0.45 s, Duelist 0.5 s, Bruiser 0.9 s | D8 |
 | String lengths | Basic none; Bruiser 2–3 heavy hits; Skirmisher 2–3 fast hits, then its reset; Mage a 3-bolt volley; Duelist 4–5 hits; Assassin 3–4 fast hits. Regulars the low end, elites the full range, bosses +1 | approved 2026-10-07; D8 |
 | The player's deflect window | 0.2 s from the dash's start (was 0.15) | D8 |
-| The Assassin's dash | one charge, 25% longer: 500 u (160 px, up from 128) over 0.18 s | D8, D11 |
-| The refund | one charge, kept 3 s; the dash recharges in 1.5 s while testing | D8 |
-| The jab | after one deflect, the next swing +1.0 AD ratio; it ends the streak | D8 |
+| The Assassin's dash | one charge, 25% longer: 500 u (160 px, up from 128) over 0.18 s; recharge 1.2 s (tuned 0.8–1.5 in AR5); the Knight's stays 0.35 s | D8, D11; Ryan (Open questions 5) |
+| The refund | one charge, kept 3 s; the dash recharges in 1.5 s while testing (the prototype) | D8 |
+| The jab | after one deflect, the next swing +1.0 AD ratio, snapping up to 1.5 m; it ends the streak | D8; Ryan (Open questions 17) |
 | The riposte | +3.0 AD ratio plus 12% of the target's max health (a boss's 4%); banked until a swing lands; snaps 3 m (6 m after a projectile deflect) | D7, D8 |
+| The banked streak | no chain window; expires 10 s after the last deflect and clears on leaving the room | Ryan (Open questions 4) |
 | Poise (Assassin units only) | enemies: regular 60, elite 100, boss 160; Korsavil 100. Fills up to a break | D1, D3, D3b, D8 |
 | The break | enemies 1.5 s (regular), 1.8 s (elite), 1.4 s (boss) at ×1.5 damage taken; Korsavil 1.0 s at ×1.25; then 4 s immune | D3b, D8 |
 | Decay | 15 a second after 3 s with no poise hit; ×0.5 below 40% health (×0.5 is D1's proposed number) | D1 |
 | The enemy Riposte Stance | a 0.5 s window, 6 s cooldown, 0.6 s recovery if it deflects nothing | D4 |
-| Rebuffed | a champion: the swing cancelled, a 0.4 s attack lock, the combo back to swing 1, no damage; an enemy whose perilous attack is deflected: 1.0 s | D4, D5 |
-| An enemy's riposte | its next hit ×2, for 1 s | D4 |
-| Perilous attacks | 35–40% of the player's max health; an icon for 0.4 s at the windup's start, the windup 0.9 s or more (about 0.5 s after the icon); elites 1 (cooldown 12–15 s), bosses 2–3 across their phases (10 s), regulars none; none in a fight's first 6 s; one live at a time (two with a boss) | D5 |
-| Duel pressure | +0.1 `aggression` per deflect, capped at +0.3; no damage dealt for 4 s: patience fills ×1.25, after 8 s ×1.5 | D8, D10 |
+| Rebuffed | a champion: the swing cancelled, a 0.4 s attack lock (only attacking), the combo back to swing 1, no damage; an enemy whose perilous attack is deflected: 1.0 s, attacking, casting and dashing blocked | D4, D5; Ryan (Open questions 8) |
+| An enemy's riposte | its next hit ×2 for 1 s: +1.0 AD ratio on its next basic attack hit only, never a perilous hit | D4; Ryan (Open questions 16) |
+| Perilous attacks | 35–40% of the player's max health (no kill protection); attacker-centered, always deflectable; an icon for 0.4 s at the windup's start, the windup 0.9 s or more (about 0.5 s after the icon); elites 1 (cooldown 12–15 s), bosses 2–3 across their phases (10 s), regulars none; none in a fight's first 6 s; one live at a time (two with a boss) | D5 |
+| Duel pressure | +0.1 `aggression` per deflect, capped at +0.3, until the brain resets; no damage dealt for 4 s: patience fills ×1.25, after 8 s ×1.5, stacking with today's pressure; patience never fills more than ×2 as fast as it would without its boosts | D8, D10; Ryan (Open questions 10) |
 | Weak basic attacks | an unempowered swing deals 50% of today's damage (per champion, in data); empowered swings unchanged; not enemies. A player who only swings kills an elite at least 2× slower than one using the kit | D12 |
 
 **The cadence it's built for** (D8): an elite Assassin's string. Its first hit lands 0.5 s after its wind-up starts: deflected, the dash refunded. Its second lands at 0.9 s (0.4 s later): deflected, the riposte given. The riposte swing lands at about 1.0 s. A deflect pair now fits inside one string instead of waiting on enemies that rarely attack (the play test's complaint, with "the timing felt inconsistent").
@@ -105,7 +108,7 @@ These layers **add to an enemy's kit and AI uses and never replace or gate them*
 - **Shape by archetype** (approved): Basic none; Bruiser 2–3 heavy hits; Skirmisher 2–3 fast hits, then its reset; Mage a 3-bolt volley; Duelist 4–5 hits, the most pressure; Assassin 3–4 fast hits.
 - **Length by rank** (D8): regulars the low end, elites the full range, bosses +1. A Bruiser string is 2 hits on a regular, 2–3 on an elite, 2–4 on a boss.
 - **Spacing** (D8): Assassin 0.4 s, Skirmisher 0.35 s, Mage bolts 0.45 s, Duelist 0.5 s, Bruiser 0.9 s, hit to hit.
-- **The beat** (D8): every deflectable hit lands 0.5 s after its tell. How it fits with the spacing *(Claude's reading, Open questions 2)*:
+- **The beat** (D8): every deflectable hit lands 0.5 s after its tell. How it fits with the spacing (Claude's reading, confirmed by Ryan: Open questions 2):
   - a string's **first hit**: the commit's tell pose (`tell_time`, 0.3 s), then its wind-up; the hit lands on the beat, 0.5 s after the wind-up starts. It reads for 0.8 s in all, so it keeps Ryan's opener rule (0.6 s or more; D6);
   - its **later hits** come at the archetype's spacing, each with a visible wind-up of at least 0.25 s (D6, which calls this "on the shared beat"), so an Assassin can deflect each one;
   - a **lone** deflectable hit (a perilous attack, a deflectable ability outside a string) lands on the beat after its own tell; a perilous attack's tell is its icon (Perilous attacks).
@@ -116,19 +119,20 @@ These layers **add to an enemy's kit and AI uses and never replace or gate them*
   - **Tokens:** the enemy holds its attack tokens for the whole string, at the normal cost (regular 1, elite 2), and lets them go on the last hit's recovery, a stun, a poise break or its death.
   - **Respect sets the length:** high respect cuts the string to 2 hits; low respect, or its target at low health, lets it run its full length or extend. *(proposed numbers)* Effective respect 0.6 or more: 2 hits. 0.3 or less, or the target below the table's `low_health` (40%): its full length, and an elite or boss extends it by one hit at a chance equal to its `aggression`. In between: a length rolled in its rank's range.
   - **A deflect never ends a string** (D10), so the second deflect can come.
-- **Mage volleys are the Mage's string** (D7): 3 bolts on one token, about 0.45 s apart (D8's number; D7 said "about 0.4"), the first with the 0.6 s tell, the later ones at the spacing (D7: "on the beat"; Open questions 2). Assassins deflect only bolts marked deflectable: aimed, single-target bolts, never area orbs or beams. A deflected bolt is absorbed; reflecting it is a later reward (Later / not now).
+- **Mage volleys are the Mage's string** (D7): 3 bolts on one token, 0.45 s apart (Ryan: Open questions 3), the first with the 0.6 s tell, the later ones at the spacing (D7's "on the beat": Open questions 2). Assassins deflect only bolts marked deflectable: aimed, single-target bolts, never area orbs or beams. A deflected bolt is absorbed; reflecting it is a later reward (Later / not now).
 - **Basic has no string:** fodder keeps its League-style chip (COMBAT.md, the swarm chip band).
 
 ### Perilous attacks (MUST: D5; DECISIONS.md, Enemies, 2026-10-07)
 - **An extra layer on top of an enemy's abilities**, for every archetype but Basic: an **elite** has one perilous move (cooldown 12–15 s), a **boss** 2–3 across its phases (cooldown 10 s), a **regular** none.
-- **Damage:** 35–40% of the player's max health (the Knight's 650: 228–260; Korsavil's 500: 175–200). D5 adds that "the 60% kill-protection rule still applies on top"; no doc has such a rule, and COMBAT, ENEMIES_AI and DECISIONS record "no kill protection" (Ryan, 2026-10-05): **Open questions 1**.
+- **Damage:** 35–40% of the player's max health (the Knight's 650: 228–260; Korsavil's 500: 175–200). **No kill protection:** D5's "60% kill-protection rule" is dropped (Ryan, Open questions 1), so COMBAT's "no kill protection" (Ryan, 2026-10-05) stands.
+- **Attacker-centered, always deflectable** (Ryan, Open questions 7): a perilous move is always deflectable, so its shape comes from the attacker's body (a cone, a slam around itself, its own dash), never an area placed at the player.
 - **The icon:** over the model for 0.4 s from the start of the windup; the total windup is at least 0.9 s, so the hit lands about 0.5 s after the icon goes, on the beat. It's the one icon over a head (DECISIONS.md, 2026-10-07: icons for perilous attacks only; every other tell stays body language).
 - **Pacing:** none in a fight's first 6 s; one live at a time across the whole enemy side (two with a boss).
 - **The answers:**
   - An Assassin deflects it, and **deflecting a perilous attack counts as two deflects**: it goes straight to the riposte, and the attacker is rebuffed for 1.0 s.
   - Every other champion dodges it with the dash's i-frames. Only Assassins can deflect (D5, intended).
 - A perilous hit is always a heavy hit (ENEMIES_AI, Odds: at least 10% of the target's max health), so the one-heavy-hit window holds while enemies press.
-- *(proposed)* `Ability.perilous` marks one, and a perilous ability is always deflectable. The enemies test checks every perilous ability: its windup 0.9 s or more, its damage in the band, its cooldown, and each rank's count.
+- *(proposed)* `Ability.perilous` marks one. The enemies test checks every perilous ability: deflectable and attacker-centered, its windup 0.9 s or more, its damage in the band, its cooldown, and each rank's count.
 
 ### Duel pressure (MUST: D8, D10; DECISIONS.md, Enemies, 2026-10-07)
 - Respect and patience stay as they are. On top of them:
@@ -136,10 +140,11 @@ These layers **add to an enemy's kit and AI uses and never replace or gate them*
   - **while the player deals no damage for 4 s, enemies' patience fills ×1.25; after 8 s, ×1.5** (D8).
 - A deflect doesn't end the enemy's string (D10).
 - **The AI never reads the button press** (D10; ENEMIES_AI's fair knowledge). Only the two rules above are approved; extra respect for a ready deflect and treating the 1.5 s recharge as an opening are not (Later / not now).
-- *(proposed)*
-  - The aggression bonus belongs to the enemy, against its current target, and is cleared when its brain resets (a new target, the leash, the walk home).
-  - The passivity multiplier multiplies patience's existing pressure (idle and low health: ENEMIES_AI, The standoff), since "did nothing" and "dealt no damage" are different reads. Open questions 10.
-  - "Damage dealt" is a hit from that champion that got through (not blocked, not deflected); Brains keeps the last time per champion.
+- **How long and how much** (Ryan, Open questions 10):
+  - the aggression bonus belongs to the enemy, against its current target, and lasts until its brain resets (a new target, the leash, the walk home);
+  - the passivity multiplier stacks with patience's existing pressure (idle, low health, the odds: ENEMIES_AI, The standoff), since "did nothing" and "dealt no damage" are different reads;
+  - **a ×2 cap overall:** patience's boosts together (its pressure, the passivity multiplier, and the aggression bonus's share of (0.5 + `aggression`)) never make it fill more than twice as fast as it would without them. Today's pressure alone tops out at exactly ×2 (1 + 0.5 idle + 0.5 for low health or the odds), so the cap changes nothing that exists, and duel pressure adds nothing once an enemy's pressure is full.
+- *(proposed)* "Damage dealt" is a hit from that champion that got through (not blocked, not deflected); Brains keeps the last time per champion.
 
 ### Weak basic attacks (MUST: D12)
 - **Every champion's unempowered basic attack deals 50% of today's damage,** tuned per champion in data: the TEMP lever becomes a per-champion stat. Empowered swings are unchanged, and so is the resource basic attacks give on landing (the Knight's 8 Fury a hit).
@@ -156,7 +161,9 @@ These layers **add to an enemy's kit and AI uses and never replace or gate them*
 | T2 elite | all five; the Duelist is the showcase |
 | T3 boss | all five: one archetype per boss, plus its perilous layer, plus scripted events that give it its extra layer |
 
-- **Scripted boss events** (Ryan's addition, D13): data entries in `BossPlan` (timed or phase-triggered events), not a script per boss, consistent with ENEMIES_AI I10 ("data, not a script per boss"). Claude agrees it's the right home (Open questions 13 asks what the "extra layer" may hold). Built with the boss director (ENEMIES_AI AI6). Data: `BossEvent` below.
+- **Scripted boss events** (Ryan's addition, D13): data entries in `BossPlan` (timed or phase-triggered events), not a script per boss, consistent with ENEMIES_AI I10 ("data, not a script per boss"). Built with the boss director (ENEMIES_AI AI6). Data: `BossEvent` below.
+  - **What an event may give** (Ryan, Open questions 13): another archetype's layer for a phase (a Bruiser boss with a Riposte Stance in its last phase); an arena change, telegraphed at least 1.0 s; adds, within the spawn budget (ENEMIES_AI's cap of about 20 moving enemies).
+  - **Its limits:** one event runs at a time; none starts while a perilous attack is live; every event stays answerable (VISION.md's "no unanswerable enemy").
 - References: Hades' elite variants, Sekiro's mini-bosses.
 
 ### Bosses and poise (MUST: D9)
@@ -173,21 +180,23 @@ No archetype for now. A tank would be a Bruiser; a marksman a Skirmisher (kiting
 Deflect and poise are the Assassin's mechanic, for champions and enemies alike (DECISIONS.md, Combat, 2026-10-07). **Only Assassin units carry a poise meter** (D3).
 
 #### The champion's layer (every Assassin; Korsavil first)
-- **One dash, 25% longer** (D8, D11): 500 u (160 px) over the dash's 0.18 s; one charge; its i-frames as every dash.
+- **One dash, 25% longer** (D8, D11): 500 u (160 px) over the dash's 0.18 s; one charge; its i-frames as every dash. **It recharges in 1.2 s** (Ryan, Open questions 5; tuned between 0.8 and 1.5 s in AR5): well above the Knight's 0.35 s, which he keeps, or a whiffed dash would cost nothing.
 - **The deflect window** (D8): 0.2 s from the dash's start, a timer of its own beside the i-frames. A deflectable hit from an enemy inside it is deflected: blocked whole (no damage, knockback, statuses, on-hit or post-hit i-frames), checked before the i-frames (as built).
-- **What she can deflect:** a hit its data marks deflectable: every string hit (D6), every perilous attack (D5), aimed single-target bolts (D7; never area orbs or beams), and the enemy abilities their author marks. Open questions 7 asks about placed areas.
+- **What she can deflect:** a hit its data marks deflectable: every string hit (D6), every perilous attack (D5), aimed single-target bolts (D7), and the enemy abilities their author marks. **The author decides by origin** (Ryan, Open questions 7):
+  - **deflectable:** a shape centered on the attacker's body: a melee cone, a slam around itself, its own dash through her, an aimed bolt;
+  - **never deflectable:** an area placed at her position: an orb, a pool, a beam;
+  - so the elite slime's slam and the test duelist's finisher (circles placed at the target today) are retuned to attacker-centered shapes (AR2), and the enemies test checks every deflectable or perilous enemy ability's origin.
 - **The refund** (as built, D8): the first deflect of a streak gives the dash charge back for 3 s; any dash spends it; unused, it's taken back and the normal recharge runs.
 - **The streak:** +1 for each deflect.
-  - **The jab** (D8, new): after one deflect, the next basic attack swing that hits gets +1.0 AD ratio, and the jab ends the streak. Waiting for the second deflect gives the full riposte instead (a second deflect replaces the jab with the riposte).
+  - **The jab** (D8, new): after one deflect, the next basic attack swing that hits gets +1.0 AD ratio, and the jab ends the streak. Waiting for the second deflect gives the full riposte instead (a second deflect replaces the jab with the riposte). The jab's swing snaps toward the attacker up to 1.5 m, half the riposte's, so it doesn't whiff after a long dash (Ryan, Open questions 17; tuned in AR5).
   - **The riposte** (D7, D8): the second deflect, or one deflect of a perilous attack, gives the riposte. The next swing that hits gets +3.0 AD ratio plus 12% of the target's max health (4% on a boss). It snaps toward the attacker up to 3 m, or 6 m when the deflect was of a projectile (casters stand 5.5–8 m away); past that it stays banked until she closes in. It banks until a swing lands.
   - **The streak ends** once the riposte is given, or when a swing uses the jab (the one line the jab adds to the streak rule).
-  - **Banking** is the current state: `streak_persists` (Ryan's follow-up under test; on in the sandbox): no chain window, and a plain dash keeps the streak. Whether it's final: Open questions 4.
-  - *(proposed)* The jab doesn't snap (only the riposte does). A swing that's deflected or rebuffed doesn't land, so it keeps the jab or the riposte (a swing that hits nothing keeps its empowers: ABILITIES.md, Empowers).
+  - **Banking stays** (`streak_persists`, Ryan's follow-up; Ryan, Open questions 4): no chain window, and a plain dash keeps the streak. **But it expires 10 s after the last deflect, and it clears when she leaves the room**, so an old streak can't surprise her later. *(Claude's reading)* The jab or riposte it banked goes with it. Nothing signals leaving a room yet (Current code): the clear hooks into DUNGEONS' traversal between spaces when that's built; until then, the 10 s expiry.
+  - *(proposed)* A swing that's deflected or rebuffed doesn't land, so it keeps the jab or the riposte (a swing that hits nothing keeps its empowers: ABILITIES.md, Empowers).
 - **Energy** (Korsavil; D11): a deflect costs no Energy; a successful one gives +10; the cost of a whiff is the recharge.
-- **The normal recharge** of the Assassin's dash is open: the prototype's 1.5 s test value or the Knight's 0.35 s (Open questions 5).
 - **Her poise meter** (D3b; Sekiro's player posture, which deflecting recovers): 0–100, filled by:
-  - a hit she takes: by the hit's share of her max health (an 8% hit adds 8); a heavy hit ×1.5 *(proposed reading: ENEMIES_AI's heavy hit, 10% of max health or more)*;
-  - a perilous hit that lands: 40 *(proposed reading: in place of the share rule)*;
+  - a hit she takes: by the hit's share of her max health (an 8% hit adds 8); a heavy hit (ENEMIES_AI's: 10% of max health or more) ×1.5 (Ryan, Open questions 9);
+  - a perilous hit that lands: a flat 40, in place of the share rule (Ryan, Open questions 9);
   - being rebuffed by an enemy Assassin's deflect: 25;
   - **her own successful deflect drains 15.**
   - **Decay:** 15 a second after 3 s with no poise hit, ×0.5 below 40% health (D1).
@@ -197,7 +206,7 @@ Deflect and poise are the Assassin's mechanic, for champions and enemies alike (
 
 #### The enemy's layer
 - **A poise meter sized by rank** (D8): regular 60, elite 100, boss 160. It fills from:
-  - the poise damage riding the party's hits (`poise_damage` on swings and abilities; the Knight's chips today: 4 a swing, Cleave 20, Judgement 40: test values, Open questions 6);
+  - the poise damage riding the party's hits (`poise_damage` on swings and abilities). **Any champion's hits can carry it** (Ryan, Open questions 6), so a non-Assassin can break an enemy Assassin and nothing is unanswerable; only the meter is Assassin-only. The Knight's chips (4 a swing, Cleave 20, Judgement 40) stay, tuned in AR6;
   - the player's deflects (D3b): 25 the first, 50 the second, 40 on the riposte's hit.
   - **Decay** as Korsavil's: 15 a second after 3 s, ×0.5 below 40% health (D1).
   - **Its break** at full (D8): 1.5 s for a regular, 1.8 s for an elite, 1.4 s for a boss, at ×1.5 damage taken, then 4 s immune. It cuts a cast or a windup, ends its string and lets its token go (D6).
@@ -208,16 +217,16 @@ Deflect and poise are the Assassin's mechanic, for champions and enemies alike (
   - **What it deflects** (D4): the player's melee basic attacks and single-target melee abilities. Never projectiles, area hits, damage over time or ultimates.
     - *(proposed)* As data: every melee combo swing is deflectable (`AttackSwing.deflectable`, true by default), and a champion's ability is deflectable only when marked (`Ability.deflectable`), which the champions test allows only on an ability tagged `melee` and none of `area`, `cone`, `line`, `projectile`, `dot`, `ultimate`.
     - Today that's the Knight's swings and dash-strike, and none of his abilities (Cleave is an area, Lunge a dash through a line, Judgement an ultimate); Korsavil's swings, and none of her abilities.
-  - *(proposed)* A stance deflects one hit: it ends at its first deflect, so its riposte comes at once.
+  - **One hit per stance** (Ryan, Open questions 11): it ends at its first deflect, so a string can't be unbeatable, and its riposte comes at once.
   - **Its AI** (D4): it's used when the player closes in: a gap-closer just used, or inside 3 m. *(proposed)* An `AIUse` with the intent `defend`: one use with `TARGET_DISTANCE` under 300 u, one with the gap-closer read (Brains' last gap-closer, AI-D1); each seen after its reaction time, like any read; no token.
 - **Rebuffing the player** (D4): when an enemy Assassin deflects a champion's attack, the champion is **rebuffed**: that swing is cancelled, attacking is locked for 0.4 s, the combo goes back to swing 1, and the champion takes no damage. The enemy gets its **riposte**: its next hit ×2, for 1 s.
-  - *(proposed)* The enemy's riposte is its own `empower_riposte`: +1.0 AD ratio on its next basic attack hit, lasting 1 s, and it swings at once: its string's first swing with the 0.25 s follow-up wind-up. It's deflectable, so Korsavil can turn it around.
+  - **The enemy's riposte** (Ryan, Open questions 16) is its own `empower_riposte`: +1.0 AD ratio on its next basic attack hit only, lasting 1 s. **It never applies to a perilous hit** (that would reach 70–80% of max health): a perilous attack is an ability, and the riposte is a basic attack empower. *(proposed)* It swings at once: its string's first swing with the 0.25 s follow-up wind-up, deflectable, so Korsavil can turn it around.
   - A rebuffed Korsavil's meter takes 25 (D3b).
 - **Its dashes stay abilities** (D4): enemy dashes are dash abilities in data, through `MovementComponent.dash()`. A **slip** (a short dash ability) may open the same deflect window for 0.2 s. No enemy DashComponent.
 - **Its string:** 3–4 fast hits, 0.4 s apart (approved; D8).
 - **Ranks:** elites and bosses; regulars rarely (at most 1 per room), from dungeon 3 on (D13).
 
-#### Rebuffed *(proposed: the statuses; the rules are D4 and D5)*
+#### Rebuffed (D4, D5; the blocks: Ryan, Open questions 8)
 - `status_rebuffed` (tags `rebuffed`, `debuff`): blocks attacking; 0.4 s on a champion (D4). Applied with the swing's cancel (`cancel_swing()`, the combo reset).
 - `status_rebuffed_perilous` (tags `rebuffed`, `debuff`): blocks attacking, casting and dashing; 1.0 s on an enemy whose perilous attack was deflected (D5). It cuts the enemy's cast, ends its string and lets its token go.
 - Neither is tagged `cc`, so tenacity, diminishing returns and cleanses don't touch them (as `poise_broken`). Not "staggered": that's the Knight's Lunge mark (CHAMPIONS.md, Status: Staggered).
@@ -232,7 +241,7 @@ Deflect and poise are the Assassin's mechanic, for champions and enemies alike (
 #### The Knight's test version (D3, D11)
 - The Knight is a Bruiser: **in the end he has no deflect and no poise.**
 - Until then he stays the prototype's test bed. His deflect goes only after Korsavil's Assassin layer (AR5) is built and Ryan passes it, with his OK and in the same chain of commits (AR6). It's **disabled, not deleted**.
-- The non-Assassin poise values go with it: the elite slime's `poise_max` 100 (it's a Bruiser) and the test duelist's (a Duelist). The Knight's chips (4, 20, 40) are test values until then (Open questions 6).
+- The non-Assassin poise values go with it: the elite slime's `poise_max` 100 (it's a Bruiser) and the test duelist's (a Duelist). The Knight's chips (4, 20, 40) stay and get tuned then (Ryan, Open questions 6).
 
 ### Skirmisher (placeholder: D2)
 - **An enemy's window:** the hop-out reset (about 1 s: AI3's reset hop); a root or a pin breaks it. **Its string:** 2–3 fast hits at 0.35 s, then the reset.
@@ -258,7 +267,7 @@ Fodder only, always (D13). No string, no perilous attack, no meter: its League-s
 ## Data (Resources) *(proposed unless marked built)*
 
 ### Archetype (`res://scripts/data/archetype.gd`; `res://data/archetypes/archetype_<id>.tres`)
-One per archetype: what every unit of it shares, so the layer isn't copied into each champion's or enemy's data (D11: the deflect-dash belongs to the archetype, not a passive). Looked up by id (`Archetype.of(id)`): a champion's id is its `ChampionData.champion_class`; an enemy's comes from its behavior's role (`basic` for fodder).
+One per archetype: what every unit of it shares, so the layer isn't copied into each champion's or enemy's data (D11: the deflect-dash belongs to the archetype, not a passive). Looked up by id (`Archetype.of(id)`): a champion's id is its `ChampionData.champion_class`, renamed `archetype` in AR8 with the old name kept as an alias (Ryan, Open questions 14); an enemy's comes from its behavior's role (`basic` for fodder).
 
 | Field | Type | Assassin | Notes |
 |---|---|---|---|
@@ -267,6 +276,7 @@ One per archetype: what every unit of it shares, so the layer isn't copied into 
 | `string_spacing` | `float` | 0.4 | the authoring target: the enemies test checks every string's hit-to-hit times against it (±0.05 s) |
 | `deflects` | `bool` | true | a unit of this archetype has a running deflect window (its DeflectComponent): in place of the prototype's flag |
 | `dash_distance_scale` | `float` | 1.25 | champions: × the dash's `dash_distance` (400 u → 500 u) |
+| `dash_recharge_time` | `float` | 1.2 | champions: the dash's `charge_recharge_time` (−1 = the dash's own: the Knight's 0.35 s); tuned 0.8–1.5 in AR5 (Ryan) |
 | `deflect_window` | `float` | 0.2 | a dash's window |
 | `poise_meter` | `bool` | true | a unit of this archetype has a running poise meter |
 | `poise_rules` | `PoiseRules` | `poise_rules_assassin.tres` | |
@@ -279,6 +289,7 @@ Mirrors `CrowdControlRules`: the meter's numbers in one file. `decay_delay` 3, `
 
 | Where | Addition | Default | Notes |
 |---|---|---|---|
+| `ChampionData` | `archetype: StringName` | | AR8: `champion_class` renamed, the old name kept as an alias (Ryan, Open questions 14) |
 | `EnemyData` | `attack_string: AttackCombo` | null | its string; null = no string (fodder; an enemy not yet given one keeps today's commit) |
 | `EnemyData` | `thinks_like_boss: bool` | false | **D15:** `duelist` renamed; `duelist` stays readable as an alias until the tests pass, then goes with Ryan's OK |
 | `EnemyData` | `poise_max` (built, prototype) | 0 → −1 | from AR3: −1 = its rank's (`RankRules.poise_meter_max`) when its archetype has a meter; 0 = none; above 0 = that size |
@@ -287,12 +298,12 @@ Mirrors `CrowdControlRules`: the meter's numbers in one file. `decay_delay` 3, `
 | `RankRules` | `perilous_max: int` | 0 | fodder 0, regular 0, elite 1, boss 3; the enemies test checks every EnemyData |
 | `RankRules` | `poise_meter_max`, `poise_break_time` | 0 | 0 / 60 / 100 / 160 and 0 / 1.5 / 1.8 / 1.4; read only for an archetype with `poise_meter`. Not the hook `RankRules.poise` (built, off: D9) |
 | `RankRules` | `string_extra_hits: int` | 0 | a boss 1 (D8) |
-| `EnemyAITable` | `beat` 0.5; `string_respect_short` 0.6, `string_respect_full` 0.3; `perilous_quiet_time` 6, `perilous_live_max` 1, `perilous_live_max_boss` 2; `duel_aggression_step` 0.1, `duel_aggression_cap` 0.3; `duel_passive_times` [4, 8], `duel_passive_mults` [1.25, 1.5]; `riposte_stance_range` 300 | | live in the N panel like the table's other numbers |
+| `EnemyAITable` | `beat` 0.5; `string_respect_short` 0.6, `string_respect_full` 0.3; `perilous_quiet_time` 6, `perilous_live_max` 1, `perilous_live_max_boss` 2; `duel_aggression_step` 0.1, `duel_aggression_cap` 0.3; `duel_passive_times` [4, 8], `duel_passive_mults` [1.25, 1.5]; `patience_boost_cap` 2.0; `riposte_stance_range` 300 | | live in the N panel like the table's other numbers |
 | `ComboStep` | `kind: ComboStep.Kind` (`ABILITY`, `STRING`) | `ABILITY` | a string as a plan's step (D6); a `STRING` step ignores `slot` |
 | `BossPlan`, `BossPhase` | `events: Array[BossEvent]` | `[]` | scripted boss events (D13; AI6) |
-| `BossEvent` (inline) | `trigger` (`PHASE_START`, `TIME`, `HEALTH_BELOW`), `time`, `health_below`, `ability: Ability` (cast with its telegraph, as its own move), `bundle: ToolkitBundle` (the extra layer for the rest of the phase: a status, a form, a granted ability), `once: bool` | | data, not a script per boss (ENEMIES_AI I10) |
+| `BossEvent` (inline) | `trigger` (`PHASE_START`, `TIME`, `HEALTH_BELOW`), `time`, `health_below`, `once: bool`; what it gives: `ability: Ability` (cast with its telegraph, as its own move), `bundle: ToolkitBundle` (another archetype's layer for the rest of the phase: a status, a form, a granted ability), `arena_change` (a world state or hazard, telegraphed at least 1.0 s: `arena_telegraph_time`), `adds: Array[PackedScene]` (spawn-in, within the spawn budget) | | data, not a script per boss (ENEMIES_AI I10). The director runs one event at a time and starts none while a perilous attack is live (Ryan, Open questions 13) |
 | `Ability` | `perilous: bool` | false | a perilous attack (D5): the icon, the counts, the rebuff on a deflect |
-| `Ability` | `deflectable`, `poise_damage` (built, prototype) | false, 0 | the authoring rule per side: Assassin, What it deflects |
+| `Ability` | `deflectable`, `poise_damage` (built, prototype) | false, 0 | the authoring rule per side: an enemy's by origin (attacker-centered, never placed at the player: Assassin, What she can deflect); a champion's only melee single-target (What it deflects) |
 | `AttackSwing` | `deflectable: bool` | true | every swing of a string, and every melee combo swing (D4, D6); a ranged champion's combo sets it false (D4: never projectiles); a Mage volley's bolt true when it's aimed and single-target (D7) |
 | `AttackSwing` | `poise_damage` (built, prototype) | 0 | |
 | `StatusEffect` | `empower_target_health_ratio: float` | 0 | an empower's share of the target's max health, into the hit's base damage (the riposte's 0.12); `empower_boss_health_ratio` (−1 = the same) for a boss's 0.04 |
@@ -307,10 +318,10 @@ Mirrors `CrowdControlRules`: the meter's numbers in one file. `decay_delay` 3, `
 - Strings for the test enemies (AR1): `combo_test_brute.tres` (Bruiser: 2–3 heavy hits at 0.9 s), `combo_test_skirmisher.tres` (2–3 at 0.35 s), `combo_test_caster.tres` (the volley at 0.45 s, a RANGED combo), `combo_test_duelist.tres` (4–5 at 0.5 s); the elite slime keeps its slam and gets the Bruiser's.
 - `SandboxDeflect`'s panel gets the jab, the riposte's health share and its projectile snap (AR5), the meter's direction and decay (AR3), and the duel pressure rows (AR7).
 
-### Names checked against CONVENTIONS.md
+### Names checked against CONVENTIONS.md (Ryan accepted every proposal, 2026-10-07: Open questions 14)
 | Name | Check | Proposal |
 |---|---|---|
-| **archetype** | CONVENTIONS calls a champion's class its "archetype" (`champion_class`: bruiser, diver, rogue, assassin, tank, marksman, mage) | the shared word for champions and enemies (decided 2026-10-07); `champion_class` keeps its name and holds the archetype id; an enemy's **role** becomes its archetype |
+| **archetype** | CONVENTIONS calls a champion's class its "archetype" (`champion_class`: bruiser, diver, rogue, assassin, tank, marksman, mage) | the shared word for champions and enemies (decided 2026-10-07); `champion_class` holds the archetype id and is renamed `archetype` in AR8, the old name kept as an alias (Ryan); an enemy's **role** becomes its archetype |
 | **Basic** | "basic attack" is a design term | always "the Basic archetype" or "Basic (fodder's archetype)", never "a basic" |
 | **string** | free in design text; `String` is GDScript's type | code says `attack_string`, never a bare `string` identifier |
 | **the beat** | ENEMIES_AI's `mixup` uses "a held beat" (0.4–0.8 s), and the brain overlay prints "beat 0.5 s" | keep "the beat" for the timing; call mixup's "a held pause" in the docs and the overlay (the rename pass): Open questions 14 |
@@ -334,7 +345,8 @@ Mirrors `CrowdControlRules`: the meter's numbers in one file. `decay_delay` 3, `
 - **`DeflectComponent`** (built; extended):
   - `is_active()` reads the unit's archetype (`deflects`) instead of the static flag. The flag stays for the Knight's test version until AR6, then turns it off for him; the code isn't deleted (D11).
   - `open_window(duration := -1.0)`: a dash passes the archetype's 0.2 s; the Riposte Stance 0.5 s; a slip 0.2 s.
-  - The jab (`empower_jab`, +1.0 AD ratio, banked), the riposte's health share (the new empower field), the 6 m projectile snap (`riposte_projectile_snap_range` 600 u; a deflected projectile is absorbed), +10 resource on a deflect (`resource_on_deflect`), a perilous deflect counting as two.
+  - The jab (`empower_jab`, +1.0 AD ratio, banked; its snap `jab_snap_range` 150 u), the riposte's health share (the new empower field), the 6 m projectile snap (`riposte_projectile_snap_range` 600 u; a deflected projectile is absorbed), +10 resource on a deflect (`resource_on_deflect`), a perilous deflect counting as two.
+  - Banking keeps `streak_persists` (no dash ends the streak) but gains `streak_expiry` (10 s after the last deflect: the streak and its banked jab or riposte end), and a clear on a room change once one exists (DUNGEONS).
   - **On an enemy** (a deflect ability opens it): a deflected champion's swing is cancelled (`AutoAttackComponent.cancel_swing()`, the combo reset), the champion gets `status_rebuffed` (0.4 s), and the enemy gets its own riposte (+1.0 AD ratio, 1 s). The champion's own meter takes `rebuffed_fill`.
   - The deflecting unit's own meter drains `own_deflect_drain`.
 - **`PoiseComponent`** (built; extended):
@@ -342,7 +354,7 @@ Mirrors `CrowdControlRules`: the meter's numbers in one file. `decay_delay` 3, `
   - `is_active()` reads the archetype (`poise_meter`); `poise_max` and the break time come from the rank (enemies) or the rules (champions).
   - **On a champion:** it listens to the champion's own `damaged` signal for the share rule, the heavy and perilous rules, and to its deflects and rebuffs.
   - Its node goes on `player.tscn` too (it does nothing for an archetype without the meter).
-- **`DashComponent`:** the archetype's `dash_distance_scale` at load; the refund as built; the normal recharge (Open questions 5).
+- **`DashComponent`:** the archetype's `dash_distance_scale` and `dash_recharge_time` (1.2 s) at load; the refund as built; the Knight keeps his 0.35 s.
 - **`AutoAttackComponent`:**
   - **Strings:** an enemy's string runs on combo mode's swing code (the windup, the melee step and assist, `AttackSwing` timings), switched on for the string only through `run_string(target)`, so League-style attacks stay for everything else (holds, cornered slaps, fodder). A RANGED string fires a projectile per swing (built here: `AttackStyle.RANGED` is data only today).
   - `AttackSwing.deflectable` into the hit.
@@ -352,11 +364,12 @@ Mirrors `CrowdControlRules`: the meter's numbers in one file. `decay_delay` 3, `
   - A plan's `STRING` step runs the string as a step.
   - The Riposte Stance through its `defend` uses.
   - The perilous gate (below).
-  - Duel pressure: the aggression bonus on its resolved sliders (cleared on reset) and the passivity multiplier in its patience fill.
+  - Duel pressure: the aggression bonus on its resolved sliders (cleared on reset) and the passivity multiplier in its patience fill (`get_patience_rate()`), the boosts together capped at `patience_boost_cap` (×2).
   - Plus the overlay's lines: the string, its next hit, the meter, the duel pressure.
 - **`Brains`:**
   - `can_start_perilous(unit)`: false in a fight's first 6 s or with one already live (two with a boss); `note_perilous()` / `end_perilous()`.
   - `get_time_since_damage_dealt(champion)`, kept from `Events.unit_damaged`.
+- **`BossDirector`** (ENEMIES_AI AI6): runs `BossEvent`s one at a time, never while a perilous attack is live (`Brains`' gate), with an arena change's telegraph of at least 1.0 s and adds through spawn-in under the spawn budget.
 - **`HitPipeline` / `Unit.on_hit()`:** the deflect hook stays first (built); `ctx.perilous` from the ability; the champion's meter fill after the damage.
 - **Loading:** `Player._apply_champion()` and `Enemy._apply_enemy_data()` look up the archetype, set the dash, the deflect and the meter, and attach its `layer` under `&"archetype_<id>"`.
 - **Events:** `perilous_started` (new); the built `hit_deflected`, `deflect_streak_changed`, `riposte_ready`, `poise_changed` and `poise_broken` serve every unit.
@@ -379,57 +392,57 @@ Every step: Ryan runs `git status` first; with the Knight picked the game plays 
 
 1. **AR1 – Strings, the beat and token holding.** `EnemyData.attack_string`, combo mode driven by the brain (`run_string()`), RANGED strings (the volley), `AttackSwing.deflectable`, the test enemies' strings, a commit that runs its string (respect sets its length, a deflect doesn't end it), the token held to the last hit's recovery, `ComboStep.Kind.STRING`, the table's numbers, the enemies test's spacing and beat checks.
    **Done means:** each test enemy commits into its string at its archetype's rhythm (the brute's two heavy hits, the skirmisher's quick two and its hop, the caster's three bolts); a string's first hit lands 0.5 s after its wind-up and reads for at least 0.6 s; with the Knight's test deflect on (V), a deflect pair fits inside one string and the riposte lands at about 1.0 s; a string is 2 hits against a full kit and longer against a spent one; two regulars or one elite at a time, as before. **Tests:** spacing per archetype (±0.05 s); the beat; respect's lengths; the token held to the end and freed on a stun, a break, a death; a deflect not ending the string; a plan's string step.
-2. **AR2 – Perilous attacks and their icon.** `Ability.perilous`, `RankRules.perilous_max`, the Brains gate (first 6 s, one live, two with a boss), `Events.perilous_started`, the icon on `ScreenOverlay`, `status_rebuffed_perilous`, a perilous deflect counting as two (the Knight's test deflect: straight to the riposte, the attacker rebuffed 1.0 s), the elites' first perilous moves *(proposed: the test duelist's finisher and the elite slime's slam, retuned to 0.9 s and 35–40%)*.
-   **Done means:** the icon shows 0.4 s at the windup's start and the hit comes about 0.5 s after it; never two at once from regulars and elites, never in the first 6 s; the Knight dashes through it; with the test deflect on, one deflect gives the riposte and the attacker stands rebuffed for 1.0 s. **Tests:** the gate; the counts per rank; the windup floor; the damage band; the double deflect; the rebuffed status not counted as crowd control.
+2. **AR2 – Perilous attacks and their icon.** `Ability.perilous`, `RankRules.perilous_max`, the Brains gate (first 6 s, one live, two with a boss), `Events.perilous_started`, the icon on `ScreenOverlay`, `status_rebuffed_perilous`, a perilous deflect counting as two (the Knight's test deflect: straight to the riposte, the attacker rebuffed 1.0 s), the elites' first perilous moves: the test duelist's finisher and the elite slime's slam, **retuned to attacker-centered shapes** (a circle around its own body, as the shockwave's; Ryan, Open questions 7), at 0.9 s and 35–40%; the enemies test's origin check.
+   **Done means:** the icon shows 0.4 s at the windup's start and the hit comes about 0.5 s after it; both slams now land around the attacker, not where you stood; never two at once from regulars and elites, never in the first 6 s; the Knight dashes through it; with the test deflect on, one deflect gives the riposte and the attacker stands rebuffed for 1.0 s. **Tests:** the gate; the counts per rank; the windup floor; the damage band; every deflectable or perilous enemy ability attacker-centered; the double deflect; the rebuffed status not counted as crowd control.
 3. **AR3 – The test enemy Assassin.** The meter flipped to fill up to a break (D1) with decay and its low-health scale, `PoiseRules`, the rank sizes and break times, the `Archetype` resource (Assassin first; its `poise_meter` and `deflects` read in place of the flags for enemies); the Riposte Stance (a deflect ability: `open_window(0.5)`, its pose and glint, the whiff recovery), rebuffing the champion (`status_rebuffed`, the enemy's riposte), `Role.ASSASSIN` and `enemy_behavior_assassin.tres`, the test Assassin with its string, its gap-closer and its perilous move; the slip if there's room.
    **Done means:** the test Assassin raises its stance when you close in or gap-close; swinging into it rebuffs you (the swing gone, 0.4 s without attacking, combo back to swing 1, its riposte coming); baiting the stance and punishing its cooldown works; with the Knight's test deflect, a deflect pair plus the riposte breaks its meter (100: 75 + 40) and it stands broken 1.8 s; the elite slime's and the duelist's test meters fill the same new way. **Tests:** the meter's direction, decay and low-health scale; the break and immunity; the stance's window, one deflect, the whiff recovery; what it deflects (swings yes; Cleave, Lunge, Judgement no); the rebuff; its AI uses.
 4. **AR4 – Weak basic attacks for every champion.** The stat `unempowered_attack_damage` (0.5 on the Knight's and Korsavil's UnitStats), the TEMP lever and its sandbox row retired with Ryan's OK, the rotation simulation.
    **Done means:** both champions' plain swings deal half; Iron Resolve's swing, the riposte and the jab are full; Fury per hit unchanged; enemies unchanged. **Tests:** the stat on each champion; empowered swings untouched; the rotation simulation (only swings ≥ 2× slower to kill the elite slime and the test duelist than the kit).
-5. **AR5 – The Assassin layer on Korsavil.** The archetype at load (her one dash at 500 u, the 0.2 s window, the refund), her passive's +1 `dash_charges` removed, the jab, the riposte's health share and its 6 m projectile snap, +10 Energy on a deflect, her meter (the share, heavy and perilous rules, the rebuff's 25, her deflect's drain) and its HUD bar, her break (1.0 s, ×1.25), being rebuffed by the test Assassin.
-   **Done means:** as Korsavil you have one longer dash; a deflect refunds it and gives 10 Energy; swinging after one deflect jabs, waiting gives the riposte; the riposte takes 12% of the target's max health on top; you break the test Assassin and it breaks you if you eat its strings; as the Knight nothing changes (his test deflect still on V). **Tests:** her dash and charges; the window; the jab and the streak's end; the riposte's numbers (4% on a boss); the projectile snap and banking; her meter's fills, drain, decay and break; Energy.
-6. **AR6 – The Knight's test version goes** (with Ryan's OK, in the same chain of commits as AR5's pass). The Knight's deflect off by archetype (disabled, not deleted), the non-Assassin poise values (the elite slime's and the duelist's `poise_max` 100) to 0, `SandboxDeflect` retuned to the Assassin's numbers, the Knight's chips kept or zeroed by Ryan's answer (Open questions 6).
+5. **AR5 – The Assassin layer on Korsavil.** The archetype at load (her one dash at 500 u recharging in 1.2 s, tuned between 0.8 and 1.5 s; the 0.2 s window; the refund), her passive's +1 `dash_charges` removed, the jab and its 1.5 m snap, the streak's 10 s expiry, the riposte's health share and its 6 m projectile snap, +10 Energy on a deflect, her meter (the share, heavy and perilous rules, the rebuff's 25, her deflect's drain) and its HUD bar, her break (1.0 s, ×1.25), being rebuffed by the test Assassin.
+   **Done means:** as Korsavil you have one longer dash; a deflect refunds it and gives 10 Energy; swinging after one deflect jabs, waiting gives the riposte; the riposte takes 12% of the target's max health on top; you break the test Assassin and it breaks you if you eat its strings; as the Knight nothing changes (his test deflect still on V). **Tests:** her dash, its charge and its recharge; the window; the jab, its snap and the streak's end; the 10 s expiry taking the banked jab or riposte; the riposte's numbers (4% on a boss); the projectile snap and banking; her meter's fills, drain, decay and break; Energy.
+6. **AR6 – The Knight's test version goes** (with Ryan's OK, in the same chain of commits as AR5's pass). The Knight's deflect off by archetype (disabled, not deleted), the non-Assassin poise values (the elite slime's and the duelist's `poise_max` 100) to 0, `SandboxDeflect` retuned to the Assassin's numbers, the Knight's chips kept and tuned (Ryan, Open questions 6: the Knight can still break an enemy Assassin).
    **Done means:** the Knight dashes as before (i-frames, no deflect, 0.35 s recharge); only Assassins show a meter; Korsavil's AR5 play still holds. **Tests:** the deflect test reads Korsavil; the Knight never deflects; no non-Assassin meter.
-7. **AR7 – Duel pressure.** The aggression step and cap per enemy (cleared on reset), the passivity multipliers, Brains' damage-dealt clock, the overlay line, the panel rows.
-   **Done means:** deflecting an enemy's strings makes it come faster (up to +0.3); standing back without hitting anyone makes every enemy commit sooner (×1.25 after 4 s, ×1.5 after 8 s). **Tests:** the step and cap; the clear on reset; the 4 s and 8 s multipliers; nothing read from the button press.
-8. **AR8 – The rename pass and the archetype words in code.** `Role.BRUTE` → `BRUISER`, `CASTER` → `MAGE` (the stored ints unchanged), `DUELIST` and `enemy_behavior_duelist.tres` (the test duelist moved to it), the presets' file names, `caster_poke_score` and `caster_spacing_px`, `SituationContext.role`, the enemies test's and the brain overlay's words, `EnemyData.duelist` → `thinks_like_boss` with the alias (removed with Ryan's OK once the tests pass: D15), mixup's "beat" in the overlay; `Archetype` files for all six. File by file, with Ryan's OK on the list first (CLAUDE.md: renames only with a reason; this one is decided).
+7. **AR7 – Duel pressure.** The aggression step and cap per enemy (cleared on reset), the passivity multipliers stacking with today's pressure, the ×2 cap on patience's boosts, Brains' damage-dealt clock, the overlay line, the panel rows.
+   **Done means:** deflecting an enemy's strings makes it come faster (up to +0.3); standing back without hitting anyone makes every enemy commit sooner (×1.25 after 4 s, ×1.5 after 8 s), never more than twice as fast as without its boosts. **Tests:** the step and cap; the clear on reset; the 4 s and 8 s multipliers; the ×2 cap (an idle, low-health target with a passive player and three deflects); today's patience numbers unchanged without duel pressure; nothing read from the button press.
+8. **AR8 – The rename pass and the archetype words in code.** `Role.BRUTE` → `BRUISER`, `CASTER` → `MAGE` (the stored ints unchanged), `DUELIST` and `enemy_behavior_duelist.tres` (the test duelist moved to it), the presets' file names, `caster_poke_score` and `caster_spacing_px`, `SituationContext.role`, the enemies test's and the brain overlay's words, `EnemyData.duelist` → `thinks_like_boss` with the alias (removed with Ryan's OK once the tests pass: D15), `ChampionData.champion_class` → `archetype` with the alias (Ryan, Open questions 14), mixup's "beat" → "held pause" in the overlay; `Archetype` files for all six. File by file, with Ryan's OK on the list first (CLAUDE.md: renames only with a reason; this one is decided).
    **Done means:** nothing plays differently; every suite green; the overlay and the panel say Bruiser, Mage, Duelist, Assassin.
 
 **Milestone AR-M – the duel** (after AR8): Korsavil against the test Assassin, the test duelist and a mixed pack with strings and an elite's perilous move; then the Knight against the same with dashes only.
 **Done means:** Ryan's play test: deflects come often enough to learn the beat; the pair, the riposte and the break feel like Sekiro; the Knight still wins by reading and dodging; nothing is unanswerable.
 
-**With other steps:** the scripted boss events (`BossEvent`) go with ENEMIES_AI AI6 (the boss director). Where AR1–AR8 sit among Korsavil's K3–K6, AI-D3's play test and AI4 is Ryan's call (Open questions 15).
+**The order of work** (Ryan, Open questions 15): AI-D3's play test → AR1–AR3 → AR4–AR6 → Korsavil's K3–K6 and K-M → AR7–AR8 → AR-M (the duel) → DUNGEONS' slice (D0–D9 and D-M, the vertical slice), with ENEMIES_AI AI7 before D1, AI5 before D3, AI6 before D4, and AI-M after AI7 without dodging (Open questions 18) → ENEMIES_AI AI4 (dodging) and AI8 (the later roles). The scripted boss events (`BossEvent`) go with ENEMIES_AI AI6 (the boss director).
 
 ## Edits to other docs (for Ryan's approval; not applied)
 ### ENEMIES_AI.md
 - **Header** (Read when, Status): point to ARCHETYPES.md for archetypes, strings, perilous attacks and duel pressure.
 - **Goal / feel:** "Roles at first" → archetypes (Basic, Bruiser, Skirmisher, Mage, Duelist, Assassin; D13's ranks); "Enemy telegraphs" adds the beat (0.5 s) and the string's later hits (0.25 s); "The tell before a commit" notes the string's first hit reads 0.6 s or more in all; new rows for strings, perilous attacks and duel pressure; "Abilities per enemy: elites (and duelists)" → "(and thinks-like-boss elites)".
-- **Rules, Roles, ranks and ability counts:** the role table becomes the archetype table; the "Skirmisher / assassin" row splits into Skirmisher and Assassin; "Any ranged enemy counts as a caster" → Mage; rank × archetype (D13); the later roles (support, summoner, perched sniper) need an archetype each (Open questions 12).
+- **Rules, Roles, ranks and ability counts:** the role table becomes the archetype table; the "Skirmisher / assassin" row splits into Skirmisher and Assassin; "Any ranged enemy counts as a caster" → Mage; rank × archetype (D13); the later roles: a perched sniper is a Mage or a Skirmisher, support and summoner are Mages, decided at AI8 (Ryan, Open questions 12).
 - **Kits:** "A duelist … `EnemyData.duelist`" → `thinks_like_boss` (D15); the word Duelist now names the archetype.
 - **Intents and what an ability is for:** a deflect ability's `defend` uses (the Riposte Stance's rules).
 - **Respect:** high respect cuts a string to 2 hits; low respect or a low target runs it full or extends it (D6).
-- **The standoff:** duel pressure's passivity multipliers beside `idle_pressure` and `low_pressure` (D8).
+- **The standoff:** duel pressure's passivity multipliers, stacking with `idle_pressure`, `low_pressure` and the odds' push (D8), and the ×2 cap on patience's boosts together (Ryan).
 - **Combos, Combo plans and Where a plan lives in the brain:** a string as a step kind (`ComboStep.Kind.STRING`); a commit with no plan runs a string (D6).
 - **The telegraph rule for combos:** every deflectable hit on the beat (D8).
-- **Being combo'd, No kill protection:** pending Open questions 1 (D5's 60% rule).
+- **Being combo'd, No kill protection:** stands as written (Ryan dropped D5's 60% rule: Open questions 1); no edit.
 - **Enemies being combo'd, the poise hook:** stays built and off (D9); strike "A later `PoiseComponent` fills a meter from those and breaks the boss" (superseded: a boss gets the meter only as an Assassin); "a boss with poise will show its meter on the boss bar" applies to an Assassin boss only.
-- **The test duelist:** the Duelist archetype; `duelist` → `thinks_like_boss`; its `poise_max` 100 goes in AR6; its finisher as its perilous move (AR2, *(proposed)*); its string (AR1).
+- **The test duelist:** the Duelist archetype; `duelist` → `thinks_like_boss`; its `poise_max` 100 goes in AR6; its finisher, retuned from a circle at its target to one around its own body, as its perilous move (AR2); its string (AR1).
 - **Tells:** the perilous icon (the icon question parked for AI-M is answered: icons for perilous attacks only); the poses `riposte_stance` and `rebuffed`; the pose table by archetype instead of role.
 - **Groups: attack tokens:** a token held for the whole string, freed on the last hit's recovery, a stun, a poise break or death (D6).
 - **Poise: no flinch:** the poise meter on Assassins only (D3); "no flinch from ordinary hits" stands; the elite slime and the duelist lose their test meters (AR6).
-- **Bosses: the director:** scripted events in `BossPlan` (D13); a non-Assassin boss is opened by its plan's windows, no new meter (D9).
+- **Bosses: the director:** scripted events in `BossPlan` (D13): another archetype's layer for a phase, arena changes telegraphed 1.0 s or more, adds within the spawn budget; one at a time, none while a perilous attack is live, every one answerable (Ryan); a non-Assassin boss is opened by its plan's windows, no new meter (D9).
 - **Scaling:** rank × archetype (D13).
 - **Data:** `EnemyData` (`attack_string`, `thinks_like_boss`, `poise_max`'s −1), `EnemyBehavior.Role` (the values, the presets), `RankRules` (`perilous_max`, `poise_meter_max`, `poise_break_time`, `string_extra_hits`), `ComboStep.kind`, `BossPlan` and `BossPhase` (`events`, `BossEvent`), `PoseSet` (the poses), `EnemyAITable` (the new numbers), the vocabulary rows (role → archetype; **duelist** retired for the flag).
 - **Architecture:** `EnemyBrain` (strings, the stance's use, the perilous gate, duel pressure) and `Brains` (the perilous gate, the damage-dealt clock).
-- **Build order:** one line placing ARCHETYPES AR1–AR8 among AI4–AI7; AI6 adds the scripted boss events.
-- **Open questions:** mixup's "held beat" becomes "a held pause" (Open questions 14); the later roles' archetypes.
+- **Build order:** one line on the order of work (Ryan): ARCHETYPES AR1–AR8 and AR-M, then DUNGEONS' slice with AI7 before D1, AI5 before D3, AI6 before D4 and AI-M after AI7 without dodging, then AI4 and AI8; I11's "AI8 before DUNGEONS' slice" struck through where it appears (Rules, Roles: the later roles; Build order, AI8; Open questions, Interview I11); AI6 adds the scripted boss events; AI-M's dodging checks move to a short play test after AI4.
+- **Open questions:** mixup's "held beat" becomes "a held pause" (accepted); the later roles' archetypes (answered: decided at AI8).
 
 ### CHAMPIONS.md
-- **Rules, What a champion is:** a champion has an archetype (`champion_class` holds its id: Assassin, Mage, Skirmisher, Bruiser, Duelist), whose layer attaches at load (ARCHETYPES.md); diver, rogue, tank and marksman go (D14 parks the last two).
+- **Rules, What a champion is:** a champion has an archetype (`champion_class` holds its id until AR8 renames it `archetype`, the old name an alias: Assassin, Mage, Skirmisher, Bruiser, Duelist), whose layer attaches at load (ARCHETYPES.md); diver, rogue, tank and marksman go (D14 parks the last two).
 - **Rules, Passives:** an archetype's layer isn't the champion's passive (D11).
 - **The Knight, Identity:** a Bruiser; in the end no deflect and no poise (D3); his placeholder layer (Brace) changes nothing in his kit now; his test version and its removal (AR6).
 - **The Knight, Fury and the sheets:** weak basic attacks (×0.5 unempowered, D12); Iron Resolve's swing and the Fury payoffs are his empowers.
 - **Korsavil, Player experience:** "two dashes" → one longer dash that deflects.
-- **Korsavil, Identity:** "`dash_charges` stays 1 there: the second dash is the passive's" → one dash from the archetype (500 u), the 0.2 s window, the refund, her poise meter.
+- **Korsavil, Identity:** "`dash_charges` stays 1 there: the second dash is the passive's" → one dash from the archetype (500 u, recharging in 1.2 s), the 0.2 s window, the refund, the jab's 1.5 m snap, the banked streak's 10 s expiry, her poise meter.
 - **Korsavil, Passive:** part 1, "Two dashes", struck through (superseded 2026-10-07: D11); the tooltip loses "You have two dashes."
 - **Korsavil, Energy:** a deflect costs nothing; a successful one +10 (D11).
 - **Korsavil, The numbers:** "Passive: two dashes" → "one dash (the Assassin's)".
@@ -439,10 +452,10 @@ Every step: Ryan runs `git status` first; with the Knight picked the game plays 
 
 ### COMBAT.md
 - **Rules, Basic attack:** weak basic attacks (every champion; `unempowered_attack_damage`; not enemies; D12); "a click becomes a swing" unchanged.
-- **Rules, Hits:** a deflect comes before invulnerability in `Unit.on_hit()` (built); what's deflectable, per side (D4, D7); perilous hits; the riposte and the jab as empowers.
-- **Rules, Enemies:** strings and the beat (D6, D8); perilous attacks (D5); "Two kinds of threat" gains the perilous layer.
+- **Rules, Hits:** a deflect comes before invulnerability in `Unit.on_hit()` (built); what's deflectable, per side (D4, D7; an enemy's by origin: Ryan); perilous hits; the riposte and the jab as empowers (an enemy's riposte only on its basic attack hit, never a perilous hit).
+- **Rules, Enemies:** strings and the beat (D6, D8); perilous attacks (D5; attacker-centered); "Two kinds of threat" gains the perilous layer; the elite slime's slam becomes attacker-centered (AR2).
 - **Rules, Status effects:** `status_poise_broken` and the rebuffed statuses (not `cc`); the poise meter (Assassins only, fills to a break: D1, D3); "Bosses later fill a poise meter instead" struck (D9).
-- **Rules, Status effects, Combos against the player:** "no kill protection" pending Open questions 1.
+- **Rules, Status effects, Combos against the player:** "no kill protection" stands (Ryan dropped D5's 60% rule); no edit.
 - **Numbers:** the deflect window 0.2 s, the beat 0.5 s, the spacing table, the perilous band ("perilous: 35–40%, the icon 0.4 s, the windup 0.9 s or more") under the enemy damage bands, the poise and break numbers, the riposte and the jab; "dash-strike (… other champions by class)" → by archetype.
 - **Current code:** `DeflectComponent`, `PoiseComponent` and the prototype's fields (none of it is in COMBAT.md yet).
 - **Data:** `HitContext` (`deflectable`, `deflected`, `poise_damage`, built; `perilous`), `AttackSwing` (`poise_damage`, built; `deflectable`), Fields on Ability (`deflectable`, `poise_damage`, built; `perilous`), `StatusEffect` (`empower_poise_damage`, built; the empower's health share).
@@ -451,23 +464,22 @@ Every step: Ryan runs `git status` first; with the Knight picked the game plays 
 - **Open questions, Weapons:** "its class limits which weapons it can wield … bruiser weapons are heavier, diver and rogue weapons snappier" → its archetype.
 
 ### CONVENTIONS.md
-- **Vocabulary:** "Champion class" → **Archetype** (shared by champions and enemies: Assassin, Mage, Skirmisher, Bruiser, Duelist; fodder's Basic; `champion_class` keeps its name and holds the id); an enemy's **role** becomes its archetype (fodder stays a rank); diver, rogue, tank and marksman go.
+- **Vocabulary:** "Champion class" → **Archetype** (shared by champions and enemies: Assassin, Mage, Skirmisher, Bruiser, Duelist; fodder's Basic; `champion_class` holds the id until AR8 renames it `archetype`, the old name an alias); an enemy's **role** becomes its archetype (fodder stays a rank); diver, rogue, tank and marksman go.
 - **Vocabulary, new terms:** deflect, deflect window, deflectable, deflect ability (the Riposte Stance, a slip), streak, refund, jab, riposte, rebuffed, poise (the Assassin's meter; the AI-D3 hook stays "the poise hook"), break, string, the beat, spacing, perilous attack, duel pressure, an archetype's window (always qualified), weak basic attacks, thinks like a boss; **duelist** (AI3c's flag word) retired.
 - **Standard ability tags:** the status tags `poise_broken`, `rebuffed`; the hit tag `perilous`.
 - **Reserved names:** the prototype's built names (`DeflectComponent`, `PoiseComponent`, `SandboxDeflect`, `status_poise_broken`, `empower_riposte`, the five Events, `HitContext.deflectable` / `deflected` / `poise_damage`, `Ability.deflectable` / `poise_damage`, `AttackSwing.poise_damage`, `StatusEffect.empower_poise_damage`); the planned ones (`Archetype`, `PoiseRules`, `status_rebuffed`, `status_rebuffed_perilous`, `empower_jab`, `Ability.perilous`, `AttackSwing.deflectable`, `EnemyData.attack_string`, `thinks_like_boss`, `ComboStep.Kind.STRING`, `BossEvent`, `Events.perilous_started`, `unempowered_attack_damage`, `Role.DUELIST` / `ASSASSIN` / `BRUISER` / `MAGE`, the presets, the test Assassin's files, the poses); the ENEMIES_AI row's `EnemyData.duelist` → `thinks_like_boss`.
 
 ### MOVEMENT.md
 - **Target feel:** "Other units: the player collides but is never steered/deflected" → "never steered or pushed aside" ("deflect" is the Assassin's now).
-- **Dash:** an Assassin's dash opens the deflect window (0.2 s from its start, beside the i-frames) and is 25% longer (500 u, 160 px); one charge plus the refund (3 s); the test recharge while the prototype's flag is on (built); Korsavil's second charge goes (D11).
+- **Dash:** an Assassin's dash opens the deflect window (0.2 s from its start, beside the i-frames) and is 25% longer (500 u, 160 px); one charge plus the refund (3 s), recharging in 1.2 s (tuned 0.8–1.5; the Knight keeps 0.35 s); the test recharge while the prototype's flag is on (built); Korsavil's second charge goes (D11).
 - **Input buffering and cancels:** a rebuffed champion's 0.4 s attack lock: an attack press during it is buffered and fires when it ends *(proposed)*; dashing and moving stay allowed.
 - **Current code:** `DashComponent`'s prototype additions (the refund, `get_recharge_time()`).
-- **Open questions:** the Assassin's normal recharge (Open questions 5).
 
 ### Also (not in the five named; listed so nothing is lost)
-- **CLAUDE.md:** a Docs index row for ARCHETYPES.md (the template's step 3; left out here because this step allows one line in Current status).
+- **CLAUDE.md:** a Docs index row for ARCHETYPES.md (the template's step 3; left out because the doc step allowed one line in Current status). The Next line's order of work was updated with Ryan's answers (2026-10-07).
 - **ABILITIES.md:** Empowers (the jab, the riposte, the health share); deflect abilities as a cast pattern; `Ability.perilous` and `deflectable`.
 - **ALLIES.md:** an AI-driven Assassin (the ally) deflects only through its own dash, timed by its brain from what's on screen; its archetype at the hub.
-- **DUNGEONS.md:** rosters follow rank × archetype (at most 1 Assassin regular per room, from dungeon 3 on; no regular Duelists).
+- **DUNGEONS.md:** rosters follow rank × archetype (at most 1 Assassin regular per room, from dungeon 3 on; no regular Duelists); the slice comes after AR-M, with ENEMIES_AI AI7 before D1, AI5 before D3 and AI6 before D4, and AI4 and AI8 after it (Ryan); its traversal between spaces should signal a room change (the banked streak clears on it); boss arenas take `BossEvent` arena changes and adds.
 - **AUDIO.md:** the deflect's clang, the perilous sting, the rebuffed and break sounds (the slots exist on the components).
 - **UI.md** (when written): the perilous icon, the poise meter on the HUD and the boss bar.
 
@@ -480,20 +492,24 @@ Every step: Ryan runs `git status` first; with the Knight picked the game plays 
 - **Deleting** the Knight's deflect code (after AR6 works, with Ryan's OK).
 
 ## Open questions
-1. **Kill protection (a conflict).** D5 says "the 60% kill-protection rule still applies on top" of perilous damage. No doc has a 60% rule, and COMBAT.md, ENEMIES_AI.md and DECISIONS.md (Combat and Enemies, 2026-10-05) record **no kill protection** (Ryan: "if their abilities are off cool down they can use it whenever they please"). Claude's reading: one hit can't kill a player who was above 60% of max health; it leaves 1 health (the `undying` mechanism, LOOT L5). Ryan: confirm the rule (and whether it covers every hit or only perilous ones), or drop it.
-2. **The beat and the spacing.** "0.5 s tell to hit on every deflectable hit" can't hold literally for hits 0.35–0.45 s apart. Claude's reading (Strings and the beat): the beat is the first hit's (0.5 s after its wind-up, after the commit's tell pose) and every lone deflectable hit's; later hits come at the spacing with wind-ups of 0.25 s or more. It matches D8's worked cadence.
-3. **The Mage's spacing:** D7 "about 0.4 s", D8 0.45 s. The doc uses 0.45.
-4. **The banked streak** (`streak_persists`, on in the sandbox): the current state, under test. Is it final (no chain window, a plain dash keeps the streak)?
-5. **The Assassin's normal dash recharge:** the prototype's 1.5 s test value or the Knight's 0.35 s?
-6. **The Knight's chips** (4 a swing, Cleave 20, Judgement 40): D3 calls them test values until his test version goes; D3b names them as what fills an enemy Assassin's meter. Claude's reading: every champion's hits may carry poise damage (data), so they stay and get tuned in AR6; only the meter is Assassin-only. Or do they go, so only an Assassin can break an enemy Assassin?
-7. **Placed areas on the player's side:** D4 (no areas or ultimates) is about enemy Assassins; D7 (no area orbs or beams) about bolts. The prototype marks the elite slime's slam (a circle at the target) and the duelist's finisher (an area, an ultimate) deflectable. Claude's proposal: melee hits at the attacker's reach stay deflectable for the player; placed areas (orbs, pools, beams) don't.
-8. **Rebuffed's blocks:** a champion's is an attack lock only (dashing, moving and casting allowed); an enemy's 1.0 s also blocks casting and dashing *(proposed)*.
-9. **Korsavil's meter readings:** a heavy hit is ENEMIES_AI's (10% of max health or more) ×1.5; a landed perilous hit adds 40 in place of its share (not 52–60).
-10. **Duel pressure:** how long the aggression bonus lasts (Claude: until the enemy's brain resets), and whether the passivity multiplier stacks with the existing `idle_pressure` (Claude: yes, it multiplies the pressure).
-11. **The Riposte Stance:** one hit per stance (Claude), or every hit in its 0.5 s?
-12. **ENEMIES_AI's later roles** (AI8: support, summoner, perched sniper): which archetype each? Claude's proposal: behaviors inside an archetype (a sniper a Mage or a Skirmisher, as D14 places the marksman; support and summoner Mages), decided at AI8.
-13. **A boss's "extra layer"** (D13): `BossEvent` data in `BossPlan` fits ENEMIES_AI I10. What may an event give: another archetype's layer for a phase (a Bruiser boss with a Riposte Stance in its last phase), arena changes, adds?
-14. **Words:** "the beat" against mixup's "held beat" (proposal: mixup's becomes "a held pause"); "Riposte Stance" and the Duelist's "counter stance" against ALLIES' stances (proposal: an ability's name only; the term is "deflect ability"); the Skirmisher's "Tempo" against a boss's tempo; `champion_class` kept as the field's name (proposal) or renamed `archetype` in AR8.
-15. **Where AR1–AR8 go:** after AI-D3's play test and before or between Korsavil's K3–K6 and AI4? Claude's proposal: AR1–AR3 after AI-D3's play test (they extend commits and the test enemies), AR4–AR6 before K3, AR7–AR8 after K-M.
-16. **The enemy's riposte:** "its next hit ×2 for 1 s" as +1.0 AD ratio on its next basic attack hit, swung at once with a 0.25 s wind-up (Claude); or should it also double an ability's hit?
-17. **The jab's snap:** none (Claude: only the riposte snaps).
+### Answered (Ryan, 2026-10-07: all 17, the same day; DECISIONS.md, Archetypes)
+1. ~~**Kill protection (a conflict):** D5's "60% kill-protection rule" against the recorded "no kill protection".~~ **Dropped:** no kill protection; COMBAT's rule stands.
+2. ~~**The beat and the spacing.**~~ **Claude's reading is right:** the 0.5 s beat belongs to a string's first hit and to any lone hit; later hits follow the spacing with wind-ups of at least 0.25 s.
+3. ~~**The Mage's spacing:** about 0.4 s or 0.45 s?~~ **0.45 s.**
+4. ~~**The banked streak:** final?~~ **Kept,** with a 10 s expiry and a clear on leaving the room, so an old streak can't surprise the player later.
+5. ~~**The Assassin's normal dash recharge.**~~ **1.2 s to start, tuned between 0.8 and 1.5 s in AR5:** well above the Knight's 0.35 s, or a whiffed dash would cost nothing. The Knight keeps 0.35 s.
+6. ~~**The Knight's chips.**~~ **They stay:** any champion's hits can carry poise damage, so a non-Assassin can break an enemy Assassin and nothing is unanswerable; only the meter is Assassin-only. Tuned in AR6.
+7. ~~**Placed areas on the player's side.**~~ **Decided by origin:** attacker-centered melee shapes (a cone, a slam around its body) are deflectable; areas placed at the player (orbs, pools, beams) aren't. A perilous move is always deflectable, so it's always attacker-centered. The duelist's finisher and the elite slime's slam are retuned to match (AR2).
+8. ~~**Rebuffed's blocks.**~~ **As proposed:** a champion gets an attack lock only; an enemy's 1.0 s also blocks casting and dashing.
+9. ~~**Korsavil's meter readings.**~~ **Approved:** a heavy hit counts ×1.5; a landed perilous hit adds a flat 40.
+10. ~~**Duel pressure.**~~ **The bonus lasts until the brain resets; the passivity multiplier stacks with the existing pressure; patience never fills more than ×2 as fast** (Duel pressure gives the cap's exact reading).
+11. ~~**The Riposte Stance.**~~ **One hit per stance, then it ends,** so a string can't be unbeatable.
+12. ~~**The later roles.**~~ **Approved:** a sniper is a Mage or a Skirmisher; support and summoner are Mages; decided at AI8.
+13. ~~**A boss's extra layer.**~~ **All three, with limits:** another archetype's layer for a phase, arena changes telegraphed at least 1.0 s, adds within the spawn budget; one event at a time, none while a perilous attack is live, every event answerable.
+14. ~~**Words.**~~ **Every proposal accepted** (Names checked against CONVENTIONS.md); `champion_class` is renamed `archetype` in AR8, the old name kept as an alias.
+15. ~~**Where AR1–AR8 go.**~~ **AR1–AR3 after AI-D3's play test, AR4–AR6 before K3, AR7–AR8 after K-M, then AR-M (the duel), then the vertical slice, then AI4** (Build order, The order of work).
+16. ~~**The enemy's riposte.**~~ **+1.0 AD ratio on its next basic attack hit only;** never on a perilous hit (that would reach 70–80% of max health).
+17. ~~**The jab's snap.**~~ **A short snap: 1.5 m,** half the riposte's, so a single-deflect jab doesn't whiff after a long dash; tuned in AR5.
+
+### Answered later (found while recording the answers, 2026-10-07)
+18. ~~**AI4 after the slice, against ENEMIES_AI I11 (a conflict).** I11 puts AI8 before DUNGEONS' slice, and AI-M after AI4–AI7: do AI5–AI8 still come before the slice?~~ **Answered (Ryan, 2026-10-07, accepting Claude's recommendation):** only AI4 and AI8 move after the slice. AI5–AI7 come before it, each just ahead of the DUNGEONS step that needs it (AI7 before D1, AI5 before D3, AI6 before D4), and AI-M runs after AI7 without dodging (dodging gets a short play test of its own after AI4). AI8 after the slice reverses I11: with archetypes the slice shows five archetypes plus Basic, and the later roles are behaviors inside Mage or Skirmisher. (DUNGEONS' slice also needs the P-spike and WORLD_INTERACTION's unscheduled pieces first.)
