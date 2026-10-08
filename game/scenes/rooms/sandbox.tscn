@@ -18,6 +18,7 @@
 [ext_resource type="Script" path="res://scripts/rooms/sandbox_talents.gd" id="100_talents"]
 [ext_resource type="Script" path="res://scripts/rooms/sandbox_loot.gd" id="101_loot"]
 [ext_resource type="Script" path="res://scripts/rooms/sandbox_brains.gd" id="102_brains"]
+[ext_resource type="Script" path="res://scripts/rooms/sandbox_deflect.gd" id="103_deflect"]
 
 [node name="Sandbox" type="Node2D" unique_id=1476142640]
 script = ExtResource("1_room")
@@ -79,3 +80,6 @@ script = ExtResource("101_loot")
 [node name="SandboxBrains" type="Node" parent="."]
 script = ExtResource("102_brains")
 enemy_attack_speed_test_mult = 1.5
+
+[node name="SandboxDeflect" type="Node" parent="."]
+script = ExtResource("103_deflect")

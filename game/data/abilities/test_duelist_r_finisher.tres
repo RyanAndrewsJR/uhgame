@@ -34,6 +34,7 @@ cooldown = 12.0
 cast_time = 0.35
 cast_range = 300.0
 resets_auto_attack = false
+deflectable = true
 recovery_time = 1.2
 base_damage = 195.0
 hit_sound = ExtResource("3_hit")

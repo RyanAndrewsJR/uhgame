@@ -1332,6 +1332,9 @@ Champions test 45/45: the Knight's .tres, player.tscn loading it, the loaded Kni
 
 ## Combat (COMBAT.md)
 
+### PROTOTYPE: dash-deflect, riposte, enemy poise: 2026-10-07, Built (awaiting play test; tuning expected)
+- Slice A (the deflect core; tests: new `deflect_test` 66, the nine other suites unchanged at 3,735): files `scripts/components/deflect_component.gd` (new), `dash_component.gd` (refund, `get_recharge_time()`), `unit.gd` (`deflect_component`, the `on_hit()` hook), `hit_context.gd` (`deflectable`, `deflected`, `poise_damage`), `hit_pipeline.gd`, `ability.gd` and `auto_attack_component.gd` (`deflectable`; the riposte snap; the TEMP lever), `events.gd` (`hit_deflected`, `deflect_streak_changed`, `riposte_ready`), `scripts/rooms/sandbox_deflect.gd` (new; both sandboxes), `scripts/tests/deflect_test.gd` (new), `player.tscn` (the node), `test_brute.tscn` and the slam, strike and finisher `.tres` (`deflectable = true`), Big hit's `telegraph_color` (the non-deflectable test attack); flags `DeflectComponent.deflect_test_enabled` (off; the sandbox starts it on, V toggles) and the TEMP `AutoAttackComponent.prototype_unempowered_auto_mult` (1.0; the sandbox 0.5); measured: the riposte 256 on a 64 AD Knight (28% of the elite slime's 900, 7% of the duelist's 2800 at 30 armor), 288 on a dash-strike (ratios add: 4.5x a swing).
+
 ### Damage numbers stack: 2026-10-03, Built (awaiting play test)
 Ryan saw hits pop "duplicate" numbers after P7's check.
 - **Verified:** every hit makes exactly one number, in 3D and in the 2D game alike (scratch harnesses listed every Label). Two cases read as duplicates:

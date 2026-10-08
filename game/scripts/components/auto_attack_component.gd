@@ -74,6 +74,10 @@ const SWING_TIME_EPSILON := 0.0001
 ## looks (COMBAT.md: enemy attack hitboxes -10%). Out of reach when it lands
 ## = a whiff.
 @export_range(0.0, 0.2) var enemy_hit_forgiveness: float = 0.10
+## PROTOTYPE (deflect, 2026-10-07): a League-style attack's hit can be
+## deflected by a dash's deflect window (HitContext.deflectable;
+## DeflectComponent). Off = only the dash i-frames block it, as before.
+@export var deflectable: bool = false
 ## Hades-style combo (COMBAT.md). Set = combo mode (the player); null = the
 ## League-style attack (enemies).
 @export var combo: AttackCombo
@@ -217,6 +221,28 @@ func _update_temp_test_speed() -> void:
 	unit.stats_component.remove_modifiers_from(TEMP_TEST_SPEED_SOURCE)
 	if mult != 1.0:
 		unit.stats_component.add_modifier(StatModifier.create(&"attack_speed", StatModifier.Type.PERCENT_MULT, mult - 1.0, TEMP_TEST_SPEED_SOURCE))
+
+
+# --- TEMP: the weak-auto lever (PROTOTYPE deflect, 2026-10-07) --------------------
+# A test lever for "autos are weak unless something empowers them" (Ryan), not
+# a design rule. To revert: set it back to 1.0 here (the one line below); to
+# remove: this block and its use in _land_swing().
+
+## TEMP: the Knight's basic attack swings that carry no empower deal this much
+## of their damage (their ad_ratio x it). 1.0 = off (the shipped value), range
+## 0.2–1.0. Only the tracked player's swings while it's the Knight: empowered
+## swings (Iron Resolve, the riposte), enemies (League-style attacks) and any
+## other champion or ally are untouched; Fury from hits is untouched (it's per
+## hit). SandboxDeflect sets it outside test scenes (starts at 0.5).
+static var prototype_unempowered_auto_mult: float = 1.0
+
+
+## TEMP: this unit's unempowered swings are scaled by the lever now.
+func _is_prototype_weak_auto() -> bool:
+	if is_equal_approx(prototype_unempowered_auto_mult, 1.0) or unit != Progress.get_tracked_player():
+		return false
+	var champion: Variant = unit.get(&"champion")
+	return champion is ChampionData and (champion as ChampionData).id == &"knight"
 
 
 # --- Combo mode -----------------------------------------------------------------
@@ -582,16 +608,27 @@ func _start_melee_step(swing: AttackSwing, duration: float) -> void:
 	var assist := _find_assist_target(raw_aim, reach)
 	var step_dir := raw_aim
 	var step_len := swing.lunge_px
+	var max_step := maxf(swing.lunge_max_px, swing.lunge_px)
+	var snap_deg := combo.assist_snap_deg
+	# PROTOTYPE (deflect): a riposte swing snaps to the attacker it answers, aim
+	# and all, a step of up to riposte_snap_range (DeflectComponent). Null when
+	# the flag is off or there's no riposte: the step is exactly as before.
+	var riposte := unit.deflect_component.get_riposte_snap_target(combo.stop_at_reach_fraction * reach) \
+		if unit.deflect_component != null else null
+	if riposte != null:
+		assist = riposte
+		max_step = maxf(max_step, unit.deflect_component.get_riposte_snap_px())
+		snap_deg = 180.0
 	if assist:
 		var to := assist.global_position - unit.global_position
-		var snap := deg_to_rad(combo.assist_snap_deg)
+		var snap := deg_to_rad(snap_deg)
 		_swing_direction = raw_aim.rotated(clampf(raw_aim.angle_to(to), -snap, snap))
 		if to.length() > 0.01:
 			step_dir = to.normalized()
 		var edge := to.length() - assist.get_gameplay_radius_px()
 		var wanted := edge - combo.stop_at_reach_fraction * reach
 		if wanted > swing.lunge_px:
-			step_len = minf(wanted, maxf(swing.lunge_max_px, swing.lunge_px))
+			step_len = minf(wanted, max_step)
 		# Never into its body: stop at its edge.
 		var room := to.length() - unit.get_pathing_radius_px() - assist.get_pathing_radius_px()
 		step_len = clampf(step_len, 0.0, maxf(room, 0.0))
@@ -695,6 +732,7 @@ func _land_swing() -> void:
 	if empowered:
 		on_hits.append_array(_use_up_empowers(empowers))   # used up before the hits resolve
 	var crit_roll := HitContext.CritRoll.new()   # one crit roll per swing
+	var weak := not empowered and _is_prototype_weak_auto()   # TEMP: the weak-auto lever
 	for t in targets:
 		var ctx := HitPipeline.basic_attack(unit, t, _swing)
 		ctx.crit_roll = crit_roll
@@ -702,6 +740,8 @@ func _land_swing() -> void:
 			ctx.add_tag(&"dash_strike")   # hit:dash_strike bonuses, reaction rules (C12)
 		if empowered:
 			HitPipeline.add_empowers(ctx, empowers)
+		elif weak:
+			ctx.ad_ratio *= clampf(prototype_unempowered_auto_mult, 0.2, 1.0)   # TEMP
 		HitPipeline.resolve(ctx)
 		if not ctx.blocked:
 			for f in on_hits:
@@ -778,6 +818,7 @@ func make_attack_context(hit: Unit) -> HitContext:
 	if _temp_test_mult != 1.0 and enemy_attack_test_keep_dps:
 		ctx.ad_ratio /= _temp_test_mult   # TEMP: lighter hits, the same damage per second
 	ctx.damage_type = HitContext.DamageType.PHYSICAL
+	ctx.deflectable = deflectable   # PROTOTYPE (deflect)
 	ctx.add_tag(&"basic_attack")   # on-hit and hit:basic_attack scopes (C8)
 	ctx.knockback_px = hit_knockback_px
 	ctx.knockback_duration = hit_knockback_duration

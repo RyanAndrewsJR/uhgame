@@ -72,6 +72,15 @@ var feel: Feel = Feel.NONE
 var hit_sound: SoundEvent
 ## Pitch for whichever hit sound plays (the swing's sound_pitch).
 var hit_sound_pitch: float = 1.0
+## PROTOTYPE (deflect, 2026-10-07): a dash's deflect window can deflect this
+## hit (DeflectComponent). Copied from Ability.deflectable and a League-style
+## attack's AutoAttackComponent.deflectable; false for everything else.
+var deflectable: bool = false
+## PROTOTYPE (poise): poise damage the target takes once the hit gets through
+## (Unit.on_hit() -> PoiseComponent.take_poise_damage()). From
+## Ability.poise_damage, AttackSwing.poise_damage and an empower's
+## empower_poise_damage. 0 = none.
+var poise_damage: float = 0.0
 
 # --- Results (filled in by the pipeline) -------------------------------------
 
@@ -94,6 +103,9 @@ var target_tags: Array[StringName] = []
 var chain_depth: int = 0
 ## Blocked by invulnerability (i-frames) or a dead target: nothing happened.
 var blocked: bool = false
+## PROTOTYPE (deflect): a dash's deflect window deflected it (blocked is set
+## too, so everything downstream treats it as blocked).
+var deflected: bool = false
 ## This hit killed the target.
 var killed: bool = false
 

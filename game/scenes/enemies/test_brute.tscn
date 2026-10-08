@@ -21,5 +21,8 @@ shape = SubResource("CircleShape2D_brute")
 position = Vector2(0, -38)
 width = 36.0
 
+[node name="AutoAttackComponent" parent="."]
+deflectable = true
+
 [node name="AbilityComponent" type="Node" parent="."]
 script = ExtResource("3_abilities")

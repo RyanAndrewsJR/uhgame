@@ -21,6 +21,7 @@ intent = &"finish"
 [resource]
 script = ExtResource("1_script")
 radius_px = 96.0
+telegraph_color = Color(0.75, 0.25, 1, 1)
 knockback_px = 32.0
 hitstop = 0.08
 shake = 4.0

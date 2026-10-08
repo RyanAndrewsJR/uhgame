@@ -74,6 +74,9 @@ const HIT_IFRAMES_ID := &"hit_iframes"
 ## scene has one. Without it a unit can't be stunned (apply_stun() does
 ## nothing) and add_speed_modifier() uses its pre-C9 modifiers.
 @onready var status_component: StatusComponent = get_node_or_null("StatusComponent")
+## PROTOTYPE (deflect, 2026-10-07): optional; the player's. Its window can
+## deflect a hit in on_hit() before the i-frames block it.
+@onready var deflect_component: DeflectComponent = get_node_or_null("DeflectComponent")
 
 var hovered: bool = false:
 	set(value):
@@ -224,7 +227,12 @@ func make_hit_context(amount: float, source: Unit = null) -> HitContext:
 ## the number (the 3D view flashes the model on `damaged`), knockback,
 ## statuses, feel, events, the source's on-hit effects, post-hit i-frames.
 ## Interactables use the same method name.
+## PROTOTYPE (deflect): first of all, a deflectable hit inside the unit's
+## deflect window is deflected (DeflectComponent.try_deflect(): blocked, with
+## ctx.deflected), before the dash i-frames would block it.
 func on_hit(ctx: HitContext) -> void:
+	if deflect_component != null and _alive and deflect_component.try_deflect(ctx):
+		return
 	if not _alive or is_invulnerable():
 		ctx.blocked = true
 		return

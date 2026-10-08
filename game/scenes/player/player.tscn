@@ -24,6 +24,7 @@
 [ext_resource type="Resource" path="res://data/champions/knight.tres" id="c1_champion"]
 [ext_resource type="Script" path="res://scripts/components/equipment_component.gd" id="l2_equipment"]
 [ext_resource type="Script" path="res://scripts/components/pickup_component.gd" id="l7_pickup"]
+[ext_resource type="Script" path="res://scripts/components/deflect_component.gd" id="p1_deflect"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_body"]
 radius = 11.0
@@ -77,6 +78,9 @@ script = ExtResource("14_input")
 [node name="DashComponent" type="Node2D" parent="."]
 script = ExtResource("15_dash")
 dash_sound = ExtResource("22_dash_sound")
+
+[node name="DeflectComponent" type="Node" parent="."]
+script = ExtResource("p1_deflect")
 
 [node name="AbilityComponent" type="Node" parent="." unique_id=1812066537]
 script = ExtResource("9_abilities")

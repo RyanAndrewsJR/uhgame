@@ -79,6 +79,7 @@ static func from_ability(caster: Unit, ability: Ability, target: Node, cast: Cas
 		add_empowers(ctx, cast.empowers)   # the empowers this cast used up (AB10)
 	ctx.damage_type = ability.damage_type
 	ctx.proc_coefficient = ability.proc_coefficient
+	ctx.deflectable = ability.deflectable   # PROTOTYPE (deflect)
 	ctx.hit_sound = ability.hit_sound   # AUDIO.md: CombatSounds plays it once per cast
 	ctx.add_tag(&"ability")
 	for t in ability.tags:   # the ability's own tags (STATS step 6)

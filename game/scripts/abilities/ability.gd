@@ -172,6 +172,12 @@ const DEFAULT_AREA_RADIUS_PX := 40.0
 ## Seconds the push takes (the target's knockback_curve shapes it).
 @export var hit_knockback_duration: float = 0.1
 
+@export_group("Deflect and poise (PROTOTYPE)")
+## PROTOTYPE (deflect, 2026-10-07): a dash's deflect window can deflect this
+## ability's hits (HitContext.deflectable; DeflectComponent). Off = only the
+## dash i-frames block them, as before.
+@export var deflectable: bool = false
+
 @export_group("Sustain")
 ## Heals the caster for this share of the damage taken by each unit a hit of
 ## this ability gets through to (a scoped param; CHAMPIONS CH5, Cleave's heal).

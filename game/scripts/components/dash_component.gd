@@ -19,6 +19,10 @@ extends Node2D
 ##   dash_cancelable (then the dash cancels it). Starting a dash cancels a
 ##   basic attack swing (windup: the combo resets; after the hit: it moves on)
 ##   and a League-style windup.
+## - PROTOTYPE (deflect, 2026-10-07; DeflectComponent): a deflect can give a
+##   charge back (add_refund_charge()) for a while, and while the deflect flag
+##   is on the recharge takes the deflect's test time (get_recharge_time()).
+##   Flag off: neither happens.
 
 signal dash_started(direction: Vector2)
 signal dash_ended
@@ -58,6 +62,7 @@ var _end_lag_left: float = 0.0
 var _dashing: bool = false
 var _direction: Vector2 = Vector2.ZERO
 var _since_dash_end: float = INF
+var _refund_left: float = 0.0   # PROTOTYPE (deflect): a refunded charge's time left, unused
 
 
 func _ready() -> void:
@@ -99,6 +104,28 @@ func get_dash_direction() -> Vector2:
 	return _direction
 
 
+## Seconds to get one charge back: charge_recharge_time, or, while the deflect
+## prototype is on for this unit, its deflect_test_charge_recharge (so a
+## refund matters; DeflectComponent.get_test_recharge(), -1 when off).
+func get_recharge_time() -> float:
+	var deflect := unit.deflect_component
+	if deflect != null:
+		var test_time := deflect.get_test_recharge()
+		if test_time >= 0.0:
+			return test_time
+	return charge_recharge_time
+
+
+## PROTOTYPE (deflect): a refunded charge is waiting, unused.
+func has_refund() -> bool:
+	return _refund_left > 0.0
+
+
+## PROTOTYPE (deflect): seconds the refunded charge has left (0 = none).
+func get_refund_left() -> float:
+	return _refund_left
+
+
 func can_dash() -> bool:
 	if not unit.is_alive() or unit.is_dash_blocked() or _dashing or _charges <= 0:
 		return false
@@ -120,8 +147,9 @@ func try_dash(direction: Vector2) -> bool:
 		return false
 	_direction = direction.normalized()
 	_charges -= 1
+	_refund_left = 0.0   # PROTOTYPE (deflect): any dash spends a refunded charge
 	if _recharge_left <= 0.0:
-		_recharge_left = charge_recharge_time
+		_recharge_left = get_recharge_time()
 	if unit.abilities and unit.abilities.casting:
 		unit.abilities.try_cancel_cast()
 	_dashing = true
@@ -143,6 +171,21 @@ func try_dash(direction: Vector2) -> bool:
 	return true
 
 
+## PROTOTYPE (deflect, DeflectComponent): gives one spent charge back now, up
+## to the max, for `lifetime` seconds. While it waits the charges are full, so
+## the recharge doesn't run. Any dash spends it (the normal recharge then
+## starts); unused after `lifetime`, it's taken back and the normal recharge
+## runs. False (nothing) when the charges are already full.
+func add_refund_charge(lifetime: float) -> bool:
+	if _charges >= get_max_charges() or lifetime <= 0.0:
+		return false
+	_charges += 1
+	_refund_left = lifetime
+	charges_changed.emit(_charges, get_max_charges())
+	queue_redraw()
+	return true
+
+
 # --- Update ---------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
@@ -152,14 +195,26 @@ func _physics_process(delta: float) -> void:
 		_end_lag_left -= delta
 		if _end_lag_left <= 0.0:
 			_clear_end_lag()
+	if _refund_left > 0.0:   # PROTOTYPE (deflect): an unused refund runs out
+		_refund_left -= delta
+		if _refund_left <= 0.0:
+			_refund_left = 0.0
+			if _charges > 0:
+				_charges -= 1
+				if _recharge_left <= 0.0:
+					_recharge_left = get_recharge_time()
+				charges_changed.emit(_charges, get_max_charges())
+				queue_redraw()
 
 	if _dashing or _charges >= get_max_charges():
 		return
+	# The deflect flag turned off mid-recharge: the normal time applies at once.
+	_recharge_left = minf(_recharge_left, get_recharge_time())
 	_recharge_left -= delta
 	if _recharge_left <= 0.0:
 		_charges += 1
 		if _charges < get_max_charges():
-			_recharge_left = charge_recharge_time
+			_recharge_left = get_recharge_time()
 		charges_changed.emit(_charges, get_max_charges())
 		queue_redraw()
 

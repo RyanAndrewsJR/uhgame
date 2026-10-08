@@ -61,3 +61,16 @@ signal combo_plan_started(unit: Unit, target: Unit, plan: ComboPlan)
 ## decides next.
 @warning_ignore("unused_signal")
 signal combo_plan_ended(unit: Unit, target: Unit, plan: ComboPlan, reason: StringName)
+## PROTOTYPE (deflect, 2026-10-07; DeflectComponent): `defender`'s dash
+## deflected `attacker`'s hit (ctx.deflected; attacker null for the
+## environment). Nothing of the hit happened.
+@warning_ignore("unused_signal")
+signal hit_deflected(attacker: Unit, defender: Unit, ctx: HitContext)
+## PROTOTYPE (deflect): `unit`'s deflects in a row changed (0 when it ends or
+## after the riposte is given).
+@warning_ignore("unused_signal")
+signal deflect_streak_changed(unit: Unit, streak: int)
+## PROTOTYPE (deflect): `unit`'s second deflect in a row gave it the riposte
+## (its next basic attack that hits).
+@warning_ignore("unused_signal")
+signal riposte_ready(unit: Unit)

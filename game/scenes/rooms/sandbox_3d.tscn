@@ -37,6 +37,7 @@
 [ext_resource type="Script" uid="uid://dk2u743xqn76l" path="res://scripts/rooms/sandbox_talents.gd" id="30_f16o5"]
 [ext_resource type="Script" uid="uid://bjxl0gt5pvcjw" path="res://scripts/rooms/sandbox_loot.gd" id="31_loot"]
 [ext_resource type="Script" uid="uid://rgcfjk0tgyxb" path="res://scripts/rooms/sandbox_brains.gd" id="32_brains"]
+[ext_resource type="Script" path="res://scripts/rooms/sandbox_deflect.gd" id="33_deflect"]
 
 [node name="Sandbox3D" type="Node3D" unique_id=123001834]
 script = ExtResource("1_0el4y")
@@ -431,3 +432,6 @@ script = ExtResource("31_loot")
 [node name="SandboxBrains" type="Node" parent="." unique_id=487627299]
 script = ExtResource("32_brains")
 enemy_attack_speed_test_mult = 1.5
+
+[node name="SandboxDeflect" type="Node" parent="."]
+script = ExtResource("33_deflect")
