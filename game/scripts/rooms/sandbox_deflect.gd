@@ -11,7 +11,8 @@ extends Node
 ##   M        its tuning panel: every number of the prototype, live (the
 ##            Knight's DeflectComponent; every enemy's PoiseComponent, new ones
 ##            too; the poise damage of the Knight's swings, Cleave and
-##            Judgement in memory; the TEMP weak-auto lever)
+##            Judgement in memory; the TEMP weak-auto lever; whether the
+##            Knight's deflects bank, streak_persists, on at the start)
 ## Readouts (placeholders, drawn over the 3D view; they never decide state):
 ## a thin poise bar under the health bar of any unit whose meter runs (gold;
 ## orange draining while broken; grey while immune), and under the Knight's
@@ -60,6 +61,9 @@ const POISE_ROWS: Array = [
 @export_range(0.2, 1.0, 0.05) var prototype_unempowered_auto_mult: float = 0.5
 ## The readouts are on at the start.
 @export var readouts_on: bool = true
+## Ryan's test (2026-10-07): the Knight's deflects bank (DeflectComponent
+## .streak_persists) from the start; the panel's checkbox flips it.
+@export var streak_persists: bool = true
 
 var _previous: Array = []   # [deflect flag, poise flag, weak-auto lever] as found
 var _readout_layer: CanvasLayer
@@ -67,6 +71,7 @@ var _readout: Node2D
 var _panel_layer: CanvasLayer
 var _deflect_check: CheckBox
 var _poise_check: CheckBox
+var _persist_check: CheckBox
 var _rows: Dictionary = {}   # key -> {slider: HSlider, value: Label, getter: Callable, setter: Callable}
 var _syncing := false
 var _poise_values: Dictionary = {}   # PoiseComponent export -> the panel's value (every enemy, new ones too)
@@ -90,6 +95,7 @@ func _ready() -> void:
 	DeflectComponent.deflect_test_enabled = deflect_test_enabled
 	PoiseComponent.poise_test_enabled = poise_test_enabled
 	AutoAttackComponent.prototype_unempowered_auto_mult = prototype_unempowered_auto_mult
+	set_streak_persists(streak_persists)   # a Knight already here; a later one in _on_node_added()
 	print("SandboxDeflect: ", get_status_text(), " (V: deflect, Shift+V: poise, M: the panel)")
 
 
@@ -126,6 +132,15 @@ func _process(_delta: float) -> void:
 		_readout.queue_redraw()
 	if is_panel_open():
 		_update_values()
+
+
+## The Knight's deflects bank (on) or follow the chain rules (off), live.
+func set_streak_persists(on: bool) -> void:
+	streak_persists = on
+	var knight := get_knight()
+	if knight != null and knight.deflect_component != null:
+		knight.deflect_component.streak_persists = on
+	_sync_checks()
 
 
 func set_deflect_enabled(on: bool) -> void:
@@ -212,6 +227,8 @@ func _build_panel() -> void:
 	box.add_child(_deflect_check)
 	_poise_check = _check_box("poise (Shift+V)", func(on: bool) -> void: set_poise_enabled(on))
 	box.add_child(_poise_check)
+	_persist_check = _check_box("deflects bank (stacks persist)", func(on: bool) -> void: set_streak_persists(on))
+	box.add_child(_persist_check)
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.custom_minimum_size = Vector2(0, SLIDER_LIST_HEIGHT)
@@ -306,6 +323,9 @@ func _sync_checks() -> void:
 		return
 	_syncing = true
 	_deflect_check.button_pressed = DeflectComponent.deflect_test_enabled
+	var knight := get_knight()
+	_persist_check.button_pressed = knight.deflect_component.streak_persists \
+		if knight != null and knight.deflect_component != null else streak_persists
 	_poise_check.button_pressed = PoiseComponent.poise_test_enabled
 	_syncing = false
 
@@ -392,6 +412,8 @@ func _on_node_added(node: Node) -> void:
 	if node is PoiseComponent:
 		for p: StringName in _poise_values:
 			node.set(p, _poise_values[p])
+	elif node is DeflectComponent and not Progress.is_test_scene():   # a Knight spawned after the sandbox
+		(node as DeflectComponent).streak_persists = streak_persists
 
 
 # --- Readouts -----------------------------------------------------------------------
@@ -466,4 +488,5 @@ func _draw_knight(knight: Player, at: Vector2) -> void:
 			_readout.draw_polyline(diamond + PackedVector2Array([diamond[0]]), Color(1, 1, 1, 0.5), 1.0)
 	if deflect.has_riposte():
 		var left := knight.status_component.get_time_left(DeflectComponent.get_riposte_status_id())
-		_readout.draw_string(font, Vector2(at.x - 30.0, y + 12.0), "RIPOSTE %.1f" % left, HORIZONTAL_ALIGNMENT_CENTER, 60.0, 8, POISE_COLOR)
+		var text := "RIPOSTE" if left < 0.0 else "RIPOSTE %.1f" % left   # banked: no timer
+		_readout.draw_string(font, Vector2(at.x - 30.0, y + 12.0), text, HORIZONTAL_ALIGNMENT_CENTER, 60.0, 8, POISE_COLOR)

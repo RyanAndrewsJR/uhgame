@@ -94,7 +94,7 @@ func _ready() -> void:
 	_place(knight, ARENA)
 	deflect = knight.deflect_component
 	for p: String in ["deflect_window", "chain_window", "refund_lifetime", "deflect_test_charge_recharge",
-			"riposte_ad_ratio", "riposte_window", "riposte_snap_range"]:
+			"riposte_ad_ratio", "riposte_window", "riposte_snap_range", "streak_persists"]:
 		_defaults[p] = deflect.get(p)
 	_feel_defaults = [deflect.deflect_hitstop, deflect.deflect_shake]
 	_baseline()
@@ -103,6 +103,7 @@ func _ready() -> void:
 	_test_data()
 	await _test_window()
 	await _test_streak_and_refund()
+	await _test_streak_persists()   # Ryan's follow-up: deflects bank
 	await _test_riposte()
 	await _test_riposte_snap()
 	await _test_weak_autos()
@@ -276,6 +277,43 @@ func _test_streak_and_refund() -> void:
 	_check("...the normal recharge started with that dash (not back at 0.9 s)", knight.dash.get_charges(), 0)
 	await _seconds(0.3)
 	_check("...back by 1.2 s", knight.dash.get_charges(), 1)
+	brute.queue_free()
+	await get_tree().physics_frame
+
+
+## Ryan's follow-up (2026-10-07): enemies attack too rarely for a 4 s chain,
+## so deflects can bank instead (DeflectComponent.streak_persists).
+func _test_streak_persists() -> void:
+	_section("Deflects bank (streak_persists)")
+	DeflectComponent.deflect_test_enabled = true
+	await _fresh()
+	_check("off as the scene has it (the chain rules above)", deflect.streak_persists, false)
+	deflect.streak_persists = true
+	deflect.chain_window = 0.5
+	deflect.refund_lifetime = 0.3
+	var brute := _spawn(BRUTE_SCENE, ARENA + Vector2(0, 200))
+	knight.dash.try_dash(Vector2.RIGHT)
+	_brute_hit(brute)
+	_check("a deflect: streak 1 and the refund, as before", [deflect.get_streak(), knight.dash.has_refund()], [1, true])
+	await _seconds(0.7)
+	_check("past the chain window it stays", [deflect.get_streak(), deflect.get_chain_left()], [1, 0.0])
+	await _wait_until(func() -> bool: return knight.dash.get_charges() > 0 and not knight.dash.is_dashing(), 90)
+	knight.dash.try_dash(Vector2.LEFT)
+	await _wait_until(func() -> bool: return not knight.dash.is_dashing() and not deflect.is_window_open(), 60)
+	await get_tree().physics_frame
+	_check("a dash that deflects nothing keeps it", [deflect.get_streak(), _streaks], [1, [1]])
+	await _wait_until(func() -> bool: return knight.dash.get_charges() > 0, 90)
+	knight.dash.try_dash(Vector2.RIGHT)
+	_brute_hit(brute)
+	var id := DeflectComponent.get_riposte_status_id()
+	_check("the second deflect, however late: the riposte, banked (no time limit)", [deflect.has_riposte(), knight.status_component.get_time_left(id), _streaks], [true, -1.0, [1, 2, 0]])
+	await _seconds(2.0)
+	_check("...still there 2 s later (riposte_window is 1.5)", deflect.has_riposte(), true)
+	await _wait_until(func() -> bool: return not knight.dash.is_dashing(), 60)
+	_place(knight, ARENA)
+	_place(brute, ARENA + Vector2(50, 0))
+	var swing := await _swing(Vector2.RIGHT, brute)
+	_check("...the next swing that lands uses it (256)", [swing.damage, deflect.has_riposte()], [256.0, false])
 	brute.queue_free()
 	await get_tree().physics_frame
 
@@ -712,7 +750,11 @@ func _test_sandbox() -> void:
 	add_child(sd)
 	await _frames(2)
 	_check("in a test scene it leaves the flags and the lever alone", [DeflectComponent.deflect_test_enabled, PoiseComponent.poise_test_enabled, AutoAttackComponent.prototype_unempowered_auto_mult], [false, false, 1.0])
-	_check("its starting values: both flags on, the lever 0.5, readouts on", [sd.deflect_test_enabled, sd.poise_test_enabled, sd.prototype_unempowered_auto_mult, sd.is_readouts_on()], [true, true, 0.5, true])
+	_check("its starting values: both flags on, the lever 0.5, readouts on, deflects bank", [sd.deflect_test_enabled, sd.poise_test_enabled, sd.prototype_unempowered_auto_mult, sd.is_readouts_on(), sd.streak_persists], [true, true, 0.5, true, true])
+	_check("...a test scene's Knight keeps his own", deflect.streak_persists, false)
+	sd.set_streak_persists(true)
+	_check("its switch sets the Knight's, live", deflect.streak_persists, true)
+	sd.set_streak_persists(false)
 	_press(KEY_V, false)
 	_check("V: the deflect flag on", DeflectComponent.deflect_test_enabled, true)
 	_press(KEY_V, true)

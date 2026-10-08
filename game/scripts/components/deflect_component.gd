@@ -19,7 +19,9 @@ extends Node
 ##   before. A dash is still a dodge; a deflect is a dodge with timing.
 ## - The streak: +1 per deflect. Back to 0 when a dash's chance is over (it
 ##   ended, and its window closed) with nothing deflected, when chain_window
-##   passes after the last deflect, and once the riposte is given.
+##   passes after the last deflect, and once the riposte is given. With
+##   streak_persists (Ryan's test) only the riposte starts it over, and the
+##   riposte waits until a swing lands.
 ## - The first deflect of a streak gives the dash its charge back
 ##   (DashComponent.add_refund_charge(): for refund_lifetime, then the normal
 ##   recharge; any dash spends it) and deals deflect_poise_damage_first to the
@@ -57,6 +59,12 @@ static var deflect_test_enabled: bool = false
 @export var refund_lifetime: float = 3.0
 ## While the flag is on, the dash recharges in this many seconds.
 @export var deflect_test_charge_recharge: float = 1.5
+## Ryan's test (2026-10-07: enemies attack too rarely for a 4 s chain). Off =
+## the rules above: the streak ends chain_window after the last deflect or on
+## a dash that deflects nothing, and the riposte lasts riposte_window. On =
+## deflects bank: no chain window, a plain dash keeps them, and the riposte
+## waits until a swing lands (no time limit). SandboxDeflect starts it on.
+@export var streak_persists: bool = false
 
 @export_group("Riposte")
 ## Added to the riposte swing's ad_ratio (a swing is 1.0: about four times a swing).
@@ -238,7 +246,9 @@ func _physics_process(delta: float) -> void:
 		_window_left = maxf(_window_left - delta, 0.0)
 	if _dash_pending and not _dash_on and _window_left <= EPSILON:
 		_close_dash_chance()
-	if _chain_left > 0.0:
+	if streak_persists:
+		_chain_left = 0.0   # deflects bank: no chain window
+	elif _chain_left > 0.0:
 		_chain_left -= delta
 		if _chain_left <= EPSILON:
 			_chain_left = 0.0
@@ -254,12 +264,13 @@ func _on_dash_ended() -> void:
 	_dash_on = false
 
 
-## A dash's chance is over: with nothing deflected, the streak ends.
+## A dash's chance is over: with nothing deflected, the streak ends (not
+## while streak_persists).
 func _close_dash_chance() -> void:
 	if not _dash_pending:
 		return
 	_dash_pending = false
-	if not _dash_deflected:
+	if not _dash_deflected and not streak_persists:
 		_chain_left = 0.0
 		_set_streak(0)
 
@@ -267,7 +278,7 @@ func _close_dash_chance() -> void:
 func _on_deflected(ctx: HitContext) -> void:
 	var attacker: Unit = ctx.source if is_instance_valid(ctx.source) else null
 	_dash_deflected = true
-	_chain_left = chain_window
+	_chain_left = 0.0 if streak_persists else chain_window
 	_streak += 1
 	if _streak == 1 and _dash != null:
 		_dash.add_refund_charge(refund_lifetime)   # the second gives none: the normal recharge
@@ -292,7 +303,7 @@ func _give_riposte(attacker: Unit) -> void:
 	empower.id = get_riposte_status_id()
 	empower.display_name = "Riposte"
 	empower.tags = [&"empower", &"buff"]
-	empower.duration = riposte_window
+	empower.duration = -1.0 if streak_persists else riposte_window   # banked: until a swing lands
 	empower.stack_rule = StatusEffect.StackRule.REFRESH
 	empower.empower_consumed_by = StatusEffect.EmpowerTrigger.BASIC_ATTACK_HIT
 	empower.empower_ad_ratio = riposte_ad_ratio
@@ -303,7 +314,7 @@ func _give_riposte(attacker: Unit) -> void:
 	if riposte_aura_color.a > 0.0:
 		var statuses := unit.status_component
 		var id := empower.id
-		VFX.aura(unit, riposte_aura_color, func() -> bool: return statuses.has_status(id), riposte_window + 0.1)
+		VFX.aura(unit, riposte_aura_color, func() -> bool: return statuses.has_status(id), INF if streak_persists else riposte_window + 0.1)
 	Events.riposte_ready.emit(unit)
 
 
