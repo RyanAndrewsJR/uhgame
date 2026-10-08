@@ -127,6 +127,33 @@ details.more .row{margin-top:8px}
 .race .used{font:400 11px var(--f-mono);color:var(--ink-2);white-space:nowrap}
 .hints{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 10px;align-items:center}
 .hints label{font:500 12px var(--f-body);color:var(--ink-2)}
+/* v2: weapons, diff marks, workload */
+.kit + .weapon,.weapon + .kit{margin-top:14px}
+.kit + .kit{margin-top:14px}
+.weapon{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.wbar{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:8px;padding:8px 12px 0;border-bottom:1px solid var(--line);background:var(--panel-2)}
+.wtabs{display:flex;flex-wrap:wrap;gap:4px;min-width:0}
+.wtab{background:transparent;border:1px solid transparent;border-bottom:0;border-radius:6px 6px 0 0;padding:7px 12px;cursor:pointer;font:600 16px/1 var(--f-display);letter-spacing:.02em;color:var(--ink-2);margin-bottom:-1px}
+.wtab[aria-selected="true"]{background:var(--panel);border-color:var(--line);color:var(--ink)}
+.wtab.add{font:500 12px var(--f-mono);border-style:dashed;border-color:var(--line);border-bottom:0}
+.wtab:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.wdiff{display:flex;align-items:center;gap:6px;font:500 12px var(--f-body);color:var(--ink-2);padding-bottom:8px}
+.wpanel{padding:12px;display:grid;gap:10px}
+.wgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:10px}
+.wgrid input,.wgrid select,.wgrid textarea{background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:6px 8px;font:400 13px var(--f-body);text-transform:none;letter-spacing:0;width:100%}
+.wgrid textarea{resize:vertical;min-height:40px}
+.diff{flex:0 0 auto;font:500 10px/1 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--line);border-radius:3px;padding:3px 5px;color:var(--ink-2)}
+.diff.changed{border-color:var(--warn);color:var(--warn)}
+.diff.new{border-color:var(--accent);color:var(--accent)}
+.difflist{padding:6px 12px;border-bottom:1px solid var(--line);font:400 11.5px/1.4 var(--f-mono);color:var(--ink-2)}
+.difflist.changed{color:var(--warn)}
+.difflist.new{color:var(--accent)}
+.tally-h{margin:0;font:600 19px/1.1 var(--f-display);letter-spacing:.02em}
+.tally-rows{display:grid;gap:4px}
+.trow{display:grid;grid-template-columns:minmax(0,1fr) auto 34px;gap:8px;align-items:baseline;border-top:1px solid var(--line);padding-top:4px;font-size:13px}
+.trow small{font:400 11px var(--f-mono);color:var(--ink-2);text-align:right}
+.trow b{font:600 15px var(--f-mono);text-align:right}
+.trow.total{border-top:2px solid var(--ink-2)}
 /* v2: compound casts (effects list and timeline) */
 .fx{display:grid;gap:5px;padding:8px 12px;border-bottom:1px solid var(--line)}
 .fx:empty{display:none}
@@ -293,7 +320,7 @@ var PART_LOOK = [{op:1,dash:""},{op:.9,dash:".34 .18"},{op:.85,dash:".1 .14"},{o
 var REDUCED = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 function seedRaces(){ return SEED_RACES.map(function(r){ return {id:r[0],name:r[1],size:r[2],silhouette:r[3],identity:r[4],side:r[5]}; }); }
 var board = {races:[], settings:{}};
-var ui = {newKind:"champion", fKind:"all", fArch:"", fRace:""};
+var ui = {newKind:"champion", fKind:"all", fArch:"", fRace:"", diff:false};
 
 function str(o,k,d){ if(typeof o[k]!=="string") o[k]=(d===undefined?"":d); }
 function num(o,k,d){ if(typeof o[k]!=="number"||isNaN(o[k])) o[k]=d; }
@@ -337,8 +364,23 @@ function upgrade(c){
   if(!Array.isArray(c.abilities)) c.abilities=[];
   c.abilities.forEach(upgradeAbility);
   if(c.kind==="enemy") str(c,"faction");
+  if(c.kind==="champion"){
+    // Weapons (1 to 3): weapon 1's kit is `abilities`; weapons 2 and 3 hold their own Q, W, E, R. No stats on weapons.
+    if(!Array.isArray(c.weapons)||!c.weapons.length) c.weapons=[{}];
+    c.weapons.forEach(function(w,i){ if(!w||typeof w!=="object") w=c.weapons[i]={}; upgradeWeapon(w,i); });
+  }
   return c;
 }
+var WEAPON_TYPES = ["sword","dagger","spear","staff","bow","hammer","other"];
+function upgradeWeapon(w,i){
+  str(w,"id","w"+(i+1)); str(w,"name"); if(WEAPON_TYPES.indexOf(w.type)<0) w.type="other";
+  if(!w.attack_chain||typeof w.attack_chain!=="object") w.attack_chain={};
+  num(w.attack_chain,"swings",0); str(w.attack_chain,"notes"); str(w,"vfx_notes"); str(w,"sound_notes");
+  if(i>0){ if(!Array.isArray(w.abilities)||!w.abilities.length) w.abilities=blankKit(); w.abilities.forEach(upgradeAbility); }
+  return w;
+}
+function kitOf(c,i){ return (i>0&&c.weapons&&c.weapons[i])?c.weapons[i].abilities:c.abilities; }
+function weaponName(w,i){ return w.name||("Weapon "+(i+1)); }
 function upgradeRace(r){ str(r,"id"); str(r,"name"); if(SIZES.indexOf(r.size)<0) r.size="medium"; str(r,"silhouette"); str(r,"identity"); if(!SIDES[r.side]) r.side="both"; return r; }
 function normSettings(s){
   s=(s&&typeof s==="object")?s:{};
@@ -354,12 +396,13 @@ function archetypeGroups(kind,val){
   return g;
 }
 
-var state = {champs:{}, current:null, db:null, canWrite:true, mode:"loading", dirty:false, saving:false, timer:null, lastJson:{}, briefOpen:false, confirmDelete:false, dirtyId:null, gone:{}, view:"doc", raceDel:null};
+var state = {champs:{}, current:null, db:null, canWrite:true, mode:"loading", dirty:false, saving:false, timer:null, lastJson:{}, briefOpen:false, confirmDelete:false, dirtyId:null, gone:{}, view:"doc", raceDel:null, wsel:{}, live:[], wDel:null};
 
 function uid(){ return "c"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function ab(slot,o){ var d={slot:slot,name:"",cast:"skillshot",range:6,width:1.5,angle:90,castTime:0.25,cooldown:8,cost:0,dmg:"physical",tags:[],desc:""}; for(var k in o) d[k]=o[k]; return d; }
+function blankKit(){ return [ab("Q",{}),ab("W",{cast:"self",width:1.2,cooldown:12,dmg:"none"}),ab("E",{cast:"dash",range:5,width:1,cooldown:9}),ab("R",{cast:"unit",range:7,cooldown:60,castTime:0.5})].map(upgradeAbility); }
 function blank(){ return upgrade({id:uid(),kind:"champion",name:"Unnamed champion",role:"Bruiser",archetype:"Bruiser",resource:"None",fantasy:"",passive:{name:"",desc:"",tags:[]},
-  abilities:[ab("Q",{}),ab("W",{cast:"self",width:1.2,cooldown:12,dmg:"none"}),ab("E",{cast:"dash",range:5,width:1,cooldown:9}),ab("R",{cast:"unit",range:7,cooldown:60,castTime:0.5})],notes:"",updated:Date.now()}); }
+  abilities:blankKit(),notes:"",updated:Date.now()}); }
 function blankEnemy(){ var c=blank(); c.kind="enemy"; c.name="Unnamed enemy"; return upgrade(c); }
 function knight(){ return upgrade({id:"knight",kind:"champion",name:"The Knight",role:"Bruiser",archetype:"Bruiser",race:"human",resource:"Fury",
   fantasy:"A skilled fighter who wins by execution: dodging, comboing and using the room. Gets stronger as health drops.",
@@ -369,6 +412,7 @@ function knight(){ return upgrade({id:"knight",kind:"champion",name:"The Knight"
    ab("W",{name:"Iron Resolve",cast:"self",width:1.2,castTime:0,cooldown:10,cost:0,dmg:"none",tags:["buff","defensive","empower"],desc:"Move 35% faster for 2 s. Your next basic attack deals bonus damage and slows."}),
    ab("E",{name:"Lunge",cast:"dash",range:5,width:0.8,castTime:0.05,cooldown:8,cost:0,dmg:"physical",tags:["mobility","dash","movement"],desc:"Dash to the aimed point, hitting enemies along the path and staggering them."}),
    ab("R",{name:"Judgement",cast:"unit",range:6,castTime:0.75,cooldown:30,cost:0,dmg:"physical",tags:["ultimate","channel","stun"],desc:"Channel on a target, then strike for damage that rises with their missing health, and stun. At 60+ Fury it hits harder, stuns longer and spends all your Fury."})],
+  weapons:[{id:"w1",name:"Sword",type:"sword",attack_chain:{swings:3,notes:"A 3-swing combo; the last swing is the finisher (COMBAT.md)."},vfx_notes:"",sound_notes:""}],
   notes:"Cleave's 3 m reach and arc width, the cooldowns for Iron Resolve and Lunge, and the ranges of Lunge and Judgement are approximate placeholders. Real numbers live in ABILITIES.md and CHAMPIONS.md.",updated:Date.now()}); }
 
 /* ---------- persistence ---------- */
@@ -405,6 +449,7 @@ function touch(){
   var c=cur(); if(!c) return;
   c.updated=Date.now(); state.dirty=true; state.dirtyId=c.id; setStatus("Unsaved changes…");
   clearTimeout(state.timer); state.timer=setTimeout(flush,700);
+  state.live.forEach(function(f){ try{ f(); }catch(e){} });   // readouts that follow edits (diff marks, workload)
 }
 async function flush(){
   clearTimeout(state.timer);
@@ -496,10 +541,22 @@ function renderMain(){
   }
 
   // kit
-  var kit=el("div",{class:"kit"});
-  kit.appendChild(passiveCard(c));
-  c.abilities.forEach(function(a){ kit.appendChild(abilityCard(c,a)); });
-  m.appendChild(kit);
+  state.live=[];
+  if(c.kind==="champion"){
+    // the shared passive (and the workload guide) above the weapon tabs; the four cards show the selected weapon's kit
+    var wi=weaponIndex(c);
+    m.appendChild(el("div",{class:"kit"},[passiveCard(c),tallyCard(c)]));
+    m.appendChild(weaponSection(c,wi));
+    var kit=el("div",{class:"kit"});
+    kitOf(c,wi).forEach(function(a,i){ kit.appendChild(abilityCard(c,a)); });
+    m.appendChild(kit);
+    if(ui.diff&&wi>0) markDiffs(c,wi,kit);
+  }else{
+    var kit=el("div",{class:"kit"});
+    kit.appendChild(passiveCard(c));
+    c.abilities.forEach(function(a){ kit.appendChild(abilityCard(c,a)); });
+    m.appendChild(kit);
+  }
 
   // notes
   var nt=el("textarea",{"aria-label":"Notes",placeholder:"Synergies, open questions, what this champion should not do, how it feels against the Knight's kit…"}); nt.value=c.notes||"";
@@ -644,7 +701,131 @@ function passiveCard(c){
   ds.addEventListener("input",function(){ p.desc=ds.value; touch(); });
   return el("article",{class:"card"},[
     el("div",{class:"card-head"},[el("div",{class:"slot p",text:"Pas"}),nm]),
-    el("div",{class:"body"},[ds,tagRow(TAGS,p.tags,touch)])]);
+    el("div",{class:"body"},[ds,tagRow(TAGS,p.tags,touch)].concat(c.kind==="champion"&&c.weapons&&c.weapons.length>1?[el("p",{class:"muted",text:"Shared by every weapon: weapons change Q, W, E and R, never the passive."})]:[]))]);
+}
+
+/* ---------- weapons: tabs, the weapon's own fields, diff marks against weapon 1, workload ---------- */
+function weaponIndex(c){ var i=state.wsel[c.id]||0; return (c.weapons&&i<c.weapons.length)?i:0; }
+function nameKey(a){ return (a.name||"").trim().toLowerCase(); }
+function tagKey(a){ return (a.tags||[]).slice().sort().join(","); }
+function shapeKey(a){   // the cast types and the sizes each one uses, effect by effect
+  return (Array.isArray(a.parts)&&a.parts.length?a.parts:[a]).map(function(p){ var d=CASTS[p.cast]||{uses:[]}; return p.cast+":"+d.uses.map(function(k){ return p[k]; }).join(","); }).join(">");
+}
+function timingKey(a){ return (Array.isArray(a.parts)?a.parts:[]).slice(1).map(function(p){ return p.trigger+":"+p.delay+":"+p.duration; }).join(">"); }
+// How an ability compares with weapon 1's in the same slot: same, changed (some fields), or new (name and cast shape both differ).
+function diffAbility(a,b){
+  var f=[];
+  if(nameKey(a)!==nameKey(b)) f.push("name");
+  if(shapeKey(a)!==shapeKey(b)) f.push("cast shape");
+  if(a.cooldown!==b.cooldown) f.push("cooldown");
+  if(a.cost!==b.cost) f.push("cost");
+  if(tagKey(a)!==tagKey(b)) f.push("tags");
+  if(["desc","dmg","castTime","speed","charges","duration"].some(function(k){ return a[k]!==b[k]; })||timingKey(a)!==timingKey(b)) f.push("other (description, damage type, timing)");
+  return {status:!f.length?"same":(f.indexOf("name")>=0&&f.indexOf("cast shape")>=0)?"new":"changed", fields:f};
+}
+function reuseKey(a){ return nameKey(a)+"|"+shapeKey(a)+"|"+tagKey(a); }
+// The workload guide: per weapon, one attack-chain set plus one per ability not reused from an earlier weapon.
+function workload(c){
+  var seen={}, per=[], total=0;
+  (c.weapons||[{}]).forEach(function(w,i){
+    var n=0, reused=[];
+    kitOf(c,i).forEach(function(a){ var k=reuseKey(a); if(seen[k]!==undefined&&seen[k]<i) reused.push(a.slot); else n++; if(seen[k]===undefined) seen[k]=i; });
+    per.push({label:weaponName(w,i),abilities:n,reused:reused,units:1+n}); total+=1+n;
+  });
+  return {per:per,total:total};
+}
+function tallyCard(c){
+  var body=el("div",{class:"body"});
+  var card=el("article",{class:"card tally"},[el("div",{class:"card-head"},[el("div",{class:"slot p",text:"≈"}),el("h3",{class:"tally-h",text:"Workload (a rough guide)"})]),body]);
+  function trow(label,detail,units,strong){ return el("div",{class:"trow"+(strong?" total":"")},[el("span",{text:label}),el("small",{text:detail}),el("b",{text:String(units)})]); }
+  function paint(){
+    body.textContent="";
+    var w=workload(c);
+    body.appendChild(el("p",{class:"muted",text:"Units per weapon: one attack-chain set, plus one per ability that is not reused. An ability counts as reused (0) when its name, cast shape and tags match an earlier weapon's. The shared passive is not counted."}));
+    var t=el("div",{class:"tally-rows"});
+    w.per.forEach(function(p){ t.appendChild(trow(p.label,"1 chain + "+p.abilities+" abilit"+(p.abilities===1?"y":"ies")+(p.reused.length?" ("+p.reused.join(", ")+" reused)":""),p.units)); });
+    t.appendChild(trow(c.name||"This champion","total",w.total,true));
+    body.appendChild(t);
+    var champs=Object.keys(state.champs).map(function(k){ return state.champs[k]; }).filter(function(x){ return x.kind==="champion"; }).sort(function(x,y){ return (x.name||"").localeCompare(y.name||""); });
+    var sum=0, rows=el("div",{class:"tally-rows"});
+    champs.forEach(function(x){ var n=workload(x).total; sum+=n; rows.appendChild(trow(x.name||"Unnamed",(x.weapons||[]).length+" weapon"+((x.weapons||[]).length===1?"":"s"),n)); });
+    var det=el("details",{class:"more"},[el("summary",{text:"Roster: "+champs.length+" champion"+(champs.length===1?"":"s")+", "+sum+" units"}),rows]);
+    if(state.tallyOpen) det.open=true;
+    det.addEventListener("toggle",function(){ state.tallyOpen=det.open; });
+    body.appendChild(det);
+  }
+  paint(); state.live.push(paint);
+  return card;
+}
+function markDiffs(c,wi,kit){
+  function paint(){
+    var cards=kit.querySelectorAll(":scope > .card"), base=c.abilities;
+    kitOf(c,wi).forEach(function(a,i){
+      var card=cards[i]; if(!card) return;
+      var head=card.querySelector(".card-head"), bd=head.querySelector(".diff");
+      if(!bd){ bd=el("span",{class:"diff"}); head.appendChild(bd); }
+      var b=base[i], r=b?diffAbility(a,b):{status:"new",fields:["no ability in this slot on weapon 1"]};
+      bd.className="diff "+r.status; bd.textContent=r.status==="same"?"same as weapon 1":r.status;
+      var list=card.querySelector(".difflist"); if(!list){ list=el("div",{class:"difflist"}); head.insertAdjacentElement("afterend",list); }
+      list.textContent=r.status==="same"?"Same as weapon 1's "+b.slot+" (name, cast shape, cooldown, cost, tags)":(r.status==="new"?"New. Differs in: ":"Changed: ")+r.fields.join(", ");
+      list.className="difflist "+r.status;
+    });
+  }
+  paint(); state.live.push(paint);
+}
+function weaponSection(c,wi){
+  var ro=!state.canWrite, w=c.weapons[wi];
+  var tabs=el("div",{class:"wtabs",role:"tablist","aria-label":"Weapons"});
+  c.weapons.forEach(function(x,i){
+    tabs.appendChild(el("button",{type:"button",role:"tab",class:"wtab","aria-selected":String(i===wi),text:(i+1)+" · "+weaponName(x,i)+(x.type!=="other"?" ("+x.type+")":""),
+      onclick:function(){ state.wsel[c.id]=i; state.wDel=null; renderMain(); }}));
+  });
+  if(c.weapons.length<3&&!ro) tabs.appendChild(el("button",{type:"button",class:"wtab add",text:"+ weapon",onclick:function(){ addWeapon(c); }}));
+  var cb=el("input",{type:"checkbox","aria-label":"Mark changes against weapon 1"}); cb.checked=!!ui.diff;
+  cb.addEventListener("change",function(){ ui.diff=cb.checked; saveUi(); renderMain(); });
+  var bar=el("div",{class:"wbar"},[tabs,el("label",{class:"wdiff"},[cb,document.createTextNode("Mark changes against weapon 1")])]);
+  function txt(obj,key,label,ph,area){
+    var i=el(area?"textarea":"input",{"aria-label":label,placeholder:ph||""}); i.value=obj[key]||"";
+    i.addEventListener("input",function(){ obj[key]=i.value; if(key==="name"&&obj===w) tabs.children[wi].textContent=(wi+1)+" · "+weaponName(w,wi)+(w.type!=="other"?" ("+w.type+")":""); touch(); });
+    return el("label",{class:"fld"},[document.createTextNode(label),i]);
+  }
+  var type=el("select",{"aria-label":"Weapon type"});
+  WEAPON_TYPES.forEach(function(t){ var o=el("option",{value:t,text:t}); if(t===w.type) o.selected=true; type.appendChild(o); });
+  type.addEventListener("change",function(){ w.type=type.value; touch(); renderMain(); });
+  var sw=el("input",{type:"number",min:0,max:12,step:1,value:w.attack_chain.swings,"aria-label":"Swings in the attack chain"});
+  sw.addEventListener("input",function(){ var v=parseInt(sw.value,10); w.attack_chain.swings=isNaN(v)||v<0?0:v; touch(); });
+  var grid=el("div",{class:"wgrid"},[
+    txt(w,"name","Weapon name","e.g. Greatsword"),
+    el("label",{class:"fld"},[document.createTextNode("Type"),type]),
+    el("label",{class:"fld"},[document.createTextNode("Attack chain swings"),sw]),
+    txt(w.attack_chain,"notes","Attack chain notes","rhythm, finisher, what each swing does"),
+    txt(w,"vfx_notes","VFX notes","trails, impacts, colours",true),
+    txt(w,"sound_notes","Sound notes","swing, impact, the finisher",true)]);
+  var acts=el("div",{class:"actions"});
+  if(c.weapons.length>1&&!ro){
+    var from=el("select",{"aria-label":"Copy the kit from"});
+    c.weapons.forEach(function(x,i){ if(i!==wi) from.appendChild(el("option",{value:String(i),text:"weapon "+(i+1)+" ("+weaponName(x,i)+")"})); });
+    var key="copy:"+c.id+":"+wi, armed=state.wDel===key;
+    acts.appendChild(el("label",{class:"sel"},[document.createTextNode("Copy Q, W, E, R from"),from]));
+    acts.appendChild(el("button",{type:"button",class:"btn"+(armed?" warn":""),text:armed?"Click again: replaces this weapon's four abilities":"Copy the kit",onclick:function(){
+      if(state.wDel!==key){ state.wDel=key; renderMain(); return; }
+      state.wDel=null; var src=JSON.parse(JSON.stringify(kitOf(c,parseInt(from.value,10))));
+      if(wi===0) c.abilities=src; else w.abilities=src; touch(); renderMain(); }}));
+  }
+  if(wi>0&&!ro){
+    var rk="remove:"+c.id+":"+wi, rarmed=state.wDel===rk;
+    acts.appendChild(el("button",{type:"button",class:"btn warn",text:rarmed?"Click again to remove this weapon":"Remove weapon",onclick:function(){
+      if(state.wDel!==rk){ state.wDel=rk; renderMain(); return; }
+      state.wDel=null; c.weapons.splice(wi,1); state.wsel[c.id]=0; touch(); renderMain(); }}));
+  }
+  var note=ui.diff&&wi===0&&c.weapons.length>1?el("p",{class:"muted",text:"Weapon 1 is the base kit. Pick weapon 2 or 3 to see what changed."}):null;
+  return el("section",{class:"weapon"},[bar,el("div",{class:"wpanel"},[grid,acts,note])]);
+}
+function weaponHasInfo(w){ return !!(w&&(w.name||w.type!=="other"||w.attack_chain.swings||w.attack_chain.notes||w.vfx_notes||w.sound_notes)); }
+function addWeapon(c){
+  if(c.weapons.length>=3) return;
+  var w=upgradeWeapon({id:"w"+uid().slice(-6),name:"",type:"other",abilities:blankKit()},c.weapons.length);
+  c.weapons.push(w); state.wsel[c.id]=c.weapons.length-1; touch(); renderMain();
 }
 
 var activePart = new WeakMap();   // which effect of an ability the card's controls edit (not saved)
@@ -653,7 +834,7 @@ function abilityCard(c,a){
   var act=activePart.get(a)||0; if(act>=a.parts.length) act=0;
   var multi=a.parts.length>1;
   var card=el("article",{class:"card"});
-  function rebuild(){ stopPlay(); var n=abilityCard(c,a); if(card.parentNode) card.parentNode.replaceChild(n,card); }
+  function rebuild(){ stopPlay(); var n=abilityCard(c,a); if(card.parentNode) card.parentNode.replaceChild(n,card); state.live.forEach(function(f){ try{ f(); }catch(e){} }); }
   function T(key){ return (act>0 && PART_KEYS.indexOf(key)>=0) ? a.parts[act] : a; }   // the object a control writes to
   var nm=el("input",{value:a.name||"","aria-label":a.slot+" name",placeholder:"Ability name"});
   nm.addEventListener("input",function(){ a.name=nm.value; touch(); });
@@ -1093,8 +1274,27 @@ function makeBrief(c){
   if(who.length) L.push(who.join(". ")+".");
   if(c.archetype_layer) L.push("Archetype layer: "+c.archetype_layer);
   if(c.fantasy) L.push((isE?"What it is: ":"Fantasy: ")+c.fantasy);
-  var p=c.passive; L.push("","Passive"+(p.name?" - "+p.name:"")+": "+(p.desc||"(not written)")+(p.tags.length?" Tags: "+p.tags.join(", ")+".":""));
-  c.abilities.forEach(function(a){ abilityBrief(L,a); });
+  var ws=(!isE&&Array.isArray(c.weapons))?c.weapons:[], multiW=ws.length>1;
+  var showW=multiW||(ws.length===1&&weaponHasInfo(ws[0]));
+  var p=c.passive; L.push("","Passive"+(multiW?" (shared by every weapon; weapons never change it)":"")+(p.name?" - "+p.name:"")+": "+(p.desc||"(not written)")+(p.tags.length?" Tags: "+p.tags.join(", ")+".":""));
+  if(showW){
+    ws.forEach(function(w,i){
+      var info=[];
+      if(w.attack_chain.swings) info.push("Attack chain of "+w.attack_chain.swings+" swing"+(w.attack_chain.swings===1?"":"s"));
+      if(w.attack_chain.notes) info.push("Chain: "+w.attack_chain.notes);
+      if(w.vfx_notes) info.push("VFX: "+w.vfx_notes);
+      if(w.sound_notes) info.push("Sound: "+w.sound_notes);
+      L.push("","## Weapon "+(i+1)+": "+weaponName(w,i)+" ("+w.type+")"+(info.length?". "+info.join(". ")+".":""));
+      kitOf(c,i).forEach(function(a,k){
+        var base=c.abilities[k], d=(i>0&&base)?diffAbility(a,base):null;
+        if(d&&d.status==="same"){ L.push("",a.slot+": same as weapon 1"+(a.name?" ("+a.name+")":"")+"."); return; }
+        abilityBrief(L,a);
+        if(d) L.push("("+(d.status==="new"?"New on this weapon":"Changed from weapon 1: "+d.fields.join(", "))+".)");
+      });
+    });
+    var wl=workload(c);
+    L.push("","Workload (rough guide): "+wl.total+" units ("+wl.per.map(function(x){ return x.label+" "+x.units; }).join(", ")+").");
+  }else c.abilities.forEach(function(a){ abilityBrief(L,a); });
   if(c.notes) L.push("","Notes: "+c.notes);
   return L.join("\n");
 }
