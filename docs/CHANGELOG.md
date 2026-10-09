@@ -7,6 +7,7 @@
 - One section per system, one entry per build step, **newest first**. Each entry: the step, its date, its status, and its build log (test counts, what was measured, what changed during the step).
 - The system doc keeps only the spec, plus one line per step ("C8 built 2026-09-26, see CHANGELOG.md"). A rule found while building goes into the spec, not only here.
 - Status: **Built (awaiting play test)** or **Passed** (Ryan's play test). When a play test passes, update the entry's status.
+- Play tests closed 2026-09-30 (Ryan), though their entries below still say "awaiting": the audit cleanup pass (2026-09-29), Feel pass F1–F4, AUDIO A3, AB13, "a swing counts once its hit has landed", COMBAT C9–C12, STATS steps 5–6. COMBAT C8 (crits and on-hit) wasn't in that round and stays open. (Moved from CLAUDE.md, 2026-10-08.)
 - Entries up to 2026-09-27 were moved here word for word from the system docs.
 
 ## Archetypes (ARCHETYPES.md)
