@@ -130,75 +130,74 @@ t=0134 brute0 ~cast e test_brute_charge
 t=0134 brute0 ~pose 
 t=0134 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=e s=commit:0.694,hold:0.309 r=commit 0.69  patience 1.00  respect 0.00
 t=0135 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2130.9,83.4 c=- s=hold:0.338 r=hold 0.34  patience 1.00  respect 0.00
-t=0135 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.805,hold:0.311 r=commit 0.80  patience 1.00  respect 0.00
+t=0135 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.825,hold:0.345 r=commit 0.82  patience 1.00  respect 0.00
 t=0136 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2042.1,180.1 c=- s=hold:0.253 r=hold 0.25  patience 1.00  respect 0.00
-t=0139 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.810,hold:0.311 r=commit 0.81  patience 1.00  respect 0.00
+t=0139 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.823,hold:0.302 r=commit 0.82  patience 1.00  respect 0.00
 t=0140 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.838,hold:0.263 r=commit 0.84  patience 1.00  respect 0.00
 t=0141 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2130.9,83.4 c=- s=hold:0.340 r=hold 0.34  patience 1.00  respect 0.00
 t=0142 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2042.1,180.1 c=- s=hold:0.272 r=hold 0.27  patience 1.00  respect 0.00
-t=0143 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.705,hold:0.303 r=commit 0.70  patience 1.00  respect 0.00
+t=0143 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.657,hold:0.305 r=commit 0.66  patience 1.00  respect 0.00
 t=0146 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.615,hold:0.364 r=commit 0.62  patience 1.00  respect 0.00
 t=0147 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2115.2,104.0 c=- s=hold:0.246 r=hold 0.25  patience 1.00  respect 0.00
-t=0147 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.643,hold:0.271 r=commit 0.64  patience 1.00  respect 0.00
+t=0147 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.588,hold:0.325 r=commit 0.59  patience 1.00  respect 0.00
 t=0148 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2016.6,184.2 c=- s=hold:0.337 r=hold 0.34  patience 1.00  respect 0.00
-t=0151 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.703,hold:0.262 r=commit 0.70  patience 1.00  respect 0.00
+t=0151 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.568,hold:0.297 r=commit 0.57  patience 1.00  respect 0.00
 t=0152 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.685,hold:0.286 r=commit 0.68  patience 1.00  respect 0.00
 t=0153 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2115.2,104.0 c=- s=hold:0.309 r=hold 0.31  patience 1.00  respect 0.00
 t=0154 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2016.6,184.2 c=- s=hold:0.343 r=hold 0.34  patience 1.00  respect 0.00
-t=0155 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.652,hold:0.338 r=commit 0.65  patience 1.00  respect 0.00
+t=0155 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.733,hold:0.324 r=commit 0.73  patience 1.00  respect 0.00
 t=0158 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.717,hold:0.365 r=commit 0.72  patience 1.00  respect 0.00
 t=0159 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2115.2,104.0 c=- s=hold:0.251 r=hold 0.25  patience 1.00  respect 0.00
-t=0159 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.620,hold:0.295 r=commit 0.62  patience 1.00  respect 0.00
+t=0159 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.639,hold:0.301 r=commit 0.64  patience 1.00  respect 0.00
 t=0160 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2016.6,184.2 c=- s=hold:0.258 r=hold 0.26  patience 1.00  respect 0.00
-t=0163 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.731,hold:0.332 r=commit 0.73  patience 1.00  respect 0.00
+t=0163 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.719,hold:0.286 r=commit 0.72  patience 1.00  respect 0.00
 t=0164 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.530,hold:0.236 r=commit 0.53  patience 1.00  respect 0.00
 t=0165 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2096.3,121.7 c=- s=hold:0.317 r=hold 0.32  patience 1.00  respect 0.00
 t=0166 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1990.8,184.7 c=- s=hold:0.278 r=hold 0.28  patience 1.00  respect 0.00
-t=0167 slime_elite ~string_end cut 0
 t=0167 slime_elite ~cast e slime_elite_big_hit
-t=0167 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=e s=commit:0.656,hold:0.264 r=commit 0.66  patience 1.00  respect 0.00
+t=0167 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=e s=commit:0.573,hold:0.337 r=commit 0.57  patience 1.00  respect 0.00
 t=0170 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.711,hold:0.322 r=commit 0.71  patience 1.00  respect 0.00
 t=0171 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2096.3,121.7 c=- s=hold:0.351 r=hold 0.35  patience 1.00  respect 0.00
-t=0171 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.738,hold:0.339 r=commit 0.74  patience 1.00  respect 0.00
+t=0171 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.735,hold:0.342 r=commit 0.74  patience 1.00  respect 0.00
 t=0172 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1990.8,184.7 c=- s=hold:0.236 r=hold 0.24  patience 1.00  respect 0.00
-t=0175 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.690,hold:0.310 r=commit 0.69  patience 1.00  respect 0.00
+t=0175 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.672,hold:0.341 r=commit 0.67  patience 1.00  respect 0.00
 t=0176 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.627,hold:0.293 r=commit 0.63  patience 1.00  respect 0.00
 t=0177 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2074.7,136.1 c=- s=hold:0.330 r=hold 0.33  patience 1.00  respect 0.00
 t=0178 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2044.6,179.5 c=- s=hold:0.241 r=hold 0.24  patience 1.00  respect 0.00
-t=0179 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.697,hold:0.272 r=commit 0.70  patience 1.00  respect 0.00
+t=0179 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.590,hold:0.318 r=commit 0.59  patience 1.00  respect 0.00
 t=0182 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.668,hold:0.331 r=commit 0.67  patience 1.00  respect 0.00
 t=0183 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2074.7,136.1 c=- s=hold:0.276 r=hold 0.28  patience 1.00  respect 0.00
-t=0183 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.631,hold:0.304 r=commit 0.63  patience 1.00  respect 0.00
+t=0183 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.658,hold:0.322 r=commit 0.66  patience 1.00  respect 0.00
 t=0184 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2044.6,179.5 c=- s=hold:0.271 r=hold 0.27  patience 1.00  respect 0.00
-t=0187 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.588,hold:0.279 r=commit 0.59  patience 1.00  respect 0.00
+t=0187 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.605,hold:0.291 r=commit 0.61  patience 1.00  respect 0.00
 t=0188 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.739,hold:0.322 r=commit 0.74  patience 1.00  respect 0.00
 t=0189 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2074.7,136.1 c=- s=hold:0.274 r=hold 0.27  patience 1.00  respect 0.00
 t=0190 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2044.6,179.5 c=- s=hold:0.346 r=hold 0.35  patience 1.00  respect 0.00
-t=0191 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.679,hold:0.310 r=commit 0.68  patience 1.00  respect 0.00
+t=0191 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.672,hold:0.271 r=commit 0.67  patience 1.00  respect 0.00
 t=0194 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.712,hold:0.240 r=commit 0.71  patience 1.00  respect 0.00
 t=0195 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2051.0,146.6 c=- s=hold:0.308 r=hold 0.31  patience 1.00  respect 0.00
-t=0195 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.713,hold:0.322 r=commit 0.71  patience 1.00  respect 0.00
+t=0195 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.697,hold:0.313 r=commit 0.70  patience 1.00  respect 0.00
 t=0196 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2068.3,171.8 c=- s=hold:0.337 r=hold 0.34  patience 1.00  respect 0.00
-t=0199 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.735,hold:0.287 r=commit 0.73  patience 1.00  respect 0.00
+t=0199 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.621,hold:0.329 r=commit 0.62  patience 1.00  respect 0.00
 t=0200 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=w s=commit:0.547,hold:0.251 r=commit 0.55  patience 1.00  respect 0.00
 t=0201 brute0 ~swing 0
 t=0201 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2051.0,146.6 c=- s=hold:0.299 r=hold 0.30  patience 1.00  respect 0.00
 t=0202 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2068.3,171.8 c=- s=hold:0.298 r=hold 0.30  patience 1.00  respect 0.00
-t=0203 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.600,hold:0.259 r=commit 0.60  patience 1.00  respect 0.00
+t=0203 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.561,hold:0.339 r=commit 0.56  patience 1.00  respect 0.00
 t=0206 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
 t=0207 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2051.0,146.6 c=- s=hold:0.274 r=hold 0.27  patience 1.00  respect 0.00
-t=0207 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.715,hold:0.301 r=commit 0.72  patience 1.00  respect 0.00
+t=0207 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.651,hold:0.277 r=commit 0.65  patience 1.00  respect 0.00
 t=0208 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2068.3,171.8 c=- s=hold:0.350 r=hold 0.35  patience 1.00  respect 0.00
-t=0211 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.636,hold:0.326 r=commit 0.64  patience 1.00  respect 0.00
+t=0211 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.706,hold:0.330 r=commit 0.71  patience 1.00  respect 0.00
 t=0212 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
 t=0213 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2025.9,153.0 c=- s=hold:0.289 r=hold 0.29  patience 1.00  respect 0.00
 t=0214 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2090.9,161.0 c=- s=hold:0.258 r=hold 0.26  patience 1.00  respect 0.00
-t=0215 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.697,hold:0.334 r=commit 0.70  patience 1.00  respect 0.00
+t=0215 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.724,hold:0.294 r=commit 0.72  patience 1.00  respect 0.00
 t=0218 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
 t=0219 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2025.9,153.0 c=- s=hold:0.297 r=hold 0.30  patience 1.00  respect 0.00
-t=0219 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.641,hold:0.326 r=commit 0.64  patience 1.00  respect 0.00
+t=0219 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.706,hold:0.322 r=commit 0.71  patience 1.00  respect 0.00
 t=0220 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2090.9,161.0 c=- s=hold:0.287 r=hold 0.29  patience 1.00  respect 0.00
-t=0223 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.703,hold:0.268 r=commit 0.70  patience 1.00  respect 0.00
+t=0223 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=commit:0.580,hold:0.296 r=commit 0.58  patience 1.00  respect 0.00
 t=0224 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
 t=0225 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2000.1,155.2 c=- s=hold:0.251 r=hold 0.25  patience 1.00  respect 0.00
 t=0226 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2111.8,147.3 c=- s=hold:0.335 r=hold 0.33  patience 1.00  respect 0.00
@@ -206,30 +205,30 @@ t=0227 slime_elite ~intent retreat
 t=0227 slime_elite ~pose step_back
 t=0227 slime_elite ~commit end
 t=0227 slime_elite ~token freed
-t=0227 slime_elite i=retreat p=step_back com=0 pat=0.033 tok=rest str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=retreat:0.761,hold:0.270 r=retreat 0.76  patience 0.03  respect 0.00
-t=0228 slime_elite i=retreat p=step_back com=0 pat=0.042 tok=rest str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=retreat:0.857,hold:0.262 r=retreat 0.86  patience 0.04  respect 0.00
+t=0227 slime_elite i=retreat p=step_back com=0 pat=0.033 tok=rest str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=retreat:0.631,hold:0.324 r=retreat 0.63  patience 0.03  respect 0.00
+t=0228 slime_elite i=retreat p=step_back com=0 pat=0.042 tok=rest str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=retreat:0.762,hold:0.326 r=retreat 0.76  patience 0.04  respect 0.00
 t=0230 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
 t=0231 brute1 ~intent commit
 t=0231 brute1 ~pose crouch
 t=0231 brute1 ~commit start
 t=0231 brute1 ~token taken
 t=0231 brute1 i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=e s=commit:0.630,hold:0.362 r=commit 0.63  patience 1.00  respect 0.00
-t=0231 slime_elite i=retreat p=step_back com=0 pat=0.067 tok=rest str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=retreat:0.898,hold:0.333 r=retreat 0.90  patience 0.07  respect 0.00
+t=0231 slime_elite i=retreat p=step_back com=0 pat=0.067 tok=rest str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=retreat:0.928,hold:0.303 r=retreat 0.93  patience 0.07  respect 0.00
 t=0232 brute2 ~intent commit
 t=0232 brute2 ~pose crouch
 t=0232 brute2 ~commit start
 t=0232 brute2 ~token taken
 t=0232 brute2 i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=e s=commit:0.530,hold:0.332 r=commit 0.53  patience 1.00  respect 0.00
-t=0235 slime_elite i=retreat p=step_back com=0 pat=0.100 tok=rest str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=retreat:0.944,hold:0.283 r=retreat 0.94  patience 0.10  respect 0.00
+t=0235 slime_elite i=retreat p=step_back com=0 pat=0.100 tok=rest str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=retreat:0.810,hold:0.321 r=retreat 0.81  patience 0.10  respect 0.00
 t=0236 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
 t=0237 brute1 i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=e s=commit:0.812,hold:0.308 r=commit 0.81  patience 1.00  respect 0.00
 t=0238 brute2 i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=e s=commit:0.888,hold:0.359 r=commit 0.89  patience 1.00  respect 0.00
-t=0239 slime_elite i=retreat p=step_back com=0 pat=0.133 tok=rest str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=retreat:0.884,hold:0.257 r=retreat 0.88  patience 0.13  respect 0.00
+t=0239 slime_elite i=retreat p=step_back com=0 pat=0.133 tok=rest str=0/-1/0 plan=-/-1 m=-1941.8,-35.1 c=- s=retreat:0.750,hold:0.340 r=retreat 0.75  patience 0.13  respect 0.00
 t=0242 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
 t=0243 brute1 i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=e s=commit:0.772,hold:0.362 r=commit 0.77  patience 1.00  respect 0.00
-t=0243 slime_elite i=retreat p=step_back com=0 pat=0.167 tok=rest str=0/-1/0 plan=-/-1 m=-1807.5,-69.8 c=- s=retreat:0.810,hold:0.322 r=retreat 0.81  patience 0.17  respect 0.00
+t=0243 slime_elite i=retreat p=step_back com=0 pat=0.167 tok=rest str=0/-1/0 plan=-/-1 m=-1807.5,-69.8 c=- s=retreat:0.900,hold:0.315 r=retreat 0.90  patience 0.17  respect 0.00
 t=0244 brute2 i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=e s=commit:0.676,hold:0.321 r=commit 0.68  patience 1.00  respect 0.00
-t=0247 slime_elite i=retreat p=step_back com=0 pat=0.200 tok=rest str=0/-1/0 plan=-/-1 m=-1807.5,-69.8 c=- s=retreat:0.909,hold:0.344 r=retreat 0.91  patience 0.20  respect 0.00
+t=0247 slime_elite i=retreat p=step_back com=0 pat=0.200 tok=rest str=0/-1/0 plan=-/-1 m=-1807.5,-69.8 c=- s=retreat:0.952,hold:0.283 r=retreat 0.95  patience 0.20  respect 0.00
 t=0248 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
 t=0249 brute1 ~cast e test_brute_charge
 t=0249 brute1 ~pose 
@@ -237,85 +236,85 @@ t=0249 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=e 
 t=0250 brute2 ~cast e test_brute_charge
 t=0250 brute2 ~pose 
 t=0250 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=e s=commit:0.693,hold:0.366 r=commit 0.69  patience 1.00  respect 0.00
-t=0251 slime_elite i=retreat p=step_back com=0 pat=0.233 tok=rest str=0/-1/0 plan=-/-1 m=-1807.5,-69.8 c=- s=retreat:0.860,hold:0.287 r=retreat 0.86  patience 0.23  respect 0.00
+t=0251 slime_elite i=retreat p=step_back com=0 pat=0.233 tok=rest str=0/-1/0 plan=-/-1 m=-1807.5,-69.8 c=- s=retreat:0.819,hold:0.325 r=retreat 0.82  patience 0.23  respect 0.00
 t=0254 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
 t=0255 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.885,hold:0.336 r=commit 0.89  patience 1.00  respect 0.00
-t=0255 slime_elite i=retreat p=step_back com=0 pat=0.267 tok=rest str=0/-1/0 plan=-/-1 m=-1807.5,-69.8 c=- s=retreat:0.678,hold:0.324 r=retreat 0.68  patience 0.27  respect 0.00
+t=0255 slime_elite i=retreat p=step_back com=0 pat=0.267 tok=rest str=0/-1/0 plan=-/-1 m=-1807.5,-69.8 c=- s=retreat:0.755,hold:0.304 r=retreat 0.76  patience 0.27  respect 0.00
 t=0256 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.802,hold:0.358 r=commit 0.80  patience 1.00  respect 0.00
 t=0258 brute0 ~swing 1
-t=0259 slime_elite i=retreat p=step_back com=0 pat=0.300 tok=rest str=0/-1/0 plan=-/-1 m=-1803.2,-56.7 c=- s=retreat:0.609,hold:0.270 r=retreat 0.61  patience 0.30  respect 0.00
+t=0259 slime_elite i=retreat p=step_back com=0 pat=0.300 tok=rest str=0/-1/0 plan=-/-1 m=-1803.2,-56.7 c=- s=retreat:0.631,hold:0.291 r=retreat 0.63  patience 0.30  respect 0.00
 t=0260 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
 t=0261 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.514,hold:0.348 r=commit 0.51  patience 1.00  respect 0.00
 t=0262 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.646,hold:0.294 r=commit 0.65  patience 1.00  respect 0.00
-t=0263 slime_elite i=retreat p=step_back com=0 pat=0.333 tok=rest str=0/-1/0 plan=-/-1 m=-1803.2,-56.7 c=- s=retreat:0.745,hold:0.260 r=retreat 0.74  patience 0.33  respect 0.00
+t=0263 slime_elite i=retreat p=step_back com=0 pat=0.333 tok=rest str=0/-1/0 plan=-/-1 m=-1803.2,-56.7 c=- s=retreat:0.607,hold:0.261 r=retreat 0.61  patience 0.33  respect 0.00
 t=0266 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
 t=0267 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.599,hold:0.263 r=commit 0.60  patience 1.00  respect 0.00
-t=0267 slime_elite i=retreat p=step_back com=0 pat=0.367 tok=rest str=0/-1/0 plan=-/-1 m=-1803.2,-56.7 c=- s=retreat:0.780,hold:0.318 r=retreat 0.78  patience 0.37  respect 0.00
+t=0267 slime_elite i=retreat p=step_back com=0 pat=0.367 tok=rest str=0/-1/0 plan=-/-1 m=-1803.2,-56.7 c=- s=retreat:0.742,hold:0.319 r=retreat 0.74  patience 0.37  respect 0.00
 t=0268 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.723,hold:0.329 r=commit 0.72  patience 1.00  respect 0.00
-t=0271 slime_elite i=retreat p=step_back com=0 pat=0.400 tok=rest str=0/-1/0 plan=-/-1 m=-1803.2,-56.7 c=- s=retreat:0.803,hold:0.298 r=retreat 0.80  patience 0.40  respect 0.00
+t=0271 slime_elite i=retreat p=step_back com=0 pat=0.400 tok=rest str=0/-1/0 plan=-/-1 m=-1803.2,-56.7 c=- s=retreat:0.695,hold:0.334 r=retreat 0.69  patience 0.40  respect 0.00
 t=0272 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
 t=0273 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.698,hold:0.293 r=commit 0.70  patience 1.00  respect 0.00
 t=0274 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.614,hold:0.324 r=commit 0.61  patience 1.00  respect 0.00
-t=0275 slime_elite i=retreat p=step_back com=0 pat=0.433 tok=rest str=0/-1/0 plan=-/-1 m=-1799.8,-43.1 c=- s=retreat:0.764,hold:0.284 r=retreat 0.76  patience 0.43  respect 0.00
+t=0275 slime_elite i=retreat p=step_back com=0 pat=0.433 tok=rest str=0/-1/0 plan=-/-1 m=-1799.8,-43.1 c=- s=retreat:0.662,hold:0.344 r=retreat 0.66  patience 0.43  respect 0.00
 t=0278 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
 t=0279 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.796,hold:0.340 r=commit 0.80  patience 1.00  respect 0.00
-t=0279 slime_elite i=retreat p=step_back com=0 pat=0.467 tok=rest str=0/-1/0 plan=-/-1 m=-1799.8,-43.1 c=- s=retreat:0.683,hold:0.284 r=retreat 0.68  patience 0.47  respect 0.00
+t=0279 slime_elite i=retreat p=step_back com=0 pat=0.467 tok=rest str=0/-1/0 plan=-/-1 m=-1799.8,-43.1 c=- s=retreat:0.662,hold:0.328 r=retreat 0.66  patience 0.47  respect 0.00
 t=0280 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.678,hold:0.266 r=commit 0.68  patience 1.00  respect 0.00
-t=0283 slime_elite i=retreat p=step_back com=0 pat=0.500 tok=rest str=0/-1/0 plan=-/-1 m=-1799.8,-43.1 c=- s=retreat:0.655,hold:0.263 r=retreat 0.65  patience 0.50  respect 0.00
+t=0283 slime_elite i=retreat p=step_back com=0 pat=0.500 tok=rest str=0/-1/0 plan=-/-1 m=-1799.8,-43.1 c=- s=retreat:0.613,hold:0.293 r=retreat 0.61  patience 0.50  respect 0.00
 t=0284 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
 t=0285 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.641,hold:0.327 r=commit 0.64  patience 1.00  respect 0.00
 t=0286 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.673,hold:0.251 r=commit 0.67  patience 1.00  respect 0.00
-t=0287 slime_elite i=retreat p=step_back com=0 pat=0.533 tok=rest str=0/-1/0 plan=-/-1 m=-1799.8,-43.1 c=- s=retreat:0.762,hold:0.321 r=retreat 0.76  patience 0.53  respect 0.00
+t=0287 slime_elite i=retreat p=step_back com=0 pat=0.533 tok=rest str=0/-1/0 plan=-/-1 m=-1799.8,-43.1 c=- s=retreat:0.748,hold:0.281 r=retreat 0.75  patience 0.53  respect 0.00
 t=0290 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
 t=0291 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.778,hold:0.238 r=commit 0.78  patience 1.00  respect 0.00
-t=0291 slime_elite i=retreat p=step_back com=0 pat=0.567 tok=rest str=0/-1/0 plan=-/-1 m=-1797.2,-28.4 c=- s=retreat:0.775,hold:0.330 r=retreat 0.78  patience 0.57  respect 0.00
+t=0291 slime_elite i=retreat p=step_back com=0 pat=0.567 tok=rest str=0/-1/0 plan=-/-1 m=-1797.2,-28.4 c=- s=retreat:0.771,hold:0.326 r=retreat 0.77  patience 0.57  respect 0.00
 t=0292 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.513,hold:0.332 r=commit 0.51  patience 1.00  respect 0.00
-t=0295 slime_elite i=retreat p=step_back com=0 pat=0.600 tok=rest str=0/-1/0 plan=-/-1 m=-1797.2,-28.4 c=- s=retreat:0.686,hold:0.298 r=retreat 0.69  patience 0.60  respect 0.00
+t=0295 slime_elite i=retreat p=step_back com=0 pat=0.600 tok=rest str=0/-1/0 plan=-/-1 m=-1797.2,-28.4 c=- s=retreat:0.696,hold:0.332 r=retreat 0.70  patience 0.60  respect 0.00
 t=0296 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
 t=0297 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.543,hold:0.281 r=commit 0.54  patience 1.00  respect 0.00
 t=0298 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.634,hold:0.281 r=commit 0.63  patience 1.00  respect 0.00
-t=0299 slime_elite i=retreat p=step_back com=0 pat=0.633 tok=rest str=0/-1/0 plan=-/-1 m=-1797.2,-28.4 c=- s=retreat:0.741,hold:0.300 r=retreat 0.74  patience 0.63  respect 0.00
+t=0299 slime_elite i=retreat p=step_back com=0 pat=0.633 tok=rest str=0/-1/0 plan=-/-1 m=-1797.2,-28.4 c=- s=retreat:0.699,hold:0.294 r=retreat 0.70  patience 0.63  respect 0.00
 t=0302 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
 t=0303 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.594,hold:0.328 r=commit 0.59  patience 1.00  respect 0.00
-t=0303 slime_elite i=retreat p=step_back com=0 pat=0.667 tok=rest str=0/-1/0 plan=-/-1 m=-1797.2,-28.4 c=- s=retreat:0.787,hold:0.299 r=retreat 0.79  patience 0.67  respect 0.00
+t=0303 slime_elite i=retreat p=step_back com=0 pat=0.667 tok=rest str=0/-1/0 plan=-/-1 m=-1797.2,-28.4 c=- s=retreat:0.698,hold:0.317 r=retreat 0.70  patience 0.67  respect 0.00
 t=0304 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.755,hold:0.320 r=commit 0.75  patience 1.00  respect 0.00
-t=0307 slime_elite i=retreat p=step_back com=0 pat=0.700 tok=rest str=0/-1/0 plan=-/-1 m=-1795.5,-11.8 c=- s=retreat:0.687,hold:0.302 r=retreat 0.69  patience 0.70  respect 0.00
+t=0307 slime_elite i=retreat p=step_back com=0 pat=0.700 tok=rest str=0/-1/0 plan=-/-1 m=-1795.5,-11.8 c=- s=retreat:0.705,hold:0.337 r=retreat 0.70  patience 0.70  respect 0.00
 t=0308 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
 t=0309 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.668,hold:0.262 r=commit 0.67  patience 1.00  respect 0.00
 t=0310 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.770,hold:0.282 r=commit 0.77  patience 1.00  respect 0.00
-t=0311 slime_elite i=retreat p=step_back com=0 pat=0.733 tok=rest str=0/-1/0 plan=-/-1 m=-1795.5,-11.8 c=- s=retreat:0.613,hold:0.263 r=retreat 0.61  patience 0.73  respect 0.00
+t=0311 slime_elite i=retreat p=step_back com=0 pat=0.733 tok=rest str=0/-1/0 plan=-/-1 m=-1795.5,-11.8 c=- s=retreat:0.615,hold:0.294 r=retreat 0.61  patience 0.73  respect 0.00
 t=0312 brute0 ~string_end done 2
 t=0313 brute0 ~cast w test_brute_cleave_arc
 t=0313 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=w s=commit:0.544,hold:0.234 r=commit 0.54  patience 1.00  respect 0.00
 t=0314 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.594,hold:0.262 r=commit 0.59  patience 1.00  respect 0.00
 t=0315 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=w s=commit:0.662,hold:0.338 r=commit 0.66  patience 1.00  respect 0.00
-t=0315 slime_elite i=retreat p=step_back com=0 pat=0.767 tok=rest str=0/-1/0 plan=-/-1 m=-1795.5,-11.8 c=- s=retreat:0.668,hold:0.284 r=retreat 0.67  patience 0.77  respect 0.00
+t=0315 slime_elite i=retreat p=step_back com=0 pat=0.767 tok=rest str=0/-1/0 plan=-/-1 m=-1795.5,-11.8 c=- s=retreat:0.662,hold:0.263 r=retreat 0.66  patience 0.77  respect 0.00
 t=0316 brute1 ~swing 0
 t=0316 brute2 ~cast w test_brute_cleave_arc
 t=0316 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=w s=commit:0.696,hold:0.285 r=commit 0.70  patience 1.00  respect 0.00
-t=0319 slime_elite i=retreat p=step_back com=0 pat=0.800 tok=- str=0/-1/0 plan=-/-1 m=-1795.5,-11.8 c=- s=retreat:0.729,hold:0.328 r=retreat 0.73  patience 0.80  respect 0.00
+t=0319 slime_elite i=retreat p=step_back com=0 pat=0.800 tok=- str=0/-1/0 plan=-/-1 m=-1795.5,-11.8 c=- s=retreat:0.766,hold:0.286 r=retreat 0.77  patience 0.80  respect 0.00
 t=0320 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.715,hold:0.259 r=commit 0.72  patience 1.00  respect 0.00
 t=0321 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
 t=0322 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.755,hold:0.311 r=commit 0.75  patience 1.00  respect 0.00
-t=0323 slime_elite i=retreat p=step_back com=0 pat=0.833 tok=- str=0/-1/0 plan=-/-1 m=-1795.3,7.5 c=- s=retreat:0.704,hold:0.268 r=retreat 0.70  patience 0.83  respect 0.00
+t=0323 slime_elite i=retreat p=step_back com=0 pat=0.833 tok=- str=0/-1/0 plan=-/-1 m=-1795.3,7.5 c=- s=retreat:0.625,hold:0.312 r=retreat 0.62  patience 0.83  respect 0.00
 t=0326 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.743,hold:0.287 r=commit 0.74  patience 1.00  respect 0.00
 t=0327 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0327 slime_elite i=retreat p=step_back com=0 pat=0.867 tok=- str=0/-1/0 plan=-/-1 m=-1795.3,7.5 c=- s=retreat:0.659,hold:0.337 r=retreat 0.66  patience 0.87  respect 0.00
+t=0327 slime_elite i=retreat p=step_back com=0 pat=0.867 tok=- str=0/-1/0 plan=-/-1 m=-1795.3,7.5 c=- s=retreat:0.787,hold:0.302 r=retreat 0.79  patience 0.87  respect 0.00
 t=0328 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.607,hold:0.317 r=commit 0.61  patience 1.00  respect 0.00
-t=0331 slime_elite i=retreat p=step_back com=0 pat=0.900 tok=- str=0/-1/0 plan=-/-1 m=-1795.3,7.5 c=- s=retreat:0.637,hold:0.297 r=retreat 0.64  patience 0.90  respect 0.00
+t=0331 slime_elite i=retreat p=step_back com=0 pat=0.900 tok=- str=0/-1/0 plan=-/-1 m=-1795.3,7.5 c=- s=retreat:0.693,hold:0.283 r=retreat 0.69  patience 0.90  respect 0.00
 t=0332 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.782,hold:0.320 r=commit 0.78  patience 1.00  respect 0.00
 t=0333 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
 t=0334 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.787,hold:0.330 r=commit 0.79  patience 1.00  respect 0.00
-t=0335 slime_elite i=retreat p=step_back com=0 pat=0.933 tok=- str=0/-1/0 plan=-/-1 m=-1795.3,7.5 c=- s=retreat:0.627,hold:0.289 r=retreat 0.63  patience 0.93  respect 0.00
+t=0335 slime_elite i=retreat p=step_back com=0 pat=0.933 tok=- str=0/-1/0 plan=-/-1 m=-1795.3,7.5 c=- s=retreat:0.674,hold:0.273 r=retreat 0.67  patience 0.93  respect 0.00
 t=0338 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.772,hold:0.275 r=commit 0.77  patience 1.00  respect 0.00
 t=0339 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0339 slime_elite i=retreat p=step_back com=0 pat=0.967 tok=- str=0/-1/0 plan=-/-1 m=-1797.3,28.9 c=- s=retreat:0.639,hold:0.276 r=retreat 0.64  patience 0.97  respect 0.00
+t=0339 slime_elite i=retreat p=step_back com=0 pat=0.967 tok=- str=0/-1/0 plan=-/-1 m=-1797.3,28.9 c=- s=retreat:0.645,hold:0.269 r=retreat 0.64  patience 0.97  respect 0.00
 t=0340 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.711,hold:0.340 r=commit 0.71  patience 1.00  respect 0.00
-t=0343 slime_elite i=retreat p=step_back com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1797.3,28.9 c=- s=retreat:0.750,hold:0.341 r=retreat 0.75  patience 1.00  respect 0.00
+t=0343 slime_elite i=retreat p=step_back com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1797.3,28.9 c=- s=retreat:0.796,hold:0.274 r=retreat 0.80  patience 1.00  respect 0.00
 t=0344 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.770,hold:0.310 r=commit 0.77  patience 1.00  respect 0.00
 t=0345 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
 t=0346 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.607,hold:0.311 r=commit 0.61  patience 1.00  respect 0.00
-t=0347 slime_elite i=retreat p=step_back com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1797.3,28.9 c=- s=retreat:0.636,hold:0.303 r=retreat 0.64  patience 1.00  respect 0.00
+t=0347 slime_elite i=retreat p=step_back com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1797.3,28.9 c=- s=retreat:0.708,hold:0.321 r=retreat 0.71  patience 1.00  respect 0.00
 t=0350 brute0 ~intent hold
 t=0350 brute0 ~pose press
 t=0350 brute0 ~commit end
@@ -324,7 +323,7 @@ t=0350 brute0 i=hold p=press com=0 pat=0.067 tok=rest str=0/-1/0 plan=-/-1 m=-20
 t=0351 slime_elite ~intent hold
 t=0351 slime_elite ~pose press
 t=0351 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0351 slime_elite i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1797.3,28.9 c=- s=hold:0.264 r=hold 0.26  patience 1.00  respect 0.00
+t=0351 slime_elite i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1797.3,28.9 c=- s=hold:0.273 r=hold 0.27  patience 1.00  respect 0.00
 t=0352 brute2 ~intent hold
 t=0352 brute2 ~pose press
 t=0352 brute2 ~commit end
@@ -334,97 +333,97 @@ t=0355 slime_elite ~intent commit
 t=0355 slime_elite ~pose crouch
 t=0355 slime_elite ~commit start
 t=0355 slime_elite ~token taken
-t=0355 slime_elite i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.612,hold:0.472 r=commit 0.61  patience 1.00  respect 0.00
+t=0355 slime_elite i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.697,hold:0.465 r=commit 0.70  patience 1.00  respect 0.00
 t=0356 brute0 i=hold p=press com=0 pat=0.133 tok=rest str=0/-1/0 plan=-/-1 m=-2016.9,-154.3 c=- s=hold:0.465 r=hold 0.47  patience 0.13  respect 0.00
 t=0357 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
 t=0358 brute2 i=hold p=press com=0 pat=0.133 tok=rest str=0/-1/0 plan=-/-1 m=-1894.1,-113.5 c=- s=hold:0.391 r=hold 0.39  patience 0.13  respect 0.00
-t=0359 slime_elite i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.724,hold:0.265 r=commit 0.72  patience 1.00  respect 0.00
+t=0359 slime_elite i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.723,hold:0.283 r=commit 0.72  patience 1.00  respect 0.00
 t=0362 brute0 i=hold p=press com=0 pat=0.200 tok=rest str=0/-1/0 plan=-/-1 m=-2016.9,-154.3 c=- s=hold:0.417 r=hold 0.42  patience 0.20  respect 0.00
 t=0363 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0363 slime_elite i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.842,hold:0.286 r=commit 0.84  patience 1.00  respect 0.00
+t=0363 slime_elite i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.770,hold:0.265 r=commit 0.77  patience 1.00  respect 0.00
 t=0364 brute2 i=hold p=press com=0 pat=0.200 tok=rest str=0/-1/0 plan=-/-1 m=-1894.1,-113.5 c=- s=hold:0.492 r=hold 0.49  patience 0.20  respect 0.00
-t=0367 slime_elite i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.852,hold:0.270 r=commit 0.85  patience 1.00  respect 0.00
+t=0367 slime_elite i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.734,hold:0.320 r=commit 0.73  patience 1.00  respect 0.00
 t=0368 brute0 i=hold p=press com=0 pat=0.267 tok=rest str=0/-1/0 plan=-/-1 m=-2000.9,-155.2 c=- s=hold:0.412 r=hold 0.41  patience 0.27  respect 0.00
 t=0369 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
 t=0370 brute2 i=hold p=press com=0 pat=0.267 tok=rest str=0/-1/0 plan=-/-1 m=-1844.8,-2.2 c=- s=hold:0.497 r=hold 0.50  patience 0.27  respect 0.00
-t=0371 slime_elite i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.831,hold:0.317 r=commit 0.83  patience 1.00  respect 0.00
+t=0371 slime_elite i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.838,hold:0.324 r=commit 0.84  patience 1.00  respect 0.00
 t=0373 brute1 ~swing 1
 t=0373 slime_elite ~pose 
 t=0374 brute0 i=hold p=press com=0 pat=0.333 tok=rest str=0/-1/0 plan=-/-1 m=-2000.9,-155.2 c=- s=hold:0.476 r=hold 0.48  patience 0.33  respect 0.00
 t=0375 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0375 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.789,hold:0.269 r=commit 0.79  patience 1.00  respect 0.00
+t=0375 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.759,hold:0.314 r=commit 0.76  patience 1.00  respect 0.00
 t=0376 brute2 i=hold p=press com=0 pat=0.333 tok=rest str=0/-1/0 plan=-/-1 m=-1844.8,-2.2 c=- s=hold:0.477 r=hold 0.48  patience 0.33  respect 0.00
-t=0379 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.808,hold:0.281 r=commit 0.81  patience 1.00  respect 0.00
+t=0379 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.789,hold:0.269 r=commit 0.79  patience 1.00  respect 0.00
 t=0380 brute0 i=hold p=press com=0 pat=0.400 tok=rest str=0/-1/0 plan=-/-1 m=-2000.9,-155.2 c=- s=hold:0.331 r=hold 0.33  patience 0.40  respect 0.00
 t=0381 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
 t=0382 brute2 i=hold p=press com=0 pat=0.400 tok=rest str=0/-1/0 plan=-/-1 m=-1844.8,-2.2 c=- s=hold:0.322 r=hold 0.32  patience 0.40  respect 0.00
-t=0383 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.715,hold:0.308 r=commit 0.72  patience 1.00  respect 0.00
+t=0383 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.658,hold:0.281 r=commit 0.66  patience 1.00  respect 0.00
 t=0386 brute0 i=hold p=press com=0 pat=0.467 tok=rest str=0/-1/0 plan=-/-1 m=-1981.8,-154.1 c=- s=hold:0.266 r=hold 0.27  patience 0.47  respect 0.00
 t=0387 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0387 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.671,hold:0.310 r=commit 0.67  patience 1.00  respect 0.00
+t=0387 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.715,hold:0.308 r=commit 0.72  patience 1.00  respect 0.00
 t=0388 brute2 i=hold p=press com=0 pat=0.467 tok=rest str=0/-1/0 plan=-/-1 m=-1845.3,12.7 c=- s=hold:0.264 r=hold 0.26  patience 0.47  respect 0.00
-t=0391 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.719,hold:0.335 r=commit 0.72  patience 1.00  respect 0.00
+t=0391 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.671,hold:0.310 r=commit 0.67  patience 1.00  respect 0.00
 t=0392 brute0 i=hold p=press com=0 pat=0.533 tok=rest str=0/-1/0 plan=-/-1 m=-1981.8,-154.1 c=- s=hold:0.310 r=hold 0.31  patience 0.53  respect 0.00
 t=0393 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
 t=0394 brute2 i=hold p=press com=0 pat=0.533 tok=rest str=0/-1/0 plan=-/-1 m=-1845.3,12.7 c=- s=hold:0.323 r=hold 0.32  patience 0.53  respect 0.00
-t=0395 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.614,hold:0.278 r=commit 0.61  patience 1.00  respect 0.00
+t=0395 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.719,hold:0.335 r=commit 0.72  patience 1.00  respect 0.00
 t=0398 brute0 i=hold p=press com=0 pat=0.600 tok=rest str=0/-1/0 plan=-/-1 m=-1963.0,-150.7 c=- s=hold:0.299 r=hold 0.30  patience 0.60  respect 0.00
 t=0399 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0399 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.705,hold:0.329 r=commit 0.70  patience 1.00  respect 0.00
+t=0399 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.614,hold:0.278 r=commit 0.61  patience 1.00  respect 0.00
 t=0400 brute2 i=hold p=press com=0 pat=0.600 tok=rest str=0/-1/0 plan=-/-1 m=-1852.4,48.1 c=- s=hold:0.256 r=hold 0.26  patience 0.60  respect 0.00
-t=0403 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.653,hold:0.267 r=commit 0.65  patience 1.00  respect 0.00
+t=0403 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.705,hold:0.329 r=commit 0.70  patience 1.00  respect 0.00
 t=0404 brute0 i=hold p=press com=0 pat=0.667 tok=rest str=0/-1/0 plan=-/-1 m=-1963.0,-150.7 c=- s=hold:0.312 r=hold 0.31  patience 0.67  respect 0.00
 t=0405 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
 t=0406 brute2 i=hold p=press com=0 pat=0.667 tok=rest str=0/-1/0 plan=-/-1 m=-1852.4,48.1 c=- s=hold:0.245 r=hold 0.24  patience 0.67  respect 0.00
-t=0407 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.715,hold:0.335 r=commit 0.71  patience 1.00  respect 0.00
+t=0407 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.653,hold:0.267 r=commit 0.65  patience 1.00  respect 0.00
 t=0410 brute0 i=hold p=press com=0 pat=0.733 tok=rest str=0/-1/0 plan=-/-1 m=-1963.0,-150.7 c=- s=hold:0.237 r=hold 0.24  patience 0.73  respect 0.00
 t=0411 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0411 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.727,hold:0.293 r=commit 0.73  patience 1.00  respect 0.00
+t=0411 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.715,hold:0.335 r=commit 0.71  patience 1.00  respect 0.00
 t=0412 brute2 i=hold p=press com=0 pat=0.733 tok=rest str=0/-1/0 plan=-/-1 m=-1852.4,48.1 c=- s=hold:0.333 r=hold 0.33  patience 0.73  respect 0.00
-t=0415 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.696,hold:0.285 r=commit 0.70  patience 1.00  respect 0.00
+t=0415 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.727,hold:0.293 r=commit 0.73  patience 1.00  respect 0.00
 t=0416 brute0 i=hold p=press com=0 pat=0.800 tok=rest str=0/-1/0 plan=-/-1 m=-1943.1,-144.4 c=- s=hold:0.303 r=hold 0.30  patience 0.80  respect 0.00
 t=0417 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
 t=0418 brute2 i=hold p=press com=0 pat=0.800 tok=rest str=0/-1/0 plan=-/-1 m=-1865.7,77.8 c=- s=hold:0.275 r=hold 0.27  patience 0.80  respect 0.00
-t=0419 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.715,hold:0.279 r=commit 0.72  patience 1.00  respect 0.00
+t=0419 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.696,hold:0.285 r=commit 0.70  patience 1.00  respect 0.00
 t=0422 brute0 i=hold p=press com=0 pat=0.867 tok=rest str=0/-1/0 plan=-/-1 m=-1943.1,-144.4 c=- s=hold:0.244 r=hold 0.24  patience 0.87  respect 0.00
 t=0423 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0423 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1932.0,2.5 c=- s=commit:0.721,hold:0.329 r=commit 0.72  patience 1.00  respect 0.00
+t=0423 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1932.0,2.5 c=- s=commit:0.715,hold:0.279 r=commit 0.72  patience 1.00  respect 0.00
 t=0424 brute2 i=hold p=press com=0 pat=0.867 tok=rest str=0/-1/0 plan=-/-1 m=-1865.7,77.8 c=- s=hold:0.321 r=hold 0.32  patience 0.87  respect 0.00
 t=0427 brute1 ~string_end done 2
-t=0427 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1932.0,2.5 c=- s=commit:0.661,hold:0.326 r=commit 0.66  patience 1.00  respect 0.00
+t=0427 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1932.0,2.5 c=- s=commit:0.721,hold:0.329 r=commit 0.72  patience 1.00  respect 0.00
 t=0428 brute1 ~cast w test_brute_cleave_arc
 t=0428 brute0 i=hold p=press com=0 pat=0.933 tok=rest str=0/-1/0 plan=-/-1 m=-1943.1,-144.4 c=- s=hold:0.351 r=hold 0.35  patience 0.93  respect 0.00
 t=0428 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=w s=commit:0.552,hold:0.258 r=commit 0.55  patience 1.00  respect 0.00
 t=0429 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.744,hold:0.272 r=commit 0.74  patience 1.00  respect 0.00
 t=0430 brute2 i=hold p=press com=0 pat=0.933 tok=rest str=0/-1/0 plan=-/-1 m=-1865.7,77.8 c=- s=hold:0.267 r=hold 0.27  patience 0.93  respect 0.00
-t=0431 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1932.0,2.5 c=- s=commit:0.632,hold:0.279 r=commit 0.63  patience 1.00  respect 0.00
+t=0431 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1932.0,2.5 c=- s=commit:0.661,hold:0.326 r=commit 0.66  patience 1.00  respect 0.00
 t=0434 brute0 i=hold p=press com=0 pat=1.000 tok=rest str=0/-1/0 plan=-/-1 m=-1921.5,-133.9 c=- s=hold:0.289 r=hold 0.29  patience 1.00  respect 0.00
 t=0435 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.554,hold:0.256 r=commit 0.55  patience 1.00  respect 0.00
-t=0435 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1932.0,2.5 c=- s=commit:0.627,hold:0.286 r=commit 0.63  patience 1.00  respect 0.00
+t=0435 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1932.0,2.5 c=- s=commit:0.632,hold:0.279 r=commit 0.63  patience 1.00  respect 0.00
 t=0436 brute2 i=hold p=press com=0 pat=1.000 tok=rest str=0/-1/0 plan=-/-1 m=-1877.2,94.9 c=- s=hold:0.283 r=hold 0.28  patience 1.00  respect 0.00
-t=0439 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1932.0,2.5 c=- s=commit:0.694,hold:0.340 r=commit 0.69  patience 1.00  respect 0.00
+t=0439 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1932.0,2.5 c=- s=commit:0.627,hold:0.286 r=commit 0.63  patience 1.00  respect 0.00
 t=0440 brute0 i=hold p=press com=0 pat=1.000 tok=rest str=0/-1/0 plan=-/-1 m=-1921.5,-133.9 c=- s=hold:0.290 r=hold 0.29  patience 1.00  respect 0.00
 t=0441 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.792,hold:0.274 r=commit 0.79  patience 1.00  respect 0.00
 t=0442 brute2 i=hold p=press com=0 pat=1.000 tok=rest str=0/-1/0 plan=-/-1 m=-1877.2,94.9 c=- s=hold:0.320 r=hold 0.32  patience 1.00  respect 0.00
-t=0443 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1932.0,2.5 c=w s=commit:0.561,hold:0.334 r=commit 0.56  patience 1.00  respect 0.00
+t=0443 slime_elite ~cast w slime_elite_shockwave
+t=0443 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1932.0,2.5 c=w s=commit:0.694,hold:0.340 r=commit 0.69  patience 1.00  respect 0.00
 t=0446 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1900.2,-118.9 c=- s=hold:0.276 r=hold 0.28  patience 1.00  respect 0.00
 t=0447 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.528,hold:0.343 r=commit 0.53  patience 1.00  respect 0.00
-t=0447 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1932.0,2.5 c=w s=commit:0.556,hold:0.287 r=commit 0.56  patience 1.00  respect 0.00
+t=0447 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1932.0,2.5 c=- s=commit:0.637,hold:0.259 r=commit 0.64  patience 1.00  respect 0.00
 t=0448 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1893.0,112.4 c=- s=hold:0.305 r=hold 0.31  patience 1.00  respect 0.00
-t=0451 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1932.0,2.5 c=w s=commit:0.728,hold:0.266 r=commit 0.73  patience 1.00  respect 0.00
+t=0451 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1932.0,2.5 c=- s=commit:0.556,hold:0.287 r=commit 0.56  patience 1.00  respect 0.00
 t=0452 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1900.2,-118.9 c=- s=hold:0.264 r=hold 0.26  patience 1.00  respect 0.00
 t=0453 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.660,hold:0.259 r=commit 0.66  patience 1.00  respect 0.00
 t=0454 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1893.0,112.4 c=- s=hold:0.280 r=hold 0.28  patience 1.00  respect 0.00
-t=0455 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1932.0,2.5 c=w s=commit:0.618,hold:0.319 r=commit 0.62  patience 1.00  respect 0.00
+t=0455 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1932.0,2.5 c=- s=commit:0.728,hold:0.266 r=commit 0.73  patience 1.00  respect 0.00
 t=0458 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1900.2,-118.9 c=- s=hold:0.307 r=hold 0.31  patience 1.00  respect 0.00
 t=0459 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.602,hold:0.358 r=commit 0.60  patience 1.00  respect 0.00
-t=0459 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1932.1,2.8 c=w s=commit:0.623,hold:0.259 r=commit 0.62  patience 1.00  respect 0.00
+t=0459 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1932.0,2.5 c=- s=commit:0.618,hold:0.319 r=commit 0.62  patience 1.00  respect 0.00
 t=0460 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1893.0,112.4 c=- s=hold:0.247 r=hold 0.25  patience 1.00  respect 0.00
-t=0463 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1932.1,2.8 c=w s=commit:0.641,hold:0.331 r=commit 0.64  patience 1.00  respect 0.00
+t=0463 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1932.0,2.5 c=- s=commit:0.623,hold:0.259 r=commit 0.62  patience 1.00  respect 0.00
 t=0464 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1946.5,-145.7 c=- s=hold:0.269 r=hold 0.27  patience 1.00  respect 0.00
 t=0465 brute1 ~intent hold
 t=0465 brute1 ~pose press
-t=0465 slime_elite ~swing 0
 t=0465 brute1 ~commit end
 t=0465 brute1 ~token freed
 t=0465 brute1 i=hold p=press com=0 pat=0.067 tok=rest str=0/-1/0 plan=-/-1 m=-1962.7,-150.7 c=- s=hold:0.343 r=hold 0.34  patience 0.07  respect 0.00
@@ -433,125 +432,142 @@ t=0466 brute2 ~pose crouch
 t=0466 brute2 ~commit start
 t=0466 brute2 ~token taken
 t=0466 brute2 i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.771,hold:0.329 r=commit 0.77  patience 1.00  respect 0.00
-t=0467 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0467 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1932.0,2.5 c=- s=commit:0.641,hold:0.331 r=commit 0.64  patience 1.00  respect 0.00
 t=0470 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1946.5,-145.7 c=- s=hold:0.256 r=hold 0.26  patience 1.00  respect 0.00
 t=0471 brute1 i=hold p=press com=0 pat=0.133 tok=rest str=0/-1/0 plan=-/-1 m=-1962.7,-150.7 c=- s=hold:0.462 r=hold 0.46  patience 0.13  respect 0.00
-t=0471 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0471 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1932.0,2.5 c=- s=commit:0.722,hold:0.314 r=commit 0.72  patience 1.00  respect 0.00
 t=0472 brute2 i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.714,hold:0.306 r=commit 0.71  patience 1.00  respect 0.00
-t=0475 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0475 slime_elite i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1932.0,2.5 c=- s=commit:0.648,hold:0.266 r=commit 0.65  patience 1.00  respect 0.00
 t=0476 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1946.5,-145.7 c=- s=hold:0.244 r=hold 0.24  patience 1.00  respect 0.00
 t=0477 brute1 i=hold p=press com=0 pat=0.200 tok=rest str=0/-1/0 plan=-/-1 m=-1962.7,-150.7 c=- s=hold:0.443 r=hold 0.44  patience 0.20  respect 0.00
 t=0478 brute2 i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.920,hold:0.268 r=commit 0.92  patience 1.00  respect 0.00
-t=0479 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0482 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1971.6,-152.6 c=- s=hold:0.309 r=hold 0.31  patience 1.00  respect 0.00
+t=0479 slime_elite ~intent hold
+t=0479 slime_elite ~pose press
+t=0479 slime_elite ~commit end
+t=0479 slime_elite ~token freed
+t=0479 slime_elite i=hold p=press com=0 pat=0.044 tok=rest str=0/-1/0 plan=-/-1 m=-1932.0,2.5 c=- s=hold:0.328 r=hold 0.33  patience 0.04  respect 0.00
+t=0482 brute0 ~intent commit
+t=0482 brute0 ~pose crouch
+t=0482 brute0 ~commit start
+t=0482 brute0 ~token taken
+t=0482 brute0 i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.508,hold:0.309 r=commit 0.51  patience 1.00  respect 0.00
 t=0483 brute1 i=hold p=press com=0 pat=0.267 tok=rest str=0/-1/0 plan=-/-1 m=-1983.8,-154.4 c=- s=hold:0.498 r=hold 0.50  patience 0.27  respect 0.00
-t=0483 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0483 slime_elite i=hold p=press com=0 pat=0.089 tok=rest str=0/-1/0 plan=-/-1 m=-1932.0,2.5 c=- s=hold:0.430 r=hold 0.43  patience 0.09  respect 0.00
 t=0484 brute2 ~pose 
 t=0484 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.663,hold:0.303 r=commit 0.66  patience 1.00  respect 0.00
-t=0487 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0488 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1971.6,-152.6 c=- s=hold:0.234 r=hold 0.23  patience 1.00  respect 0.00
+t=0487 slime_elite i=hold p=press com=0 pat=0.133 tok=rest str=0/-1/0 plan=-/-1 m=-1932.0,2.5 c=- s=hold:0.481 r=hold 0.48  patience 0.13  respect 0.00
+t=0488 brute0 i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.887,hold:0.251 r=commit 0.89  patience 1.00  respect 0.00
 t=0489 brute1 i=hold p=press com=0 pat=0.333 tok=rest str=0/-1/0 plan=-/-1 m=-1983.8,-154.4 c=- s=hold:0.447 r=hold 0.45  patience 0.33  respect 0.00
-t=0490 brute2 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.879,hold:0.265 r=commit 0.88  patience 1.00  respect 0.00
-t=0491 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0494 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1997.4,-155.2 c=- s=hold:0.251 r=hold 0.25  patience 1.00  respect 0.00
+t=0490 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.879,hold:0.265 r=commit 0.88  patience 1.00  respect 0.00
+t=0491 slime_elite i=hold p=press com=0 pat=0.178 tok=rest str=0/-1/0 plan=-/-1 m=-1932.0,2.5 c=- s=hold:0.435 r=hold 0.44  patience 0.18  respect 0.00
+t=0494 brute0 i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.862,hold:0.324 r=commit 0.86  patience 1.00  respect 0.00
 t=0495 brute1 i=hold p=press com=0 pat=0.400 tok=rest str=0/-1/0 plan=-/-1 m=-1983.8,-154.4 c=- s=hold:0.234 r=hold 0.23  patience 0.40  respect 0.00
-t=0495 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0496 brute2 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1945.8,45.5 c=- s=commit:0.628,hold:0.277 r=commit 0.63  patience 1.00  respect 0.00
-t=0499 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0500 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1997.4,-155.2 c=- s=hold:0.340 r=hold 0.34  patience 1.00  respect 0.00
+t=0495 slime_elite i=hold p=press com=0 pat=0.222 tok=rest str=0/-1/0 plan=-/-1 m=-1846.9,-33.9 c=- s=hold:0.481 r=hold 0.48  patience 0.22  respect 0.00
+t=0496 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1945.8,45.5 c=- s=commit:0.628,hold:0.277 r=commit 0.63  patience 1.00  respect 0.00
+t=0499 slime_elite i=hold p=press com=0 pat=0.267 tok=rest str=0/-1/0 plan=-/-1 m=-1846.9,-33.9 c=- s=hold:0.444 r=hold 0.44  patience 0.27  respect 0.00
+t=0500 brute0 ~pose 
+t=0500 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.922,hold:0.277 r=commit 0.92  patience 1.00  respect 0.00
 t=0501 brute1 i=hold p=press com=0 pat=0.467 tok=rest str=0/-1/0 plan=-/-1 m=-2002.8,-155.2 c=- s=hold:0.317 r=hold 0.32  patience 0.47  respect 0.00
-t=0502 brute2 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1945.8,45.5 c=- s=commit:0.700,hold:0.295 r=commit 0.70  patience 1.00  respect 0.00
-t=0503 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0506 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1997.4,-155.2 c=- s=hold:0.324 r=hold 0.32  patience 1.00  respect 0.00
+t=0502 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1945.8,45.5 c=- s=commit:0.700,hold:0.295 r=commit 0.70  patience 1.00  respect 0.00
+t=0503 slime_elite i=hold p=press com=0 pat=0.311 tok=rest str=0/-1/0 plan=-/-1 m=-1846.9,-33.9 c=- s=hold:0.431 r=hold 0.43  patience 0.31  respect 0.00
+t=0506 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.863,hold:0.314 r=commit 0.86  patience 1.00  respect 0.00
 t=0507 brute1 i=hold p=press com=0 pat=0.533 tok=rest str=0/-1/0 plan=-/-1 m=-2002.8,-155.2 c=- s=hold:0.238 r=hold 0.24  patience 0.53  respect 0.00
-t=0507 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0508 brute2 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1946.2,45.8 c=- s=commit:0.682,hold:0.345 r=commit 0.68  patience 1.00  respect 0.00
-t=0511 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0512 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2023.1,-153.5 c=- s=hold:0.329 r=hold 0.33  patience 1.00  respect 0.00
-t=0513 brute1 i=hold p=press com=0 pat=0.600 tok=rest str=0/-1/0 plan=-/-1 m=-2017.6,-154.2 c=- s=hold:0.321 r=hold 0.32  patience 0.60  respect 0.00
-t=0514 brute2 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1947.3,47.2 c=- s=commit:0.591,hold:0.270 r=commit 0.59  patience 1.00  respect 0.00
-t=0515 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0518 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2023.1,-153.5 c=- s=hold:0.277 r=hold 0.28  patience 1.00  respect 0.00
-t=0519 brute1 i=hold p=press com=0 pat=0.667 tok=rest str=0/-1/0 plan=-/-1 m=-2017.6,-154.2 c=- s=hold:0.359 r=hold 0.36  patience 0.67  respect 0.00
-t=0519 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0520 brute2 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1948.5,48.5 c=- s=commit:0.509,hold:0.253 r=commit 0.51  patience 1.00  respect 0.00
-t=0522 slime_elite ~swing 1
-t=0523 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0524 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2023.1,-153.5 c=- s=hold:0.356 r=hold 0.36  patience 1.00  respect 0.00
-t=0525 brute1 i=hold p=press com=0 pat=0.733 tok=rest str=0/-1/0 plan=-/-1 m=-2017.6,-154.2 c=- s=hold:0.244 r=hold 0.24  patience 0.73  respect 0.00
-t=0526 brute2 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1948.5,48.5 c=- s=commit:0.788,hold:0.345 r=commit 0.79  patience 1.00  respect 0.00
-t=0527 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0530 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2044.1,-161.2 c=- s=hold:0.314 r=hold 0.31  patience 1.00  respect 0.00
-t=0531 brute2 ~swing 0
-t=0531 brute1 i=hold p=press com=0 pat=0.800 tok=rest str=0/-1/0 plan=-/-1 m=-2038.7,-150.3 c=- s=hold:0.300 r=hold 0.30  patience 0.80  respect 0.00
-t=0531 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0507 slime_elite i=hold p=press com=0 pat=0.356 tok=rest str=0/-1/0 plan=-/-1 m=-1846.9,-33.9 c=- s=hold:0.342 r=hold 0.34  patience 0.36  respect 0.00
+t=0508 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1945.8,45.5 c=- s=commit:0.682,hold:0.345 r=commit 0.68  patience 1.00  respect 0.00
+t=0511 slime_elite i=hold p=press com=0 pat=0.400 tok=rest str=0/-1/0 plan=-/-1 m=-1851.5,-50.3 c=- s=hold:0.311 r=hold 0.31  patience 0.40  respect 0.00
+t=0512 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1972.5,-65.1 c=- s=commit:0.539,hold:0.362 r=commit 0.54  patience 1.00  respect 0.00
+t=0513 brute1 i=hold p=press com=0 pat=0.600 tok=rest str=0/-1/0 plan=-/-1 m=-2022.0,-153.6 c=- s=hold:0.321 r=hold 0.32  patience 0.60  respect 0.00
+t=0514 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1945.8,45.5 c=- s=commit:0.591,hold:0.270 r=commit 0.59  patience 1.00  respect 0.00
+t=0515 slime_elite i=hold p=press com=0 pat=0.444 tok=rest str=0/-1/0 plan=-/-1 m=-1851.5,-50.3 c=- s=hold:0.335 r=hold 0.34  patience 0.44  respect 0.00
+t=0518 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1972.5,-65.1 c=- s=commit:0.736,hold:0.245 r=commit 0.74  patience 1.00  respect 0.00
+t=0519 brute1 i=hold p=press com=0 pat=0.667 tok=rest str=0/-1/0 plan=-/-1 m=-2022.0,-153.6 c=- s=hold:0.359 r=hold 0.36  patience 0.67  respect 0.00
+t=0519 slime_elite i=hold p=press com=0 pat=0.489 tok=rest str=0/-1/0 plan=-/-1 m=-1851.5,-50.3 c=- s=hold:0.341 r=hold 0.34  patience 0.49  respect 0.00
+t=0520 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1945.8,45.5 c=- s=commit:0.509,hold:0.253 r=commit 0.51  patience 1.00  respect 0.00
+t=0523 slime_elite i=hold p=press com=0 pat=0.533 tok=rest str=0/-1/0 plan=-/-1 m=-1851.5,-50.3 c=- s=hold:0.285 r=hold 0.28  patience 0.53  respect 0.00
+t=0524 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1972.5,-65.1 c=- s=commit:0.589,hold:0.287 r=commit 0.59  patience 1.00  respect 0.00
+t=0525 brute1 i=hold p=press com=0 pat=0.733 tok=rest str=0/-1/0 plan=-/-1 m=-2022.0,-153.6 c=- s=hold:0.244 r=hold 0.24  patience 0.73  respect 0.00
+t=0526 brute2 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1945.8,45.5 c=- s=commit:0.788,hold:0.345 r=commit 0.79  patience 1.00  respect 0.00
+t=0527 slime_elite i=hold p=press com=0 pat=0.578 tok=rest str=0/-1/0 plan=-/-1 m=-1858.3,-67.2 c=- s=hold:0.314 r=hold 0.31  patience 0.58  respect 0.00
+t=0530 brute2 ~swing 0
+t=0530 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1972.5,-65.1 c=- s=commit:0.696,hold:0.357 r=commit 0.70  patience 1.00  respect 0.00
+t=0531 brute1 i=hold p=press com=0 pat=0.800 tok=rest str=0/-1/0 plan=-/-1 m=-2042.8,-149.2 c=- s=hold:0.300 r=hold 0.30  patience 0.80  respect 0.00
+t=0531 slime_elite i=hold p=press com=0 pat=0.622 tok=rest str=0/-1/0 plan=-/-1 m=-1858.3,-67.2 c=- s=hold:0.305 r=hold 0.31  patience 0.62  respect 0.00
 t=0532 brute2 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0535 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0536 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2044.1,-161.2 c=- s=hold:0.329 r=hold 0.33  patience 1.00  respect 0.00
-t=0537 brute1 i=hold p=press com=0 pat=0.867 tok=rest str=0/-1/0 plan=-/-1 m=-2038.7,-150.3 c=- s=hold:0.278 r=hold 0.28  patience 0.87  respect 0.00
+t=0535 slime_elite i=hold p=press com=0 pat=0.667 tok=rest str=0/-1/0 plan=-/-1 m=-1858.3,-67.2 c=- s=hold:0.306 r=hold 0.31  patience 0.67  respect 0.00
+t=0536 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1972.5,-65.1 c=- s=commit:0.711,hold:0.334 r=commit 0.71  patience 1.00  respect 0.00
+t=0537 brute1 i=hold p=press com=0 pat=0.867 tok=rest str=0/-1/0 plan=-/-1 m=-2042.8,-149.2 c=- s=hold:0.278 r=hold 0.28  patience 0.87  respect 0.00
 t=0538 brute2 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0539 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0542 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2065.5,-169.1 c=- s=hold:0.362 r=hold 0.36  patience 1.00  respect 0.00
-t=0543 brute1 i=hold p=press com=0 pat=0.933 tok=rest str=0/-1/0 plan=-/-1 m=-2038.7,-150.3 c=- s=hold:0.309 r=hold 0.31  patience 0.93  respect 0.00
-t=0543 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0539 slime_elite i=hold p=press com=0 pat=0.711 tok=rest str=0/-1/0 plan=-/-1 m=-1858.3,-67.2 c=- s=hold:0.288 r=hold 0.29  patience 0.71  respect 0.00
+t=0542 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1972.5,-65.1 c=- s=commit:0.795,hold:0.321 r=commit 0.79  patience 1.00  respect 0.00
+t=0543 brute1 i=hold p=press com=0 pat=0.933 tok=rest str=0/-1/0 plan=-/-1 m=-2042.8,-149.2 c=- s=hold:0.309 r=hold 0.31  patience 0.93  respect 0.00
+t=0543 slime_elite i=hold p=press com=0 pat=0.756 tok=rest str=0/-1/0 plan=-/-1 m=-1868.3,-85.0 c=- s=hold:0.285 r=hold 0.29  patience 0.76  respect 0.00
 t=0544 brute2 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0547 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0548 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2065.5,-169.1 c=- s=hold:0.249 r=hold 0.25  patience 1.00  respect 0.00
-t=0549 brute1 i=hold p=press com=0 pat=1.000 tok=rest str=0/-1/0 plan=-/-1 m=-2061.8,-142.3 c=- s=hold:0.344 r=hold 0.34  patience 1.00  respect 0.00
+t=0547 slime_elite i=hold p=press com=0 pat=0.800 tok=rest str=0/-1/0 plan=-/-1 m=-1868.3,-85.0 c=- s=hold:0.310 r=hold 0.31  patience 0.80  respect 0.00
+t=0548 brute0 ~cast q test_brute_smash
+t=0548 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1972.5,-65.1 c=q s=commit:0.768,hold:0.249 r=commit 0.77  patience 1.00  respect 0.00
+t=0549 brute1 i=hold p=press com=0 pat=1.000 tok=rest str=0/-1/0 plan=-/-1 m=-2065.6,-140.6 c=- s=hold:0.344 r=hold 0.34  patience 1.00  respect 0.00
 t=0550 brute2 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0551 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0554 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2065.5,-169.1 c=- s=hold:0.245 r=hold 0.25  patience 1.00  respect 0.00
-t=0555 brute1 i=hold p=press com=0 pat=1.000 tok=rest str=0/-1/0 plan=-/-1 m=-2061.8,-142.3 c=- s=hold:0.247 r=hold 0.25  patience 1.00  respect 0.00
-t=0555 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0551 slime_elite i=hold p=press com=0 pat=0.844 tok=rest str=0/-1/0 plan=-/-1 m=-1868.3,-85.0 c=- s=hold:0.315 r=hold 0.32  patience 0.84  respect 0.00
+t=0554 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1972.5,-65.1 c=- s=commit:0.530,hold:0.364 r=commit 0.53  patience 1.00  respect 0.00
+t=0555 brute1 i=hold p=press com=0 pat=1.000 tok=rest str=0/-1/0 plan=-/-1 m=-2065.6,-140.6 c=- s=hold:0.247 r=hold 0.25  patience 1.00  respect 0.00
+t=0555 slime_elite i=hold p=press com=0 pat=0.889 tok=rest str=0/-1/0 plan=-/-1 m=-1868.3,-85.0 c=- s=hold:0.298 r=hold 0.30  patience 0.89  respect 0.00
 t=0556 brute2 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0559 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0560 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2078.7,-163.4 c=- s=hold:0.339 r=hold 0.34  patience 1.00  respect 0.00
-t=0561 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2085.1,-129.8 c=- s=hold:0.256 r=hold 0.26  patience 1.00  respect 0.00
+t=0559 slime_elite i=hold p=press com=0 pat=0.933 tok=rest str=0/-1/0 plan=-/-1 m=-1881.7,-102.9 c=- s=hold:0.306 r=hold 0.31  patience 0.93  respect 0.00
+t=0560 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1972.5,-65.1 c=- s=commit:0.768,hold:0.257 r=commit 0.77  patience 1.00  respect 0.00
+t=0561 brute1 ~intent commit
+t=0561 brute1 ~pose crouch
+t=0561 brute1 ~commit start
+t=0561 brute1 ~token taken
+t=0561 brute1 i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.580,hold:0.256 r=commit 0.58  patience 1.00  respect 0.00
 t=0562 brute2 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0563 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0566 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2078.7,-163.4 c=- s=hold:0.287 r=hold 0.29  patience 1.00  respect 0.00
-t=0567 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2085.1,-129.8 c=- s=hold:0.268 r=hold 0.27  patience 1.00  respect 0.00
-t=0567 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0563 slime_elite i=hold p=press com=0 pat=0.978 tok=rest str=0/-1/0 plan=-/-1 m=-1881.7,-102.9 c=- s=hold:0.272 r=hold 0.27  patience 0.98  respect 0.00
+t=0566 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1972.5,-65.1 c=- s=commit:0.703,hold:0.294 r=commit 0.70  patience 1.00  respect 0.00
+t=0567 brute1 i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.914,hold:0.297 r=commit 0.91  patience 1.00  respect 0.00
+t=0567 slime_elite i=hold p=press com=0 pat=1.000 tok=rest str=0/-1/0 plan=-/-1 m=-1881.7,-102.9 c=- s=hold:0.276 r=hold 0.28  patience 1.00  respect 0.00
 t=0568 brute2 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0571 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0572 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2078.7,-163.4 c=- s=hold:0.272 r=hold 0.27  patience 1.00  respect 0.00
-t=0573 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2085.1,-129.8 c=- s=hold:0.297 r=hold 0.30  patience 1.00  respect 0.00
+t=0571 slime_elite i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1881.7,-102.9 c=- s=hold:0.303 r=hold 0.30  patience 1.00  respect 0.00
+t=0572 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1972.5,-65.1 c=- s=commit:0.714,hold:0.237 r=commit 0.71  patience 1.00  respect 0.00
+t=0573 brute1 i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.694,hold:0.295 r=commit 0.69  patience 1.00  respect 0.00
 t=0574 brute2 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0575 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0576 slime_elite ~swing 2
-t=0578 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2099.8,-151.4 c=- s=hold:0.357 r=hold 0.36  patience 1.00  respect 0.00
-t=0579 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2105.9,-113.5 c=- s=hold:0.353 r=hold 0.35  patience 1.00  respect 0.00
-t=0579 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/3 plan=-/-1 m=- d=same
+t=0575 slime_elite i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1897.9,-119.0 c=- s=hold:0.292 r=hold 0.29  patience 1.00  respect 0.00
+t=0578 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1972.5,-65.1 c=- s=commit:0.662,hold:0.306 r=commit 0.66  patience 1.00  respect 0.00
+t=0579 brute1 ~pose 
+t=0579 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.785,hold:0.365 r=commit 0.79  patience 1.00  respect 0.00
+t=0579 slime_elite i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1897.9,-119.0 c=- s=hold:0.313 r=hold 0.31  patience 1.00  respect 0.00
 t=0580 brute2 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0583 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/3 plan=-/-1 m=- d=same
-t=0584 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2099.8,-151.4 c=- s=hold:0.321 r=hold 0.32  patience 1.00  respect 0.00
-t=0585 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2105.9,-113.5 c=- s=hold:0.295 r=hold 0.30  patience 1.00  respect 0.00
+t=0583 slime_elite i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1897.9,-119.0 c=- s=hold:0.296 r=hold 0.30  patience 1.00  respect 0.00
+t=0584 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1972.5,-65.1 c=- s=commit:0.656,hold:0.265 r=commit 0.66  patience 1.00  respect 0.00
+t=0585 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.863,hold:0.280 r=commit 0.86  patience 1.00  respect 0.00
 t=0586 brute2 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0587 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/3 plan=-/-1 m=- d=same
-t=0588 brute2 ~swing 1
-t=0590 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2119.7,-136.2 c=- s=hold:0.334 r=hold 0.33  patience 1.00  respect 0.00
-t=0591 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2105.9,-113.5 c=- s=hold:0.251 r=hold 0.25  patience 1.00  respect 0.00
-t=0591 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/3 plan=-/-1 m=- d=same
+t=0587 brute2 ~swing 1
+t=0587 slime_elite i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1897.9,-119.0 c=- s=hold:0.306 r=hold 0.31  patience 1.00  respect 0.00
+t=0590 brute0 ~intent retreat
+t=0590 brute0 ~pose step_back
+t=0590 brute0 ~commit end
+t=0590 brute0 ~token freed
+t=0590 brute0 i=retreat p=step_back com=0 pat=0.050 tok=rest str=0/-1/0 plan=-/-1 m=-1972.5,-65.1 c=- s=retreat:0.763,hold:0.265 r=retreat 0.76  patience 0.05  respect 0.00
+t=0591 brute0 i=retreat p=step_back com=0 pat=0.058 tok=rest str=0/-1/0 plan=-/-1 m=-1972.5,-65.1 c=- s=retreat:0.885,hold:0.249 r=retreat 0.89  patience 0.06  respect 0.00
+t=0591 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2024.1,-66.5 c=- s=commit:0.542,hold:0.261 r=commit 0.54  patience 1.00  respect 0.00
+t=0591 slime_elite i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1916.2,-132.5 c=- s=hold:0.345 r=hold 0.34  patience 1.00  respect 0.00
 t=0592 brute2 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0595 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/3 plan=-/-1 m=- d=same
-t=0596 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2119.7,-136.2 c=- s=hold:0.328 r=hold 0.33  patience 1.00  respect 0.00
-t=0597 brute1 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2123.7,-93.7 c=- s=hold:0.365 r=hold 0.37  patience 1.00  respect 0.00
+t=0595 slime_elite i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1916.2,-132.5 c=- s=hold:0.325 r=hold 0.32  patience 1.00  respect 0.00
+t=0596 brute0 i=retreat p=step_back com=0 pat=0.100 tok=rest str=0/-1/0 plan=-/-1 m=-1972.5,-65.1 c=- s=retreat:0.992,hold:0.259 r=retreat 0.99  patience 0.10  respect 0.00
+t=0597 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2024.1,-66.5 c=- s=commit:0.534,hold:0.347 r=commit 0.53  patience 1.00  respect 0.00
 t=0598 brute2 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0599 slime_elite i=commit p= com=1 pat=1.000 tok=held str=1/-1/3 plan=-/-1 m=- d=same
+t=0599 slime_elite i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1916.2,-132.5 c=- s=hold:0.288 r=hold 0.29  patience 1.00  respect 0.00
 == totals
-casts 7 (t=0134..0428)
-commits_ended 4 (t=0227..0465)
-commits_started 6 (t=0115..0466)
-damage_to_knight 9 (t=0194..0549)
-strings_cut 1 (t=0167..0167)
+casts 9 (t=0134..0548)
+commits_ended 6 (t=0227..0590)
+commits_started 8 (t=0115..0561)
+damage_to_knight 9 (t=0194..0589)
 strings_done 2 (t=0312..0427)
-strings_started 5 (t=0134..0485)
-swings 9 (t=0201..0588)
-thinks 457 (t=0001..0599)
-tokens_freed 4 (t=0227..0465)
-tokens_taken 6 (t=0115..0466)
-damage_to_knight_total 413.0
-brute0 thinks 102 strings 1 (last 2 hits) plans 0 [] peels 0 setups 0
+strings_started 3 (t=0201..0530)
+swings 6 (t=0201..0587)
+thinks 458 (t=0001..0599)
+tokens_freed 6 (t=0227..0590)
+tokens_taken 8 (t=0115..0561)
+damage_to_knight_total 459.0
+brute0 thinks 103 strings 1 (last 2 hits) plans 0 [] peels 0 setups 0
 brute1 thinks 102 strings 1 (last 2 hits) plans 0 [] peels 0 setups 0
 brute2 thinks 101 strings 1 (last 2 hits) plans 0 [] peels 0 setups 0
-slime_elite thinks 152 strings 2 (last 4 hits) plans 0 [] peels 0 setups 0
+slime_elite thinks 152 strings 0 (last 0 hits) plans 0 [] peels 0 setups 0

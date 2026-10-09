@@ -38,6 +38,7 @@ min_abilities = 3
 think_rate = 15.0
 think_budget_exempt = true
 string_full_range = true
+perilous_max = 1
 
 [sub_resource type="Resource" id="Resource_sq8i8"]
 script = ExtResource("2_vigi2")
@@ -57,6 +58,7 @@ think_budget_exempt = true
 brain_adjust = SubResource("Resource_sq8i8")
 string_full_range = true
 string_extra_hits = 1
+perilous_max = 3
 
 [resource]
 script = ExtResource("3_pb3ve")

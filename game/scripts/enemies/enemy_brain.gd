@@ -113,7 +113,11 @@ extends UnitController
 ##   decision picks still goes first (it gets it there); a damage cast its
 ##   decision picks goes first, as in AI1 (its end ends the commit), or (the
 ##   mix, Ryan, 2026-10-08: one roll a commit at string_then_cast_chance)
-##   waits and comes after the string as its finisher. Once it swings nothing
+##   waits and comes after the string as its finisher. Its string starts once
+##   its first swing is in reach (or the mix put it first); until then it
+##   closes in on foot, so a damage cast coming into reach on the way gets the
+##   mix, and a string it started is never cut by a damage cast (R0's quirk,
+##   fixed 2026-10-08). Once it swings nothing
 ##   cuts into it (no cast), a deflect or a dodge doesn't end it, and its end
 ##   (or its finisher's) ends the commit (a skirmisher's reset after it); a
 ##   stun or a poise break cuts it (the commit breaks off, its token goes);
@@ -129,6 +133,14 @@ extends UnitController
 ## - while a commit's string swings, a think makes no new decision: a poke
 ##   scoring higher, a threat or low health takes nothing back (a stun, a
 ##   break, its token or target lost still end it).
+## ARCHETYPES AR2, perilous attacks (ARCHETYPES.md, Perilous attacks; D5):
+## - a perilous ability (Ability.perilous) is gathered, cast and run as a
+##   plan's step only while Brains.can_start_perilous() passes (none in a
+##   fight's first 6 s, one live at a time across the enemy side, two with a
+##   boss); its cast's end tells Brains it's over;
+## - a perilous attack deflected rebuffs it (status_rebuffed_perilous, 1.0 s,
+##   blocking attacks: Enemy.is_cc_blocked()), so its string ends, its commit
+##   breaks off and its token goes, as a stun's would.
 
 signal intent_changed(intent: StringName)
 @warning_ignore("unused_signal")
@@ -1070,6 +1082,8 @@ func _on_cast_started(slot: StringName, ability: Ability, _ctx: CastContext) -> 
 ## not refunded) makes it cautious for cautious_time. AI-D1: a setup's opener
 ## doesn't end it either; a peel's end (or its cut) starts the kiting step.
 func _on_cast_ended(slot: StringName, ability: Ability) -> void:
+	if ability != null and ability.perilous:
+		Brains.end_perilous(_enemy)   # ARCHETYPES AR2: no longer live (Brains' gate)
 	if slot == _key_slot and _key_slot != &"" and _enemy.abilities != null and not _enemy.abilities.is_ready(slot):
 		_cautious_until = Brains.get_time() + Brains.table.cautious_time
 		_spend_free = false

@@ -81,3 +81,8 @@ signal poise_changed(unit: Unit, value: float, maximum: float)
 ## PROTOTYPE (poise): `unit`'s poise hit 0: it's poise-broken (status_poise_broken).
 @warning_ignore("unused_signal")
 signal poise_broken(unit: Unit)
+## ARCHETYPES AR2: `unit` started casting a perilous attack (Ability.perilous;
+## AbilityComponent, at its windup's start): the icon over its head
+## (ScreenOverlay), Brains' perilous gate (one live at a time), tests.
+@warning_ignore("unused_signal")
+signal perilous_started(unit: Unit, ability: Ability)

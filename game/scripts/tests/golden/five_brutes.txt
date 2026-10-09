@@ -398,37 +398,37 @@ t=0375 brute1 ~cast e test_brute_charge
 t=0375 brute1 ~pose 
 t=0375 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=e s=commit:0.784,hold:0.244 r=commit 0.78  patience 1.00  respect 0.00
 t=0376 brute2 i=hold p=press com=0 pat=0.267 tok=rest str=0/-1/0 plan=-/-1 m=-1896.9,-116.0 c=- s=hold:0.451 r=hold 0.45  patience 0.27  respect 0.00
-t=0377 brute3 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.777,hold:0.288 r=commit 0.78  patience 1.00  respect 0.00
+t=0377 brute3 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.777,hold:0.288 r=commit 0.78  patience 1.00  respect 0.00
 t=0378 brute4 i=hold p=press com=0 pat=0.400 tok=rest str=0/-1/0 plan=-/-1 m=-1931.1,139.0 c=- s=hold:0.294 r=hold 0.29  patience 0.40  respect 0.00
 t=0380 brute0 i=hold p=press com=0 pat=0.400 tok=rest str=0/-1/0 plan=-/-1 m=-2108.8,-110.6 c=- s=hold:0.254 r=hold 0.25  patience 0.40  respect 0.00
 t=0381 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.883,hold:0.244 r=commit 0.88  patience 1.00  respect 0.00
 t=0382 brute2 i=hold p=press com=0 pat=0.333 tok=rest str=0/-1/0 plan=-/-1 m=-1896.9,-116.0 c=- s=hold:0.446 r=hold 0.45  patience 0.33  respect 0.00
-t=0383 brute3 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1937.7,-33.4 c=- s=commit:0.642,hold:0.334 r=commit 0.64  patience 1.00  respect 0.00
+t=0383 brute3 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1937.7,-33.4 c=- s=commit:0.642,hold:0.334 r=commit 0.64  patience 1.00  respect 0.00
 t=0384 brute4 i=hold p=press com=0 pat=0.467 tok=rest str=0/-1/0 plan=-/-1 m=-1949.0,146.6 c=- s=hold:0.319 r=hold 0.32  patience 0.47  respect 0.00
 t=0386 brute0 i=hold p=press com=0 pat=0.467 tok=rest str=0/-1/0 plan=-/-1 m=-2122.1,-95.8 c=- s=hold:0.272 r=hold 0.27  patience 0.47  respect 0.00
 t=0387 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.556,hold:0.350 r=commit 0.56  patience 1.00  respect 0.00
 t=0388 brute2 i=hold p=press com=0 pat=0.400 tok=rest str=0/-1/0 plan=-/-1 m=-1896.9,-116.0 c=- s=hold:0.337 r=hold 0.34  patience 0.40  respect 0.00
-t=0389 brute3 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1937.7,-33.4 c=- s=commit:0.760,hold:0.258 r=commit 0.76  patience 1.00  respect 0.00
+t=0389 brute3 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1937.7,-33.4 c=- s=commit:0.760,hold:0.258 r=commit 0.76  patience 1.00  respect 0.00
 t=0390 brute4 i=hold p=press com=0 pat=0.533 tok=rest str=0/-1/0 plan=-/-1 m=-1949.0,146.6 c=- s=hold:0.359 r=hold 0.36  patience 0.53  respect 0.00
 t=0392 brute0 i=hold p=press com=0 pat=0.533 tok=rest str=0/-1/0 plan=-/-1 m=-2122.1,-95.8 c=- s=hold:0.327 r=hold 0.33  patience 0.53  respect 0.00
 t=0393 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.563,hold:0.312 r=commit 0.56  patience 1.00  respect 0.00
 t=0394 brute2 i=hold p=press com=0 pat=0.467 tok=rest str=0/-1/0 plan=-/-1 m=-1883.4,-102.4 c=- s=hold:0.292 r=hold 0.29  patience 0.47  respect 0.00
-t=0395 brute3 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1937.7,-33.4 c=- s=commit:0.567,hold:0.242 r=commit 0.57  patience 1.00  respect 0.00
+t=0395 brute3 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1937.7,-33.4 c=- s=commit:0.567,hold:0.242 r=commit 0.57  patience 1.00  respect 0.00
 t=0396 brute4 i=hold p=press com=0 pat=0.600 tok=rest str=0/-1/0 plan=-/-1 m=-1967.2,151.7 c=- s=hold:0.288 r=hold 0.29  patience 0.60  respect 0.00
 t=0398 brute0 i=hold p=press com=0 pat=0.600 tok=rest str=0/-1/0 plan=-/-1 m=-2132.8,-80.3 c=- s=hold:0.349 r=hold 0.35  patience 0.60  respect 0.00
 t=0399 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.777,hold:0.343 r=commit 0.78  patience 1.00  respect 0.00
 t=0400 brute2 i=hold p=press com=0 pat=0.533 tok=rest str=0/-1/0 plan=-/-1 m=-1883.4,-102.4 c=- s=hold:0.323 r=hold 0.32  patience 0.53  respect 0.00
-t=0401 brute3 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1937.7,-33.4 c=- s=commit:0.570,hold:0.302 r=commit 0.57  patience 1.00  respect 0.00
+t=0401 brute3 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1937.7,-33.4 c=- s=commit:0.570,hold:0.302 r=commit 0.57  patience 1.00  respect 0.00
 t=0402 brute4 i=hold p=press com=0 pat=0.667 tok=rest str=0/-1/0 plan=-/-1 m=-1967.2,151.7 c=- s=hold:0.329 r=hold 0.33  patience 0.67  respect 0.00
 t=0404 brute0 i=hold p=press com=0 pat=0.667 tok=rest str=0/-1/0 plan=-/-1 m=-2132.8,-80.3 c=- s=hold:0.254 r=hold 0.25  patience 0.67  respect 0.00
 t=0405 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.593,hold:0.290 r=commit 0.59  patience 1.00  respect 0.00
 t=0406 brute2 i=hold p=press com=0 pat=0.600 tok=rest str=0/-1/0 plan=-/-1 m=-1871.7,-87.4 c=- s=hold:0.259 r=hold 0.26  patience 0.60  respect 0.00
-t=0407 brute3 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1937.7,-33.4 c=- s=commit:0.542,hold:0.247 r=commit 0.54  patience 1.00  respect 0.00
+t=0407 brute3 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1937.7,-33.4 c=- s=commit:0.542,hold:0.247 r=commit 0.54  patience 1.00  respect 0.00
 t=0408 brute4 i=hold p=press com=0 pat=0.733 tok=rest str=0/-1/0 plan=-/-1 m=-1967.2,151.7 c=- s=hold:0.287 r=hold 0.29  patience 0.73  respect 0.00
 t=0410 brute0 i=hold p=press com=0 pat=0.733 tok=rest str=0/-1/0 plan=-/-1 m=-2132.8,-80.3 c=- s=hold:0.324 r=hold 0.32  patience 0.73  respect 0.00
 t=0411 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.534,hold:0.247 r=commit 0.53  patience 1.00  respect 0.00
 t=0412 brute2 i=hold p=press com=0 pat=0.667 tok=rest str=0/-1/0 plan=-/-1 m=-1871.7,-87.4 c=- s=hold:0.256 r=hold 0.26  patience 0.67  respect 0.00
-t=0413 brute3 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1937.7,-33.4 c=- s=commit:0.697,hold:0.289 r=commit 0.70  patience 1.00  respect 0.00
+t=0413 brute3 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1937.7,-33.4 c=- s=commit:0.697,hold:0.289 r=commit 0.70  patience 1.00  respect 0.00
 t=0414 brute4 i=hold p=press com=0 pat=0.800 tok=rest str=0/-1/0 plan=-/-1 m=-1987.4,154.7 c=- s=hold:0.359 r=hold 0.36  patience 0.80  respect 0.00
 t=0416 brute0 i=hold p=press com=0 pat=0.800 tok=rest str=0/-1/0 plan=-/-1 m=-2142.0,-62.6 c=- s=hold:0.285 r=hold 0.29  patience 0.80  respect 0.00
 t=0417 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.725,hold:0.367 r=commit 0.73  patience 1.00  respect 0.00
@@ -481,39 +481,39 @@ t=0464 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=
 t=0465 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
 t=0466 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1846.4,-21.9 c=- s=hold:0.288 r=hold 0.29  patience 1.00  respect 0.00
 t=0467 brute3 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0468 brute4 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.857,hold:0.255 r=commit 0.86  patience 1.00  respect 0.00
+t=0468 brute4 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.857,hold:0.255 r=commit 0.86  patience 1.00  respect 0.00
 t=0470 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2154.9,10.2 c=- s=hold:0.354 r=hold 0.35  patience 1.00  respect 0.00
 t=0471 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
 t=0472 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1844.9,4.3 c=- s=hold:0.242 r=hold 0.24  patience 1.00  respect 0.00
 t=0473 brute3 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0474 brute4 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1998.0,70.7 c=- s=commit:0.770,hold:0.245 r=commit 0.77  patience 1.00  respect 0.00
+t=0474 brute4 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1998.0,70.7 c=- s=commit:0.770,hold:0.245 r=commit 0.77  patience 1.00  respect 0.00
 t=0475 brute3 ~swing 1
 t=0476 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2154.9,10.2 c=- s=hold:0.322 r=hold 0.32  patience 1.00  respect 0.00
 t=0477 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
 t=0478 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1844.9,4.3 c=- s=hold:0.246 r=hold 0.25  patience 1.00  respect 0.00
 t=0479 brute3 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0480 brute4 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1998.0,70.7 c=- s=commit:0.763,hold:0.300 r=commit 0.76  patience 1.00  respect 0.00
+t=0480 brute4 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1998.0,70.7 c=- s=commit:0.763,hold:0.300 r=commit 0.76  patience 1.00  respect 0.00
 t=0482 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2150.9,36.1 c=- s=hold:0.314 r=hold 0.31  patience 1.00  respect 0.00
 t=0483 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
 t=0484 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1844.9,4.3 c=- s=hold:0.287 r=hold 0.29  patience 1.00  respect 0.00
 t=0485 brute3 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0486 brute4 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1998.0,70.7 c=- s=commit:0.594,hold:0.240 r=commit 0.59  patience 1.00  respect 0.00
+t=0486 brute4 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1998.0,70.7 c=- s=commit:0.594,hold:0.240 r=commit 0.59  patience 1.00  respect 0.00
 t=0488 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2150.9,36.1 c=- s=hold:0.299 r=hold 0.30  patience 1.00  respect 0.00
 t=0489 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
 t=0490 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1847.8,30.2 c=- s=hold:0.268 r=hold 0.27  patience 1.00  respect 0.00
 t=0491 brute3 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0492 brute4 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1998.0,70.7 c=- s=commit:0.666,hold:0.331 r=commit 0.67  patience 1.00  respect 0.00
+t=0492 brute4 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1998.0,70.7 c=- s=commit:0.666,hold:0.331 r=commit 0.67  patience 1.00  respect 0.00
 t=0494 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2142.8,60.8 c=- s=hold:0.350 r=hold 0.35  patience 1.00  respect 0.00
 t=0495 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
 t=0496 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1847.8,30.2 c=- s=hold:0.310 r=hold 0.31  patience 1.00  respect 0.00
 t=0497 brute3 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0498 brute4 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1998.0,70.7 c=- s=commit:0.562,hold:0.260 r=commit 0.56  patience 1.00  respect 0.00
+t=0498 brute4 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1998.0,70.7 c=- s=commit:0.562,hold:0.260 r=commit 0.56  patience 1.00  respect 0.00
 t=0499 brute1 ~swing 1
 t=0500 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2142.8,60.8 c=- s=hold:0.285 r=hold 0.28  patience 1.00  respect 0.00
 t=0501 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
 t=0502 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1846.6,-23.5 c=- s=hold:0.303 r=hold 0.30  patience 1.00  respect 0.00
 t=0503 brute3 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0504 brute4 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-1998.0,70.7 c=- s=commit:0.553,hold:0.340 r=commit 0.55  patience 1.00  respect 0.00
+t=0504 brute4 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-1998.0,70.7 c=- s=commit:0.553,hold:0.340 r=commit 0.55  patience 1.00  respect 0.00
 t=0506 brute0 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-2142.8,60.8 c=- s=hold:0.324 r=hold 0.32  patience 1.00  respect 0.00
 t=0507 brute4 ~swing 0
 t=0507 brute1 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
@@ -574,33 +574,33 @@ t=0555 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- 
 t=0556 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1876.8,-94.3 c=- s=hold:0.279 r=hold 0.28  patience 1.00  respect 0.00
 t=0557 brute3 i=hold p=press com=0 pat=0.333 tok=rest str=0/-1/0 plan=-/-1 m=-1845.8,-17.8 c=- s=hold:0.283 r=hold 0.28  patience 0.33  respect 0.00
 t=0558 brute4 i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
-t=0560 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.776,hold:0.311 r=commit 0.78  patience 1.00  respect 0.00
+t=0560 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2000.0,0.0 c=- s=commit:0.776,hold:0.311 r=commit 0.78  patience 1.00  respect 0.00
 t=0561 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.771,hold:0.316 r=commit 0.77  patience 1.00  respect 0.00
 t=0562 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1876.8,-94.3 c=- s=hold:0.291 r=hold 0.29  patience 1.00  respect 0.00
 t=0563 brute3 i=hold p=press com=0 pat=0.400 tok=rest str=0/-1/0 plan=-/-1 m=-1844.8,1.1 c=- s=hold:0.347 r=hold 0.35  patience 0.40  respect 0.00
 t=0564 brute4 ~swing 1
 t=0564 brute4 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0566 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2059.0,39.0 c=- s=commit:0.506,hold:0.363 r=commit 0.51  patience 1.00  respect 0.00
+t=0566 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2059.0,39.0 c=- s=commit:0.506,hold:0.363 r=commit 0.51  patience 1.00  respect 0.00
 t=0567 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.748,hold:0.309 r=commit 0.75  patience 1.00  respect 0.00
 t=0568 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1894.2,-113.5 c=- s=hold:0.306 r=hold 0.31  patience 1.00  respect 0.00
 t=0569 brute3 i=hold p=press com=0 pat=0.467 tok=rest str=0/-1/0 plan=-/-1 m=-1844.8,1.1 c=- s=hold:0.260 r=hold 0.26  patience 0.47  respect 0.00
 t=0570 brute4 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0572 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2059.0,39.0 c=- s=commit:0.731,hold:0.335 r=commit 0.73  patience 1.00  respect 0.00
+t=0572 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2059.0,39.0 c=- s=commit:0.731,hold:0.335 r=commit 0.73  patience 1.00  respect 0.00
 t=0573 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.787,hold:0.301 r=commit 0.79  patience 1.00  respect 0.00
 t=0574 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1894.2,-113.5 c=- s=hold:0.277 r=hold 0.28  patience 1.00  respect 0.00
 t=0575 brute3 i=hold p=press com=0 pat=0.533 tok=rest str=0/-1/0 plan=-/-1 m=-1844.8,1.1 c=- s=hold:0.357 r=hold 0.36  patience 0.53  respect 0.00
 t=0576 brute4 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0578 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2059.0,39.0 c=- s=commit:0.514,hold:0.365 r=commit 0.51  patience 1.00  respect 0.00
+t=0578 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2059.0,39.0 c=- s=commit:0.514,hold:0.365 r=commit 0.51  patience 1.00  respect 0.00
 t=0579 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.721,hold:0.255 r=commit 0.72  patience 1.00  respect 0.00
 t=0580 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1894.2,-113.5 c=- s=hold:0.315 r=hold 0.32  patience 1.00  respect 0.00
 t=0581 brute3 i=hold p=press com=0 pat=0.600 tok=rest str=0/-1/0 plan=-/-1 m=-1846.2,21.0 c=- s=hold:0.358 r=hold 0.36  patience 0.60  respect 0.00
 t=0582 brute4 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0584 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2059.0,39.0 c=- s=commit:0.735,hold:0.255 r=commit 0.73  patience 1.00  respect 0.00
+t=0584 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2059.0,39.0 c=- s=commit:0.735,hold:0.255 r=commit 0.73  patience 1.00  respect 0.00
 t=0585 brute1 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.779,hold:0.235 r=commit 0.78  patience 1.00  respect 0.00
 t=0586 brute2 i=hold p=press com=0 pat=1.000 tok=waiting str=0/-1/0 plan=-/-1 m=-1914.5,-129.5 c=- s=hold:0.317 r=hold 0.32  patience 1.00  respect 0.00
 t=0587 brute3 i=hold p=press com=0 pat=0.667 tok=rest str=0/-1/0 plan=-/-1 m=-1846.2,21.0 c=- s=hold:0.344 r=hold 0.34  patience 0.67  respect 0.00
 t=0588 brute4 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0590 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2059.0,39.0 c=- s=commit:0.762,hold:0.329 r=commit 0.76  patience 1.00  respect 0.00
+t=0590 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2059.0,39.0 c=- s=commit:0.762,hold:0.329 r=commit 0.76  patience 1.00  respect 0.00
 t=0591 brute1 ~intent hold
 t=0591 brute1 ~pose press
 t=0591 brute1 ~commit end
@@ -613,7 +613,7 @@ t=0592 brute2 ~token taken
 t=0592 brute2 i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.729,hold:0.241 r=commit 0.73  patience 1.00  respect 0.00
 t=0593 brute3 i=hold p=press com=0 pat=0.733 tok=rest str=0/-1/0 plan=-/-1 m=-1846.2,21.0 c=- s=hold:0.247 r=hold 0.25  patience 0.73  respect 0.00
 t=0594 brute4 i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
-t=0596 brute0 i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2059.0,39.0 c=- s=commit:0.690,hold:0.324 r=commit 0.69  patience 1.00  respect 0.00
+t=0596 brute0 i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2059.0,39.0 c=- s=commit:0.690,hold:0.324 r=commit 0.69  patience 1.00  respect 0.00
 t=0597 brute1 i=hold p=press com=0 pat=0.133 tok=rest str=0/-1/0 plan=-/-1 m=-2013.4,-154.6 c=- s=hold:0.482 r=hold 0.48  patience 0.13  respect 0.00
 t=0598 brute2 i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.821,hold:0.286 r=commit 0.82  patience 1.00  respect 0.00
 t=0599 brute3 i=hold p=press com=0 pat=0.800 tok=rest str=0/-1/0 plan=-/-1 m=-1851.0,43.4 c=- s=hold:0.335 r=hold 0.34  patience 0.80  respect 0.00
@@ -624,13 +624,13 @@ commits_ended 6 (t=0233..0591)
 commits_started 9 (t=0113..0592)
 damage_to_knight 10 (t=0191..0589)
 strings_done 4 (t=0310..0553)
-strings_started 6 (t=0199..0555)
+strings_started 5 (t=0199..0507)
 swings 10 (t=0199..0564)
 thinks 509 (t=0001..0600)
 tokens_freed 6 (t=0233..0591)
 tokens_taken 9 (t=0113..0592)
 damage_to_knight_total 390.0
-brute0 thinks 102 strings 2 (last 2 hits) plans 0 [] peels 0 setups 0
+brute0 thinks 102 strings 1 (last 2 hits) plans 0 [] peels 0 setups 0
 brute1 thinks 102 strings 1 (last 2 hits) plans 0 [] peels 0 setups 0
 brute2 thinks 101 strings 0 (last 0 hits) plans 0 [] peels 0 setups 0
 brute3 thinks 102 strings 1 (last 2 hits) plans 0 [] peels 0 setups 0

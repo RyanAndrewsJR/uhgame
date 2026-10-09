@@ -215,26 +215,26 @@ t=0468 brute_boss i=commit p=crouch com=1 pat=1.000 tok=none needed str=0/-1/0 p
 t=0471 brute_boss i=commit p=crouch com=1 pat=1.000 tok=none needed str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.786,hold:0.292 r=commit 0.79  patience 1.00  respect 0.00
 t=0473 brute_boss i=commit p=crouch com=1 pat=1.000 tok=none needed str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.852,hold:0.293 r=commit 0.85  patience 1.00  respect 0.00
 t=0474 brute_boss ~pose 
-t=0476 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=1/-1/0 plan=-/-1 m=-2013.6,-54.5 c=- s=commit:0.827,hold:0.302 r=commit 0.83  patience 1.00  respect 0.00
-t=0478 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=1/-1/0 plan=-/-1 m=-2013.6,-54.5 c=- s=commit:0.860,hold:0.329 r=commit 0.86  patience 1.00  respect 0.00
-t=0480 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=1/-1/0 plan=-/-1 m=-2013.6,-54.5 c=- s=commit:0.825,hold:0.300 r=commit 0.83  patience 1.00  respect 0.00
-t=0483 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=1/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.700,hold:0.327 r=commit 0.70  patience 1.00  respect 0.00
-t=0485 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=1/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.608,hold:0.315 r=commit 0.61  patience 1.00  respect 0.00
-t=0488 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=1/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.699,hold:0.323 r=commit 0.70  patience 1.00  respect 0.00
-t=0490 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=1/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.597,hold:0.331 r=commit 0.60  patience 1.00  respect 0.00
-t=0492 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=1/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.706,hold:0.300 r=commit 0.71  patience 1.00  respect 0.00
-t=0495 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=1/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.620,hold:0.322 r=commit 0.62  patience 1.00  respect 0.00
-t=0497 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=1/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.598,hold:0.286 r=commit 0.60  patience 1.00  respect 0.00
-t=0500 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=1/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.628,hold:0.281 r=commit 0.63  patience 1.00  respect 0.00
-t=0502 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=1/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.705,hold:0.321 r=commit 0.71  patience 1.00  respect 0.00
-t=0504 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=1/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.587,hold:0.309 r=commit 0.59  patience 1.00  respect 0.00
-t=0507 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=1/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.604,hold:0.284 r=commit 0.60  patience 1.00  respect 0.00
-t=0509 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=1/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.689,hold:0.295 r=commit 0.69  patience 1.00  respect 0.00
-t=0512 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=1/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.666,hold:0.303 r=commit 0.67  patience 1.00  respect 0.00
-t=0514 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=1/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.608,hold:0.312 r=commit 0.61  patience 1.00  respect 0.00
-t=0516 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=1/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.640,hold:0.286 r=commit 0.64  patience 1.00  respect 0.00
-t=0519 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=1/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.718,hold:0.286 r=commit 0.72  patience 1.00  respect 0.00
-t=0521 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=1/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.679,hold:0.283 r=commit 0.68  patience 1.00  respect 0.00
+t=0476 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=0/-1/0 plan=-/-1 m=-2013.6,-54.5 c=- s=commit:0.805,hold:0.277 r=commit 0.80  patience 1.00  respect 0.00
+t=0478 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=0/-1/0 plan=-/-1 m=-2013.6,-54.5 c=- s=commit:0.864,hold:0.313 r=commit 0.86  patience 1.00  respect 0.00
+t=0480 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=0/-1/0 plan=-/-1 m=-2013.6,-54.5 c=- s=commit:0.799,hold:0.327 r=commit 0.80  patience 1.00  respect 0.00
+t=0483 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=0/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.708,hold:0.312 r=commit 0.71  patience 1.00  respect 0.00
+t=0485 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=0/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.682,hold:0.323 r=commit 0.68  patience 1.00  respect 0.00
+t=0488 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=0/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.701,hold:0.281 r=commit 0.70  patience 1.00  respect 0.00
+t=0490 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=0/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.717,hold:0.323 r=commit 0.72  patience 1.00  respect 0.00
+t=0492 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=0/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.650,hold:0.275 r=commit 0.65  patience 1.00  respect 0.00
+t=0495 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=0/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.698,hold:0.326 r=commit 0.70  patience 1.00  respect 0.00
+t=0497 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=0/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.620,hold:0.286 r=commit 0.62  patience 1.00  respect 0.00
+t=0500 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=0/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.609,hold:0.276 r=commit 0.61  patience 1.00  respect 0.00
+t=0502 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=0/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.696,hold:0.290 r=commit 0.70  patience 1.00  respect 0.00
+t=0504 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=0/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.669,hold:0.325 r=commit 0.67  patience 1.00  respect 0.00
+t=0507 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=0/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.615,hold:0.271 r=commit 0.62  patience 1.00  respect 0.00
+t=0509 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=0/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.639,hold:0.279 r=commit 0.64  patience 1.00  respect 0.00
+t=0512 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=0/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.656,hold:0.318 r=commit 0.66  patience 1.00  respect 0.00
+t=0514 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=0/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.676,hold:0.307 r=commit 0.68  patience 1.00  respect 0.00
+t=0516 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=0/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.620,hold:0.280 r=commit 0.62  patience 1.00  respect 0.00
+t=0519 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=0/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.620,hold:0.295 r=commit 0.62  patience 1.00  respect 0.00
+t=0521 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=0/-1/0 plan=-/-1 m=-1953.0,-18.0 c=- s=commit:0.612,hold:0.331 r=commit 0.61  patience 1.00  respect 0.00
 t=0522 brute_boss ~swing 0
 t=0524 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=1/-1/1 plan=-/-1 m=- d=same
 t=0526 brute_boss i=commit p= com=1 pat=1.000 tok=none needed str=1/-1/1 plan=-/-1 m=- d=same
@@ -275,8 +275,8 @@ casts 2 (t=0203..0269)
 commits_ended 1 (t=0305..0305)
 commits_started 2 (t=0185..0456)
 damage_to_knight 3 (t=0265..0552)
-strings_started 1 (t=0475..0475)
+strings_started 1 (t=0522..0522)
 swings 2 (t=0522..0579)
 thinks 251 (t=0001..0600)
 damage_to_knight_total 131.0
-brute_boss thinks 251 strings 1 (last 5 hits) plans 0 [] peels 0 setups 0
+brute_boss thinks 251 strings 1 (last 4 hits) plans 0 [] peels 0 setups 0

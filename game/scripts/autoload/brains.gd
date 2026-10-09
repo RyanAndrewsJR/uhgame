@@ -29,6 +29,10 @@ extends Node
 ##   (get_recent_hits(): DoT ticks don't count) and each champion's last
 ##   gap-closer (get_last_gap_closer(): when and where its dash, or an
 ##   ability that moves it, ended; the snapshot carries it).
+## - (ARCHETYPES AR2) the perilous gate (can_start_perilous()): none in a
+##   fight's first perilous_quiet_time s (get_fight_time()), one live at a time
+##   across the enemy side (two while a boss fights), each noted from
+##   Events.perilous_started until its cast ends.
 ## AI6 adds the whiffs, AI7 sleeping.
 
 const TABLE_PATH := "res://data/enemy_ai_tables/enemy_ai_table_default.tres"
@@ -100,6 +104,11 @@ var _think_demand := 0.0
 var _hits_on: Dictionary = {}
 var _gap_closers: Dictionary = {}
 var _self_moving: Dictionary = {}
+## The perilous gate (ARCHETYPES AR2): when the enemy side's fight started
+## (game time; −1 = no enemy with data fighting), and the perilous attacks
+## live now (Enemy -> its Ability: from its cast's start to its end).
+var _fight_started_at := -1.0
+var _perilous: Dictionary = {}
 
 
 func _ready() -> void:
@@ -107,6 +116,7 @@ func _ready() -> void:
 	rng.randomize()
 	Events.unit_hit.connect(_on_unit_hit)
 	Events.ability_cast.connect(_on_ability_cast)
+	Events.perilous_started.connect(_on_perilous_started)
 
 
 ## Game time (s): the physics deltas summed (hitstop slows it; paused, it stops).
@@ -189,6 +199,7 @@ func wake_at(brain: EnemyBrain, time: float) -> void:
 func _physics_process(delta: float) -> void:
 	_time += delta
 	_tick += 1
+	_update_fight()   # ARCHETYPES AR2: the perilous gate's quiet time
 	_update_tokens()
 	_deliver_alerts()
 	if _tick % get_pack_think_period() == 0:
@@ -489,6 +500,81 @@ func _prune_heavy_hits() -> void:
 			_heavy_hits.remove_at(i)
 
 
+# --- Perilous attacks (ARCHETYPES.md, Perilous attacks; AR2) ----------------------------------
+
+## Seconds since the enemy side's fight started: the first tick an enemy with
+## data fought (aggroed, not passive, alive) after none did (−1 = none fights).
+func get_fight_time() -> float:
+	return _time - _fight_started_at if _fight_started_at >= 0.0 else -1.0
+
+
+## A perilous attack may start for `unit` now (D5's pacing): not in a fight's
+## first perilous_quiet_time s, and fewer than perilous_live_max live across
+## the enemy side (perilous_live_max_boss while a boss fights). A brain asks
+## before it picks one, and again before it casts it.
+func can_start_perilous(_unit: Unit) -> bool:
+	var fight := get_fight_time()
+	if fight < 0.0 or fight < table.perilous_quiet_time - 0.0001:
+		return false
+	_prune_perilous()
+	return _perilous.size() < (table.perilous_live_max_boss if _is_boss_fighting() else table.perilous_live_max)
+
+
+## `enemy` started `ability`, a perilous attack (Events.perilous_started does
+## it for every enemy): live until end_perilous(), or until its cast no longer
+## runs (cut, ended, its caster gone).
+func note_perilous(enemy: Unit, ability: Ability) -> void:
+	_perilous[enemy] = ability
+
+
+## `enemy`'s perilous attack is over (its brain, at its cast's end).
+func end_perilous(enemy: Unit) -> void:
+	_perilous.erase(enemy)
+
+
+## The perilous attacks live now: Unit -> Ability (tests, the overlay).
+func get_perilous_live() -> Dictionary:
+	_prune_perilous()
+	return _perilous.duplicate()
+
+
+func _on_perilous_started(unit: Unit, ability: Ability) -> void:
+	if unit is Enemy:
+		note_perilous(unit, ability)
+
+
+func _prune_perilous() -> void:
+	for e: Variant in _perilous.keys():
+		if not is_instance_valid(e):
+			_perilous.erase(e)
+			continue
+		var u: Unit = e
+		if not u.is_alive() or u.abilities == null or u.abilities.get_cast_ability() != _perilous[e]:
+			_perilous.erase(e)
+
+
+## The fight's start (the quiet time): set on the first tick an enemy with
+## data fights, cleared once none does.
+func _update_fight() -> void:
+	var fighting := false
+	for e in _enemies:
+		if is_instance_valid(e) and e.ai == Enemy.AI.AGGRO and not e.passive and e.is_alive():
+			fighting = true
+			break
+	if not fighting:
+		_fight_started_at = -1.0
+	elif _fight_started_at < 0.0:
+		_fight_started_at = _time
+
+
+func _is_boss_fighting() -> bool:
+	for e in _enemies:
+		if is_instance_valid(e) and e.ai == Enemy.AI.AGGRO and not e.passive and e.is_alive() \
+				and e.data != null and e.data.rank == EnemyData.Rank.BOSS:
+			return true
+	return false
+
+
 ## The think budget (AI3c): the awake brains' thinks a second at their own
 ## rates; past think_budget the brains that aren't exempt scale down evenly
 ## (get_think_rate()). The exempt ones' thinks (elites and bosses: Ryan,
@@ -520,6 +606,7 @@ func register_enemy(enemy: Enemy) -> void:
 
 func unregister_enemy(enemy: Enemy) -> void:
 	_enemies.erase(enemy)
+	_perilous.erase(enemy)
 	release_token(enemy, false)
 	_token_rest.erase(enemy)
 	for i in range(_alerts.size() - 1, -1, -1):

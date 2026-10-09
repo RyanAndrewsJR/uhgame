@@ -704,14 +704,40 @@ func _is_ranged_string() -> bool:
 ## range (from this unit's center to `t`'s edge, less enemy_hit_forgiveness)
 ## and in sight. False with no string.
 func is_string_in_reach(t: Unit) -> bool:
-	if _string == null or not is_instance_valid(t):
+	if _string == null:
 		return false
-	var swing := _get_string_swing(0)
-	if _is_ranged_string():
+	return is_in_reach_of_string(_string, t)
+
+
+## `attack_string`'s first swing could start on `t` from here, by
+## is_string_in_reach()'s rule, before that string runs (R0's quirk fix,
+## 2026-10-08: the brain closes in on foot until then, so a cast that comes
+## into reach first never cuts a string it started). False with no swings.
+func is_in_reach_of_string(attack_string: AttackCombo, t: Unit) -> bool:
+	if attack_string == null or attack_string.swings.is_empty() or not is_instance_valid(t):
+		return false
+	var swing := attack_string.swings[0]
+	if attack_string.attack_style == AttackCombo.AttackStyle.RANGED:
 		var reach := Units.to_px(swing.projectile_range) * (1.0 - enemy_hit_forgiveness)
 		return unit.global_position.distance_to(t.global_position) - t.get_gameplay_radius_px() <= reach \
 			and WorldQuery.has_line_of_sight(unit.global_position, t.global_position)
 	return unit.edge_distance_to(t) <= get_swing_reach_px(swing) * (1.0 - enemy_hit_forgiveness)
+
+
+## Closes in on `t` for `attack_string`'s first swing, as a running string
+## chases (_update_string()), without attacking: the brain's walk-in before
+## it starts its string (R0's quirk fix). Call it every physics tick of the
+## walk-in.
+func approach_for_string(attack_string: AttackCombo, t: Unit, delta: float) -> void:
+	if attack_string == null or not is_instance_valid(t):
+		return
+	_repath_timer -= delta
+	if _repath_timer <= 0.0 or not unit.movement.has_order():
+		_repath_timer = chase_repath_interval
+		if attack_string.attack_style == AttackCombo.AttackStyle.RANGED:
+			unit.movement.move_to(t.global_position)   # straight in, until in range and in sight
+		else:
+			unit.movement.move_to(_approach_point_to(t))
 
 
 ## AR1b: a RANGED string's hit moment: one shot (Projectile.fire_swing()) at

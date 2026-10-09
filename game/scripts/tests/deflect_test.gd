@@ -45,6 +45,7 @@ const BRUTE_DATA: EnemyData = preload("res://data/enemies/enemy_test_brute.tres"
 const SKIRMISHER_DATA: EnemyData = preload("res://data/enemies/enemy_test_skirmisher.tres")
 const CASTER_ELITE_DATA: EnemyData = preload("res://data/enemies/enemy_test_caster_elite.tres")
 const STATUS_POISE_BROKEN: StatusEffect = preload("res://data/statuses/status_poise_broken.tres")
+const STATUS_REBUFFED_PERILOUS: StatusEffect = preload("res://data/statuses/status_rebuffed_perilous.tres")
 const AURA_SCRIPT: Script = preload("res://scripts/vfx/aura.gd")
 const FLAT := StatModifier.Type.FLAT
 const BASELINE_SOURCE := &"test_baseline"
@@ -108,6 +109,7 @@ func _ready() -> void:
 	await _test_riposte_snap()
 	await _test_weak_autos()
 	await _test_other_sources()
+	await _test_perilous_deflect()   # ARCHETYPES AR2
 	# Slice B: poise.
 	await _test_poise_flags_off()
 	_test_poise_data()
@@ -487,12 +489,60 @@ func _test_other_sources() -> void:
 	_check("a brute built with the node has it", guard.deflect_component == node, true)
 	node.open_window()
 	var from_knight := HitPipeline.from_ability(knight, SLAM, guard)
+	from_knight.perilous = false   # a plain deflectable hit (the slam is perilous since AR2: a perilous deflect would rebuff the Knight)
+	from_knight.tags.erase(&"perilous")
 	from_knight = HitPipeline.resolve(from_knight)
 	_check("its window deflects a deflectable hit from the Knight's side", [from_knight.deflected, guard.health.current], [true, guard.health.max_health])
 	var cleave := HitPipeline.resolve(HitPipeline.from_ability(knight, knight.abilities.get_ability(&"q"), guard))
 	_check("...but not a non-deflectable one (no i-frames: it lands)", [cleave.deflected, cleave.blocked], [false, false])
 	for n: Node in [slime, caster, guard]:
 		n.queue_free()
+	await _frames(2)
+
+
+# --- ARCHETYPES AR2: a perilous attack deflected -----------------------------------------
+
+func _test_perilous_deflect() -> void:
+	_section("ARCHETYPES AR2: a perilous attack deflected counts as two (straight to the riposte), its attacker rebuffed 1.0 s (not crowd control)")
+	DeflectComponent.deflect_test_enabled = true
+	await _fresh()
+	var elite := _spawn(ELITE_SCENE, ARENA + Vector2(0, 220))
+	var st := elite.status_component
+	var rebuffed := STATUS_REBUFFED_PERILOUS.id
+	var health := knight.health.current
+	knight.dash.try_dash(Vector2.RIGHT)
+	var ctx := _slam_hit(elite, true)
+	_check("the slam's hit is perilous (HitContext.perilous, the hit tag)", [ctx.perilous, ctx.has_tag(&"perilous")], [true, true])
+	_check("one deflect: deflected, no damage", [ctx.deflected, knight.health.current], [true, health])
+	_check("...counts as two: the riposte at once (streak events 2, then 0), and the refund (the first of its streak)",
+		[deflect.has_riposte(), _streaks, knight.dash.has_refund()], [true, [2, 0], true])
+	_check("...its attacker rebuffed for 1.0 s (status_rebuffed_perilous, tags rebuffed and debuff)",
+		[st.has_status(rebuffed), snappedf(st.get_time_left(rebuffed), 0.01), STATUS_REBUFFED_PERILOUS.tags], [true, 1.0, [&"rebuffed", &"debuff"]])
+	_check("...it can't attack, cast or dash (Enemy.is_cc_blocked(): its string ends, its token goes), but it can walk",
+		[elite.is_cc_blocked(), elite.is_cast_blocked(), elite.is_dash_blocked(), STATUS_REBUFFED_PERILOUS.blocks_move], [true, true, true, false])
+	_check("...not crowd control: not cc, diminishing returns don't count it, no cleanse ends it",
+		[STATUS_REBUFFED_PERILOUS.is_cc(), StatusComponent.counts_for_diminishing(STATUS_REBUFFED_PERILOUS), STATUS_REBUFFED_PERILOUS.cleansable], [false, false, false])
+	await _seconds(1.05)
+	_check("...gone after 1.0 s", st.has_status(rebuffed), false)
+
+	await _fresh()
+	knight.dash.try_dash(Vector2.RIGHT)
+	_slam_hit(elite)
+	await _wait_until(func() -> bool: return not knight.dash.is_dashing(), 60)
+	knight.dash.try_dash(Vector2.LEFT)
+	_slam_hit(elite, true)
+	_check("after a plain deflect, a perilous one gives the riposte too (streak events 1, 3, 0), no second refund",
+		[deflect.has_riposte(), _streaks, knight.dash.has_refund()], [true, [1, 3, 0], false])
+
+	await _fresh()
+	st.remove_status(rebuffed)   # the pair's own rebuff, still on
+	DeflectComponent.deflect_test_enabled = false
+	knight.dash.try_dash(Vector2.RIGHT)
+	var off := _slam_hit(elite, true)
+	_check("the flag off: a perilous hit during a dash is only blocked by the i-frames (no deflect, no rebuff)",
+		[off.blocked, off.deflected, st.has_status(rebuffed)], [true, false, false])
+	DeflectComponent.deflect_test_enabled = true
+	elite.queue_free()
 	await _frames(2)
 
 
@@ -897,9 +947,15 @@ func _brute_hit(brute: Enemy) -> HitContext:
 	return HitPipeline.resolve(brute.attack.make_attack_context(knight))
 
 
-## The elite slam on the Knight as slam.gd builds it (its push), plus a slow.
-func _slam_hit(elite: Enemy) -> HitContext:
+## The elite slam on the Knight as its script builds it (its push), plus a
+## slow. Since ARCHETYPES AR2 the slam is perilous (a deflect of it counts as
+## two: _test_perilous_deflect()); the single-deflect checks take it as a
+## plain deflectable hit (`perilous` false clears the mark).
+func _slam_hit(elite: Enemy, perilous: bool = false) -> HitContext:
 	var ctx := HitPipeline.from_ability(elite, SLAM, knight)
+	if not perilous:
+		ctx.perilous = false
+		ctx.tags.erase(&"perilous")
 	ctx.knockback_px = 20.0
 	ctx.knockback_from = elite.global_position
 	ctx.statuses.append(STATUS_SLOW)

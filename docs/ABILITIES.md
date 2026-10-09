@@ -634,6 +634,8 @@ Audio hooks: see AUDIO.md (`charge_sound` is added there for CHARGE_UP).
 | `hit_knockback_px` | `float` | 0 | push on each unit `hit_units()` hits, away from where the caster stands; a scoped param. `Unit.on_hit()` applies it (blocked hits and unstoppable units aren't pushed); a unit the hit kills still slides. |
 | `hit_knockback_duration` | `float` | 0.1 | seconds the push takes (the target's `knockback_curve`). |
 | `hit_shake` / `hit_hitstop` | `float` | 0 | export group "Feel": the cast's shake (px) and hitstop (s), played once by `play_hit_feel(hits)` when at least one hit landed. |
+| `deflectable` | `bool` | false | PROTOTYPE (deflect, 2026-10-07): a dash's deflect window can deflect its hits (`HitContext.deflectable`). The authoring rule: an enemy's by origin, attacker-centered only (ARCHETYPES.md, What she can deflect). |
+| `perilous` | `bool` | false | *(ARCHETYPES AR2, built 2026-10-08)* a perilous attack (D5): `Events.perilous_started` at its cast's start (the icon), `HitContext.perilous` and the hit tag `perilous` (a deflect of it counts as two), Brains' gate for brains. Deflectable, attacker-centered, 0.9 s or more, 35–40% of the player's health (ARCHETYPES.md, Perilous attacks). |
 | `resource_cost` | `float` | 0 | scoped param. |
 | `max_charges` | `int` | 1 | scoped param, rounded down, min 1. |
 | `recast_count` | `int` | 0 | extra parts after the first. |

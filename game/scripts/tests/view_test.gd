@@ -1203,6 +1203,21 @@ func _test_overlays_in_setup() -> void:
 	await get_tree().process_frame
 	_check("a unit gone: its bar goes", is_instance_valid(late_bar), false)
 
+	# ARCHETYPES AR2: the perilous icon (the one icon over a head).
+	Events.perilous_started.emit(slime, Ability.new())
+	var icon := screen.get_perilous_icon(slime)
+	_check("AR2: Events.perilous_started puts the perilous icon over its unit (the placeholder glyph, red)",
+		icon != null and icon.text == screen.perilous_icon_text and icon.get_theme_color(&"font_color") == screen.perilous_icon_color, true)
+	if icon != null:
+		var extent := icon.get_combined_minimum_size()
+		_check_near("...centered over the head, its bottom 12 px over the model's top (px off)",
+			icon.position.distance_to(cam.unproject_position(head) - Vector2(extent.x * 0.5, 12.0 + extent.y)), 0.0, 0.001)
+		_check("...above the health bar", icon.position.y + extent.y <= bar.position.y + 0.001, true)
+	screen._process(0.3)
+	_check("...still there at 0.3 s", screen.get_perilous_icon(slime) != null, true)
+	screen._process(0.15)
+	_check("...gone after its 0.4 s (the hit comes about 0.5 s later, on the beat)", screen.get_perilous_icon(slime), null)
+
 	# A damage number.
 	var entity_labels := entities.find_children("*", "Label", true, false).size()
 	slime.show_heal_number(12.0)

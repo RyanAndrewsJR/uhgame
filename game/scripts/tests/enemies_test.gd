@@ -232,10 +232,11 @@ var _passed: int = 0
 var _failed: int = 0
 var _odds_threshold_saved := -1.0   # _no_press() (AI3c)
 var _mix_saved := 0.5   # the table's string_then_cast_chance (pinned to 0 for the older checks)
+var _perilous_quiet_saved := 6.0   # the table's perilous_quiet_time (pinned to 0 for the older checks; AR2)
 
 
 func _ready() -> void:
-	print("\n=== Enemies test (ENEMIES_AI AI1–AI3d, AI3b, AI3c, AI-D1, AI-D2, AI-D3; ARCHETYPES AR1a, AR1b) ===")
+	print("\n=== Enemies test (ENEMIES_AI AI1–AI3d, AI3b, AI3c, AI-D1, AI-D2, AI-D3; ARCHETYPES AR1a, AR1b, AR2) ===")
 	Progress.get_progress(KNIGHT)   # the save guards latch off first (a test scene)
 	Loot.get_inventory(KNIGHT)
 	Brains.rng.seed = 20261004
@@ -249,6 +250,10 @@ func _ready() -> void:
 	# follow-up, Ryan 2026-10-08) has its own test.
 	_mix_saved = Brains.table.string_then_cast_chance
 	Brains.table.string_then_cast_chance = 0.0
+	# The older checks see a fight's perilous moves from its start: the perilous
+	# gate's quiet time (ARCHETYPES AR2) has its own test.
+	_perilous_quiet_saved = Brains.table.perilous_quiet_time
+	Brains.table.perilous_quiet_time = 0.0
 
 	_test_table()
 	_test_brute_preset()
@@ -388,10 +393,17 @@ func _ready() -> void:
 	await _test_ar1b_shot()
 	await _test_ar1b_brain()
 
+	# ARCHETYPES AR2: perilous attacks and their icon (the icon: view_test).
+	_test_ar2_data()
+	await _test_ar2_gate()
+	await _test_ar2_brain_gate()
+	await _test_ar2_rebuffed()
+
 	# TEMP: the enemy attack speed test multiplier (DECISIONS.md, Testing).
 	await _test_temp_attack_speed()
 
 	Brains.table.string_then_cast_chance = _mix_saved
+	Brains.table.perilous_quiet_time = _perilous_quiet_saved
 	Audio.stop_all()
 	await _frames(120)   # stop_all() leaves the UI bus: let the ultimate-ready pings (reset_cooldown()) finish
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
@@ -4119,15 +4131,15 @@ func _test_aid1_data() -> void:
 	_check("combo roles: the snare opener + extender, the strike extender (the tuning pass: fast now, so no opener), finisher finisher, guard none; only the finisher recovers (1.2 s)",
 		[D_SNARE.combo_roles, D_STRIKE.combo_roles, D_FINISHER.combo_roles, D_GUARD.combo_roles.is_empty(), D_FINISHER.recovery_time, D_SNARE.recovery_time, D_STRIKE.recovery_time],
 		[[&"opener", &"extender"], [&"extender"], [&"finisher"], true, 1.2, 0.0, 0.0])
-	_check("its opener (the snare) telegraphs 0.7 s and can be dodged (not point-and-click); its follow-ups are fast (Ryan's tuning pass): the strike 0.3 s, the finisher 0.35 s",
+	_check("its opener (the snare) telegraphs 0.7 s and can be dodged (not point-and-click); its strike is fast (Ryan's tuning pass): 0.3 s; its finisher 0.9 s (a perilous move since ARCHETYPES AR2, was 0.35)",
 		[D_SNARE.cast_time, D_STRIKE.cast_time, D_FINISHER.cast_time, D_SNARE.targeting != Ability.Targeting.UNIT, D_STRIKE.targeting != Ability.Targeting.UNIT],
-		[0.7, 0.3, 0.35, true, true])
-	_check("numbers: snare 750 u at 700 u/s, 60 wide, 60 magic (9.2% of 650: under the 10% heavy hit), 10 s; guard 250 for 2 s, 8 s; strike 100 (15.4%), reaching 6 m (the charge's range: from its band's far edge), its band 5 m + 1 m past, 7 s; finisher 195 (30%), an 80 px circle, 12 s",
+		[0.7, 0.3, 0.9, true, true])
+	_check("numbers: snare 750 u at 700 u/s, 60 wide, 60 magic (9.2% of 650: under the 10% heavy hit), 10 s; guard 250 for 2 s, 8 s; strike 100 (15.4%), reaching 6 m (the charge's range: from its band's far edge), its band 5 m + 1 m past, 7 s; finisher 240 (36.9%: a perilous move since ARCHETYPES AR2, was 195), an 80 px circle around itself, 12 s",
 		[D_SNARE.cast_range, D_SNARE.projectile_speed, D_SNARE.projectile_width, D_SNARE.base_damage, D_SNARE.cooldown,
 			D_GUARD.get(&"shield_amount"), D_GUARD.get(&"shield_duration"), D_GUARD.cooldown,
 			D_STRIKE.base_damage, D_STRIKE.cast_range, D_STRIKE.get(&"length_px"), D_STRIKE.get(&"overshoot_px"), D_STRIKE.cooldown,
 			D_FINISHER.base_damage, D_FINISHER.get(&"radius_px"), D_FINISHER.cooldown],
-		[750.0, 700.0, 60.0, 60.0, 10.0, 250.0, 2.0, 8.0, 100.0, 600.0, 192.0, 32.0, 7.0, 195.0, 80.0, 12.0])
+		[750.0, 700.0, 60.0, 60.0, 10.0, 250.0, 2.0, 8.0, 100.0, 600.0, 192.0, 32.0, 7.0, 240.0, 80.0, 12.0])
 
 
 ## A situation for crowding by hand: a brute's crowded range (200 u) and band
@@ -4605,6 +4617,8 @@ func _test_aid1_setup() -> void:
 		e.abilities.cast_started.connect(func(_slot: StringName, _a: Ability, _c: CastContext) -> void: plan_ids.append(brain.get_plan().id if brain.get_plan() != null else &""))
 		var casts: Array = []
 		e.abilities.cast_started.connect(func(slot: StringName, _a: Ability, _c: CastContext) -> void: casts.append(slot))
+		var opener_done := [false]   # its opener's own cast ended (the next step may start on the very next tick)
+		e.abilities.cast_finished.connect(func(slot: StringName, _a: Ability) -> void: opener_done[0] = opener_done[0] or slot == c[4])
 		var spawned := Brains.get_time()
 		var tell := [false]
 		for i in 90:
@@ -4616,7 +4630,7 @@ func _test_aid1_setup() -> void:
 		if c[4] != &"":
 			_check("%s: it sets up within about a second (got %.2f s; patience alone takes about 5 s): its tell, then %s first, its plan running" % [c[0], took, c[4]],
 				[casts.slice(0, 1), brain.setup_count, brain.get_setup_slot(), tell[0], plan_ids.slice(0, 1)], [[c[4]], 1, c[4], true, [c[6]]])
-			await _wait_until(func() -> bool: return not e.abilities.casting, 90)
+			await _wait_until(func() -> bool: return opener_done[0], 90)
 			await _frames(12)   # several thinks: a commit its opener ended would be over by then
 			_check("%s: its opener's end doesn't end the commit (still on 0.2 s later)" % c[0], brain.is_committing(), true)
 		else:
@@ -5185,7 +5199,7 @@ func _first_at(rows: Array, key: StringName) -> float:
 
 
 func _test_aid2_snare_first() -> void:
-	_section("snare_first, end to end (a real duelist, his escapes down): the snare; the strike on the tick the root lands; the finisher on the tick the strike lands, inside the 1 s root; its own steps wait no reaction time")
+	_section("snare_first, end to end (a real duelist, his escapes down): the snare; the strike on the tick the root lands; the finisher on the tick the strike lands (since ARCHETYPES AR2 a perilous 0.9 s windup: it lands after the 1 s root ends, so it can be dashed); its own steps wait no reaction time")
 	await _reset_knight()
 	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
 	knight.abilities.start_cooldown(&"e")
@@ -5209,7 +5223,7 @@ func _test_aid2_snare_first() -> void:
 	var dash: float = D_STRIKE.get(&"dash_time")
 	_check("the strike starts on the tick the snare lands (got %.3f s after; its reaction time is %.2f s); the finisher as the strike lands, or as its %.2f s dash ends when the hit came mid-dash (%.3f s; it can't cast while it dashes)" % [strike_cast - snare_hit, brain.behavior.reaction_time, dash, finisher_cast - strike_hit],
 		[strike_cast - snare_hit >= -0.0001 and strike_cast - snare_hit <= tick, finisher_cast - strike_hit >= -0.0001 and finisher_cast - strike_hit <= dash + tick], [true, true])
-	_check("the finisher lands inside the snare's 1 s root (%.2f s after it)" % (finisher_hit - snare_hit), finisher_hit - snare_hit < 1.0, true)
+	_check("the finisher (perilous since AR2: 0.9 s) lands after the snare's 1 s root ends, so he could dash it (%.2f s after the snare)" % (finisher_hit - snare_hit), finisher_hit - snare_hit > 1.0, true)
 	await _free_plan_duelist(e, record)
 
 
@@ -6558,6 +6572,194 @@ func _test_ar1b_brain() -> void:
 	_check("the elite caster at respect 0: its 3 bolts, or 4 at its aggression's chance (got %d), done, 0.45 s apart (got %s)" % [brain.last_string_hits, _gaps(rec.landed)],
 		[brain.last_string_hits in [3, 4], (rec.ended as Array).map(func(r: Array) -> Array: return r.slice(0, 2)), _all_near(_gaps(rec.landed), 0.45, STRING_SPACING_TOLERANCE)],
 		[true, [[true, brain.last_string_hits]], true])
+	await _free_committing_enemy(e, rec)
+
+
+# --- ARCHETYPES AR2: perilous attacks (ARCHETYPES.md, Perilous attacks; D5) -------------------
+
+const STATUS_REBUFFED_PERILOUS: StatusEffect = preload("res://data/statuses/status_rebuffed_perilous.tres")
+
+
+func _test_ar2_data() -> void:
+	_section("AR2 data: the gate's numbers; perilous_max by rank; the elites' perilous moves (the elite slime's slam, the duelist's finisher) deflectable, around their own bodies, 0.9 s or more, 35–40% of the Knight's health, 12–15 s, heavy hits; each enemy within its rank's count; every deflectable or perilous enemy ability centered on its attacker")
+	var t := Brains.table
+	_check("the table: perilous_quiet_time 6 s, perilous_live_max 1, perilous_live_max_boss 2", [_perilous_quiet_saved, t.perilous_live_max, t.perilous_live_max_boss], [6.0, 1, 2])
+	var maxes: Array[int] = []
+	for rank in [EnemyData.Rank.FODDER, EnemyData.Rank.REGULAR, EnemyData.Rank.ELITE, EnemyData.Rank.BOSS]:
+		maxes.append(t.get_rank_rules(rank).perilous_max)
+	_check("perilous_max: fodder 0, regular 0, elite 1, boss 3", maxes, [0, 0, 1, 3])
+	var slam_hit := HitPipeline.from_ability(null, SLAM, null)
+	_check("not perilous by default; a perilous ability's hit carries the mark and the tag `perilous`, another's neither",
+		[Ability.new().perilous, slam_hit.perilous, slam_hit.has_tag(&"perilous"), HitPipeline.from_ability(null, SMASH, null).perilous], [false, true, true, false])
+	var health := knight.health.max_health
+	for a: Ability in [SLAM, D_FINISHER]:
+		var share := a.base_damage / health
+		_check("%s: perilous, deflectable, cast on itself (SELF), windup %.2f s (0.9 or more), %.0f damage = %.1f%% of the Knight's %.0f (35–40%%, no ratios), cooldown %.0f s (12–15), a heavy hit" % [a.id, a.cast_time, a.base_damage, share * 100.0, health, a.cooldown],
+			[a.perilous, a.deflectable, a.targeting == Ability.Targeting.SELF, a.cast_time >= 0.9 - 0.0001, share >= 0.35 - 0.0001 and share <= 0.40 + 0.0001,
+				a.ad_ratio == 0.0 and a.ap_ratio == 0.0, a.cooldown >= 12.0 - 0.0001 and a.cooldown <= 15.0 + 0.0001, EnemyBrain.is_heavy_hit(a, knight, knight, t)],
+			[true, true, true, true, true, true, true, true])
+	_check("the slam's AI use is authored (a damage use, weight 1), no longer the default one (R0's finding)",
+		[SLAM.ai_uses.size(), SLAM.ai_uses[0].intent if not SLAM.ai_uses.is_empty() else &"", SLAM.get_ai_uses()[0].weight], [1, &"damage", 1.0])
+	var dir := DirAccess.open(ENEMY_DATA_DIR)
+	var problems: Array[String] = []
+	var kits := {}   # every enemy ability: id -> Ability
+	for f in dir.get_files():
+		if not f.ends_with(".tres"):
+			continue
+		var data: EnemyData = load(ENEMY_DATA_DIR + f)
+		var count := 0
+		for a: Ability in data.get_abilities_at(5).values():
+			kits[a.id] = a
+			if a.perilous:
+				count += 1
+		var allowed := t.get_rank_rules(data.rank).perilous_max
+		if count > allowed:
+			problems.append("%s: %d perilous, its rank allows %d" % [f, count, allowed])
+	_check("every EnemyData within its rank's perilous_max (the elite slime and the duelist 1 each)",
+		[problems, ELITE_DATA.get_abilities_at(5).values().filter(func(a: Ability) -> bool: return a.perilous).size(),
+			DUELIST_DATA.get_abilities_at(5).values().filter(func(a: Ability) -> bool: return a.perilous).size()], [[] as Array[String], 1, 1])
+	for f in DirAccess.open(LIBRARY_DIR).get_files():
+		if f.ends_with(".tres"):
+			var a: Ability = load(LIBRARY_DIR + f)
+			kits[a.id] = a
+	var checked: Array[String] = []
+	var off: Array[String] = []
+	for a: Ability in kits.values():
+		if not (a.deflectable or a.perilous):
+			continue
+		var ctx := CastContext.new()
+		ctx.ability = a
+		ctx.point = knight.global_position + Vector2(300, 0)   # aimed away: a placed shape would sit there
+		ctx.direction = Vector2.RIGHT
+		ctx.vector_start = ctx.point
+		ctx.vector_direction = Vector2.RIGHT
+		var area := a.get_effect_area(knight, ctx)   # the Knight stands in for its caster: only its position is read
+		var anchor: Variant = {&"circle": area.get("center"), &"segment": area.get("from"), &"cone": area.get("origin")}.get(area.get("kind", &"none"))
+		checked.append(String(a.id))
+		if not (anchor is Vector2 and (anchor as Vector2).distance_to(knight.global_position) < 1.0):
+			off.append(String(a.id))
+	checked.sort()
+	_check("every deflectable or perilous enemy ability is centered on its attacker, never placed at the player (%s)" % ", ".join(checked), [off, checked.size() >= 3], [[] as Array[String], true])
+
+
+func _test_ar2_gate() -> void:
+	_section("AR2, Brains' perilous gate: none in a fight's first perilous_quiet_time s (from the first enemy with data fighting); one live at a time (Events.perilous_started to its cast's end), two while a boss fights")
+	var t := Brains.table
+	await _reset_knight()
+	var steady := _tag_status(&"test_unstoppable", [&"unstoppable"] as Array[StringName])
+	knight.status_component.apply_status(steady)
+	await _wait_until(func() -> bool: return Brains.get_fight_time() < 0.0, 240)
+	_check("no enemy with data fighting: no fight (−1), the gate shut", [Brains.get_fight_time(), Brains.can_start_perilous(knight)], [-1.0, false])
+	t.perilous_quiet_time = 1.0   # the table's 6 s, shortened for the test's clock
+	var elite := _spawn(ELITE_SCENE, knight.global_position + Vector2(200, 0), false)
+	_pin_ai3(elite)
+	for slot in AbilityComponent.SLOTS:
+		elite.abilities.start_cooldown(slot)
+	elite.alert(knight)   # aggroed at once (noticing waits on a path check, slow under parallel load)
+	await _wait_until(func() -> bool: return Brains.get_fight_time() >= 0.0, 300)
+	_check("the fight starts as the elite aggroes; inside the quiet time the gate is shut",
+		[Brains.get_fight_time() >= 0.0 and Brains.get_fight_time() < 0.1, Brains.can_start_perilous(elite)], [true, false])
+	await _wait_until(func() -> bool: return Brains.get_fight_time() >= 1.0, 120)
+	_check("after it the gate opens", Brains.can_start_perilous(elite), true)
+	var events: Array = []
+	var on_perilous := func(u: Unit, a: Ability) -> void: events.append([u, a])
+	Events.perilous_started.connect(on_perilous)
+	var duelist := _spawn(DUELIST_SCENE, knight.global_position + Vector2(-420, 0), true)   # passive: it casts only when told
+	await _frames(2)
+	duelist.abilities.reset_cooldown(&"r")
+	var cast := duelist.abilities.try_cast(&"r", duelist.global_position)
+	_check("the duelist's finisher cast: Events.perilous_started(it, the finisher); live in Brains; the gate shut for the rest",
+		[cast, events.size() == 1 and events[0][0] == duelist and events[0][1] == D_FINISHER, Brains.get_perilous_live().has(duelist), Brains.can_start_perilous(elite)],
+		[true, true, true, false])
+	await _wait_until(func() -> bool: return not duelist.abilities.casting, 120)
+	_check("its cast over (0.9 s): no longer live, the gate open again", [Brains.get_perilous_live().has(duelist), Brains.can_start_perilous(elite)], [false, true])
+	var boss_data: EnemyData = BRUTE_DATA.duplicate()
+	boss_data.rank = EnemyData.Rank.BOSS
+	var boss := BRUTE_SCENE.instantiate() as Enemy
+	boss.data = boss_data
+	entities.add_child(boss)
+	_place(boss, knight.global_position + Vector2(0, 200))
+	_pin_ai3(boss)
+	for slot in AbilityComponent.SLOTS:
+		boss.abilities.start_cooldown(slot)
+	boss.alert(knight)
+	await _wait_until(func() -> bool: return boss.ai == Enemy.AI.AGGRO, 300)
+	await _wait_until(func() -> bool: return not duelist.abilities.is_recovering(), 120)
+	duelist.abilities.reset_cooldown(&"r")
+	duelist.abilities.try_cast(&"r", duelist.global_position)
+	_check("a boss fighting: one live, the gate still open (two may be)", [Brains.get_perilous_live().size(), Brains.can_start_perilous(elite)], [1, true])
+	var second := _spawn(DUELIST_SCENE, knight.global_position + Vector2(-420, 120), true)
+	await _frames(2)
+	second.abilities.reset_cooldown(&"r")
+	second.abilities.try_cast(&"r", second.global_position)
+	_check("two live (two finishers): shut, even with a boss", [Brains.get_perilous_live().size(), Brains.can_start_perilous(boss)], [2, false])
+	Events.perilous_started.disconnect(on_perilous)
+	for n: Enemy in [elite, duelist, second, boss]:
+		n.passive = true
+		n.queue_free()
+	await _wait_until(func() -> bool: return Brains.get_fight_time() < 0.0, 60)
+	_check("the enemies gone: no fight, nothing live", [Brains.get_fight_time(), Brains.get_perilous_live().size()], [-1.0, 0])
+	knight.status_component.remove_status(steady.id)
+	t.perilous_quiet_time = 0.0   # the older checks' pin (restored at the end)
+
+
+func _test_ar2_brain_gate() -> void:
+	_section("AR2, a brain and the gate: the elite slime, the Knight inside its slam's circle, gathers its slam only while the gate is open (not in the quiet time, not while another perilous attack is live); it casts it once open; its cast's end tells Brains")
+	var t := Brains.table
+	t.perilous_quiet_time = 600.0   # shut while it's set up
+	var rec := {}
+	var e := await _committing_enemy(ELITE_SCENE, rec, null, 60.0)
+	var brain := e.get_brain()
+	var duelist := _spawn(DUELIST_SCENE, knight.global_position + Vector2(-420, 0), true)   # passive: it casts only when told
+	e.alert(knight)
+	await _wait_until(func() -> bool: return e.is_brain_active(), 240)
+	await _frames(2)
+	e.abilities.reset_cooldown(&"q")
+	brain.set(&"_patience", 1.0)   # its hits are gathered (a commit possible); no frame passes until the three reads are done
+	var shut := _gathered_slots(brain.build_situation())
+	t.perilous_quiet_time = 0.0
+	var open := _gathered_slots(brain.build_situation())
+	duelist.abilities.reset_cooldown(&"r")
+	duelist.abilities.try_cast(&"r", duelist.global_position)
+	var live := _gathered_slots(brain.build_situation())
+	_check("its slam (q) gathered: in the quiet time %s, open %s, with the duelist's finisher live %s" % [shut.has(&"q"), open.has(&"q"), live.has(&"q")],
+		[shut.has(&"q"), open.has(&"q"), live.has(&"q")], [false, true, false])
+	await _wait_until(func() -> bool: return not duelist.abilities.casting, 120)
+	await _wait_until(func() -> bool: return (rec.cast_rows as Array).any(func(r: Array) -> bool: return r[0] == &"q"), 600)
+	var cast_q := (rec.cast_rows as Array).any(func(r: Array) -> bool: return r[0] == &"q")
+	var live_while := Brains.get_perilous_live().has(e)
+	await _wait_until(func() -> bool: return not e.abilities.casting, 120)
+	_check("the gate open, it casts the slam (live while it winds up), then it's over (its brain's end_perilous())",
+		[cast_q, live_while, Brains.get_perilous_live().has(e)], [true, true, false])
+	duelist.passive = true
+	duelist.queue_free()
+	await _free_committing_enemy(e, rec)
+	await _frames(2)
+
+
+## The slots `s` gathered uses for, in order.
+func _gathered_slots(s: SituationContext) -> Array[StringName]:
+	var out: Array[StringName] = []
+	for u: Dictionary in s.uses:
+		if not out.has(u.slot):
+			out.append(u.slot)
+	return out
+
+
+func _test_ar2_rebuffed() -> void:
+	_section("AR2, rebuffed (status_rebuffed_perilous: its perilous attack was deflected): its string ends, its commit breaks off, its token goes, as a stun's; 1.0 s; diminishing returns don't count it")
+	var rec := {}
+	var e := await _committing_enemy(BRUTE_SCENE, rec)
+	var brain := e.get_brain()
+	await _wait_until(func() -> bool: return not (rec.started as Array).is_empty(), 900)
+	var had := Brains.has_token(e)
+	e.status_component.apply_status(STATUS_REBUFFED_PERILOUS, knight)
+	await _frames(3)
+	var ended: Array = rec.ended
+	_check("in its string with its token, then rebuffed: the string cut, the commit off, no token",
+		[had, not ended.is_empty() and not bool(ended[0][0]), brain.is_committing(), Brains.has_token(e)], [true, true, false, false])
+	var left := e.status_component.get_time_left(STATUS_REBUFFED_PERILOUS.id)
+	_check("...1.0 s of it (%.2f s left after 3 ticks), no diminishing returns step" % left, [left > 0.9 and left <= 1.0, e.status_component.get_dr_count()], [true, 0])
 	await _free_committing_enemy(e, rec)
 
 

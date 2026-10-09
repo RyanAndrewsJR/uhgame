@@ -192,6 +192,8 @@ func _try_step(i: int, s: SituationContext) -> void:
 	var plan := _step_cast_plan(step.slot, s)
 	if plan == null or not brain._brain_duel._heavy_hit_allowed(ability, plan):
 		return
+	if not brain._brain_duel._perilous_allowed(ability):
+		return   # ARCHETYPES AR2: the perilous gate (it tries again next tick, inside its window)
 	if brain._enemy.attack.is_winding_up():
 		brain._enemy.attack.cancel()   # the step comes first (the windup is refunded)
 	abilities.set_aim_hint(plan.point)

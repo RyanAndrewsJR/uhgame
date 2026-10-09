@@ -81,6 +81,9 @@ var deflectable: bool = false
 ## Ability.poise_damage, AttackSwing.poise_damage and an empower's
 ## empower_poise_damage. 0 = none.
 var poise_damage: float = 0.0
+## ARCHETYPES AR2: a perilous attack's hit (Ability.perilous; the hit tag
+## `perilous` too). A deflect of it counts as two (DeflectComponent).
+var perilous: bool = false
 
 # --- Results (filled in by the pipeline) -------------------------------------
 

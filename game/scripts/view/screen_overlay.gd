@@ -21,6 +21,20 @@ const PROCESS_PRIORITY := 30
 ## Damage numbers' size against the 2D game's (1: the same canvas px).
 @export_range(0.25, 4.0, 0.05) var number_scale: float = 1.0
 
+@export_group("The perilous icon (ARCHETYPES AR2)")
+## The one icon over a head (DECISIONS.md, Enemies, 2026-10-07): shown over a
+## unit for perilous_icon_time s from its perilous attack's windup
+## (Events.perilous_started). A placeholder look (Sekiro's glyph) until the
+## art pass.
+@export var perilous_icon_text: String = "危"
+@export var perilous_icon_color: Color = Color(0.95, 0.12, 0.1, 1.0)
+@export var perilous_icon_font_size: int = 22
+## Its bottom sits this far above the top of its unit's model (canvas px;
+## clear of the health bar).
+@export var perilous_icon_gap_px: float = 12.0
+## Seconds it shows (ARCHETYPES.md: 0.4, then the hit about 0.5 s later).
+@export var perilous_icon_time: float = 0.4
+
 var world_view: WorldView
 var camera: Camera3D
 
@@ -31,12 +45,58 @@ var _numbers: Array[Dictionary] = []
 ## Unit -> {"bar": Node2D (the copy), "source": CanvasItem (the unit's HealthBar)}. Keys
 ## can be freed nodes: read them untyped and check is_instance_valid() first.
 var _bars: Dictionary = {}
+## The perilous icons showing: Unit -> {"label": Label, "left": seconds}.
+## Keys can be freed nodes, as _bars'.
+var _icons: Dictionary = {}
 
 
 func _init() -> void:
 	name = "ScreenOverlay"
 	layer = 0   # under the HUD (1) and the pause menu (10)
 	process_priority = PROCESS_PRIORITY
+
+
+func _ready() -> void:
+	Events.perilous_started.connect(_on_perilous_started)
+
+
+func _exit_tree() -> void:
+	if Events.perilous_started.is_connected(_on_perilous_started):
+		Events.perilous_started.disconnect(_on_perilous_started)
+
+
+## Shows the perilous icon over `unit` for perilous_icon_time s (a new one
+## starts it over).
+func show_perilous_icon(unit: Unit) -> void:
+	if unit == null or not is_instance_valid(unit):
+		return
+	var entry: Variant = _icons.get(unit)
+	if entry is Dictionary and is_instance_valid(entry["label"]):
+		entry["left"] = perilous_icon_time
+		_place_icon(unit, entry)
+		return
+	var label := Label.new()
+	label.name = "PerilousIcon"
+	label.text = perilous_icon_text
+	label.add_theme_font_size_override(&"font_size", perilous_icon_font_size)
+	label.add_theme_color_override(&"font_color", perilous_icon_color)
+	label.add_theme_color_override(&"font_outline_color", Color(0, 0, 0, 1))
+	label.add_theme_constant_override(&"outline_size", 4)
+	add_child(label)
+	_icons[unit] = {"label": label, "left": perilous_icon_time}
+	_place_icon(unit, _icons[unit])
+
+
+## The perilous icon showing over `unit`, or null (tests).
+func get_perilous_icon(unit: Node) -> Label:
+	var entry: Variant = _icons.get(unit)
+	if entry is Dictionary and is_instance_valid(entry["label"]):
+		return entry["label"] as Label
+	return null
+
+
+func _on_perilous_started(unit: Unit, _ability: Ability) -> void:
+	show_perilous_icon(unit)
 
 
 ## Shows a damage number for `unit` (Unit._add_number()'s path under the 3D
@@ -92,7 +152,8 @@ func bar_of(unit: Node) -> Node2D:
 	return null
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_update_icons(delta)
 	for i in range(_numbers.size() - 1, -1, -1):
 		var holder: Variant = _numbers[i]["holder"]
 		if not is_instance_valid(holder) or (holder as Node).get_child_count() == 0:
@@ -139,3 +200,30 @@ func _place_bar(unit: Unit, entry: Dictionary) -> void:
 	bar.visible = true
 	var bar_height: float = bar.get(&"height")
 	bar.position = camera.unproject_position(head) - Vector2(0.0, bar_gap_px + bar_height)
+
+
+## Each perilous icon counts down and follows its unit's head; it goes when
+## its time is up or its unit dies or goes.
+func _update_icons(delta: float) -> void:
+	for unit: Variant in _icons.keys():
+		var entry: Dictionary = _icons[unit]
+		var label: Variant = entry["label"]
+		entry["left"] = float(entry["left"]) - delta
+		if not is_instance_valid(unit) or not (unit as Unit).is_alive() or float(entry["left"]) <= 0.0 or not is_instance_valid(label):
+			if is_instance_valid(label):
+				(label as Node).queue_free()
+			_icons.erase(unit)
+			continue
+		_place_icon(unit as Unit, entry)
+
+
+## Centers the icon over `unit`'s head, perilous_icon_gap_px above its model.
+func _place_icon(unit: Unit, entry: Dictionary) -> void:
+	var label: Label = entry["label"]
+	var head := point_over(unit, 1.0)
+	if camera == null or camera.is_position_behind(head):
+		label.visible = false
+		return
+	label.visible = true
+	var size := label.get_combined_minimum_size()
+	label.position = camera.unproject_position(head) - Vector2(size.x * 0.5, perilous_icon_gap_px + size.y)

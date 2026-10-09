@@ -315,6 +315,16 @@ extends Resource
 ## commit ends (the cast no longer passes: its target walked out of range).
 @export var string_finisher_wait: float = 0.3
 
+@export_group("Perilous attacks (ARCHETYPES AR2)")
+## The perilous gate (Brains.can_start_perilous()): none in a fight's first
+## this many seconds (from the first enemy with data fighting)...
+@export var perilous_quiet_time: float = 6.0
+## ...and at most this many live at a time across the enemy side (from a
+## perilous cast's start to its end)...
+@export var perilous_live_max: int = 1
+## ...or this many while a boss fights.
+@export var perilous_live_max_boss: int = 2
+
 ## Derived respect values, cached per ability (they read only data).
 var _respect_cache: Dictionary = {}
 ## applies_cc() per ability, cached (AI-D2).

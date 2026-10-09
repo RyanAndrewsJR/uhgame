@@ -661,8 +661,8 @@ func _test_telegraph_sounds() -> void:
 	var wind := _played("sound_slime_elite_slam_telegraph")
 	var handle: int = wind[0].handle if wind.size() > 0 else 0
 	var p2 := Audio.get_player(handle) as AudioStreamPlayer2D
-	_check("the slam's wind-up plays at the telegraph, positional, 640 px",
-		[wind.size(), p2 != null and p2.global_position.distance_to(knight.global_position) < 1.0, p2.max_distance if p2 else 0.0], [1, true, 640.0])
+	_check("the slam's wind-up plays at the telegraph (around the elite itself since ARCHETYPES AR2), positional, 640 px",
+		[wind.size(), p2 != null and p2.global_position.distance_to(elite.global_position) < 1.0, p2.max_distance if p2 else 0.0], [1, true, 640.0])
 	await _wait_until(func() -> bool: return not elite.abilities.casting, 60)
 	await get_tree().physics_frame
 	_check("the slam lands on the Knight: its hit sound and his hurt, and the wind-up stops",

@@ -83,6 +83,9 @@ static func from_ability(caster: Unit, ability: Ability, target: Node, cast: Cas
 	ctx.poise_damage = ability.poise_damage   # PROTOTYPE (poise)
 	ctx.hit_sound = ability.hit_sound   # AUDIO.md: CombatSounds plays it once per cast
 	ctx.add_tag(&"ability")
+	if ability.perilous:   # ARCHETYPES AR2
+		ctx.perilous = true
+		ctx.add_tag(&"perilous")
 	for t in ability.tags:   # the ability's own tags (STATS step 6)
 		ctx.add_tag(t)
 	return ctx

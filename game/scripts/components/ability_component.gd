@@ -1021,6 +1021,8 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext, precharged: 
 	Audio.play_on(ability.cast_sound, unit)
 	ability.play_cast_vfx(unit, ctx)   # AB14 hook: nothing while cast_vfx is empty
 	cast_started.emit(slot, ability, ctx)
+	if ability.perilous:
+		Events.perilous_started.emit(unit, ability)   # ARCHETYPES AR2: the icon, Brains' gate
 	ability.on_cast_started(unit, ctx)
 	if is_instance_valid(ctx.telegraph):
 		ctx.telegraph.play_sound(ability.telegraph_sound)   # stops with the telegraph (AUDIO.md)

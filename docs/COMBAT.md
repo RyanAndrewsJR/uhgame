@@ -196,7 +196,7 @@ Player getting hit:
 
 Enemy damage bands (per hit, as % of the player's max health; a tuning guide for each enemy's damage number, not a formula in-game):
 - swarm chip: 2–5%, telegraph 0–0.3 s. Slimes: 22 damage (3.4% of the Knight's 650), 0.25 s windup (`attack_windup` 0.175 at 0.7 attack speed; was 0.5 s), 12 px push
-- elite: 12–20%, telegraph 0.6–0.9 s. Elite slime slam (a test elite): 100 (15.4% of the Knight's 650), 0.65 s telegraph, 72 px circle, 20 px push (was 0.75 s / 40 px until M1: too easy to walk out of); its basic attack is 30 (4.6%), no telegraph
+- elite: 12–20%, telegraph 0.6–0.9 s. Elite slime slam (a test elite): 100 (15.4% of the Knight's 650), 0.65 s telegraph, 72 px circle, 20 px push (was 0.75 s / 40 px until M1: too easy to walk out of); since ARCHETYPES AR2 (2026-10-08) a perilous move instead (below: 240, 0.9 s, around itself); its basic attack is 30 (4.6%), no telegraph
 - boss big hit: 25–40%, telegraph 0.9 s or more
 - perilous: 35–40%, the icon 0.4 s, the windup 0.9 s or more (ARCHETYPES.md, Perilous attacks; D5; AR2). Elites 1 (cooldown 12–15 s), bosses 2–3 across their phases (10 s), regulars none; none in a fight's first 6 s; one live at a time (two with a boss). AR2 makes the elite slime's slam and the test duelist's finisher perilous moves at these numbers, around their own bodies.
 - *(Ryan, 2026-10-07: a combo's follow-up may be fast, at least 0.25 s; the telegraphs above are an opener's and a lone hit's. ENEMIES_AI.md, Combos. The test duelist's tuning pass puts its follow-ups at 15% (0.3 s) and 30% (0.35 s), its snare opener at 9.2% (0.7 s).)*

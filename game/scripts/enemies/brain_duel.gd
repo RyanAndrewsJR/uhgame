@@ -183,6 +183,15 @@ func _note_heavy_hit(plan: CastPlan) -> void:
 		Brains.note_heavy_hit(brain._enemy, target, Brains.get_time() + BrainScoring.get_time_to_land(plan.ability, brain._enemy, target))
 
 
+## The perilous gate (ARCHETYPES AR2): a perilous ability starts only when
+## Brains.can_start_perilous() passes (none in a fight's first 6 s, one live
+## at a time on the enemy side, two with a boss); checked as its uses are
+## gathered, and again before it's cast (a decision's, a plan step's). True
+## when it may start (any other ability always).
+func _perilous_allowed(ability: Ability) -> bool:
+	return ability == null or not ability.perilous or Brains.can_start_perilous(brain._enemy)
+
+
 ## The setup (ENEMIES_AI.md, Peel and setup): an enemy with combo plans (AI-D2;
 ## in AI-D1 an opener), not crowded (no episode, crowding under its
 ## peel_threshold), not committing or walking out, its target reachable, the

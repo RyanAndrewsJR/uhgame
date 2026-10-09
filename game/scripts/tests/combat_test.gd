@@ -1207,9 +1207,9 @@ func _test_elite_data() -> void:
 	var slam := elite.abilities.get_ability(&"q")
 	_check("900 health, basic attack 30 (4.6%: swarm band)", [elite.health.max_health, elite.stats_component.get_stat(&"attack_damage")], [900.0, 30.0])
 	_check_near("its basic attack winds up 0.25 s", elite.attack.get_windup_time(), 0.25, 0.001)
-	_check("slam: 0.65 s telegraph, 72 px circle, 100 damage, 4 s cooldown",
-		[slam.cast_time, slam.get("radius_px"), slam.base_damage, slam.cooldown], [0.65, 72.0, 100.0, 4.0])
-	_check_near("100 = 15.4% of the Knight's 650 (elite band 12-20%)", slam.base_damage / knight.health.max_health, 0.154, 0.001)
+	_check("slam (a perilous move since ARCHETYPES AR2): 0.9 s telegraph, a 72 px circle around itself, 240 damage, 12 s cooldown",
+		[slam.cast_time, slam.get("radius_px"), slam.targeting == Ability.Targeting.SELF, slam.perilous, slam.base_damage, slam.cooldown], [0.9, 72.0, true, true, 240.0, 12.0])
+	_check_near("240 = 36.9% of the Knight's 650 (the perilous band 35-40%)", slam.base_damage / knight.health.max_health, 0.369, 0.001)
 	elite.queue_free()
 
 
@@ -1224,13 +1224,13 @@ func _test_slam_hits() -> void:
 	var start := knight.global_position
 	_check("the elite casts the slam at the Knight", elite.abilities.try_cast(&"q", knight.global_position, knight), true)
 	var telegraph := _find_telegraph()
-	_check("a telegraph appears where the Knight stands", telegraph != null and telegraph.global_position.distance_to(start) < 0.5, true)
+	_check("a telegraph appears around the elite (attacker-centered since AR2)", telegraph != null and telegraph.global_position.distance_to(elite.global_position) < 0.5, true)
 	_check("the elite is rooted while casting", elite.movement.can_move(), false)
-	await _frames(19)
-	_check_near("it fills up (about half at 0.32 s)", telegraph.get_progress() if telegraph else -1.0, 0.5, 0.1)
+	await _frames(26)
+	_check_near("it fills up (about half at 0.45 s)", telegraph.get_progress() if telegraph else -1.0, 0.5, 0.1)
 	_check("no damage before the slam", knight.health.current, hp)
 	await _wait_until(func() -> bool: return knight.health.current < hp, 40)
-	_check("100 damage at 0.65 s", hp - knight.health.current, 100.0)
+	_check("240 damage at 0.9 s", hp - knight.health.current, 240.0)
 	await _frames(12)
 	_check_near("pushed 20 px away from the elite", start.x - knight.global_position.x, 20.0, 1.0)
 	await _frames(10)
@@ -1255,7 +1255,8 @@ func _test_slam_dodges() -> void:
 
 	await _reset_knight()
 	_place(elite, knight.global_position + Vector2(60, 0))
-	await _wait_until(func() -> bool: return elite.abilities.can_cast(&"q"), 300)
+	elite.abilities.reset_cooldown(&"q")   # its 12 s cooldown (AR2)
+	await _wait_until(func() -> bool: return elite.abilities.can_cast(&"q"), 60)
 	elite.abilities.try_cast(&"q", knight.global_position, knight)
 	await _frames(30)
 	knight.dash.try_dash(Vector2.LEFT)
@@ -1265,7 +1266,8 @@ func _test_slam_dodges() -> void:
 
 	await _reset_knight()
 	_place(elite, knight.global_position + Vector2(60, 0))
-	await _wait_until(func() -> bool: return elite.abilities.can_cast(&"q"), 300)
+	elite.abilities.reset_cooldown(&"q")   # its 12 s cooldown (AR2)
+	await _wait_until(func() -> bool: return elite.abilities.can_cast(&"q"), 60)
 	elite.abilities.try_cast(&"q", knight.global_position, knight)
 	var telegraph := _find_telegraph()
 	await _frames(10)
@@ -1289,7 +1291,7 @@ func _test_elite_ai() -> void:
 	await _wait_until(func() -> bool: return elite.abilities.casting, 90)
 	_check("it aggroes and casts the slam", elite.abilities.casting, true)
 	var telegraph := _find_telegraph()
-	_check("aimed at the Knight", telegraph != null and telegraph.global_position.distance_to(knight.global_position) < 1.0, true)
+	_check("around itself, the Knight inside (attacker-centered since AR2)", telegraph != null and telegraph.global_position.distance_to(elite.global_position) < 1.0, true)
 	var hp := knight.health.current
 	_place(knight, knight.global_position + Vector2(-140, 0))
 	await _wait_until(func() -> bool: return not elite.abilities.casting, 60)

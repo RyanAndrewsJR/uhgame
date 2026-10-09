@@ -549,7 +549,7 @@ func _test_tooltips() -> void:
 	_check("Judgement (the target term as text)", _template_line(JUDGEMENT.get_tooltip_plain(knight)),
 		"Strike an enemy for 214 physical damage (150 +100% AD +20% of the target's missing health), and stun it for 0.75s. Channel: moving cancels it. Walks into range if needed.")
 	_check("the slam, without a caster", SLAM.get_tooltip_plain(null),
-		"Marks a 72 px circle where the target stands, fills it over 0.65 s, then slams: 100 physical damage and a 20 px push to everyone inside.")
+		"Perilous: rears up over 0.9 s, filling a 72 px circle around itself, then slams: 240 physical damage and a 20 px push to everyone inside.")
 	var bb := CLEAVE.get_tooltip(knight)
 	var style: DamageNumberStyle = load(Ability.DAMAGE_NUMBER_STYLE_PATH)
 	var color := style.get_damage_type_color(HitContext.DamageType.PHYSICAL).to_html(false)
@@ -598,7 +598,7 @@ func _test_tags() -> void:
 	knight.stats_component.add_modifier(StatModifier.create(&"base_damage", StatModifier.Type.FLAT, 10.0, src, &"tag:core"))
 	_check("+10 base damage to core abilities: Cleave and the slam yes, Lunge no",
 		[CLEAVE.get_param(knight, &"base_damage"), SLAM.get_param(knight, &"base_damage"), LUNGE.get_param(knight, &"base_damage")],
-		[90.0, 110.0, 50.0])
+		[90.0, 250.0, 50.0])
 	knight.stats_component.remove_modifiers_from(src)
 	dummy.queue_free()
 
@@ -4383,11 +4383,11 @@ func _test_ab14_telegraph() -> void:
 			at_hit.append([is_instance_valid(c.telegraph) and c.telegraph.is_driven(), c.telegraph.get_progress() if is_instance_valid(c.telegraph) else -1.0])
 	Events.ability_cast.connect(on_cast)
 
-	elite.abilities.try_cast(&"q", knight.global_position, knight)   # the slam: 0.65 s
+	elite.abilities.try_cast(&"q", knight.global_position, knight)   # the slam: 0.9 s (a perilous move since ARCHETYPES AR2)
 	var t := _find_telegraph()
 	_check("the slam's telegraph is driven by its cast from the start, empty", [t != null and t.is_driven(), t.get_progress() if t else -1.0], [true, 0.0])
 	await _frames(20)
-	_check("20 frames in: its fill is the cast's progress", t != null and t.get_progress() == elite.abilities.get_cast_progress() and t.get_progress() > 0.4, true)
+	_check("20 frames in: its fill is the cast's progress", t != null and t.get_progress() == elite.abilities.get_cast_progress() and t.get_progress() > 0.3, true)
 	await _wait_until(func() -> bool: return not at_hit.is_empty(), 60)
 	_check("at the hit: exactly full", at_hit, [[true, 1.0]])
 

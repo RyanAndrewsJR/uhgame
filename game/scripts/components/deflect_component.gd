@@ -38,9 +38,16 @@ extends Node
 ## Enemies don't deflect in this prototype (they have no DashComponent; their
 ## dashes are abilities). A unit with this node whose dash calls open_window()
 ## could.
+## ARCHETYPES AR2: a perilous attack's hit (HitContext.perilous) deflected
+## counts as two deflects: straight to the riposte (the first of a streak
+## still gives the refund), the second deflect's poise damage, and the
+## attacker rebuffed (status_rebuffed_perilous: 1.0 s without attacking,
+## casting or dashing; not crowd control).
 
 ## The riposte's empower: AutoAttackComponent.get_empower_status_id(RIPOSTE_ID).
 const RIPOSTE_ID := &"riposte"
+## ARCHETYPES AR2: on the attacker whose perilous attack was deflected.
+const STATUS_REBUFFED_PERILOUS: StatusEffect = preload("res://data/statuses/status_rebuffed_perilous.tres")
 ## Timers at or below this are done (float residue).
 const EPSILON := 0.0001
 
@@ -279,14 +286,17 @@ func _on_deflected(ctx: HitContext) -> void:
 	var attacker: Unit = ctx.source if is_instance_valid(ctx.source) else null
 	_dash_deflected = true
 	_chain_left = 0.0 if streak_persists else chain_window
-	_streak += 1
-	if _streak == 1 and _dash != null:
-		_dash.add_refund_charge(refund_lifetime)   # the second gives none: the normal recharge
+	var first := _streak == 0
+	_streak += 2 if ctx.perilous else 1   # AR2: a perilous attack deflected counts as two
+	if first and _dash != null:
+		_dash.add_refund_charge(refund_lifetime)   # the first of a streak; the second gives none: the normal recharge
 	Events.hit_deflected.emit(attacker, unit, ctx)
 	Events.deflect_streak_changed.emit(unit, _streak)
 	_play_deflect_feel(attacker)
 	if attacker != null and attacker.poise_component != null:   # the deflect itself is the source
 		attacker.poise_component.take_poise_damage(deflect_poise_damage_first if _streak == 1 else deflect_poise_damage_second, unit)
+	if ctx.perilous and attacker != null and attacker.status_component != null:
+		attacker.status_component.apply_status(STATUS_REBUFFED_PERILOUS, unit)   # AR2: its string ends, its token goes
 	if _streak >= 2:
 		_give_riposte(attacker)
 		_chain_left = 0.0

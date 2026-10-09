@@ -54,11 +54,11 @@ func _on_swing_started(index: int, _direction: Vector2, _swing: AttackSwing) -> 
 ## Its string ended. A plan step's: _on_plan_string_ended(). The commit's: done,
 ## its next think (woken for the next tick) ends the commit and decides at
 ## once, as a commit's end always does (its token goes, it walks out; a
-## skirmisher resets); cut before its first swing by a cast of its own (a cast
-## may go first while the string only closes in: a gap-closer, a damage use
-## now in reach), the commit goes on by AI1's rules; cut short otherwise (a
-## stun, a break, its target gone), it's settled at the frame's end, once the
-## status that cut it is on (_resolve_string_cut()).
+## skirmisher resets); cut before its first swing by a cast of its own (a
+## gap-closer may go first while the string closes in again; a damage cast
+## never cuts it since R0's quirk fix), the commit goes on by AI1's rules;
+## cut short otherwise (a stun, a break, its target gone), it's settled at
+## the frame's end, once the status that cut it is on (_resolve_string_cut()).
 func _on_string_ended(completed: bool, swung: int) -> void:
 	if brain._string_step >= 0:
 		brain._brain_plans._on_plan_string_ended(completed)

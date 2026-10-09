@@ -1,8 +1,13 @@
 [gd_resource type="Resource" format=3]
 
-[ext_resource type="Script" path="res://scripts/abilities/slime/slam.gd" id="1_script"]
+[ext_resource type="Script" path="res://scripts/abilities/enemy/shockwave.gd" id="1_script"]
 [ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_telegraph.tres" id="s1_telegraph_sound"]
 [ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_hit.tres" id="s2_hit_sound"]
+[ext_resource type="Script" path="res://scripts/data/ai_use.gd" id="2_use"]
+
+[sub_resource type="Resource" id="use_damage"]
+script = ExtResource("2_use")
+intent = &"damage"
 
 [resource]
 script = ExtResource("1_script")
@@ -11,16 +16,18 @@ hit_sound = ExtResource("s2_hit_sound")
 id = &"slime_elite_slam"
 tags = Array[StringName]([&"area", &"core"])
 display_name = "Slam"
-description = "Marks a {radius_px} px circle where the target stands, fills it over {cast_time} s, then slams: {damage} physical damage and a {knockback_px} px push to everyone inside."
+description = "Perilous: rears up over {cast_time} s, filling a {radius_px} px circle around itself, then slams: {damage} physical damage and a {knockback_px} px push to everyone inside."
 icon_color = Color(1, 0.35, 0.15, 1)
-targeting = 2
-cooldown = 4.0
-cast_time = 0.65
+targeting = 0
+cooldown = 12.0
+cast_time = 0.9
 cast_range = 250.0
 resets_auto_attack = false
 deflectable = true
-base_damage = 100.0
+perilous = true
+base_damage = 240.0
 ad_ratio = 0.0
 radius_px = 72.0
 enemy_hit_forgiveness = 0.1
 knockback_px = 20.0
+ai_uses = Array[ExtResource("2_use")]([SubResource("use_damage")])

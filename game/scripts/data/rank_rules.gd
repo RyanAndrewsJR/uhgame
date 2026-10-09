@@ -50,3 +50,8 @@ extends Resource
 @export var string_full_range: bool = false
 ## Hits on top of its string's full length (D8: a boss 1).
 @export var string_extra_hits: int = 0
+## ARCHETYPES AR2 (D5): the most perilous abilities (Ability.perilous) an
+## enemy of this rank carries: fodder and regulars 0, an elite 1, a boss 3
+## (2–3 across its phases). A data rule the enemies test checks on every
+## EnemyData.
+@export var perilous_max: int = 0

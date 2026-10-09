@@ -181,6 +181,17 @@ const DEFAULT_AREA_RADIUS_PX := 40.0
 ## (HitContext.poise_damage; PoiseComponent). 0 = none.
 @export var poise_damage: float = 0.0
 
+@export_group("Perilous")
+## ARCHETYPES AR2 (D5): a perilous attack, an elite's or a boss's extra layer.
+## Its cast's start emits Events.perilous_started (the icon over its head);
+## its hits carry HitContext.perilous and the hit tag `perilous` (a deflect of
+## one counts as two); a brain starts one only when Brains.can_start_perilous()
+## passes. The authoring rules (the enemies test checks them): deflectable and
+## attacker-centered, its windup (cast_time) 0.9 s or more, its damage 35–40%
+## of the player's max health, its cooldown 12–15 s on an elite, at most its
+## rank's RankRules.perilous_max per enemy.
+@export var perilous: bool = false
+
 @export_group("Sustain")
 ## Heals the caster for this share of the damage taken by each unit a hit of
 ## this ability gets through to (a scoped param; CHAMPIONS CH5, Cleave's heal).

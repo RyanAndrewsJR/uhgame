@@ -12,6 +12,60 @@
 
 ## Archetypes (ARCHETYPES.md)
 
+### AR2, perilous attacks and their icon, with R0's quirk fixed: 2026-10-08, Built (awaiting Ryan's play test)
+- **R0's quirk** (Ryan: "fix the quirk first then AR2"; DECISIONS.md, Archetypes; ARCHETYPES.md, Strings and the beat):
+  - `brain_drive.gd`, `_drive_commit()`: a commit starts its string only once the string's first swing is in reach, or when the mix put the string first. Until then it closes in on foot, so a damage cast that comes into reach on the way still gets the mix. `_try_plan()`: a damage cast never cuts a string it started.
+  - `auto_attack_component.gd`:
+    - `is_in_reach_of_string(attack_string, t)`: `is_string_in_reach()`'s rule for a string not started yet; `is_string_in_reach()` now calls it;
+    - `approach_for_string(attack_string, t, delta)`: the string's own chase, without attacking.
+  - **Found while building:** the first try only forbade the cut and kept the string's walk-in. It took the damage casts away from every string enemy committing from its band (the brute's smash, the elite slime's big hit; 9 enemies-test checks failed), so it was replaced.
+  - In the recordings: while walking in, `str=1` turns `str=0`, the moves unchanged; a cast that came into reach is cast with no string started and cut.
+- **AR2:**
+  - **Hits:**
+    - `ability.gd`: `perilous` (group "Perilous");
+    - `hit_context.gd`: `perilous`;
+    - `hit_pipeline.gd`: `from_ability()` copies it and adds the hit tag `perilous`.
+  - **The signal:** `events.gd` gains `perilous_started(unit, ability)`; `ability_component.gd` emits it at a perilous cast's start, for any unit.
+  - **Data classes:**
+    - `rank_rules.gd`: `perilous_max` (the table: elite 1, boss 3);
+    - `enemy_ai_table.gd`: `perilous_quiet_time` 6, `perilous_live_max` 1, `perilous_live_max_boss` 2.
+  - **`brains.gd`** (the gate):
+    - the fight's start (`get_fight_time()`);
+    - `can_start_perilous()`;
+    - `note_perilous()` (from the event) and `end_perilous()`;
+    - `get_perilous_live()`; a live entry ends with its cast.
+  - **The brain:**
+    - `BrainDuel._perilous_allowed()`, checked in `_gather_uses()` (before the plan is asked for), `_try_plan()` and `_try_step()`;
+    - `_on_cast_ended()` calls `Brains.end_perilous()`;
+    - rebuffed needs nothing more: it blocks attacking, so `is_cc_blocked()` cuts the string, breaks the commit and frees the token.
+  - **The rebuff:** `data/statuses/status_rebuffed_perilous.tres`: 1.0 s; blocks attacking, casting and dashing; tags `rebuffed`, `debuff`; not `cc`, not cleansable.
+  - **The deflect** (`deflect_component.gd`, the Knight's test deflect):
+    - a perilous hit deflected counts as two: the riposte at once, and the refund when it starts a streak;
+    - its attacker is rebuffed.
+  - **The icon:** `screen_overlay.gd`, a red glyph Label over the head for 0.4 s (`show_perilous_icon()`, `get_perilous_icon()`, the `perilous_icon_*` exports).
+  - **Data:**
+    - the elite slime's slam and the test duelist's finisher run on the shockwave's script (SELF: a circle on their own body), keeping their radius and `cast_range`: 0.9 s, 240 damage (36.9% of 650), cooldown 12 s, `perilous`;
+    - the slam's AI use is authored (R0: it was the default one);
+    - `snare_first`'s finisher lands 1.35 s after the snare, after the 1 s root.
+- **Tests:**
+  - **New:**
+    - enemies: AR2 data and the origin check, Brains' gate, a brain and the gate, rebuffed;
+    - deflect +9 (the perilous deflect);
+    - view +5 (the icon).
+  - **Changed with the data:**
+    - stats 1;
+    - combat 5 (C5: the slam's numbers, its telegraph around the elite, its fill, its damage; cooldown resets in the dodge checks);
+    - abilities 2 (the tooltip, +10 damage) plus the telegraph fill's threshold;
+    - audio 1 (the wind-up plays at the elite);
+    - enemies 2 data checks, and the snare_first check (the finisher after the root).
+  - **Changed for test reasons:**
+    - deflect's single-deflect checks take the slam as a plain deflectable hit;
+    - the AI-D1 setup check waits for its opener's own end: with a 0.9 s finisher there's no tick between the two casts, so "not casting" waited out the whole plan;
+    - the older enemies checks pin `perilous_quiet_time` to 0;
+    - the gate checks wake their enemies with `alert()`: noticing waits on a path check, slow under parallel load.
+  - **Golden:** 12 of 19 scenarios rewritten after review (`-- --write-golden`).
+- **Results:** 4,129/4,129 (was 4,095): stats 180, audio 110, view 474 (+5), talents 310, champions 238, deflect 155 (+9), loot 750, combat 510, abilities 593, brain_golden 144, enemies 665 (+20: AR2 data 8, the gate 8, a brain and the gate 2, rebuffed 2); no leaks, no GDScript warnings. Think time p95 (µs; the golden suite): regular 918, elite 801, boss 889, duelist 1,139, inside R0's ranges. In the new recordings no string is cut before its first swing (7 before) and no scenario loses a cast; the perilous moves come rarely: the duelist's plans reach their finisher inside the 6 s quiet time (its step waits out its window), and the elite slime's slam comes into reach only about 9 px before its string's first swing on the way in (41 px edge to edge against 32), about one think.
+
 ### AR1b, the Mage volley, with AR1a's follow-up (the mix): 2026-10-08, Built (awaiting Ryan's play test)
 - **The mix** (Ryan, after AR1a's play test: "a mix of A and B"; DECISIONS.md, Archetypes):
   - a commit with a damage cast ready rolls once, `EnemyAITable.string_then_cast_chance` 0.5 *(proposed)*;

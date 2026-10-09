@@ -98,10 +98,9 @@ t=0380 skirmisher i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-
 t=0386 skirmisher i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.608,hold:0.365 r=commit 0.61  patience 1.00  respect 0.00
 t=0392 skirmisher ~pose 
 t=0392 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.643,hold:0.282 r=commit 0.64  patience 1.00  respect 0.00
-t=0398 skirmisher i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2003.0,-11.6 c=- s=commit:0.955,hold:0.367 r=commit 0.96  patience 1.00  respect 0.00
-t=0404 skirmisher i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2003.0,-11.6 c=- s=commit:0.706,hold:0.355 r=commit 0.71  patience 1.00  respect 0.00
-t=0410 skirmisher i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2003.0,-11.6 c=- s=commit:0.554,hold:0.352 r=commit 0.55  patience 1.00  respect 0.00
-t=0416 skirmisher ~string_end cut 0
+t=0398 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2003.0,-11.6 c=- s=commit:0.955,hold:0.367 r=commit 0.96  patience 1.00  respect 0.00
+t=0404 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2003.0,-11.6 c=- s=commit:0.706,hold:0.355 r=commit 0.71  patience 1.00  respect 0.00
+t=0410 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2003.0,-11.6 c=- s=commit:0.554,hold:0.352 r=commit 0.55  patience 1.00  respect 0.00
 t=0416 skirmisher ~cast e test_skirmisher_flurry
 t=0416 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2004.3,56.4 c=e s=commit:0.799,hold:0.240 r=commit 0.80  patience 1.00  respect 0.00
 t=0422 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2004.3,56.4 c=- s=commit:0.680,hold:0.259 r=commit 0.68  patience 1.00  respect 0.00
@@ -120,12 +119,11 @@ casts 2 (t=0140..0416)
 commits_ended 2 (t=0253..0350)
 commits_started 3 (t=0122..0374)
 damage_to_knight 4 (t=0195..0461)
-strings_cut 1 (t=0416..0416)
 strings_done 1 (t=0252..0252)
-strings_started 3 (t=0195..0465)
+strings_started 2 (t=0195..0465)
 swings 3 (t=0195..0465)
 thinks 82 (t=0001..0476)
 tokens_freed 2 (t=0253..0350)
 tokens_taken 3 (t=0122..0374)
 damage_to_knight_total 128.4
-skirmisher thinks 82 strings 3 (last 2 hits) plans 0 [] peels 0 setups 0
+skirmisher thinks 82 strings 2 (last 2 hits) plans 0 [] peels 0 setups 0

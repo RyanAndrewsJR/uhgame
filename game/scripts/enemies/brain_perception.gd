@@ -195,6 +195,8 @@ func _gather_uses(s: SituationContext) -> void:
 		var ability := abilities.get_ability(slot)
 		if ability == null or not abilities.can_cast(slot) or not BrainScoring._has_use_for(ability, wanted):
 			continue
+		if not brain._brain_duel._perilous_allowed(ability):
+			continue   # ARCHETYPES AR2: the perilous gate (before its plan: asking for one costs)
 		var plan := ability.get_ai_plan(brain._enemy, s)
 		if plan == null:
 			continue

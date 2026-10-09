@@ -55,9 +55,12 @@ func drive(delta: float) -> void:
 ## combo plan's steps start here, each on the tick its trigger comes.
 ## AR1a: with no plan, an enemy with a string runs it (D6) unless its
 ## decision's cast comes first (AI1's commit: a gap-closer gets it there, a
-## damage cast's end ends the commit; _try_plan() may still cast while the
-## string closes in); once it swings nothing cuts into it, and its end ends
-## the commit (_on_string_ended()).
+## damage cast's end ends the commit); once it swings nothing cuts into it,
+## and its end ends the commit (_on_string_ended()). R0's quirk, fixed
+## (2026-10-08): it starts its string only once the first swing is in reach
+## (or the mix put the string first); until then it closes in on foot, so a
+## damage cast that comes into reach on the way still gets the mix, and a
+## string it started is never cut by a damage cast (a gap-closer still may).
 func _drive_commit(delta: float, target: Unit) -> void:
 	if brain._plan_delay_left > 0.0:
 		brain._plan_delay_left = maxf(brain._plan_delay_left - delta, 0.0)
@@ -81,7 +84,12 @@ func _drive_commit(delta: float, target: Unit) -> void:
 		return   # AR1a: its string plays out (the commit's, or a plan step's)
 	if brain._plan == null and brain.has_attack_string():
 		if brain._committing and not brain._commit_string and not brain._string_done and (brain._pending_plan == null or brain._string_then_cast):
-			brain._brain_strings._start_string(target)   # AR1a: no cast to make first (or the mix put its string first): the string
+			if brain._string_then_cast or brain._enemy.attack.is_in_reach_of_string(brain.data.attack_string, target):
+				brain._brain_strings._start_string(target)   # AR1a: no cast to make first (or the mix put its string first): the string
+			else:
+				if brain._enemy.attack.target != null and not brain._enemy.attack.is_winding_up():
+					brain._enemy.attack.cancel()
+				brain._enemy.attack.approach_for_string(brain.data.attack_string, target, delta)   # R0's quirk fix: on foot until its first swing is in reach
 		return
 	if brain._enemy.attack.target != target:
 		brain._enemy.attack.attack(target)
@@ -249,6 +257,8 @@ func _try_plan() -> void:
 			if not brain._string_then_cast or brain._commit_cast:
 				return   # its commit ends at its next think (or its finisher is cast already)
 		elif not _is_gap_close_plan(brain._pending_plan):
+			if brain._commit_string:
+				return   # a string it started is never cut by a damage cast (R0's quirk, fixed 2026-10-08)
 			# The mix (Ryan, 2026-10-08): one roll a commit, the first time a
 			# damage cast could go before its string.
 			if not brain._string_mix_rolled:
@@ -268,6 +278,8 @@ func _try_plan() -> void:
 		return
 	if not brain._brain_duel._heavy_hit_allowed(plan.ability, plan):
 		return   # AI3c: another heavy hit got there first since the decision
+	if not brain._brain_duel._perilous_allowed(plan.ability):
+		return   # ARCHETYPES AR2: another perilous attack went live since the decision
 	abilities.set_aim_hint(plan.point)
 	brain._last_lead_px = plan.lead_px
 	var cast: bool

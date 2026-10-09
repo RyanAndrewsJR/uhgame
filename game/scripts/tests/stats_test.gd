@@ -85,8 +85,8 @@ func _test_scoped_modifiers() -> void:
 	knight_stats.add_modifiers(item)
 	_check("+30% Lunge range: 400 -> 520", knight_stats.get_ability_param(LUNGE, &"cast_range"), 520.0)
 	_check("-1.5 s Cleave cooldown: 3 -> 1.5", knight_stats.get_ability_param(CLEAVE, &"cooldown"), 1.5)
-	_check("x1.5 base damage on every 'area' ability: Cleave 80 -> 120, Slam 100 -> 150",
-		[knight_stats.get_ability_param(CLEAVE, &"base_damage"), knight_stats.get_ability_param(SLAM, &"base_damage")], [120.0, 150.0])
+	_check("x1.5 base damage on every 'area' ability: Cleave 80 -> 120, Slam 240 -> 360 (ARCHETYPES AR2: a perilous move)",
+		[knight_stats.get_ability_param(CLEAVE, &"base_damage"), knight_stats.get_ability_param(SLAM, &"base_damage")], [120.0, 360.0])
 	_check("other abilities and params untouched",
 		[knight_stats.get_ability_param(LUNGE, &"cooldown"), knight_stats.get_ability_param(CLEAVE, &"cast_range"), knight_stats.get_ability_param(LUNGE, &"base_damage")], [8.0, 300.0, 50.0])
 	_check("the unscoped part is a normal stat (+10% attack speed)", knight_stats.get_stat(&"attack_speed"), 0.77)
