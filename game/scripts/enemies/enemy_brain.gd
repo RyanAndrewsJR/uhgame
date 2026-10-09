@@ -294,7 +294,7 @@ func _ready() -> void:
 	_enemy = get_unit() as Enemy
 	assert(_enemy != null, "EnemyBrain must be a child of an Enemy")
 	resolve_behavior()
-	_key_slot = find_key_slot(_enemy.abilities, Brains.table)   # AI3b (each think finds it again)
+	_key_slot = BrainScoring.find_key_slot(_enemy.abilities, Brains.table)   # AI3b (each think finds it again)
 	Brains.register(self)
 	_strafe_dir = 1.0 if rng.randf() < 0.5 else -1.0
 	_strafe_turn_left = _strafe_turn_time()
@@ -645,7 +645,7 @@ func think() -> bool:
 	_check_token_lost(s)
 	_check_plan(s, now)   # AI-D2
 	if not _committing:
-		_patience = clampf(_patience + get_patience_rate(s, behavior, Brains.table) * dt, 0.0, 1.0)
+		_patience = clampf(_patience + BrainScoring.get_patience_rate(s, behavior, Brains.table) * dt, 0.0, 1.0)
 		if _patience > 1.0 - PATIENCE_EPSILON:
 			_patience = 1.0   # summed float steps fall a hair short of 1
 	if _episode_needs_roll:
@@ -665,7 +665,7 @@ func think() -> bool:
 		_situation = s
 		_think_usec = Time.get_ticks_usec() - t0
 		return true
-	var d := decide(s, behavior, rng)
+	var d := BrainScoring.decide(s, behavior, rng)
 	if d.intent != COMMIT and Brains.has_token(_enemy):
 		Brains.release_token(_enemy, false)   # it didn't go in after all: no rest
 		s.has_token = false
@@ -708,12 +708,12 @@ func build_situation() -> SituationContext:
 	s.cornered = now < _cornered_until
 	s.resetting = now < _resetting_until
 	# AI3b: its key ability and its own kit; cautious; the numbers decide() reads.
-	_key_slot = find_key_slot(_enemy.abilities, table)
+	_key_slot = BrainScoring.find_key_slot(_enemy.abilities, table)
 	s.key_slot = _key_slot
 	s.key_ready = _key_slot != &"" and _is_slot_ready(_key_slot)
 	if s.key_ready:
 		_cautious_until = -1.0   # its key is back: no longer cautious
-	s.own_ready_share = get_own_ready_share(_enemy.abilities, table, _key_slot)
+	s.own_ready_share = BrainScoring.get_own_ready_share(_enemy.abilities, table, _key_slot)
 	s.cautious_left = maxf(_cautious_until - now, 0.0)
 	s.walking_out = now < _walking_out_until
 	s.aim_lead = behavior.aim_lead
@@ -721,7 +721,7 @@ func build_situation() -> SituationContext:
 	s.smell_blood_cap = table.smell_blood_cap
 	s.spend_min_champions = table.spend_min_champions
 	s.major_tags = table.major_tags   # AI-D1: THREATENED's major filter
-	_opener_slots = find_opener_slots(_enemy.abilities)
+	_opener_slots = BrainScoring.find_opener_slots(_enemy.abilities)
 	s.opener_slots = _opener_slots
 	s.setup_opener = _committing and _setup_opener
 	var target := _enemy.get_brain_target()
@@ -766,7 +766,7 @@ func build_situation() -> SituationContext:
 	var odds := Brains.get_odds()   # AI3c: one shared read per tick
 	s.odds = float(odds.odds)
 	s.press = 0.0 if data.rank == EnemyData.Rank.BOSS else float(odds.press)   # bosses don't press
-	s.effective_respect = get_effective_respect(s, behavior)
+	s.effective_respect = BrainScoring.get_effective_respect(s, behavior)
 	_read_opening(s, m, target, now)   # AI-D1
 	_perceive(s, snap, now)
 	_gather_uses(s)
@@ -798,7 +798,7 @@ func _perceive(s: SituationContext, snap: PartySnapshot, now: float) -> void:
 	for p in snap.projectiles:
 		if int(p.team) == _enemy.team:
 			continue
-		var t := get_projectile_time_to_hit(p, _enemy)
+		var t := BrainScoring.get_projectile_time_to_hit(p, _enemy)
 		if t < 0.0:
 			continue
 		_note_attack(s, p.key, still, now, reaction, {
@@ -819,21 +819,6 @@ func _note_attack(s: SituationContext, key: String, still: Dictionary, now: floa
 		return
 	attack.age = age
 	s.incoming.append(attack)
-
-
-## Seconds before `p` (a PartySnapshot projectile) reaches `unit`'s circle on
-## its path, or −1 when it won't (it passed, it's too far off, or it runs out
-## of range first).
-static func get_projectile_time_to_hit(p: Dictionary, unit: Unit) -> float:
-	var dir: Vector2 = p.direction
-	var rel: Vector2 = unit.global_position - (p.position as Vector2)
-	var r := unit.get_gameplay_radius_px()
-	var along := rel.dot(dir)
-	if along < -r or along - r > float(p.range_left_px):
-		return -1.0
-	if (rel - dir * along).length() > float(p.half_width_px) + r:
-		return -1.0
-	return maxf(along - r, 0.0) / maxf(float(p.speed_px), 0.01)
 
 
 ## Each castable slot (ready, not casting, not blocked, the cost and the
@@ -868,7 +853,7 @@ func _gather_uses(s: SituationContext) -> void:
 	abilities.set_aim_hint(s.target_position)   # conditions look at the target (AB12)
 	for slot in AbilityComponent.SLOTS:
 		var ability := abilities.get_ability(slot)
-		if ability == null or not abilities.can_cast(slot) or not _has_use_for(ability, wanted):
+		if ability == null or not abilities.can_cast(slot) or not BrainScoring._has_use_for(ability, wanted):
 			continue
 		var plan := ability.get_ai_plan(_enemy, s)
 		if plan == null:
@@ -885,53 +870,6 @@ func _gather_uses(s: SituationContext) -> void:
 
 
 # --- Duels and odds (AI3b) ----------------------------------------------------------
-
-## Its key ability's slot (ENEMIES_AI.md, Confidence): its first `ultimate`,
-## else its ability with the highest respect value (authored or derived);
-## a tie goes to the earlier slot (q, w, e, r). &"" = no abilities.
-static func find_key_slot(abilities: AbilityComponent, table: EnemyAITable) -> StringName:
-	if abilities == null:
-		return &""
-	var best: StringName = &""
-	var best_value := -INF
-	for slot in AbilityComponent.SLOTS:
-		var ability := abilities.get_ability(slot)
-		if ability == null:
-			continue
-		if ability.tags.has(&"ultimate"):
-			return slot
-		var value := table.get_respect_value(ability)
-		if value > best_value + 0.0001:
-			best = slot
-			best_value = value
-	return best
-
-
-## Its own kit ready, read as a champion's is (the respect value of its
-## ready slots ÷ that of all of them), while its key is ready; 0 while the
-## key is down (Confidence).
-static func get_own_ready_share(abilities: AbilityComponent, table: EnemyAITable, key_slot: StringName) -> float:
-	if abilities == null or key_slot == &"" or not (abilities.is_ready(key_slot) and abilities.can_afford(key_slot)):
-		return 0.0
-	var total := 0.0
-	var ready_value := 0.0
-	for slot in AbilityComponent.SLOTS:
-		var ability := abilities.get_ability(slot)
-		if ability == null:
-			continue
-		var value := table.get_respect_value(ability)
-		total += value
-		if abilities.is_ready(slot) and abilities.can_afford(slot):
-			ready_value += value
-	return ready_value / total if total > 0.0 else 0.0
-
-
-## Effective respect (ENEMIES_AI.md, Duels and odds): respect × its
-## respect_weight × (1 − confidence × its own kit ready) × (1 − nerve × the
-## press; AI3c), clamped 0–1.
-static func get_effective_respect(s: SituationContext, b: EnemyBehavior) -> float:
-	return clampf(s.respect * b.respect_weight * (1.0 - b.confidence * s.own_ready_share) * (1.0 - b.nerve * s.press), 0.0, 1.0)
-
 
 func _is_slot_ready(slot: StringName) -> bool:
 	var abilities := _enemy.abilities
@@ -999,7 +937,7 @@ func _end_episode() -> void:
 ## picks `peel` while it's pending; its end starts the kiting step).
 func _roll_episode(s: SituationContext, now: float) -> void:
 	_episode_needs_roll = false
-	var r := roll_crowded(s, behavior, rng)
+	var r := BrainScoring.roll_crowded(s, behavior, rng)
 	_crowded_roll = r.result
 	_crowded_roll_value = r.roll
 	_crowded_answer = r.answer
@@ -1013,30 +951,6 @@ func _roll_episode(s: SituationContext, now: float) -> void:
 		PEEL:
 			_peel_pending = true
 			_peel_slot = s.get_best_use([PEEL] as Array[StringName]).get("slot", &"")
-
-
-## One crowded episode's roll (ENEMIES_AI.md, Crowded; pure, seeded), in
-## order: cornered (the cornered stand wins); escape (a caster, or any role
-## with a passing escape use); an answer ready: crowded_commit to go all in,
-## and (AI-D1) when that roll fails, a peel if a `peel` use passes (its roll
-## is the one that failed); else (no answer, or no peel) the mix, Ryan's: back
-## up once with the chance 1 − aggression, otherwise stand and swing.
-## {result, roll (the roll that decided it, −1 = none), answer (it had one)}.
-## `stream` is the brain's rng.
-static func roll_crowded(s: SituationContext, b: EnemyBehavior, stream: RandomNumberGenerator) -> Dictionary:
-	var answer := s.has_answer()
-	if s.cornered:
-		return {"result": CORNERED, "roll": -1.0, "answer": answer}
-	if wants_escape(s, b, s.has_use([ESCAPE] as Array[StringName])):
-		return {"result": ESCAPE, "roll": -1.0, "answer": answer}
-	if answer:
-		var roll := stream.randf()
-		if roll < b.crowded_commit:
-			return {"result": ALL_IN, "roll": roll, "answer": true}
-		if s.has_use([PEEL] as Array[StringName]):
-			return {"result": PEEL, "roll": roll, "answer": true}
-	var mix := stream.randf()
-	return {"result": BACK_UP if mix < 1.0 - b.aggression else STAND, "roll": mix, "answer": answer}
 
 
 ## Walking back out (a retreat, step_back): the crowded kiting step toward its
@@ -1062,7 +976,7 @@ func _update_spend(s: SituationContext, snap: PartySnapshot, now: float) -> void
 		_next_spend_roll = -1.0
 		return
 	s.key_area_champions = _key_area_champions(s, snap)
-	s.right_moment_reason = get_right_moment(s, behavior)
+	s.right_moment_reason = BrainScoring.get_right_moment(s, behavior)
 	s.right_moment = s.right_moment_reason != ""
 	if s.right_moment:
 		return
@@ -1071,25 +985,6 @@ func _update_spend(s: SituationContext, snap: PartySnapshot, now: float) -> void
 		_next_spend_roll = now + Brains.table.spend_roll_time
 	if not _spend_free:
 		s.held_slot = s.key_slot
-
-
-## The right moment for its key, or "" (pure): its target crowd-controlled,
-## below its finish threshold, every one of its defensive abilities on
-## cooldown, crowded (being crowded is a right moment: it answers), or its
-## key's area covering spend_min_champions champions. A punish window joins
-## them in AI6.
-static func get_right_moment(s: SituationContext, b: EnemyBehavior) -> String:
-	if s.target_cc:
-		return "crowd-controlled"
-	if s.target_health_ratio < b.finish_threshold:
-		return "low"
-	if s.target_defensives > 0 and s.target_defensives_ready == 0:
-		return "defensives down"
-	if s.crowded:
-		return "crowded"
-	if s.key_area_champions >= s.spend_min_champions:
-		return "%d in its area" % s.key_area_champions
-	return ""
 
 
 ## The champions its key's gathered plan would cover (0 with one champion,
@@ -1117,25 +1012,6 @@ func _key_area_champions(s: SituationContext, snap: PartySnapshot) -> int:
 
 # --- The odds (AI3c) ----------------------------------------------------------------
 
-## A hit by `ability` from `caster` on `target` is heavy (ENEMIES_AI.md, Odds;
-## Ryan): worth at least heavy_hit_share of the target's max health by the
-## caster's own numbers (Ability.get_damage_against(): before mitigation).
-## Basic attacks never count (they aren't abilities), nor chip pokes.
-static func is_heavy_hit(ability: Ability, caster: Unit, target: Unit, table: EnemyAITable) -> bool:
-	if ability == null or target == null or target.health == null or target.health.max_health <= 0.0:
-		return false
-	return ability.get_damage_against(caster, target) >= table.heavy_hit_share * target.health.max_health - 0.0001
-
-
-## Seconds until `ability`'s hit lands on `target` if it's cast now: its cast
-## time, plus a projectile's flight from the caster.
-static func get_time_to_land(ability: Ability, caster: Unit, target: Unit) -> float:
-	var time := maxf(ability.get_param(caster, &"cast_time"), 0.0)
-	if ability.tags.has(&"projectile") and ability.projectile_speed > 0.0:
-		time += caster.global_position.distance_to(target.global_position) / Units.to_px(ability.projectile_speed)
-	return time
-
-
 ## The champion a plan's hit lands on: its target, else (a cast around itself)
 ## its brain's.
 func _plan_hit_target(plan: CastPlan) -> Unit:
@@ -1151,32 +1027,20 @@ func _heavy_hit_allowed(ability: Ability, plan: CastPlan) -> bool:
 	if Brains.get_press() <= 0.0:
 		return true   # outside a press, AI2's rule: no limit
 	var target := _plan_hit_target(plan)
-	if target == null or not is_heavy_hit(ability, _enemy, target, Brains.table):
+	if target == null or not BrainScoring.is_heavy_hit(ability, _enemy, target, Brains.table):
 		return true
-	return Brains.can_land_heavy_hit(target, Brains.get_time() + get_time_to_land(ability, _enemy, target))
+	return Brains.can_land_heavy_hit(target, Brains.get_time() + BrainScoring.get_time_to_land(ability, _enemy, target))
 
 
 ## A heavy hit it started is noted in Brains (with or without a press, so a
 ## press that starts while it's on its way sees it).
 func _note_heavy_hit(plan: CastPlan) -> void:
 	var target := _plan_hit_target(plan)
-	if target != null and is_heavy_hit(plan.ability, _enemy, target, Brains.table):
-		Brains.note_heavy_hit(_enemy, target, Brains.get_time() + get_time_to_land(plan.ability, _enemy, target))
+	if target != null and BrainScoring.is_heavy_hit(plan.ability, _enemy, target, Brains.table):
+		Brains.note_heavy_hit(_enemy, target, Brains.get_time() + BrainScoring.get_time_to_land(plan.ability, _enemy, target))
 
 
 # --- Combos: crowding, the opening, the peel and the setup (AI-D1) ---------------------------
-
-## Its `opener`-role slots (Ability.combo_roles), in slot order.
-static func find_opener_slots(abilities: AbilityComponent) -> Array[StringName]:
-	var out: Array[StringName] = []
-	if abilities == null:
-		return out
-	for slot in AbilityComponent.SLOTS:
-		var ability := abilities.get_ability(slot)
-		if ability != null and ability.combo_roles.has(OPENER_ROLE):
-			out.append(slot)
-	return out
-
 
 ## Crowding's inputs and the read (ComboPlanner.get_crowding()): its crowded
 ## range and band, its target's walk toward it (the snapshot's walk), its
@@ -1285,53 +1149,6 @@ func _check_peel(s: SituationContext, now: float) -> void:
 
 # --- Combo plans (AI-D2) --------------------------------------------------------------------
 
-## Its follow-up slots: abilities with combo roles and none of them `opener`
-## (kept for its plans unless the blind read passes).
-static func find_follow_up_slots(abilities: AbilityComponent) -> Array[StringName]:
-	var out: Array[StringName] = []
-	if abilities == null:
-		return out
-	for slot in AbilityComponent.SLOTS:
-		var ability := abilities.get_ability(slot)
-		if ability != null and not ability.combo_roles.is_empty() and not ability.combo_roles.has(OPENER_ROLE):
-			out.append(slot)
-	return out
-
-
-## Its own kit ready (the follow-through's lean): the share of its slots'
-## respect value ready now, its key's included whether it's up or not.
-static func get_own_kit_ready(abilities: AbilityComponent, table: EnemyAITable) -> float:
-	if abilities == null:
-		return 0.0
-	var total := 0.0
-	var ready_value := 0.0
-	for slot in AbilityComponent.SLOTS:
-		var ability := abilities.get_ability(slot)
-		if ability == null:
-			continue
-		var value := table.get_respect_value(ability)
-		total += value
-		if abilities.is_ready(slot) and abilities.can_afford(slot):
-			ready_value += value
-	return ready_value / total if total > 0.0 else 0.0
-
-
-## Seconds after `ability`'s cast ends during which its hit can still land on
-## `target` (a plan step's miss time, before whiff_time): a projectile's
-## flight past it (at most its range), a dash's dash_time, else 0.
-static func get_travel_time(ability: Ability, caster: Unit, target: Unit) -> float:
-	if ability == null:
-		return 0.0
-	if ability.tags.has(&"projectile") and ability.projectile_speed > 0.0:
-		var range_px := Units.to_px(ability.get_param(caster, &"cast_range"))
-		var distance := range_px
-		if is_instance_valid(caster) and is_instance_valid(target):
-			distance = minf(caster.global_position.distance_to(target.global_position) + target.get_gameplay_radius_px(), range_px)
-		return distance / Units.to_px(ability.projectile_speed)
-	var dash: Variant = ability.get(&"dash_time")
-	return float(dash) if dash is float else 0.0
-
-
 ## The combo plans' reads (AI-D2): the blind read and its inputs, its own kit
 ## ready, its follow-ups (kept unless the blind read passes), and, while it
 ## may start a commit (or its fresh commit is still in its tell), each plan's
@@ -1344,7 +1161,7 @@ func _read_plans(s: SituationContext, m: Dictionary, target: Unit) -> void:
 	s.blind_reads = table.blind_reads
 	s.mixup_delay_min = table.mixup_delay_min
 	s.mixup_delay_max = table.mixup_delay_max
-	s.own_kit_ready = get_own_kit_ready(_enemy.abilities, table)
+	s.own_kit_ready = BrainScoring.get_own_kit_ready(_enemy.abilities, table)
 	s.target_cc_immune = target.status_component != null and target.status_component.has_tag(&"cc_immune")
 	if not m.is_empty():
 		s.target_ultimates = m.get("ultimates", 0)
@@ -1354,7 +1171,7 @@ func _read_plans(s: SituationContext, m: Dictionary, target: Unit) -> void:
 	s.blind_reason = ComboPlanner.get_blind_reason(s, behavior.finish_threshold)
 	if not s.has_plans:
 		return
-	s.follow_up_slots = find_follow_up_slots(_enemy.abilities)
+	s.follow_up_slots = BrainScoring.find_follow_up_slots(_enemy.abilities)
 	if s.blind_reason == &"":
 		s.kept_slots = s.follow_up_slots
 	s.commit_plan_open = _committing and _commit_plan_open and _plan == null and _tell_left > 0.0
@@ -1585,7 +1402,7 @@ func _on_plan_step_ended(ability: Ability) -> void:
 	p.index = i + 1
 	p.prev_end = now
 	p.prev_landed = float((p.landed_at as Array)[i])
-	p.prev_miss_at = now + get_travel_time(ability, _enemy, _plan_target) + Brains.table.whiff_time
+	p.prev_miss_at = now + BrainScoring.get_travel_time(ability, _enemy, _plan_target) + Brains.table.whiff_time
 
 
 ## Ends the plan under way (AI-D2), with Events.combo_plan_ended. Done,
@@ -1625,7 +1442,7 @@ func _follow_through() -> void:
 	s.effective_respect = _situation.effective_respect if _situation != null else 1.0
 	var max_health := _enemy.health.max_health
 	s.health_ratio = _enemy.health.current / max_health if max_health > 0.0 else 0.0
-	s.own_kit_ready = get_own_kit_ready(_enemy.abilities, Brains.table)
+	s.own_kit_ready = BrainScoring.get_own_kit_ready(_enemy.abilities, Brains.table)
 	s.needs_token = Brains.get_token_cost(_enemy) > 0
 	s.has_token = Brains.has_token(_enemy)
 	_last_lean = ComboPlanner.get_lean(s)
@@ -1694,13 +1511,6 @@ func _on_unit_hit(ctx: HitContext) -> void:
 		return
 
 
-static func _has_use_for(ability: Ability, intents: Array[StringName]) -> bool:
-	for use in ability.get_ai_uses():
-		if use != null and intents.has(use.intent):
-			return true
-	return false
-
-
 ## Its tokens went while it committed (Brains: it's stunned or rooted, or it
 ## held them token_hold_time s; or its target changed): a stun breaks the
 ## commit off and keeps its patience (it asks again after its rest), anything
@@ -1737,202 +1547,7 @@ func _ask_token(s: SituationContext) -> void:
 ## think it fires).
 func _patience_full_soon(s: SituationContext) -> bool:
 	var step := 1.0 / maxf(get_think_rate(), 0.01)   # AI3c: its own rate
-	return s.patience + get_patience_rate(s, behavior, Brains.table) * step >= 1.0 - PATIENCE_EPSILON
-
-
-# --- Decide (pure) ------------------------------------------------------------------
-
-## The decision (ENEMIES_AI.md, Scoring), a pure function of the situation,
-## the resolved behavior and a seeded generator: nothing else is read. Every
-## intent the situation allows gets its base score × the behavior's intent
-## weight × (1 ± jitter); the current intent gets the hold bonus until
-## min_intent_time; the highest wins. AI1: hold (always), poke (a poke use
-## passes; a caster's scores higher), commit (patience full with its tokens
-## (AI2: or none needed), a commit under way, or a taunt on its target). AI3:
-## defend (a defend use passes: it's threatened), escape (wants_escape()),
-## retreat (a FALL_BACK enemy below its retreat health, or a skirmisher's
-## reset); while retreating it keeps poking. AI3b: smell blood (commit ×
-## smell_blood_mult below its finish threshold, capped), the walk out (the
-## kiting step, the cautious walk) as a retreat, a held key's uses left out
-## (SituationContext.get_best_use()). AI-D1: peel (its episode rolled a peel
-## and its peel use passes; like defend it answers something already
-## happening), and a setup's commit opens with its best opener. AI-D2: an
-## enemy with combo plans opens a commit with one when one fits
-## (ComboPlanner.pick_plan(): weight, jitter, mixup), and its own hits leave
-## out its follow-ups unless the blind read passes.
-static func decide(s: SituationContext, b: EnemyBehavior, stream: RandomNumberGenerator) -> BrainDecision:
-	var d := BrainDecision.new()
-	if not s.has_target:
-		d.reason = "no target"
-		return d
-	var raw := {}
-	raw[HOLD] = float(s.intent_scores.get(HOLD, 0.0))
-	var poke := s.get_best_use([POKE])
-	if not poke.is_empty():
-		raw[POKE] = s.caster_poke_score if b.role == EnemyBehavior.Role.CASTER else float(s.intent_scores.get(POKE, 0.0))
-	var tokens_ok := s.has_token or not s.needs_token
-	if s.target_reachable and (s.committing or s.taunted or (s.patience >= 1.0 and tokens_ok)):
-		raw[COMMIT] = float(s.intent_scores.get(COMMIT, 0.0))
-		if s.target_health_ratio < b.finish_threshold:
-			raw[COMMIT] = minf(raw[COMMIT] * s.smell_blood_mult, s.smell_blood_cap)   # smell blood (AI3b)
-	var defend := s.get_best_use([DEFEND])
-	if not defend.is_empty():
-		raw[DEFEND] = float(s.intent_scores.get(DEFEND, 0.0))
-	var peel := s.get_best_use([PEEL])
-	if s.peel_pending and not peel.is_empty():
-		raw[PEEL] = float(s.intent_scores.get(PEEL, 0.0))   # AI-D1 (after defend: a tie keeps defend)
-	var escape := s.get_best_use([ESCAPE])
-	if wants_escape(s, b, not escape.is_empty()):
-		raw[ESCAPE] = float(s.intent_scores.get(ESCAPE, 0.0))
-	if s.resetting or s.walking_out or (b.low_health == EnemyBehavior.LowHealth.FALL_BACK and s.health_ratio < b.retreat_health):
-		raw[RETREAT] = float(s.intent_scores.get(RETREAT, 0.0))
-	var best: StringName = &""
-	var best_score := -INF
-	var urgent := raw.has(DEFEND)   # an attack coming breaks the no-flip-flop hold (The brain)
-	for intent: StringName in raw:   # in the order above: a tie keeps the earlier
-		var score: float = raw[intent] * b.get_intent_weight(intent) * (1.0 + stream.randf_range(-b.jitter, b.jitter))
-		if intent == s.intent and s.intent_age < s.min_intent_time and not urgent:
-			score += s.intent_hold_bonus
-		elif intent == ESCAPE and s.escaping:
-			score += s.intent_hold_bonus   # a walk away under way holds (AI3)
-		d.scores[intent] = score
-		if score > best_score:
-			best = intent
-			best_score = score
-	d.intent = best
-	match best:
-		POKE:
-			d.plan = poke.plan
-		COMMIT:
-			# AI-D2: an enemy with plans opens a commit with one when one fits
-			# (a setup is such a commit; AI-D1 opened with its best opener);
-			# the running plan's opener still to come keeps a fresh aim; its
-			# later steps come from the drive.
-			if s.has_plans and (not s.committing or s.commit_plan_open):
-				var pick := ComboPlanner.pick_plan(s, b, stream)
-				if not pick.is_empty():
-					d.combo_plan = pick.plan
-					d.plan = pick.opener
-					d.plan_runner_up = pick.runner_up
-					d.plan_delay = pick.delay if not s.committing else 0.0
-					d.setup = s.setup and not s.committing
-			elif s.plan_opener_pending:
-				d.plan = s.plan_opener_plan
-			if d.combo_plan == null and not s.plan_running:
-				# Its hits: damage uses, and a gap-closer while out of its
-				# reach; its follow-ups kept for its plans unless the blind
-				# read passes (AI-D2).
-				var intents: Array[StringName] = [&"damage"]
-				if s.target_edge_distance_px > s.attack_reach_px:
-					intents.append(&"gap_close")
-				var use := s.get_best_use(intents, [] as Array[StringName], s.kept_slots)
-				if not use.is_empty():
-					d.plan = use.plan
-		HOLD:
-			var zone := s.get_best_use([&"zone"])
-			if not zone.is_empty():
-				d.plan = zone.plan
-		DEFEND:
-			d.plan = defend.plan
-		PEEL:
-			d.plan = peel.plan
-		ESCAPE:
-			if not escape.is_empty():
-				d.plan = escape.plan   # else it walks away
-		RETREAT:
-			if not poke.is_empty():
-				d.plan = poke.plan   # it keeps poking as it falls back
-	if best in TELL_POSES and s.intent != best:
-		d.pose = TELL_POSES[best]   # a new attack starts with its tell
-	else:
-		d.pose = get_intent_pose(best, b.role, s.cornered, s.resetting, s.press > 0.0)
-	d.reason = "%s %.2f  patience %.2f  respect %.2f" % [best, best_score, s.patience, s.effective_respect]
-	return d
-
-
-## Escape (ENEMIES_AI.md, Cornered casters): its target inside its band's
-## minimum, for a caster or anyone with an escape use; a walk away under way
-## goes on; never while cornered or committing.
-static func wants_escape(s: SituationContext, b: EnemyBehavior, has_escape_use: bool) -> bool:
-	if s.cornered or s.committing:
-		return false
-	if s.escaping:
-		return true
-	if b.role != EnemyBehavior.Role.CASTER and not has_escape_use:
-		return false
-	return s.target_edge_distance_px < Units.to_px(b.range_band_min)
-
-
-## The pose `intent` shows while it runs (ENEMIES_AI.md, Tells), by role:
-## hold (a skirmisher's stalk; a cornered caster's cornered; AI3c: press while
-## pressing), guard (defend), step_back (escaping on foot, a caster falling
-## back), recoil (a skirmisher's reset); &"" = none (an attack's own look).
-static func get_intent_pose(intent: StringName, role: EnemyBehavior.Role, cornered: bool = false, resetting: bool = false, pressing: bool = false) -> StringName:
-	if cornered and (intent == HOLD or intent == POKE or intent == ESCAPE):
-		return &"cornered"   # (an escape is cornered mid-walk; its next think picks again)
-	match intent:
-		HOLD, POKE:
-			if pressing:
-				return &"press"   # the press shows: a lean in, an amber rim (Odds)
-			return &"stalk" if role == EnemyBehavior.Role.SKIRMISHER else &"hold"
-		DEFEND:
-			return &"guard"
-		ESCAPE:
-			return &"step_back"
-		RETREAT:
-			return &"recoil" if resetting else &"step_back"
-	return &""
-
-
-## How fast patience fills (per second; ENEMIES_AI.md, The standoff): (1 −
-## patience_respect_cut × effective respect) ÷ patience_time × (0.5 +
-## aggression) × pressure. Pressure is 1, plus idle_pressure while the target
-## has been idle idle_time s, plus low_pressure while it's below low_health.
-## So with everything up it still fills, at a quarter of its speed: a brute
-## (3 s, aggression 0.5) comes in 12 s at the latest.
-## AI3b: while cautious (its key spent) × (1 − cautious_patience_cut ×
-## confidence). AI3c: the odds' push (odds_pressure × the press) and low
-## health's share one push, the larger (both count the target's health).
-static func get_patience_rate(s: SituationContext, b: EnemyBehavior, table: EnemyAITable) -> float:
-	var pressure := 1.0
-	if s.target_idle_time >= table.idle_time:
-		pressure += table.idle_pressure
-	var low := table.low_pressure if s.target_health_ratio < table.low_health else 0.0
-	pressure += maxf(low, table.odds_pressure * s.press)
-	var rate := (1.0 - table.patience_respect_cut * s.effective_respect) / maxf(b.patience_time, 0.01) \
-		* (0.5 + b.aggression) * pressure
-	if s.cautious_left > 0.0:
-		rate *= 1.0 - table.cautious_patience_cut * b.confidence
-	return rate
-
-
-## A string's length in hits (ARCHETYPES.md, Strings and the beat; D6, D8;
-## AR1a), pure over the situation and the brain's seeded stream. Its rank's
-## range: its short end (AttackCombo.get_string_hits_min(): a regular's
-## length), up to its swings' count with string_full_range (an elite), plus
-## string_extra_hits (a boss's 1). Effective respect at or above
-## string_respect_short cuts it to string_short_hits; at or below
-## string_respect_full, or its target under the table's low_health, it runs
-## the range's top, and with string_full_range one hit more at a chance of
-## its aggression; in between, a length rolled in the range. 0 = no string.
-static func get_string_length(s: SituationContext, attack_string: AttackCombo, rules: RankRules, table: EnemyAITable,
-		b: EnemyBehavior, stream: RandomNumberGenerator) -> int:
-	if attack_string == null or attack_string.swings.is_empty():
-		return 0
-	var low := attack_string.get_string_hits_min()
-	var high := low
-	var full := rules != null and rules.string_full_range
-	if full:
-		high = maxi(attack_string.swings.size(), low)
-	if rules != null:
-		high += maxi(rules.string_extra_hits, 0)
-	if s.effective_respect >= table.string_respect_short - 0.0001:
-		return clampi(table.string_short_hits, 1, high)
-	if s.effective_respect <= table.string_respect_full + 0.0001 or s.target_health_ratio < table.low_health:
-		if full and b != null and stream.randf() < b.aggression:
-			return high + 1
-		return high
-	return stream.randi_range(low, high)
+	return s.patience + BrainScoring.get_patience_rate(s, behavior, Brains.table) * step >= 1.0 - PATIENCE_EPSILON
 
 
 # --- Act (Enemy calls drive() every physics tick while aggroed) -------------------------
@@ -2297,7 +1912,7 @@ func _try_plan() -> void:
 ## its target is out of its reach (decide() picks a gap-closer only then). A
 ## gap-closer goes before its string whatever the mix rolls.
 func _is_gap_close_plan(plan: CastPlan) -> bool:
-	if plan == null or plan.ability == null or not _has_use_for(plan.ability, [&"gap_close"] as Array[StringName]):
+	if plan == null or plan.ability == null or not BrainScoring._has_use_for(plan.ability, [&"gap_close"] as Array[StringName]):
 		return false
 	var target := _enemy.get_brain_target()
 	return target != null and _enemy.edge_distance_to(target) > _enemy.attack.get_range_px()
@@ -2425,11 +2040,11 @@ func _update_pose(now: float) -> void:
 	if is_in_ability_recovery():
 		pose = &"recover"   # AI-D1: the player's opening shows
 	elif _committing and _plan_delay_left > 0.0 and behavior != null:
-		pose = get_intent_pose(HOLD, behavior.role, is_cornered(), is_resetting(), is_pressing())
+		pose = BrainScoring.get_intent_pose(HOLD, behavior.role, is_cornered(), is_resetting(), is_pressing())
 	elif _committing and _tell_left > 0.0:
 		pose = TELL_POSES.get(COMMIT, &"")
 	elif behavior != null:
-		pose = get_intent_pose(_intent, behavior.role, is_cornered(), is_resetting(), is_pressing())
+		pose = BrainScoring.get_intent_pose(_intent, behavior.role, is_cornered(), is_resetting(), is_pressing())
 	if pose != _pose:
 		_pose = pose
 		_pose_started = now
@@ -2493,7 +2108,7 @@ func _on_attack_landed(_target: Unit, _damage: float) -> void:
 ## (AutoAttackComponent.run_string()).
 func _start_string(target: Unit, step: int = -1) -> bool:
 	var s := _situation if _situation != null else SituationContext.new()
-	var hits := get_string_length(s, data.attack_string, rank_rules, Brains.table, behavior, rng)
+	var hits := BrainScoring.get_string_length(s, data.attack_string, rank_rules, Brains.table, behavior, rng)
 	if not _enemy.attack.run_string(target, data.attack_string, hits, Brains.table.beat):
 		return false
 	string_count += 1
@@ -2636,9 +2251,61 @@ func _on_cast_ended(slot: StringName, ability: Ability) -> void:
 		_opener_cast = false
 		_commit_cast = false
 		return   # a setup's opener only opens it
-	if ability != null and _has_use_for(ability, [&"gap_close"] as Array[StringName]):
+	if ability != null and BrainScoring._has_use_for(ability, [&"gap_close"] as Array[StringName]):
 		if _commit_engaged_at < 0.0:
 			_commit_engaged_at = Brains.get_time()
 		_commit_cast = false
 		return
 	_commit_cast_done = true
+
+
+# --- Forwarders (R1) ----------------------------------------------------------------------
+# The code of these is in the brain's helpers (R1: the split by job). Each keeps its
+# name and signature here, so outside callers and the tests are unchanged (the
+# contract: res://scripts/tests/golden/brain_api.txt).
+
+# BrainScoring: the pure functions.
+
+static func find_key_slot(abilities: AbilityComponent, table: EnemyAITable) -> StringName:
+	return BrainScoring.find_key_slot(abilities, table)
+
+
+static func get_own_ready_share(abilities: AbilityComponent, table: EnemyAITable, key_slot: StringName) -> float:
+	return BrainScoring.get_own_ready_share(abilities, table, key_slot)
+
+
+static func get_effective_respect(s: SituationContext, b: EnemyBehavior) -> float:
+	return BrainScoring.get_effective_respect(s, b)
+
+
+static func roll_crowded(s: SituationContext, b: EnemyBehavior, stream: RandomNumberGenerator) -> Dictionary:
+	return BrainScoring.roll_crowded(s, b, stream)
+
+
+static func get_right_moment(s: SituationContext, b: EnemyBehavior) -> String:
+	return BrainScoring.get_right_moment(s, b)
+
+
+static func is_heavy_hit(ability: Ability, caster: Unit, target: Unit, table: EnemyAITable) -> bool:
+	return BrainScoring.is_heavy_hit(ability, caster, target, table)
+
+
+static func get_time_to_land(ability: Ability, caster: Unit, target: Unit) -> float:
+	return BrainScoring.get_time_to_land(ability, caster, target)
+
+
+static func decide(s: SituationContext, b: EnemyBehavior, stream: RandomNumberGenerator) -> BrainDecision:
+	return BrainScoring.decide(s, b, stream)
+
+
+static func get_intent_pose(intent: StringName, role: EnemyBehavior.Role, cornered: bool = false, resetting: bool = false, pressing: bool = false) -> StringName:
+	return BrainScoring.get_intent_pose(intent, role, cornered, resetting, pressing)
+
+
+static func get_patience_rate(s: SituationContext, b: EnemyBehavior, table: EnemyAITable) -> float:
+	return BrainScoring.get_patience_rate(s, b, table)
+
+
+static func get_string_length(s: SituationContext, attack_string: AttackCombo, rules: RankRules, table: EnemyAITable,
+		b: EnemyBehavior, stream: RandomNumberGenerator) -> int:
+	return BrainScoring.get_string_length(s, attack_string, rules, table, b, stream)
