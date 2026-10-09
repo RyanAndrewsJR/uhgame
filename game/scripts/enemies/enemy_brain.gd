@@ -131,6 +131,7 @@ extends UnitController
 ##   break, its token or target lost still end it).
 
 signal intent_changed(intent: StringName)
+@warning_ignore("unused_signal")
 signal pose_changed(pose: StringName)
 
 const HOLD := &"hold"
@@ -207,6 +208,7 @@ var _last_think := -1.0
 var _decision: BrainDecision
 var _situation: SituationContext
 var _pose: StringName = &""
+@warning_ignore("unused_private_class_variable")
 var _pose_started := 0.0
 var _tell_left := 0.0
 var _committing := false
@@ -217,6 +219,7 @@ var _commit_cast := false        # a cast started during the commit (after its t
 var _commit_cast_done := false   # ... and ended (a gap-closer's doesn't count)
 var _commit_engaged_at := -1.0   # when it got to its target in the commit (−1 = not yet)
 var _pending_plan: CastPlan
+@warning_ignore("unused_private_class_variable")
 var _replan_left := 0.0
 var _strafe_dir := 1.0
 var _strafe_turn_left := 0.0
@@ -227,8 +230,11 @@ var _think_usec := 0
 var _seen: Dictionary = {}       # an attack's key -> the game time it was first seen
 var _cornered_until := -1.0
 var _escaping := false
+@warning_ignore("unused_private_class_variable")
 var _escape_until := 0.0
+@warning_ignore("unused_private_class_variable")
 var _escape_stuck := 0.0
+@warning_ignore("unused_private_class_variable")
 var _escape_last_pos := Vector2.INF
 var _resetting_until := -1.0
 # AI3b
@@ -293,6 +299,7 @@ var _brain_strings := BrainStrings.new(self)
 var _brain_plans := BrainPlans.new(self)
 var _brain_duel := BrainDuel.new(self)
 var _brain_perception := BrainPerception.new(self)
+var _brain_drive := BrainDrive.new(self)
 
 
 func setup(p_data: EnemyData, p_rank_rules: RankRules) -> void:
@@ -308,7 +315,7 @@ func _ready() -> void:
 	_key_slot = BrainScoring.find_key_slot(_enemy.abilities, Brains.table)   # AI3b (each think finds it again)
 	Brains.register(self)
 	_strafe_dir = 1.0 if rng.randf() < 0.5 else -1.0
-	_strafe_turn_left = _strafe_turn_time()
+	_strafe_turn_left = _brain_drive._strafe_turn_time()
 	_enemy.attack.attack_landed.connect(_on_attack_landed)
 	_enemy.attack.swing_started.connect(_on_swing_started)   # AR1a: a string's first swing holds its token
 	_enemy.attack.string_ended.connect(_on_string_ended)
@@ -782,10 +789,10 @@ func _apply_decision(d: BrainDecision, now: float) -> void:
 		if d.plan != null:
 			_escaping = false   # its escape ability is the escape: a walk after it gets its own 2 s (AI3d)
 		elif not _escaping:
-			_start_escape_walk(now)
+			_brain_drive._start_escape_walk(now)
 	_pending_plan = d.plan
 	_decision = d
-	_update_pose(now)
+	_brain_drive._update_pose(now)
 
 
 ## A new commit is a setup (AI-D1): it opens with its opener (the decision's
@@ -795,143 +802,6 @@ func _start_setup(d: BrainDecision) -> void:
 	_setup_commit = true
 	_setup_slot = d.plan.slot if d.plan != null else &""
 	setup_count += 1
-
-
-## Carries out the current intent: its movement and presses (cheap, every
-## tick), then the decision's cast. Nothing while a cast plays out or while
-## stunned.
-func drive(delta: float) -> void:
-	_back_off_left = maxf(_back_off_left - delta, 0.0)
-	var target := _enemy.get_brain_target()
-	if target == null or _intent == &"":
-		return
-	if _enemy.is_stunned() or (_enemy.abilities != null and _enemy.abilities.casting):
-		return
-	if is_in_ability_recovery():
-		_update_pose(Brains.get_time())   # AI-D1: still, in the recover pose
-		return
-	match _intent:
-		COMMIT:
-			_drive_commit(delta, target)
-		HOLD, POKE, DEFEND:
-			_drive_hold(delta, target)
-		PEEL:
-			_drive_peel()
-		ESCAPE:
-			if _escaping:
-				_drive_escape(delta, target)
-		RETREAT:
-			if is_resetting() or is_walking_out():
-				_drive_hold(delta, target)   # its back off walks it out to its band (AI3b: or its far edge)
-			else:
-				_drive_fall_back(delta, target)
-	_try_plan()
-	_update_pose(Brains.get_time())
-
-
-## Commit: stand in the tell for tell_time, then go in with the basic attack
-## (AutoAttackComponent chases and swings); its casts come from the plans.
-## AI-D2: mixup's held beat comes before the tell (it holds its ground); a
-## combo plan's steps start here, each on the tick its trigger comes.
-## AR1a: with no plan, an enemy with a string runs it (D6) unless its
-## decision's cast comes first (AI1's commit: a gap-closer gets it there, a
-## damage cast's end ends the commit; _try_plan() may still cast while the
-## string closes in); once it swings nothing cuts into it, and its end ends
-## the commit (_on_string_ended()).
-func _drive_commit(delta: float, target: Unit) -> void:
-	if _plan_delay_left > 0.0:
-		_plan_delay_left = maxf(_plan_delay_left - delta, 0.0)
-		_enemy.movement.stop()
-		if _enemy.attack.target != null and not _enemy.attack.is_winding_up():
-			_enemy.attack.cancel()
-		return
-	if _tell_left > 0.0:
-		_tell_left = maxf(_tell_left - delta, 0.0)
-		_enemy.movement.stop()
-		if _enemy.attack.target != null and not _enemy.attack.is_winding_up():
-			_enemy.attack.cancel()
-		return
-	if _commit_engaged_at < 0.0 and _enemy.edge_distance_to(target) <= _enemy.attack.get_range_px():
-		_commit_engaged_at = Brains.get_time()
-	if _plan != null:
-		_brain_plans._drive_plan(Brains.get_time(), target)
-		if not _committing or _tell_left > 0.0 or (_enemy.abilities != null and _enemy.abilities.casting):
-			return   # the plan ended (a reset, or a stay's tell) or a step started
-	if _enemy.attack.is_running_string():
-		return   # AR1a: its string plays out (the commit's, or a plan step's)
-	if _plan == null and has_attack_string():
-		if _committing and not _commit_string and not _string_done and (_pending_plan == null or _string_then_cast):
-			_brain_strings._start_string(target)   # AR1a: no cast to make first (or the mix put its string first): the string
-		return
-	if _enemy.attack.target != target:
-		_enemy.attack.attack(target)
-
-
-## Peel (AI-D1): it stands for its peel's cast (decide()'s plan; _try_plan()
-## casts it), no swing; the cast's end starts the kiting step.
-func _drive_peel() -> void:
-	if _enemy.movement.has_order():
-		_enemy.movement.stop()
-	if _enemy.attack.target != null and not _enemy.attack.is_winding_up():
-		_enemy.attack.cancel()
-
-
-## Hold: a spot in its range band around the target, strafing one way and
-## turning after strafe_turn_min–max s, facing the target (the view). It keeps
-## a hold distance (edge to edge): its distance when the hold starts, kept in
-## the band; from farther than the band it closes to the band's far edge;
-## when the target walks away it follows, back into the band; after its own
-## commit it walks back out to the band (back_off_time); when its target
-## walks in on it, it doesn't run: it holds its ground at that distance and
-## swings back once the target is in its reach. Each re-plan aims at the
-## circle of that distance, so strafing along chords never spirals it in.
-## A caster (AI3) strafes only to stand behind or beside its melee packmates
-## and to keep 2 m from other casters (get_caster_strafe()).
-func _drive_hold(delta: float, target: Unit) -> void:
-	var table := Brains.table
-	var edge := _enemy.edge_distance_to(target)
-	if is_cornered():
-		_drive_cornered(target, edge)
-		return
-	if _back_off_left <= 0.0 and edge <= _enemy.attack.get_range_px():
-		if _enemy.attack.target != target:
-			_enemy.attack.attack(target)
-		return
-	if _enemy.attack.target != null and not _enemy.attack.is_winding_up():
-		_enemy.attack.cancel()
-	_replan_left -= delta
-	if _replan_left > 0.0 and _enemy.movement.has_order():
-		return
-	_replan_left = table.hold_replan_time
-	_strafe_turn_left -= table.hold_replan_time
-	if _strafe_turn_left <= 0.0:
-		_strafe_dir = -_strafe_dir
-		_strafe_turn_left = _strafe_turn_time()
-	var band_min := Units.to_px(behavior.range_band_min)
-	var band_max := Units.to_px(behavior.range_band_max)
-	var to_self := _enemy.global_position - target.global_position
-	var pressing := target.velocity.dot(to_self.normalized()) > Brains.IDLE_SPEED_PX if to_self.length() > 0.01 else false
-	if _hold_edge < 0.0:
-		_hold_edge = clampf(edge, band_min, band_max)
-	if _back_off_left > 0.0 and _walk_out_far and is_walking_out():
-		_hold_edge = band_max   # cautious: out to its band's far edge (AI3b)
-	elif _back_off_left > 0.0:
-		_hold_edge = maxf(_hold_edge, band_min)
-	elif edge > band_max:
-		_hold_edge = band_max
-	elif pressing and edge < _hold_edge - HOLD_SLACK_PX:
-		_hold_edge = edge   # it walked in: hold the ground here
-	elif edge > _hold_edge + HOLD_SLACK_PX:
-		_hold_edge = clampf(edge, band_min, band_max)   # it walked away: follow, in the band
-	var radii := _enemy.get_gameplay_radius_px() + target.get_gameplay_radius_px()
-	var radius := maxf(_hold_edge + radii, radii + 1.0)
-	var from_target := _enemy.global_position - target.global_position
-	var angle := from_target.angle() if from_target.length() > 0.01 else rng.randf() * TAU
-	var strafe := _strafe_dir
-	if behavior.role == EnemyBehavior.Role.CASTER:
-		strafe = get_caster_strafe(_enemy, target, _packmates(), table)
-	angle += strafe * table.strafe_step_px / radius
-	_enemy.movement.move_to(target.global_position + Vector2.from_angle(angle) * radius)
 
 
 ## Which way a caster strafes round its target while it holds (ENEMIES_AI.md,
@@ -964,31 +834,6 @@ static func is_caster(e: Enemy) -> bool:
 	return brain != null and brain.behavior != null and brain.behavior.role == EnemyBehavior.Role.CASTER
 
 
-func _packmates() -> Array[Enemy]:
-	var out: Array[Enemy] = []
-	var pack := _enemy.get_pack()
-	if pack == null:
-		return out
-	for m in pack.get_members():
-		if m != _enemy:
-			out.append(m)
-	return out
-
-
-## Falling back (a caster below its retreat health; ENEMIES_AI.md, Low
-## health): to just behind its nearest living melee packmate, as seen from
-## its target; with none, away from its target to its band's far edge. It
-## keeps poking (decide() gives it its poke plan).
-func _drive_fall_back(delta: float, target: Unit) -> void:
-	if _enemy.attack.target != null and not _enemy.attack.is_winding_up():
-		_enemy.attack.cancel()
-	_replan_left -= delta
-	if _replan_left > 0.0 and _enemy.movement.has_order():
-		return
-	_replan_left = Brains.table.hold_replan_time
-	_enemy.movement.move_to(get_fall_back_spot(_enemy, target, _packmates(), behavior))
-
-
 ## Where a caster falls back to (see _drive_fall_back()).
 static func get_fall_back_spot(caster: Enemy, target: Unit, packmates: Array[Enemy], b: EnemyBehavior) -> Vector2:
 	var melee: Enemy = null
@@ -1005,116 +850,6 @@ static func get_fall_back_spot(caster: Enemy, target: Unit, packmates: Array[Ene
 	var away := caster.global_position - center
 	away = away.normalized() if away.length() > 0.01 else Vector2.RIGHT
 	return center + away * (Units.to_px(b.range_band_max) + caster.get_gameplay_radius_px() + target.get_gameplay_radius_px())
-
-
-## Escaping on foot (no escape ability ready; ENEMIES_AI.md, Cornered
-## casters): it walks straight away from its target for up to
-## escape_walk_time. Out of time, blocked (a wall or a ledge: it barely moves),
-## slowed or rooted, it's cornered. The walk's clock runs from its start
-## until it gets away (its target outside its band's minimum), is cornered or
-## leaves the fight, whatever it does meanwhile (a shield, a poke).
-func _start_escape_walk(now: float) -> void:
-	_escaping = true
-	_escape_until = now + Brains.table.escape_walk_time
-	_escape_stuck = 0.0
-	_escape_last_pos = _enemy.global_position
-	_replan_left = 0.0
-
-
-func _drive_escape(delta: float, target: Unit) -> void:
-	var now := Brains.get_time()
-	var moved := _enemy.global_position.distance_to(_escape_last_pos)
-	_escape_last_pos = _enemy.global_position
-	_escape_stuck = _escape_stuck + delta if moved < 0.3 else 0.0
-	var slowed := _enemy.status_component != null and _enemy.status_component.has_tag(&"slow")
-	if now >= _escape_until or _escape_stuck >= ESCAPE_STUCK_TIME or slowed or _enemy.is_cc_blocked():
-		_corner(now)
-		return
-	if _enemy.attack.target != null and not _enemy.attack.is_winding_up():
-		_enemy.attack.cancel()
-	_replan_left -= delta
-	if _replan_left > 0.0 and _enemy.movement.has_order():
-		return
-	_replan_left = Brains.table.hold_replan_time
-	var away := _enemy.global_position - target.global_position
-	away = away.normalized() if away.length() > 0.01 else Vector2.RIGHT
-	_enemy.movement.move_to(_enemy.global_position + away * Brains.table.escape_step_px)
-
-
-## Cornered, it stands its ground: it swings at its target once it's within
-## cornered_reach_ratio × its reach (a step in, never away), else it stands
-## and its pokes go off (decide()'s plan).
-func _drive_cornered(target: Unit, edge: float) -> void:
-	if edge <= _enemy.attack.get_range_px() * Brains.table.cornered_reach_ratio:
-		if _enemy.attack.target != target:
-			_enemy.attack.attack(target)
-		return
-	if _enemy.attack.target != null and not _enemy.attack.is_winding_up():
-		_enemy.attack.cancel()
-	if _enemy.movement.has_order():
-		_enemy.movement.stop()
-
-
-## Cornered: it squares up for cornered_time (its pose; it fights with its
-## basic attack and its pokes from where it stands, and doesn't run).
-func _corner(now: float) -> void:
-	_escaping = false
-	_cornered_until = now + Brains.table.cornered_time
-	_hold_edge = -1.0
-	_enemy.movement.stop()
-	Brains.wake(self)
-
-
-## Casts the decision's plan once (after a commit's tell; never mid-windup or
-## mid-cast), checked again first so a plan that went stale fails quietly.
-func _try_plan() -> void:
-	if _pending_plan == null or (_committing and (_tell_left > 0.0 or _plan_delay_left > 0.0)):
-		return
-	if _string_step >= 0 or _enemy.attack.get_string_swung() > 0:
-		return   # AR1a: nothing cuts into a string once it swings (kept pending; its commit's end drops it)
-	if _committing and _plan == null and has_attack_string():
-		if _string_done:
-			if not _string_then_cast or _commit_cast:
-				return   # its commit ends at its next think (or its finisher is cast already)
-		elif not _is_gap_close_plan(_pending_plan):
-			# The mix (Ryan, 2026-10-08): one roll a commit, the first time a
-			# damage cast could go before its string.
-			if not _string_mix_rolled:
-				_string_mix_rolled = true
-				_string_then_cast = rng.randf() < Brains.table.string_then_cast_chance
-			if _string_then_cast:
-				return   # its string first; a damage cast after it is its finisher
-	var abilities := _enemy.abilities
-	if abilities == null or abilities.casting or _enemy.attack.is_winding_up():
-		return
-	var plan := _pending_plan
-	_pending_plan = null
-	if plan.target != null and not is_instance_valid(plan.target):
-		return
-	var aim := plan.vector_start if plan.is_vector() else plan.point
-	if abilities.get_fail_reason(plan.slot, aim, plan.target) != "":
-		return
-	if not _brain_duel._heavy_hit_allowed(plan.ability, plan):
-		return   # AI3c: another heavy hit got there first since the decision
-	abilities.set_aim_hint(plan.point)
-	_last_lead_px = plan.lead_px
-	var cast: bool
-	if plan.is_vector():
-		cast = abilities.try_cast_vector(plan.slot, plan.vector_start, plan.vector_direction)
-	else:
-		cast = abilities.try_cast(plan.slot, plan.point, plan.target)
-	if cast:
-		_brain_duel._note_heavy_hit(plan)
-
-
-## `plan` is its gap-closer now (AR1a): its ability has a gap_close use and
-## its target is out of its reach (decide() picks a gap-closer only then). A
-## gap-closer goes before its string whatever the mix rolls.
-func _is_gap_close_plan(plan: CastPlan) -> bool:
-	if plan == null or plan.ability == null or not BrainScoring._has_use_for(plan.ability, [&"gap_close"] as Array[StringName]):
-		return false
-	var target := _enemy.get_brain_target()
-	return target != null and _enemy.edge_distance_to(target) > _enemy.attack.get_range_px()
 
 
 func _start_commit(now: float) -> void:
@@ -1232,24 +967,6 @@ func _break_commit() -> void:
 	_brain_strings._stop_string()   # AR1a
 
 
-## AI-D2: a recovery shows first (a stay's tell waits for it), and mixup's
-## held beat shows as a hold.
-func _update_pose(now: float) -> void:
-	var pose: StringName = &""
-	if is_in_ability_recovery():
-		pose = &"recover"   # AI-D1: the player's opening shows
-	elif _committing and _plan_delay_left > 0.0 and behavior != null:
-		pose = BrainScoring.get_intent_pose(HOLD, behavior.role, is_cornered(), is_resetting(), is_pressing())
-	elif _committing and _tell_left > 0.0:
-		pose = TELL_POSES.get(COMMIT, &"")
-	elif behavior != null:
-		pose = BrainScoring.get_intent_pose(_intent, behavior.role, is_cornered(), is_resetting(), is_pressing())
-	if pose != _pose:
-		_pose = pose
-		_pose_started = now
-		pose_changed.emit(pose)
-
-
 ## Out of the fight (de-aggroed, no target): everything back to the start.
 func _reset() -> void:
 	var had_intent := _intent != &""
@@ -1286,12 +1003,7 @@ func _reset() -> void:
 		Brains.release_token(_enemy, false)
 	if had_intent:
 		intent_changed.emit(_intent)
-	_update_pose(Brains.get_time())
-
-
-func _strafe_turn_time() -> float:
-	var table := Brains.table
-	return rng.randf_range(table.strafe_turn_min, table.strafe_turn_max)
+	_brain_drive._update_pose(Brains.get_time())
 
 
 func _on_attack_landed(_target: Unit, _damage: float) -> void:
@@ -1447,3 +1159,9 @@ func _update_spend(s: SituationContext, snap: PartySnapshot, now: float) -> void
 
 func build_situation() -> SituationContext:
 	return _brain_perception.build_situation()
+
+
+# BrainDrive: acting.
+
+func drive(delta: float) -> void:
+	_brain_drive.drive(delta)
