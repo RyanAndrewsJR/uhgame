@@ -61,7 +61,7 @@ func _on_swing_started(index: int, _direction: Vector2, _swing: AttackSwing) -> 
 ## status that cut it is on (_resolve_string_cut()).
 func _on_string_ended(completed: bool, swung: int) -> void:
 	if brain._string_step >= 0:
-		brain._on_plan_string_ended(completed)
+		brain._brain_plans._on_plan_string_ended(completed)
 		return
 	if not (brain._committing and brain._commit_string):
 		return
@@ -88,7 +88,7 @@ func _resolve_string_cut(in_plan: bool) -> void:
 	if in_plan:
 		if brain._plan == null:
 			return
-		brain._end_plan(ComboPlanner.INTERRUPTED if held else ComboPlanner.TARGET_LOST)
+		brain._brain_plans._end_plan(ComboPlanner.INTERRUPTED if held else ComboPlanner.TARGET_LOST)
 	elif not (brain._committing and brain._commit_string) or brain._string_done or brain._enemy.attack.is_running_string():
 		return
 	if held:
