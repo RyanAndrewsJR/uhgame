@@ -905,6 +905,7 @@ Both are use rules on the same ability, never new abilities.
 - The brain is a pure function, so scenarios are tested in the headless suites, with no view and a seeded random number generator: a player with an ultimate ready at 5 m means a brute holds; the ultimate spent means it dives; a projectile aimed at a caster means `defend`; a dodge only after the reaction delay and never on cooldown; `punish` only after a real whiff; token counts and release; the leash and the pack alert; a boss reset. Each step's list is in Build order.
 - *(proposed)* Two levels: **decision tests** (a hand-built `SituationContext` into `EnemyBrain.decide()`, thousands of seeded runs where a number matters) and **integration tests** (a real enemy and a champion driven by a `ScriptedController` in a test scene, physics frames stepped).
 - The new suite (`enemies_test`) joins the baseline: every suite green after each step, the counts in CHANGELOG.md.
+- *(R0, 2026-10-08)* `brain_golden_test` joins the baseline: the brain's golden recording (19 seeded scenarios compared with `res://scripts/tests/golden/`; `-- --write-golden` rewrites them), its contract (`golden/brain_api.txt`) and a think-time ceiling, the proof that R1's split of `enemy_brain.gd` changes nothing (CHANGELOG.md).
 - TEMP (2026-10-04): a temporary test multiplier on enemy auto attack speed (`AutoAttackComponent.enemy_attack_speed_test_mult`, off by default; DECISIONS.md, Testing), not a rule.
 
 ## Data (Resources)

@@ -1,0 +1,131 @@
+# brain_golden skirmisher: the test skirmisher 170 px off: it stalks 2 s, then his kit goes: the dive, its string, the reset hop
+# seed 20261011, physics 60 Hz (1/60 s a tick), 480 ticks from the enemies' spawn (t=0); rewrite with --write-golden
+# per tick: its events in the order they came (~), then each brain's think; fodder: its ring spot every 6 ticks
+== log
+t=0001 skirmisher ~intent hold
+t=0001 skirmisher ~pose stalk
+t=0001 skirmisher i=hold p=stalk com=0 pat=0.000 tok=- str=0/-1/0 plan=-/-1 m=-1834.7,39.6 c=- s=hold:0.323 r=hold 0.32  patience 0.00  respect 0.32
+t=0002 skirmisher i=hold p=stalk com=0 pat=0.008 tok=- str=0/-1/0 plan=-/-1 m=-1834.7,39.6 c=- s=hold:0.365 r=hold 0.37  patience 0.01  respect 0.32
+t=0008 skirmisher i=hold p=stalk com=0 pat=0.053 tok=- str=0/-1/0 plan=-/-1 m=-1834.7,39.6 c=- s=hold:0.503 r=hold 0.50  patience 0.05  respect 0.32
+t=0014 skirmisher i=hold p=stalk com=0 pat=0.099 tok=- str=0/-1/0 plan=-/-1 m=-1834.7,39.6 c=- s=hold:0.458 r=hold 0.46  patience 0.10  respect 0.32
+t=0020 skirmisher i=hold p=stalk com=0 pat=0.144 tok=- str=0/-1/0 plan=-/-1 m=-1844.0,67.6 c=- s=hold:0.400 r=hold 0.40  patience 0.14  respect 0.32
+t=0026 skirmisher i=hold p=stalk com=0 pat=0.190 tok=- str=0/-1/0 plan=-/-1 m=-1844.0,67.6 c=- s=hold:0.216 r=hold 0.22  patience 0.19  respect 0.32
+t=0032 skirmisher i=hold p=stalk com=0 pat=0.236 tok=- str=0/-1/0 plan=-/-1 m=-1844.0,67.6 c=- s=hold:0.293 r=hold 0.29  patience 0.24  respect 0.32
+t=0038 skirmisher i=hold p=stalk com=0 pat=0.281 tok=- str=0/-1/0 plan=-/-1 m=-1858.1,93.7 c=- s=hold:0.365 r=hold 0.37  patience 0.28  respect 0.32
+t=0044 skirmisher i=hold p=stalk com=0 pat=0.327 tok=- str=0/-1/0 plan=-/-1 m=-1858.1,93.7 c=- s=hold:0.215 r=hold 0.22  patience 0.33  respect 0.32
+t=0050 skirmisher i=hold p=stalk com=0 pat=0.372 tok=- str=0/-1/0 plan=-/-1 m=-1876.6,116.9 c=- s=hold:0.273 r=hold 0.27  patience 0.37  respect 0.32
+t=0056 skirmisher i=hold p=stalk com=0 pat=0.418 tok=- str=0/-1/0 plan=-/-1 m=-1876.6,116.9 c=- s=hold:0.256 r=hold 0.26  patience 0.42  respect 0.32
+t=0062 skirmisher i=hold p=stalk com=0 pat=0.464 tok=- str=0/-1/0 plan=-/-1 m=-1876.6,116.9 c=- s=hold:0.249 r=hold 0.25  patience 0.46  respect 0.32
+t=0068 skirmisher i=hold p=stalk com=0 pat=0.509 tok=- str=0/-1/0 plan=-/-1 m=-1898.7,136.6 c=- s=hold:0.238 r=hold 0.24  patience 0.51  respect 0.32
+t=0074 skirmisher i=hold p=stalk com=0 pat=0.555 tok=- str=0/-1/0 plan=-/-1 m=-1898.7,136.6 c=- s=hold:0.380 r=hold 0.38  patience 0.55  respect 0.32
+t=0080 skirmisher i=hold p=stalk com=0 pat=0.600 tok=- str=0/-1/0 plan=-/-1 m=-1898.7,136.6 c=- s=hold:0.274 r=hold 0.27  patience 0.60  respect 0.32
+t=0086 skirmisher i=hold p=stalk com=0 pat=0.646 tok=- str=0/-1/0 plan=-/-1 m=-1924.0,152.1 c=- s=hold:0.367 r=hold 0.37  patience 0.65  respect 0.32
+t=0092 skirmisher i=hold p=stalk com=0 pat=0.714 tok=- str=0/-1/0 plan=-/-1 m=-1924.0,152.1 c=- s=hold:0.220 r=hold 0.22  patience 0.71  respect 0.32
+t=0098 skirmisher i=hold p=stalk com=0 pat=0.783 tok=- str=0/-1/0 plan=-/-1 m=-1951.6,163.0 c=- s=hold:0.338 r=hold 0.34  patience 0.78  respect 0.32
+t=0104 skirmisher i=hold p=stalk com=0 pat=0.851 tok=- str=0/-1/0 plan=-/-1 m=-1951.6,163.0 c=- s=hold:0.371 r=hold 0.37  patience 0.85  respect 0.32
+t=0110 skirmisher i=hold p=stalk com=0 pat=0.920 tok=- str=0/-1/0 plan=-/-1 m=-1951.6,163.0 c=- s=hold:0.254 r=hold 0.25  patience 0.92  respect 0.32
+t=0116 skirmisher i=hold p=stalk com=0 pat=0.988 tok=- str=0/-1/0 plan=-/-1 m=-1980.6,168.9 c=- s=hold:0.383 r=hold 0.38  patience 0.99  respect 0.32
+t=0122 skirmisher ~intent commit
+t=0122 skirmisher ~pose crouch
+t=0122 skirmisher ~commit start
+t=0122 skirmisher ~token taken
+t=0122 skirmisher i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=q s=commit:0.781,hold:0.302 r=commit 0.78  patience 1.00  respect 0.00
+t=0128 skirmisher i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=q s=commit:0.866,hold:0.270 r=commit 0.87  patience 1.00  respect 0.00
+t=0134 skirmisher i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=q s=commit:0.739,hold:0.340 r=commit 0.74  patience 1.00  respect 0.00
+t=0140 skirmisher ~cast q test_skirmisher_leap
+t=0140 skirmisher ~pose 
+t=0140 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=q s=commit:0.984,hold:0.262 r=commit 0.98  patience 1.00  respect 0.00
+t=0146 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.855,hold:0.340 r=commit 0.85  patience 1.00  respect 0.00
+t=0152 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.495,hold:0.344 r=commit 0.49  patience 1.00  respect 0.00
+t=0158 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.738,hold:0.233 r=commit 0.74  patience 1.00  respect 0.00
+t=0164 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.567,hold:0.339 r=commit 0.57  patience 1.00  respect 0.00
+t=0170 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.790,hold:0.363 r=commit 0.79  patience 1.00  respect 0.00
+t=0176 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.715,hold:0.268 r=commit 0.72  patience 1.00  respect 0.00
+t=0182 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.526,hold:0.351 r=commit 0.53  patience 1.00  respect 0.00
+t=0188 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.845,hold:0.381 r=commit 0.84  patience 1.00  respect 0.00
+t=0194 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.735,hold:0.374 r=commit 0.74  patience 1.00  respect 0.00
+t=0195 skirmisher ~swing 0
+t=0200 skirmisher i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0206 skirmisher i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0212 skirmisher i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0218 skirmisher i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0224 skirmisher i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0230 skirmisher i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0231 skirmisher ~swing 1
+t=0236 skirmisher i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0242 skirmisher i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0248 skirmisher i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0252 skirmisher ~string_end done 2
+t=0253 skirmisher ~intent retreat
+t=0253 skirmisher ~pose recoil
+t=0253 skirmisher ~commit end
+t=0253 skirmisher ~token freed
+t=0253 skirmisher i=retreat p=recoil com=0 pat=0.535 tok=rest str=0/-1/0 plan=-/-1 m=-2000.8,156.4 c=- s=retreat:0.786,hold:0.316 r=retreat 0.79  patience 0.53  respect 0.00
+t=0254 skirmisher i=retreat p=recoil com=0 pat=0.542 tok=rest str=0/-1/0 plan=-/-1 m=-2000.8,156.4 c=- s=retreat:0.913,hold:0.280 r=retreat 0.91  patience 0.54  respect 0.00
+t=0260 skirmisher i=retreat p=recoil com=0 pat=0.584 tok=rest str=0/-1/0 plan=-/-1 m=-2000.8,156.4 c=- s=retreat:0.723,hold:0.236 r=retreat 0.72  patience 0.58  respect 0.00
+t=0266 skirmisher i=retreat p=recoil com=0 pat=0.626 tok=rest str=0/-1/0 plan=-/-1 m=-2000.8,156.4 c=- s=retreat:0.779,hold:0.334 r=retreat 0.78  patience 0.63  respect 0.00
+t=0272 skirmisher i=retreat p=recoil com=0 pat=0.668 tok=rest str=0/-1/0 plan=-/-1 m=-2005.5,156.4 c=- s=retreat:0.900,hold:0.374 r=retreat 0.90  patience 0.67  respect 0.00
+t=0278 skirmisher i=retreat p=recoil com=0 pat=0.710 tok=rest str=0/-1/0 plan=-/-1 m=-2005.5,156.4 c=- s=retreat:0.553,hold:0.220 r=retreat 0.55  patience 0.71  respect 0.00
+t=0284 skirmisher i=retreat p=recoil com=0 pat=0.752 tok=rest str=0/-1/0 plan=-/-1 m=-2005.5,156.4 c=- s=retreat:0.655,hold:0.337 r=retreat 0.66  patience 0.75  respect 0.00
+t=0290 skirmisher i=retreat p=recoil com=0 pat=0.794 tok=rest str=0/-1/0 plan=-/-1 m=-2026.8,154.7 c=- s=retreat:0.502,hold:0.229 r=retreat 0.50  patience 0.79  respect 0.00
+t=0296 skirmisher i=retreat p=recoil com=0 pat=0.836 tok=rest str=0/-1/0 plan=-/-1 m=-2026.8,154.7 c=- s=retreat:0.846,hold:0.235 r=retreat 0.85  patience 0.84  respect 0.00
+t=0302 skirmisher i=retreat p=recoil com=0 pat=0.878 tok=rest str=0/-1/0 plan=-/-1 m=-2051.4,149.2 c=- s=retreat:0.866,hold:0.283 r=retreat 0.87  patience 0.88  respect 0.00
+t=0308 skirmisher i=retreat p=recoil com=0 pat=0.920 tok=rest str=0/-1/0 plan=-/-1 m=-2051.4,149.2 c=- s=retreat:0.845,hold:0.220 r=retreat 0.85  patience 0.92  respect 0.00
+t=0314 skirmisher i=retreat p=recoil com=0 pat=0.962 tok=rest str=0/-1/0 plan=-/-1 m=-2051.4,149.2 c=- s=retreat:0.645,hold:0.376 r=retreat 0.64  patience 0.96  respect 0.00
+t=0320 skirmisher i=retreat p=recoil com=0 pat=1.000 tok=rest str=0/-1/0 plan=-/-1 m=-2078.6,138.4 c=- s=retreat:0.748,hold:0.282 r=retreat 0.75  patience 1.00  respect 0.00
+t=0326 skirmisher i=retreat p=recoil com=0 pat=1.000 tok=rest str=0/-1/0 plan=-/-1 m=-2078.6,138.4 c=- s=retreat:0.815,hold:0.347 r=retreat 0.81  patience 1.00  respect 0.00
+t=0332 skirmisher i=retreat p=recoil com=0 pat=1.000 tok=rest str=0/-1/0 plan=-/-1 m=-2078.6,138.4 c=- s=retreat:0.909,hold:0.211 r=retreat 0.91  patience 1.00  respect 0.00
+t=0338 skirmisher i=retreat p=recoil com=0 pat=1.000 tok=rest str=0/-1/0 plan=-/-1 m=-2031.3,154.0 c=- s=retreat:0.684,hold:0.248 r=retreat 0.68  patience 1.00  respect 0.00
+t=0344 skirmisher ~intent commit
+t=0344 skirmisher ~pose crouch
+t=0344 skirmisher ~commit start
+t=0344 skirmisher ~token taken
+t=0344 skirmisher i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.648,retreat:0.633,hold:0.337 r=commit 0.65  patience 1.00  respect 0.00
+t=0350 skirmisher ~intent retreat
+t=0350 skirmisher ~pose recoil
+t=0350 skirmisher ~commit end
+t=0350 skirmisher ~token freed
+t=0350 skirmisher i=retreat p=recoil com=0 pat=1.000 tok=- str=0/-1/0 plan=-/-1 m=-2010.8,156.2 c=- s=retreat:0.894,commit:0.636,hold:0.324 r=retreat 0.89  patience 1.00  respect 0.00
+t=0356 skirmisher i=retreat p=recoil com=0 pat=1.000 tok=- str=0/-1/0 plan=-/-1 m=-2010.8,156.2 c=- s=retreat:0.979,commit:0.704,hold:0.339 r=retreat 0.98  patience 1.00  respect 0.00
+t=0362 skirmisher i=retreat p=recoil com=0 pat=1.000 tok=- str=0/-1/0 plan=-/-1 m=-2010.8,156.2 c=- s=retreat:0.794,commit:0.740,hold:0.355 r=retreat 0.79  patience 1.00  respect 0.00
+t=0368 skirmisher i=retreat p=recoil com=0 pat=1.000 tok=- str=0/-1/0 plan=-/-1 m=-1981.1,154.9 c=- s=retreat:0.643,commit:0.465,hold:0.335 r=retreat 0.64  patience 1.00  respect 0.00
+t=0374 skirmisher ~intent commit
+t=0374 skirmisher ~pose crouch
+t=0374 skirmisher ~commit start
+t=0374 skirmisher ~token taken
+t=0374 skirmisher i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.604,hold:0.332 r=commit 0.60  patience 1.00  respect 0.00
+t=0380 skirmisher i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.733,hold:0.359 r=commit 0.73  patience 1.00  respect 0.00
+t=0386 skirmisher i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.608,hold:0.365 r=commit 0.61  patience 1.00  respect 0.00
+t=0392 skirmisher ~pose 
+t=0392 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.643,hold:0.282 r=commit 0.64  patience 1.00  respect 0.00
+t=0398 skirmisher i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2003.0,-11.6 c=- s=commit:0.955,hold:0.367 r=commit 0.96  patience 1.00  respect 0.00
+t=0404 skirmisher i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2003.0,-11.6 c=- s=commit:0.706,hold:0.355 r=commit 0.71  patience 1.00  respect 0.00
+t=0410 skirmisher i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2003.0,-11.6 c=- s=commit:0.554,hold:0.352 r=commit 0.55  patience 1.00  respect 0.00
+t=0416 skirmisher ~string_end cut 0
+t=0416 skirmisher ~cast e test_skirmisher_flurry
+t=0416 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2004.3,56.4 c=e s=commit:0.799,hold:0.240 r=commit 0.80  patience 1.00  respect 0.00
+t=0422 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2004.3,56.4 c=- s=commit:0.680,hold:0.259 r=commit 0.68  patience 1.00  respect 0.00
+t=0428 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2004.3,56.4 c=- s=commit:0.825,hold:0.290 r=commit 0.82  patience 1.00  respect 0.00
+t=0434 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2004.3,56.4 c=- s=commit:0.559,hold:0.225 r=commit 0.56  patience 1.00  respect 0.00
+t=0440 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2004.3,56.4 c=- s=commit:0.650,hold:0.315 r=commit 0.65  patience 1.00  respect 0.00
+t=0446 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2004.3,56.4 c=- s=commit:0.802,hold:0.324 r=commit 0.80  patience 1.00  respect 0.00
+t=0452 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2004.3,56.4 c=- s=commit:0.612,hold:0.388 r=commit 0.61  patience 1.00  respect 0.00
+t=0458 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2004.3,56.4 c=- s=commit:0.489,hold:0.280 r=commit 0.49  patience 1.00  respect 0.00
+t=0464 skirmisher i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=-2004.3,56.4 c=- s=commit:0.524,hold:0.214 r=commit 0.52  patience 1.00  respect 0.00
+t=0465 skirmisher ~swing 0
+t=0470 skirmisher i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0476 skirmisher i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+== totals
+casts 2 (t=0140..0416)
+commits_ended 2 (t=0253..0350)
+commits_started 3 (t=0122..0374)
+damage_to_knight 4 (t=0195..0461)
+strings_cut 1 (t=0416..0416)
+strings_done 1 (t=0252..0252)
+strings_started 3 (t=0195..0465)
+swings 3 (t=0195..0465)
+thinks 82 (t=0001..0476)
+tokens_freed 2 (t=0253..0350)
+tokens_taken 3 (t=0122..0374)
+damage_to_knight_total 128.4
+skirmisher thinks 82 strings 3 (last 2 hits) plans 0 [] peels 0 setups 0

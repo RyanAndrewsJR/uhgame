@@ -1620,6 +1620,8 @@ Docs only; no code or tests changed.
 
 ## Enemies AI (ENEMIES_AI.md)
 
+### R0 – The brain's safety net before R1's split (tests only, no gameplay change): 2026-10-08, Built. `brain_golden_test` 144/144: 19 seeded scenarios recorded think by think and compared with `res://scripts/tests/golden/` (each run twice: identical), the mutation check, the 98 names of the contract (`golden/brain_api.txt`), the think-time ceiling; rewrite the golden files with `<godot> --headless --path . res://scenes/tests/brain_golden_test.tscn -- --write-golden`; the other ten suites unchanged (3,951): 4,095/4,095.
+
 ### AI-D3 – Diminishing returns on crowd control: 2026-10-07, Passed (Ryan's play test, 2026-10-07)
 Ryan passed AI-D2 and committed it, then started AI-D3 with the tuning panel's scroll fix folded in (DECISIONS.md, Enemies, 2026-10-07).
 - **Data:**

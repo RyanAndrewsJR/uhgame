@@ -1,0 +1,91 @@
+# brain_golden cornered_caster: the test caster, him on it at t=60 (its blink), then sticking to it t=76-255: the walk away and the cornered stand
+# seed 20261021, physics 60 Hz (1/60 s a tick), 360 ticks from the enemies' spawn (t=0); rewrite with --write-golden
+# per tick: its events in the order they came (~), then each brain's think; fodder: its ring spot every 6 ticks
+== log
+t=0001 caster ~intent poke
+t=0001 caster ~pose hold
+t=0001 caster ~cast q test_caster_bolt
+t=0001 caster i=poke p=hold com=0 pat=0.000 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,0.0 c=q s=poke:0.581,hold:0.354 r=poke 0.58  patience 0.00  respect 0.84
+t=0002 caster ~intent hold
+t=0002 caster i=hold p=hold com=0 pat=0.001 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,0.0 c=- s=hold:0.295 r=hold 0.30  patience 0.00  respect 1.00
+t=0008 caster i=hold p=hold com=0 pat=0.006 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,0.0 c=- s=hold:0.419 r=hold 0.42  patience 0.01  respect 1.00
+t=0014 caster i=hold p=hold com=0 pat=0.011 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,0.0 c=- s=hold:0.477 r=hold 0.48  patience 0.01  respect 1.00
+t=0020 caster i=hold p=hold com=0 pat=0.016 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,0.0 c=- s=hold:0.445 r=hold 0.45  patience 0.02  respect 1.00
+t=0026 caster ~intent poke
+t=0026 caster ~cast w test_caster_lobbed_orb
+t=0026 caster i=poke p=hold com=0 pat=0.020 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-0.0 c=w s=poke:0.708,hold:0.390 r=poke 0.71  patience 0.02  respect 1.00
+t=0032 caster ~intent hold
+t=0032 caster i=hold p=hold com=0 pat=0.024 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-0.0 c=- s=hold:0.289 r=hold 0.29  patience 0.02  respect 1.00
+t=0038 caster i=hold p=hold com=0 pat=0.029 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-0.0 c=- s=hold:0.472 r=hold 0.47  patience 0.03  respect 1.00
+t=0044 caster i=hold p=hold com=0 pat=0.033 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-0.0 c=- s=hold:0.503 r=hold 0.50  patience 0.03  respect 1.00
+t=0050 caster i=hold p=hold com=0 pat=0.037 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-0.0 c=- s=hold:0.505 r=hold 0.51  patience 0.04  respect 1.00
+t=0056 caster i=hold p=hold com=0 pat=0.041 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-0.0 c=- s=hold:0.442 r=hold 0.44  patience 0.04  respect 1.00
+t=0062 caster ~intent escape
+t=0062 caster ~pose step_back
+t=0062 caster i=escape p=step_back com=0 pat=0.046 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-0.0 c=- s=escape:0.614,hold:0.266 r=escape 0.61  patience 0.05  respect 1.00
+t=0068 caster i=escape p=step_back com=0 pat=0.050 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-0.0 c=- s=escape:1.040,hold:0.357 r=escape 1.04  patience 0.05  respect 1.00
+t=0074 caster i=escape p=step_back com=0 pat=0.054 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-0.0 c=- s=escape:0.961,hold:0.281 r=escape 0.96  patience 0.05  respect 1.00
+t=0080 caster i=escape p=step_back com=0 pat=0.058 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-0.0 c=- s=escape:0.780,hold:0.287 r=escape 0.78  patience 0.06  respect 1.00
+t=0086 caster ~cast e test_caster_blink
+t=0086 caster i=escape p=step_back com=0 pat=0.063 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-0.0 c=e s=escape:0.825,hold:0.253 r=escape 0.83  patience 0.06  respect 1.00
+t=0090 caster i=escape p=step_back com=0 pat=0.067 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-0.0 c=- s=escape:0.895,hold:0.335 r=escape 0.89  patience 0.07  respect 1.00
+t=0092 caster i=escape p=step_back com=0 pat=0.069 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-0.0 c=- s=escape:1.061,hold:0.303 r=escape 1.06  patience 0.07  respect 1.00
+t=0098 caster i=escape p=step_back com=0 pat=0.075 tok=- str=0/-1/0 plan=-/-1 m=-1562.0,-0.0 c=- s=escape:0.954,hold:0.337 r=escape 0.95  patience 0.08  respect 1.00
+t=0104 caster i=escape p=step_back com=0 pat=0.082 tok=- str=0/-1/0 plan=-/-1 m=-1562.0,-0.0 c=- s=escape:1.038,hold:0.319 r=escape 1.04  patience 0.08  respect 1.00
+t=0110 caster i=escape p=step_back com=0 pat=0.088 tok=- str=0/-1/0 plan=-/-1 m=-1562.0,-0.0 c=- s=escape:0.830,hold:0.347 r=escape 0.83  patience 0.09  respect 1.00
+t=0116 caster i=escape p=step_back com=0 pat=0.094 tok=- str=0/-1/0 plan=-/-1 m=-1536.4,-0.0 c=- s=escape:0.966,hold:0.322 r=escape 0.97  patience 0.09  respect 1.00
+t=0122 caster i=escape p=step_back com=0 pat=0.101 tok=- str=0/-1/0 plan=-/-1 m=-1536.4,-0.0 c=- s=escape:0.873,hold:0.320 r=escape 0.87  patience 0.10  respect 1.00
+t=0128 caster i=escape p=step_back com=0 pat=0.107 tok=- str=0/-1/0 plan=-/-1 m=-1510.8,-0.0 c=- s=escape:0.921,hold:0.292 r=escape 0.92  patience 0.11  respect 1.00
+t=0134 caster i=escape p=step_back com=0 pat=0.114 tok=- str=0/-1/0 plan=-/-1 m=-1510.8,-0.0 c=- s=escape:1.019,hold:0.353 r=escape 1.02  patience 0.11  respect 1.00
+t=0140 caster i=escape p=step_back com=0 pat=0.120 tok=- str=0/-1/0 plan=-/-1 m=-1510.8,-0.0 c=- s=escape:0.733,hold:0.257 r=escape 0.73  patience 0.12  respect 1.00
+t=0146 caster i=escape p=step_back com=0 pat=0.126 tok=- str=0/-1/0 plan=-/-1 m=-1485.2,-0.0 c=- s=escape:1.064,hold:0.330 r=escape 1.06  patience 0.13  respect 1.00
+t=0152 caster i=escape p=step_back com=0 pat=0.134 tok=- str=0/-1/0 plan=-/-1 m=-1485.2,-0.0 c=- s=escape:0.894,poke:0.561,hold:0.268 r=escape 0.89  patience 0.13  respect 1.00
+t=0158 caster i=escape p=step_back com=0 pat=0.141 tok=- str=0/-1/0 plan=-/-1 m=-1485.2,-0.0 c=- s=escape:0.858,poke:0.684,hold:0.292 r=escape 0.86  patience 0.14  respect 1.00
+t=0164 caster i=escape p=step_back com=0 pat=0.149 tok=- str=0/-1/0 plan=-/-1 m=-1459.6,-0.0 c=- s=escape:0.849,poke:0.701,hold:0.278 r=escape 0.85  patience 0.15  respect 1.00
+t=0170 caster i=escape p=step_back com=0 pat=0.156 tok=- str=0/-1/0 plan=-/-1 m=-1459.6,-0.0 c=- s=escape:1.063,poke:0.654,hold:0.242 r=escape 1.06  patience 0.16  respect 1.00
+t=0176 caster i=escape p=step_back com=0 pat=0.164 tok=- str=0/-1/0 plan=-/-1 m=-1434.0,-0.0 c=- s=escape:0.927,poke:0.478,hold:0.243 r=escape 0.93  patience 0.16  respect 1.00
+t=0182 caster i=escape p=step_back com=0 pat=0.171 tok=- str=0/-1/0 plan=-/-1 m=-1434.0,-0.0 c=- s=escape:0.796,poke:0.493,hold:0.246 r=escape 0.80  patience 0.17  respect 1.00
+t=0188 caster i=escape p=step_back com=0 pat=0.179 tok=- str=0/-1/0 plan=-/-1 m=-1434.0,-0.0 c=- s=escape:0.932,poke:0.504,hold:0.292 r=escape 0.93  patience 0.18  respect 1.00
+t=0194 caster i=escape p=step_back com=0 pat=0.186 tok=- str=0/-1/0 plan=-/-1 m=-1408.4,-0.0 c=- s=escape:0.832,poke:0.521,hold:0.283 r=escape 0.83  patience 0.19  respect 1.00
+t=0200 caster i=escape p=step_back com=0 pat=0.194 tok=- str=0/-1/0 plan=-/-1 m=-1408.4,-0.0 c=- s=escape:1.019,poke:0.699,hold:0.266 r=escape 1.02  patience 0.19  respect 1.00
+t=0206 caster i=escape p=step_back com=0 pat=0.201 tok=- str=0/-1/0 plan=-/-1 m=-1408.4,-0.0 c=- s=escape:0.752,poke:0.593,hold:0.251 r=escape 0.75  patience 0.20  respect 1.00
+t=0211 caster ~pose cornered
+t=0212 caster ~intent poke
+t=0212 caster ~cast q test_caster_bolt
+t=0212 caster i=poke p=cornered com=0 pat=0.209 tok=- str=0/-1/0 plan=-/-1 m=- c=q s=poke:0.477,hold:0.340 r=poke 0.48  patience 0.21  respect 1.00
+t=0218 caster ~intent hold
+t=0218 caster i=hold p=cornered com=0 pat=0.216 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.251 r=hold 0.25  patience 0.22  respect 1.00
+t=0224 caster i=hold p=cornered com=0 pat=0.224 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.480 r=hold 0.48  patience 0.22  respect 1.00
+t=0230 caster i=hold p=cornered com=0 pat=0.231 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.409 r=hold 0.41  patience 0.23  respect 1.00
+t=0236 caster ~windup 0.600
+t=0236 caster i=hold p=cornered com=0 pat=0.238 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.510 r=hold 0.51  patience 0.24  respect 1.00
+t=0242 caster i=hold p=cornered com=0 pat=0.245 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.473 r=hold 0.47  patience 0.24  respect 0.97
+t=0248 caster i=hold p=cornered com=0 pat=0.252 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.247 r=hold 0.25  patience 0.25  respect 0.97
+t=0254 caster i=hold p=cornered com=0 pat=0.258 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.300 r=hold 0.30  patience 0.26  respect 0.97
+t=0260 caster i=hold p=cornered com=0 pat=0.265 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.250 r=hold 0.25  patience 0.27  respect 0.97
+t=0266 caster i=hold p=cornered com=0 pat=0.272 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.239 r=hold 0.24  patience 0.27  respect 0.97
+t=0272 caster i=hold p=cornered com=0 pat=0.279 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.258 r=hold 0.26  patience 0.28  respect 0.97
+t=0278 caster i=hold p=cornered com=0 pat=0.284 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.292 r=hold 0.29  patience 0.28  respect 0.97
+t=0284 caster i=hold p=cornered com=0 pat=0.288 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.272 r=hold 0.27  patience 0.29  respect 0.97
+t=0290 caster i=hold p=cornered com=0 pat=0.293 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.332 r=hold 0.33  patience 0.29  respect 0.97
+t=0296 caster i=hold p=cornered com=0 pat=0.298 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.335 r=hold 0.33  patience 0.30  respect 0.97
+t=0302 caster i=hold p=cornered com=0 pat=0.302 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.276 r=hold 0.28  patience 0.30  respect 0.97
+t=0308 caster i=hold p=cornered com=0 pat=0.307 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.286 r=hold 0.29  patience 0.31  respect 0.97
+t=0314 caster i=hold p=cornered com=0 pat=0.312 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.263 r=hold 0.26  patience 0.31  respect 0.97
+t=0320 caster i=hold p=cornered com=0 pat=0.316 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.268 r=hold 0.27  patience 0.32  respect 0.97
+t=0326 caster i=hold p=cornered com=0 pat=0.321 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.262 r=hold 0.26  patience 0.32  respect 0.97
+t=0332 caster ~intent poke
+t=0332 caster ~cast w test_caster_lobbed_orb
+t=0332 caster i=poke p=cornered com=0 pat=0.325 tok=- str=0/-1/0 plan=-/-1 m=- c=w s=poke:0.690,hold:0.241 r=poke 0.69  patience 0.33  respect 0.97
+t=0338 caster ~intent hold
+t=0338 caster i=hold p=cornered com=0 pat=0.330 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.251 r=hold 0.25  patience 0.33  respect 0.97
+t=0344 caster i=hold p=cornered com=0 pat=0.335 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.438 r=hold 0.44  patience 0.33  respect 0.97
+t=0350 caster i=hold p=cornered com=0 pat=0.339 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.510 r=hold 0.51  patience 0.34  respect 0.97
+t=0356 caster i=hold p=cornered com=0 pat=0.344 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.471 r=hold 0.47  patience 0.34  respect 0.97
+== totals
+casts 5 (t=0001..0332)
+damage_to_knight 2 (t=0241..0272)
+thinks 62 (t=0001..0356)
+windups 1 (t=0236..0236)
+damage_to_knight_total 44.0
+caster thinks 62 strings 0 (last 0 hits) plans 0 [] peels 0 setups 0

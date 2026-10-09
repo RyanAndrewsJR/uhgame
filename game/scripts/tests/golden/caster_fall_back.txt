@@ -1,0 +1,228 @@
+# brain_golden caster_fall_back: a pack of the test brute and the elite caster; the caster at 30% health falls back behind the brute (his kit up)
+# seed 20261013, physics 60 Hz (1/60 s a tick), 420 ticks from the enemies' spawn (t=0); rewrite with --write-golden
+# per tick: its events in the order they came (~), then each brain's think; fodder: its ring spot every 6 ticks
+== log
+t=0001 brute ~intent hold
+t=0001 brute ~pose hold
+t=0001 caster_elite ~intent poke
+t=0001 caster_elite ~pose hold
+t=0001 brute ~pose press
+t=0001 caster_elite ~cast r test_caster_snare
+t=0001 caster_elite ~pose press
+t=0001 brute i=hold p=press com=0 pat=0.000 tok=- str=0/-1/0 plan=-/-1 m=-1834.7,-39.6 c=- s=hold:0.337 r=hold 0.34  patience 0.00  respect 0.35
+t=0001 caster_elite i=poke p=press com=0 pat=0.000 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-80.0 c=r s=poke:0.643,hold:0.258 r=poke 0.64  patience 0.00  respect 0.67
+t=0002 brute i=hold p=press com=0 pat=0.005 tok=- str=0/-1/0 plan=-/-1 m=-1834.7,-39.6 c=- s=hold:0.440 r=hold 0.44  patience 0.01  respect 0.35
+t=0005 caster_elite ~intent hold
+t=0005 caster_elite i=hold p=press com=0 pat=0.005 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-80.0 c=- s=hold:0.332 r=hold 0.33  patience 0.00  respect 0.96
+t=0008 brute i=hold p=press com=0 pat=0.036 tok=- str=0/-1/0 plan=-/-1 m=-1834.7,-39.6 c=- s=hold:0.493 r=hold 0.49  patience 0.04  respect 0.35
+t=0009 caster_elite i=hold p=press com=0 pat=0.009 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-80.0 c=- s=hold:0.438 r=hold 0.44  patience 0.01  respect 0.96
+t=0013 caster_elite i=hold p=press com=0 pat=0.014 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-80.0 c=- s=hold:0.460 r=hold 0.46  patience 0.01  respect 0.96
+t=0014 brute i=hold p=press com=0 pat=0.067 tok=- str=0/-1/0 plan=-/-1 m=-1834.7,-39.6 c=- s=hold:0.486 r=hold 0.49  patience 0.07  respect 0.35
+t=0017 caster_elite i=hold p=press com=0 pat=0.019 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-80.0 c=- s=hold:0.473 r=hold 0.47  patience 0.02  respect 0.96
+t=0020 brute i=hold p=press com=0 pat=0.097 tok=- str=0/-1/0 plan=-/-1 m=-1842.5,-64.1 c=- s=hold:0.423 r=hold 0.42  patience 0.10  respect 0.35
+t=0021 caster_elite i=hold p=press com=0 pat=0.023 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-80.0 c=- s=hold:0.491 r=hold 0.49  patience 0.02  respect 0.96
+t=0025 caster_elite i=hold p=press com=0 pat=0.028 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-80.0 c=- s=hold:0.405 r=hold 0.41  patience 0.03  respect 0.96
+t=0026 brute i=hold p=press com=0 pat=0.128 tok=- str=0/-1/0 plan=-/-1 m=-1842.5,-64.1 c=- s=hold:0.328 r=hold 0.33  patience 0.13  respect 0.35
+t=0029 caster_elite i=hold p=press com=0 pat=0.033 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-80.0 c=- s=hold:0.436 r=hold 0.44  patience 0.03  respect 0.96
+t=0032 brute i=hold p=press com=0 pat=0.159 tok=- str=0/-1/0 plan=-/-1 m=-1842.5,-64.1 c=- s=hold:0.278 r=hold 0.28  patience 0.16  respect 0.35
+t=0033 caster_elite i=hold p=press com=0 pat=0.037 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-80.0 c=- s=hold:0.311 r=hold 0.31  patience 0.04  respect 0.96
+t=0037 caster_elite ~intent poke
+t=0037 caster_elite ~cast q test_caster_bolt
+t=0037 caster_elite i=poke p=press com=0 pat=0.041 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-80.0 c=q s=poke:0.557,hold:0.301 r=poke 0.56  patience 0.04  respect 0.96
+t=0038 brute i=hold p=press com=0 pat=0.189 tok=- str=0/-1/0 plan=-/-1 m=-1854.0,-87.1 c=- s=hold:0.261 r=hold 0.26  patience 0.19  respect 0.35
+t=0041 caster_elite ~intent hold
+t=0041 caster_elite i=hold p=press com=0 pat=0.045 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-80.0 c=- s=hold:0.340 r=hold 0.34  patience 0.05  respect 0.96
+t=0044 brute i=hold p=press com=0 pat=0.220 tok=- str=0/-1/0 plan=-/-1 m=-1854.0,-87.1 c=- s=hold:0.285 r=hold 0.28  patience 0.22  respect 0.35
+t=0045 caster_elite i=hold p=press com=0 pat=0.049 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-80.0 c=- s=hold:0.407 r=hold 0.41  patience 0.05  respect 0.96
+t=0049 caster_elite i=hold p=press com=0 pat=0.053 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-80.0 c=- s=hold:0.432 r=hold 0.43  patience 0.05  respect 0.96
+t=0050 brute i=hold p=press com=0 pat=0.251 tok=- str=0/-1/0 plan=-/-1 m=-1868.9,-108.3 c=- s=hold:0.254 r=hold 0.25  patience 0.25  respect 0.35
+t=0053 caster_elite i=hold p=press com=0 pat=0.057 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-80.0 c=- s=hold:0.455 r=hold 0.46  patience 0.06  respect 0.96
+t=0056 brute i=hold p=press com=0 pat=0.282 tok=- str=0/-1/0 plan=-/-1 m=-1868.9,-108.3 c=- s=hold:0.333 r=hold 0.33  patience 0.28  respect 0.35
+t=0057 caster_elite i=hold p=press com=0 pat=0.061 tok=- str=0/-1/0 plan=-/-1 m=-1770.0,-80.0 c=- s=hold:0.445 r=hold 0.44  patience 0.06  respect 0.96
+t=0061 caster_elite i=hold p=press com=0 pat=0.065 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.486 r=hold 0.49  patience 0.07  respect 0.96
+t=0062 brute i=hold p=press com=0 pat=0.312 tok=- str=0/-1/0 plan=-/-1 m=-1868.9,-108.3 c=- s=hold:0.349 r=hold 0.35  patience 0.31  respect 0.35
+t=0065 caster_elite i=hold p=press com=0 pat=0.069 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.433 r=hold 0.43  patience 0.07  respect 0.96
+t=0068 brute i=hold p=press com=0 pat=0.343 tok=- str=0/-1/0 plan=-/-1 m=-1886.8,-126.9 c=- s=hold:0.329 r=hold 0.33  patience 0.34  respect 0.35
+t=0069 caster_elite i=hold p=press com=0 pat=0.073 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.320 r=hold 0.32  patience 0.07  respect 0.96
+t=0073 caster_elite i=hold p=press com=0 pat=0.077 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.268 r=hold 0.27  patience 0.08  respect 0.96
+t=0074 brute i=hold p=press com=0 pat=0.374 tok=- str=0/-1/0 plan=-/-1 m=-1886.8,-126.9 c=- s=hold:0.257 r=hold 0.26  patience 0.37  respect 0.35
+t=0077 caster_elite i=hold p=press com=0 pat=0.081 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.314 r=hold 0.31  patience 0.08  respect 0.96
+t=0080 brute i=hold p=press com=0 pat=0.405 tok=- str=0/-1/0 plan=-/-1 m=-1886.8,-126.9 c=- s=hold:0.365 r=hold 0.37  patience 0.40  respect 0.35
+t=0081 caster_elite i=hold p=press com=0 pat=0.085 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.307 r=hold 0.31  patience 0.08  respect 0.96
+t=0085 caster_elite i=hold p=press com=0 pat=0.089 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.289 r=hold 0.29  patience 0.09  respect 0.96
+t=0086 brute i=hold p=press com=0 pat=0.435 tok=- str=0/-1/0 plan=-/-1 m=-1907.4,-142.6 c=- s=hold:0.293 r=hold 0.29  patience 0.44  respect 0.35
+t=0089 caster_elite i=hold p=press com=0 pat=0.093 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.278 r=hold 0.28  patience 0.09  respect 0.96
+t=0092 brute ~pose hold
+t=0092 brute i=hold p=hold com=0 pat=0.467 tok=- str=0/-1/0 plan=-/-1 m=-1907.4,-142.6 c=- s=hold:0.327 r=hold 0.33  patience 0.47  respect 0.50
+t=0093 caster_elite ~intent retreat
+t=0093 caster_elite ~pose step_back
+t=0093 caster_elite i=retreat p=step_back com=0 pat=0.097 tok=- str=0/-1/0 plan=-/-1 m=-1857.8,-173.1 c=- s=retreat:0.605,hold:0.306 r=retreat 0.60  patience 0.10  respect 1.00
+t=0097 caster_elite i=retreat p=step_back com=0 pat=0.101 tok=- str=0/-1/0 plan=-/-1 m=-1857.8,-173.1 c=- s=retreat:0.859,hold:0.320 r=retreat 0.86  patience 0.10  respect 1.00
+t=0098 brute i=hold p=hold com=0 pat=0.498 tok=- str=0/-1/0 plan=-/-1 m=-1930.1,-155.0 c=- s=hold:0.268 r=hold 0.27  patience 0.50  respect 0.50
+t=0101 caster_elite i=retreat p=step_back com=0 pat=0.106 tok=- str=0/-1/0 plan=-/-1 m=-1857.8,-173.1 c=- s=retreat:0.860,hold:0.271 r=retreat 0.86  patience 0.11  respect 1.00
+t=0104 brute i=hold p=hold com=0 pat=0.529 tok=- str=0/-1/0 plan=-/-1 m=-1930.1,-155.0 c=- s=hold:0.238 r=hold 0.24  patience 0.53  respect 0.50
+t=0105 caster_elite i=retreat p=step_back com=0 pat=0.110 tok=- str=0/-1/0 plan=-/-1 m=-1857.8,-173.1 c=- s=retreat:0.766,hold:0.338 r=retreat 0.77  patience 0.11  respect 1.00
+t=0109 caster_elite i=retreat p=step_back com=0 pat=0.114 tok=- str=0/-1/0 plan=-/-1 m=-1885.7,-192.7 c=- s=retreat:0.784,hold:0.271 r=retreat 0.78  patience 0.11  respect 1.00
+t=0110 brute i=hold p=hold com=0 pat=0.560 tok=- str=0/-1/0 plan=-/-1 m=-1930.1,-155.0 c=- s=hold:0.351 r=hold 0.35  patience 0.56  respect 0.50
+t=0113 caster_elite i=retreat p=step_back com=0 pat=0.118 tok=- str=0/-1/0 plan=-/-1 m=-1885.7,-192.7 c=- s=retreat:0.746,hold:0.306 r=retreat 0.75  patience 0.12  respect 1.00
+t=0116 brute i=hold p=hold com=0 pat=0.592 tok=- str=0/-1/0 plan=-/-1 m=-1954.4,-163.8 c=- s=hold:0.268 r=hold 0.27  patience 0.59  respect 0.50
+t=0117 caster_elite i=retreat p=step_back com=0 pat=0.123 tok=- str=0/-1/0 plan=-/-1 m=-1885.7,-192.7 c=- s=retreat:0.764,hold:0.316 r=retreat 0.76  patience 0.12  respect 1.00
+t=0121 caster_elite i=retreat p=step_back com=0 pat=0.127 tok=- str=0/-1/0 plan=-/-1 m=-1885.7,-192.7 c=- s=retreat:0.729,hold:0.344 r=retreat 0.73  patience 0.13  respect 1.00
+t=0122 brute i=hold p=hold com=0 pat=0.623 tok=- str=0/-1/0 plan=-/-1 m=-1954.4,-163.8 c=- s=hold:0.360 r=hold 0.36  patience 0.62  respect 0.50
+t=0125 caster_elite i=retreat p=step_back com=0 pat=0.131 tok=- str=0/-1/0 plan=-/-1 m=-1916.2,-207.8 c=- s=retreat:0.801,hold:0.284 r=retreat 0.80  patience 0.13  respect 1.00
+t=0128 brute i=hold p=hold com=0 pat=0.654 tok=- str=0/-1/0 plan=-/-1 m=-1954.4,-163.8 c=- s=hold:0.292 r=hold 0.29  patience 0.65  respect 0.50
+t=0129 caster_elite i=retreat p=step_back com=0 pat=0.135 tok=- str=0/-1/0 plan=-/-1 m=-1916.2,-207.8 c=- s=retreat:0.764,hold:0.269 r=retreat 0.76  patience 0.14  respect 1.00
+t=0133 caster_elite i=retreat p=step_back com=0 pat=0.140 tok=- str=0/-1/0 plan=-/-1 m=-1916.2,-207.8 c=- s=retreat:0.596,hold:0.331 r=retreat 0.60  patience 0.14  respect 1.00
+t=0134 brute i=hold p=hold com=0 pat=0.685 tok=- str=0/-1/0 plan=-/-1 m=-1979.7,-168.8 c=- s=hold:0.344 r=hold 0.34  patience 0.69  respect 0.50
+t=0137 caster_elite i=retreat p=step_back com=0 pat=0.144 tok=- str=0/-1/0 plan=-/-1 m=-1916.2,-207.8 c=- s=retreat:0.786,hold:0.342 r=retreat 0.79  patience 0.14  respect 1.00
+t=0140 brute i=hold p=hold com=0 pat=0.717 tok=- str=0/-1/0 plan=-/-1 m=-1979.7,-168.8 c=- s=hold:0.253 r=hold 0.25  patience 0.72  respect 0.50
+t=0141 caster_elite i=retreat p=step_back com=0 pat=0.148 tok=- str=0/-1/0 plan=-/-1 m=-1948.7,-218.1 c=- s=retreat:0.751,hold:0.301 r=retreat 0.75  patience 0.15  respect 1.00
+t=0145 caster_elite i=retreat p=step_back com=0 pat=0.152 tok=- str=0/-1/0 plan=-/-1 m=-1948.7,-218.1 c=- s=retreat:0.727,hold:0.326 r=retreat 0.73  patience 0.15  respect 1.00
+t=0146 brute i=hold p=hold com=0 pat=0.748 tok=- str=0/-1/0 plan=-/-1 m=-2005.6,-169.9 c=- s=hold:0.350 r=hold 0.35  patience 0.75  respect 0.50
+t=0149 caster_elite i=retreat p=step_back com=0 pat=0.157 tok=- str=0/-1/0 plan=-/-1 m=-1948.7,-218.1 c=- s=retreat:0.804,hold:0.268 r=retreat 0.80  patience 0.16  respect 1.00
+t=0152 brute i=hold p=hold com=0 pat=0.779 tok=- str=0/-1/0 plan=-/-1 m=-2005.6,-169.9 c=- s=hold:0.297 r=hold 0.30  patience 0.78  respect 0.50
+t=0153 caster_elite i=retreat p=step_back com=0 pat=0.161 tok=- str=0/-1/0 plan=-/-1 m=-1948.7,-218.1 c=- s=retreat:0.781,escape:0.694,hold:0.343 r=retreat 0.78  patience 0.16  respect 1.00
+t=0157 caster_elite i=retreat p=step_back com=0 pat=0.165 tok=- str=0/-1/0 plan=-/-1 m=-1982.4,-223.3 c=- s=retreat:0.785,escape:0.692,hold:0.290 r=retreat 0.79  patience 0.17  respect 1.00
+t=0158 brute i=hold p=hold com=0 pat=0.810 tok=- str=0/-1/0 plan=-/-1 m=-2005.6,-169.9 c=- s=hold:0.317 r=hold 0.32  patience 0.81  respect 0.50
+t=0161 caster_elite i=retreat p=step_back com=0 pat=0.169 tok=- str=0/-1/0 plan=-/-1 m=-1982.4,-223.3 c=- s=retreat:0.731,escape:0.722,hold:0.344 r=retreat 0.73  patience 0.17  respect 1.00
+t=0164 brute i=hold p=hold com=0 pat=0.842 tok=- str=0/-1/0 plan=-/-1 m=-2031.3,-167.1 c=- s=hold:0.250 r=hold 0.25  patience 0.84  respect 0.50
+t=0165 caster_elite ~intent escape
+t=0165 caster_elite ~cast e test_caster_blink
+t=0165 caster_elite i=escape p=step_back com=0 pat=0.174 tok=- str=0/-1/0 plan=-/-1 m=-1982.4,-223.3 c=e s=escape:0.843,retreat:0.656,hold:0.268 r=escape 0.84  patience 0.17  respect 1.00
+t=0169 caster_elite i=escape p=step_back com=0 pat=0.178 tok=- str=0/-1/0 plan=-/-1 m=-1982.4,-223.3 c=- s=escape:0.895,retreat:0.601,hold:0.298 r=escape 0.89  patience 0.18  respect 1.00
+t=0170 brute i=hold p=hold com=0 pat=0.873 tok=- str=0/-1/0 plan=-/-1 m=-2031.3,-167.1 c=- s=hold:0.354 r=hold 0.35  patience 0.87  respect 0.50
+t=0173 caster_elite i=escape p=step_back com=0 pat=0.182 tok=- str=0/-1/0 plan=-/-1 m=-1982.4,-223.3 c=- s=escape:0.810,retreat:0.713,hold:0.257 r=escape 0.81  patience 0.18  respect 1.00
+t=0174 caster_elite ~intent retreat
+t=0174 caster_elite i=retreat p=step_back com=0 pat=0.183 tok=- str=0/-1/0 plan=-/-1 m=-2018.6,-223.4 c=- s=retreat:0.602,hold:0.343 r=retreat 0.60  patience 0.18  respect 1.00
+t=0176 brute i=hold p=hold com=0 pat=0.904 tok=- str=0/-1/0 plan=-/-1 m=-2031.3,-167.1 c=- s=hold:0.255 r=hold 0.26  patience 0.90  respect 0.50
+t=0177 caster_elite i=retreat p=step_back com=0 pat=0.186 tok=- str=0/-1/0 plan=-/-1 m=-2018.6,-223.4 c=- s=retreat:0.775,hold:0.314 r=retreat 0.78  patience 0.19  respect 1.00
+t=0181 caster_elite i=retreat p=step_back com=0 pat=0.191 tok=- str=0/-1/0 plan=-/-1 m=-2018.6,-223.4 c=- s=retreat:0.909,hold:0.328 r=retreat 0.91  patience 0.19  respect 1.00
+t=0182 brute i=hold p=hold com=0 pat=0.935 tok=- str=0/-1/0 plan=-/-1 m=-2056.3,-160.4 c=- s=hold:0.267 r=hold 0.27  patience 0.94  respect 0.50
+t=0185 caster_elite i=retreat p=step_back com=0 pat=0.195 tok=- str=0/-1/0 plan=-/-1 m=-2018.6,-223.4 c=- s=retreat:0.938,hold:0.299 r=retreat 0.94  patience 0.19  respect 1.00
+t=0188 brute i=hold p=hold com=0 pat=0.967 tok=- str=0/-1/0 plan=-/-1 m=-2056.3,-160.4 c=- s=hold:0.276 r=hold 0.28  patience 0.97  respect 0.50
+t=0189 caster_elite i=retreat p=step_back com=0 pat=0.199 tok=- str=0/-1/0 plan=-/-1 m=-2018.6,-223.4 c=- s=retreat:0.860,hold:0.297 r=retreat 0.86  patience 0.20  respect 1.00
+t=0193 caster_elite i=retreat p=step_back com=0 pat=0.203 tok=- str=0/-1/0 plan=-/-1 m=-2052.2,-218.0 c=- s=retreat:0.827,hold:0.323 r=retreat 0.83  patience 0.20  respect 1.00
+t=0194 brute i=hold p=hold com=0 pat=0.998 tok=- str=0/-1/0 plan=-/-1 m=-2079.9,-150.0 c=- s=hold:0.294 r=hold 0.29  patience 1.00  respect 0.50
+t=0197 caster_elite i=retreat p=step_back com=0 pat=0.208 tok=- str=0/-1/0 plan=-/-1 m=-2052.2,-218.0 c=- s=retreat:0.952,hold:0.293 r=retreat 0.95  patience 0.21  respect 1.00
+t=0200 brute ~intent commit
+t=0200 brute ~pose crouch
+t=0200 brute ~commit start
+t=0200 brute ~token taken
+t=0200 brute i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=e s=commit:0.764,hold:0.362 r=commit 0.76  patience 1.00  respect 0.50
+t=0201 caster_elite i=retreat p=step_back com=0 pat=0.212 tok=- str=0/-1/0 plan=-/-1 m=-2052.2,-218.0 c=- s=retreat:0.742,hold:0.276 r=retreat 0.74  patience 0.21  respect 1.00
+t=0205 caster_elite i=retreat p=step_back com=0 pat=0.216 tok=- str=0/-1/0 plan=-/-1 m=-2052.2,-218.0 c=- s=retreat:0.742,hold:0.279 r=retreat 0.74  patience 0.22  respect 1.00
+t=0206 brute i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=e s=commit:0.694,hold:0.276 r=commit 0.69  patience 1.00  respect 0.50
+t=0209 caster_elite i=retreat p=step_back com=0 pat=0.220 tok=- str=0/-1/0 plan=-/-1 m=-2070.6,-212.4 c=- s=retreat:0.789,hold:0.329 r=retreat 0.79  patience 0.22  respect 1.00
+t=0212 brute i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=e s=commit:0.665,hold:0.332 r=commit 0.66  patience 1.00  respect 0.50
+t=0213 caster_elite i=retreat p=step_back com=0 pat=0.225 tok=- str=0/-1/0 plan=-/-1 m=-2070.6,-212.4 c=- s=retreat:0.751,hold:0.287 r=retreat 0.75  patience 0.22  respect 1.00
+t=0217 caster_elite ~cast q test_caster_bolt
+t=0217 caster_elite i=retreat p=step_back com=0 pat=0.230 tok=- str=0/-1/0 plan=-/-1 m=-2070.6,-212.4 c=q s=retreat:0.669,poke:0.518,hold:0.271 r=retreat 0.67  patience 0.23  respect 1.00
+t=0218 brute ~cast e test_brute_charge
+t=0218 brute ~pose 
+t=0218 brute i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=e s=commit:0.880,hold:0.359 r=commit 0.88  patience 1.00  respect 0.50
+t=0221 caster_elite i=retreat p=step_back com=0 pat=0.235 tok=- str=0/-1/0 plan=-/-1 m=-2070.6,-212.4 c=- s=retreat:0.642,hold:0.329 r=retreat 0.64  patience 0.23  respect 1.00
+t=0224 brute i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.816,hold:0.317 r=commit 0.82  patience 1.00  respect 0.67
+t=0225 caster_elite i=retreat p=step_back com=0 pat=0.240 tok=- str=0/-1/0 plan=-/-1 m=-2070.6,-212.4 c=- s=retreat:0.713,hold:0.291 r=retreat 0.71  patience 0.24  respect 1.00
+t=0229 caster_elite i=retreat p=step_back com=0 pat=0.245 tok=- str=0/-1/0 plan=-/-1 m=-2070.6,-212.4 c=- s=retreat:0.628,hold:0.337 r=retreat 0.63  patience 0.24  respect 1.00
+t=0230 brute i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.667,hold:0.285 r=commit 0.67  patience 1.00  respect 0.67
+t=0233 caster_elite i=retreat p=step_back com=0 pat=0.250 tok=- str=0/-1/0 plan=-/-1 m=-2070.6,-212.4 c=- s=retreat:0.595,hold:0.327 r=retreat 0.60  patience 0.25  respect 1.00
+t=0236 brute i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.505,hold:0.242 r=commit 0.50  patience 1.00  respect 0.67
+t=0237 caster_elite i=retreat p=step_back com=0 pat=0.255 tok=- str=0/-1/0 plan=-/-1 m=-2070.6,-212.4 c=- s=retreat:0.642,hold:0.326 r=retreat 0.64  patience 0.25  respect 1.00
+t=0241 caster_elite i=retreat p=step_back com=0 pat=0.260 tok=- str=0/-1/0 plan=-/-1 m=-2070.6,-212.4 c=- s=retreat:0.687,hold:0.296 r=retreat 0.69  patience 0.26  respect 1.00
+t=0242 brute i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.640,hold:0.262 r=commit 0.64  patience 1.00  respect 0.67
+t=0245 caster_elite i=retreat p=step_back com=0 pat=0.265 tok=- str=0/-1/0 plan=-/-1 m=-2070.6,-212.4 c=- s=retreat:0.731,hold:0.277 r=retreat 0.73  patience 0.26  respect 1.00
+t=0248 brute i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.743,hold:0.352 r=commit 0.74  patience 1.00  respect 0.67
+t=0249 caster_elite i=retreat p=step_back com=0 pat=0.270 tok=- str=0/-1/0 plan=-/-1 m=-2070.6,-212.4 c=- s=retreat:0.766,hold:0.318 r=retreat 0.77  patience 0.27  respect 1.00
+t=0253 caster_elite i=retreat p=step_back com=0 pat=0.275 tok=- str=0/-1/0 plan=-/-1 m=-2070.6,-212.4 c=- s=retreat:0.633,hold:0.342 r=retreat 0.63  patience 0.27  respect 1.00
+t=0254 brute i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.746,hold:0.279 r=commit 0.75  patience 1.00  respect 0.67
+t=0257 caster_elite i=retreat p=step_back com=0 pat=0.280 tok=- str=0/-1/0 plan=-/-1 m=-2070.6,-212.4 c=- s=retreat:0.636,hold:0.329 r=retreat 0.64  patience 0.28  respect 1.00
+t=0260 brute i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.564,hold:0.360 r=commit 0.56  patience 1.00  respect 0.67
+t=0261 caster_elite i=retreat p=step_back com=0 pat=0.285 tok=- str=0/-1/0 plan=-/-1 m=-2070.6,-212.4 c=- s=retreat:0.615,hold:0.336 r=retreat 0.61  patience 0.28  respect 1.00
+t=0265 caster_elite i=retreat p=step_back com=0 pat=0.290 tok=- str=0/-1/0 plan=-/-1 m=-2070.6,-212.4 c=- s=retreat:0.614,hold:0.261 r=retreat 0.61  patience 0.29  respect 1.00
+t=0266 brute i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.774,hold:0.310 r=commit 0.77  patience 1.00  respect 0.67
+t=0269 caster_elite i=retreat p=step_back com=0 pat=0.295 tok=- str=0/-1/0 plan=-/-1 m=-2070.6,-212.4 c=- s=retreat:0.773,hold:0.298 r=retreat 0.77  patience 0.29  respect 1.00
+t=0272 brute i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.644,hold:0.303 r=commit 0.64  patience 1.00  respect 0.67
+t=0273 caster_elite i=retreat p=step_back com=0 pat=0.300 tok=- str=0/-1/0 plan=-/-1 m=-2070.6,-212.4 c=- s=retreat:0.634,hold:0.269 r=retreat 0.63  patience 0.30  respect 1.00
+t=0277 caster_elite i=retreat p=step_back com=0 pat=0.305 tok=- str=0/-1/0 plan=-/-1 m=-2030.2,-91.0 c=- s=retreat:0.609,hold:0.326 r=retreat 0.61  patience 0.30  respect 1.00
+t=0278 brute i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.733,hold:0.271 r=commit 0.73  patience 1.00  respect 0.67
+t=0281 caster_elite i=retreat p=step_back com=0 pat=0.308 tok=- str=0/-1/0 plan=-/-1 m=-2030.2,-91.0 c=- s=retreat:0.789,hold:0.288 r=retreat 0.79  patience 0.31  respect 1.00
+t=0284 brute i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=w s=commit:0.504,hold:0.364 r=commit 0.50  patience 1.00  respect 0.67
+t=0285 brute ~swing 0
+t=0285 caster_elite i=retreat p=step_back com=0 pat=0.311 tok=- str=0/-1/0 plan=-/-1 m=-2030.2,-91.0 c=- s=retreat:0.706,hold:0.310 r=retreat 0.71  patience 0.31  respect 1.00
+t=0289 caster_elite i=retreat p=step_back com=0 pat=0.315 tok=- str=0/-1/0 plan=-/-1 m=-2030.2,-91.0 c=- s=retreat:0.707,hold:0.343 r=retreat 0.71  patience 0.31  respect 1.00
+t=0290 brute i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0293 caster_elite i=retreat p=step_back com=0 pat=0.318 tok=- str=0/-1/0 plan=-/-1 m=-1966.0,-26.5 c=- s=retreat:0.658,hold:0.302 r=retreat 0.66  patience 0.32  respect 1.00
+t=0296 brute i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0297 caster_elite i=retreat p=step_back com=0 pat=0.321 tok=- str=0/-1/0 plan=-/-1 m=-1966.0,-26.5 c=- s=retreat:0.607,hold:0.290 r=retreat 0.61  patience 0.32  respect 1.00
+t=0301 caster_elite i=retreat p=step_back com=0 pat=0.325 tok=- str=0/-1/0 plan=-/-1 m=-1966.0,-26.5 c=- s=retreat:0.673,hold:0.334 r=retreat 0.67  patience 0.32  respect 1.00
+t=0302 brute i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0305 caster_elite i=retreat p=step_back com=0 pat=0.328 tok=- str=0/-1/0 plan=-/-1 m=-1966.0,-26.5 c=- s=retreat:0.649,hold:0.313 r=retreat 0.65  patience 0.33  respect 1.00
+t=0308 brute i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0309 caster_elite i=retreat p=step_back com=0 pat=0.331 tok=- str=0/-1/0 plan=-/-1 m=-1966.0,-26.5 c=- s=retreat:0.744,hold:0.287 r=retreat 0.74  patience 0.33  respect 1.00
+t=0313 caster_elite i=retreat p=step_back com=0 pat=0.335 tok=- str=0/-1/0 plan=-/-1 m=-1966.0,-26.5 c=- s=retreat:0.805,hold:0.271 r=retreat 0.80  patience 0.33  respect 1.00
+t=0314 brute i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0317 caster_elite i=retreat p=step_back com=0 pat=0.338 tok=- str=0/-1/0 plan=-/-1 m=-1966.0,-26.5 c=- s=retreat:0.622,hold:0.274 r=retreat 0.62  patience 0.34  respect 1.00
+t=0320 brute i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0321 caster_elite i=retreat p=step_back com=0 pat=0.341 tok=- str=0/-1/0 plan=-/-1 m=-1966.0,-26.5 c=- s=retreat:0.596,hold:0.262 r=retreat 0.60  patience 0.34  respect 1.00
+t=0325 caster_elite i=retreat p=step_back com=0 pat=0.345 tok=- str=0/-1/0 plan=-/-1 m=-1966.0,-26.5 c=- s=retreat:0.703,hold:0.285 r=retreat 0.70  patience 0.34  respect 1.00
+t=0326 brute i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0329 caster_elite i=retreat p=step_back com=0 pat=0.348 tok=- str=0/-1/0 plan=-/-1 m=-1966.0,-26.5 c=- s=retreat:0.698,hold:0.299 r=retreat 0.70  patience 0.35  respect 1.00
+t=0332 brute i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0333 caster_elite i=retreat p=step_back com=0 pat=0.351 tok=- str=0/-1/0 plan=-/-1 m=-1966.0,-26.5 c=- s=retreat:0.605,hold:0.275 r=retreat 0.61  patience 0.35  respect 1.00
+t=0337 caster_elite i=retreat p=step_back com=0 pat=0.355 tok=- str=0/-1/0 plan=-/-1 m=-1966.0,-26.5 c=- s=retreat:0.642,hold:0.257 r=retreat 0.64  patience 0.35  respect 1.00
+t=0338 brute i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0341 caster_elite i=retreat p=step_back com=0 pat=0.358 tok=- str=0/-1/0 plan=-/-1 m=-1966.0,-26.5 c=- s=retreat:0.804,hold:0.267 r=retreat 0.80  patience 0.36  respect 1.00
+t=0342 brute ~swing 1
+t=0344 brute i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0345 caster_elite i=retreat p=step_back com=0 pat=0.361 tok=- str=0/-1/0 plan=-/-1 m=-1966.0,-26.5 c=- s=retreat:0.668,hold:0.276 r=retreat 0.67  patience 0.36  respect 1.00
+t=0349 caster_elite ~intent escape
+t=0349 caster_elite i=escape p=step_back com=0 pat=0.365 tok=- str=0/-1/0 plan=-/-1 m=-1906.0,-196.2 c=- s=escape:0.783,retreat:0.639,hold:0.256 r=escape 0.78  patience 0.36  respect 1.00
+t=0350 brute i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0353 caster_elite ~intent retreat
+t=0353 caster_elite i=retreat p=step_back com=0 pat=0.368 tok=- str=0/-1/0 plan=-/-1 m=-1906.0,-196.2 c=- s=retreat:0.752,hold:0.262 r=retreat 0.75  patience 0.37  respect 1.00
+t=0356 brute i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0357 caster_elite i=retreat p=step_back com=0 pat=0.371 tok=- str=0/-1/0 plan=-/-1 m=-1906.0,-196.2 c=- s=retreat:0.813,hold:0.259 r=retreat 0.81  patience 0.37  respect 1.00
+t=0361 caster_elite i=retreat p=step_back com=0 pat=0.375 tok=- str=0/-1/0 plan=-/-1 m=-1906.0,-196.2 c=- s=retreat:0.768,hold:0.321 r=retreat 0.77  patience 0.37  respect 1.00
+t=0362 brute i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0365 caster_elite i=retreat p=step_back com=0 pat=0.378 tok=- str=0/-1/0 plan=-/-1 m=-1968.8,-21.3 c=- s=retreat:0.773,hold:0.316 r=retreat 0.77  patience 0.38  respect 1.00
+t=0368 brute i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0369 caster_elite ~cast q test_caster_bolt
+t=0369 caster_elite i=retreat p=step_back com=0 pat=0.381 tok=- str=0/-1/0 plan=-/-1 m=-1968.8,-21.3 c=q s=retreat:0.825,poke:0.545,hold:0.293 r=retreat 0.83  patience 0.38  respect 1.00
+t=0370 caster_elite i=retreat p=step_back com=0 pat=0.382 tok=- str=0/-1/0 plan=-/-1 m=-1968.8,-21.3 c=- s=retreat:0.776,hold:0.326 r=retreat 0.78  patience 0.38  respect 1.00
+t=0373 caster_elite i=retreat p=step_back com=0 pat=0.385 tok=- str=0/-1/0 plan=-/-1 m=-1968.8,-21.3 c=- s=retreat:0.870,hold:0.330 r=retreat 0.87  patience 0.38  respect 1.00
+t=0374 brute i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0377 caster_elite i=retreat p=step_back com=0 pat=0.388 tok=- str=0/-1/0 plan=-/-1 m=-1968.8,-21.3 c=- s=retreat:0.813,hold:0.308 r=retreat 0.81  patience 0.39  respect 1.00
+t=0380 brute i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0381 caster_elite i=retreat p=step_back com=0 pat=0.391 tok=- str=0/-1/0 plan=-/-1 m=-1968.8,-21.3 c=- s=retreat:0.640,hold:0.305 r=retreat 0.64  patience 0.39  respect 1.00
+t=0385 caster_elite i=retreat p=step_back com=0 pat=0.395 tok=- str=0/-1/0 plan=-/-1 m=-1968.8,-21.3 c=- s=retreat:0.762,hold:0.325 r=retreat 0.76  patience 0.39  respect 1.00
+t=0386 brute i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0389 caster_elite i=retreat p=step_back com=0 pat=0.398 tok=- str=0/-1/0 plan=-/-1 m=-1968.8,-21.3 c=- s=retreat:0.605,hold:0.300 r=retreat 0.61  patience 0.40  respect 1.00
+t=0392 brute i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0393 caster_elite i=retreat p=step_back com=0 pat=0.401 tok=- str=0/-1/0 plan=-/-1 m=-1968.8,-21.3 c=- s=retreat:0.690,hold:0.306 r=retreat 0.69  patience 0.40  respect 1.00
+t=0396 brute ~string_end done 2
+t=0397 brute ~cast w test_brute_cleave_arc
+t=0397 brute i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=w s=commit:0.607,hold:0.360 r=commit 0.61  patience 1.00  respect 0.67
+t=0397 caster_elite i=retreat p=step_back com=0 pat=0.405 tok=- str=0/-1/0 plan=-/-1 m=-1968.8,-21.3 c=- s=retreat:0.760,hold:0.308 r=retreat 0.76  patience 0.40  respect 1.00
+t=0398 brute i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.679,hold:0.277 r=commit 0.68  patience 1.00  respect 0.83
+t=0401 caster_elite i=retreat p=step_back com=0 pat=0.408 tok=- str=0/-1/0 plan=-/-1 m=-1968.8,-21.3 c=- s=retreat:0.736,hold:0.316 r=retreat 0.74  patience 0.41  respect 1.00
+t=0404 brute i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.754,hold:0.314 r=commit 0.75  patience 1.00  respect 0.83
+t=0405 caster_elite i=retreat p=step_back com=0 pat=0.411 tok=- str=0/-1/0 plan=-/-1 m=-1968.9,-21.2 c=- s=retreat:0.678,hold:0.256 r=retreat 0.68  patience 0.41  respect 1.00
+t=0409 caster_elite i=retreat p=step_back com=0 pat=0.415 tok=- str=0/-1/0 plan=-/-1 m=-1968.9,-21.2 c=- s=retreat:0.761,hold:0.293 r=retreat 0.76  patience 0.41  respect 1.00
+t=0410 brute i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.792,hold:0.339 r=commit 0.79  patience 1.00  respect 0.83
+t=0413 caster_elite ~intent escape
+t=0413 caster_elite i=escape p=step_back com=0 pat=0.418 tok=- str=0/-1/0 plan=-/-1 m=-1907.8,-183.2 c=- s=escape:0.767,retreat:0.674,hold:0.258 r=escape 0.77  patience 0.42  respect 1.00
+t=0416 brute i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.631,hold:0.291 r=commit 0.63  patience 1.00  respect 0.83
+t=0417 caster_elite ~intent retreat
+t=0417 caster_elite i=retreat p=step_back com=0 pat=0.421 tok=- str=0/-1/0 plan=-/-1 m=-1907.8,-183.2 c=- s=retreat:0.601,hold:0.313 r=retreat 0.60  patience 0.42  respect 1.00
+== totals
+casts 7 (t=0001..0397)
+commits_started 1 (t=0200..0200)
+damage_to_knight 3 (t=0279..0369)
+strings_done 1 (t=0396..0396)
+strings_started 1 (t=0285..0285)
+swings 2 (t=0285..0342)
+thinks 179 (t=0001..0417)
+tokens_taken 1 (t=0200..0200)
+damage_to_knight_total 102.0
+brute thinks 72 strings 1 (last 2 hits) plans 0 [] peels 0 setups 0
+caster_elite thinks 107 strings 0 (last 0 hits) plans 0 [] peels 0 setups 0

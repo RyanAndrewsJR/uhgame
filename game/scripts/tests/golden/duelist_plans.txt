@@ -1,0 +1,353 @@
+# brain_golden duelist_plans: the test duelist 170 px off: his escapes down 6 s (snare_first), then his whole kit down (its string)
+# seed 20261015, physics 60 Hz (1/60 s a tick), 720 ticks from the enemies' spawn (t=0); rewrite with --write-golden
+# per tick: its events in the order they came (~), then each brain's think; fodder: its ring spot every 6 ticks
+== log
+t=0001 duelist ~intent hold
+t=0001 duelist ~pose hold
+t=0001 duelist i=hold p=hold com=0 pat=0.000 tok=- str=0/-1/0 plan=-/-1 m=-1834.7,-39.6 c=- s=hold:0.295 r=hold 0.29  patience 0.00  respect 0.17
+t=0003 duelist i=hold p=hold com=0 pat=0.014 tok=- str=0/-1/0 plan=-/-1 m=-1834.7,-39.6 c=- s=hold:0.445 r=hold 0.44  patience 0.01  respect 0.17
+t=0005 duelist i=hold p=hold com=0 pat=0.027 tok=- str=0/-1/0 plan=-/-1 m=-1834.7,-39.6 c=- s=hold:0.485 r=hold 0.49  patience 0.03  respect 0.17
+t=0008 duelist i=hold p=hold com=0 pat=0.048 tok=- str=0/-1/0 plan=-/-1 m=-1834.7,-39.6 c=- s=hold:0.428 r=hold 0.43  patience 0.05  respect 0.17
+t=0010 duelist i=hold p=hold com=0 pat=0.061 tok=- str=0/-1/0 plan=-/-1 m=-1834.7,-39.6 c=- s=hold:0.485 r=hold 0.48  patience 0.06  respect 0.17
+t=0012 duelist i=hold p=hold com=0 pat=0.075 tok=- str=0/-1/0 plan=-/-1 m=-1834.7,-39.6 c=- s=hold:0.431 r=hold 0.43  patience 0.07  respect 0.17
+t=0015 duelist i=hold p=hold com=0 pat=0.095 tok=- str=0/-1/0 plan=-/-1 m=-1834.7,-39.6 c=- s=hold:0.467 r=hold 0.47  patience 0.10  respect 0.17
+t=0017 duelist i=hold p=hold com=0 pat=0.109 tok=- str=0/-1/0 plan=-/-1 m=-1843.2,-65.6 c=- s=hold:0.495 r=hold 0.49  patience 0.11  respect 0.17
+t=0020 duelist i=hold p=hold com=0 pat=0.129 tok=- str=0/-1/0 plan=-/-1 m=-1843.2,-65.6 c=- s=hold:0.472 r=hold 0.47  patience 0.13  respect 0.17
+t=0022 duelist i=hold p=hold com=0 pat=0.143 tok=- str=0/-1/0 plan=-/-1 m=-1843.2,-65.6 c=- s=hold:0.437 r=hold 0.44  patience 0.14  respect 0.17
+t=0024 duelist i=hold p=hold com=0 pat=0.157 tok=- str=0/-1/0 plan=-/-1 m=-1843.2,-65.6 c=- s=hold:0.442 r=hold 0.44  patience 0.16  respect 0.17
+t=0027 duelist ~intent commit
+t=0027 duelist ~pose crouch
+t=0027 duelist ~commit start
+t=0027 duelist ~token taken
+t=0027 duelist i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=q s=commit:0.702,hold:0.333 r=commit 0.70  patience 1.00  respect 0.17
+t=0029 duelist i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=q s=commit:0.823,hold:0.261 r=commit 0.82  patience 1.00  respect 0.17
+t=0032 duelist i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=q s=commit:0.865,hold:0.321 r=commit 0.87  patience 1.00  respect 0.17
+t=0034 duelist i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=q s=commit:0.795,hold:0.275 r=commit 0.80  patience 1.00  respect 0.17
+t=0036 duelist i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=q s=commit:0.718,hold:0.342 r=commit 0.72  patience 1.00  respect 0.17
+t=0039 duelist i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=q s=commit:0.851,hold:0.337 r=commit 0.85  patience 1.00  respect 0.17
+t=0041 duelist i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=q s=commit:0.895,hold:0.267 r=commit 0.89  patience 1.00  respect 0.17
+t=0044 duelist i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=q s=commit:0.888,hold:0.331 r=commit 0.89  patience 1.00  respect 0.17
+t=0045 duelist ~cast q test_duelist_snare
+t=0045 duelist ~pose 
+t=0046 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=- s=commit:0.856,hold:0.340 r=commit 0.86  patience 1.00  respect 0.26
+t=0048 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=- s=commit:0.866,hold:0.319 r=commit 0.87  patience 1.00  respect 0.26
+t=0051 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=- s=commit:0.873,hold:0.312 r=commit 0.87  patience 1.00  respect 0.26
+t=0053 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=- s=commit:0.728,hold:0.332 r=commit 0.73  patience 1.00  respect 0.26
+t=0056 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=- s=commit:0.623,hold:0.302 r=commit 0.62  patience 1.00  respect 0.26
+t=0058 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=- s=commit:0.590,hold:0.295 r=commit 0.59  patience 1.00  respect 0.26
+t=0060 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=- s=commit:0.726,hold:0.340 r=commit 0.73  patience 1.00  respect 0.26
+t=0063 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=- s=commit:0.707,hold:0.330 r=commit 0.71  patience 1.00  respect 0.26
+t=0065 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=- s=commit:0.562,hold:0.325 r=commit 0.56  patience 1.00  respect 0.26
+t=0068 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=- s=commit:0.566,hold:0.317 r=commit 0.57  patience 1.00  respect 0.26
+t=0070 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=- s=commit:0.557,hold:0.272 r=commit 0.56  patience 1.00  respect 0.26
+t=0072 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=- s=commit:0.733,hold:0.327 r=commit 0.73  patience 1.00  respect 0.26
+t=0075 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=- s=commit:0.668,hold:0.263 r=commit 0.67  patience 1.00  respect 0.26
+t=0077 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=- s=commit:0.603,hold:0.287 r=commit 0.60  patience 1.00  respect 0.26
+t=0080 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=- s=commit:0.698,hold:0.297 r=commit 0.70  patience 1.00  respect 0.26
+t=0082 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=- s=commit:0.571,hold:0.281 r=commit 0.57  patience 1.00  respect 0.26
+t=0084 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/0 m=- c=- s=commit:0.614,hold:0.272 r=commit 0.61  patience 1.00  respect 0.26
+t=0087 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-2000.0,0.0 c=- s=commit:0.662,hold:0.324 r=commit 0.66  patience 1.00  respect 0.26
+t=0089 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-2000.0,0.0 c=- s=commit:0.617,hold:0.278 r=commit 0.62  patience 1.00  respect 0.26
+t=0092 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-2000.0,0.0 c=- s=commit:0.600,hold:0.304 r=commit 0.60  patience 1.00  respect 0.26
+t=0094 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-2000.0,0.0 c=- s=commit:0.699,hold:0.269 r=commit 0.70  patience 1.00  respect 0.26
+t=0096 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-2000.0,0.0 c=- s=commit:0.580,hold:0.276 r=commit 0.58  patience 1.00  respect 0.26
+t=0099 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-2000.0,0.0 c=- s=commit:0.624,hold:0.279 r=commit 0.62  patience 1.00  respect 0.26
+t=0101 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-1929.1,-19.0 c=- s=commit:0.744,hold:0.306 r=commit 0.74  patience 1.00  respect 0.26
+t=0104 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-1929.1,-19.0 c=- s=commit:0.743,hold:0.311 r=commit 0.74  patience 1.00  respect 0.26
+t=0106 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-1929.1,-19.0 c=- s=commit:0.678,hold:0.303 r=commit 0.68  patience 1.00  respect 0.26
+t=0108 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-1929.1,-19.0 c=- s=commit:0.614,hold:0.295 r=commit 0.61  patience 1.00  respect 0.26
+t=0111 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-1929.1,-19.0 c=- s=commit:0.614,hold:0.339 r=commit 0.61  patience 1.00  respect 0.26
+t=0113 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-1929.1,-19.0 c=- s=commit:0.626,hold:0.304 r=commit 0.63  patience 1.00  respect 0.26
+t=0116 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-1929.1,-19.0 c=- s=commit:0.571,hold:0.273 r=commit 0.57  patience 1.00  respect 0.26
+t=0118 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-1929.1,-19.0 c=- s=commit:0.558,hold:0.314 r=commit 0.56  patience 1.00  respect 0.26
+t=0120 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-1929.1,-19.0 c=- s=commit:0.683,hold:0.316 r=commit 0.68  patience 1.00  respect 0.26
+t=0123 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-1929.1,-19.0 c=- s=commit:0.643,hold:0.270 r=commit 0.64  patience 1.00  respect 0.26
+t=0124 duelist ~cast e test_duelist_strike
+t=0125 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-1929.1,-19.0 c=- s=commit:0.662,hold:0.314 r=commit 0.66  patience 1.00  respect 0.31
+t=0128 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-1929.1,-19.0 c=- s=commit:0.640,hold:0.289 r=commit 0.64  patience 1.00  respect 0.31
+t=0130 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-1929.1,-19.0 c=- s=commit:0.650,hold:0.333 r=commit 0.65  patience 1.00  respect 0.31
+t=0132 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-1929.1,-19.0 c=- s=commit:0.578,hold:0.323 r=commit 0.58  patience 1.00  respect 0.31
+t=0135 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-1929.1,-19.0 c=- s=commit:0.695,hold:0.289 r=commit 0.69  patience 1.00  respect 0.31
+t=0137 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-1929.1,-19.0 c=- s=commit:0.678,hold:0.327 r=commit 0.68  patience 1.00  respect 0.31
+t=0140 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-1929.1,-19.0 c=- s=commit:0.703,hold:0.335 r=commit 0.70  patience 1.00  respect 0.31
+t=0142 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-1929.1,-19.0 c=- s=commit:0.719,hold:0.270 r=commit 0.72  patience 1.00  respect 0.31
+t=0144 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-1929.1,-19.0 c=- s=commit:0.563,hold:0.277 r=commit 0.56  patience 1.00  respect 0.31
+t=0147 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-1929.1,-19.0 c=- s=commit:0.560,hold:0.273 r=commit 0.56  patience 1.00  respect 0.28
+t=0149 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/1 m=-1929.1,-19.0 c=- s=commit:0.734,hold:0.325 r=commit 0.73  patience 1.00  respect 0.31
+t=0151 duelist ~cast r test_duelist_finisher
+t=0152 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/2 m=-1929.1,-19.0 c=- s=commit:0.672,hold:0.331 r=commit 0.67  patience 1.00  respect 0.48
+t=0154 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/2 m=-1929.1,-19.0 c=- s=commit:0.663,hold:0.309 r=commit 0.66  patience 1.00  respect 0.48
+t=0156 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/2 m=-1929.1,-19.0 c=- s=commit:0.633,hold:0.276 r=commit 0.63  patience 1.00  respect 0.48
+t=0159 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/2 m=-1929.1,-19.0 c=- s=commit:0.629,hold:0.333 r=commit 0.63  patience 1.00  respect 0.48
+t=0161 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/2 m=-1929.1,-19.0 c=- s=commit:0.646,hold:0.259 r=commit 0.65  patience 1.00  respect 0.48
+t=0164 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/2 m=-1929.1,-19.0 c=- s=commit:0.740,hold:0.272 r=commit 0.74  patience 1.00  respect 0.48
+t=0166 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/2 m=-1929.1,-19.0 c=- s=commit:0.691,hold:0.304 r=commit 0.69  patience 1.00  respect 0.48
+t=0168 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/2 m=-1929.1,-19.0 c=- s=commit:0.651,hold:0.268 r=commit 0.65  patience 1.00  respect 0.48
+t=0171 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=snare_first/2 m=-1929.1,-19.0 c=- s=commit:0.647,hold:0.327 r=commit 0.65  patience 1.00  respect 0.48
+t=0172 duelist ~intent retreat
+t=0172 duelist ~pose recover
+t=0172 duelist ~commit end
+t=0172 duelist ~token freed
+t=0172 duelist i=retreat p=recover com=0 pat=0.003 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.752,hold:0.320 r=retreat 0.75  patience 0.00  respect 0.48
+t=0173 duelist i=retreat p=recover com=0 pat=0.007 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.943,hold:0.340 r=retreat 0.94  patience 0.01  respect 0.48
+t=0176 duelist i=retreat p=recover com=0 pat=0.017 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.754,hold:0.260 r=retreat 0.75  patience 0.02  respect 0.48
+t=0178 duelist i=retreat p=recover com=0 pat=0.024 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.910,hold:0.318 r=retreat 0.91  patience 0.02  respect 0.48
+t=0180 duelist i=retreat p=recover com=0 pat=0.030 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.792,hold:0.309 r=retreat 0.79  patience 0.03  respect 0.48
+t=0183 duelist i=retreat p=recover com=0 pat=0.040 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.882,hold:0.264 r=retreat 0.88  patience 0.04  respect 0.48
+t=0185 duelist i=retreat p=recover com=0 pat=0.047 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.839,hold:0.306 r=retreat 0.84  patience 0.05  respect 0.48
+t=0188 duelist i=retreat p=recover com=0 pat=0.057 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.777,hold:0.272 r=retreat 0.78  patience 0.06  respect 0.48
+t=0190 duelist i=retreat p=recover com=0 pat=0.064 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.925,hold:0.300 r=retreat 0.92  patience 0.06  respect 0.48
+t=0192 duelist i=retreat p=recover com=0 pat=0.071 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.767,hold:0.302 r=retreat 0.77  patience 0.07  respect 0.48
+t=0195 duelist i=retreat p=recover com=0 pat=0.081 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.906,hold:0.296 r=retreat 0.91  patience 0.08  respect 0.48
+t=0197 duelist i=retreat p=recover com=0 pat=0.088 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.650,hold:0.265 r=retreat 0.65  patience 0.09  respect 0.48
+t=0200 duelist i=retreat p=recover com=0 pat=0.098 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.746,hold:0.256 r=retreat 0.75  patience 0.10  respect 0.48
+t=0202 duelist i=retreat p=recover com=0 pat=0.105 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.692,hold:0.345 r=retreat 0.69  patience 0.10  respect 0.48
+t=0204 duelist i=retreat p=recover com=0 pat=0.111 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.794,hold:0.345 r=retreat 0.79  patience 0.11  respect 0.48
+t=0207 duelist i=retreat p=recover com=0 pat=0.121 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.719,hold:0.344 r=retreat 0.72  patience 0.12  respect 0.48
+t=0209 duelist i=retreat p=recover com=0 pat=0.128 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.788,hold:0.257 r=retreat 0.79  patience 0.13  respect 0.48
+t=0212 duelist i=retreat p=recover com=0 pat=0.138 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.728,hold:0.283 r=retreat 0.73  patience 0.14  respect 0.48
+t=0214 duelist i=retreat p=recover com=0 pat=0.145 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.660,hold:0.329 r=retreat 0.66  patience 0.15  respect 0.48
+t=0216 duelist i=retreat p=recover com=0 pat=0.152 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.689,hold:0.277 r=retreat 0.69  patience 0.15  respect 0.48
+t=0219 duelist i=retreat p=recover com=0 pat=0.162 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.745,hold:0.284 r=retreat 0.74  patience 0.16  respect 0.48
+t=0221 duelist i=retreat p=recover com=0 pat=0.169 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.752,hold:0.301 r=retreat 0.75  patience 0.17  respect 0.48
+t=0224 duelist i=retreat p=recover com=0 pat=0.179 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.716,hold:0.259 r=retreat 0.72  patience 0.18  respect 0.48
+t=0226 duelist i=retreat p=recover com=0 pat=0.186 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.602,hold:0.320 r=retreat 0.60  patience 0.19  respect 0.48
+t=0228 duelist i=retreat p=recover com=0 pat=0.192 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.629,hold:0.325 r=retreat 0.63  patience 0.19  respect 0.48
+t=0231 duelist i=retreat p=recover com=0 pat=0.202 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.692,hold:0.330 r=retreat 0.69  patience 0.20  respect 0.48
+t=0233 duelist i=retreat p=recover com=0 pat=0.209 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.684,hold:0.268 r=retreat 0.68  patience 0.21  respect 0.48
+t=0236 duelist i=retreat p=recover com=0 pat=0.219 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.679,hold:0.282 r=retreat 0.68  patience 0.22  respect 0.48
+t=0238 duelist i=retreat p=recover com=0 pat=0.226 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.767,hold:0.262 r=retreat 0.77  patience 0.23  respect 0.48
+t=0240 duelist i=retreat p=recover com=0 pat=0.233 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.744,hold:0.269 r=retreat 0.74  patience 0.23  respect 0.48
+t=0243 duelist i=retreat p=recover com=0 pat=0.243 tok=rest str=0/-1/0 plan=-/-1 m=- c=- s=retreat:0.767,hold:0.278 r=retreat 0.77  patience 0.24  respect 0.48
+t=0244 duelist ~pose step_back
+t=0245 duelist i=retreat p=step_back com=0 pat=0.250 tok=rest str=0/-1/0 plan=-/-1 m=-1909.6,-65.4 c=- s=retreat:0.650,hold:0.324 r=retreat 0.65  patience 0.25  respect 0.48
+t=0248 duelist i=retreat p=step_back com=0 pat=0.260 tok=rest str=0/-1/0 plan=-/-1 m=-1909.6,-65.4 c=- s=retreat:0.719,hold:0.262 r=retreat 0.72  patience 0.26  respect 0.48
+t=0250 duelist i=retreat p=step_back com=0 pat=0.267 tok=rest str=0/-1/0 plan=-/-1 m=-1909.6,-65.4 c=- s=retreat:0.685,hold:0.271 r=retreat 0.69  patience 0.27  respect 0.48
+t=0252 duelist i=retreat p=step_back com=0 pat=0.273 tok=rest str=0/-1/0 plan=-/-1 m=-1909.6,-65.4 c=- s=retreat:0.663,hold:0.300 r=retreat 0.66  patience 0.27  respect 0.48
+t=0255 duelist i=retreat p=step_back com=0 pat=0.283 tok=rest str=0/-1/0 plan=-/-1 m=-1909.6,-65.4 c=- s=retreat:0.648,hold:0.275 r=retreat 0.65  patience 0.28  respect 0.48
+t=0257 duelist i=retreat p=step_back com=0 pat=0.290 tok=rest str=0/-1/0 plan=-/-1 m=-1909.6,-65.4 c=- s=retreat:0.768,hold:0.302 r=retreat 0.77  patience 0.29  respect 0.48
+t=0260 duelist i=retreat p=step_back com=0 pat=0.300 tok=rest str=0/-1/0 plan=-/-1 m=-1918.3,-81.1 c=- s=retreat:0.596,hold:0.283 r=retreat 0.60  patience 0.30  respect 0.48
+t=0262 duelist i=retreat p=step_back com=0 pat=0.307 tok=- str=0/-1/0 plan=-/-1 m=-1918.3,-81.1 c=- s=retreat:0.777,hold:0.296 r=retreat 0.78  patience 0.31  respect 0.48
+t=0264 duelist i=retreat p=step_back com=0 pat=0.314 tok=- str=0/-1/0 plan=-/-1 m=-1918.3,-81.1 c=- s=retreat:0.666,hold:0.342 r=retreat 0.67  patience 0.31  respect 0.48
+t=0267 duelist i=retreat p=step_back com=0 pat=0.324 tok=- str=0/-1/0 plan=-/-1 m=-1918.3,-81.1 c=- s=retreat:0.599,hold:0.265 r=retreat 0.60  patience 0.32  respect 0.48
+t=0269 duelist i=retreat p=step_back com=0 pat=0.334 tok=- str=0/-1/0 plan=-/-1 m=-1918.3,-81.1 c=- s=retreat:0.595,hold:0.256 r=retreat 0.60  patience 0.33  respect 0.48
+t=0272 duelist i=retreat p=step_back com=0 pat=0.349 tok=- str=0/-1/0 plan=-/-1 m=-1918.3,-81.1 c=- s=retreat:0.794,hold:0.266 r=retreat 0.79  patience 0.35  respect 0.48
+t=0274 duelist i=retreat p=step_back com=0 pat=0.359 tok=- str=0/-1/0 plan=-/-1 m=-1918.3,-81.1 c=- s=retreat:0.724,hold:0.258 r=retreat 0.72  patience 0.36  respect 0.48
+t=0276 duelist i=retreat p=step_back com=0 pat=0.370 tok=- str=0/-1/0 plan=-/-1 m=-1927.7,-94.9 c=- s=retreat:0.653,hold:0.296 r=retreat 0.65  patience 0.37  respect 0.48
+t=0279 duelist i=retreat p=step_back com=0 pat=0.385 tok=- str=0/-1/0 plan=-/-1 m=-1927.7,-94.9 c=- s=retreat:0.665,hold:0.343 r=retreat 0.67  patience 0.38  respect 0.48
+t=0281 duelist i=retreat p=step_back com=0 pat=0.395 tok=- str=0/-1/0 plan=-/-1 m=-1927.7,-94.9 c=- s=retreat:0.632,hold:0.301 r=retreat 0.63  patience 0.39  respect 0.48
+t=0284 duelist i=retreat p=step_back com=0 pat=0.410 tok=- str=0/-1/0 plan=-/-1 m=-1927.7,-94.9 c=- s=retreat:0.685,hold:0.274 r=retreat 0.68  patience 0.41  respect 0.48
+t=0286 duelist i=retreat p=step_back com=0 pat=0.420 tok=- str=0/-1/0 plan=-/-1 m=-1927.7,-94.9 c=- s=retreat:0.757,hold:0.321 r=retreat 0.76  patience 0.42  respect 0.48
+t=0288 duelist i=retreat p=step_back com=0 pat=0.430 tok=- str=0/-1/0 plan=-/-1 m=-1927.7,-94.9 c=- s=retreat:0.805,hold:0.337 r=retreat 0.80  patience 0.43  respect 0.48
+t=0291 duelist i=retreat p=step_back com=0 pat=0.445 tok=- str=0/-1/0 plan=-/-1 m=-1927.7,-94.9 c=- s=retreat:0.773,hold:0.289 r=retreat 0.77  patience 0.45  respect 0.48
+t=0293 duelist ~intent hold
+t=0293 duelist ~pose hold
+t=0293 duelist i=hold p=hold com=0 pat=0.456 tok=- str=0/-1/0 plan=-/-1 m=-1915.2,-75.7 c=- s=hold:0.322 r=hold 0.32  patience 0.46  respect 0.48
+t=0296 duelist i=hold p=hold com=0 pat=0.471 tok=- str=0/-1/0 plan=-/-1 m=-1915.2,-75.7 c=- s=hold:0.479 r=hold 0.48  patience 0.47  respect 0.48
+t=0298 duelist i=hold p=hold com=0 pat=0.481 tok=- str=0/-1/0 plan=-/-1 m=-1915.2,-75.7 c=- s=hold:0.418 r=hold 0.42  patience 0.48  respect 0.48
+t=0300 duelist i=hold p=hold com=0 pat=0.491 tok=- str=0/-1/0 plan=-/-1 m=-1915.2,-75.7 c=- s=hold:0.408 r=hold 0.41  patience 0.49  respect 0.48
+t=0303 duelist i=hold p=hold com=0 pat=0.506 tok=- str=0/-1/0 plan=-/-1 m=-1915.2,-75.7 c=- s=hold:0.459 r=hold 0.46  patience 0.51  respect 0.48
+t=0305 duelist i=hold p=hold com=0 pat=0.516 tok=- str=0/-1/0 plan=-/-1 m=-1915.2,-75.7 c=- s=hold:0.432 r=hold 0.43  patience 0.52  respect 0.48
+t=0308 duelist i=hold p=hold com=0 pat=0.532 tok=- str=0/-1/0 plan=-/-1 m=-1969.6,-90.0 c=- s=hold:0.440 r=hold 0.44  patience 0.53  respect 0.48
+t=0310 duelist i=hold p=hold com=0 pat=0.542 tok=- str=0/-1/0 plan=-/-1 m=-1969.6,-90.0 c=- s=hold:0.413 r=hold 0.41  patience 0.54  respect 0.48
+t=0312 duelist i=hold p=hold com=0 pat=0.552 tok=- str=0/-1/0 plan=-/-1 m=-1969.6,-90.0 c=- s=hold:0.412 r=hold 0.41  patience 0.55  respect 0.48
+t=0315 duelist i=hold p=hold com=0 pat=0.567 tok=- str=0/-1/0 plan=-/-1 m=-1969.6,-90.0 c=- s=hold:0.488 r=hold 0.49  patience 0.57  respect 0.48
+t=0317 duelist i=hold p=hold com=0 pat=0.577 tok=- str=0/-1/0 plan=-/-1 m=-1969.6,-90.0 c=- s=hold:0.481 r=hold 0.48  patience 0.58  respect 0.48
+t=0320 duelist i=hold p=hold com=0 pat=0.592 tok=- str=0/-1/0 plan=-/-1 m=-1969.6,-90.0 c=- s=hold:0.288 r=hold 0.29  patience 0.59  respect 0.48
+t=0322 duelist i=hold p=hold com=0 pat=0.602 tok=- str=0/-1/0 plan=-/-1 m=-1969.6,-90.0 c=- s=hold:0.266 r=hold 0.27  patience 0.60  respect 0.48
+t=0324 duelist i=hold p=hold com=0 pat=0.613 tok=- str=0/-1/0 plan=-/-1 m=-1990.2,-108.1 c=- s=hold:0.298 r=hold 0.30  patience 0.61  respect 0.48
+t=0327 duelist i=hold p=hold com=0 pat=0.628 tok=- str=0/-1/0 plan=-/-1 m=-1990.2,-108.1 c=- s=hold:0.259 r=hold 0.26  patience 0.63  respect 0.48
+t=0329 duelist i=hold p=hold com=0 pat=0.638 tok=- str=0/-1/0 plan=-/-1 m=-1990.2,-108.1 c=- s=hold:0.263 r=hold 0.26  patience 0.64  respect 0.48
+t=0332 duelist i=hold p=hold com=0 pat=0.653 tok=- str=0/-1/0 plan=-/-1 m=-1990.2,-108.1 c=- s=hold:0.320 r=hold 0.32  patience 0.65  respect 0.48
+t=0334 duelist i=hold p=hold com=0 pat=0.663 tok=- str=0/-1/0 plan=-/-1 m=-1990.2,-108.1 c=- s=hold:0.324 r=hold 0.32  patience 0.66  respect 0.48
+t=0336 duelist i=hold p=hold com=0 pat=0.673 tok=- str=0/-1/0 plan=-/-1 m=-1990.2,-108.1 c=- s=hold:0.343 r=hold 0.34  patience 0.67  respect 0.48
+t=0339 duelist i=hold p=hold com=0 pat=0.688 tok=- str=0/-1/0 plan=-/-1 m=-1990.2,-108.1 c=- s=hold:0.335 r=hold 0.34  patience 0.69  respect 0.48
+t=0341 duelist i=hold p=hold com=0 pat=0.699 tok=- str=0/-1/0 plan=-/-1 m=-2013.7,-122.4 c=- s=hold:0.323 r=hold 0.32  patience 0.70  respect 0.48
+t=0344 duelist i=hold p=hold com=0 pat=0.714 tok=- str=0/-1/0 plan=-/-1 m=-2013.7,-122.4 c=- s=hold:0.299 r=hold 0.30  patience 0.71  respect 0.48
+t=0346 duelist i=hold p=hold com=0 pat=0.724 tok=- str=0/-1/0 plan=-/-1 m=-2013.7,-122.4 c=- s=hold:0.315 r=hold 0.31  patience 0.72  respect 0.48
+t=0348 duelist i=hold p=hold com=0 pat=0.734 tok=- str=0/-1/0 plan=-/-1 m=-2013.7,-122.4 c=- s=hold:0.300 r=hold 0.30  patience 0.73  respect 0.48
+t=0351 duelist i=hold p=hold com=0 pat=0.749 tok=- str=0/-1/0 plan=-/-1 m=-2013.7,-122.4 c=- s=hold:0.277 r=hold 0.28  patience 0.75  respect 0.48
+t=0353 duelist i=hold p=hold com=0 pat=0.764 tok=- str=0/-1/0 plan=-/-1 m=-2013.7,-122.4 c=- s=hold:0.267 r=hold 0.27  patience 0.76  respect 0.48
+t=0356 duelist i=hold p=hold com=0 pat=0.787 tok=- str=0/-1/0 plan=-/-1 m=-2039.3,-132.7 c=- s=hold:0.262 r=hold 0.26  patience 0.79  respect 0.48
+t=0358 duelist i=hold p=hold com=0 pat=0.802 tok=- str=0/-1/0 plan=-/-1 m=-2039.3,-132.7 c=- s=hold:0.269 r=hold 0.27  patience 0.80  respect 0.48
+t=0360 duelist i=hold p=hold com=0 pat=0.825 tok=- str=0/-1/0 plan=-/-1 m=-2039.3,-132.7 c=- s=hold:0.312 r=hold 0.31  patience 0.83  respect 0.00
+t=0363 duelist i=hold p=hold com=0 pat=0.860 tok=- str=0/-1/0 plan=-/-1 m=-2039.3,-132.7 c=- s=hold:0.341 r=hold 0.34  patience 0.86  respect 0.00
+t=0365 duelist i=hold p=hold com=0 pat=0.883 tok=- str=0/-1/0 plan=-/-1 m=-2039.3,-132.7 c=- s=hold:0.301 r=hold 0.30  patience 0.88  respect 0.00
+t=0368 duelist i=hold p=hold com=0 pat=0.918 tok=- str=0/-1/0 plan=-/-1 m=-2039.3,-132.7 c=- s=hold:0.324 r=hold 0.32  patience 0.92  respect 0.00
+t=0370 duelist i=hold p=hold com=0 pat=0.942 tok=- str=0/-1/0 plan=-/-1 m=-2039.3,-132.7 c=- s=hold:0.339 r=hold 0.34  patience 0.94  respect 0.00
+t=0372 duelist i=hold p=hold com=0 pat=0.965 tok=- str=0/-1/0 plan=-/-1 m=-2066.2,-138.5 c=- s=hold:0.255 r=hold 0.26  patience 0.97  respect 0.00
+t=0375 duelist ~intent commit
+t=0375 duelist ~pose crouch
+t=0375 duelist ~commit start
+t=0375 duelist ~token taken
+t=0375 duelist i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.747,hold:0.280 r=commit 0.75  patience 1.00  respect 0.00
+t=0377 duelist i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.793,hold:0.342 r=commit 0.79  patience 1.00  respect 0.00
+t=0380 duelist i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.861,hold:0.290 r=commit 0.86  patience 1.00  respect 0.00
+t=0382 duelist i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.731,hold:0.326 r=commit 0.73  patience 1.00  respect 0.00
+t=0384 duelist i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.861,hold:0.327 r=commit 0.86  patience 1.00  respect 0.00
+t=0387 duelist i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.885,hold:0.266 r=commit 0.89  patience 1.00  respect 0.00
+t=0389 duelist i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.730,hold:0.305 r=commit 0.73  patience 1.00  respect 0.00
+t=0392 duelist i=commit p=crouch com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- c=- s=commit:0.730,hold:0.275 r=commit 0.73  patience 1.00  respect 0.00
+t=0393 duelist ~pose 
+t=0394 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2087.0,23.4 c=- s=commit:0.739,hold:0.323 r=commit 0.74  patience 1.00  respect 0.00
+t=0396 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2087.0,23.4 c=- s=commit:0.706,hold:0.255 r=commit 0.71  patience 1.00  respect 0.00
+t=0399 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2087.0,23.4 c=- s=commit:0.808,hold:0.325 r=commit 0.81  patience 1.00  respect 0.00
+t=0401 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2087.0,23.4 c=- s=commit:0.698,hold:0.261 r=commit 0.70  patience 1.00  respect 0.00
+t=0404 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2087.0,23.4 c=- s=commit:0.584,hold:0.311 r=commit 0.58  patience 1.00  respect 0.00
+t=0406 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2087.0,23.4 c=- s=commit:0.700,hold:0.303 r=commit 0.70  patience 1.00  respect 0.00
+t=0408 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2062.4,-45.8 c=- s=commit:0.680,hold:0.322 r=commit 0.68  patience 1.00  respect 0.00
+t=0411 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2062.4,-45.8 c=- s=commit:0.703,hold:0.307 r=commit 0.70  patience 1.00  respect 0.00
+t=0413 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2062.4,-45.8 c=- s=commit:0.598,hold:0.285 r=commit 0.60  patience 1.00  respect 0.00
+t=0416 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2062.4,-45.8 c=- s=commit:0.611,hold:0.314 r=commit 0.61  patience 1.00  respect 0.00
+t=0418 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2062.4,-45.8 c=- s=commit:0.615,hold:0.277 r=commit 0.62  patience 1.00  respect 0.00
+t=0420 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2062.4,-45.8 c=- s=commit:0.584,hold:0.336 r=commit 0.58  patience 1.00  respect 0.00
+t=0423 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2062.4,-45.8 c=- s=commit:0.685,hold:0.321 r=commit 0.68  patience 1.00  respect 0.00
+t=0425 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2062.4,-45.8 c=- s=commit:0.608,hold:0.266 r=commit 0.61  patience 1.00  respect 0.00
+t=0428 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2062.4,-45.8 c=- s=commit:0.718,hold:0.289 r=commit 0.72  patience 1.00  respect 0.00
+t=0430 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2062.4,-45.8 c=- s=commit:0.641,hold:0.315 r=commit 0.64  patience 1.00  respect 0.00
+t=0432 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2062.4,-45.8 c=- s=commit:0.557,hold:0.341 r=commit 0.56  patience 1.00  respect 0.00
+t=0435 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2062.4,-45.8 c=- s=commit:0.721,hold:0.297 r=commit 0.72  patience 1.00  respect 0.00
+t=0437 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2062.4,-45.8 c=- s=commit:0.555,hold:0.336 r=commit 0.55  patience 1.00  respect 0.00
+t=0440 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/0 plan=-/-1 m=-2062.4,-45.8 c=- s=commit:0.569,hold:0.324 r=commit 0.57  patience 1.00  respect 0.00
+t=0442 duelist ~swing 0
+t=0442 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- c=- s=commit:0.603,hold:0.278 r=commit 0.60  patience 1.00  respect 0.00
+t=0444 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0447 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0449 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0452 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0454 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0456 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0459 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0461 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0464 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0466 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0468 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0471 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0473 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0476 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0478 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0480 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0483 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/1 plan=-/-1 m=- d=same
+t=0484 duelist ~swing 1
+t=0485 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0488 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0490 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0492 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0495 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0497 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0500 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0502 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0504 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0507 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0509 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0512 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/2 plan=-/-1 m=- d=same
+t=0514 duelist ~swing 2
+t=0514 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/3 plan=-/-1 m=- d=same
+t=0516 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/3 plan=-/-1 m=- d=same
+t=0519 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/3 plan=-/-1 m=- d=same
+t=0521 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/3 plan=-/-1 m=- d=same
+t=0524 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/3 plan=-/-1 m=- d=same
+t=0526 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/3 plan=-/-1 m=- d=same
+t=0528 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/3 plan=-/-1 m=- d=same
+t=0531 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/3 plan=-/-1 m=- d=same
+t=0533 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/3 plan=-/-1 m=- d=same
+t=0536 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/3 plan=-/-1 m=- d=same
+t=0538 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/3 plan=-/-1 m=- d=same
+t=0540 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/3 plan=-/-1 m=- d=same
+t=0543 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/3 plan=-/-1 m=- d=same
+t=0544 duelist ~swing 3
+t=0545 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/4 plan=-/-1 m=- d=same
+t=0548 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/4 plan=-/-1 m=- d=same
+t=0550 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/4 plan=-/-1 m=- d=same
+t=0552 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/4 plan=-/-1 m=- d=same
+t=0555 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/4 plan=-/-1 m=- d=same
+t=0557 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/4 plan=-/-1 m=- d=same
+t=0560 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/4 plan=-/-1 m=- d=same
+t=0562 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/4 plan=-/-1 m=- d=same
+t=0564 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/4 plan=-/-1 m=- d=same
+t=0567 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/4 plan=-/-1 m=- d=same
+t=0569 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/4 plan=-/-1 m=- d=same
+t=0572 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/4 plan=-/-1 m=- d=same
+t=0574 duelist ~swing 4
+t=0574 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/5 plan=-/-1 m=- d=same
+t=0576 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/5 plan=-/-1 m=- d=same
+t=0579 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/5 plan=-/-1 m=- d=same
+t=0581 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/5 plan=-/-1 m=- d=same
+t=0584 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/5 plan=-/-1 m=- d=same
+t=0586 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/5 plan=-/-1 m=- d=same
+t=0588 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/5 plan=-/-1 m=- d=same
+t=0591 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/5 plan=-/-1 m=- d=same
+t=0593 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/5 plan=-/-1 m=- d=same
+t=0596 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/5 plan=-/-1 m=- d=same
+t=0598 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/5 plan=-/-1 m=- d=same
+t=0600 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/5 plan=-/-1 m=- d=same
+t=0603 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/5 plan=-/-1 m=- d=same
+t=0604 duelist ~swing 5
+t=0605 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/6 plan=-/-1 m=- d=same
+t=0608 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/6 plan=-/-1 m=- d=same
+t=0610 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/6 plan=-/-1 m=- d=same
+t=0612 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/6 plan=-/-1 m=- d=same
+t=0615 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/6 plan=-/-1 m=- d=same
+t=0617 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/6 plan=-/-1 m=- d=same
+t=0620 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/6 plan=-/-1 m=- d=same
+t=0622 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/6 plan=-/-1 m=- d=same
+t=0624 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/6 plan=-/-1 m=- d=same
+t=0627 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/6 plan=-/-1 m=- d=same
+t=0629 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/6 plan=-/-1 m=- d=same
+t=0632 duelist i=commit p= com=1 pat=1.000 tok=held str=1/-1/6 plan=-/-1 m=- d=same
+t=0634 duelist ~string_end done 6
+t=0634 duelist i=commit p= com=1 pat=1.000 tok=held str=0/-1/0 plan=-/-1 m=- d=same
+t=0635 duelist ~intent hold
+t=0635 duelist ~pose hold
+t=0635 duelist ~commit end
+t=0635 duelist ~token freed
+t=0635 duelist i=hold p=hold com=0 pat=0.008 tok=rest str=0/-1/0 plan=-/-1 m=-2094.1,-73.9 c=- s=hold:0.302 r=hold 0.30  patience 0.01  respect 0.00
+t=0636 duelist i=hold p=hold com=0 pat=0.016 tok=rest str=0/-1/0 plan=-/-1 m=-2094.1,-73.9 c=- s=hold:0.448 r=hold 0.45  patience 0.02  respect 0.00
+t=0639 duelist i=hold p=hold com=0 pat=0.039 tok=rest str=0/-1/0 plan=-/-1 m=-2094.1,-73.9 c=- s=hold:0.484 r=hold 0.48  patience 0.04  respect 0.00
+t=0641 duelist i=hold p=hold com=0 pat=0.054 tok=rest str=0/-1/0 plan=-/-1 m=-2094.1,-73.9 c=- s=hold:0.481 r=hold 0.48  patience 0.05  respect 0.00
+t=0644 duelist i=hold p=hold com=0 pat=0.078 tok=rest str=0/-1/0 plan=-/-1 m=-2094.1,-73.9 c=- s=hold:0.425 r=hold 0.42  patience 0.08  respect 0.00
+t=0646 duelist i=hold p=hold com=0 pat=0.093 tok=rest str=0/-1/0 plan=-/-1 m=-2094.1,-73.9 c=- s=hold:0.472 r=hold 0.47  patience 0.09  respect 0.00
+t=0648 duelist i=hold p=hold com=0 pat=0.109 tok=rest str=0/-1/0 plan=-/-1 m=-2094.1,-73.9 c=- s=hold:0.448 r=hold 0.45  patience 0.11  respect 0.00
+t=0651 duelist i=hold p=hold com=0 pat=0.132 tok=rest str=0/-1/0 plan=-/-1 m=-2114.3,-74.1 c=- s=hold:0.495 r=hold 0.49  patience 0.13  respect 0.00
+t=0653 duelist i=hold p=hold com=0 pat=0.148 tok=rest str=0/-1/0 plan=-/-1 m=-2114.3,-74.1 c=- s=hold:0.458 r=hold 0.46  patience 0.15  respect 0.00
+t=0656 duelist i=hold p=hold com=0 pat=0.171 tok=rest str=0/-1/0 plan=-/-1 m=-2114.3,-74.1 c=- s=hold:0.429 r=hold 0.43  patience 0.17  respect 0.00
+t=0658 duelist i=hold p=hold com=0 pat=0.187 tok=rest str=0/-1/0 plan=-/-1 m=-2114.3,-74.1 c=- s=hold:0.419 r=hold 0.42  patience 0.19  respect 0.00
+t=0660 duelist i=hold p=hold com=0 pat=0.202 tok=rest str=0/-1/0 plan=-/-1 m=-2114.3,-74.1 c=- s=hold:0.315 r=hold 0.31  patience 0.20  respect 0.00
+t=0663 duelist i=hold p=hold com=0 pat=0.226 tok=rest str=0/-1/0 plan=-/-1 m=-2114.3,-74.1 c=- s=hold:0.283 r=hold 0.28  patience 0.23  respect 0.00
+t=0665 duelist i=hold p=hold com=0 pat=0.241 tok=rest str=0/-1/0 plan=-/-1 m=-2114.3,-74.1 c=- s=hold:0.331 r=hold 0.33  patience 0.24  respect 0.00
+t=0668 duelist i=hold p=hold com=0 pat=0.264 tok=rest str=0/-1/0 plan=-/-1 m=-2135.4,-71.4 c=- s=hold:0.336 r=hold 0.34  patience 0.26  respect 0.00
+t=0670 duelist i=hold p=hold com=0 pat=0.280 tok=rest str=0/-1/0 plan=-/-1 m=-2135.4,-71.4 c=- s=hold:0.284 r=hold 0.28  patience 0.28  respect 0.00
+t=0672 duelist i=hold p=hold com=0 pat=0.296 tok=rest str=0/-1/0 plan=-/-1 m=-2135.4,-71.4 c=- s=hold:0.291 r=hold 0.29  patience 0.30  respect 0.00
+t=0675 duelist i=hold p=hold com=0 pat=0.319 tok=rest str=0/-1/0 plan=-/-1 m=-2135.4,-71.4 c=- s=hold:0.297 r=hold 0.30  patience 0.32  respect 0.00
+t=0677 duelist i=hold p=hold com=0 pat=0.334 tok=rest str=0/-1/0 plan=-/-1 m=-2135.4,-71.4 c=- s=hold:0.291 r=hold 0.29  patience 0.33  respect 0.00
+t=0680 duelist i=hold p=hold com=0 pat=0.358 tok=rest str=0/-1/0 plan=-/-1 m=-2135.4,-71.4 c=- s=hold:0.339 r=hold 0.34  patience 0.36  respect 0.00
+t=0682 duelist i=hold p=hold com=0 pat=0.373 tok=rest str=0/-1/0 plan=-/-1 m=-2135.4,-71.4 c=- s=hold:0.262 r=hold 0.26  patience 0.37  respect 0.00
+t=0684 duelist i=hold p=hold com=0 pat=0.389 tok=rest str=0/-1/0 plan=-/-1 m=-2159.0,-64.7 c=- s=hold:0.290 r=hold 0.29  patience 0.39  respect 0.00
+t=0687 duelist i=hold p=hold com=0 pat=0.412 tok=rest str=0/-1/0 plan=-/-1 m=-2159.0,-64.7 c=- s=hold:0.299 r=hold 0.30  patience 0.41  respect 0.00
+t=0689 duelist i=hold p=hold com=0 pat=0.428 tok=rest str=0/-1/0 plan=-/-1 m=-2159.0,-64.7 c=- s=hold:0.295 r=hold 0.30  patience 0.43  respect 0.00
+t=0692 duelist i=hold p=hold com=0 pat=0.451 tok=rest str=0/-1/0 plan=-/-1 m=-2159.0,-64.7 c=- s=hold:0.292 r=hold 0.29  patience 0.45  respect 0.00
+t=0694 duelist i=hold p=hold com=0 pat=0.467 tok=rest str=0/-1/0 plan=-/-1 m=-2159.0,-64.7 c=- s=hold:0.324 r=hold 0.32  patience 0.47  respect 0.00
+t=0696 duelist i=hold p=hold com=0 pat=0.482 tok=rest str=0/-1/0 plan=-/-1 m=-2159.0,-64.7 c=- s=hold:0.336 r=hold 0.34  patience 0.48  respect 0.00
+t=0699 duelist i=hold p=hold com=0 pat=0.506 tok=rest str=0/-1/0 plan=-/-1 m=-2107.7,-74.3 c=- s=hold:0.258 r=hold 0.26  patience 0.51  respect 0.00
+t=0701 duelist i=hold p=hold com=0 pat=0.521 tok=rest str=0/-1/0 plan=-/-1 m=-2107.7,-74.3 c=- s=hold:0.337 r=hold 0.34  patience 0.52  respect 0.00
+t=0704 duelist i=hold p=hold com=0 pat=0.544 tok=rest str=0/-1/0 plan=-/-1 m=-2107.7,-74.3 c=- s=hold:0.274 r=hold 0.27  patience 0.54  respect 0.00
+t=0706 duelist i=hold p=hold com=0 pat=0.560 tok=rest str=0/-1/0 plan=-/-1 m=-2107.7,-74.3 c=- s=hold:0.331 r=hold 0.33  patience 0.56  respect 0.00
+t=0708 duelist i=hold p=hold com=0 pat=0.576 tok=rest str=0/-1/0 plan=-/-1 m=-2107.7,-74.3 c=- s=hold:0.280 r=hold 0.28  patience 0.58  respect 0.00
+t=0711 duelist i=hold p=hold com=0 pat=0.599 tok=rest str=0/-1/0 plan=-/-1 m=-2107.7,-74.3 c=- s=hold:0.316 r=hold 0.32  patience 0.60  respect 0.00
+t=0713 duelist i=hold p=hold com=0 pat=0.614 tok=rest str=0/-1/0 plan=-/-1 m=-2107.7,-74.3 c=- s=hold:0.269 r=hold 0.27  patience 0.61  respect 0.00
+t=0716 duelist i=hold p=hold com=0 pat=0.638 tok=rest str=0/-1/0 plan=-/-1 m=-2079.8,-72.0 c=- s=hold:0.293 r=hold 0.29  patience 0.64  respect 0.00
+t=0718 duelist i=hold p=hold com=0 pat=0.653 tok=rest str=0/-1/0 plan=-/-1 m=-2079.8,-72.0 c=- s=hold:0.307 r=hold 0.31  patience 0.65  respect 0.00
+t=0720 duelist i=hold p=hold com=0 pat=0.677 tok=rest str=0/-1/0 plan=-/-1 m=-2079.8,-72.0 c=- s=hold:0.258 r=hold 0.26  patience 0.68  respect 0.00
+== totals
+casts 3 (t=0045..0151)
+commits_ended 2 (t=0172..0635)
+commits_started 2 (t=0027..0375)
+damage_to_knight 9 (t=0123..0622)
+strings_done 1 (t=0634..0634)
+strings_started 1 (t=0394..0394)
+swings 6 (t=0442..0604)
+thinks 303 (t=0001..0720)
+tokens_freed 2 (t=0172..0635)
+tokens_taken 2 (t=0027..0375)
+damage_to_knight_total 506.2
+duelist thinks 303 strings 1 (last 6 hits) plans 1 [done 1] peels 0 setups 1

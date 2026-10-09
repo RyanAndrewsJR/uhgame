@@ -1,0 +1,144 @@
+# brain_golden elite_caster: the elite test caster 220 px off, his kit ready: its snare and its bolts (pokes)
+# seed 20261014, physics 60 Hz (1/60 s a tick), 480 ticks from the enemies' spawn (t=0); rewrite with --write-golden
+# per tick: its events in the order they came (~), then each brain's think; fodder: its ring spot every 6 ticks
+== log
+t=0001 caster_elite ~intent poke
+t=0001 caster_elite ~pose hold
+t=0001 caster_elite ~cast r test_caster_snare
+t=0001 caster_elite i=poke p=hold com=0 pat=0.000 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=r s=poke:0.583,hold:0.277 r=poke 0.58  patience 0.00  respect 0.68
+t=0004 caster_elite ~intent hold
+t=0004 caster_elite i=hold p=hold com=0 pat=0.003 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.326 r=hold 0.33  patience 0.00  respect 0.97
+t=0008 caster_elite i=hold p=hold com=0 pat=0.006 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.449 r=hold 0.45  patience 0.01  respect 0.97
+t=0012 caster_elite i=hold p=hold com=0 pat=0.010 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.417 r=hold 0.42  patience 0.01  respect 0.97
+t=0016 caster_elite i=hold p=hold com=0 pat=0.014 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.426 r=hold 0.43  patience 0.01  respect 0.97
+t=0020 caster_elite i=hold p=hold com=0 pat=0.017 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.488 r=hold 0.49  patience 0.02  respect 0.97
+t=0024 caster_elite i=hold p=hold com=0 pat=0.021 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.422 r=hold 0.42  patience 0.02  respect 0.97
+t=0028 caster_elite i=hold p=hold com=0 pat=0.024 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.457 r=hold 0.46  patience 0.02  respect 0.97
+t=0032 caster_elite i=hold p=hold com=0 pat=0.028 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.278 r=hold 0.28  patience 0.03  respect 0.97
+t=0036 caster_elite i=hold p=hold com=0 pat=0.032 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.272 r=hold 0.27  patience 0.03  respect 0.97
+t=0040 caster_elite ~intent poke
+t=0040 caster_elite ~cast q test_caster_bolt
+t=0040 caster_elite i=poke p=hold com=0 pat=0.035 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=q s=poke:0.669,hold:0.308 r=poke 0.67  patience 0.03  respect 0.97
+t=0044 caster_elite ~intent hold
+t=0044 caster_elite i=hold p=hold com=0 pat=0.038 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.265 r=hold 0.26  patience 0.04  respect 0.97
+t=0048 caster_elite i=hold p=hold com=0 pat=0.041 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.469 r=hold 0.47  patience 0.04  respect 0.97
+t=0052 caster_elite i=hold p=hold com=0 pat=0.044 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.433 r=hold 0.43  patience 0.04  respect 0.97
+t=0056 caster_elite i=hold p=hold com=0 pat=0.047 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.449 r=hold 0.45  patience 0.05  respect 0.97
+t=0060 caster_elite i=hold p=hold com=0 pat=0.050 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.405 r=hold 0.41  patience 0.05  respect 0.97
+t=0064 caster_elite i=hold p=hold com=0 pat=0.053 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.479 r=hold 0.48  patience 0.05  respect 0.97
+t=0068 caster_elite i=hold p=hold com=0 pat=0.056 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.491 r=hold 0.49  patience 0.06  respect 0.97
+t=0072 caster_elite i=hold p=hold com=0 pat=0.059 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.266 r=hold 0.27  patience 0.06  respect 0.97
+t=0076 caster_elite i=hold p=hold com=0 pat=0.062 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.296 r=hold 0.30  patience 0.06  respect 0.97
+t=0080 caster_elite i=hold p=hold com=0 pat=0.066 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.324 r=hold 0.32  patience 0.07  respect 0.97
+t=0084 caster_elite i=hold p=hold com=0 pat=0.069 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.343 r=hold 0.34  patience 0.07  respect 0.97
+t=0088 caster_elite i=hold p=hold com=0 pat=0.072 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.318 r=hold 0.32  patience 0.07  respect 0.97
+t=0092 caster_elite i=hold p=hold com=0 pat=0.076 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.284 r=hold 0.28  patience 0.08  respect 0.97
+t=0096 caster_elite i=hold p=hold com=0 pat=0.081 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.310 r=hold 0.31  patience 0.08  respect 0.97
+t=0100 caster_elite i=hold p=hold com=0 pat=0.085 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.264 r=hold 0.26  patience 0.09  respect 0.97
+t=0104 caster_elite i=hold p=hold com=0 pat=0.090 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.305 r=hold 0.30  patience 0.09  respect 0.97
+t=0108 caster_elite i=hold p=hold com=0 pat=0.095 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.291 r=hold 0.29  patience 0.09  respect 0.97
+t=0112 caster_elite i=hold p=hold com=0 pat=0.099 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.312 r=hold 0.31  patience 0.10  respect 0.97
+t=0116 caster_elite i=hold p=hold com=0 pat=0.104 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.269 r=hold 0.27  patience 0.10  respect 0.97
+t=0120 caster_elite i=hold p=hold com=0 pat=0.109 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.305 r=hold 0.31  patience 0.11  respect 0.97
+t=0124 caster_elite i=hold p=hold com=0 pat=0.113 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.336 r=hold 0.34  patience 0.11  respect 0.97
+t=0128 caster_elite i=hold p=hold com=0 pat=0.118 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.284 r=hold 0.28  patience 0.12  respect 0.97
+t=0132 caster_elite i=hold p=hold com=0 pat=0.122 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.326 r=hold 0.33  patience 0.12  respect 0.97
+t=0136 caster_elite i=hold p=hold com=0 pat=0.127 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.309 r=hold 0.31  patience 0.13  respect 0.97
+t=0140 caster_elite i=hold p=hold com=0 pat=0.132 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.255 r=hold 0.26  patience 0.13  respect 0.97
+t=0144 caster_elite i=hold p=hold com=0 pat=0.136 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.272 r=hold 0.27  patience 0.14  respect 0.97
+t=0148 caster_elite i=hold p=hold com=0 pat=0.141 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.304 r=hold 0.30  patience 0.14  respect 0.97
+t=0152 caster_elite i=hold p=hold com=0 pat=0.145 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.262 r=hold 0.26  patience 0.15  respect 0.97
+t=0156 caster_elite i=hold p=hold com=0 pat=0.150 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.300 r=hold 0.30  patience 0.15  respect 0.97
+t=0160 caster_elite i=hold p=hold com=0 pat=0.155 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.275 r=hold 0.28  patience 0.15  respect 0.97
+t=0164 caster_elite i=hold p=hold com=0 pat=0.159 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.278 r=hold 0.28  patience 0.16  respect 0.97
+t=0168 caster_elite i=hold p=hold com=0 pat=0.164 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.327 r=hold 0.33  patience 0.16  respect 0.97
+t=0172 caster_elite i=hold p=hold com=0 pat=0.169 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.263 r=hold 0.26  patience 0.17  respect 0.97
+t=0176 caster_elite i=hold p=hold com=0 pat=0.173 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.261 r=hold 0.26  patience 0.17  respect 0.97
+t=0180 caster_elite i=hold p=hold com=0 pat=0.178 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.310 r=hold 0.31  patience 0.18  respect 0.97
+t=0184 caster_elite i=hold p=hold com=0 pat=0.182 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.334 r=hold 0.33  patience 0.18  respect 0.97
+t=0188 caster_elite i=hold p=hold com=0 pat=0.187 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.305 r=hold 0.30  patience 0.19  respect 0.97
+t=0192 caster_elite ~intent poke
+t=0192 caster_elite ~cast q test_caster_bolt
+t=0192 caster_elite i=poke p=hold com=0 pat=0.192 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=q s=poke:0.626,hold:0.257 r=poke 0.63  patience 0.19  respect 0.97
+t=0196 caster_elite ~intent hold
+t=0196 caster_elite i=hold p=hold com=0 pat=0.196 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.280 r=hold 0.28  patience 0.20  respect 0.97
+t=0200 caster_elite i=hold p=hold com=0 pat=0.201 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.408 r=hold 0.41  patience 0.20  respect 0.97
+t=0204 caster_elite i=hold p=hold com=0 pat=0.205 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.484 r=hold 0.48  patience 0.21  respect 0.97
+t=0208 caster_elite i=hold p=hold com=0 pat=0.210 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.448 r=hold 0.45  patience 0.21  respect 0.97
+t=0212 caster_elite i=hold p=hold com=0 pat=0.215 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.429 r=hold 0.43  patience 0.21  respect 0.97
+t=0216 caster_elite i=hold p=hold com=0 pat=0.219 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.472 r=hold 0.47  patience 0.22  respect 0.97
+t=0220 caster_elite i=hold p=hold com=0 pat=0.225 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.466 r=hold 0.47  patience 0.22  respect 0.97
+t=0224 caster_elite i=hold p=hold com=0 pat=0.230 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.267 r=hold 0.27  patience 0.23  respect 0.97
+t=0228 caster_elite i=hold p=hold com=0 pat=0.236 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.256 r=hold 0.26  patience 0.24  respect 0.97
+t=0232 caster_elite i=hold p=hold com=0 pat=0.241 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.336 r=hold 0.34  patience 0.24  respect 0.97
+t=0236 caster_elite i=hold p=hold com=0 pat=0.246 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.310 r=hold 0.31  patience 0.25  respect 0.97
+t=0240 caster_elite i=hold p=hold com=0 pat=0.252 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.279 r=hold 0.28  patience 0.25  respect 0.97
+t=0244 caster_elite i=hold p=hold com=0 pat=0.257 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.304 r=hold 0.30  patience 0.26  respect 0.97
+t=0248 caster_elite i=hold p=hold com=0 pat=0.263 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.276 r=hold 0.28  patience 0.26  respect 0.97
+t=0252 caster_elite i=hold p=hold com=0 pat=0.268 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.339 r=hold 0.34  patience 0.27  respect 0.97
+t=0256 caster_elite i=hold p=hold com=0 pat=0.274 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.341 r=hold 0.34  patience 0.27  respect 0.97
+t=0260 caster_elite i=hold p=hold com=0 pat=0.279 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.271 r=hold 0.27  patience 0.28  respect 0.97
+t=0264 caster_elite i=hold p=hold com=0 pat=0.284 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.282 r=hold 0.28  patience 0.28  respect 0.97
+t=0268 caster_elite i=hold p=hold com=0 pat=0.290 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.270 r=hold 0.27  patience 0.29  respect 0.97
+t=0272 caster_elite i=hold p=hold com=0 pat=0.295 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.320 r=hold 0.32  patience 0.30  respect 0.97
+t=0276 caster_elite i=hold p=hold com=0 pat=0.301 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.260 r=hold 0.26  patience 0.30  respect 0.97
+t=0280 caster_elite i=hold p=hold com=0 pat=0.306 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.343 r=hold 0.34  patience 0.31  respect 0.97
+t=0284 caster_elite i=hold p=hold com=0 pat=0.312 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.256 r=hold 0.26  patience 0.31  respect 0.97
+t=0288 caster_elite i=hold p=hold com=0 pat=0.317 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.344 r=hold 0.34  patience 0.32  respect 0.97
+t=0292 caster_elite i=hold p=hold com=0 pat=0.322 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.333 r=hold 0.33  patience 0.32  respect 0.97
+t=0296 caster_elite i=hold p=hold com=0 pat=0.328 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.328 r=hold 0.33  patience 0.33  respect 0.97
+t=0300 caster_elite i=hold p=hold com=0 pat=0.333 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.290 r=hold 0.29  patience 0.33  respect 0.97
+t=0304 caster_elite i=hold p=hold com=0 pat=0.339 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.330 r=hold 0.33  patience 0.34  respect 0.97
+t=0308 caster_elite i=hold p=hold com=0 pat=0.344 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.266 r=hold 0.27  patience 0.34  respect 0.97
+t=0312 caster_elite i=hold p=hold com=0 pat=0.350 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.268 r=hold 0.27  patience 0.35  respect 0.97
+t=0316 caster_elite i=hold p=hold com=0 pat=0.355 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.266 r=hold 0.27  patience 0.36  respect 0.97
+t=0320 caster_elite i=hold p=hold com=0 pat=0.360 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.276 r=hold 0.28  patience 0.36  respect 0.97
+t=0324 caster_elite i=hold p=hold com=0 pat=0.366 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.337 r=hold 0.34  patience 0.37  respect 0.97
+t=0328 caster_elite i=hold p=hold com=0 pat=0.371 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.326 r=hold 0.33  patience 0.37  respect 0.97
+t=0332 caster_elite i=hold p=hold com=0 pat=0.377 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.340 r=hold 0.34  patience 0.38  respect 0.97
+t=0336 caster_elite i=hold p=hold com=0 pat=0.382 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.290 r=hold 0.29  patience 0.38  respect 0.97
+t=0340 caster_elite i=hold p=hold com=0 pat=0.388 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.268 r=hold 0.27  patience 0.39  respect 0.97
+t=0344 caster_elite ~intent poke
+t=0344 caster_elite ~cast q test_caster_bolt
+t=0344 caster_elite i=poke p=hold com=0 pat=0.393 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=q s=poke:0.647,hold:0.304 r=poke 0.65  patience 0.39  respect 0.97
+t=0348 caster_elite ~intent hold
+t=0348 caster_elite i=hold p=hold com=0 pat=0.398 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.294 r=hold 0.29  patience 0.40  respect 0.97
+t=0352 caster_elite i=hold p=hold com=0 pat=0.404 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.454 r=hold 0.45  patience 0.40  respect 0.97
+t=0356 caster_elite i=hold p=hold com=0 pat=0.409 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.456 r=hold 0.46  patience 0.41  respect 0.97
+t=0360 caster_elite i=hold p=hold com=0 pat=0.415 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.455 r=hold 0.46  patience 0.41  respect 0.97
+t=0364 caster_elite i=hold p=hold com=0 pat=0.420 tok=- str=0/-1/0 plan=-/-1 m=-2220.0,-0.0 c=- s=hold:0.411 r=hold 0.41  patience 0.42  respect 0.97
+t=0368 caster_elite i=hold p=hold com=0 pat=0.426 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.422 r=hold 0.42  patience 0.43  respect 0.97
+t=0372 caster_elite i=hold p=hold com=0 pat=0.431 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.491 r=hold 0.49  patience 0.43  respect 0.97
+t=0376 caster_elite i=hold p=hold com=0 pat=0.436 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.332 r=hold 0.33  patience 0.44  respect 0.97
+t=0380 caster_elite i=hold p=hold com=0 pat=0.442 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.305 r=hold 0.31  patience 0.44  respect 0.97
+t=0384 caster_elite i=hold p=hold com=0 pat=0.447 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.289 r=hold 0.29  patience 0.45  respect 0.97
+t=0388 caster_elite i=hold p=hold com=0 pat=0.453 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.305 r=hold 0.30  patience 0.45  respect 0.97
+t=0392 caster_elite i=hold p=hold com=0 pat=0.458 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.334 r=hold 0.33  patience 0.46  respect 0.97
+t=0396 caster_elite i=hold p=hold com=0 pat=0.464 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.333 r=hold 0.33  patience 0.46  respect 0.97
+t=0400 caster_elite i=hold p=hold com=0 pat=0.469 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.315 r=hold 0.32  patience 0.47  respect 0.97
+t=0404 caster_elite i=hold p=hold com=0 pat=0.474 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.279 r=hold 0.28  patience 0.47  respect 0.97
+t=0408 caster_elite i=hold p=hold com=0 pat=0.480 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.300 r=hold 0.30  patience 0.48  respect 0.97
+t=0412 caster_elite i=hold p=hold com=0 pat=0.485 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.271 r=hold 0.27  patience 0.49  respect 0.97
+t=0416 caster_elite i=hold p=hold com=0 pat=0.491 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.304 r=hold 0.30  patience 0.49  respect 0.97
+t=0420 caster_elite i=hold p=hold com=0 pat=0.496 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.289 r=hold 0.29  patience 0.50  respect 0.97
+t=0424 caster_elite i=hold p=hold com=0 pat=0.502 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.304 r=hold 0.30  patience 0.50  respect 0.97
+t=0428 caster_elite i=hold p=hold com=0 pat=0.507 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.298 r=hold 0.30  patience 0.51  respect 0.97
+t=0432 caster_elite i=hold p=hold com=0 pat=0.512 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.277 r=hold 0.28  patience 0.51  respect 0.97
+t=0436 caster_elite i=hold p=hold com=0 pat=0.518 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.344 r=hold 0.34  patience 0.52  respect 0.97
+t=0440 caster_elite i=hold p=hold com=0 pat=0.523 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.323 r=hold 0.32  patience 0.52  respect 0.97
+t=0444 caster_elite i=hold p=hold com=0 pat=0.529 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.289 r=hold 0.29  patience 0.53  respect 0.97
+t=0448 caster_elite i=hold p=hold com=0 pat=0.534 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.338 r=hold 0.34  patience 0.53  respect 0.97
+t=0452 caster_elite i=hold p=hold com=0 pat=0.540 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.291 r=hold 0.29  patience 0.54  respect 0.97
+t=0456 caster_elite i=hold p=hold com=0 pat=0.545 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.255 r=hold 0.26  patience 0.55  respect 0.97
+t=0460 caster_elite i=hold p=hold com=0 pat=0.550 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.317 r=hold 0.32  patience 0.55  respect 0.97
+t=0464 caster_elite i=hold p=hold com=0 pat=0.556 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.265 r=hold 0.27  patience 0.56  respect 0.97
+t=0468 caster_elite i=hold p=hold com=0 pat=0.561 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.324 r=hold 0.32  patience 0.56  respect 0.97
+t=0472 caster_elite i=hold p=hold com=0 pat=0.567 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.344 r=hold 0.34  patience 0.57  respect 0.97
+t=0476 caster_elite i=hold p=hold com=0 pat=0.572 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.259 r=hold 0.26  patience 0.57  respect 0.97
+t=0480 caster_elite i=hold p=hold com=0 pat=0.578 tok=- str=0/-1/0 plan=-/-1 m=- c=- s=hold:0.317 r=hold 0.32  patience 0.58  respect 0.97
+== totals
+casts 4 (t=0001..0344)
+damage_to_knight 4 (t=0088..0415)
+thinks 121 (t=0001..0480)
+damage_to_knight_total 110.0
+caster_elite thinks 121 strings 0 (last 0 hits) plans 0 [] peels 0 setups 0

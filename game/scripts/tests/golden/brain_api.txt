@@ -1,0 +1,107 @@
+# EnemyBrain's contract (R0, 2026-10-08): every name on EnemyBrain that code outside
+# res://scripts/enemies/enemy_brain.gd uses, found by searching res://scripts for each of the
+# brain's members (calls, properties, signals, constants, and get/set/call by name).
+# One name per line: name <TAB> kind <TAB> the files that use it (under res://scripts/) [<TAB> note].
+# Kinds: class, const, var, func, static_func (called as EnemyBrain.x()), signal.
+# brain_golden_test's contract section asserts each still exists on EnemyBrain. R1 (the split)
+# keeps every name here, or changes this list together with the code that uses the name.
+# No ally code uses the brain yet (ALLIES isn't built); the view and the pose hooks reach it
+# only through Enemy (get_pose, get_pose_progress, get_face_point).
+EnemyBrain	class	enemies/enemy.gd, autoload/brains.gd, rooms/sandbox_brains.gd, tests/enemies_test.gd, tests/view_test.gd, tests/brain_golden_test.gd	class_name EnemyBrain, extends UnitController; Enemy.get_brain() returns it, Enemy._add_brain() makes it with EnemyBrain.new()
+ALL_IN	const	rooms/sandbox_brains.gd, tests/enemies_test.gd
+BACK_UP	const	rooms/sandbox_brains.gd, tests/enemies_test.gd
+COMMIT	const	tests/enemies_test.gd
+CORNERED	const	tests/enemies_test.gd
+ESCAPE	const	tests/enemies_test.gd
+PATIENCE_EPSILON	const	tests/enemies_test.gd
+PEEL	const	rooms/sandbox_brains.gd, tests/enemies_test.gd
+STAND	const	rooms/sandbox_brains.gd, tests/enemies_test.gd
+_cautious_until	var	tests/enemies_test.gd	private: a test reads or sets it by name
+_crowded_answer	var	tests/enemies_test.gd	private: a test reads or sets it by name
+_crowded_roll	var	tests/enemies_test.gd	private: a test reads or sets it by name
+_crowded_roll_value	var	tests/enemies_test.gd	private: a test reads or sets it by name
+_episode	var	tests/enemies_test.gd	private: a test reads or sets it by name
+_last_lead_px	var	tests/enemies_test.gd	private: a test reads or sets it by name
+_next_spend_roll	var	tests/enemies_test.gd	private: a test reads or sets it by name
+_patience	var	tests/enemies_test.gd	private: a test reads or sets it by name
+_plans	var	tests/enemies_test.gd, tests/brain_golden_test.gd	private: a test reads or sets it by name
+_pose	var	tests/view_test.gd	private: a test reads or sets it by name
+_update_spend	func	tests/enemies_test.gd	private: a test calls it by name
+behavior	var	rooms/sandbox_brains.gd, tests/enemies_test.gd, tests/brain_golden_test.gd
+build_situation	func	tests/enemies_test.gd
+decide	static_func	tests/enemies_test.gd
+drive	func	enemies/enemy.gd
+find_key_slot	static_func	tests/enemies_test.gd
+get_base_think_rate	func	autoload/brains.gd
+get_cautious_left	func	rooms/sandbox_brains.gd, tests/enemies_test.gd
+get_crowded_roll	func	rooms/sandbox_brains.gd, tests/enemies_test.gd
+get_crowded_roll_value	func	rooms/sandbox_brains.gd
+get_effective_respect	static_func	tests/enemies_test.gd
+get_face_point	func	enemies/enemy.gd
+get_fall_back_spot	static_func	tests/enemies_test.gd
+get_intent	func	rooms/sandbox_brains.gd, tests/enemies_test.gd, tests/brain_golden_test.gd
+get_intent_pose	static_func	tests/enemies_test.gd
+get_key_slot	func	rooms/sandbox_brains.gd
+get_last_carry	func	rooms/sandbox_brains.gd, tests/enemies_test.gd
+get_last_decision	func	rooms/sandbox_brains.gd, tests/brain_golden_test.gd
+get_last_follow	func	rooms/sandbox_brains.gd, tests/enemies_test.gd
+get_last_lead_px	func	rooms/sandbox_brains.gd
+get_last_lean	func	rooms/sandbox_brains.gd, tests/enemies_test.gd
+get_last_plan	func	rooms/sandbox_brains.gd
+get_last_plan_at	func	rooms/sandbox_brains.gd
+get_last_plan_reason	func	rooms/sandbox_brains.gd
+get_opener_slots	func	rooms/sandbox_brains.gd, tests/enemies_test.gd
+get_own_ready_share	static_func	tests/enemies_test.gd
+get_patience	func	rooms/sandbox_brains.gd, tests/enemies_test.gd, tests/brain_golden_test.gd
+get_patience_rate	static_func	tests/enemies_test.gd
+get_peel_slot	func	rooms/sandbox_brains.gd
+get_plan	func	rooms/sandbox_brains.gd, tests/enemies_test.gd, tests/brain_golden_test.gd
+get_plan_delay_left	func	rooms/sandbox_brains.gd
+get_plan_step	func	rooms/sandbox_brains.gd, tests/brain_golden_test.gd
+get_plans	func	rooms/sandbox_brains.gd, tests/brain_golden_test.gd
+get_pose	func	enemies/enemy.gd, rooms/sandbox_brains.gd, tests/enemies_test.gd, tests/brain_golden_test.gd
+get_pose_progress	func	enemies/enemy.gd
+get_right_moment	static_func	tests/enemies_test.gd
+get_setup_slot	func	rooms/sandbox_brains.gd, tests/enemies_test.gd
+get_situation	func	rooms/sandbox_brains.gd, tests/enemies_test.gd, tests/brain_golden_test.gd
+get_spend_roll_left	func	rooms/sandbox_brains.gd
+get_string_length	static_func	tests/enemies_test.gd
+get_string_step	func	rooms/sandbox_brains.gd, tests/enemies_test.gd, tests/brain_golden_test.gd
+get_tell_left	func	tests/enemies_test.gd
+get_think_rate	func	rooms/sandbox_brains.gd, tests/enemies_test.gd
+get_think_usec	func	autoload/brains.gd, rooms/sandbox_brains.gd, tests/brain_golden_test.gd
+get_time_to_land	static_func	tests/enemies_test.gd
+get_token_state	func	rooms/sandbox_brains.gd, tests/enemies_test.gd, tests/brain_golden_test.gd
+had_crowded_answer	func	rooms/sandbox_brains.gd
+intent_changed	signal	tests/enemies_test.gd, tests/brain_golden_test.gd
+is_awake	func	autoload/brains.gd
+is_budget_exempt	func	autoload/brains.gd, tests/enemies_test.gd
+is_cautious	func	rooms/sandbox_brains.gd
+is_committing	func	rooms/sandbox_brains.gd, tests/enemies_test.gd, tests/brain_golden_test.gd
+is_cornered	func	rooms/sandbox_brains.gd, tests/enemies_test.gd
+is_crowded	func	rooms/sandbox_brains.gd, tests/enemies_test.gd
+is_escaping	func	rooms/sandbox_brains.gd, tests/enemies_test.gd
+is_heavy_hit	static_func	tests/enemies_test.gd
+is_in_ability_recovery	func	rooms/sandbox_brains.gd
+is_peeling	func	rooms/sandbox_brains.gd
+is_plan_runner_up	func	rooms/sandbox_brains.gd
+is_resetting	func	rooms/sandbox_brains.gd, tests/enemies_test.gd
+is_setup_commit	func	rooms/sandbox_brains.gd, tests/enemies_test.gd
+is_stringing	func	rooms/sandbox_brains.gd, tests/brain_golden_test.gd
+is_walking_out	func	tests/enemies_test.gd
+last_string_hits	var	tests/enemies_test.gd, tests/brain_golden_test.gd
+next_think_tick	var	autoload/brains.gd	Brains writes it (the think schedule)
+peel_count	var	tests/enemies_test.gd, tests/brain_golden_test.gd
+plan_count	var	tests/enemies_test.gd, tests/brain_golden_test.gd
+plan_ends	var	tests/brain_golden_test.gd
+pose_changed	signal	tests/enemies_test.gd, tests/brain_golden_test.gd
+resolve_behavior	func	rooms/sandbox_brains.gd, tests/enemies_test.gd
+rng	var	autoload/brains.gd, tests/enemies_test.gd	Brains seeds it at register(); a test seeds it
+roll_crowded	static_func	tests/enemies_test.gd
+scheduled_thinks	var	autoload/brains.gd, tests/enemies_test.gd	Brains writes it (the think schedule)
+setup	func	enemies/enemy.gd
+setup_count	var	tests/enemies_test.gd, tests/brain_golden_test.gd
+string_count	var	tests/enemies_test.gd, tests/brain_golden_test.gd
+think	func	autoload/brains.gd, tests/enemies_test.gd
+think_calls	var	tests/enemies_test.gd
+think_slot	var	autoload/brains.gd, tests/enemies_test.gd	Brains writes it (the think schedule)
