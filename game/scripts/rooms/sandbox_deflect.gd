@@ -9,13 +9,16 @@ extends Node
 ##   V        the deflect flag (DeflectComponent.deflect_test_enabled) on/off
 ##   Shift+V  the poise flag (PoiseComponent.poise_test_enabled) on/off
 ##   M        its tuning panel: every number of the prototype, live (the
-##            Knight's DeflectComponent; every enemy's PoiseComponent, new ones
-##            too; the poise damage of the Knight's swings, Cleave and
-##            Judgement in memory; the TEMP weak-auto lever; whether the
-##            Knight's deflects bank, streak_persists, on at the start)
+##            Knight's DeflectComponent; every meter's: the size of the two
+##            prototype meters, the elite rank's break time and the shared
+##            PoiseRules, so new enemies spawn with them; the poise damage of
+##            the Knight's swings, Cleave and Judgement in memory; the TEMP
+##            weak-auto lever; whether the Knight's deflects bank,
+##            streak_persists, on at the start)
 ## Readouts (placeholders, drawn over the 3D view; they never decide state):
-## a thin poise bar under the health bar of any unit whose meter runs (gold;
-## orange draining while broken; grey while immune), and under the Knight's
+## a thin poise bar under the health bar of any unit whose meter runs (gold
+## filling toward the break, since ARCHETYPES AR3a; orange draining while
+## broken; grey while immune), and under the Knight's
 ## health bar his dash charges (the refunded one gold), his deflect streak
 ## (two pips) and "RIPOSTE" while it's ready. The TEMP weak-auto lever
 ## (AutoAttackComponent.prototype_unempowered_auto_mult) starts at its export
@@ -47,10 +50,13 @@ const DEFLECT_ROWS: Array = [
 	["deflect_poise_damage_second", 0.0, 100.0, 1.0], ["riposte_poise_damage", 0.0, 100.0, 1.0],
 	["deflect_hitstop", 0.0, 0.2, 0.01], ["deflect_shake", 0.0, 6.0, 0.1],
 ]
-## The PoiseComponent rows (every enemy's): [export, min, max, step].
+## The meters' shared numbers (ARCHETYPES AR3a): the file every meter reads
+## today (PoiseComponent.DEFAULT_RULES, the Assassin's).
+var _poise_rules: PoiseRules = PoiseComponent.DEFAULT_RULES
+## The PoiseRules rows (every meter's): [property, min, max, step].
 const POISE_ROWS: Array = [
-	["poise_regen_delay", 0.0, 6.0, 0.1], ["poise_regen_rate", 0.0, 60.0, 1.0], ["poise_break_time", 0.3, 4.0, 0.1],
-	["poise_break_damage_bonus", 0.0, 2.0, 0.05], ["poise_break_immunity", 0.0, 10.0, 0.5],
+	["decay_delay", 0.0, 6.0, 0.1], ["decay_rate", 0.0, 60.0, 1.0], ["low_health_decay_scale", 0.0, 2.0, 0.05],
+	["break_damage_bonus", 0.0, 2.0, 0.05], ["break_immunity", 0.0, 10.0, 0.5],
 ]
 
 ## The deflect flag this sandbox starts with.
@@ -74,7 +80,6 @@ var _poise_check: CheckBox
 var _persist_check: CheckBox
 var _rows: Dictionary = {}   # key -> {slider: HSlider, value: Label, getter: Callable, setter: Callable}
 var _syncing := false
-var _poise_values: Dictionary = {}   # PoiseComponent export -> the panel's value (every enemy, new ones too)
 var _originals: Dictionary = {}   # [resource, property] key String -> [resource, property, value] before any edit
 
 
@@ -243,9 +248,10 @@ func _build_panel() -> void:
 		_add_row(list, p, r[1], r[2], r[3], _get_deflect.bind(p), _set_deflect.bind(p))
 	_heading(list, "every enemy's poise")
 	_add_row(list, &"poise_max", 0.0, 400.0, 5.0, _get_poise_max, _set_poise_max)
+	_add_row(list, &"poise_break_time", 0.3, 4.0, 0.1, _get_break_time, _set_break_time)
 	for r: Array in POISE_ROWS:
 		var p: StringName = StringName(r[0])
-		_add_row(list, p, r[1], r[2], r[3], _get_poise.bind(p), _set_poise.bind(p))
+		_add_row(list, p, r[1], r[2], r[3], _get_rule.bind(p), _set_rule.bind(p))
 	_heading(list, "poise damage (in memory)")
 	_add_row(list, &"swing_poise", 0.0, 30.0, 1.0, func() -> float: return _combo_knight.swings[0].poise_damage, _set_swing_poise)
 	_add_row(list, &"cleave_poise", 0.0, 100.0, 1.0, func() -> float: return _cleaves[0].poise_damage, _set_ability_poise.bind(_cleaves))
@@ -349,20 +355,30 @@ func _set_deflect(value: float, p: StringName) -> void:
 		knight.deflect_component.set(p, value)
 
 
-## Every live enemy's meter (and every new one's, _on_node_added()).
-func _get_poise(p: StringName) -> float:
-	if _poise_values.has(p):
-		return _poise_values[p]
-	var probe := PoiseComponent.new()
-	var value := float(probe.get(p))
-	probe.free()
-	return value
+## Every meter's shared numbers (the PoiseRules file, put back on exit).
+func _get_rule(p: StringName) -> float:
+	return float(_poise_rules.get(p))
 
 
-func _set_poise(value: float, p: StringName) -> void:
-	_poise_values[p] = value
+func _set_rule(value: float, p: StringName) -> void:
+	_edit(_poise_rules, p, value)
+
+
+## The elite rank's break time (both prototype meters are elites): its
+## RankRules (new elites spawn with it) and every live elite's meter.
+func _get_break_time() -> float:
+	var elite := Brains.table.get_rank_rules(EnemyData.Rank.ELITE)
+	return elite.poise_break_time if elite != null else 0.0
+
+
+func _set_break_time(value: float) -> void:
+	var elite := Brains.table.get_rank_rules(EnemyData.Rank.ELITE)
+	if elite != null:
+		_edit(elite, &"poise_break_time", value)
 	for poise in _live_poise_components():
-		poise.set(p, value)
+		var enemy := poise.unit as Enemy
+		if enemy != null and enemy.data != null and enemy.data.rank == EnemyData.Rank.ELITE:
+			poise.poise_break_time = value
 
 
 func _get_poise_max() -> float:
@@ -407,12 +423,10 @@ func _live_poise_components() -> Array[PoiseComponent]:
 	return out
 
 
-## A new enemy's meter takes the panel's numbers.
+## A Knight spawned after the sandbox takes its streak rule (a new enemy's
+## meter reads the panel's edits through its data, rank and rules).
 func _on_node_added(node: Node) -> void:
-	if node is PoiseComponent:
-		for p: StringName in _poise_values:
-			node.set(p, _poise_values[p])
-	elif node is DeflectComponent and not Progress.is_test_scene():   # a Knight spawned after the sandbox
+	if node is DeflectComponent and not Progress.is_test_scene():
 		(node as DeflectComponent).streak_persists = streak_persists
 
 

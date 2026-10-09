@@ -148,7 +148,8 @@ func _apply_enemy_data_base() -> void:
 
 
 ## After: its abilities (those of the run's difficulty tier), its twist, its
-## rank's tenacity and diminishing returns (AI-D3), and its brain when its
+## rank's tenacity and diminishing returns (AI-D3), its poise meter
+## (PoiseComponent.setup(): ARCHETYPES AR3a), and its brain when its
 ## rank has one (ENEMIES_AI.md, Enemy). The scene needs an AbilityComponent
 ## for abilities.
 func _apply_enemy_data() -> void:
@@ -167,8 +168,8 @@ func _apply_enemy_data() -> void:
 	if rules != null and status_component != null:   # AI-D3: fodder takes crowd control in full
 		status_component.cc_diminishing = rules.cc_diminishing
 		status_component.poise = rules.poise
-	if poise_component != null:   # PROTOTYPE (poise): its meter's size
-		poise_component.poise_max = data.poise_max
+	if poise_component != null:   # ARCHETYPES AR3a: its meter, by its archetype and rank
+		poise_component.setup(Archetype.of(data.get_archetype_id()), data.poise_max, rules)
 	if brain_enabled:
 		_add_brain()
 

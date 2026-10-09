@@ -153,6 +153,18 @@ func get_intent_weight(intent: StringName) -> float:
 	return intent_weights.get(intent, 1.0)
 
 
+## Its role's archetype id (ARCHETYPES AR3a; Archetype.of()): BRUTE is a
+## Bruiser, SKIRMISHER a Skirmisher, CASTER a Mage (AR8 renames the roles).
+func get_archetype_id() -> StringName:
+	match role:
+		Role.SKIRMISHER:
+			return &"skirmisher"
+		Role.CASTER:
+			return &"mage"
+		_:
+			return &"bruiser"
+
+
 ## Its crowded range (LoL units, edge to edge): crowded_range, or its band's
 ## minimum when that's −1.
 func get_crowded_range() -> float:

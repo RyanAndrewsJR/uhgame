@@ -10,10 +10,14 @@ extends Node2D
 ## only blocked); the streak, the refund and the chain window; the riposte
 ## (its damage, a whiff keeps it, it runs out, its snap toward the attacker);
 ## the TEMP weak-auto lever; a deflect on sources it wasn't written for.
-## Slice B: poise (the flag off, the data, the meter and its regen, the break
+## Slice B: poise (the flag off, the data, the meter and its decay, the break
 ## and what it cuts, blocks and boosts, tenacity and diminishing returns left
 ## out, the immunity, poise damage on hits and deflects, a pair plus a riposte
-## breaking both 100-poise elites). Slice C: the feel (hitstop, shake, the
+## breaking both 100-poise elites). Since ARCHETYPES AR3a the meter fills up
+## to a break (D1), with its decay's low-health scale; the Archetype resource,
+## the ranks' sizes and break times, and an archetype's meter running with
+## the flag off (a regular breaking on a deflect pair, an elite on the pair
+## plus the riposte, a boss needing 45 more). Slice C: the feel (hitstop, shake, the
 ## riposte's ring; empty slots) and SandboxDeflect (keys, the panel's rows
 ## applied live and to new enemies, its edits put back).
 ## The Knight's crit is held at 0 and his passive (Unbroken) is off, so
@@ -117,6 +121,8 @@ func _ready() -> void:
 	await _test_poise_break()
 	await _test_poise_sources()
 	await _test_pair_and_riposte_break()
+	_test_ar3a_data()   # ARCHETYPES AR3a
+	await _test_ar3a_meter()
 	# Slice C: feel, readouts and the sandbox.
 	await _test_feel()
 	await _test_sandbox()
@@ -569,9 +575,9 @@ func _test_poise_flags_off() -> void:
 
 func _test_poise_data() -> void:
 	_section("Poise: who has it, and the sources (data)")
-	_check("the elite slime and the duelist: 100", [ELITE_DATA.poise_max, DUELIST_DATA.poise_max], [100.0, 100.0])
-	_check("fodder, regulars and the elite caster: 0", [SLIME_DATA.poise_max, BRUTE_DATA.poise_max, SKIRMISHER_DATA.poise_max, CASTER_ELITE_DATA.poise_max], [0.0, 0.0, 0.0, 0.0])
-	_check("EnemyData defaults to 0; the player has no meter", [EnemyData.new().poise_max, knight.poise_component == null], [0.0, true])
+	_check("the elite slime and the duelist: 100 (the prototype's meters)", [ELITE_DATA.poise_max, DUELIST_DATA.poise_max], [100.0, 100.0])
+	_check("fodder, regulars and the elite caster: −1, their rank's only if their archetype had a meter (none does)", [SLIME_DATA.poise_max, BRUTE_DATA.poise_max, SKIRMISHER_DATA.poise_max, CASTER_ELITE_DATA.poise_max], [-1.0, -1.0, -1.0, -1.0])
+	_check("EnemyData defaults to −1 (AR3a); the player has no meter", [EnemyData.new().poise_max, knight.poise_component == null], [-1.0, true])
 	var swings: Array = COMBO_KNIGHT.swings.map(func(swing: AttackSwing) -> float: return swing.poise_damage)
 	swings.append(COMBO_KNIGHT.dash_strike.poise_damage)
 	_check("the Knight's swings 4 each (the dash-strike too)", swings, [4.0, 4.0, 4.0, 4.0])
@@ -579,7 +585,10 @@ func _test_poise_data() -> void:
 	_check("enemy abilities carry none", [SLAM.poise_damage, FINISHER.poise_damage, AttackSwing.new().poise_damage], [0.0, 0.0, 0.0])
 	_check("the deflects 25 and 50, the riposte 40", [deflect.deflect_poise_damage_first, deflect.deflect_poise_damage_second, deflect.riposte_poise_damage], [25.0, 50.0, 40.0])
 	var p := PoiseComponent.new()
-	_check("the meter's numbers: 3 s delay, 15/s, a 1.8 s break, +50%, 4 s immune", [p.poise_max, p.poise_regen_delay, p.poise_regen_rate, p.poise_break_time, p.poise_break_damage_bonus, p.poise_break_immunity], [0.0, 3.0, 15.0, 1.8, 0.5, 4.0])
+	var r := p.get_rules()
+	_check("the meter's numbers (poise_rules_assassin.tres): 3 s delay, 15/s, ×0.5 below 40% health, +50%, 4 s immune; a 1.8 s break unless its rank says",
+		[p.poise_max, r == PoiseComponent.DEFAULT_RULES, r.decay_delay, r.decay_rate, r.low_health, r.low_health_decay_scale, r.break_damage_bonus, r.break_immunity, p.poise_break_time],
+		[0.0, true, 3.0, 15.0, 0.4, 0.5, 0.5, 4.0, 1.8])
 	p.free()
 	var s := STATUS_POISE_BROKEN
 	_check("status_poise_broken: tags poise_broken + debuff, not cc, not counted", [s.id, s.tags.size() == 2 and s.tags.has(&"poise_broken") and s.tags.has(&"debuff"), s.is_cc(), StatusComponent.counts_for_diminishing(s)], [&"poise_broken", true, false, false])
@@ -587,32 +596,39 @@ func _test_poise_data() -> void:
 
 
 func _test_poise_meter() -> void:
-	_section("Poise: the meter")
+	_section("Poise: the meter fills up to a break (ARCHETYPES AR3a, D1)")
 	PoiseComponent.poise_test_enabled = true
 	DeflectComponent.deflect_test_enabled = false
 	await _fresh()
 	_poise_changes.clear()
 	var elite := _spawn(ELITE_SCENE, ARENA + Vector2(0, 200))
 	var p := elite.poise_component
-	_check("on: it starts full", [p.get_max_poise(), p.get_poise()], [100.0, 100.0])
+	_check("on: it starts empty, its size 100", [p.get_max_poise(), p.get_poise()], [100.0, 0.0])
 	p.take_poise_damage(25.0, knight)
-	_check("damage lowers it", p.get_poise(), 75.0)
+	_check("poise damage fills it", p.get_poise(), 25.0)
 	var last: Array = _poise_changes.back() if not _poise_changes.is_empty() else []
-	_check("...Events.poise_changed(unit, 75, 100)", last, [elite, 75.0, 100.0])
+	_check("...Events.poise_changed(unit, 25, 100)", last, [elite, 25.0, 100.0])
 	await _seconds(2.9)
-	_check("it doesn't fill back before the 3 s delay", p.get_poise(), 75.0)
+	_check("it doesn't decay before the 3 s delay", p.get_poise(), 25.0)
 	await _seconds(1.1)
-	_check("then it fills at 15/s (about 90 at 4 s)", absf(p.get_poise() - 90.0) <= 0.6, true)
+	_check("then it decays at 15/s (about 10 at 4 s)", absf(p.get_poise() - 10.0) <= 0.6, true)
 	await _seconds(1.0)
-	_check("...up to 100, no more", p.get_poise(), 100.0)
+	_check("...down to 0, no less", p.get_poise(), 0.0)
 	p.take_poise_damage(10.0, knight)
 	await _seconds(2.0)
 	p.take_poise_damage(10.0, knight)
 	await _seconds(2.0)
-	_check("new poise damage restarts the delay", p.get_poise(), 80.0)
+	_check("new poise damage restarts the delay", p.get_poise(), 20.0)
+	_check("at full health it decays at 15/s", p.get_decay_rate(), 15.0)
+	elite.health.take_damage(elite.health.max_health * 0.7)
+	_check("below 40% of its health (30%) at half the rate: 7.5/s (D1)", p.get_decay_rate(), 7.5)
+	p.take_poise_damage(30.0, knight)
+	await _seconds(4.0)
+	_check("...so 50, one second past the delay, is about 42.5", absf(p.get_poise() - 42.5) <= 0.4, true)
+	elite.health.heal(100000.0)
 	var brute := _spawn(BRUTE_SCENE, ARENA + Vector2(0, 260))
 	brute.poise_component.take_poise_damage(1000.0, knight)
-	_check("poise_max 0 (a regular): nothing happens", [brute.poise_component.get_poise(), brute.poise_component.is_broken(), brute.status_component.has_status(STATUS_POISE_BROKEN.id)], [0.0, false, false])
+	_check("a regular brute (a Bruiser, −1: no meter): nothing happens", [brute.poise_component.poise_max, brute.poise_component.get_poise(), brute.poise_component.is_broken(), brute.status_component.has_status(STATUS_POISE_BROKEN.id)], [0.0, 0.0, false, false])
 	elite.queue_free()
 	brute.queue_free()
 	await get_tree().physics_frame
@@ -630,30 +646,30 @@ func _test_poise_break() -> void:
 	_check("the elite starts its slam at the Knight", elite.abilities.try_cast(&"q", knight.global_position, knight), true)
 	await _frames(3)
 	p.take_poise_damage(4.0, knight)
-	_check("poise damage short of 0 doesn't flinch it: still casting", [elite.abilities.casting, p.is_broken()], [true, false])
+	_check("poise short of the maximum doesn't flinch it: still casting", [elite.abilities.casting, p.is_broken(), p.get_poise()], [true, false, 4.0])
 	p.take_poise_damage(96.0, knight)
-	_check("at 0 it breaks: poise_broken, Events.poise_broken", [p.is_broken(), elite.status_component.has_status(STATUS_POISE_BROKEN.id), _poise_breaks], [true, true, [elite]])
+	_check("at the maximum it breaks: poise_broken, Events.poise_broken", [p.is_broken(), elite.status_component.has_status(STATUS_POISE_BROKEN.id), _poise_breaks], [true, true, [elite]])
 	_check("...its cast is cut at once", elite.abilities.casting, false)
-	_check("...its 20% elite tenacity doesn't shorten the 1.8 s", [elite.stats_component.get_stat(&"tenacity"), p.get_break_left()], [0.2, 1.8])
+	_check("...its 20% elite tenacity doesn't shorten the elite rank's 1.8 s", [elite.stats_component.get_stat(&"tenacity"), p.poise_break_time, p.get_break_left()], [0.2, 1.8, 1.8])
 	_check("...diminishing returns don't count it", elite.status_component.get_dr_count(), 0)
 	_check("...no moving, casting, dashing; its brain rests (is_cc_blocked)", [elite.movement.can_move(), elite.is_cast_blocked(), elite.is_dash_blocked(), elite.is_cc_blocked()], [false, true, true, true])
 	var before := elite.health.current
 	elite.take_damage(100.0)
 	_check("...it takes 50% more damage (100 -> 150)", before - elite.health.current, 150.0)
 	p.take_poise_damage(50.0, knight)
-	_check("...poise damage does nothing while broken", [p.get_poise(), _poise_breaks.size()], [0.0, 1])
+	_check("...the meter reads full while broken; poise damage does nothing", [p.get_poise(), _poise_breaks.size()], [100.0, 1])
 	await _seconds(1.0)
 	_check("the slam never landed", knight.health.current, health)
 	await _wait_until(func() -> bool: return not p.is_broken(), 120)
-	_check("after the break: full again, immune for 4 s", [p.get_poise(), p.is_immune(), absf(p.get_immunity_left() - 4.0) < 0.05], [100.0, true, true])
+	_check("after the break: empty again, immune for 4 s", [p.get_poise(), p.is_immune(), absf(p.get_immunity_left() - 4.0) < 0.05], [0.0, true, true])
 	before = elite.health.current
 	elite.take_damage(100.0)
 	_check("...the damage bonus is gone", before - elite.health.current, 100.0)
 	p.take_poise_damage(1000.0, knight)
-	_check("immune: no second break, poise stays full", [p.is_broken(), p.get_poise(), _poise_breaks.size()], [false, 100.0, 1])
+	_check("immune: no second break, poise stays empty", [p.is_broken(), p.get_poise(), _poise_breaks.size()], [false, 0.0, 1])
 	await _seconds(4.05)
 	p.take_poise_damage(30.0, knight)
-	_check("after the immunity it takes poise damage again", [p.is_immune(), p.get_poise()], [false, 70.0])
+	_check("after the immunity it takes poise damage again", [p.is_immune(), p.get_poise()], [false, 30.0])
 
 	var dummy := _spawn(SLIME_SCENE, ARENA + Vector2(0, 260))
 	dummy.team = Unit.Team.PLAYER
@@ -665,6 +681,7 @@ func _test_poise_break() -> void:
 	var dummy_health := dummy.health.current
 	brute.poise_component.take_poise_damage(100.0, knight)
 	_check("a break cuts its windup", [brute.poise_component.is_broken(), brute.attack.is_winding_up()], [true, false])
+	_check("...for the regular rank's 1.5 s", absf(brute.poise_component.get_break_left() - 1.5) < 0.02, true)
 	await _seconds(1.0)
 	_check("...and no hit lands while it's broken", dummy.health.current, dummy_health)
 	brute.attack.cancel()
@@ -681,25 +698,25 @@ func _test_poise_sources() -> void:
 	var elite := _spawn(ELITE_SCENE, ARENA + Vector2(55, 0))
 	var p := elite.poise_component
 	await _swing(Vector2.RIGHT, elite)
-	_check("a Knight swing: 4", p.get_poise(), 96.0)
+	_check("a Knight swing: 4", p.get_poise(), 4.0)
 	await _swing(Vector2.RIGHT, elite, true)
-	_check("a dash-strike: 4", p.get_poise(), 92.0)
+	_check("a dash-strike: 4", p.get_poise(), 8.0)
 	HitPipeline.resolve(HitPipeline.from_ability(knight, CLEAVE, elite))
-	_check("Cleave: 20", p.get_poise(), 72.0)
+	_check("Cleave: 20", p.get_poise(), 28.0)
 	HitPipeline.resolve(HitPipeline.from_ability(knight, JUDGEMENT, elite))
-	_check("Judgement: 40", p.get_poise(), 32.0)
+	_check("Judgement: 40", p.get_poise(), 68.0)
 	elite.add_invulnerability(&"test")
 	HitPipeline.resolve(HitPipeline.from_ability(knight, JUDGEMENT, elite))
 	elite.remove_invulnerability(&"test")
-	_check("a blocked hit carries none", p.get_poise(), 32.0)
+	_check("a blocked hit carries none", p.get_poise(), 68.0)
 	var fresh := _spawn(ELITE_SCENE, ARENA + Vector2(0, 220))
 	knight.dash.try_dash(Vector2.RIGHT)
 	_slam_hit(fresh)
-	_check("the first deflect: 25 to the attacker", fresh.poise_component.get_poise(), 75.0)
+	_check("the first deflect: 25 to the attacker", fresh.poise_component.get_poise(), 25.0)
 	await _wait_until(func() -> bool: return not knight.dash.is_dashing(), 60)
 	knight.dash.try_dash(Vector2.LEFT)
 	_slam_hit(fresh)
-	_check("the second: 50", fresh.poise_component.get_poise(), 25.0)
+	_check("the second: 50", fresh.poise_component.get_poise(), 75.0)
 	var e := knight.status_component.get_status(DeflectComponent.get_riposte_status_id())
 	_check("the riposte empower carries 40", e.empower_poise_damage if e else -1.0, 40.0)
 	for n: Node in [elite, fresh]:
@@ -722,7 +739,7 @@ func _test_pair_and_riposte_break() -> void:
 		_slam_hit(enemy)
 		await _wait_until(func() -> bool: return not knight.dash.is_dashing(), 60)
 		var label := "the elite slime" if scene == ELITE_SCENE else "the duelist"
-		_check("%s: the pair leaves 25 of 100, not broken" % label, [p.get_poise(), p.is_broken(), deflect.has_riposte()], [25.0, false, true])
+		_check("%s: the pair fills 75 of 100, not broken" % label, [p.get_poise(), p.is_broken(), deflect.has_riposte()], [75.0, false, true])
 		_place(knight, ARENA)
 		_place(enemy, ARENA + Vector2(55, 0))
 		var riposte := await _swing(Vector2.RIGHT, enemy)
@@ -740,8 +757,117 @@ func _test_pair_and_riposte_break() -> void:
 		knight.dash.try_dash(Vector2.RIGHT if i % 2 == 0 else Vector2.LEFT)
 		_slam_hit(elite)
 	_check("three deflects in a row also break it (25 + 50 + 25)", [elite.poise_component.is_broken(), _deflects.size()], [true, 3])
-	print("  INFO  deflects alone to break a 100-poise elite: 3 (25 + 50 + 25, inside the 3 s regen delay)")
+	print("  INFO  deflects alone to break a 100-poise elite: 3 (25 + 50 + 25, inside the 3 s decay delay)")
 	elite.queue_free()
+	await get_tree().physics_frame
+
+
+# --- ARCHETYPES AR3a: the Archetype resource and an archetype's meter ----------------
+
+func _test_ar3a_data() -> void:
+	_section("AR3a: the Archetype resource, the ranks' meters and break times (data)")
+	var a := Archetype.of(&"assassin")
+	_check("Archetype.of(&\"assassin\"): its file", [a != null, a.id if a else &"", a.display_name if a else "", a.resource_path if a else ""],
+		[true, &"assassin", "Assassin", "res://data/archetypes/archetype_assassin.tres"])
+	if a == null:
+		return
+	_check("...a meter, a deflect, its string (3–4 hits, 0.4 s apart), its dash (×1.25, a 1.2 s recharge), a 0.2 s window, poise_rules_assassin.tres, no layer",
+		[a.poise_meter, a.deflects, a.string_hits_min, a.string_hits_max, a.string_spacing, a.dash_distance_scale, a.dash_recharge_time, a.deflect_window,
+			a.poise_rules == PoiseComponent.DEFAULT_RULES, a.layer == null, a.get_source_id()],
+		[true, true, 3, 4, 0.4, 1.25, 1.2, 0.2, true, true, &"archetype_assassin"])
+	_check("loaded once; an id with no file has no archetype (the other five until AR8, an empty id)",
+		[Archetype.of(&"assassin") == a, Archetype.of(&"bruiser"), Archetype.of(&"mage"), Archetype.of(&"skirmisher"), Archetype.of(&"basic"), Archetype.of(&"")],
+		[true, null, null, null, null, null])
+	_check("an enemy's archetype id: fodder basic; the brute preset bruiser (the brute, the elite slime, the duelist until AR8); skirmisher; the casters mage",
+		[SLIME_DATA.get_archetype_id(), BRUTE_DATA.get_archetype_id(), ELITE_DATA.get_archetype_id(), DUELIST_DATA.get_archetype_id(),
+			SKIRMISHER_DATA.get_archetype_id(), CASTER_ELITE_DATA.get_archetype_id(), EnemyData.new().get_archetype_id()],
+		[&"basic", &"bruiser", &"bruiser", &"bruiser", &"skirmisher", &"mage", &"basic"])
+	var sizes: Array = []
+	var breaks: Array = []
+	var ranks: Array[EnemyData.Rank] = [EnemyData.Rank.FODDER, EnemyData.Rank.REGULAR, EnemyData.Rank.ELITE, EnemyData.Rank.BOSS]
+	for rank in ranks:
+		var rules := Brains.table.get_rank_rules(rank)
+		sizes.append(rules.poise_meter_max if rules else -1.0)
+		breaks.append(rules.poise_break_time if rules else -1.0)
+	_check("the ranks' meters (D8): fodder 0, regular 60, elite 100, boss 160", sizes, [0.0, 60.0, 100.0, 160.0])
+	_check("...their break times: 0 (none), 1.5, 1.8, 1.4 s", breaks, [0.0, 1.5, 1.8, 1.4])
+
+
+func _test_ar3a_meter() -> void:
+	_section("AR3a: an archetype with a meter runs it with the flag off, sized and timed by its rank")
+	PoiseComponent.poise_test_enabled = false
+	DeflectComponent.deflect_test_enabled = true
+	await _fresh()
+	_poise_breaks.clear()
+	var assassin := Archetype.of(&"assassin")
+	# A brute (a regular) set up as an enemy Assassin would be at spawn (the
+	# test Assassin itself comes in AR3b).
+	var regular := _spawn(BRUTE_SCENE, ARENA + Vector2(0, 220))
+	var rp := regular.poise_component
+	_check("the brute as it spawns: a Bruiser has no meter (no archetype file, −1 -> 0)", [rp.archetype == null, rp.poise_max, rp.is_active()], [true, 0.0, false])
+	rp.setup(assassin, -1.0, regular.get_rank_rules())
+	_check("set up as an Assassin regular: its rank's 60 and 1.5 s, running with the flag off, on its archetype's rules, empty",
+		[rp.has_archetype_meter(), rp.poise_max, rp.poise_break_time, rp.is_active(), rp.get_rules() == assassin.poise_rules, rp.get_poise()],
+		[true, 60.0, 1.5, true, true, 0.0])
+	knight.dash.try_dash(Vector2.RIGHT)
+	_brute_hit(regular)
+	_check("the first deflect: 25 of 60", [rp.get_poise(), rp.is_broken()], [25.0, false])
+	await _wait_until(func() -> bool: return not knight.dash.is_dashing(), 60)
+	knight.dash.try_dash(Vector2.LEFT)
+	_brute_hit(regular)
+	_check("a regular breaks on the second deflect (75 of 60), for 1.5 s", [rp.is_broken(), absf(rp.get_break_left() - 1.5) < 0.02, _poise_breaks], [true, true, [regular]])
+	regular.queue_free()
+	await _wait_until(func() -> bool: return not knight.dash.is_dashing(), 60)
+
+	await _fresh()
+	var elite := _spawn(ELITE_SCENE, ARENA + Vector2(0, 220))
+	var ep := elite.poise_component
+	ep.setup(assassin, -1.0, elite.get_rank_rules())
+	_check("an Assassin elite: 100 and 1.8 s (its rank's), the flag off", [ep.poise_max, ep.poise_break_time, ep.is_active(), PoiseComponent.poise_test_enabled], [100.0, 1.8, true, false])
+	knight.dash.try_dash(Vector2.RIGHT)
+	_slam_hit(elite)
+	await _wait_until(func() -> bool: return not knight.dash.is_dashing(), 60)
+	knight.dash.try_dash(Vector2.LEFT)
+	_slam_hit(elite)
+	await _wait_until(func() -> bool: return not knight.dash.is_dashing(), 60)
+	_check("...the deflect pair fills 75, not broken; the riposte is ready", [ep.get_poise(), ep.is_broken(), deflect.has_riposte()], [75.0, false, true])
+	_place(knight, ARENA)
+	_place(elite, ARENA + Vector2(55, 0))
+	await _swing(Vector2.RIGHT, elite)
+	_check("...the riposte (40 + the swing's 4) breaks it, for 1.8 s (AR3's done line)", [ep.is_broken(), absf(ep.get_break_left() - 1.8) < 0.05], [true, true])
+	elite.queue_free()
+	await get_tree().physics_frame
+
+	var boss := _spawn(BRUTE_SCENE, ARENA + Vector2(0, 260))
+	var bp := boss.poise_component
+	bp.setup(assassin, -1.0, Brains.table.get_rank_rules(EnemyData.Rank.BOSS))
+	_check("with a boss's rank rules: 160 and 1.4 s", [bp.poise_max, bp.poise_break_time], [160.0, 1.4])
+	bp.take_poise_damage(25.0, knight)
+	bp.take_poise_damage(50.0, knight)
+	bp.take_poise_damage(40.0, knight)
+	_check("...the pair and the riposte's 40 leave it short (115 of 160)", [bp.get_poise(), bp.is_broken()], [115.0, false])
+	bp.take_poise_damage(45.0, knight)
+	_check("...45 more break it, for 1.4 s", [bp.is_broken(), absf(bp.get_break_left() - 1.4) < 0.02], [true, true])
+	boss.queue_free()
+	await get_tree().physics_frame
+
+	var other := _spawn(BRUTE_SCENE, ARENA + Vector2(0, 300))
+	var op := other.poise_component
+	var rules := other.get_rank_rules()
+	op.setup(assassin, 0.0, rules)
+	var none := [op.poise_max, op.is_active()]
+	op.setup(assassin, 80.0, rules)
+	var own := [op.poise_max, op.is_active()]
+	op.setup(null, -1.0, rules)
+	var no_archetype := [op.poise_max, op.is_active()]
+	op.setup(null, 100.0, rules)
+	var prototype_off := op.is_active()
+	PoiseComponent.poise_test_enabled = true
+	var prototype_on := op.is_active()
+	PoiseComponent.poise_test_enabled = false
+	_check("its data's size: 0 = none, 80 = that size; no archetype with −1: none; a size with no archetype meter runs only with the flag (the prototype's)",
+		[none, own, no_archetype, prototype_off, prototype_on], [[0.0, false], [80.0, true], [0.0, false], false, true])
+	other.queue_free()
 	await get_tree().physics_frame
 
 
@@ -817,25 +943,27 @@ func _test_sandbox() -> void:
 	var keys := sd.get_row_keys()
 	var expected: Array[StringName] = [&"deflect_window", &"chain_window", &"refund_lifetime", &"deflect_test_charge_recharge",
 		&"riposte_ad_ratio", &"riposte_window", &"riposte_snap_range", &"deflect_poise_damage_first", &"deflect_poise_damage_second",
-		&"riposte_poise_damage", &"deflect_hitstop", &"deflect_shake", &"poise_max", &"poise_regen_delay", &"poise_regen_rate",
-		&"poise_break_time", &"poise_break_damage_bonus", &"poise_break_immunity", &"swing_poise", &"cleave_poise",
+		&"riposte_poise_damage", &"deflect_hitstop", &"deflect_shake", &"poise_max", &"poise_break_time", &"decay_delay",
+		&"decay_rate", &"low_health_decay_scale", &"break_damage_bonus", &"break_immunity", &"swing_poise", &"cleave_poise",
 		&"judgement_poise", &"weak_autos"]
-	_check("every tunable has a row (22)", keys == expected, true)
-	_check("its rows read the live values", [sd.get_value(&"deflect_window"), sd.get_value(&"poise_max"), sd.get_value(&"swing_poise"), sd.get_value(&"weak_autos")], [0.15, 100.0, 4.0, 1.0])
+	_check("every tunable has a row (23: AR3a's meter reads PoiseRules and the elite rank's break time)", keys == expected, true)
+	_check("its rows read the live values", [sd.get_value(&"deflect_window"), sd.get_value(&"poise_max"), sd.get_value(&"poise_break_time"), sd.get_value(&"decay_rate"), sd.get_value(&"swing_poise"), sd.get_value(&"weak_autos")], [0.15, 100.0, 1.8, 15.0, 4.0, 1.0])
 	var elite := _spawn(ELITE_SCENE, ARENA + Vector2(0, 220))
 	sd.set_value(&"deflect_window", 0.2)
-	sd.set_value(&"poise_regen_rate", 30.0)
+	sd.set_value(&"decay_rate", 30.0)
 	sd.set_value(&"poise_max", 150.0)
+	sd.set_value(&"poise_break_time", 2.0)
 	sd.set_value(&"swing_poise", 6.0)
 	sd.set_value(&"cleave_poise", 25.0)
 	sd.set_value(&"weak_autos", 0.7)
-	_check("a change applies at once: the Knight's window, a live elite's meter", [deflect.deflect_window, elite.poise_component.poise_regen_rate, elite.poise_component.poise_max], [0.2, 30.0, 150.0])
+	_check("a change applies at once: the Knight's window, a live elite's meter (its rules, its size, its break time)", [deflect.deflect_window, elite.poise_component.get_rules().decay_rate, elite.poise_component.poise_max, elite.poise_component.poise_break_time], [0.2, 30.0, 150.0, 2.0])
 	var later := _spawn(DUELIST_SCENE, ARENA + Vector2(0, 280))
-	_check("...and to an enemy spawned after (its data and its meter)", [later.poise_component.poise_regen_rate, later.poise_component.poise_max, _rd(DUELIST_DATA, &"poise_max")], [30.0, 150.0, 150.0])
+	_check("...and to an enemy spawned after (its data, its rank, the shared rules)", [later.poise_component.get_rules().decay_rate, later.poise_component.poise_max, later.poise_component.poise_break_time, _rd(DUELIST_DATA, &"poise_max")], [30.0, 150.0, 2.0, 150.0])
 	_check("...the poise damage on the shared data, the lever", [_rd(COMBO_KNIGHT.swings[2], &"poise_damage"), _rd(COMBO_KNIGHT.dash_strike, &"poise_damage"), _rd(CLEAVE, &"poise_damage"), _rd(CLEAVE_WAVE, &"poise_damage"), AutoAttackComponent.prototype_unempowered_auto_mult], [6.0, 6.0, 25.0, 25.0, 0.7])
 	sd.queue_free()
 	await _frames(2)
 	_check("gone: the shared data is put back", [_rd(ELITE_DATA, &"poise_max"), _rd(DUELIST_DATA, &"poise_max"), _rd(COMBO_KNIGHT.swings[0], &"poise_damage"), _rd(COMBO_KNIGHT.dash_strike, &"poise_damage"), _rd(CLEAVE, &"poise_damage"), _rd(CLEAVE_WAVE, &"poise_damage")], [100.0, 100.0, 4.0, 4.0, 20.0, 20.0])
+	_check("...the rules and the elite rank's break time too", [_rd(PoiseComponent.DEFAULT_RULES, &"decay_rate"), _rd(Brains.table.get_rank_rules(EnemyData.Rank.ELITE), &"poise_break_time")], [15.0, 1.8])
 	AutoAttackComponent.prototype_unempowered_auto_mult = 1.0
 	DeflectComponent.deflect_test_enabled = false
 	PoiseComponent.poise_test_enabled = false

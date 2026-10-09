@@ -74,11 +74,11 @@ signal deflect_streak_changed(unit: Unit, streak: int)
 ## (its next basic attack that hits).
 @warning_ignore("unused_signal")
 signal riposte_ready(unit: Unit)
-## PROTOTYPE (poise; PoiseComponent): `unit`'s poise changed (damage, filling
-## back, full again after a break).
+## `unit`'s poise changed (PoiseComponent; since ARCHETYPES AR3a it fills up to
+## a break: poise damage, decaying, full at the break, empty after it).
 @warning_ignore("unused_signal")
 signal poise_changed(unit: Unit, value: float, maximum: float)
-## PROTOTYPE (poise): `unit`'s poise hit 0: it's poise-broken (status_poise_broken).
+## `unit`'s poise reached its maximum: it's poise-broken (status_poise_broken).
 @warning_ignore("unused_signal")
 signal poise_broken(unit: Unit)
 ## ARCHETYPES AR2: `unit` started casting a perilous attack (Ability.perilous;

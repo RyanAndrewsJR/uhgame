@@ -12,7 +12,31 @@
 
 ## Archetypes (ARCHETYPES.md)
 
-### AR2, perilous attacks and their icon, with R0's quirk fixed: 2026-10-08, Built (awaiting Ryan's play test)
+### AR3a, the poise meter's new rules: 2026-10-08, Built (awaiting Ryan's play test)
+Ryan split AR3 (2026-10-08: "go AR3a"; DECISIONS.md, Archetypes): AR3a the meter's new rules, then AR3b the test Assassin. Ryan passed AR1b and AR2 before it.
+- **New:**
+  - `scripts/data/poise_rules.gd` (`PoiseRules`: `decay_delay` 3, `decay_rate` 15, `low_health` 0.4, `low_health_decay_scale` 0.5, `break_damage_bonus` 0.5, `break_immunity` 4) and `data/poise_rules/poise_rules_assassin.tres`;
+  - `scripts/data/archetype.gd` (`Archetype`: the spec's fields, `of(id)` loading `data/archetypes/archetype_<id>.tres` once, null with no file; `get_source_id()`) and `data/archetypes/archetype_assassin.tres`.
+- **`poise_component.gd`:**
+  - it fills up to a break: it starts at 0, `take_poise_damage()` raises it, at its maximum `status_poise_broken`; while broken it reads full; after it, empty and immune for 4 s;
+  - after 3 s with no poise hit it decays at 15 a second, ×0.5 below 40% health (`get_decay_rate()`);
+  - `setup(archetype, size, rank)` at spawn: its archetype, its size (−1 = its rank's when its archetype has a meter), its rank's break time;
+  - it runs for an archetype with a meter (`has_archetype_meter()`), or for the prototype's meters behind `poise_test_enabled` as before; a meter that stops running empties;
+  - its numbers come from `get_rules()` (the `rules` export, else its archetype's, else `DEFAULT_RULES`); the exports `poise_regen_delay`, `poise_regen_rate`, `poise_break_damage_bonus` and `poise_break_immunity` are gone into `PoiseRules`, and `get_regen_wait()` is `get_decay_wait()`.
+- **Data classes:**
+  - `rank_rules.gd`: `poise_meter_max` and `poise_break_time` (the table: regular 60 / 1.5 s, elite 100 / 1.8 s, boss 160 / 1.4 s);
+  - `enemy_data.gd`: `poise_max` defaults to −1; `get_archetype_id()` (`basic` for fodder or with no behavior);
+  - `enemy_behavior.gd`: `get_archetype_id()` (the brute preset `bruiser`, `skirmisher`, the caster's `mage`).
+- **`enemy.gd`:** `_apply_enemy_data()` calls `PoiseComponent.setup()`.
+- **`sandbox_deflect.gd`** (M): the poise rows are `poise_max`, `poise_break_time` (the elite rank's and every live elite's) and the shared `PoiseRules` (`decay_delay`, `decay_rate`, `low_health_decay_scale`, `break_damage_bonus`, `break_immunity`), all put back on exit; the bar fills gold toward the break.
+- Comments only: `events.gd` (`poise_changed`, `poise_broken`), `hit_pipeline.gd`, `unit.gd`.
+- **Found while building** (ARCHETYPES.md, Assassin, The enemy's layer): the meter reads full while broken; the rank's break time is every enemy meter's; the prototype's meters read the Assassin's rules; no enemy has a meter of its own until the test Assassin (AR3b), so in play only the two prototype meters show, behind Shift+V.
+- **Tests (deflect +22):**
+  - **New:** AR3a data (the Assassin's file, `of()`, the archetype ids, the ranks' sizes and break times); an archetype's meter (a regular breaking on the second deflect, 1.5 s; an elite on the pair plus the riposte, 1.8 s; a boss's 160 needing 45 more, 1.4 s; a size of 0, 80, none, the flag); the decay's low-health scale; a regular's break time.
+  - **Changed with the flip:** the meter, the break, the sources and the pair checks read filling numbers (the same hits: 4, 8, 28, 68; the pair 75 of 100); the data checks (−1, the rules); the sandbox's rows (23).
+- **Results:** 4,151/4,151 (was 4,129): stats 180, audio 110, view 474, talents 310, champions 238, deflect 177 (+22), loot 750, combat 510, abilities 593, brain_golden 144 (the golden files unchanged), enemies 665; no leaks, no GDScript warnings (deflect with `-d`). Think time p95 (µs): regular 960, elite 911, boss 882, duelist 1,179.
+
+### AR2, perilous attacks and their icon, with R0's quirk fixed: 2026-10-08, Passed (Ryan's play test, 2026-10-08; committed 719b884)
 - **R0's quirk** (Ryan: "fix the quirk first then AR2"; DECISIONS.md, Archetypes; ARCHETYPES.md, Strings and the beat):
   - `brain_drive.gd`, `_drive_commit()`: a commit starts its string only once the string's first swing is in reach, or when the mix put the string first. Until then it closes in on foot, so a damage cast that comes into reach on the way still gets the mix. `_try_plan()`: a damage cast never cuts a string it started.
   - `auto_attack_component.gd`:
@@ -66,7 +90,7 @@
   - **Golden:** 12 of 19 scenarios rewritten after review (`-- --write-golden`).
 - **Results:** 4,129/4,129 (was 4,095): stats 180, audio 110, view 474 (+5), talents 310, champions 238, deflect 155 (+9), loot 750, combat 510, abilities 593, brain_golden 144, enemies 665 (+20: AR2 data 8, the gate 8, a brain and the gate 2, rebuffed 2); no leaks, no GDScript warnings. Think time p95 (µs; the golden suite): regular 918, elite 801, boss 889, duelist 1,139, inside R0's ranges. In the new recordings no string is cut before its first swing (7 before) and no scenario loses a cast; the perilous moves come rarely: the duelist's plans reach their finisher inside the 6 s quiet time (its step waits out its window), and the elite slime's slam comes into reach only about 9 px before its string's first swing on the way in (41 px edge to edge against 32), about one think.
 
-### AR1b, the Mage volley, with AR1a's follow-up (the mix): 2026-10-08, Built (awaiting Ryan's play test)
+### AR1b, the Mage volley, with AR1a's follow-up (the mix): 2026-10-08, Passed (Ryan's play test, 2026-10-08; committed e94a011)
 - **The mix** (Ryan, after AR1a's play test: "a mix of A and B"; DECISIONS.md, Archetypes):
   - a commit with a damage cast ready rolls once, `EnemyAITable.string_then_cast_chance` 0.5 *(proposed)*;
   - B: its string first, then the cast as its finisher. The finisher must start within `string_finisher_wait` 0.3 s, and the token's hold restarts for it;

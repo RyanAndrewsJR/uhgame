@@ -45,10 +45,14 @@ enum Rank { FODDER, REGULAR, ELITE, BOSS }
 ## Its combo plans (ENEMIES_AI.md, Combo plans; AI-D2): it sets up and runs
 ## plans only with some. Each names its steps' abilities by slot.
 @export var combo_plans: Array[ComboPlan] = []
-## PROTOTYPE (poise, 2026-10-07): its poise meter's size (PoiseComponent,
-## given at spawn); 0 = none (the default: fodder, regulars). Acts as 0 while
-## PoiseComponent.poise_test_enabled is off.
-@export var poise_max: float = 0.0
+## Its poise meter's size (PoiseComponent.setup(), at spawn). ARCHETYPES AR3a
+## (2026-10-08): −1 (the default) = its rank's (RankRules.poise_meter_max)
+## when its archetype has a meter (Archetype.poise_meter: the Assassin), else
+## none; 0 = none; above 0 = that size. PROTOTYPE (poise, 2026-10-07): the
+## elite slime's and the test duelist's 100, a meter their archetype (Bruiser)
+## doesn't have, which runs only while PoiseComponent.poise_test_enabled is on
+## (AR6 sets them to 0).
+@export var poise_max: float = -1.0
 ## ARCHETYPES AR1a: its string (D6): the chain of basic attack swings a commit
 ## with no combo plan runs (and a plan's STRING step), at its archetype's
 ## rhythm (AttackCombo: its swings' timings, string_hits_min). null = no
@@ -59,6 +63,14 @@ enum Rank { FODDER, REGULAR, ELITE, BOSS }
 ## The source id its twist goes under.
 func get_source_id() -> StringName:
 	return StringName("enemy_" + String(id))
+
+
+## Its archetype's id (ARCHETYPES AR3a; Archetype.of()): &"basic" for fodder
+## or without a behavior, else its behavior's (EnemyBehavior.get_archetype_id()).
+func get_archetype_id() -> StringName:
+	if rank == Rank.FODDER or behavior == null:
+		return &"basic"
+	return behavior.get_archetype_id()
 
 
 ## Its combo plans that exist at `difficulty_tier` (AI-D2).

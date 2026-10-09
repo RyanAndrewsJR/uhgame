@@ -77,8 +77,8 @@ const HIT_IFRAMES_ID := &"hit_iframes"
 ## PROTOTYPE (deflect, 2026-10-07): optional; the player's. Its window can
 ## deflect a hit in on_hit() before the i-frames block it.
 @onready var deflect_component: DeflectComponent = get_node_or_null("DeflectComponent")
-## PROTOTYPE (poise): optional; every enemy has one (slime.tscn). A hit's
-## poise_damage lowers it once the hit gets through (on_hit()).
+## Optional; every enemy has one (slime.tscn). A hit's poise_damage fills it
+## once the hit gets through (on_hit()); ARCHETYPES AR3a.
 @onready var poise_component: PoiseComponent = get_node_or_null("PoiseComponent")
 
 var hovered: bool = false:

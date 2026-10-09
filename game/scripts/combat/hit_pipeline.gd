@@ -289,9 +289,10 @@ static func apply_on_hit(ctx: HitContext) -> void:
 		source.resource_pool.restore(gain)
 
 
-## PROTOTYPE (poise, 2026-10-07): a hit that got through lowers its target's
-## poise by ctx.poise_damage (PoiseComponent.take_poise_damage(); nothing
-## while the poise flag is off, or for a unit without a meter). Called by
+## Poise (2026-10-07; filling up to a break since ARCHETYPES AR3a): a hit that
+## got through raises its target's poise by ctx.poise_damage
+## (PoiseComponent.take_poise_damage(); nothing for a unit whose meter doesn't
+## run: no meter, or the prototype's with the poise flag off). Called by
 ## Unit.on_hit() after the damage and statuses. Not for a blocked hit or a kill.
 static func apply_poise_damage(ctx: HitContext) -> void:
 	if ctx.blocked or ctx.killed or ctx.poise_damage <= 0.0:

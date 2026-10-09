@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="Archetype" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/archetype.gd" id="1_archetype"]
+[ext_resource type="Resource" path="res://data/poise_rules/poise_rules_assassin.tres" id="2_poise"]
+
+[resource]
+script = ExtResource("1_archetype")
+id = &"assassin"
+display_name = "Assassin"
+string_hits_min = 3
+string_hits_max = 4
+string_spacing = 0.4
+deflects = true
+dash_distance_scale = 1.25
+dash_recharge_time = 1.2
+deflect_window = 0.2
+poise_meter = true
+poise_rules = ExtResource("2_poise")

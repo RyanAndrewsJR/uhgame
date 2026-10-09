@@ -55,3 +55,10 @@ extends Resource
 ## (2–3 across its phases). A data rule the enemies test checks on every
 ## EnemyData.
 @export var perilous_max: int = 0
+## ARCHETYPES AR3a (D8): the poise meter's size for an enemy of this rank
+## whose archetype has one (Archetype.poise_meter; PoiseComponent.setup()):
+## fodder 0, regular 60, elite 100, boss 160. Not the hook `poise` above.
+@export var poise_meter_max: float = 0.0
+## Seconds its poise break lasts (D8: regular 1.5, elite 1.8, boss 1.4; 0 =
+## the meter's own); every enemy meter's, the prototype's too.
+@export var poise_break_time: float = 0.0

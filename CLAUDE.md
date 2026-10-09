@@ -147,15 +147,15 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 - **Now:**
   - The Knight ships; CHAMPIONS, TALENTS, LOOT and the 3D pivot (up to the P-spike) are done. Korsavil: K1–K2 passed; K3–K6 and K-M wait.
   - ENEMIES_AI: AI1–AI3, AI3b–AI3d and AI-D1–AI-D3 passed; R0 and R1 committed (4,095/4,095).
-  - ARCHETYPES: AR1a passed; AR1b (the Mage volley) and the cast-or-string mix are built and committed; AR2 (perilous attacks), with R0's quirk fixed, is built (not committed): both **await Ryan's play test**.
+  - ARCHETYPES: AR1a, AR1b (with the mix) and AR2 (with R0's quirk fix) passed and are committed; AR3a (AR3's first half: the poise meter's new rules) is built, not committed, and **awaits Ryan's play test**.
   - The deflect/riposte/poise prototype on the Knight is built behind flags, off in shipped config (sandbox: V, Shift+V, M); it, the TEMP weak-auto lever and the TEMP enemy attack speed multiplier **await his play test** (CHANGELOG.md; DECISIONS.md, Combat, Testing).
 - **Last 3 done:**
-  1. AR2 (2026-10-08, built): perilous attacks (the gate, the icon, the rebuff, a deflect counting as two; the elite slime's slam and the duelist's finisher), with R0's quirk fixed (a string starts once its first swing is in reach).
-  2. R1 (2026-10-08): the brain split into seven files, code moved only.
-  3. R0 (2026-10-08): the brain's golden test (`brain_golden_test`; `-- --write-golden`).
+  1. AR3a (2026-10-08, built): the poise meter fills up to a break and decays, sized and timed by rank; `PoiseRules`; the `Archetype` resource (the Assassin's).
+  2. AR2 (2026-10-08, passed): perilous attacks (the gate, the icon, the rebuff, a deflect counting as two), with R0's quirk fixed.
+  3. R1 (2026-10-08): the brain split into seven files, code moved only.
 - **Next** (ARCHETYPES.md, Open question 15, with Ryan's later changes):
-  1. AR1b's play test (with the mix) and AR2's (perilous attacks).
-  2. AR3 (the test enemy Assassin).
+  1. AR3a's play test.
+  2. AR3b (the test enemy Assassin: the Riposte Stance, rebuffing, its kit).
   3. AR4 (weak basic attacks), AR5 (Korsavil's Assassin layer), AR6 (the Knight's test version goes).
   4. Korsavil's K3–K6 and K-M (CHAMPIONS.md, Build order).
   5. AR7 (duel pressure), AR8 (the rename pass), then AR-M (the duel).
