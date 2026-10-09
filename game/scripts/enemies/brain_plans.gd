@@ -72,7 +72,7 @@ func _build_plan_options(s: SituationContext) -> void:
 			if step.kind == ComboStep.Kind.STRING:
 				if not step.optional and not brain.has_attack_string():
 					o.ready = false   # AR1a: a STRING step needs its string
-			elif not step.optional and not brain._is_slot_ready(step.slot):
+			elif not step.optional and not brain._brain_duel._is_slot_ready(step.slot):
 				o.ready = false
 		o.conditions_ok = Condition.all_met(plan.conditions, brain._enemy, s.target_unit, null, s)
 		if o.ready and o.conditions_ok and opener != null and abilities.can_cast(opener_slot):
@@ -190,7 +190,7 @@ func _try_step(i: int, s: SituationContext) -> void:
 			_skip_step()
 		return
 	var plan := _step_cast_plan(step.slot, s)
-	if plan == null or not brain._heavy_hit_allowed(ability, plan):
+	if plan == null or not brain._brain_duel._heavy_hit_allowed(ability, plan):
 		return
 	if brain._enemy.attack.is_winding_up():
 		brain._enemy.attack.cancel()   # the step comes first (the windup is refunded)
@@ -202,7 +202,7 @@ func _try_step(i: int, s: SituationContext) -> void:
 	else:
 		cast = abilities.try_cast(step.slot, plan.point, plan.target)
 	if cast:
-		brain._note_heavy_hit(plan)
+		brain._brain_duel._note_heavy_hit(plan)
 
 
 ## An optional step skipped: the next one triggers off the same previous cast.

@@ -237,12 +237,14 @@ var _cautious_until := -1.0
 var _spend_free := false         # the last spend roll freed its key
 var _next_spend_roll := -1.0     # −1 = roll at the next think that holds it
 var _crowded_target: Unit
+@warning_ignore("unused_private_class_variable")
 var _crowded_seen := -1.0        # when its target came inside (−1 = it isn't)
 var _episode := false
 var _episode_needs_roll := false
 var _crowded_roll: StringName = &""
 var _crowded_roll_value := -1.0  # the roll that decided it (the overlay)
 var _crowded_answer := false
+@warning_ignore("unused_private_class_variable")
 var _outside_since := -1.0
 var _walking_out_until := -1.0
 var _walk_out_far := false
@@ -289,6 +291,7 @@ var _string_step := -1               # the plan step running its string (−1 = 
 # so the ones only the helpers use carry @warning_ignore.
 var _brain_strings := BrainStrings.new(self)
 var _brain_plans := BrainPlans.new(self)
+var _brain_duel := BrainDuel.new(self)
 
 
 func setup(p_data: EnemyData, p_rank_rules: RankRules) -> void:
@@ -656,8 +659,8 @@ func think() -> bool:
 		if _patience > 1.0 - PATIENCE_EPSILON:
 			_patience = 1.0   # summed float steps fall a hair short of 1
 	if _episode_needs_roll:
-		_roll_episode(s, now)
-	_check_peel(s, now)   # AI-D1
+		_brain_duel._roll_episode(s, now)
+	_brain_duel._check_peel(s, now)   # AI-D1
 	if s.setup:
 		_patience = 1.0   # AI-D1: the setup fills it at once (then its token, as any commit)
 	s.patience = _patience
@@ -717,7 +720,7 @@ func build_situation() -> SituationContext:
 	# AI3b: its key ability and its own kit; cautious; the numbers decide() reads.
 	_key_slot = BrainScoring.find_key_slot(_enemy.abilities, table)
 	s.key_slot = _key_slot
-	s.key_ready = _key_slot != &"" and _is_slot_ready(_key_slot)
+	s.key_ready = _key_slot != &"" and _brain_duel._is_slot_ready(_key_slot)
 	if s.key_ready:
 		_cautious_until = -1.0   # its key is back: no longer cautious
 	s.own_ready_share = BrainScoring.get_own_ready_share(_enemy.abilities, table, _key_slot)
@@ -742,7 +745,7 @@ func build_situation() -> SituationContext:
 	var snap := Brains.get_snapshot()
 	var m := snap.get_member(target)
 	_read_crowding(s, m, target, now)   # AI-D1: crowding starts the episode
-	_update_episode(s, target, now)
+	_brain_duel._update_episode(s, target, now)
 	s.target_in_sight = WorldQuery.has_line_of_sight(_enemy.global_position, target.global_position)
 	s.target_reachable = _enemy.is_target_reachable()
 	s.taunted = _enemy.get_taunter() == target
@@ -777,9 +780,9 @@ func build_situation() -> SituationContext:
 	_read_opening(s, m, target, now)   # AI-D1
 	_perceive(s, snap, now)
 	_gather_uses(s)
-	_update_spend(s, snap, now)
+	_brain_duel._update_spend(s, snap, now)
 	_brain_plans._read_plans(s, m, target)   # AI-D2
-	s.setup = _wants_setup(s)   # AI-D1 (AI-D2: with a plan that fits)
+	s.setup = _brain_duel._wants_setup(s)   # AI-D1 (AI-D2: with a plan that fits)
 	return s
 
 
@@ -869,182 +872,11 @@ func _gather_uses(s: SituationContext) -> void:
 		var aim := plan.vector_start if plan.is_vector() else plan.point
 		if abilities.get_fail_reason(slot, aim, plan.target) != "":
 			continue
-		if not _heavy_hit_allowed(ability, plan):
+		if not _brain_duel._heavy_hit_allowed(ability, plan):
 			continue   # AI3c: one heavy hit at a time while pressing (it holds or swings)
 		for use in ability.get_ai_uses():
 			if use != null and wanted.has(use.intent) and plan.intents.has(use.intent) and use.passes(_enemy, s.target_unit, s):
 				s.add_use(slot, use.intent, plan, use.weight)
-
-
-# --- Duels and odds (AI3b) ----------------------------------------------------------
-
-func _is_slot_ready(slot: StringName) -> bool:
-	var abilities := _enemy.abilities
-	return abilities != null and abilities.get_ability(slot) != null and abilities.is_ready(slot) and abilities.can_afford(slot)
-
-
-## The crowded episode (ENEMIES_AI.md, Crowded): it starts once its target
-## has been inside its crowded range for its reaction time (it's reacting to
-## you; never while it commits or walks back out after a commit: its own
-## dive brings it close), with one roll
-## (think() rolls it, once the uses are gathered). It lasts until the target
-## has stayed crowded_clear_px outside it for crowded_clear_time s; a new
-## target ends it.
-## AI-D1: "inside" is its crowding at its peel_threshold or more (at the role
-## starts the target inside its crowded range is enough on its own; a Lunge
-## in or a string of hits near the edge brings it forward), and the target
-## stays out only while its crowding is also below it.
-func _update_episode(s: SituationContext, target: Unit, now: float) -> void:
-	var table := Brains.table
-	if target != _crowded_target:
-		_end_episode()
-		_crowded_target = target
-	var crowded_px := Units.to_px(behavior.get_crowded_range())
-	if s.crowding >= behavior.peel_threshold - 0.0001:
-		_outside_since = -1.0
-		if not _episode:
-			if _committing or _back_off_left > 0.0:
-				_crowded_seen = -1.0   # its own dive (or its walk out after one) brought it close
-			elif _crowded_seen < 0.0:
-				_crowded_seen = now
-				Brains.wake_at(self, now + behavior.reaction_time)
-			elif now - _crowded_seen + 0.0001 >= behavior.reaction_time:
-				_episode = true
-				_episode_needs_roll = true
-	else:
-		if not _episode:
-			_crowded_seen = -1.0
-		elif s.target_edge_distance_px >= crowded_px + table.crowded_clear_px:
-			if _outside_since < 0.0:
-				_outside_since = now
-			elif now - _outside_since + 0.0001 >= table.crowded_clear_time:
-				_end_episode()
-		else:
-			_outside_since = -1.0
-	s.crowded = _episode
-	s.crowded_roll = _crowded_roll
-
-
-func _end_episode() -> void:
-	_episode = false
-	_episode_needs_roll = false
-	_crowded_roll = &""
-	_crowded_roll_value = -1.0
-	_crowded_answer = false
-	_crowded_seen = -1.0
-	_outside_since = -1.0
-	_peel_pending = false   # AI-D1: a peel still to cast isn't needed any more (one under way finishes)
-
-
-## The episode's one roll, carried out: all in fills patience at once (a melee
-## role then commits, its tell first, on its token; with none free it holds
-## its ground and swings, first in the queue); backing up starts the kiting
-## step. Standing, escaping and the cornered stand need nothing more: the
-## rules already built play them. AI-D1: a peel waits for its cast (decide()
-## picks `peel` while it's pending; its end starts the kiting step).
-func _roll_episode(s: SituationContext, now: float) -> void:
-	_episode_needs_roll = false
-	var r := BrainScoring.roll_crowded(s, behavior, rng)
-	_crowded_roll = r.result
-	_crowded_roll_value = r.roll
-	_crowded_answer = r.answer
-	s.crowded_roll = _crowded_roll
-	match _crowded_roll:
-		ALL_IN:
-			if behavior.role != EnemyBehavior.Role.CASTER:
-				_patience = 1.0
-		BACK_UP:
-			_start_walk_out(now, false)
-		PEEL:
-			_peel_pending = true
-			_peel_slot = s.get_best_use([PEEL] as Array[StringName]).get("slot", &"")
-
-
-## Walking back out (a retreat, step_back): the crowded kiting step toward its
-## band, or (far) a cautious walk to its band's far edge after a commit, for
-## back_off_time s; then it holds its ground (AI1's rule).
-func _start_walk_out(now: float, far: bool) -> void:
-	var table := Brains.table
-	_walking_out_until = now + table.back_off_time
-	_walk_out_far = far
-	_back_off_left = table.back_off_time
-	_hold_edge = -1.0
-	Brains.wake(self)
-
-
-## Spending the key ability (ENEMIES_AI.md): at a right moment it's free;
-## otherwise a roll against spend_eagerness every spend_roll_time s while it
-## holds the key frees it (until the next roll) or holds it: then its key's
-## damage, cc and zone uses aren't picked (SituationContext.held_slot). Its
-## key down: the roll waits until it's ready again.
-func _update_spend(s: SituationContext, snap: PartySnapshot, now: float) -> void:
-	if s.key_slot == &"" or not s.key_ready:
-		_spend_free = false
-		_next_spend_roll = -1.0
-		return
-	s.key_area_champions = _key_area_champions(s, snap)
-	s.right_moment_reason = BrainScoring.get_right_moment(s, behavior)
-	s.right_moment = s.right_moment_reason != ""
-	if s.right_moment:
-		return
-	if _next_spend_roll < 0.0 or now >= _next_spend_roll - 0.0001:
-		_spend_free = rng.randf() < behavior.spend_eagerness
-		_next_spend_roll = now + Brains.table.spend_roll_time
-	if not _spend_free:
-		s.held_slot = s.key_slot
-
-
-## The champions its key's gathered plan would cover (0 with one champion,
-## or no plan for it gathered).
-func _key_area_champions(s: SituationContext, snap: PartySnapshot) -> int:
-	if snap.members.size() < s.spend_min_champions:
-		return 0
-	for u in s.uses:
-		if u.slot != s.key_slot or u.plan == null:
-			continue
-		var plan: CastPlan = u.plan
-		var ctx := CastContext.new()
-		ctx.ability = plan.ability
-		ctx.point = plan.point
-		ctx.direction = plan.direction
-		ctx.target = plan.target
-		var area := plan.ability.get_effect_area(_enemy, ctx)
-		var n := 0
-		for m in snap.members:
-			if m.up and Ability.covers_unit(area, m.unit):
-				n += 1
-		return n
-	return 0
-
-
-# --- The odds (AI3c) ----------------------------------------------------------------
-
-## The champion a plan's hit lands on: its target, else (a cast around itself)
-## its brain's.
-func _plan_hit_target(plan: CastPlan) -> Unit:
-	if plan.target != null and is_instance_valid(plan.target):
-		return plan.target
-	return _enemy.get_brain_target()
-
-
-## One heavy hit at a time (Odds, Fairness limits): while the enemies press,
-## a heavy hit that would land within heavy_hit_window s of another on the
-## same champion isn't started. True when it may start.
-func _heavy_hit_allowed(ability: Ability, plan: CastPlan) -> bool:
-	if Brains.get_press() <= 0.0:
-		return true   # outside a press, AI2's rule: no limit
-	var target := _plan_hit_target(plan)
-	if target == null or not BrainScoring.is_heavy_hit(ability, _enemy, target, Brains.table):
-		return true
-	return Brains.can_land_heavy_hit(target, Brains.get_time() + BrainScoring.get_time_to_land(ability, _enemy, target))
-
-
-## A heavy hit it started is noted in Brains (with or without a press, so a
-## press that starts while it's on its way sees it).
-func _note_heavy_hit(plan: CastPlan) -> void:
-	var target := _plan_hit_target(plan)
-	if target != null and BrainScoring.is_heavy_hit(plan.ability, _enemy, target, Brains.table):
-		Brains.note_heavy_hit(_enemy, target, Brains.get_time() + BrainScoring.get_time_to_land(plan.ability, _enemy, target))
 
 
 # --- Combos: crowding, the opening, the peel and the setup (AI-D1) ---------------------------
@@ -1126,32 +958,6 @@ func _target_cornered(target: Unit) -> bool:
 	var from := target.global_position
 	var to := from + dir.normalized() * (target.get_gameplay_radius_px() + Brains.table.cornered_check_px)
 	return not WorldQuery.shape_sweep(from, to, 2.0, MovementComponent.GHOST_KEEP_MASK).is_empty()
-
-
-## The setup (ENEMIES_AI.md, Peel and setup): an enemy with combo plans (AI-D2;
-## in AI-D1 an opener), not crowded (no episode, crowding under its
-## peel_threshold), not committing or walking out, its target reachable, the
-## opening at its opening_bar or more, and a plan that fits now. Never under
-## its alert pose (found building AI-D1: Enemy.get_pose() shows `alert` first
-## for its 0.4 s, so a setup on the think it woke hid its tell).
-func _wants_setup(s: SituationContext) -> bool:
-	if not s.has_plans or not s.has_target or _committing or s.crowded or s.walking_out or not s.target_reachable:
-		return false
-	if _enemy.get_pose() == &"alert":
-		return false
-	if s.crowding >= behavior.peel_threshold - 0.0001 or s.opening < behavior.opening_bar - 0.0001:
-		return false
-	return ComboPlanner.has_fitting_plan(s)
-
-
-## A peel rolled but not cast whose use no longer passes (its target walked
-## out of its range, the ability went down) takes the kiting step without it.
-func _check_peel(s: SituationContext, now: float) -> void:
-	if not _peel_pending or _peel_cast or s.casting or s.cast_blocked or is_in_ability_recovery():
-		return
-	if not s.has_use([PEEL] as Array[StringName]):
-		_peel_pending = false
-		_start_walk_out(now, false)
 
 
 # --- Combo plans (AI-D2) --------------------------------------------------------------------
@@ -1569,7 +1375,7 @@ func _try_plan() -> void:
 	var aim := plan.vector_start if plan.is_vector() else plan.point
 	if abilities.get_fail_reason(plan.slot, aim, plan.target) != "":
 		return
-	if not _heavy_hit_allowed(plan.ability, plan):
+	if not _brain_duel._heavy_hit_allowed(plan.ability, plan):
 		return   # AI3c: another heavy hit got there first since the decision
 	abilities.set_aim_hint(plan.point)
 	_last_lead_px = plan.lead_px
@@ -1579,7 +1385,7 @@ func _try_plan() -> void:
 	else:
 		cast = abilities.try_cast(plan.slot, plan.point, plan.target)
 	if cast:
-		_note_heavy_hit(plan)
+		_brain_duel._note_heavy_hit(plan)
 
 
 ## `plan` is its gap-closer now (AR1a): its ability has a gap_close use and
@@ -1674,7 +1480,7 @@ func _end_commit() -> void:
 	else:
 		_patience = 0.0
 		if is_cautious() and behavior.confidence > 0.0:
-			_start_walk_out(Brains.get_time(), true)
+			_brain_duel._start_walk_out(Brains.get_time(), true)
 
 
 ## A skirmisher's hop out at its reset: a quick dash straight back from its
@@ -1747,7 +1553,7 @@ func _reset() -> void:
 	_cautious_until = -1.0
 	_spend_free = false
 	_next_spend_roll = -1.0
-	_end_episode()
+	_brain_duel._end_episode()
 	_crowded_target = null
 	_walking_out_until = -1.0
 	_walk_out_far = false
@@ -1840,7 +1646,7 @@ func _on_cast_ended(slot: StringName, ability: Ability) -> void:
 	if _peel_cast and slot == _peel_slot:
 		_peel_cast = false
 		peel_count += 1
-		_start_walk_out(Brains.get_time(), false)
+		_brain_duel._start_walk_out(Brains.get_time(), false)
 		return
 	if _plan != null:
 		if _plan_step_casting >= 0 and slot == _plan.steps[_plan_step_casting].slot:
@@ -1910,3 +1716,9 @@ static func get_patience_rate(s: SituationContext, b: EnemyBehavior, table: Enem
 static func get_string_length(s: SituationContext, attack_string: AttackCombo, rules: RankRules, table: EnemyAITable,
 		b: EnemyBehavior, stream: RandomNumberGenerator) -> int:
 	return BrainScoring.get_string_length(s, attack_string, rules, table, b, stream)
+
+
+# BrainDuel: the duel.
+
+func _update_spend(s: SituationContext, snap: PartySnapshot, now: float) -> void:
+	_brain_duel._update_spend(s, snap, now)
