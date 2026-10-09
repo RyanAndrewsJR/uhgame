@@ -11,7 +11,59 @@
 
 ## Archetypes (ARCHETYPES.md)
 
-### AR1a, the melee strings: 2026-10-08, Built (awaiting Ryan's play test)
+### AR1b, the Mage volley, with AR1a's follow-up (the mix): 2026-10-08, Built (awaiting Ryan's play test)
+- **The mix** (Ryan, after AR1a's play test: "a mix of A and B"; DECISIONS.md, Archetypes):
+  - a commit with a damage cast ready rolls once, `EnemyAITable.string_then_cast_chance` 0.5 *(proposed)*;
+  - B: its string first, then the cast as its finisher. The finisher must start within `string_finisher_wait` 0.3 s, and the token's hold restarts for it;
+  - A: the cast first, then the commit ends (AI1's);
+  - a gap-closer always goes first.
+  - In `enemy_brain.gd`: `_try_plan()` rolls, `_drive_commit()` starts the string under B, `_is_commit_done()` waits for the finisher; plus `_is_gap_close_plan()`.
+- **AR1b:**
+  - `attack_swing.gd`: group "Ranged" (`projectile_speed` 750, `projectile_range` 950, `projectile_width` 30, `projectile_color`).
+  - `projectile.gd`:
+    - `fire_swing()`: a swing's shot. Its hit is `HitPipeline.basic_attack()`, tagged `projectile`, deflectable by the swing's mark; with its attacker freed, the snapshot (no source, no crit);
+    - `swing`, `tint`;
+    - an ability's shots unchanged.
+  - `projectile_view.gd`: a shot with no ability takes its `tint`.
+  - `auto_attack_component.gd`:
+    - a RANGED string closes in only until `is_string_in_reach()` (its shot's range less `enemy_hit_forgiveness`, and line of sight), walking straight in;
+    - each hit moment fires one shot at the target where it stands;
+    - a champion's RANGED combo is unchanged (its arc hit).
+  - Data:
+    - `data/combos/combo_test_caster.tres` (RANGED, 3 bolts: 0.5 s beat, then 0.45 s apart, 1.5 AD each), on the test caster and the elite test caster;
+    - `enemy_behavior_caster.tres`: commit weight 0 → 1 (D7: the volley is the Mage's string, so the Mage commits).
+  - `enemy_brain.gd`: while a commit's string swings, `think()` makes no new decision.
+- **Found while building:**
+  - **A string could be taken back:** mid-volley, the caster's poke (0.6) outscored its commit (0.65) once the intent's 0.4 s hold was over (±15% jitter), and the brain stopped the string. The elite caster's 4-bolt volley was cut after its third swing.
+    - Now a swinging string makes no new decision; only a stun, a break, its token or its target lost end it.
+    - Melee strings had the same hole for any enemy with a poke; none of today's has one.
+  - **The old AI3 checks** of "a caster never commits" now check that a weight-0 caster never commits, and that the preset commits.
+- **Measured** (game time):
+  - A passive test caster 6.5 m from the Knight:
+    - it stood still;
+    - first release 0.500 s after its wind-up, then 0.45 / 0.45;
+    - 3 bolts, each hitting him 0.77 s after its release;
+    - the volley done before its last bolt landed.
+  - From 11.8 m out it walked in and started at 800 u edge to edge (its reach 855 u). With a wall between them it didn't fire.
+  - A deflect pair on its bolts: 2 deflected and absorbed, the riposte his, the third hit him.
+  - A real test caster: its tell 0.32 s, then 3 bolts on the rhythm from where it stood (0.0 px moved), its token held throughout, all 3 hitting him. The elite caster: 3.
+  - The mix at 1: the brute's 2-hit string, then its cleave arc 0.02 s after the string's end, the commit ending with it (0.63 s; its cast 0.60 s). At 0: the cast first, no swing.
+  - **Smoke** (the real sandbox, saving off; the Knight beside the elite slime with his kit spent, a test caster added 6.5 m away; 40 s):
+    - the elite slime: 3–4 full strings, 2 of them followed by a finisher, against 6–8 casts (before the mix, 1 string a 30 s);
+    - the caster: 7 volleys of 3, none cut, 16 of its 21 bolts hitting the Knight, and 19 pokes between them;
+    - no error; the saves byte-identical.
+    - A caster placed off the navmesh never noticed him (the AI2 path rule), as expected.
+- **Tests:**
+  - enemies 645/645. 24 new:
+    - the mix: the table, string first then finisher, cast first, a gap-closer first at chance 1;
+    - AR1b's data; a passive volley; walking in, and a wall; a deflect pair on bolts; the shot (its numbers, a wall, a freed attacker); real casters, their token, the poke guard, the elite;
+    - AI3's caster decide check split in two (weight 0 never commits; the preset does).
+  - The older checks run at mix 0.
+  - Stats 180/180, combat 510/510, abilities 593/593, audio 110/110, champions 238/238, talents 310/310, view 469/469, loot 750/750, deflect 146/146: 3,951/3,951.
+  - Ten rules broken on purpose, every one caught: the mix never rolling B, no finisher, a gap-closer waiting, no shot fired, no line of sight needed, a shot not deflectable, no snapshot, walls ignored, a new decision mid-string, the preset back at 0.
+  - No GDScript warnings: all 180 scripts under `-d`.
+
+### AR1a, the melee strings: 2026-10-08, Passed (Ryan's play test, 2026-10-08; committed a55100d)
 Ryan split AR1 (2026-10-08; DECISIONS.md, Archetypes): AR1a the melee strings, then AR1b the Mage volley.
 - **Built:**
   - `auto_attack_component.gd`: `run_string()`, an enemy's string run on combo mode's swing code, in place of the League-style attack until it ends:

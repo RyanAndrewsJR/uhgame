@@ -47,6 +47,19 @@ extends Resource
 ## window, AR3); a ranged combo's shots set it false (never projectiles).
 @export var deflectable: bool = true
 
+@export_group("Ranged")
+## ARCHETYPES AR1b: a RANGED string's swing fires one shot at its hit moment
+## (Projectile.fire_swing(): a basic attack hit, the first unit it meets),
+## aimed at the string's target where it stands then. Read only by an
+## enemy's RANGED string (a champion's ranged basic attack is designed
+## later). Speed in LoL units a second; range (from the attacker's center)
+## and width in LoL units.
+@export var projectile_speed: float = 750.0
+@export var projectile_range: float = 950.0
+@export var projectile_width: float = 30.0
+## The shot's 3D look (ProjectileView's bolt).
+@export var projectile_color: Color = Color(0.8, 0.6, 1.0)
+
 @export_group("Sounds")
 ## At swing start, whiffs included (AUDIO.md). null = silent.
 @export var swing_sound: SoundEvent

@@ -1,6 +1,7 @@
 extends EntityView
 ## A projectile's 3D look (3D.md, The generic view mechanism): the default
-## bolt, tinted by its ability's icon_color, flying at chest height along its
+## bolt, tinted by its ability's icon_color (a swing's shot, ARCHETYPES AR1b: its
+## projectile_color), flying at chest height along its
 ## direction, with a short flash where it ends. A wide projectile (a wave such
 ## as Cleave Wave) is a flat slab across its path instead.
 
@@ -32,7 +33,8 @@ func get_height_m() -> float:
 
 func _on_setup() -> void:
 	var ability: Variant = sim.get(&"ability")
-	var color := (ability as Ability).icon_color if ability is Ability else Color(0.8, 0.8, 0.8)
+	var tint: Variant = sim.get(&"tint")   # ARCHETYPES AR1b: a swing's shot has no ability
+	var color := (ability as Ability).icon_color if ability is Ability else (tint as Color if tint is Color else Color(0.8, 0.8, 0.8))
 	_material = StandardMaterial3D.new()
 	_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA

@@ -8,6 +8,7 @@
 [ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="6_data"]
 [ext_resource type="Resource" path="res://data/units/test_caster.tres" id="7_stats"]
 [ext_resource type="Resource" path="res://data/abilities/test_caster_r_snare.tres" id="8_snare"]
+[ext_resource type="Resource" path="res://data/combos/combo_test_caster.tres" id="20_string"]
 
 [sub_resource type="Resource" id="slot_q"]
 script = ExtResource("1_slot")
@@ -38,3 +39,4 @@ stats = ExtResource("7_stats")
 abilities = Array[ExtResource("1_slot")]([SubResource("slot_q"), SubResource("slot_w"), SubResource("slot_e"), SubResource("slot_r")])
 model_color = Color(0.6, 0.45, 1, 1)
 detect_range = 850.0
+attack_string = ExtResource("20_string")

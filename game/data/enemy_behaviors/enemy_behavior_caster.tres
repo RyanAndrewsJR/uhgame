@@ -6,7 +6,7 @@
 script = ExtResource("1_behavior")
 role = 2
 intent_weights = Dictionary[StringName, float]({
-&"commit": 0.0
+&"commit": 1.0
 })
 low_health = 1
 crowded_range = -1.0

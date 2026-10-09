@@ -570,7 +570,10 @@ func remove_lock(id: StringName) -> void:
 ## pull, the swing's timings and knockback), in place of the League-style
 ## attack until it ends:
 ## - it chases until the target is within its first swing's reach (less
-##   enemy_hit_forgiveness, like a League-style attack), then swings;
+##   enemy_hit_forgiveness, like a League-style attack), then swings; a
+##   RANGED string (AR1b, the Mage's volley) only until the target is within
+##   its shot's range and in sight (is_string_in_reach()), and each hit
+##   moment fires a shot (Projectile.fire_swing()) instead of the arc's hit;
 ## - each later hit starts as the swing before it ends (after its
 ##   pause_after), aimed at the target where it stands then; its hit lands
 ##   on whatever is in the swing's arc (reach and arc × (1 −
@@ -690,6 +693,38 @@ func _get_swing_combo() -> AttackCombo:
 	return _string if _string != null else combo
 
 
+## The running string is RANGED (AR1b: a volley of shots).
+func _is_ranged_string() -> bool:
+	return _string != null and _string.attack_style == AttackCombo.AttackStyle.RANGED
+
+
+## The running string's first swing may start on `t` from here: a melee
+## string's within that swing's reach (less enemy_hit_forgiveness, as a
+## League-style attack); a RANGED string's (AR1b) with `t` within its shot's
+## range (from this unit's center to `t`'s edge, less enemy_hit_forgiveness)
+## and in sight. False with no string.
+func is_string_in_reach(t: Unit) -> bool:
+	if _string == null or not is_instance_valid(t):
+		return false
+	var swing := _get_string_swing(0)
+	if _is_ranged_string():
+		var reach := Units.to_px(swing.projectile_range) * (1.0 - enemy_hit_forgiveness)
+		return unit.global_position.distance_to(t.global_position) - t.get_gameplay_radius_px() <= reach \
+			and WorldQuery.has_line_of_sight(unit.global_position, t.global_position)
+	return unit.edge_distance_to(t) <= get_swing_reach_px(swing) * (1.0 - enemy_hit_forgiveness)
+
+
+## AR1b: a RANGED string's hit moment: one shot (Projectile.fire_swing()) at
+## the string's target where it stands now.
+func _fire_string_shot(swing: AttackSwing) -> void:
+	if not is_instance_valid(_string_target):
+		return
+	var to := _string_target.global_position - unit.global_position
+	var direction := to.normalized() if to.length() > 0.01 else _swing_direction
+	_swing_direction = direction
+	Projectile.fire_swing(unit, swing, unit.global_position, direction)
+
+
 ## Each physics tick while a string runs: it ends when its target turns
 ## invalid or its last swing is over; else the next hit starts as soon as no
 ## swing, pause or lock holds it (the first one once the target is in reach;
@@ -706,11 +741,14 @@ func _update_string(delta: float) -> void:
 		return
 	if not _locks.is_empty() or _pause_left > 0.0:
 		return
-	if _string_next == 0 and unit.edge_distance_to(_string_target) > get_swing_reach_px(_get_string_swing(0)) * (1.0 - enemy_hit_forgiveness):
+	if _string_next == 0 and not is_string_in_reach(_string_target):
 		_repath_timer -= delta
 		if _repath_timer <= 0.0 or not unit.movement.has_order():
 			_repath_timer = chase_repath_interval
-			unit.movement.move_to(_approach_point_to(_string_target))
+			if _is_ranged_string():
+				unit.movement.move_to(_string_target.global_position)   # AR1b: straight in, until in range and in sight
+			else:
+				unit.movement.move_to(_approach_point_to(_string_target))
 		return
 	var k := _string_next
 	var to := _string_target.global_position - unit.global_position
@@ -956,6 +994,10 @@ func _land_swing() -> void:
 	_swing_landed = true
 	var swing := _swing
 	var index := _swing_index
+	if _is_ranged_string():
+		_fire_string_shot(swing)   # AR1b: a volley's bolt; its hit comes when it reaches someone
+		swing_landed.emit(index, [] as Array[Unit])
+		return
 	var forgiveness := _get_hit_scale()
 	var reach := get_swing_reach_px(swing) * forgiveness
 	var half_arc := deg_to_rad(swing.arc_deg) * 0.5 * forgiveness

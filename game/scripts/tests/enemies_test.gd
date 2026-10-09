@@ -126,7 +126,20 @@ extends Node2D
 ##   freed on a stun (patience kept), a poise break and death; a deflect not
 ##   ending a brain's string; the skirmisher's leap, string and reset; a
 ##   plan's STRING step after the duelist's snare; a string opener never
-##   fitting; the overlay's string line.
+##   fitting; the overlay's string line;
+## - the mix (Ryan, 2026-10-08): at string_then_cast_chance 1 the string
+##   first and a ready damage cast after it as its finisher, at 0 the cast
+##   first (the older checks run at 0, AI1's commit).
+## ARCHETYPES AR1b, the Mage's volley (RANGED strings):
+## - its data (3 bolts at 0.45 s; the casters carry it; the caster preset
+##   commits, weight 1; a committing caster-role enemy needs a ranged
+##   string); a passive caster's volley (on the beat, one bolt a release,
+##   basic attack hits tagged projectile after their flight, the end before
+##   the last bolt lands); walking in only to its range; a deflect pair on
+##   its bolts (absorbed); Projectile.fire_swing() (the swing's numbers, a
+##   wall, a freed attacker's snapshot); real casters committing into it from
+##   their band, their token held, a poke scoring higher mid-volley taking
+##   nothing back.
 ## TEMP, the enemy attack speed test multiplier (DECISIONS.md, Testing): off
 ## by default; at x1.0 every number is today's exactly; at x1.5 with keep DPS
 ## the same damage per second over 10 s, more swings, the windup floor; the
@@ -218,10 +231,11 @@ var knight: Player
 var _passed: int = 0
 var _failed: int = 0
 var _odds_threshold_saved := -1.0   # _no_press() (AI3c)
+var _mix_saved := 0.5   # the table's string_then_cast_chance (pinned to 0 for the older checks)
 
 
 func _ready() -> void:
-	print("\n=== Enemies test (ENEMIES_AI AI1–AI3d, AI3b, AI3c, AI-D1, AI-D2, AI-D3; ARCHETYPES AR1a) ===")
+	print("\n=== Enemies test (ENEMIES_AI AI1–AI3d, AI3b, AI3c, AI-D1, AI-D2, AI-D3; ARCHETYPES AR1a, AR1b) ===")
 	Progress.get_progress(KNIGHT)   # the save guards latch off first (a test scene)
 	Loot.get_inventory(KNIGHT)
 	Brains.rng.seed = 20261004
@@ -231,6 +245,10 @@ func _ready() -> void:
 	entities.add_child(knight)
 	await get_tree().physics_frame
 	_place(knight, ARENA)
+	# The older checks see AI1's commit: a damage cast first. The mix (AR1a's
+	# follow-up, Ryan 2026-10-08) has its own test.
+	_mix_saved = Brains.table.string_then_cast_chance
+	Brains.table.string_then_cast_chance = 0.0
 
 	_test_table()
 	_test_brute_preset()
@@ -360,10 +378,20 @@ func _ready() -> void:
 	await _test_ar1a_skirmisher()
 	await _test_ar1a_plan_step()
 	await _test_ar1a_sandbox()
+	await _test_ar1a_mix()
+
+	# ARCHETYPES AR1b: the Mage's volley (RANGED strings).
+	_test_ar1b_data()
+	await _test_ar1b_volley()
+	await _test_ar1b_walks_in()
+	await _test_ar1b_deflect()
+	await _test_ar1b_shot()
+	await _test_ar1b_brain()
 
 	# TEMP: the enemy attack speed test multiplier (DECISIONS.md, Testing).
 	await _test_temp_attack_speed()
 
+	Brains.table.string_then_cast_chance = _mix_saved
 	Audio.stop_all()
 	await _frames(120)   # stop_all() leaves the UI bus: let the ultimate-ready pings (reset_cooldown()) finish
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
@@ -1731,9 +1759,9 @@ func _test_ai3_data() -> void:
 		values.append(CASTER_BEHAVIOR.get_slider(slider))
 	_check("caster: aggression .3, respect 1.2, patience 4, band 550–800, reaction .35, dodge .5 / 5, greed .4, finish .3, pressure 12, breather 5, jitter .15; AI3b: confidence .3, all in .2, lead .5, spend .8; AI3c: nerve .4; AI-D1: peel .5, opening .6; AI-D2: follow-through 0, greed .1, mixup .2",
 		values, [0.3, 1.2, 4.0, 550.0, 800.0, 0.35, 0.5, 5.0, 0.4, 0.3, 12.0, 5.0, 0.15, 0.3, 0.2, 0.5, 0.8, 0.4, 0.5, 0.6, 0.0, 0.1, 0.2])
-	_check("its kind: role CASTER, falls back below 35%, never commits (commit weight 0)",
+	_check("its kind: role CASTER, falls back below 35%, commits (weight 1: into its volley, ARCHETYPES AR1b; AI3 had 0, never)",
 		[CASTER_BEHAVIOR.role, CASTER_BEHAVIOR.low_health, CASTER_BEHAVIOR.retreat_health, CASTER_BEHAVIOR.get_intent_weight(&"commit")],
-		[EnemyBehavior.Role.CASTER, EnemyBehavior.LowHealth.FALL_BACK, 0.35, 0.0])
+		[EnemyBehavior.Role.CASTER, EnemyBehavior.LowHealth.FALL_BACK, 0.35, 1.0])
 	_check("the test skirmisher (regular): Leap on Q (gap_close, a real leap), Stab on W (damage)",
 		[SKIRMISHER_DATA.rank, _slot_ability(SKIRMISHER_DATA, &"q") == LEAP, _slot_ability(SKIRMISHER_DATA, &"w") == STAB, _intents(LEAP), _intents(STAB), LEAP.tags.has(&"leap")],
 		[EnemyData.Rank.REGULAR, true, true, [&"gap_close"], [&"damage"], true])
@@ -1803,7 +1831,7 @@ func _test_effect_areas() -> void:
 
 
 func _test_decide_ai3() -> void:
-	_section("decide() (AI3): defend, escape, cornered, retreat, the caster never commits, poses by role")
+	_section("decide() (AI3): defend, escape, cornered, retreat, a caster at commit weight 0 never commits (the preset commits since ARCHETYPES AR1b), poses by role")
 	var caster := CASTER_BEHAVIOR.resolve({}, [] as Array[BrainAdjust])
 	caster.jitter = 0.0
 	var rng := RandomNumberGenerator.new()
@@ -1839,7 +1867,10 @@ func _test_decide_ai3() -> void:
 	_check("at 50%: it pokes", EnemyBrain.decide(s, caster, rng).intent, &"poke")
 	s = _caster_situation(650.0)
 	s.patience = 1.0
-	_check("a caster with full patience and nothing needed: never a commit (weight 0)", EnemyBrain.decide(s, caster, rng).intent, &"hold")
+	var shy: EnemyBehavior = caster.duplicate()
+	shy.intent_weights = {&"commit": 0.0}
+	_check("a caster at commit weight 0 (AI3's preset, before its volley) with full patience and nothing needed: never a commit", EnemyBrain.decide(s, shy, rng).intent, &"hold")
+	_check("the caster preset since ARCHETYPES AR1b (weight 1): it commits (into its volley)", EnemyBrain.decide(s, caster, rng).intent, &"commit")
 	var brute := _regular_brute()
 	brute.jitter = 0.0
 	s = _situation(1.0, 0.0)
@@ -5565,6 +5596,7 @@ const STRING_DUELIST: AttackCombo = preload("res://data/combos/combo_test_duelis
 const STRING_TARGETS := {
 	&"test_brute": [2, 3, 0.9], &"slime_elite": [2, 3, 0.9],   # Bruiser
 	&"test_skirmisher": [2, 3, 0.35],                           # Skirmisher
+	&"test_caster": [3, 3, 0.45], &"test_caster_elite": [3, 3, 0.45],   # Mage: the volley (AR1b)
 	&"test_duelist": [4, 5, 0.5],                               # Duelist
 }
 ## The authoring tolerance on a string's spacing (s; ARCHETYPES.md, Data).
@@ -5608,8 +5640,8 @@ func _test_ar1a_data() -> void:
 			continue
 		if [s.get_string_hits_min(), s.swings.size()] != [shape[0], shape[1]]:
 			breaches.append("%s: %d–%d hits, not %d–%d" % [d.id, s.get_string_hits_min(), s.swings.size(), shape[0], shape[1]])
-		if s.attack_style != AttackCombo.AttackStyle.MELEE:
-			breaches.append("%s: not melee" % d.id)
+		if (s.attack_style == AttackCombo.AttackStyle.RANGED) != (d.behavior.role == EnemyBehavior.Role.CASTER):
+			breaches.append("%s: a ranged string goes with a Mage (caster role) and only with one" % d.id)
 		if not is_equal_approx(s.swings[0].windup, t.beat):
 			breaches.append("%s: its first wind-up %.2f s, not the beat" % [d.id, s.swings[0].windup])
 		for i in s.swings.size():
@@ -5625,9 +5657,9 @@ func _test_ar1a_data() -> void:
 			if d.stats.attack_damage * w.ad_ratio > chip + 0.0001:
 				breaches.append("%s hit %d: %.0f damage, over the chip band's %.1f" % [d.id, i + 1, d.stats.attack_damage * w.ad_ratio, chip])
 	found.sort()
-	_check("the test strings: the brute and the elite slime (Bruiser), the skirmisher, the duelist; none on the slime or the casters", found,
-		["slime_elite", "test_brute", "test_duelist", "test_skirmisher"] as Array[String])
-	_check("each string: Bruiser 2–3 at 0.9 s, Skirmisher 2–3 at 0.35 s, Duelist 4–5 at 0.5 s (±%.2f s, the repeated last swing too); its first wind-up the beat, later ones %.2f s or more; melee, deflectable, no hit feel, each hit %d%% of the Knight's health or less" % [STRING_SPACING_TOLERANCE, FOLLOW_UP_MIN, roundi(CHIP_SHARE * 100.0)],
+	_check("the test strings: the brute and the elite slime (Bruiser), the skirmisher, the duelist, the casters (AR1b, the volley); none on the slime", found,
+		["slime_elite", "test_brute", "test_caster", "test_caster_elite", "test_duelist", "test_skirmisher"] as Array[String])
+	_check("each string: Bruiser 2–3 at 0.9 s, Skirmisher 2–3 at 0.35 s, Duelist 4–5 at 0.5 s, Mage a 3-bolt volley at 0.45 s (±%.2f s, the repeated last swing too); its first wind-up the beat, later ones %.2f s or more; melee (a Mage's ranged), deflectable, no hit feel, each hit %d%% of the Knight's health or less" % [STRING_SPACING_TOLERANCE, FOLLOW_UP_MIN, roundi(CHIP_SHARE * 100.0)],
 		breaches, [] as Array[String])
 
 
@@ -5878,13 +5910,13 @@ func _test_ar1a_deflect_pair() -> void:
 	await _reset_knight()
 
 
-## A real `scene` enemy 4.4 m from the Knight, his kit spent (respect 0), its
+## A real `scene` enemy `distance_px` (4.4 m) from the Knight, his kit spent (respect 0), its
 ## own abilities on cooldown, AI3b's confidence pinned: it commits into its
 ## string. Records each swing's start [index, time, it holds its token] and
 ## hit [index, time, token], its strings' ends [completed, swung, time], when
 ## its commit started, League-style windups and casts. `data`: in place of the
 ## scene's EnemyData.
-func _committing_enemy(scene: PackedScene, rec: Dictionary, data: EnemyData = null) -> Enemy:
+func _committing_enemy(scene: PackedScene, rec: Dictionary, data: EnemyData = null, distance_px: float = 140.0) -> Enemy:
 	await _reset_knight()
 	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
 	var steady := _tag_status(&"test_unstoppable", [&"unstoppable"] as Array[StringName])
@@ -5894,7 +5926,7 @@ func _committing_enemy(scene: PackedScene, rec: Dictionary, data: EnemyData = nu
 	if data != null:
 		e.data = data
 	entities.add_child(e)
-	_place(e, knight.global_position + Vector2(140, 0))
+	_place(e, knight.global_position + Vector2(distance_px, 0))
 	_pin_ai3(e)
 	for slot in AbilityComponent.SLOTS:
 		if e.abilities != null and e.abilities.get_ability(slot) != null:
@@ -5905,6 +5937,7 @@ func _committing_enemy(scene: PackedScene, rec: Dictionary, data: EnemyData = nu
 	rec.commit_at = -1.0
 	rec.league = 0
 	rec.casts = 0
+	rec.cast_rows = []
 	rec.on_start = func(i: int, _d: Vector2, _s: AttackSwing) -> void: (rec.started as Array).append([i, Brains.get_time(), Brains.has_token(e)])
 	rec.on_land = func(i: int, _targets: Array[Unit]) -> void: (rec.landed as Array).append([i, Brains.get_time(), Brains.has_token(e)])
 	rec.on_end = func(done: bool, swung: int) -> void: (rec.ended as Array).append([done, swung, Brains.get_time()])
@@ -5912,7 +5945,9 @@ func _committing_enemy(scene: PackedScene, rec: Dictionary, data: EnemyData = nu
 		if intent == EnemyBrain.COMMIT and float(rec.commit_at) < 0.0:
 			rec.commit_at = Brains.get_time()
 	rec.on_league = func(_t: Unit, _w: float) -> void: rec.league = int(rec.league) + 1
-	rec.on_cast = func(_slot: StringName, _a: Ability, _c: CastContext) -> void: rec.casts = int(rec.casts) + 1
+	rec.on_cast = func(slot: StringName, _a: Ability, _c: CastContext) -> void:
+		rec.casts = int(rec.casts) + 1
+		(rec.cast_rows as Array).append([slot, Brains.get_time(), Brains.has_token(e)])
 	e.attack.swing_started.connect(rec.on_start)
 	e.attack.swing_landed.connect(rec.on_land)
 	e.attack.string_ended.connect(rec.on_end)
@@ -6171,6 +6206,359 @@ func _test_ar1a_sandbox() -> void:
 	e.queue_free()
 	knight.status_component.remove_status(steady.id)
 	await _frames(2)
+
+
+func _test_ar1a_mix() -> void:
+	_section("The mix (Ryan, 2026-10-08: \"a mix of A and B\"): a real brute with its smash and cleave arc ready rolls once a commit; at string_then_cast_chance 1 its string comes first and a damage cast after it as its finisher, token held, the commit ending with the cast; at 0 the cast goes first and no string swings")
+	var t := Brains.table
+	var tick := 1.0 / 60.0 + 0.001
+	_check("the table: string_then_cast_chance 0.5, string_finisher_wait 0.3 s", [_mix_saved, t.string_finisher_wait], [0.5, 0.3])
+	t.string_then_cast_chance = 1.0
+	var rec := {}
+	var e := await _committing_enemy(BRUTE_SCENE, rec)
+	var brain := e.get_brain()
+	e.abilities.reset_cooldown(&"q")   # its smash and cleave arc ready; its charge (the gap-closer) stays down
+	e.abilities.reset_cooldown(&"w")
+	await _wait_until(func() -> bool: return not (rec.ended as Array).is_empty(), 900)
+	var ended: Array = rec.ended
+	var string_end := float(ended[0][2]) if not ended.is_empty() else INF
+	await _wait_until(func() -> bool: return not (rec.cast_rows as Array).is_empty() or not brain.is_committing(), 60)
+	var casts: Array = rec.cast_rows
+	var during_cast := brain.is_committing()
+	await _wait_until(func() -> bool: return not brain.is_committing(), 240)
+	var commit_end := Brains.get_time()
+	var cast_at := float(casts[0][1]) if not casts.is_empty() else -1.0
+	var cast_slot: StringName = casts[0][0] if not casts.is_empty() else &""
+	var cast_time := 0.0 if casts.is_empty() else float(e.abilities.get_ability(cast_slot).get_param(e, &"cast_time"))
+	_check("1: its string first (2 hits, done, no cast before its end), then its finisher (%s) %.2f s after it (within %.1f s), its token held, inside the commit" % [cast_slot, cast_at - string_end, t.string_finisher_wait],
+		[ended.map(func(r: Array) -> Array: return r.slice(0, 2)), cast_at >= string_end, cast_at - string_end <= t.string_finisher_wait + tick,
+			cast_slot in [&"q", &"w"], not casts.is_empty() and bool(casts[0][2]), during_cast],
+		[[[true, 2]], true, true, true, true, true])
+	_check("1: the commit ends with its finisher's cast (%.2f s after it started; its cast %.2f s)" % [commit_end - cast_at, cast_time], commit_end - cast_at >= cast_time - tick, true)
+	await _free_committing_enemy(e, rec)
+	rec = {}
+	e = await _committing_enemy(BRUTE_SCENE, rec, null, 200.0)
+	e.abilities.reset_cooldown(&"e")   # only its charge ready (a gap-closer), the Knight out of its reach
+	await _wait_until(func() -> bool: return not (rec.cast_rows as Array).is_empty() or not (rec.started as Array).is_empty(), 900)
+	var first_cast := float(rec.cast_rows[0][1]) if not (rec.cast_rows as Array).is_empty() else INF
+	var first_swing := float(rec.started[0][1]) if not (rec.started as Array).is_empty() else INF
+	_check("1, with only its charge ready and him out of reach: the gap-closer (its charge, e) still goes first, its string after", [rec.cast_rows[0][0] if not (rec.cast_rows as Array).is_empty() else &"", first_cast < first_swing], [&"e", true])
+	await _free_committing_enemy(e, rec)
+	t.string_then_cast_chance = 0.0
+	rec = {}
+	e = await _committing_enemy(BRUTE_SCENE, rec)
+	brain = e.get_brain()
+	e.abilities.reset_cooldown(&"q")
+	e.abilities.reset_cooldown(&"w")
+	await _wait_until(func() -> bool: return not (rec.cast_rows as Array).is_empty(), 900)
+	await _wait_until(func() -> bool: return not brain.is_committing(), 240)
+	_check("0: its cast went first (%s) and the commit ended with it: no string swing" % [(rec.cast_rows as Array).map(func(r: Array) -> StringName: return r[0])],
+		[(rec.cast_rows as Array).size(), (rec.started as Array).size(), brain.is_committing()], [1, 0, false])
+	await _free_committing_enemy(e, rec)
+
+
+# --- ARCHETYPES AR1b: the Mage's volley (RANGED strings) -------------------------------------
+
+const STRING_CASTER: AttackCombo = preload("res://data/combos/combo_test_caster.tres")
+
+
+func _test_ar1b_data() -> void:
+	_section("AR1b data: the volley (combo_test_caster.tres): RANGED, 3 bolts (a regular's and an elite's 3, a boss's up to 4), each 750 u/s, 950 u, 30 u wide; both test casters carry it; the caster preset commits (weight 1, was 0: its volley is its commit); every caster-role enemy that commits has a ranged string")
+	var t := Brains.table
+	var b0 := STRING_CASTER.swings[0]
+	_check("RANGED, 3 swings, its short end 3; a bolt 750 u/s, 950 u, 30 u wide",
+		[STRING_CASTER.attack_style, STRING_CASTER.swings.size(), STRING_CASTER.get_string_hits_min(), b0.projectile_speed, b0.projectile_range, b0.projectile_width],
+		[AttackCombo.AttackStyle.RANGED, 3, 3, 750.0, 950.0, 30.0])
+	var s := SituationContext.new()
+	s.target_health_ratio = 1.0
+	s.effective_respect = 0.45
+	var stream := RandomNumberGenerator.new()
+	stream.seed = 11
+	var seen := {}
+	for i in 200:
+		seen[EnemyBrain.get_string_length(s, STRING_CASTER, t.get_rank_rules(EnemyData.Rank.BOSS), t, CASTER_BEHAVIOR, stream)] = true
+	var boss := seen.keys()
+	boss.sort()
+	_check("its lengths at respect 0.45: a regular 3, an elite 3, a boss 3 or 4",
+		[EnemyBrain.get_string_length(s, STRING_CASTER, t.get_rank_rules(EnemyData.Rank.REGULAR), t, CASTER_BEHAVIOR, stream),
+			EnemyBrain.get_string_length(s, STRING_CASTER, t.get_rank_rules(EnemyData.Rank.ELITE), t, CASTER_BEHAVIOR, stream), boss],
+		[3, 3, [3, 4]])
+	_check("both test casters carry it; the caster preset's commit weight is 1 (was 0)",
+		[CASTER_DATA.attack_string == STRING_CASTER, CASTER_ELITE_DATA.attack_string == STRING_CASTER, CASTER_BEHAVIOR.get_intent_weight(&"commit")], [true, true, 1.0])
+	var bad: Array[String] = []
+	for f in DirAccess.open(ENEMY_DATA_DIR).get_files():
+		if not f.ends_with(".tres"):
+			continue
+		var d: EnemyData = load(ENEMY_DATA_DIR + f)
+		if d.behavior == null or d.behavior.role != EnemyBehavior.Role.CASTER or d.behavior.get_intent_weight(&"commit") <= 0.0:
+			continue
+		if d.attack_string == null or d.attack_string.attack_style != AttackCombo.AttackStyle.RANGED:
+			bad.append(String(d.id))
+	_check("every caster-role enemy that commits has a ranged string (or its commit would walk it into melee)", bad, [] as Array[String])
+
+
+## A passive `scene` enemy `distance_u` LoL units (center to center) from the
+## unstoppable Knight runs `hits` hits of its volley at him: each swing's
+## start [index, time], each release [index, time, its position], each of its
+## hits on him [time, basic_attack, projectile, deflectable, no ability,
+## blocked], damage it dealt him, deflects of its bolts, its end [completed,
+## swung, time], and its bolts' ids. Free it with _free_volley().
+func _volley_at_knight(scene: PackedScene, distance_u: float, rec: Dictionary) -> Enemy:
+	var steady := _tag_status(&"test_unstoppable", [&"unstoppable"] as Array[StringName])
+	knight.status_component.apply_status(steady)
+	var e := _spawn(scene, knight.global_position + Vector2(Units.to_px(distance_u), 0), true)
+	await get_tree().physics_frame
+	rec.started = []
+	rec.released = []
+	rec.hits = []
+	rec.damage = []
+	rec.deflects = []
+	rec.ended = []
+	rec.shots = {}
+	rec.on_start = func(i: int, _d: Vector2, _s: AttackSwing) -> void: (rec.started as Array).append([i, Brains.get_time()])
+	rec.on_land = func(i: int, _targets: Array[Unit]) -> void: (rec.released as Array).append([i, Brains.get_time(), e.global_position])
+	rec.on_end = func(done: bool, swung: int) -> void: (rec.ended as Array).append([done, swung, Brains.get_time()])
+	rec.on_hit = func(ctx: HitContext) -> void:
+		if ctx.source == e and ctx.target == knight:
+			(rec.hits as Array).append([Brains.get_time(), ctx.has_tag(&"basic_attack"), ctx.has_tag(&"projectile"), ctx.deflectable, ctx.ability == null, ctx.blocked])
+	rec.on_damaged = func(ctx: HitContext) -> void:
+		if ctx.source == e and ctx.target == knight:
+			(rec.damage as Array).append(Brains.get_time())
+	rec.on_deflect = func(attacker: Unit, defender: Unit, _ctx: HitContext) -> void:
+		if attacker == e and defender == knight:
+			(rec.deflects as Array).append(Brains.get_time())
+	e.attack.swing_started.connect(rec.on_start)
+	e.attack.swing_landed.connect(rec.on_land)
+	e.attack.string_ended.connect(rec.on_end)
+	Events.unit_hit.connect(rec.on_hit)
+	Events.unit_damaged.connect(rec.on_damaged)
+	Events.hit_deflected.connect(rec.on_deflect)
+	rec.steady = steady.id
+	return e
+
+
+## Its bolts in flight now (noted in rec.shots).
+func _volley_shots(e: Enemy, rec: Dictionary) -> Array[Projectile]:
+	var out: Array[Projectile] = []
+	for n in get_tree().get_nodes_in_group(Projectile.GROUP):
+		var p := n as Projectile
+		if p != null and p.caster == e and p.swing != null:
+			out.append(p)
+			(rec.shots as Dictionary)[p.get_instance_id()] = true
+	return out
+
+
+func _free_volley(e: Enemy, rec: Dictionary) -> void:
+	if is_instance_valid(e):
+		e.attack.swing_started.disconnect(rec.on_start)
+		e.attack.swing_landed.disconnect(rec.on_land)
+		e.attack.string_ended.disconnect(rec.on_end)
+		e.attack.cancel()
+		e.queue_free()
+	Events.unit_hit.disconnect(rec.on_hit)
+	Events.unit_damaged.disconnect(rec.on_damaged)
+	Events.hit_deflected.disconnect(rec.on_deflect)
+	knight.status_component.remove_status(rec.steady)
+	rec.clear()   # its lambdas capture `rec`
+	knight.health.heal(100000.0)
+	await _frames(2)
+
+
+func _test_ar1b_volley() -> void:
+	_section("A passive test caster 6.5 m from the Knight runs its volley at him: in its bolts' range even from its band's far edge, it stays where it stands, releases on the beat then 0.45 s apart, one bolt a release; each bolt hits him once after its flight (a basic attack, tagged projectile, deflectable, no ability); the volley ends with its last release's recovery, before its last bolt lands")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	var t := Brains.table
+	var tick := 1.0 / 60.0 + 0.001
+	var rec := {}
+	var e := await _volley_at_knight(CASTER_SCENE, 650.0, rec)
+	# In reach: center to his edge within the bolt's range less forgiveness. From
+	# its band's far edge (edge to edge) that's the band plus its own radius.
+	var far := Units.to_px(STRING_CASTER.swings[0].projectile_range) * (1.0 - e.attack.enemy_hit_forgiveness) \
+		>= Units.to_px(CASTER_BEHAVIOR.range_band_max) + e.get_gameplay_radius_px()
+	var from := e.global_position
+	e.attack.run_string(knight, STRING_CASTER, 3, t.beat)
+	await _wait_until(func() -> bool:
+		_volley_shots(e, rec)
+		return (rec.hits as Array).size() >= 3, 300)
+	var started: Array = rec.started
+	var released: Array = rec.released
+	var hits: Array = rec.hits
+	var first := float(released[0][1]) - float(started[0][1]) if not released.is_empty() and not started.is_empty() else -1.0
+	var flights: Array = []
+	for k in mini(released.size(), hits.size()):
+		flights.append(snappedf(float(hits[k][0]) - float(released[k][1]), 0.01))
+	var moved := 0.0
+	for r: Array in released:
+		moved = maxf(moved, (r[2] as Vector2).distance_to(from))
+	_check("in its bolts' range from its band's far edge too; it didn't move (%.1f px)" % moved, [far, moved < 1.0], [true, true])
+	_check("its first release %.2f s after its wind-up (got %.3f s), then 0.45 s apart (got %s); 3 bolts" % [t.beat, first, _gaps(released)],
+		[absf(first - t.beat) <= tick, _all_near(_gaps(released), 0.45, STRING_SPACING_TOLERANCE), (rec.shots as Dictionary).size()], [true, true, 3])
+	var kinds: Array = hits.map(func(h: Array) -> Array: return h.slice(1, 6))
+	_check("3 hits on him, each after its flight (got %s s), each a basic attack, tagged projectile, deflectable, with no ability, not blocked" % [flights],
+		[hits.size(), _all_near(flights, 0.85, 0.35), kinds], [3, true, [[true, true, true, true, false], [true, true, true, true, false], [true, true, true, true, false]]])
+	var ended: Array = rec.ended
+	_check("done with 3 releases, before its last bolt lands (its recovery, not its flight)",
+		[ended.map(func(r: Array) -> Array: return r.slice(0, 2)), not ended.is_empty() and not hits.is_empty() and float(ended[0][2]) < float(hits[-1][0])],
+		[[[true, 3]], true])
+	await _free_volley(e, rec)
+
+
+func _test_ar1b_walks_in() -> void:
+	_section("Out of range (13 m away): its volley walks straight in only until he's in its bolts' range and in sight, then releases from there, far from melee")
+	await _reset_knight()
+	var rec := {}
+	var e := await _volley_at_knight(CASTER_SCENE, 1300.0, rec)
+	var start_u := Units.to_units(e.edge_distance_to(knight))
+	e.attack.run_string(knight, STRING_CASTER, 3, Brains.table.beat)
+	var at_first := [-1.0]
+	await _wait_until(func() -> bool:
+		if at_first[0] < 0.0 and not (rec.started as Array).is_empty():
+			at_first[0] = Units.to_units(e.edge_distance_to(knight))
+		return not (rec.released as Array).is_empty(), 600)
+	var reach_u := STRING_CASTER.swings[0].projectile_range * (1.0 - e.attack.enemy_hit_forgiveness)
+	_check("it walked in from %d u and started its volley at %d u edge to edge: within its bolts' %d u, not under 6 m" % [roundi(start_u), roundi(at_first[0]), roundi(reach_u)],
+		[at_first[0] > 0.0 and at_first[0] < start_u, at_first[0] <= reach_u, at_first[0] >= 600.0], [true, true, true])
+	await _free_volley(e, rec)
+	rec = {}
+	e = await _volley_at_knight(CASTER_SCENE, 650.0, rec)
+	var wall := _wall_at(e.global_position.lerp(knight.global_position, 0.5), Vector2(16, 400))
+	await _frames(2)
+	e.movement.add_move_lock(&"test_hold")   # it can't walk round the wall: it waits
+	e.attack.run_string(knight, STRING_CASTER, 3, Brains.table.beat)
+	await _frames(120)
+	_check("a wall between them (in range, out of sight): no swing in 2 s, its volley still waiting", [(rec.started as Array).size(), e.attack.is_running_string()], [0, true])
+	e.movement.remove_move_lock(&"test_hold")
+	wall.queue_free()
+	await _free_volley(e, rec)
+
+
+func _test_ar1b_deflect() -> void:
+	_section("A deflect pair on a volley (the Knight's test deflect, D7): his window open as each of its first two bolts arrives deflects it (absorbed: no damage, the bolt gone), the riposte his; its third bolt hits him; the volley still done")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	var was_on := DeflectComponent.deflect_test_enabled
+	DeflectComponent.deflect_test_enabled = true
+	var rec := {}
+	var e := await _volley_at_knight(CASTER_SCENE, 650.0, rec)
+	e.attack.run_string(knight, STRING_CASTER, 3, Brains.table.beat)
+	for k in 2:
+		await _wait_until(func() -> bool:
+			for p in _volley_shots(e, rec):
+				var along := (knight.global_position - p.global_position).dot(p.direction) - knight.get_gameplay_radius_px()
+				if along / maxf(p.speed_px, 0.01) <= 0.1:
+					return true
+			return false, 240)
+		knight.deflect_component.open_window()
+		await _wait_until(func() -> bool: return (rec.deflects as Array).size() >= k + 1, 30)
+	await _wait_until(func() -> bool: return (rec.damage as Array).size() >= 1 and not (rec.ended as Array).is_empty(), 180)
+	await _frames(30)
+	_check("2 bolts deflected (no damage from them, gone), the riposte his; the third hit him; 3 bolts fired; the volley done",
+		[(rec.deflects as Array).size(), knight.deflect_component.has_riposte(), (rec.damage as Array).size(), _volley_shots(e, rec).size(), (rec.shots as Dictionary).size(),
+			(rec.ended as Array).map(func(r: Array) -> Array: return r.slice(0, 2))],
+		[2, true, 1, 0, 3, [[true, 3]]])
+	knight.status_component.remove_status(DeflectComponent.get_riposte_status_id())
+	DeflectComponent.deflect_test_enabled = was_on
+	await _free_volley(e, rec)
+	await _reset_knight()
+
+
+func _test_ar1b_shot() -> void:
+	_section("A swing's shot (Projectile.fire_swing()): its speed, range, width and colour are the swing's; a wall stops it; its attacker freed in flight, it still hits with the damage at fire (1.5 × 14 = 21), no source and no crit")
+	await _reset_knight()
+	await _wait_until(func() -> bool: return not knight.has_invulnerability(Unit.HIT_IFRAMES_ID), 60)
+	var bolt := STRING_CASTER.swings[0]
+	var rec := {}
+	var e := await _volley_at_knight(CASTER_SCENE, 650.0, rec)
+	var to := (knight.global_position - e.global_position).normalized()
+	var shot := Projectile.fire_swing(e, bolt, e.global_position, to)
+	_check("the swing's speed, range, width and colour; one hit; no ability",
+		[shot.speed_px, shot.range_px, shot.half_width_px * 2.0, shot.tint, shot.ability, shot.swing == bolt],
+		[Units.to_px(750.0), Units.to_px(950.0), Units.to_px(30.0), bolt.projectile_color, null, true])
+	await _wait_until(func() -> bool: return not (rec.damage as Array).is_empty(), 120)
+	var wall := _wall_at(e.global_position.lerp(knight.global_position, 0.5), Vector2(16, 200))
+	await _frames(2)
+	var walled := Projectile.fire_swing(e, bolt, e.global_position, to)
+	var walled_id := walled.get_instance_id()
+	await _wait_until(func() -> bool: return not is_instance_valid(instance_from_id(walled_id)), 120)
+	await _frames(60)
+	_check("the first shot hit him; the one fired at the wall stopped there (gone, no second hit)", [(rec.damage as Array).size(), is_instance_valid(instance_from_id(walled_id))], [1, false])
+	wall.queue_free()
+	await _frames(20)   # his post-hit i-frames pass
+	var freed_hits := []
+	var on_freed := func(ctx: HitContext) -> void:
+		if ctx.target == knight and ctx.has_tag(&"projectile") and ctx.source == null:
+			freed_hits.append([ctx.base_damage, ctx.can_crit, ctx.has_tag(&"basic_attack")])
+	Events.unit_damaged.connect(on_freed)
+	Projectile.fire_swing(e, bolt, e.global_position, to)
+	await _free_volley(e, rec)   # its attacker freed while the bolt flies
+	await _wait_until(func() -> bool: return not freed_hits.is_empty(), 120)
+	Events.unit_damaged.disconnect(on_freed)
+	_check("its attacker freed in flight: it hits with the 21 damage at fire, no source, no crit, still a basic attack", freed_hits, [[21.0, false, true]])
+	await _reset_knight()
+
+
+func _test_ar1b_brain() -> void:
+	_section("A real test caster 6.5 m away (his kit spent) commits into its volley from where it stands: its tell, 3 bolts on the beat then 0.45 s apart, its token (a regular's 1) held through it and let go after; it didn't walk in; its bolts hit him. The elite caster: its 3 (4 at its aggression's chance)")
+	var t := Brains.table
+	var tick := 1.0 / 60.0 + 0.001
+	var rec := {}
+	var e := await _committing_enemy(CASTER_SCENE, rec, null, Units.to_px(650.0))
+	var brain := e.get_brain()
+	var damage := [0]
+	var on_damaged := func(ctx: HitContext) -> void:
+		if ctx.source == e and ctx.target == knight:
+			damage[0] += 1
+	Events.unit_damaged.connect(on_damaged)
+	await _wait_until(func() -> bool: return not (rec.started as Array).is_empty(), 1200)
+	var at_start := e.global_position
+	var cost := Brains.get_token_cost(e)
+	await _wait_until(func() -> bool: return not (rec.ended as Array).is_empty(), 300)
+	var moved := e.global_position.distance_to(at_start)
+	await _wait_until(func() -> bool: return not brain.is_committing(), 30)
+	var after := [brain.is_committing(), Brains.has_token(e)]
+	await _wait_until(func() -> bool: return damage[0] >= 3, 120)
+	Events.unit_damaged.disconnect(on_damaged)
+	var started: Array = rec.started
+	var landed: Array = rec.landed
+	var tell := float(started[0][1]) - float(rec.commit_at) if not started.is_empty() else -1.0
+	var first := float(landed[0][1]) - float(started[0][1]) if not landed.is_empty() and not started.is_empty() else -1.0
+	var held := true
+	for row: Array in started + landed:
+		held = held and bool(row[2])
+	_check("its volley: 3 bolts, done; its tell first (%.2f s), its first on the beat (%.3f s), then 0.45 s apart (got %s); it stood still (%.1f px)" % [tell, first, _gaps(landed), moved],
+		[(rec.ended as Array).map(func(r: Array) -> Array: return r.slice(0, 2)), tell >= t.tell_time - tick, absf(first - t.beat) <= tick,
+			_all_near(_gaps(landed), 0.45, STRING_SPACING_TOLERANCE), moved < 1.0],
+		[[[true, 3]], true, true, true, true])
+	var volley_from := float(started[0][1]) if not started.is_empty() else INF
+	var volley_to := float((rec.ended as Array)[0][2]) if not (rec.ended as Array).is_empty() else INF
+	var casts_in_volley := (rec.cast_rows as Array).filter(func(r: Array) -> bool: return float(r[1]) >= volley_from and float(r[1]) <= volley_to).size()
+	_check("its token (cost %d) held at every swing and release, let go after, the commit over; all 3 bolts hit him (%d); no League-style windup, no cast during its volley (its pokes before it: %d)" % [cost, damage[0], (rec.cast_rows as Array).size()],
+		[cost, held, after, damage[0], rec.league, casts_in_volley], [1, true, [false, false], 3, 0, 0])
+	await _free_committing_enemy(e, rec)
+	# A string that swings is committed: its poke ready and scoring far above
+	# its commit mid-volley takes nothing back (the brain makes no new decision).
+	var poke_was := t.caster_poke_score
+	rec = {}
+	e = await _committing_enemy(CASTER_SCENE, rec, null, Units.to_px(650.0))
+	brain = e.get_brain()
+	await _wait_until(func() -> bool: return not (rec.started as Array).is_empty(), 1200)
+	e.abilities.reset_cooldown(&"q")
+	t.caster_poke_score = 5.0
+	await _wait_until(func() -> bool: return not (rec.ended as Array).is_empty(), 300)
+	var poked_in := (rec.cast_rows as Array).filter(func(r: Array) -> bool: return float(r[1]) >= float(rec.started[0][1]) and float(r[1]) <= float(rec.ended[0][2])).size()
+	t.caster_poke_score = poke_was
+	_check("its bolt ready and its poke scoring 5 mid-volley: the volley still runs to its end, no poke inside it",
+		[(rec.ended as Array).map(func(r: Array) -> Array: return r.slice(0, 2)), poked_in], [[[true, 3]], 0])
+	await _free_committing_enemy(e, rec)
+	rec = {}
+	e = await _committing_enemy(CASTER_ELITE_SCENE, rec, null, Units.to_px(650.0))
+	brain = e.get_brain()
+	await _wait_until(func() -> bool: return not (rec.ended as Array).is_empty(), 1200)
+	_check("the elite caster at respect 0: its 3 bolts, or 4 at its aggression's chance (got %d), done, 0.45 s apart (got %s)" % [brain.last_string_hits, _gaps(rec.landed)],
+		[brain.last_string_hits in [3, 4], (rec.ended as Array).map(func(r: Array) -> Array: return r.slice(0, 2)), _all_near(_gaps(rec.landed), 0.45, STRING_SPACING_TOLERANCE)],
+		[true, [[true, brain.last_string_hits]], true])
+	await _free_committing_enemy(e, rec)
 
 
 # --- Helpers ----------------------------------------------------------------------------

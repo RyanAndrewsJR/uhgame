@@ -109,18 +109,26 @@ extends UnitController
 ## - an enemy with a string (EnemyData.attack_string) commits into it when no
 ##   plan runs: after its tell, its string (AutoAttackComponent.run_string())
 ##   closes in and swings, its first hit on the beat (EnemyAITable.beat), the
-##   rest at its swings' rhythm. Until its first swing a cast its decision
-##   picks still goes first, as in AI1 (a gap-closer gets it there; a damage
-##   cast's end ends the commit); once it swings nothing cuts into it (no
-##   cast), a deflect or a dodge doesn't end it, and its end ends the commit
-##   (a skirmisher's reset after it); a stun or a poise break cuts it (the
-##   commit breaks off, its token goes);
+##   rest at its swings' rhythm. Until its first swing a gap-closer its
+##   decision picks still goes first (it gets it there); a damage cast its
+##   decision picks goes first, as in AI1 (its end ends the commit), or (the
+##   mix, Ryan, 2026-10-08: one roll a commit at string_then_cast_chance)
+##   waits and comes after the string as its finisher. Once it swings nothing
+##   cuts into it (no cast), a deflect or a dodge doesn't end it, and its end
+##   (or its finisher's) ends the commit (a skirmisher's reset after it); a
+##   stun or a poise break cuts it (the commit breaks off, its token goes);
 ## - its length by respect (get_string_length()): 2 hits at high respect, its
 ##   full length (or one more) at low respect or against a low target, else
 ##   rolled in its rank's range;
 ## - its token is held for the whole string (from its first swing:
 ##   Brains.set_token_hold() to its end) and goes at its last swing's end;
 ## - a plan's STRING step (ComboStep.Kind.STRING) runs it as a step.
+## ARCHETYPES AR1b, the Mage's volley:
+## - a Mage's string is RANGED (AutoAttackComponent fires a bolt a release);
+##   the caster preset commits (weight 1), so its commit is its volley;
+## - while a commit's string swings, a think makes no new decision: a poke
+##   scoring higher, a threat or low health takes nothing back (a stun, a
+##   break, its token or target lost still end it).
 
 signal intent_changed(intent: StringName)
 signal pose_changed(pose: StringName)
@@ -270,6 +278,9 @@ var _last_carry: String = ""         # how a miss was decided: "blind (escapes_d
 # AR1a
 var _commit_string := false          # the commit under way has started its string
 var _string_done := false            # ... and it ran to its end (the next think ends the commit)
+var _string_done_at := -1.0          # when (the mix's finisher waits from then)
+var _string_mix_rolled := false      # the commit rolled the mix (Ryan, 2026-10-08)
+var _string_then_cast := false       # ... and its string comes first, its damage cast after it
 var _string_step := -1               # the plan step running its string (−1 = none)
 
 
@@ -647,6 +658,13 @@ func think() -> bool:
 	s.walking_out = is_walking_out()
 	s.peel_pending = _peel_pending
 	_ask_token(s)
+	if _committing and _enemy.attack.is_running_string() and _enemy.attack.get_string_swung() > 0:
+		# AR1a/AR1b: a string that swings is committed (a poke scoring higher, a
+		# threat to defend from, low health: none of them takes it back); only
+		# a stun, a break, its token or its target lost end it (above).
+		_situation = s
+		_think_usec = Time.get_ticks_usec() - t0
+		return true
 	var d := decide(s, behavior, rng)
 	if d.intent != COMMIT and Brains.has_token(_enemy):
 		Brains.release_token(_enemy, false)   # it didn't go in after all: no rest
@@ -2028,8 +2046,8 @@ func _drive_commit(delta: float, target: Unit) -> void:
 	if _enemy.attack.is_running_string():
 		return   # AR1a: its string plays out (the commit's, or a plan step's)
 	if _plan == null and has_attack_string():
-		if _committing and not _commit_string and _pending_plan == null:
-			_start_string(target)   # AR1a: no cast to make first: the string
+		if _committing and not _commit_string and not _string_done and (_pending_plan == null or _string_then_cast):
+			_start_string(target)   # AR1a: no cast to make first (or the mix put its string first): the string
 		return
 	if _enemy.attack.target != target:
 		_enemy.attack.attack(target)
@@ -2238,8 +2256,20 @@ func _corner(now: float) -> void:
 func _try_plan() -> void:
 	if _pending_plan == null or (_committing and (_tell_left > 0.0 or _plan_delay_left > 0.0)):
 		return
-	if _string_done or _string_step >= 0 or _enemy.attack.get_string_swung() > 0:
+	if _string_step >= 0 or _enemy.attack.get_string_swung() > 0:
 		return   # AR1a: nothing cuts into a string once it swings (kept pending; its commit's end drops it)
+	if _committing and _plan == null and has_attack_string():
+		if _string_done:
+			if not _string_then_cast or _commit_cast:
+				return   # its commit ends at its next think (or its finisher is cast already)
+		elif not _is_gap_close_plan(_pending_plan):
+			# The mix (Ryan, 2026-10-08): one roll a commit, the first time a
+			# damage cast could go before its string.
+			if not _string_mix_rolled:
+				_string_mix_rolled = true
+				_string_then_cast = rng.randf() < Brains.table.string_then_cast_chance
+			if _string_then_cast:
+				return   # its string first; a damage cast after it is its finisher
 	var abilities := _enemy.abilities
 	if abilities == null or abilities.casting or _enemy.attack.is_winding_up():
 		return
@@ -2263,6 +2293,16 @@ func _try_plan() -> void:
 		_note_heavy_hit(plan)
 
 
+## `plan` is its gap-closer now (AR1a): its ability has a gap_close use and
+## its target is out of its reach (decide() picks a gap-closer only then). A
+## gap-closer goes before its string whatever the mix rolls.
+func _is_gap_close_plan(plan: CastPlan) -> bool:
+	if plan == null or plan.ability == null or not _has_use_for(plan.ability, [&"gap_close"] as Array[StringName]):
+		return false
+	var target := _enemy.get_brain_target()
+	return target != null and _enemy.edge_distance_to(target) > _enemy.attack.get_range_px()
+
+
 func _start_commit(now: float) -> void:
 	_committing = true
 	_commit_started = now
@@ -2279,6 +2319,9 @@ func _start_commit(now: float) -> void:
 	_plan_delay_left = 0.0
 	_commit_string = false   # AR1a
 	_string_done = false
+	_string_done_at = -1.0
+	_string_mix_rolled = false
+	_string_then_cast = false
 
 
 ## A commit is done after commit_max_time (the tell included), or:
@@ -2289,7 +2332,9 @@ func _start_commit(now: float) -> void:
 ## AI-D2: a commit running a plan ends with its plan (_check_plan()).
 ## AR1a: an enemy with a string (any role): its string's end ends it
 ## (_on_string_ended()), or commit_max_time while it hasn't swung yet; a cast
-## commit (its decision's cast went first) its cast's end, as above.
+## commit (its decision's cast went first) its cast's end, as above. The mix
+## (string first, then its cast): its finisher's end, or no finisher started
+## within string_finisher_wait of the string's end.
 func _is_commit_done(now: float) -> bool:
 	if _plan != null:
 		return false
@@ -2297,6 +2342,9 @@ func _is_commit_done(now: float) -> bool:
 	if has_attack_string():
 		if _commit_string:
 			if _string_done:
+				if _string_then_cast and not _commit_cast_done \
+						and (_commit_cast or now - _string_done_at < table.string_finisher_wait):
+					return false   # the mix's finisher starts, or casts
 				return true
 			if _enemy.attack.get_string_swung() > 0:
 				return false
@@ -2491,6 +2539,9 @@ func _on_string_ended(completed: bool, swung: int) -> void:
 		return
 	if completed:
 		_string_done = true
+		_string_done_at = Brains.get_time()
+		if _string_then_cast:
+			Brains.set_token_hold(_enemy, Brains.table.token_hold_time)   # the mix: its token kept for its finisher
 		Brains.wake(self)
 	elif swung == 0 and _enemy.abilities != null and _enemy.abilities.casting:
 		_commit_string = false   # its cast went first while it closed in: the commit goes on by AI1's rules (a gap-closer's end lets the string start)

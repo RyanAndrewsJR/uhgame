@@ -305,6 +305,15 @@ extends Resource
 @export_range(0.0, 1.0) var string_respect_short: float = 0.6
 @export_range(0.0, 1.0) var string_respect_full: float = 0.3
 @export var string_short_hits: int = 2
+## A commit with its string and a damage cast ready (Ryan, 2026-10-08: "a mix
+## of A and B"): one roll a commit, before its string's first swing. Under
+## this chance its string comes first and the cast after it, as its
+## finisher; otherwise the cast goes first and ends the commit (AI1's). A
+## gap-closer always goes first; with no cast ready it's the string alone.
+@export_range(0.0, 1.0) var string_then_cast_chance: float = 0.5
+## After its string, the finisher must start within this long (s), else the
+## commit ends (the cast no longer passes: its target walked out of range).
+@export var string_finisher_wait: float = 0.3
 
 ## Derived respect values, cached per ability (they read only data).
 var _respect_cache: Dictionary = {}
