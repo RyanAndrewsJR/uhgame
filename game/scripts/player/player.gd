@@ -436,7 +436,7 @@ func can_interrupt_swing(slot: StringName) -> bool:
 ## cast_ability()), or null for other abilities (AB12: the press's conditions).
 func _condition_target_for(slot: StringName) -> Unit:
 	var ability := abilities.get_ability(slot)
-	if ability == null or ability.targeting != Ability.Targeting.UNIT:
+	if ability == null or ability.get_targeting_for_part(abilities.get_recast_part(slot)) != Ability.Targeting.UNIT:
 		return null
 	var aim := get_aim_point()
 	var target := _enemy_under_point(aim)
@@ -654,13 +654,14 @@ func _on_swing_landed(index: int, _targets: Array[Unit]) -> void:
 
 
 func _on_cast_started(_slot: StringName, ability: Ability, ctx: CastContext) -> void:
-	match ability.targeting:
+	var targeting := ability.get_targeting_for_part(ctx.part)   # CHAMPIONS K4: a recast part's own
+	match targeting:
 		Ability.Targeting.DIRECTION, Ability.Targeting.POINT:
 			_cast_face_point = ctx.point
 		Ability.Targeting.UNIT:
 			if is_instance_valid(ctx.target):
 				_cast_face_point = ctx.target.global_position
-	if ability.targeting != Ability.Targeting.SELF:
+	if targeting != Ability.Targeting.SELF:
 		_swing_sword(maxf(ability.cast_time, 0.1))
 
 

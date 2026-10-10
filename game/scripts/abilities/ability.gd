@@ -99,6 +99,11 @@ const DEFAULT_AREA_RADIUS_PX := 40.0
 ## Cost of every part after the first (a scoped param); the first part costs
 ## resource_cost.
 @export var recast_resource_cost: float = 0.0
+## The targeting of every part after the first (ABILITIES.md, Later toolkit
+## pieces: a recast part's own targeting; built in CHAMPIONS K4 for Korsavil
+## v2's Q, whose UNIT throw is followed by a SELF lunge). -1 = the same as
+## `targeting`: every ability before K4. get_targeting_for_part().
+@export_enum("Same:-1", "Self:0", "Direction:1", "Point:2", "Unit:3") var recast_targeting: int = -1
 
 @export_group("Charge-up")
 ## CHARGE_UP only: seconds of holding to reach full charge (a scoped param).
@@ -237,6 +242,13 @@ const DEFAULT_AREA_RADIUS_PX := 40.0
 @export var projectile_spread_deg: float = 15.0
 ## Extra enemies a projectile passes through: 0 = it stops on the first hit.
 @export var projectile_pierce: int = 0
+## A chain projectile's bounces (Projectile.fire_chain(); CHAMPIONS K4): after
+## each hit it flies on to another enemy this many times at most (a scoped
+## param: "+1 bounce" is an item). Read only by abilities that fire one.
+@export var projectile_bounces: int = 0
+## LoL units: a bounce goes to the nearest enemy within this of the unit just
+## hit (400 = 128 px; a scoped param).
+@export var bounce_range: float = 400.0
 
 @export_group("Vector")
 ## Read only by VECTOR abilities (ABILITIES AB13). The start range is
@@ -554,6 +566,14 @@ func get_custom_fail_text() -> String:
 ## recast_conditions for a later part.
 func get_conditions_for_part(part: int) -> Array[Condition]:
 	return cast_conditions if part == 0 else recast_conditions
+
+
+## The targeting of recast part `part` (0 = the first cast): `targeting`, or
+## recast_targeting for a later part when it's set (CHAMPIONS K4).
+func get_targeting_for_part(part: int) -> Targeting:
+	if part > 0 and recast_targeting >= 0:
+		return recast_targeting as Targeting
+	return targeting
 
 
 ## True if a cast of this needs a condition target even when it doesn't pick

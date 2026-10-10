@@ -450,7 +450,7 @@ func _make_condition_context(slot: StringName, ability: Ability, aim: Vector2, t
 	if ability.cast_style == Ability.CastStyle.VECTOR and ability.needs_condition_target():
 		aim = _clamp_vector_start(ability, aim)   # AB13: the condition target is near the start point
 	var ctx := _make_context(slot, ability, aim, 1.0, target)
-	if ability.targeting == Ability.Targeting.UNIT and not is_instance_valid(ctx.target):
+	if ability.get_targeting_for_part(ctx.part) == Ability.Targeting.UNIT and not is_instance_valid(ctx.target):
 		ctx.target = _condition_target(ability, aim)   # the HUD preview: the enemy near the aim
 		_fill_inputs(ctx, ability)
 	return ctx
@@ -528,7 +528,7 @@ func try_cast(slot: StringName, aim: Vector2, target_unit: Unit = null) -> bool:
 
 	var ctx := _make_cast_context(slot, ability, aim, target_unit)
 
-	match ability.targeting:
+	match ability.get_targeting_for_part(ctx.part):   # a recast part may have its own (CHAMPIONS K4)
 		Ability.Targeting.UNIT:
 			if target_unit == null or not target_unit.is_targetable() or not unit.is_enemy_of(target_unit):   # untargetable: no target (AB10)
 				cast_failed.emit(slot, FAIL_NO_TARGET)
@@ -567,7 +567,8 @@ func _make_context(slot: StringName, ability: Ability, aim: Vector2, charge: flo
 	var to_aim := aim - origin
 	ctx.direction = to_aim.normalized() if to_aim.length() > 0.01 else Vector2.RIGHT
 	ctx.point = aim
-	if ability.targeting == Ability.Targeting.UNIT:
+	var targeting := ability.get_targeting_for_part(ctx.part)   # CHAMPIONS K4: a recast part's own
+	if targeting == Ability.Targeting.UNIT:
 		ctx.target = target if is_instance_valid(target) else null
 	elif ability.needs_condition_target():
 		ctx.target = _condition_target(ability, aim, ctx)
@@ -575,7 +576,7 @@ func _make_context(slot: StringName, ability: Ability, aim: Vector2, charge: flo
 		ctx.last_part_hit = _recast[slot].last_part_hit
 		ctx.sequence = _recast[slot].sequence   # LOOT L6: what part 0 left for the later parts
 	_fill_inputs(ctx, ability)
-	match ability.targeting:
+	match targeting:
 		Ability.Targeting.SELF:
 			ctx.point = origin
 		Ability.Targeting.POINT:
@@ -1604,6 +1605,19 @@ func _advance_recast(slot: StringName, part: int) -> void:
 	seq.next = part + 1
 	seq.left = ability.get_param(unit, &"recast_window")
 	recast_window_started.emit(slot, seq.next, seq.left)
+
+
+## Ends the slot's recast sequence early, as if its window had run out: no
+## more parts, and the slot's recharge starts the next physics frame (ABILITIES
+## .md, Later toolkit pieces; CHAMPIONS K4: Korsavil's Q when its dagger hit
+## fewer than 3 enemies). Nothing while no sequence is open, or while a part of
+## it is being cast (its end opens the next window, or ends the sequence).
+## Returns whether a sequence ended.
+func end_recast(slot: StringName) -> bool:
+	if not _recast.has(slot) or (casting and casting_slot == slot):
+		return false
+	_end_recast(slot)
+	return true
 
 
 ## The sequence is over: the slot's recharge can start (the next physics

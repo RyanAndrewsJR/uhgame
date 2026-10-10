@@ -1,0 +1,27 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/abilities/korsavil/blade_singer.gd" id="1_script"]
+[ext_resource type="Resource" path="res://data/statuses/status_lodged_dagger.tres" id="2_lodged"]
+
+[resource]
+script = ExtResource("1_script")
+lodged_status = ExtResource("2_lodged")
+id = &"korsavil_blade_singer"
+tags = Array[StringName]([&"core", &"projectile"])
+display_name = "Blade Singer"
+description = "Throw a dagger at an enemy that bounces to up to {projectile_bounces} more, dealing {damage} physical damage ({base_damage} {ratios}) to each. If it hits 3 enemies it lodges in the last one, slowing it by 10%: recast within {recast_window}s to lunge to it for 40 + 65% AD."
+icon_color = Color(0.85, 0.72, 0.98, 1)
+targeting = 3
+cooldown = 11.0
+resource_cost = 25.0
+recast_count = 1
+recast_window = 3.0
+recast_targeting = 0
+cast_time = 0.15
+cast_range = 700.0
+roots_during_cast = false
+base_damage = 30.0
+ad_ratio = 0.25
+projectile_speed = 1500.0
+projectile_bounces = 3
+bounce_range = 400.0

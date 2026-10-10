@@ -8,6 +8,7 @@
 [ext_resource type="Resource" path="res://data/reactions/reaction_korsavil_demise.tres" id="6_rule"]
 [ext_resource type="Resource" path="res://data/statuses/status_demise.tres" id="7_demise"]
 [ext_resource type="Resource" path="res://data/statuses/status_empower_demise.tres" id="8_empower"]
+[ext_resource type="Resource" path="res://data/abilities/korsavil_q_blade_singer.tres" id="9_q"]
 
 [sub_resource type="Resource" id="StatModifier_second_dash"]
 script = ExtResource("4_stat_modifier")
@@ -31,5 +32,6 @@ display_name = "Korsavil"
 champion_class = &"assassin"
 stats = ExtResource("2_stats")
 resource_type = 1
+q = ExtResource("9_q")
 combo = ExtResource("3_combo")
 passive = SubResource("Passive_korsavil")

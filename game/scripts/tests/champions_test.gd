@@ -39,6 +39,13 @@ extends Node2D
 ## Inevitable Demise (status_demise) once every 5 s, 2% move speed a stack,
 ## the stacks fading together 6 s after the last gain, and at 4 stacks the
 ## empowered auto (50 + 75% AD, full strength); removing it restores him.
+## K4: Q Blade Singer (korsavil_q_blade_singer.tres): the dagger at an enemy
+## (UNIT) and its chain (Projectile.fire_chain(): it homes, then bounces to
+## the nearest enemy not hit yet within 4 m, 4 hits at most, 45 raw each);
+## lodged in the last of 3 or more (status_lodged_dagger, 10% slow); the
+## recast (recast_targeting SELF) lunges to it for 79, or to where it fell;
+## fewer than 3 hits end the sequence at once (end_recast()); the recast
+## needs the dagger lodged ("Needs 3 hits") and fails while rooted ("Rooted").
 ## Prints PASS/FAIL per check, then a total.
 ## Run headless and it quits with the number of failures as the exit code.
 
@@ -82,6 +89,9 @@ const STATUS_DEMISE_COOLDOWN: StatusEffect = preload("res://data/statuses/status
 const EMPOWER_DEMISE: StatusEffect = preload("res://data/statuses/status_empower_demise.tres")
 const RULE_DEMISE: Resource = preload("res://data/reactions/reaction_korsavil_demise.tres")
 const PASSIVE_KORSAVIL_SCRIPT: Script = preload("res://scripts/abilities/korsavil/passive_korsavil.gd")
+const BLADE_SINGER: Ability = preload("res://data/abilities/korsavil_q_blade_singer.tres")
+const STATUS_LODGED: StatusEffect = preload("res://data/statuses/status_lodged_dagger.tres")
+const STATUS_ROOT: StatusEffect = preload("res://data/statuses/status_root.tres")
 
 const MANA := ResourceComponent.ResourceType.MANA
 const FURY := ResourceComponent.ResourceType.FURY
@@ -131,6 +141,12 @@ func _ready() -> void:
 	await _test_korsavil_v2_many_and_expiry()
 	await _test_korsavil_v2_empower()
 	await _test_korsavil_v2_passive_removed()
+	_test_blade_singer_data()
+	await _test_blade_singer_chain()
+	await _test_blade_singer_lunge()
+	await _test_blade_singer_short_chain()
+	await _test_blade_singer_lodged_dies()
+	await _test_blade_singer_rooted()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -889,8 +905,8 @@ func _test_korsavil_data() -> void:
 	_check("Energy: 100 max, 10 a second", [s.max_resource, s.resource_regen], [100.0, 10.0])
 	_check("ENERGY, starts full, no decay", [KORSAVIL.resource_type, KORSAVIL.resource_starts_empty, KORSAVIL.resource_decay_per_second, KORSAVIL.resource_decay_delay],
 		[ENERGY, false, 0.0, 0.0])
-	_check("K3 (v2): every slot empty until K4–K8; the old Bladesinger unassigned, kept on disk",
-		[KORSAVIL.q, KORSAVIL.w, KORSAVIL.e, KORSAVIL.r, BLADESINGER != null], [null, null, null, null, true])
+	_check("K4 (v2): Q is Blade Singer; W, E and R empty until K6–K8; the old Bladesinger unassigned, kept on disk",
+		[KORSAVIL.q == BLADE_SINGER, KORSAVIL.w, KORSAVIL.e, KORSAVIL.r, BLADESINGER != null], [true, null, null, null, true])
 	_check("no own modifiers, talents or named items; the shared leveling; no model (a capsule)",
 		[KORSAVIL.modifiers.size(), KORSAVIL.talents.size(), KORSAVIL.named_items.size(), KORSAVIL.leveling == null, KORSAVIL.model_scene == null],
 		[0, 0, 0, true, true])
@@ -935,8 +951,8 @@ func _test_korsavil_loaded() -> void:
 		[500.0, 60.0, 0.7, 390.0, 150.0, 0.25])
 	_check("the pool: ENERGY, full (100 of 100), no decay", [k.resource_pool.resource_type, k.resource_pool.max_resource, k.resource_pool.current, k.resource_pool.decay_per_second],
 		[ENERGY, 100.0, 100.0, 0.0])
-	_check("K3: Q / W / E / R empty, his combo his, no model (a capsule)",
-		[k.abilities.q, k.abilities.w, k.abilities.e, k.abilities.r, k.attack.combo == COMBO_KORSAVIL, k.model_scene == null], [null, null, null, null, true, true])
+	_check("K4: Q Blade Singer, W / E / R empty, his combo his, no model (a capsule)",
+		[k.abilities.q == BLADE_SINGER, k.abilities.w, k.abilities.e, k.abilities.r, k.attack.combo == COMBO_KORSAVIL, k.model_scene == null], [true, null, null, null, true, true])
 	_check("dash_charges 2: the passive's +1 under passive_korsavil", [int(k.stats_component.get_stat(&"dash_charges")), k.dash.get_max_charges(), k.stats_component.get_modifiers_from(&"passive_korsavil").size()],
 		[2, 2, 1])
 	await _wait_until(func() -> bool: return k.dash.get_charges() >= 2, 60)
@@ -1004,11 +1020,11 @@ func _test_korsavil_hub_pick() -> void:
 		[true, "Korsavil   Level 1: 0 / 600 XP   Talents 0 / 1", [["Knight", false], ["Korsavil", true]], true])
 	_check("her talent screen has no talents, and says so",
 		[hub.talent_screen.find_children("*", "Button", true, false).size(), hub.get_detail_text()], [0, "Korsavil has no talents yet."])
-	var q_uses := Progress.get_progress(KORSAVIL).get_ability_uses(&"korsavil_bladesinger")
+	var q_uses := Progress.get_progress(KORSAVIL).get_ability_uses(&"korsavil_blade_singer")
 	hub._debug(func() -> void: Progress.debug_add_ability_uses(KORSAVIL, 100))
-	_check("+100 uses: K3 leaves every slot empty, so nothing counts (no error)",
-		[Progress.get_progress(KORSAVIL).get_ability_uses(&"korsavil_bladesinger") - q_uses, Progress.get_progress(KORSAVIL).ability_uses.keys()],
-		[0, []])
+	_check("+100 uses: only his Q counts (K4: W, E, R empty, no error)",
+		[Progress.get_progress(KORSAVIL).get_ability_uses(&"korsavil_blade_singer") - q_uses, Progress.get_progress(KORSAVIL).ability_uses.keys()],
+		[100, [&"korsavil_blade_singer"]])
 	hub.queue_free()
 	await _frames(1)
 	var again: Hub = HUB_SCENE.instantiate()
@@ -1405,6 +1421,189 @@ func _test_korsavil_v2_passive_removed() -> void:
 	_check("Demise applied by hand afterwards: no empower (nothing watches)", sc.has_status(&"empower_demise"), false)
 	k.queue_free()
 	await _frames(1)
+
+
+func _test_blade_singer_data() -> void:
+	_section("K4: Q Blade Singer's data (korsavil_q_blade_singer.tres) and the lodged dagger")
+	var q := BLADE_SINGER
+	_check("id, tags core + projectile, UNIT, the recast SELF (recast_targeting), INSTANT",
+		[q.id, _plain(q.tags), q.targeting, q.recast_targeting, q.get_targeting_for_part(0), q.get_targeting_for_part(1), q.cast_style],
+		[&"korsavil_blade_singer", [&"core", &"projectile"], Ability.Targeting.UNIT, 0, Ability.Targeting.UNIT, Ability.Targeting.SELF, Ability.CastStyle.INSTANT])
+	_check("25 Energy (its recast 0), 11 s cooldown, 0.15 s cast, 7 m, one recast in a 3 s window, he walks while casting",
+		[q.resource_cost, q.recast_resource_cost, q.cooldown, q.cast_time, q.cast_range, q.recast_count, q.recast_window, q.roots_during_cast],
+		[25.0, 0.0, 11.0, 0.15, 700.0, 1, 3.0, false])
+	_check("each hit 30 + 25% AD, PHYSICAL; the dagger 1500 u/s, 3 bounces within 400 u",
+		[q.base_damage, q.ad_ratio, q.damage_type, q.projectile_speed, q.projectile_bounces, q.bounce_range],
+		[30.0, 0.25, HitContext.DamageType.PHYSICAL, 1500.0, 3, 400.0])
+	_check("the script: the lodged dagger, 3 hits for the recast, the lunge 3000 u/s up to 1175 u, 40 + 65% AD within 150 u",
+		[q.get("lodged_status") == STATUS_LODGED, q.get("hits_for_recast"), q.get("lunge_speed"), q.get("lunge_max"), q.get("lunge_base_damage"), q.get("lunge_ad_ratio"), q.get("lunge_hit_reach")],
+		[true, 3, 3000.0, 1175.0, 40.0, 0.65, 150.0])
+	_check("no dash tag (moves_caster() false): a root refuses only the lunge (its script), not the throw", q.moves_caster(), false)
+	var mods := STATUS_LODGED.modifiers.map(func(m: StatModifier) -> Array: return [m.stat, m.type, m.value])
+	_check("status_lodged_dagger: tags lodged_dagger + debuff, 3 s (a backstop), REFRESH, a 10% slow, not cc",
+		[STATUS_LODGED.id, _plain(STATUS_LODGED.tags), STATUS_LODGED.duration, STATUS_LODGED.stack_rule, mods, STATUS_LODGED.is_cc()],
+		[&"lodged_dagger", [&"lodged_dagger", &"debuff"], 3.0, StatusEffect.StackRule.REFRESH, [[&"move_speed", StatModifier.Type.PERCENT_ADD, -0.1]], false])
+	_check("every other built ability keeps one targeting for every part (recast_targeting -1) and no bounces",
+		[BLADESINGER.recast_targeting, CLEAVE.recast_targeting, LUNGE.recast_targeting, LUNGE.get_targeting_for_part(1) == LUNGE.targeting, BOLT.projectile_bounces],
+		[-1, -1, -1, true, 0])
+
+
+func _test_blade_singer_chain() -> void:
+	_section("K4: the dagger: at an enemy, it hits it and bounces to 3 more, never one twice; lodged in the last one")
+	var k := await _spawn(false, KORSAVIL)
+	_no_crits(k)
+	var dummies := _row_of_dummies(k, 5)
+	await _frames(1)
+	var hits: Array = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == k and ctx.ability == BLADE_SINGER:
+			hits.append([dummies.find(ctx.target), roundi(ctx.raw_damage)])
+	Events.unit_hit.connect(on_hit)
+	_check("Q at the first: cast, 25 Energy spent", [k.abilities.try_cast(&"q", dummies[0].global_position, dummies[0]), k.resource_pool.current], [true, 75.0])
+	await _wait_until(func() -> bool: return dummies[3].status_component.has_status(&"lodged_dagger"), 240)
+	await _frames(10)
+	Events.unit_hit.disconnect(on_hit)
+	_check("4 hits in order (the target, then each time the nearest enemy not hit yet within 4 m), 45 raw each (30 + 25% of 60 AD); the 5th untouched",
+		hits, [[0, 45], [1, 45], [2, 45], [3, 45]])
+	_check("lodged in the last one hit (its 10% slow); the recast unlocked: part 1, its conditions pass",
+		[dummies[3].status_component.has_status(&"lodged_dagger"), dummies[2].status_component.has_status(&"lodged_dagger"), k.abilities.get_recast_part(&"q"), k.abilities.conditions_pass(&"q")],
+		[true, false, 1, true])
+	for d in dummies:
+		d.queue_free()
+	k.queue_free()
+	Audio.stop_all()
+	await _frames(10)
+
+
+func _test_blade_singer_lunge() -> void:
+	_section("K4: the recast: a lunge to the lodged enemy, 40 + 65% AD on it; the dagger comes out; the 11 s cooldown starts")
+	var k := await _spawn(false, KORSAVIL)
+	_no_crits(k)
+	var dummies := _row_of_dummies(k, 3)
+	await _frames(1)
+	var lodged := dummies[2]
+	var lunge_hits: Array = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == k and ctx.ability == BLADE_SINGER and ctx.cast != null and ctx.cast.part == 1:
+			lunge_hits.append([dummies.find(ctx.target), roundi(ctx.raw_damage)])
+	Events.unit_hit.connect(on_hit)
+	k.abilities.try_cast(&"q", dummies[0].global_position, dummies[0])
+	await _wait_until(func() -> bool: return lodged.status_component.has_status(&"lodged_dagger"), 240)
+	_check("3 hit: lodged in the third", lodged.status_component.has_status(&"lodged_dagger"), true)
+	_check("the recast pressed with nothing under the cursor (its targeting SELF): it goes",
+		k.abilities.try_cast(&"q", k.global_position + Vector2(0, -300)), true)
+	await _wait_until(func() -> bool: return k.abilities.get_recast_part(&"q") == 0 and not k.abilities.casting, 120)
+	Events.unit_hit.disconnect(on_hit)
+	_check("he ends at its edge (within 150 u), the lunge's hit 79 raw (40 + 65% of 60 AD) on it alone, the dagger out",
+		[k.edge_distance_to(lodged) <= Units.to_px(150.0), lunge_hits, lodged.status_component.has_status(&"lodged_dagger")], [true, [[2, 79]], false])
+	await _frames(2)
+	_check("the sequence over: the 11 s cooldown runs", [k.abilities.get_recast_part(&"q"), k.abilities.get_cooldown_left(&"q") > 10.5], [0, true])
+	for d in dummies:
+		d.queue_free()
+	k.queue_free()
+	Audio.stop_all()
+	await _frames(10)
+
+
+func _test_blade_singer_short_chain() -> void:
+	_section("K4: fewer than 3 hit: no lodged dagger, no recast, and the cooldown starts when the dagger is done")
+	var k := await _spawn(false, KORSAVIL)
+	_no_crits(k)
+	var dummies := _row_of_dummies(k, 2)
+	await _frames(1)
+	var hit_order: Array = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == k and ctx.ability == BLADE_SINGER:
+			hit_order.append(dummies.find(ctx.target))
+	Events.unit_hit.connect(on_hit)
+	k.abilities.try_cast(&"q", dummies[0].global_position, dummies[0])
+	await _wait_until(func() -> bool: return hit_order.size() >= 2, 240)
+	await _wait_until(func() -> bool: return k.abilities.get_recast_part(&"q") == 0, 120)
+	await _frames(2)
+	Events.unit_hit.disconnect(on_hit)
+	_check("2 hits, each enemy once (3 bounces allowed, no third enemy)", hit_order, [0, 1])
+	_check("no lodged dagger; the window closed with the dagger; the 11 s cooldown already running",
+		[dummies[1].status_component.has_status(&"lodged_dagger"), k.abilities.get_recast_part(&"q"), k.abilities.get_cooldown_left(&"q") > 10.0],
+		[false, 0, true])
+	for d in dummies:
+		d.queue_free()
+	k.queue_free()
+	Audio.stop_all()
+	await _frames(10)
+
+
+func _test_blade_singer_lodged_dies() -> void:
+	_section("K4: the lodged enemy dies before the recast: the lunge goes to where it fell and hits nothing")
+	var k := await _spawn(false, KORSAVIL)
+	_no_crits(k)
+	var dummies := _row_of_dummies(k, 3)
+	await _frames(1)
+	var lodged := dummies[2]
+	k.abilities.try_cast(&"q", dummies[0].global_position, dummies[0])
+	await _wait_until(func() -> bool: return lodged.status_component.has_status(&"lodged_dagger"), 240)
+	var fell := lodged.global_position
+	var lunge_hits: Array = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == k and ctx.ability == BLADE_SINGER and ctx.cast != null and ctx.cast.part == 1:
+			lunge_hits.append(ctx.target)
+	Events.unit_hit.connect(on_hit)
+	lodged.take_damage(100000.0)
+	await _frames(2)
+	_check("it died; the recast still goes", [lodged.is_alive() if is_instance_valid(lodged) else false, k.abilities.try_cast(&"q", k.global_position)], [false, true])
+	await _wait_until(func() -> bool: return k.abilities.get_recast_part(&"q") == 0 and not k.abilities.casting, 120)
+	Events.unit_hit.disconnect(on_hit)
+	_check_near("he ends where it fell", k.global_position.distance_to(fell), 0.0, 4.0)
+	_check("the lunge hit nobody", lunge_hits.size(), 0)
+	for d in dummies:
+		if is_instance_valid(d):
+			d.queue_free()
+	k.queue_free()
+	Audio.stop_all()
+	await _frames(10)
+
+
+func _test_blade_singer_rooted() -> void:
+	_section("K4: the recast needs the dagger lodged (\"Needs 3 hits\") and fails while rooted (\"Rooted\"); the throw isn't refused by a root")
+	var k := await _spawn(false, KORSAVIL)
+	_no_crits(k)
+	var dummies := _row_of_dummies(k, 3)
+	await _frames(1)
+	k.abilities.try_cast(&"q", dummies[0].global_position, dummies[0])
+	await _wait_until(func() -> bool: return k.abilities.get_recast_part(&"q") == 1 and not k.abilities.casting, 60)
+	_check("the dagger still flying: the recast refused, \"Needs 3 hits\"; nothing spent, the window kept",
+		[dummies[2].status_component.has_status(&"lodged_dagger"), k.abilities.get_fail_reason(&"q"), k.abilities.get_condition_fail_text(&"q"),
+			k.abilities.try_cast(&"q", k.global_position), k.abilities.get_recast_part(&"q")],
+		[false, "condition", "Needs 3 hits", false, 1])
+	await _wait_until(func() -> bool: return dummies[2].status_component.has_status(&"lodged_dagger"), 240)
+	k.status_component.apply_status(STATUS_ROOT, dummies[0])
+	_check("lodged, but rooted: the recast refused, \"Rooted\"; the window kept",
+		[k.abilities.get_fail_reason(&"q"), k.abilities.get_condition_fail_text(&"q"), k.abilities.try_cast(&"q", k.global_position), k.abilities.get_recast_part(&"q")],
+		["condition", "Rooted", false, 1])
+	k.status_component.remove_status(&"root")
+	_check("the root gone: the recast goes", k.abilities.try_cast(&"q", k.global_position), true)
+	await _wait_until(func() -> bool: return k.abilities.get_recast_part(&"q") == 0 and not k.abilities.casting, 120)
+	k.abilities.reset_cooldown(&"q")
+	await _frames(2)
+	k.status_component.apply_status(STATUS_ROOT, dummies[0])
+	_check("rooted, the throw itself still goes (it doesn't move him)", k.abilities.try_cast(&"q", dummies[0].global_position, dummies[0]), true)
+	k.status_component.remove_status(&"root")
+	await _frames(60)
+	for d in dummies:
+		d.queue_free()
+	k.queue_free()
+	Audio.stop_all()
+	await _frames(10)
+
+
+## `count` tough passive dummies in a row to `k`'s right: the first at 120 px,
+## then every 100 px (inside the dagger's 128 px bounce range of each other).
+func _row_of_dummies(k: Player, count: int) -> Array[Enemy]:
+	var out: Array[Enemy] = []
+	for i in count:
+		var d := _dummy(k.global_position + Vector2(120.0 + 100.0 * i, 0))
+		d.stats_component.add_modifier(StatModifier.create(&"max_health", StatModifier.Type.FLAT, 5000.0, &"test_tough"))
+		out.append(d)
+	return out
 
 
 ## Swings `k`'s combo `count` times toward `direction`, each as soon as it can,

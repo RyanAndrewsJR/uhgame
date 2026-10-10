@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="StatusEffect" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/status_effect.gd" id="1_status"]
+[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="2_modifier"]
+
+[sub_resource type="Resource" id="slow"]
+script = ExtResource("2_modifier")
+stat = &"move_speed"
+type = 1
+value = -0.1
+
+[resource]
+script = ExtResource("1_status")
+id = &"lodged_dagger"
+display_name = "Lodged dagger"
+tags = Array[StringName]([&"lodged_dagger", &"debuff"])
+duration = 3.0
+stack_rule = 1
+modifiers = Array[ExtResource("2_modifier")]([SubResource("slow")])

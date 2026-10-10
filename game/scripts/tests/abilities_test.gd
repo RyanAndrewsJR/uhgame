@@ -246,6 +246,7 @@ func _ready() -> void:
 	await _test_ab15_test_blink()
 	await _test_roots_hold_still()
 	knight.status_component.cc_diminishing = true
+	await _test_k4_toolkit()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).
@@ -4876,6 +4877,71 @@ func _reset_knight() -> void:
 	_place(knight, ARENA)
 	knight.health.heal(10000.0)
 	await _frames(1)
+
+
+## CHAMPIONS K4's toolkit pieces (Korsavil v2's Q uses them; ABILITIES.md,
+## Later toolkit pieces): AbilityComponent.end_recast(), a recast part's own
+## targeting (Ability.recast_targeting), and a projectile's hit_resolved and
+## finished signals. The chain projectile itself (Projectile.fire_chain()) is
+## checked through his Q in champions_test.
+func _test_k4_toolkit() -> void:
+	_section("CHAMPIONS K4: end_recast(), recast_targeting, a projectile's hit_resolved and finished")
+	await _reset_knight()
+	var ab := knight.abilities
+	_check("every built ability: recast_targeting -1 (one targeting for every part), no bounces (400 u range unused)",
+		[CLEAVE.recast_targeting, LUNGE.recast_targeting, TRIPLE_STEP.recast_targeting, TRIPLE_STEP.get_targeting_for_part(2) == TRIPLE_STEP.targeting,
+			BOLT.projectile_bounces, BOLT.bounce_range],
+		[-1, -1, -1, true, 0, 400.0])
+	var original_q := ab.q
+	ab.q = TRIPLE_STEP
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	_check("end_recast() with no sequence open: nothing", ab.end_recast(&"q"), false)
+	var ended := [0]
+	var on_finished := func(slot: StringName) -> void:
+		if slot == &"q":
+			ended[0] += 1
+	ab.recast_window_finished.connect(on_finished)
+	ab.try_cast(&"q", knight.global_position + Vector2(300, 0))
+	var mid := ab.casting
+	_check("while part 0 is being cast, end_recast() leaves the sequence alone", [mid, ab.end_recast(&"q") if mid else false, ab.get_recast_part(&"q")], [true, false, 1])
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("its window open, end_recast() ends the sequence at once, as if it had run out",
+		[ab.get_recast_part(&"q"), ab.end_recast(&"q"), ab.get_recast_part(&"q"), ended[0]], [1, true, 0, 1])
+	await _frames(1)
+	_check("then the 4 s cooldown runs", [ab.is_ready(&"q"), ab.get_cooldown_left(&"q") > 3.9], [false, true])
+	ab.recast_window_finished.disconnect(on_finished)
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	var unit_recast: Ability = TRIPLE_STEP.duplicate()
+	unit_recast.recast_targeting = Ability.Targeting.UNIT
+	ab.q = unit_recast
+	await _frames(1)
+	_check("a copy with recast_targeting UNIT: part 0 keeps its own targeting, later parts are UNIT",
+		[unit_recast.get_targeting_for_part(0), unit_recast.get_targeting_for_part(1)], [Ability.Targeting.DIRECTION, Ability.Targeting.UNIT])
+	var fails: Array = []
+	var on_failed := func(slot: StringName, reason: String) -> void:
+		if slot == &"q":
+			fails.append(reason)
+	ab.cast_failed.connect(on_failed)
+	_check("part 0 casts with no unit (DIRECTION)", ab.try_cast(&"q", knight.global_position + Vector2(300, 0)), true)
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("part 1 needs a unit now: a press with none fails \"no target\"", [ab.try_cast(&"q", knight.global_position + Vector2(300, 0)), fails], [false, [AbilityComponent.FAIL_NO_TARGET]])
+	ab.cast_failed.disconnect(on_failed)
+	ab.end_recast(&"q")
+	await _frames(1)
+	ab.reset_cooldown(&"q")
+	ab.q = original_q
+	# A projectile's signals: one hit_resolved per hit (blocked or not), finished once.
+	var dummy := _dummy_at(Vector2(100, 0))
+	await _frames(1)
+	var resolved: Array = []
+	var done := [0]
+	var shots := Projectile.fire(knight, BOLT, CastContext.new(), knight.global_position, Vector2.RIGHT)
+	shots[0].hit_resolved.connect(func(target: Unit, hit: HitContext) -> void: resolved.append([target == dummy, hit.blocked]))
+	shots[0].finished.connect(func() -> void: done[0] += 1)
+	await _wait_until(func() -> bool: return not is_instance_valid(shots[0]), 120)
+	_check("a straight projectile: one hit_resolved (the dummy, not blocked), finished once", [resolved, done[0]], [[[true, false]], 1])
+	dummy.queue_free()
+	await _frames(2)
 
 
 func _dummy_at(offset: Vector2) -> Enemy:

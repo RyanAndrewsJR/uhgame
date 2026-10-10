@@ -1444,7 +1444,24 @@ Combat test 450/450, stats test 172/172 (unchanged). A headless in-game check of
 
 ## Champions (CHAMPIONS.md)
 
-### K3 (Korsavil v2) – the data swap, the 4-swing chain, the passive and its Energy: 2026-10-10, Built (awaiting Ryan's play test)
+### K4 (Korsavil v2) – Q Blade Singer: the dagger and the recast lunge: 2026-10-10, Built (awaiting Ryan's play test)
+Ryan passed and committed K3, then: "start K4".
+- **New:**
+  - `scripts/abilities/korsavil/blade_singer.gd` and `data/abilities/korsavil_q_blade_singer.tres` (id `korsavil_blade_singer`; UNIT, 7 m, 0.15 s, 25 Energy, 11 s; 30 + 25% AD a hit; 3 bounces within 4 m at 1500 u/s; one recast in 3 s, its targeting SELF; the lunge 3000 u/s up to 1175 u, 40 + 65% AD within 150 u).
+  - `data/statuses/status_lodged_dagger.tres` (10% slow, 3 s backstop).
+  - Toolkit: `Projectile.fire_chain()` (homing, bounces to the nearest enemy not hit yet within `bounce_range` and in sight, a leg gives up after twice its distance + 2 m), the projectile signals `hit_resolved` and `finished` (every projectile; straight ones end through the same `_end()`), `get_hit_units()`; `Ability.recast_targeting` (−1 = the same) and `get_targeting_for_part()`; `Ability.projectile_bounces` (0) and `bounce_range` (400); `AbilityComponent.end_recast()`.
+- **Changed:**
+  - `ability_component.gd`: a press reads the part's targeting (`try_cast()`, `_make_context()`, the condition context); `end_recast()`.
+  - `player.gd`: the press's condition target and the cast's facing read the part's targeting.
+  - `projectile.gd`: the chain mode beside the straight one, unchanged for every other projectile.
+  - `data/champions/korsavil.tres`: Q is Blade Singer.
+  - `champions_test`: the K1/K3 slot checks and the hub's +100 uses read Q.
+- **Found while building:** CHAMPIONS.md, Build order, Korsavil v2, K4.
+- **Tests:** `champions_test` +23 (the data; the chain on five dummies: 4 hits in order, 45 each, never one twice, lodged in the 4th; the lunge: 79 at the edge, the dagger out, the 11 s cooldown; 2 hits: no lodge, the cooldown at once; the lodged enemy dead: to where it fell, no hit; "Needs 3 hits" while it flies, "Rooted" while rooted, the throw not refused by a root); `abilities_test` +9 (`end_recast()`, `recast_targeting` on a copy of the test Triple Step, a straight projectile's `hit_resolved` and `finished`).
+- **Results:** 4,400/4,400 (was 4,368): stats 206, audio 110, view 474, talents 310, champions 289 (+23), deflect 207, loot 750, combat 510, abilities 602 (+9), brain_golden 144 (golden files unchanged), enemies 681, feel 117; no GDScript warnings or script errors (champions and abilities with `-d`).
+- **How to play test:** at the hub pick Korsavil, then Sandbox, near a pack of slimes. Click-cast Q on a slime: the dagger homes on it and bounces to the next nearest (4 at most; it never hits one twice). With 3 or more hit, the last one is slowed and Q's recast window shows: press Q anywhere and he lunges to it (79 at 60 AD before crits). With 1 or 2 hit, Q goes straight on its 11 s cooldown. Kill the lodged slime before the recast: the lunge goes to where it fell. Q still throws while rooted, but the recast says "Rooted". The Knight plays as before.
+
+### K3 (Korsavil v2) – the data swap, the 4-swing chain, the passive and its Energy: 2026-10-10, Passed (Ryan's play test, 2026-10-10; committed 151c853)
 Ryan confirmed v2 and K3's changes to built files in his second interview (2026-10-09), then: "Start K3".
 - **New:** `data/statuses/status_demise.tres` (v2's Inevitable Demise: STACK_SHARED, 6 stacks, 6 s, `move_speed` +12% at 6 on `self_status_stacks`), `status_demise_cooldown.tres` (5 s), `status_empower_demise.tres` (BASIC_ATTACK_HIT, +50 and +0.75 AD, 6 s, REFRESH); `data/reactions/reaction_korsavil_demise.tres` (HIT on `finisher`, not while `demise_cooldown` is on: 2 stacks, then the cooldown); `scripts/abilities/korsavil/passive_korsavil.gd` (a `Passive` subclass: the empower when his stacks reach 4 from below; the sweep at 6 waits for K5). `AttackSwing.resource_on_land` (0: restored once when the swing hits anything).
 - **Changed (Ryan's OK):**
