@@ -132,7 +132,7 @@ Specified in ABILITIES.md, Augments (FLAG / EVENT / REPLACE, added and removed b
 4. Migrate reads to `get_stat` and speed modifiers into StatsComponent. Built 2026-09-25, see CHANGELOG.md.
 5. ResourceComponent, plus the new stat fields on UnitStats. Built 2026-09-25, see CHANGELOG.md.
 6. Scoped modifiers, `get_ability_param`, and `id`/`tags` on Ability; cooldowns routed through it. Built 2026-09-26, see CHANGELOG.md.
-7. F3 debug overlay (`res://scripts/ui/stat_overlay.gd`): every stat, its base, final value, and each modifier with its source. Built 2026-10-09, see CHANGELOG.md.
+7. F3 debug overlay (`res://scripts/ui/stat_overlay.gd`): every stat, its base, final value, and each modifier with its source. Built 2026-10-09, passed Ryan's play test 2026-10-09, see CHANGELOG.md. With it every STATS build step is done.
 
 **Done means:** a fake item (a modifier array) changes stats and ability params, and removing it restores them exactly; the Knight and slimes behave the same as before step 4; the overlay explains every number.
 

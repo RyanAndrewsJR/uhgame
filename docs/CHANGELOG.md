@@ -2330,7 +2330,7 @@ Movement works but feels robotic: displacements run at constant speed and there'
 
 ## Stats (STATS.md)
 
-### Step 7 – The F3 stat overlay: 2026-10-09, Built (awaiting Ryan's play test)
+### Step 7 – The F3 stat overlay: 2026-10-09, Passed (Ryan's play test, 2026-10-09; committed 4001201)
 Ryan: "go F3 overlay", while he designs Korsavil's kit in the champion concepting app (her K3–K6 come first: DECISIONS.md, Archetypes).
 - **New:** `scripts/ui/stat_overlay.gd` (`StatOverlay`, a CanvasLayer on layer 5, built in code): hidden at first; F3 shows and hides it; it reads the tracked champion, or with Shift+F3 the unit under the cursor (the champion again over nothing). The panel (left, under the HUD's info line, 250 px wide, its list scrolling in 236 px so it ends above the ability bar; clicks over it still reach the game): every registered stat with its base and final (green above its base, red below), each modifier under it by source ("+10", "+50% inc", "x1.20 more"), a note when the final isn't the formula's ("clamped (formula 2.25)", "rounded (formula 1.4)", "strongest slow, soft caps (formula 187.5)"), then the scoped modifiers ("resource_on_hit +8 @ hit:basic_attack (champion_knight)"). It refreshes every 0.25 s while it shows (`refresh_interval`) and works while paused. Static reads for the tests: `get_rows()`, `get_scoped_modifiers()`, `get_note()`, `format_modifier()`, `format_stat()`, `get_plain_text()`, `get_bbcode()`, `get_unit_label()`.
 - **Changed:**
