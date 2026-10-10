@@ -32,6 +32,13 @@ extends Node2D
 ## after it, "No Blades" at 0); the recast (one Blade per Blade held, 80–110%
 ## AD each, a Demise stack per hit, Umbral Stalker when all 4 hit); Inevitable
 ## Demise's tiers and its shared 5 s timer.
+## K3 (Korsavil v2, 2026-10-09): his ChampionData points at v2 (every slot
+## empty until K4; the old Bladesinger's tests run on a test copy with it on
+## Q); the 4-swing chain (swing 4 a 1.4 x AD finisher that restores 10 Energy
+## once when it hits); the passive: swing 4's hit gives 2 stacks of v2's
+## Inevitable Demise (status_demise) once every 5 s, 2% move speed a stack,
+## the stacks fading together 6 s after the last gain, and at 4 stacks the
+## empowered auto (50 + 75% AD, full strength); removing it restores him.
 ## Prints PASS/FAIL per check, then a total.
 ## Run headless and it quits with the number of failures as the exit code.
 
@@ -70,6 +77,11 @@ const STATUS_ORBIT: StatusEffect = preload("res://data/statuses/status_bladesing
 const STATUS_DEMISE: StatusEffect = preload("res://data/statuses/status_inevitable_demise.tres")
 const STATUS_STALKER: StatusEffect = preload("res://data/statuses/status_umbral_stalker.tres")
 const NUMBER_SCRIPT := preload("res://scripts/ui/damage_number.gd")
+const STATUS_DEMISE_V2: StatusEffect = preload("res://data/statuses/status_demise.tres")
+const STATUS_DEMISE_COOLDOWN: StatusEffect = preload("res://data/statuses/status_demise_cooldown.tres")
+const EMPOWER_DEMISE: StatusEffect = preload("res://data/statuses/status_empower_demise.tres")
+const RULE_DEMISE: Resource = preload("res://data/reactions/reaction_korsavil_demise.tres")
+const PASSIVE_KORSAVIL_SCRIPT: Script = preload("res://scripts/abilities/korsavil/passive_korsavil.gd")
 
 const MANA := ResourceComponent.ResourceType.MANA
 const FURY := ResourceComponent.ResourceType.FURY
@@ -114,6 +126,11 @@ func _ready() -> void:
 	await _test_bladesinger_orbit()
 	await _test_bladesinger_recast()
 	await _test_demise()
+	_test_korsavil_v2_passive_data()
+	await _test_korsavil_v2_gain()
+	await _test_korsavil_v2_many_and_expiry()
+	await _test_korsavil_v2_empower()
+	await _test_korsavil_v2_passive_removed()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -872,7 +889,8 @@ func _test_korsavil_data() -> void:
 	_check("Energy: 100 max, 10 a second", [s.max_resource, s.resource_regen], [100.0, 10.0])
 	_check("ENERGY, starts full, no decay", [KORSAVIL.resource_type, KORSAVIL.resource_starts_empty, KORSAVIL.resource_decay_per_second, KORSAVIL.resource_decay_delay],
 		[ENERGY, false, 0.0, 0.0])
-	_check("Q is Bladesinger (K2); W, E and R empty until K3–K5", [KORSAVIL.q == BLADESINGER, KORSAVIL.w, KORSAVIL.e, KORSAVIL.r], [true, null, null, null])
+	_check("K3 (v2): every slot empty until K4–K8; the old Bladesinger unassigned, kept on disk",
+		[KORSAVIL.q, KORSAVIL.w, KORSAVIL.e, KORSAVIL.r, BLADESINGER != null], [null, null, null, null, true])
 	_check("no own modifiers, talents or named items; the shared leveling; no model (a capsule)",
 		[KORSAVIL.modifiers.size(), KORSAVIL.talents.size(), KORSAVIL.named_items.size(), KORSAVIL.leveling == null, KORSAVIL.model_scene == null],
 		[0, 0, 0, true, true])
@@ -881,19 +899,27 @@ func _test_korsavil_data() -> void:
 	if p != null:
 		for m in p.modifiers:
 			mods.append([m.stat, m.type, m.value, m.scope])
-	_check("the passive: one FLAT +1 dash_charges, nothing else yet", [mods, p.stat_scalings.size(), p.reaction_rules.size(), p.statuses.size(), p.augments.size()],
-		[[[&"dash_charges", StatModifier.Type.FLAT, 1.0, &""]], 0, 0, 0, 0])
-	_check("combo: combo_korsavil.tres, MELEE, 3 swings, reset 0.6 s, no speed scale",
+	_check("the passive (K3): the FLAT +1 dash_charges (until AR5) and the Demise rule, no other pieces",
+		[mods, p.stat_scalings.size(), p.reaction_rules == [RULE_DEMISE], p.statuses.size(), p.augments.size()],
+		[[[&"dash_charges", StatModifier.Type.FLAT, 1.0, &""]], 0, true, 0, 0])
+	_check("its script: passive_korsavil.gd watching status_demise, the empower at 4, no sweep until K5",
+		[p.get_script() == PASSIVE_KORSAVIL_SCRIPT, p.get("demise_status") == STATUS_DEMISE_V2, p.get("empower_status") == EMPOWER_DEMISE, p.get("empower_at"), p.get("sweep_status")],
+		[true, true, true, 4, null])
+	_check("combo: combo_korsavil.tres, MELEE, 4 swings (K3: the chain), reset 0.6 s, no speed scale",
 		[KORSAVIL.combo == COMBO_KORSAVIL, COMBO_KORSAVIL.attack_style, COMBO_KORSAVIL.swings.size(), COMBO_KORSAVIL.combo_reset_time, COMBO_KORSAVIL.speed_scale],
-		[true, AttackCombo.AttackStyle.MELEE, 3, 0.6, 1.0])
+		[true, AttackCombo.AttackStyle.MELEE, 4, 0.6, 1.0])
 	var sw := COMBO_KORSAVIL.swings
-	_check("windups 0.06 / 0.06 / 0.08 s", [sw[0].windup, sw[1].windup, sw[2].windup], [0.06, 0.06, 0.08])
-	_check("roots 0.22 / 0.22 / 0.32 s, a 0.2 s breather after the finisher only",
-		[sw[0].duration, sw[1].duration, sw[2].duration, sw[0].pause_after, sw[1].pause_after, sw[2].pause_after], [0.22, 0.22, 0.32, 0.0, 0.0, 0.2])
-	_check("damage 0.9 / 0.9 / 1.4 x AD, arcs 90 / 90 / 120", [sw[0].ad_ratio, sw[1].ad_ratio, sw[2].ad_ratio, sw[0].arc_deg, sw[1].arc_deg, sw[2].arc_deg],
-		[0.9, 0.9, 1.4, 90.0, 90.0, 120.0])
-	_check("only swing 3 is the finisher (its hit tags)", [_plain(sw[0].hit_tags), _plain(sw[1].hit_tags), _plain(sw[2].hit_tags)], [[], [], [&"finisher"]])
-	_check("the dash-strike: 1.3 x AD, not a finisher", [COMBO_KORSAVIL.dash_strike.ad_ratio, COMBO_KORSAVIL.dash_strike.hit_tags.size()], [1.3, 0])
+	_check("windups 0.06 / 0.06 / 0.06 / 0.14 s (swing 4's small delay)", sw.map(func(w: AttackSwing) -> float: return w.windup), [0.06, 0.06, 0.06, 0.14])
+	_check("roots 0.2 / 0.2 / 0.2 / 0.36 s, a 0.2 s breather after swing 4 only",
+		[sw.map(func(w: AttackSwing) -> float: return w.duration), sw.map(func(w: AttackSwing) -> float: return w.pause_after)],
+		[[0.2, 0.2, 0.2, 0.36], [0.0, 0.0, 0.0, 0.2]])
+	_check("damage 0.9 / 0.9 / 0.9 / 1.4 x AD (Ryan: swing 4 a real finisher), arcs 90 / 90 / 90 / 120",
+		[sw.map(func(w: AttackSwing) -> float: return w.ad_ratio), sw.map(func(w: AttackSwing) -> float: return w.arc_deg)],
+		[[0.9, 0.9, 0.9, 1.4], [90.0, 90.0, 90.0, 120.0]])
+	_check("only swing 4 is the finisher (its hit tags), and only it restores 10 Energy when it lands",
+		[sw.map(func(w: AttackSwing) -> Array: return _plain(w.hit_tags)), sw.map(func(w: AttackSwing) -> float: return w.resource_on_land)],
+		[[[], [], [], [&"finisher"]], [0.0, 0.0, 0.0, 10.0]])
+	_check("the dash-strike: 1.3 x AD, not a finisher, no Energy", [COMBO_KORSAVIL.dash_strike.ad_ratio, COMBO_KORSAVIL.dash_strike.hit_tags.size(), COMBO_KORSAVIL.dash_strike.resource_on_land], [1.3, 0, 0.0])
 	var knight_tags := COMBO_KNIGHT.dash_strike.hit_tags.size()
 	for x in COMBO_KNIGHT.swings:
 		knight_tags += x.hit_tags.size()
@@ -909,8 +935,8 @@ func _test_korsavil_loaded() -> void:
 		[500.0, 60.0, 0.7, 390.0, 150.0, 0.25])
 	_check("the pool: ENERGY, full (100 of 100), no decay", [k.resource_pool.resource_type, k.resource_pool.max_resource, k.resource_pool.current, k.resource_pool.decay_per_second],
 		[ENERGY, 100.0, 100.0, 0.0])
-	_check("Q Bladesinger, W / E / R empty, her combo hers, no model (a capsule)",
-		[k.abilities.q == BLADESINGER, k.abilities.w, k.abilities.e, k.abilities.r, k.attack.combo == COMBO_KORSAVIL, k.model_scene == null], [true, null, null, null, true, true])
+	_check("K3: Q / W / E / R empty, his combo his, no model (a capsule)",
+		[k.abilities.q, k.abilities.w, k.abilities.e, k.abilities.r, k.attack.combo == COMBO_KORSAVIL, k.model_scene == null], [null, null, null, null, true, true])
 	_check("dash_charges 2: the passive's +1 under passive_korsavil", [int(k.stats_component.get_stat(&"dash_charges")), k.dash.get_max_charges(), k.stats_component.get_modifiers_from(&"passive_korsavil").size()],
 		[2, 2, 1])
 	await _wait_until(func() -> bool: return k.dash.get_charges() >= 2, 60)
@@ -931,7 +957,7 @@ func _test_korsavil_loaded() -> void:
 
 
 func _test_korsavil_swings() -> void:
-	_section("K1: her 3-swing cycle: only the finisher's hits carry `finisher`")
+	_section("K1, K3: his 4-swing chain: only swing 4's hits carry `finisher`")
 	var k := await _spawn(false, KORSAVIL)
 	var no_crit := StatModifier.new()
 	no_crit.stat = &"crit_chance"
@@ -945,14 +971,14 @@ func _test_korsavil_swings() -> void:
 		if ctx.source == k and ctx.has_tag(&"basic_attack"):
 			hits.append([ctx.has_tag(&"finisher"), ctx.has_tag(&"melee"), roundi(ctx.raw_damage)])
 	Events.unit_hit.connect(on_hit)
-	for i in 3:
+	for i in 4:
 		await _wait_until(func() -> bool: return k.attack.can_swing(), 120)
 		var before := hits.size()
 		k.attack.try_swing(Vector2.RIGHT)
 		await _wait_until(func() -> bool: return hits.size() > before, 60)
 	Events.unit_hit.disconnect(on_hit)
-	_check("three swings: 27 / 27 / 42 raw (0.9 / 0.9 / 1.4 x 60 AD, x 0.5 since ARCHETYPES AR4: weak basic attacks), all melee, only the third tagged `finisher`",
-		hits, [[false, true, 27], [false, true, 27], [true, true, 42]])
+	_check("four swings: 27 / 27 / 27 / 42 raw (0.9 / 0.9 / 0.9 / 1.4 x 60 AD, x 0.5 since ARCHETYPES AR4: weak basic attacks), all melee, only the fourth tagged `finisher`",
+		hits, [[false, true, 27], [false, true, 27], [false, true, 27], [true, true, 42]])
 	var knight := await _spawn()
 	var tags := HitPipeline.basic_attack(knight, d, COMBO_KNIGHT.swings[2]).tags
 	_check("the Knight's finisher hit: no `finisher` tag (his data unchanged)", tags.has(&"finisher"), false)
@@ -980,9 +1006,9 @@ func _test_korsavil_hub_pick() -> void:
 		[hub.talent_screen.find_children("*", "Button", true, false).size(), hub.get_detail_text()], [0, "Korsavil has no talents yet."])
 	var q_uses := Progress.get_progress(KORSAVIL).get_ability_uses(&"korsavil_bladesinger")
 	hub._debug(func() -> void: Progress.debug_add_ability_uses(KORSAVIL, 100))
-	_check("+100 uses: only her Q counts (W, E, R empty, no error)",
+	_check("+100 uses: K3 leaves every slot empty, so nothing counts (no error)",
 		[Progress.get_progress(KORSAVIL).get_ability_uses(&"korsavil_bladesinger") - q_uses, Progress.get_progress(KORSAVIL).ability_uses.keys()],
-		[100, [&"korsavil_bladesinger"]])
+		[0, []])
 	hub.queue_free()
 	await _frames(1)
 	var again: Hub = HUB_SCENE.instantiate()
@@ -1051,7 +1077,7 @@ func _test_bladesinger_data() -> void:
 
 func _test_bladesinger_orbit() -> void:
 	_section("K2: Q's orbit: a Blade a second; damage taken and speed follow them while it lasts")
-	var k := await _spawn(false, KORSAVIL)
+	var k := await _spawn(false, _korsavil_with_old_q())
 	var sc := k.status_component
 	var stats := k.stats_component
 	var aim := k.global_position + Vector2.RIGHT * 100.0
@@ -1091,7 +1117,7 @@ func _test_bladesinger_orbit() -> void:
 
 func _test_bladesinger_recast() -> void:
 	_section("K2: Q's recast: every Blade at the aim, a Demise stack per hit, Umbral Stalker when all 4 hit")
-	var k := await _spawn(false, KORSAVIL)
+	var k := await _spawn(false, _korsavil_with_old_q())
 	k.stats_component.add_modifier(StatModifier.create(&"crit_chance", StatModifier.Type.FLAT, -10.0, &"test_no_crit"))
 	var sc := k.status_component
 	var dummies: Array[Enemy] = []
@@ -1195,6 +1221,212 @@ func _test_demise() -> void:
 	d.queue_free()
 	k.queue_free()
 	await _frames(1)
+
+
+## K3: v2 leaves Q empty; the old Bladesinger's tests run on a test copy of his
+## ChampionData with it on Q (Ryan, 2026-10-09: the old kit is disabled, not
+## deleted).
+func _korsavil_with_old_q() -> ChampionData:
+	var c: ChampionData = KORSAVIL.duplicate()
+	c.q = BLADESINGER
+	return c
+
+
+func _test_korsavil_v2_passive_data() -> void:
+	_section("K3: v2's Inevitable Demise, its cooldown, the empowered auto and the rule (data)")
+	var d := STATUS_DEMISE_V2
+	var scalings: Array = []
+	for s in d.stat_scalings:
+		var sc := s as StatScaling
+		scalings.append([sc.modifier.stat, sc.modifier.type, sc.modifier.value, sc.input, sc.status_tag, sc.max_stacks, sc.curve == null])
+	_check("status_demise: id demise, tags demise + buff, \"Inevitable Demise\", STACK_SHARED, 6 stacks, 6 s, not cc, no modifiers",
+		[d.id, _plain(d.tags), d.display_name, d.stack_rule, d.max_stacks, d.duration, d.is_cc(), d.modifiers.size()],
+		[&"demise", [&"demise", &"buff"], "Inevitable Demise", StatusEffect.StackRule.STACK_SHARED, 6, 6.0, false, 0])
+	_check("its speed: one scaling on demise ÷ 6, move_speed +12% at 6 (2% a stack), linear",
+		scalings, [[&"move_speed", StatModifier.Type.PERCENT_ADD, 0.12, &"self_status_stacks", &"demise", 6, true]])
+	_check("status_demise_cooldown: 5 s, tag demise_cooldown, nothing else",
+		[STATUS_DEMISE_COOLDOWN.id, STATUS_DEMISE_COOLDOWN.duration, _plain(STATUS_DEMISE_COOLDOWN.tags), STATUS_DEMISE_COOLDOWN.modifiers.size(), STATUS_DEMISE_COOLDOWN.is_empower()],
+		[&"demise_cooldown", 5.0, [&"demise_cooldown"], 0, false])
+	var e := EMPOWER_DEMISE
+	_check("empower_demise: the next swing that hits, +50 and +0.75 AD, 6 s, REFRESH, tags empower + buff",
+		[e.id, e.empower_consumed_by, e.empower_base_damage, e.empower_ad_ratio, e.duration, e.stack_rule, _plain(e.tags)],
+		[&"empower_demise", StatusEffect.EmpowerTrigger.BASIC_ATTACK_HIT, 50.0, 0.75, 6.0, StatusEffect.StackRule.REFRESH, [&"empower", &"buff"]])
+	var rule := RULE_DEMISE as ReactionRule
+	var cond: Condition = rule.conditions[0] if rule.conditions.size() == 1 else null
+	_check("the rule: HIT on `finisher`, his own hits (SOURCE), on him (OTHER), not while demise_cooldown is on",
+		[rule.trigger, _plain(rule.required_hit_tags), rule.owner_role, rule.effect_target, rule.chance,
+			cond != null and cond.kind == Condition.Kind.SELF_HAS_STATUS and cond.negate, cond.status_tag if cond else &""],
+		[ReactionRule.Trigger.HIT, [&"finisher"], ReactionRule.OwnerRole.SOURCE, ReactionRule.EffectTarget.OTHER, 1.0, true, &"demise_cooldown"])
+	_check("its effects: 2 stacks of status_demise, then status_demise_cooldown",
+		rule.effects.map(func(g: GameplayEffect) -> Variant: return (g as ApplyStatusGameplayEffect).status if g is ApplyStatusGameplayEffect else null),
+		[STATUS_DEMISE_V2, STATUS_DEMISE_V2, STATUS_DEMISE_COOLDOWN])
+
+
+func _test_korsavil_v2_gain() -> void:
+	_section("K3: swing 4's hit: +2 Demise once every 5 s, +10 Energy once when it lands, 2% speed a stack")
+	var k := await _spawn(false, KORSAVIL)
+	_no_crits(k)
+	k.stats_component.add_modifier(StatModifier.create(&"resource_regen", StatModifier.Type.FLAT, -10.0, &"test_no_regen"))
+	var d := _dummy(k.global_position + Vector2(36, 0))
+	d.stats_component.add_modifier(StatModifier.create(&"max_health", StatModifier.Type.FLAT, 5000.0, &"test_tough"))
+	await _frames(1)
+	k.resource_pool.try_spend(50.0)
+	var sc := k.status_component
+	var landed := await _swing_times(k, 3)
+	_check("swings 1–3 land: no Demise, no Energy (50)", [landed, sc.get_stacks(&"demise"), k.resource_pool.current], [[0, 1, 2], 0, 50.0])
+	landed = await _swing_times(k, 1)
+	_check("swing 4 lands: 2 Demise stacks, the 5 s cooldown on, +10 Energy (60), no empower at 2",
+		[landed, sc.get_stacks(&"demise"), sc.has_status(&"demise_cooldown"), k.resource_pool.current, sc.has_status(&"empower_demise")], [[3], 2, true, 60.0, false])
+	_check_near("the cooldown on the gain: 5 s", sc.get_time_left(&"demise_cooldown"), 5.0, 0.05)
+	await _frames(1)
+	_check_near("2 stacks: 4% faster (390 → 405.6)", k.movement.get_move_speed(), 405.6, 0.01)
+	# Chain 2: swing 4 whiffs (the dummy moved out of reach first).
+	_place_beside(d, k, Vector2(36, 0))
+	landed = await _swing_times(k, 3)
+	_place_beside(d, k, Vector2(0, 400))
+	await _frames(1)
+	landed.append_array(await _swing_times(k, 1))
+	_check("a swing 4 that whiffs: no Energy (60), no stacks (2)", [landed, k.resource_pool.current, sc.get_stacks(&"demise")], [[0, 1, 2, 3], 60.0, 2])
+	# Chain 3, still inside the 5 s: the Energy yes, the stacks no.
+	_place_beside(d, k, Vector2(36, 0))
+	await _frames(1)
+	landed = await _swing_times(k, 4)
+	_check("swing 4 again within 5 s of the gain: +10 Energy (70), no new stacks (Ryan's cooldown is on the gain)",
+		[landed, k.resource_pool.current, sc.get_stacks(&"demise"), sc.has_status(&"demise_cooldown")], [[0, 1, 2, 3], 70.0, 2, true])
+	sc.remove_status(&"demise_cooldown")   # stands in for its 5 s (waiting it out would race the stacks' 6 s)
+	_place_beside(d, k, Vector2(36, 0))
+	await _frames(1)
+	await _swing_times(k, 4)
+	_check("the cooldown over: swing 4 gains again (4 stacks), and 4 gives the empowered auto",
+		[sc.get_stacks(&"demise"), sc.has_status(&"empower_demise"), k.resource_pool.current], [4, true, 80.0])
+	d.queue_free()
+	k.queue_free()
+	Audio.stop_all()
+	await _frames(10)
+
+
+func _test_korsavil_v2_many_and_expiry() -> void:
+	_section("K3: swing 4 into three enemies gives 2 stacks and 10 Energy once; the stacks fade together 6 s after the last gain")
+	var k := await _spawn(false, KORSAVIL)
+	_no_crits(k)
+	k.stats_component.add_modifier(StatModifier.create(&"resource_regen", StatModifier.Type.FLAT, -10.0, &"test_no_regen"))
+	await _frames(1)
+	k.resource_pool.try_spend(50.0)
+	await _swing_times(k, 3)   # swings 1–3 at nothing, so they push no one out of reach
+	var dummies: Array[Enemy] = []
+	for deg: float in [-30.0, 0.0, 30.0]:
+		var dd := _dummy(k.global_position + Vector2.RIGHT.rotated(deg_to_rad(deg)) * 40.0)
+		dd.stats_component.add_modifier(StatModifier.create(&"max_health", StatModifier.Type.FLAT, 5000.0, &"test_tough"))
+		dummies.append(dd)
+	await _frames(1)
+	var finisher_hits: Array = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == k and ctx.has_tag(&"finisher"):
+			finisher_hits.append(ctx.target)
+	Events.unit_hit.connect(on_hit)
+	await _swing_times(k, 1)
+	Events.unit_hit.disconnect(on_hit)
+	var sc := k.status_component
+	_check("swing 4 hits all three: 2 stacks (not 6), +10 Energy once (60)", [finisher_hits.size(), sc.get_stacks(&"demise"), k.resource_pool.current], [3, 2, 60.0])
+	_check_near("their shared timer: 6 s from the gain", sc.get_time_left(&"demise"), 6.0, 0.05)
+	await _frames(30)   # swing 4's hitstop slows game time for a few ticks: count after it
+	var left := sc.get_time_left(&"demise")
+	var frames := 0
+	while sc.has_status(&"demise") and frames < 500:
+		await _frames(1)
+		frames += 1
+	_check_near("no new gain: both stacks go together when it runs out", frames, left * 60.0, 2.0)
+	await _frames(1)
+	_check("the speed goes with them (390)", k.movement.get_move_speed(), 390.0)
+	for dd in dummies:
+		dd.queue_free()
+	k.queue_free()
+	Audio.stop_all()
+	await _frames(10)
+
+
+func _test_korsavil_v2_empower() -> void:
+	_section("K3: at 4 stacks the next swing that hits is empowered (50 + 75% AD, full strength), one at a time; a gain at 6 stays 6")
+	var k := await _spawn(false, KORSAVIL)
+	_no_crits(k)
+	var d := _dummy(k.global_position + Vector2(36, 0))
+	d.stats_component.add_modifier(StatModifier.create(&"max_health", StatModifier.Type.FLAT, 5000.0, &"test_tough"))
+	await _frames(1)
+	var sc := k.status_component
+	for i in 3:
+		sc.apply_status(STATUS_DEMISE_V2, k)
+	_check("3 stacks: no empower", [sc.get_stacks(&"demise"), sc.has_status(&"empower_demise")], [3, false])
+	sc.apply_status(STATUS_DEMISE_V2, k)
+	_check("the 4th stack: empower_demise on him for 6 s", [sc.get_stacks(&"demise"), sc.has_status(&"empower_demise"), sc.get_time_left(&"empower_demise")], [4, true, 6.0])
+	for i in 3:
+		sc.apply_status(STATUS_DEMISE_V2, k)
+	_check("to 6, then a gain at 6: still 6, the shared 6 s restarted, still one empower",
+		[sc.get_stacks(&"demise"), sc.get_time_left(&"demise"), sc.get_stacks(&"empower_demise")], [6, 6.0, 1])
+	await _frames(1)
+	_check_near("6 stacks: 12% faster (390 → 436.8)", k.movement.get_move_speed(), 436.8, 0.01)
+	var hits: Array = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == k and ctx.has_tag(&"basic_attack"):
+			hits.append([roundi(ctx.raw_damage), ctx.has_tag(&"empowered")])
+	Events.unit_hit.connect(on_hit)
+	await _swing_times(k, 2)
+	Events.unit_hit.disconnect(on_hit)
+	_check("the next swing that hits: 0.9 x 60 + 50 + 0.75 x 60 = 149 raw at full strength (not halved), tagged empowered; the next one plain (27)",
+		hits, [[149, true], [27, false]])
+	_check("the empower used; the stacks kept (it spends none: Ryan)", [sc.has_status(&"empower_demise"), sc.get_stacks(&"demise")], [false, 6])
+	sc.remove_status(&"demise")
+	for i in 4:
+		sc.apply_status(STATUS_DEMISE_V2, k)
+	_check("the stacks gone, then 4 again from below: a new empower", [sc.get_stacks(&"demise"), sc.has_status(&"empower_demise")], [4, true])
+	d.queue_free()
+	k.queue_free()
+	Audio.stop_all()
+	await _frames(10)
+
+
+func _test_korsavil_v2_passive_removed() -> void:
+	_section("K3: removing his passive restores him exactly (the rule, the stacks, the empower, his speed and dashes)")
+	var k := await _spawn(false, KORSAVIL)
+	var sc := k.status_component
+	for i in 4:
+		sc.apply_status(STATUS_DEMISE_V2, k)
+	await _frames(1)
+	_check("before: 4 stacks, the empower, the rule under passive_korsavil, 2 dashes (the +1 kept until AR5)",
+		[sc.get_stacks(&"demise"), sc.has_status(&"empower_demise"), _rule_sources(k).has(&"passive_korsavil"), int(k.stats_component.get_stat(&"dash_charges"))],
+		[4, true, true, 2])
+	KORSAVIL.passive.remove_from(k, &"passive_korsavil")
+	await _frames(1)
+	_check("after: no stacks, no empower, no rule, 1 dash, 390 move speed, nothing watching",
+		[sc.has_status(&"demise"), sc.has_status(&"empower_demise"), _rule_sources(k).has(&"passive_korsavil"),
+			int(k.stats_component.get_stat(&"dash_charges")), k.movement.get_move_speed(), k.has_meta(&"korsavil_demise_watch")],
+		[false, false, false, 1, 390.0, false])
+	for i in 4:
+		sc.apply_status(STATUS_DEMISE_V2, k)
+	_check("Demise applied by hand afterwards: no empower (nothing watches)", sc.has_status(&"empower_demise"), false)
+	k.queue_free()
+	await _frames(1)
+
+
+## Swings `k`'s combo `count` times toward `direction`, each as soon as it can,
+## and waits for each swing's landing (a whiff included). Returns the combo
+## index of each swing that landed.
+func _swing_times(k: Player, count: int, direction: Vector2 = Vector2.RIGHT) -> Array:
+	var landed: Array = []
+	var on_landed := func(index: int, _targets: Array[Unit]) -> void: landed.append(index)
+	k.attack.swing_landed.connect(on_landed)
+	for i in count:
+		await _wait_until(func() -> bool: return k.attack.can_swing(), 120)
+		var before := landed.size()
+		k.attack.try_swing(direction)
+		await _wait_until(func() -> bool: return landed.size() > before, 60)
+	k.attack.swing_landed.disconnect(on_landed)
+	return landed
+
+
+## Puts the dummy `d` at `offset` from `k` (and drops its interpolation).
+func _place_beside(d: Node2D, k: Node2D, offset: Vector2) -> void:
+	d.global_position = k.global_position + offset
+	d.reset_physics_interpolation()
 
 
 ## The hub's pick row as [button text, pressed] per champion.

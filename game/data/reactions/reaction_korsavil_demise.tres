@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="ReactionRule" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/reaction_rule.gd" id="1_rule"]
+[ext_resource type="Script" path="res://scripts/data/apply_status_gameplay_effect.gd" id="2_apply"]
+[ext_resource type="Script" path="res://scripts/data/gameplay_effect.gd" id="3_effect"]
+[ext_resource type="Script" path="res://scripts/data/condition.gd" id="4_condition"]
+[ext_resource type="Resource" path="res://data/statuses/status_demise.tres" id="5_demise"]
+[ext_resource type="Resource" path="res://data/statuses/status_demise_cooldown.tres" id="6_cooldown"]
+
+[sub_resource type="Resource" id="not_on_cooldown"]
+script = ExtResource("4_condition")
+negate = true
+status_tag = &"demise_cooldown"
+
+[sub_resource type="Resource" id="demise_1"]
+script = ExtResource("2_apply")
+status = ExtResource("5_demise")
+
+[sub_resource type="Resource" id="demise_2"]
+script = ExtResource("2_apply")
+status = ExtResource("5_demise")
+
+[sub_resource type="Resource" id="cooldown"]
+script = ExtResource("2_apply")
+status = ExtResource("6_cooldown")
+
+[resource]
+script = ExtResource("1_rule")
+id = &"korsavil_demise"
+required_hit_tags = Array[StringName]([&"finisher"])
+conditions = Array[ExtResource("4_condition")]([SubResource("not_on_cooldown")])
+effects = Array[ExtResource("3_effect")]([SubResource("demise_1"), SubResource("demise_2"), SubResource("cooldown")])
+effect_target = 1

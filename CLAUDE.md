@@ -146,7 +146,7 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 ## Current status
 - **Now:**
   - The Knight ships; CHAMPIONS, TALENTS, LOOT, STATS and the 3D pivot (up to the P-spike) are done.
-  - **Korsavil is redesigned (v2, Ryan's board, 2026-10-09; docs only):** K1–K2 passed; v2's K3–K10 replace the old K3–K6 (Ryan confirmed it before K3, 2026-10-09; CHAMPIONS.md, Korsavil v2).
+  - **Korsavil is redesigned (v2, Ryan's board, 2026-10-09; docs only):** K1–K2 passed; v2's K3–K10 replace the old K3–K6 (Ryan confirmed it before K3, 2026-10-09; CHAMPIONS.md, Korsavil v2). **K3 built 2026-10-10, awaiting Ryan's play test** (4,368/4,368).
   - ENEMIES_AI: AI1–AI3, AI3b–AI3d and AI-D1–AI-D3 passed; R0 and R1 committed (4,095/4,095).
   - ARCHETYPES: AR1a–AR4 passed and committed (the test duelist at 1.89×, short of 2×: Open questions 20).
   - FEEL2: preset 3 shipped and passed (c2efc46). Sandbox-only, Ryan's read pending: F9 latency probe, F10 blind presets, F7 threat palettes, the N panel's "pose lean x" (CHANGELOG.md).

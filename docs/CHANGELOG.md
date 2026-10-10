@@ -1444,6 +1444,19 @@ Combat test 450/450, stats test 172/172 (unchanged). A headless in-game check of
 
 ## Champions (CHAMPIONS.md)
 
+### K3 (Korsavil v2) – the data swap, the 4-swing chain, the passive and its Energy: 2026-10-10, Built (awaiting Ryan's play test)
+Ryan confirmed v2 and K3's changes to built files in his second interview (2026-10-09), then: "Start K3".
+- **New:** `data/statuses/status_demise.tres` (v2's Inevitable Demise: STACK_SHARED, 6 stacks, 6 s, `move_speed` +12% at 6 on `self_status_stacks`), `status_demise_cooldown.tres` (5 s), `status_empower_demise.tres` (BASIC_ATTACK_HIT, +50 and +0.75 AD, 6 s, REFRESH); `data/reactions/reaction_korsavil_demise.tres` (HIT on `finisher`, not while `demise_cooldown` is on: 2 stacks, then the cooldown); `scripts/abilities/korsavil/passive_korsavil.gd` (a `Passive` subclass: the empower when his stacks reach 4 from below; the sweep at 6 waits for K5). `AttackSwing.resource_on_land` (0: restored once when the swing hits anything).
+- **Changed (Ryan's OK):**
+  - `data/champions/korsavil.tres`: every slot empty (the old Bladesinger unassigned, kept on disk), the passive on its new script with the rule (the +1 `dash_charges` kept until AR5), its tooltip.
+  - `data/combos/combo_korsavil.tres`: the 4-swing chain: swings 1–3 at 0.06 s / 0.20 s and 0.9 × AD; swing 4 at 0.14 s / 0.36 s and 1.4 × AD, 120°, heavy, the 0.2 s breather, `finisher`, `resource_on_land` 10.
+  - `auto_attack_component.gd`: `_land_swing()` restores `resource_on_land` once a hit got through.
+  - `champions_test`: the K1 checks moved to v2 (`_test_korsavil_data`, `_loaded`, `_swings`, `_hub_pick`); the old Q's `_test_bladesinger_orbit` and `_recast` spawn a test copy with it on Q (`_korsavil_with_old_q()`); `_test_bladesinger_data` and `_test_demise` unchanged.
+- **Found while building:** CHAMPIONS.md, Korsavil v2, Passive (Found while building K3). In the tests, swing 4's hitstop slows game time for a few physics ticks, so the stacks' 6 s is counted after it; the gain-again check removes the cooldown by hand (waiting its 5 s out would race the stacks' 6 s).
+- **Tests:** five new sections in `champions_test` (the data; the gain, its cooldown, a whiffed swing 4, the Energy; three enemies at once and the expiry; the empowered auto at 4, one at a time, a gain at 6; the passive removed).
+- **Results:** 4,368/4,368 (was 4,340): stats 206, audio 110, view 474, talents 310, champions 266 (+28), deflect 207, loot 750, combat 510, abilities 593, brain_golden 144, enemies 681, feel 117; no GDScript warnings (champions with `-d`).
+- **How to play test:** at the hub pick Korsavil, then Sandbox. Swing at a slime: swing 4 is slower and hits harder (42 against 27); the yellow bar gains 10 on it. F3 shows `move_speed` +4% from `status_demise` after one gain (2% a stack; no gain again for 5 s), and the stacks go 6 s after the last gain. Two gains (4 stacks) and the next swing that lands deals 149 at 60 AD. Q, W, E and R are empty until K4–K8; the Knight plays as before.
+
 ### Korsavil v2 and the Vampyr Shade (docs only): 2026-10-09, Written (awaiting Ryan's review)
 - Ryan's redesigned Korsavil and his first enemy sheet, from his champion board (export of 2026-10-10 UTC), checked against the docs and code, then a four-round interview, then written up. Nothing under `game/` changed; the board's files untouched (`my_champions.json` is still the 2026-10-04 export).
 - **Written:** CHAMPIONS.md, Korsavil v2 (the canonical kit; banners on the old subsections; build steps K3–K10 and K-M *(proposed)*); ABILITIES.md, Korsavil v2 (four sheets and the sweep variant; Later toolkit pieces; the Condition kind `SELF_BEHIND_TARGET`; the attack-or-cast empower trigger); ENEMIES_AI.md, The Vampyr Shade (its data, kit, uses, four plans, plan 1's timeline, scenarios, templates; build steps AI-V1–AI-V3); ARCHETYPES.md, Open questions 21–24; DECISIONS.md (Champions, Enemies); CLAUDE.md's status.

@@ -38,6 +38,11 @@ extends Resource
 ## CHAMPIONS K1), so a HIT reaction rule can tell which swing landed:
 ## `finisher` on the last swing of each of Korsavil's cycles (her detonation).
 @export var hit_tags: Array[StringName] = []
+## Resource restored to the attacker once when this swing hits anything (a hit
+## that got through), however many it hits (CHAMPIONS K3: 10 Energy on
+## Korsavil v2's 4th swing). 0 = none. Separate from the per-hit
+## resource_on_hit stat.
+@export var resource_on_land: float = 0.0
 ## PROTOTYPE (poise, 2026-10-07): poise damage each hit of this swing deals
 ## once it gets through (HitContext.poise_damage; PoiseComponent). 0 = none.
 @export var poise_damage: float = 0.0

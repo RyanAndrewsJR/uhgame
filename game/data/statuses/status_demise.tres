@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="StatusEffect" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/status_effect.gd" id="1_status"]
+[ext_resource type="Script" path="res://scripts/data/stat_scaling.gd" id="2_scaling"]
+[ext_resource type="Script" path="res://scripts/data/stat_modifier.gd" id="3_modifier"]
+
+[sub_resource type="Resource" id="speed_full"]
+script = ExtResource("3_modifier")
+stat = &"move_speed"
+type = 1
+value = 0.12
+
+[sub_resource type="Resource" id="speed"]
+script = ExtResource("2_scaling")
+modifier = SubResource("speed_full")
+input = &"self_status_stacks"
+status_tag = &"demise"
+max_stacks = 6
+
+[resource]
+script = ExtResource("1_status")
+id = &"demise"
+display_name = "Inevitable Demise"
+tags = Array[StringName]([&"demise", &"buff"])
+duration = 6.0
+stack_rule = 4
+max_stacks = 6
+stat_scalings = Array[Resource]([SubResource("speed")])

@@ -21,7 +21,7 @@ sound_pitch = 1.15
 [sub_resource type="Resource" id="swing_1"]
 script = ExtResource("2_swing")
 windup = 0.06
-duration = 0.22
+duration = 0.2
 ad_ratio = 0.9
 arc_deg = 90.0
 swing_sound = ExtResource("3_swing_sound")
@@ -30,7 +30,7 @@ sound_pitch = 1.1
 [sub_resource type="Resource" id="swing_2"]
 script = ExtResource("2_swing")
 windup = 0.06
-duration = 0.22
+duration = 0.2
 ad_ratio = 0.9
 arc_deg = 90.0
 swing_sound = ExtResource("3_swing_sound")
@@ -38,7 +38,17 @@ sound_pitch = 1.15
 
 [sub_resource type="Resource" id="swing_3"]
 script = ExtResource("2_swing")
-duration = 0.32
+windup = 0.06
+duration = 0.2
+ad_ratio = 0.9
+arc_deg = 90.0
+swing_sound = ExtResource("3_swing_sound")
+sound_pitch = 1.2
+
+[sub_resource type="Resource" id="swing_4"]
+script = ExtResource("2_swing")
+windup = 0.14
+duration = 0.36
 ad_ratio = 1.4
 arc_deg = 120.0
 knockback_px = 20.0
@@ -47,10 +57,11 @@ lunge_px = 10.0
 lunge_max_px = 32.0
 pause_after = 0.2
 hit_tags = Array[StringName]([&"finisher"])
+resource_on_land = 10.0
 swing_sound = ExtResource("4_finisher_sound")
 sound_pitch = 1.1
 
 [resource]
 script = ExtResource("1_combo")
-swings = Array[ExtResource("2_swing")]([SubResource("swing_1"), SubResource("swing_2"), SubResource("swing_3")])
+swings = Array[ExtResource("2_swing")]([SubResource("swing_1"), SubResource("swing_2"), SubResource("swing_3"), SubResource("swing_4")])
 dash_strike = SubResource("dash_strike")

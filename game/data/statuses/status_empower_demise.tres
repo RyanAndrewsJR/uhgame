@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="StatusEffect" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/status_effect.gd" id="1_status"]
+
+[resource]
+script = ExtResource("1_status")
+id = &"empower_demise"
+display_name = "Inevitable Demise: empowered strike"
+tags = Array[StringName]([&"empower", &"buff"])
+duration = 6.0
+stack_rule = 1
+empower_consumed_by = 1
+empower_base_damage = 50.0
+empower_ad_ratio = 0.75

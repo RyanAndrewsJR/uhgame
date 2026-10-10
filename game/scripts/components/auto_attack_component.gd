@@ -1051,6 +1051,7 @@ func _land_swing() -> void:
 	var crit_roll := HitContext.CritRoll.new()   # one crit roll per swing
 	var weak := not empowered and _is_prototype_weak_auto()   # TEMP: the weak-auto lever
 	var unempowered := 1.0 if empowered else get_unempowered_attack_damage()   # AR4: weak basic attacks
+	var landed := false   # CHAMPIONS K3: a hit got through (resource_on_land)
 	for t in targets:
 		var ctx := HitPipeline.basic_attack(unit, t, swing)
 		ctx.deflectable = swing.deflectable   # AR1a
@@ -1065,11 +1066,14 @@ func _land_swing() -> void:
 				ctx.ad_ratio *= clampf(prototype_unempowered_auto_mult, 0.2, 1.0)   # TEMP
 		HitPipeline.resolve(ctx)
 		if not ctx.blocked:
+			landed = true
 			for f in on_hits:
 				if is_instance_valid(t):
 					f.call(t)
 			if is_instance_valid(t):   # AB14 hook: nothing while impact_vfx is empty
 				VFX.spawn_scene(swing.impact_vfx, t, t.global_position, (t.global_position - unit.global_position).angle(), [unit, ctx])
+	if landed and swing.resource_on_land > 0.0 and unit.resource_pool != null and unit.is_alive():
+		unit.resource_pool.restore(swing.resource_on_land)   # once per swing (CHAMPIONS K3)
 	swing_landed.emit(index, targets)
 
 
