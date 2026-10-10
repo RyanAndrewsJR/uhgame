@@ -12,7 +12,7 @@
 
 ## Combat feel (FEEL2, EXPERIMENT)
 
-### FEEL2 preset 3 shipped: 2026-10-09, Built (awaiting Ryan's play test)
+### FEEL2 preset 3 shipped: 2026-10-09, Passed (Ryan's play test, 2026-10-09)
 - Ryan picked preset 3 in the blind round; each piece is its own setting: `camera_look_default.tres` (shake decay 16, after the hitstop, directional), `hit_feel_default.tres` (the hit-taken feel on, 0.06 s / 2.5 px), new `ChampionData.model_turn_rate` (45 by default; enemies stay 20). Docs: COMBAT.md (feel numbers, "Player getting hit"), MOVEMENT.md (buffer), 3D.md (CameraLook, UnitView), CHAMPIONS.md (the field). Tests changed for the new defaults: view (the camera's values and its 16 px/s fade), feel (+3: the shipped values, preset 3 = shipped, the restore); enemies pins the hit-taken feel off for its run (its brain and timing checks; its real hitstops stretched their clocks: 5 failures before the pin). **Results:** 4,340/4,340: feel 117, every other suite at its count, brain_golden's files unchanged; no GDScript warnings.
 
 ### FEEL2, the combat advisor's first feel pass: 2026-10-09, Built (awaiting Ryan's play test; three local commits, not pushed)
