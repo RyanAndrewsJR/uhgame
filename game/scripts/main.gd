@@ -23,6 +23,8 @@ var pause_menu: PauseMenu
 ## the room through GameCamera3D. Always on since the 3D pivot's cleanup C3
 ## (the flag `use_3d_view` and the 2D game went then).
 var world_view: WorldView
+## STATS step 7: the F3 stat overlay, in debug builds only (null otherwise).
+var stat_overlay: StatOverlay
 var _game_over := false
 
 
@@ -57,6 +59,10 @@ func _ready() -> void:
 
 	pause_menu = pause_menu_scene.instantiate()
 	add_child(pause_menu)
+
+	if OS.is_debug_build():
+		stat_overlay = StatOverlay.new()
+		add_child(stat_overlay)
 
 
 func _process(_delta: float) -> void:

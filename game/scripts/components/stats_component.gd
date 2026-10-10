@@ -73,6 +73,12 @@ func get_base_value(key: StringName) -> float:
 	return base + float(_growth.get(key, 0.0)) * (_level - 1)
 
 
+## Every modifier on the unit, scoped ones included, in the order added (a
+## copy; STATS step 7's overlay reads it).
+func get_modifiers() -> Array[StatModifier]:
+	return _modifiers.duplicate()
+
+
 ## Every modifier added under source_id (scoped ones included).
 func get_modifiers_from(source_id: StringName) -> Array[StatModifier]:
 	var result: Array[StatModifier] = []

@@ -12,7 +12,7 @@
 
 ## Archetypes (ARCHETYPES.md)
 
-### AR4, weak basic attacks: 2026-10-09, Built (awaiting Ryan's play test)
+### AR4, weak basic attacks: 2026-10-09, Passed (Ryan's play test, 2026-10-09; committed e050bff)
 Ryan passed AR3b and committed it, then said "go AR4", taking Claude's three suggestions: the TEMP lever off now and deleted once he confirms the stat, the dash-strike a plain swing, the rotation simulation the Knight's only.
 - **New:** the stat `unempowered_attack_damage`: a `UnitStats` field (1 by default) and its registry entry (default 1, limits 0 to 1, shown as a percent); 0.5 on `knight.tres` and `korsavil.tres`.
 - **Changed:**
@@ -2321,6 +2321,17 @@ Movement works but feels robotic: displacements run at constant speed and there'
 **Passed** (Ryan's play test, reported 2026-09-29).
 
 ## Stats (STATS.md)
+
+### Step 7 – The F3 stat overlay: 2026-10-09, Built (awaiting Ryan's play test)
+Ryan: "go F3 overlay", while he designs Korsavil's kit in the champion concepting app (her K3–K6 come first: DECISIONS.md, Archetypes).
+- **New:** `scripts/ui/stat_overlay.gd` (`StatOverlay`, a CanvasLayer on layer 5, built in code): hidden at first; F3 shows and hides it; it reads the tracked champion, or with Shift+F3 the unit under the cursor (the champion again over nothing). The panel (left, under the HUD's info line, 250 px wide, its list scrolling in 236 px so it ends above the ability bar; clicks over it still reach the game): every registered stat with its base and final (green above its base, red below), each modifier under it by source ("+10", "+50% inc", "x1.20 more"), a note when the final isn't the formula's ("clamped (formula 2.25)", "rounded (formula 1.4)", "strongest slow, soft caps (formula 187.5)"), then the scoped modifiers ("resource_on_hit +8 @ hit:basic_attack (champion_knight)"). It refreshes every 0.25 s while it shows (`refresh_interval`) and works while paused. Static reads for the tests: `get_rows()`, `get_scoped_modifiers()`, `get_note()`, `format_modifier()`, `format_stat()`, `get_plain_text()`, `get_bbcode()`, `get_unit_label()`.
+- **Changed:**
+  - `project.godot`: the input action `debug_stat_overlay` (F3; it was unbound).
+  - `main.gd`: `stat_overlay`, added in debug builds (`OS.is_debug_build()`).
+  - `stats_component.gd`: `get_modifiers()` (every modifier, a copy).
+- **Found while building:** `StatDefinition.format_value()` shows a whole number as "64.0" (Godot 4's `str()` of a float), so the overlay has its own short format. In the stats test the Knight's low soft cap lifts a 262.5 slow to 309.75, so a move_speed note matters even with one slow. Checked by eye in a windowed run of the sandbox with the overlay open (the Knight, his list scrolled to the end, a pinned slime; a temporary test scene, so no save was written; deleted after): readable at 8 px, clear of the HUD and the ability bar; its background made opaque (0.98) after the sandbox's left-hand lines showed through at 0.94.
+- **Tests:** stats +25: the action (F3, one key); a row per stat in the registry's order, with the component's base and final, no modifiers or notes on the bare Knight; three modifiers on attack_damage (their sources in order, their amounts, base 64, final 133.2); the clamp, the rounding and move_speed's notes; the scoped ones apart; every stat and source in the text; the table; all removed, every value as before; the node (hidden at first, layer 5, working while paused; F3 shows it; no champion tracked; a pinned slime's stats; a new modifier shown within its refresh; Shift+F3 over nothing back to the champion; F3 hides it).
+- **Results:** 4,223/4,223 (was 4,198): stats 206 (+25), audio 110, view 474, talents 310, champions 238, deflect 207, loot 750, combat 510, abilities 593, brain_golden 144, enemies 681; no GDScript warnings (stats with `-d`).
 
 ### Cleanup pass (audit fixes): 2026-09-29, Built (awaiting play test)
 - **Scoped modifier keys are validated** (`StatsComponent._is_valid()`): an `ability:` / `tag:` modifier must name a number `@export` of the Ability base class or a param of an ability the unit holds that the scope reaches (`_is_known_ability_param()`), and any scope kind other than `ability:` / `tag:` / `hit:` / `target:` is rejected; a rejected modifier `push_error`s and isn't added (STATS.md's "never a silent 0"). Checked: nothing in the game or the tests adds such a modifier out of order (every suite passes).

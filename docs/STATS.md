@@ -15,6 +15,7 @@
 - `HealthComponent`: `Unit._ready()` calls `health.set_stats_component()`: the max follows `max_health` (a raised max adds the difference to current, a lowered max clamps it; a dead unit isn't revived), and `health_regen` heals per second while alive. The old `setup(maximum)` still works for a HealthComponent without stats.
 - `ResourceComponent` (`Unit.resource_pool`, optional) works the same way with `max_resource` and `resource_regen`. Only the Knight has one: Fury since CHAMPIONS CH3 (100, no regen, starts empty, +8 per enemy a basic attack hits, drains 20/s after 3 s out of combat; CHAMPIONS.md, Fury). Abilities spend it (`resource_cost`, ABILITIES AB3): Cleave costs 20, the Knight's other abilities 0; the sandbox's cost demo is off. The HUD resource bar shows while the player has a pool (ABILITIES.md, HUD).
 - `DashComponent` takes its starting charges when the Unit is ready, since the StatsComponent is set up in `Unit._ready()`, which runs after the children's `_ready()`. A lower max later leaves extra charges until they're spent; a higher max recharges up to it.
+- `StatOverlay` (`res://scripts/ui/stat_overlay.gd`, STATS step 7; Main adds it in debug builds): F3 (the action `debug_stat_overlay`) shows one unit's stats, the tracked champion's unless Shift+F3 picked the unit under the cursor: every registered stat with its base and final value and each modifier on it with its source (FLAT "+10", PERCENT_ADD "+50% inc", PERCENT_MULT "x1.20 more"); a final value the formula alone doesn't give says why (clamped, rounded, or move_speed's strongest slow and soft caps, with the formula's value); then every scoped modifier with its scope and source. It refreshes every 0.25 s while it shows, works while paused and never changes a stat. It reads `StatsComponent.get_modifiers()` (every modifier, a copy).
 - All values are in **LoL units** (see CLAUDE.md, `Units.to_px()`).
 
 ## Core principle
@@ -131,7 +132,7 @@ Specified in ABILITIES.md, Augments (FLAG / EVENT / REPLACE, added and removed b
 4. Migrate reads to `get_stat` and speed modifiers into StatsComponent. Built 2026-09-25, see CHANGELOG.md.
 5. ResourceComponent, plus the new stat fields on UnitStats. Built 2026-09-25, see CHANGELOG.md.
 6. Scoped modifiers, `get_ability_param`, and `id`/`tags` on Ability; cooldowns routed through it. Built 2026-09-26, see CHANGELOG.md.
-7. F3 debug overlay (`res://scripts/ui/stat_overlay.gd`): every stat, its base, final value, and each modifier with its source.
+7. F3 debug overlay (`res://scripts/ui/stat_overlay.gd`): every stat, its base, final value, and each modifier with its source. Built 2026-10-09, see CHANGELOG.md.
 
 **Done means:** a fake item (a modifier array) changes stats and ability params, and removing it restores them exactly; the Knight and slimes behave the same as before step 4; the overlay explains every number.
 

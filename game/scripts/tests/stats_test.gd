@@ -11,6 +11,10 @@ extends Node
 ## StatsComponent (as Unit does) and checks the add_speed_modifier() wrapper
 ## (STATS.md step 4), including a timed slow running out.
 ##
+## STATS step 7 (2026-10-09): the F3 overlay's reads on the Knight's
+## StatsComponent (every stat, its modifiers by source, the notes, the scoped
+## ones) and the overlay node (F3, a pinned slime, its refresh).
+##
 ## Eight push_errors in the output are expected (the unknown stat checks and
 ## the misspelled scoped keys).
 ## Run headless and it quits with the number of failures as the exit code.
@@ -23,6 +27,10 @@ const PERCENT_MULT := StatModifier.Type.PERCENT_MULT
 const CLEAVE: Ability = preload("res://data/abilities/knight_q_cleave.tres")
 const LUNGE: Ability = preload("res://data/abilities/knight_e_lunge.tres")
 const SLAM: Ability = preload("res://data/abilities/slime_elite_q_slam.tres")
+const SLIME_SCENE: PackedScene = preload("res://scenes/enemies/slime.tscn")
+## STATS step 7: the overlay checks' modifier sources.
+const OVERLAY_SOURCES: Array[StringName] = [&"item_overlay_a", &"status_overlay_b", &"passive_overlay_c",
+	&"status_overlay_slow_1", &"status_overlay_slow_2", &"item_overlay_d"]
 
 @onready var knight_movement: MovementComponent = $KnightBody/MovementComponent
 @onready var knight_stats: StatsComponent = $KnightBody/StatsComponent
@@ -59,6 +67,8 @@ func _ready() -> void:
 	_test_scoped_key_typos()
 	await _test_speed_modifier_wrapper()
 	await _test_health_and_resource_pools()
+	_test_overlay_reads()   # STATS step 7
+	await _test_overlay_node()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -495,6 +505,125 @@ func _test_health_and_resource_pools() -> void:
 
 	for node: Node in [stats, health, pool]:
 		node.queue_free()
+
+
+## STATS step 7: what the F3 overlay reads, on the Knight's StatsComponent:
+## a row per stat (base, final, the modifiers on it with their sources), the
+## notes for a final the formula alone doesn't give, the scoped modifiers,
+## and every stat and source in its text.
+func _test_overlay_reads() -> void:
+	_section("STATS step 7: what the F3 overlay reads")
+	var events := InputMap.action_get_events(StatOverlay.ACTION)
+	var key: InputEventKey = events[0] as InputEventKey if events.size() == 1 else null
+	_check("the action debug_stat_overlay is F3, one key", key != null and key.physical_keycode == KEY_F3, true)
+	var rows := StatOverlay.get_rows(knight_stats)
+	var keys: Array[StringName] = []
+	var reads_match := true
+	var plain := true
+	for row in rows:
+		keys.append(row.key)
+		reads_match = reads_match and is_equal_approx(row.base, knight_stats.get_base_value(row.key)) and is_equal_approx(row.final, knight_stats.get_stat(row.key))
+		plain = plain and (row.mods as Array).is_empty() and row.note == ""
+	_check("a row per registered stat, in the registry's order (28)", [keys == knight_stats.registry.get_keys(), keys.size()], [true, 28])
+	_check("...each with the base and final the component reads", reads_match, true)
+	_check("...no modifiers and no notes on the bare Knight", plain, true)
+
+	var bare := _all_values(knight_stats)
+	knight_stats.add_modifiers([_mod(&"attack_damage", FLAT, 10.0, OVERLAY_SOURCES[0]), _mod(&"attack_damage", PERCENT_ADD, 0.5, OVERLAY_SOURCES[1]),
+		_mod(&"attack_damage", PERCENT_MULT, 0.2, OVERLAY_SOURCES[2]), _mod(&"crit_chance", FLAT, 2.0, OVERLAY_SOURCES[0]),
+		_mod(&"dash_charges", FLAT, 0.4, OVERLAY_SOURCES[0]), _mod(&"move_speed", PERCENT_ADD, -0.3, OVERLAY_SOURCES[3]),
+		_mod(&"move_speed", PERCENT_ADD, -0.2, OVERLAY_SOURCES[4]), _mod(&"cooldown", FLAT, -1.0, OVERLAY_SOURCES[0], &"ability:knight_cleave"),
+		_mod(&"damage_increase", FLAT, 0.2, OVERLAY_SOURCES[0], &"hit:basic_attack")])
+	var by_key := {}
+	for row in StatOverlay.get_rows(knight_stats):
+		by_key[row.key] = row
+	var ad: Dictionary = by_key[&"attack_damage"]
+	_check("attack_damage: base 64", ad.base, 64.0)
+	_check("...final (64 + 10) x 1.5 x 1.2 = 133.2, as the component reads it", [snappedf(ad.final, 0.01), snappedf(knight_stats.get_stat(&"attack_damage"), 0.01), ad.note], [133.2, 133.2, ""])
+	var sources: Array[StringName] = []
+	var amounts: Array[String] = []
+	var ad_def := knight_stats.registry.get_definition(&"attack_damage")
+	for mod: StatModifier in ad.mods:
+		sources.append(mod.source_id)
+		amounts.append(StatOverlay.format_modifier(mod, ad_def))
+	_check("...its three modifiers with their sources, in the order added", sources, [OVERLAY_SOURCES[0], OVERLAY_SOURCES[1], OVERLAY_SOURCES[2]])
+	_check("...shown as +10 (flat), +50% inc (increased), x1.20 more", amounts, ["+10", "+50% inc", "x1.20 more"])
+	_check("...its row in the text: base 64, final 133.2", StatOverlay.get_plain_text(knight_stats).contains("attack_damage  base 64  final 133.2"), true)
+	var crit: Dictionary = by_key[&"crit_chance"]
+	_check("crit_chance 0.25 + 2: final 1, clamped (formula 2.25)", [snappedf(crit.final, 0.01), crit.note], [1.0, "clamped (formula 2.25)"])
+	var dash: Dictionary = by_key[&"dash_charges"]
+	_check("dash_charges 1 + 0.4: final 1, rounded (formula 1.4)", [snappedf(dash.final, 0.01), dash.note], [1.0, "rounded (formula 1.4)"])
+	var speed: Dictionary = by_key[&"move_speed"]
+	# 375 x 0.7 = 262.5 (the strongest slow only), then the low soft cap: 357 - (357 - 262.5) x 0.5 = 309.75.
+	_check("move_speed with two slows: the strongest only, then the low soft cap (309.75), and its note says why (formula 187.5)", [snappedf(speed.final, 0.01), speed.note],
+		[309.75, "strongest slow, soft caps (formula 187.5)"])
+	var scoped := StatOverlay.get_scoped_modifiers(knight_stats)
+	_check("the scoped ones listed apart: Cleave's cooldown, damage_increase on basic attack hits", [scoped.size(), scoped[0].scope if scoped.size() > 0 else &"", scoped[1].scope if scoped.size() > 1 else &""],
+		[2, &"ability:knight_cleave", &"hit:basic_attack"])
+	var text := StatOverlay.get_plain_text(knight_stats)
+	var missing: Array = []
+	for k in knight_stats.registry.get_keys():
+		if not text.contains(String(k) + "  base "):
+			missing.append(k)
+	for source in OVERLAY_SOURCES.slice(0, 5):
+		if not text.contains(String(source)):
+			missing.append(source)
+	_check("its text shows every stat and every source", missing, [])
+	_check("...the scoped lines with their scope and source", [text.contains("cooldown -1 @ ability:knight_cleave (item_overlay_a)"), text.contains("@ hit:basic_attack (item_overlay_a)")], [true, true])
+	var bbcode := StatOverlay.get_bbcode(knight_stats)
+	_check("the panel's text is a table with every stat", [bbcode.begins_with("[table=3]"), bbcode.contains("unempowered_attack_damage"), bbcode.contains("Scoped")], [true, true, true])
+	for source in OVERLAY_SOURCES:
+		knight_stats.remove_modifiers_from(source)
+	var cleared := true
+	for row in StatOverlay.get_rows(knight_stats):
+		cleared = cleared and (row.mods as Array).is_empty() and row.note == ""
+	_check("removed: no modifiers, no notes, nothing scoped, every value as before", [cleared, StatOverlay.get_scoped_modifiers(knight_stats).size(), _all_values(knight_stats) == bare], [true, 0, true])
+
+
+## STATS step 7: the overlay node. Hidden at first; F3 shows and hides it;
+## with no champion tracked it says so; a pinned unit's stats, refreshed
+## while it shows; Shift+F3 with nothing under the cursor (no view here)
+## goes back to the champion.
+func _test_overlay_node() -> void:
+	_section("STATS step 7: the F3 overlay node")
+	var overlay := StatOverlay.new()
+	add_child(overlay)
+	await get_tree().process_frame
+	_check("hidden at the start, on its own layer, working while paused", [overlay.is_open(), overlay.layer, overlay.process_mode], [false, 5, Node.PROCESS_MODE_ALWAYS])
+	_press_f3(false)
+	_check("F3 shows it", overlay.is_open(), true)
+	_check("...with no champion tracked it says so", [overlay.get_unit() == null, overlay.get_title(), overlay.get_text()], [true, "Stats: no unit", ""])
+	var slime := SLIME_SCENE.instantiate() as Enemy
+	slime.passive = true
+	slime.position = Vector2(-2000, 0)
+	add_child(slime)
+	await _physics_frames(2)
+	overlay.pin(slime)
+	_check("a pinned unit: its name, its stats", [overlay.get_unit() == slime, overlay.get_title(), overlay.get_text() == StatOverlay.get_plain_text(slime.stats_component)],
+		[true, "Stats: %s" % StatOverlay.get_unit_label(slime), true])
+	slime.stats_component.add_modifier(_mod(&"armor", FLAT, 15.0, OVERLAY_SOURCES[5]))
+	_check("...a new modifier isn't shown at once", overlay.get_text().contains(String(OVERLAY_SOURCES[5])), false)
+	for i in 60:   # up to 1 s of physics frames (headless runs several process frames a tick)
+		await get_tree().physics_frame
+		if overlay.get_text().contains(String(OVERLAY_SOURCES[5])):
+			break
+	_check("...but within its refresh (0.25 s)", overlay.get_text().contains(String(OVERLAY_SOURCES[5])), true)
+	_press_f3(true)
+	_check("Shift+F3 over nothing (no view in a test): back to the champion, still showing", [overlay.get_unit() == null, overlay.get_title(), overlay.is_open()], [true, "Stats: no unit", true])
+	_press_f3(false)
+	_check("F3 again hides it", overlay.is_open(), false)
+	for node: Node in [overlay, slime]:
+		node.queue_free()
+	await get_tree().process_frame
+
+
+func _press_f3(shift: bool) -> void:
+	var ev := InputEventKey.new()
+	ev.physical_keycode = KEY_F3
+	ev.keycode = KEY_F3
+	ev.shift_pressed = shift
+	ev.pressed = true
+	get_viewport().push_input(ev)
 
 
 # --- Helpers ------------------------------------------------------------------
