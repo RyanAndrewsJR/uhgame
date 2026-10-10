@@ -1,7 +1,7 @@
 # ENEMIES_AI.md: Enemy Brains, Roles, Groups, Dodging, Tells, Elites, Bosses and the Tuning Toolkit
 <!-- Written 2026-10-03 from Ryan's decisions (his interview with the advisor, the same day). AI1–AI3 built and passed 2026-10-04 (CHANGELOG.md); the rest is a plan. Duels and odds (Ryan's design addition, 2026-10-04, docs only) added as AI3b–AI3d; AI3d built 2026-10-04, AI3b 2026-10-05, AI3c 2026-10-05 (passed the same day). Combos, crowd control and the test duelist (Ryan's design addition, 2026-10-05, docs only) added as AI-D1–AI-D4; AI-D1 built 2026-10-06, AI-D2 2026-10-07 (both passed 2026-10-07), AI-D3 2026-10-07. Archetypes, strings, perilous attacks and duel pressure are specified in ARCHETYPES.md (2026-10-07); this doc was synced with it the same day. -->
 
-**Read when:** the task involves how enemies decide (the brain, the situation, intents, respect, patience), enemy archetypes and ranks (Basic for fodder, Bruiser, Skirmisher, Mage, Duelist, Assassin, which were the roles brute, skirmisher and caster; fodder, regular, elite, boss), what an enemy ability is for (its AI uses), what enemies know about the party, attack tokens, packs (alert, leash), losing a stealthed target (the search), fear (fleeing), enemy dodging, enemy tells (poses), elite modifiers, the boss director (phases, pressure and breather, punish, finish, reset), spawning (packs, ambushes, spawn-in), how factions and difficulty tiers scale brains, where enemy data lives (`EnemyData`, the roster: XP, kill tags, drops), the AI's performance (think rate, sleeping), the AI tuning toolkit (sliders, the brain overlay, the live tuning panel, the scenario spawner), or combos (combo plans, peel and setup, crowding and the opening, the follow-through, crowd control's diminishing returns, the combo budget, the test duelist). **The archetypes themselves, enemy strings and the beat, perilous attacks and their icon, duel pressure, and the Assassin's deflect and poise meter are specified in ARCHETYPES.md;** this doc carries how the brain uses them.
+**Read when:** the task involves how enemies decide (the brain, the situation, intents, respect, patience), enemy archetypes and ranks (Basic for fodder, Bruiser, Skirmisher, Mage, Duelist, Assassin, which were the roles brute, skirmisher and caster; fodder, regular, elite, boss), what an enemy ability is for (its AI uses), what enemies know about the party, attack tokens, packs (alert, leash), losing a stealthed target (the search), fear (fleeing), enemy dodging, enemy tells (poses), elite modifiers, the boss director (phases, pressure and breather, punish, finish, reset), spawning (packs, ambushes, spawn-in), how factions and difficulty tiers scale brains, where enemy data lives (`EnemyData`, the roster: XP, kill tags, drops), the AI's performance (think rate, sleeping), the AI tuning toolkit (sliders, the brain overlay, the live tuning panel, the scenario spawner), or combos (combo plans, peel and setup, crowding and the opening, the follow-through, crowd control's diminishing returns, the combo budget, the test duelist). **The archetypes themselves, enemy strings and the beat, perilous attacks and their icon, duel pressure, and the Assassin's deflect and poise meter are specified in ARCHETYPES.md;** this doc carries how the brain uses them. The Vampyr Shade (Ryan's first enemy from the champion board, an elite Assassin; designed 2026-10-09, not built).
 **Depends on:** CLAUDE.md, VISION.md (Pillar 1, decision priorities, Open question 7), CONVENTIONS.md, ARCHETYPES.md (archetypes, strings, the beat, perilous attacks, duel pressure, the Riposte Stance, poise, scripted boss events), ABILITIES.md (AbilityComponent and the cast flow, `Condition`, `get_ai_vector()`, telegraphs, cast progress, untargetable), COMBAT.md (damage bands, telegraph rules, hit forgiveness, statuses, CC and tenacity), ALLIES.md (`UnitController`, the target-pick rules, `threat`, taunt, stealth, `get_ai_plan()` and `CastPlan`, party scaling), DUNGEONS.md (rosters on shared behaviors, packs and arenas, content slots, difficulty tiers and elite modifier counts, bosses and their reset), 3D.md (views and `UnitView`, perches and `can_reach()`, ledges and navmesh islands, the sleep distance and the P-spike), WORLD_INTERACTION.md (WorldQuery, Hazards, kill credit), COMPANIONS.md (enemies never see companions; drops), TALENTS.md (kill counters and XP; the kind-not-magnitude rule), LOOT.md (drop tables), MOVEMENT.md (MovementComponent, soft caps), STATS.md, AUDIO.md (hooks).
 **Used by:** ALLIES (the shared perception, the controller base, `CastPlan`, the target pick; the ally brain reuses the toolkit), DUNGEONS (the roster format, faction presets, spawn kinds, elite modifiers, difficulty tier hooks, the boss reset), COMBAT and ABILITIES (intent tags, use rules, enemy telegraph and dodge rules), TALENTS, LOOT and COMPANIONS (enemy XP, kill tags, drop tables and kindling move onto `EnemyData`), 3D (pose hooks, the perched sniper), UI (the boss bar, elite modifier names), AUDIO (hooks), NARRATIVE (bestiary entries by kill tag).
 **Status:** written 2026-10-03. Ryan's decisions (his interview with the advisor, 2026-10-03) are MUST, recorded in DECISIONS.md (Enemies). **The interview is done:** Ryan answered all eleven open items (I1–I11) in three rounds the same day, each as Claude proposed; his answers are MUST, marked I1–I11 in the sections below and listed under Open questions, Interview. Items still marked *(proposed)* are Claude's picks Ryan hasn't answered; each is also in Open questions. **AI1 built and passed 2026-10-04** (see CHANGELOG.md; Ryan started it before ALLIES' second champion, and approved its names). **AI2 built and passed 2026-10-04.** **AI3 built and passed 2026-10-04.** **AI3d built and passed 2026-10-04** (before AI3b and AI3c, Ryan's call). **AI3b built and passed 2026-10-05** (before Korsavil's K3, Ryan's call). **AI3c built and passed 2026-10-05** (right after AI3b and a warnings cleanup, Ryan's call). **AI-D1 built 2026-10-06, passed 2026-10-07** (right after AI3c, Ryan's call), then the duelist's tuning pass (passed 2026-10-07). **AI-D2 built and passed 2026-10-07.** **AI-D3 built and passed 2026-10-07** (diminishing returns on crowd control). AI4–AI8 and AI-M aren't started. **Korsavil** (CHAMPIONS.md) is built right after AI3d's play test, before AI3b and AI3c (Ryan, 2026-10-04); her step K6 builds this doc's fear and search. ALLIES.md calls this doc's first steps "Tier B": they are AI1 and AI2 here. **Duels and odds** (Ryan's design addition, 2026-10-04, docs only): smarter single enemies, since most fights are one or two champions against at most 5–7 enemies: confidence, spending the key ability, the crowded response, smell blood, odds, think rates by rank, five more sliders, kit sizes and the enemy ability library, boss passives (Kits; Duels and odds; build steps AI3b–AI3d). Ryan answered its questions the same day in three rounds (Open questions, Open from Duels and odds). **Combos, crowd control and the test duelist** (Ryan's design addition, 2026-10-05, docs only): a test duelist with a real kit (one crowd control, one defensive, two damage), its crowd control used to peel or to set up, combo plans with any opener, the follow-through after a plan, diminishing returns on crowd control (no combo budget: cooldowns are the limit), the ally on the same planner, and enemies being combo'd (Combos, crowd control and the test duelist; build steps AI-D1–AI-D4, after AI3c). Ryan answered its questions the same day in four short rounds (Open questions, Open from Combos). **Archetypes, strings, perilous attacks and duel pressure are specified in ARCHETYPES.md (2026-10-07), and this doc was synced with it the same day:** the roles became archetypes (brute → Bruiser, caster → Mage, plus Duelist and Assassin; fodder's is Basic and fodder stays a rank), and its build steps AR1–AR8 and AR-M come before DUNGEONS' slice, with AI4 and AI8 after it (Build order).
@@ -155,7 +155,7 @@ You come into a crypt hall at difficulty tier 1. Three thralls shuffle at you an
   - **Weights pick within a kit** (ties go to the earlier slot): the cleave arc 1.1 over the smash, the flurry 1.1 over the stab, the shockwave 1.1 and the big hit 1.3 over the slam, the snare 1.1 over the bolt, the charge 0.9 (a damage use in range wins over it).
   - **The big hit reaches 350 u,** past the shockwave's circle (about 107 px with the Knight's size), so an elite walking in opens with its key ability instead of the shockwave.
   - **Kit numbers (Ryan's answers):** the stab is 30 damage (35 broke the telegraph rule: under 0.6 s only in the chip band, 32.5 of the Knight's 650); a kit's `cc`, `punish` and `finish` uses wait for AI3b and AI6, so each such ability carries a `damage`, `poke` or `gap_close` use too.
-  - **Slots:** enemies keep the four slots (q, w, e, r) until bosses need more (AI6; Ryan): the elite cap of 5 can't be reached yet.
+  - **Slots:** enemies keep the four slots (q, w, e, r) until bosses need more (AI6; Ryan): the elite cap of 5 can't be reached yet. *(2026-10-09: the Vampyr Shade holds 5, so its AI-V3 needs a fifth slot first: *(proposed)*, Ryan to OK; The Vampyr Shade.)*
 
 ### The brain (MUST shape; Ryan 2026-10-03)
 - Every enemy above fodder has a **brain** (`EnemyBrain`, a `UnitController`: ALLIES.md, Controllers). Each think it:
@@ -478,13 +478,13 @@ Both are use rules on the same ability, never new abilities.
   - So the fair answer is to dodge the opener, or to have an answer ready. A blind plan (no `opener` first) runs only on the blind read: when its target can't answer anyway. The enemies test checks every plan's opener and both telegraph floors.
   - *(Archetypes, 2026-10-07; Ryan, D6, D8)* **Every deflectable hit lands on the beat:** 0.5 s after its tell. A string's first hit: the commit's tell pose (0.3 s), then its wind-up, the hit 0.5 s after the wind-up starts (0.8 s in all, inside the opener's 0.6 s floor); its later hits at the archetype's spacing, each with a visible wind-up of at least 0.25 s; a lone deflectable hit (a perilous attack, a deflectable ability outside a string) on the beat after its own tell. Every string hit is deflectable. The spec is ARCHETYPES.md, Strings and the beat.
 - **No kill protection** (Ryan): a combo may take the player from any health to dead. Telegraphs and the dodgeable opener are the answer; revisit at AI-M if deaths feel cheap.
-- **Crowd control on the player at first** (Ryan): a root (up to 1 s; `status_root`) and a short stun (up to 0.5 s), each only from a dodgeable, telegraphed ability. **Later:** slows from enemies, silence, fear, knock-ups (3D.md: enemies don't knock up the player in v1), pulls, taunt.
+- **Crowd control on the player at first** (Ryan): a root (up to 1 s; `status_root`) and a short stun (up to 0.5 s), each only from a dodgeable, telegraphed ability. **Later:** slows from enemies, silence, fear, knock-ups (3D.md: enemies don't knock up the player in v1), pulls, taunt. *(2026-10-09, Ryan: the Vampyr Shade's trap roots for 1.5 s, a recorded exception to the 1 s, and it brings the first enemy slow and the first pull (a ground drag, not a knock-up) forward: The Vampyr Shade, Rules it changes.)*
 
 #### The player's counterplay (checked 2026-10-05 in CHAMPIONS.md and ABILITIES.md)
 - **The Knight has no crowd-control break and no unstoppable moment.** Iron Resolve is a haste and an empowered swing with a slow. Unbroken is attack damage. Judgement stuns.
 - **Rooted** ("roots are roots", Ryan: ABILITIES.md, Roots), he can swing, Cleave (its knockback pushes the attacker off), Iron Resolve and Judgement. He can't Lunge, dash, leap or blink. **Stunned,** he can do nothing.
 - **Tenacity:** the Knight has none. It comes from gear (`affix_tenacity`, 4–15%, on helms and boots; Oathbound Plate) and the Stalwart talent (up to +30% at low health).
-- **Korsavil** (designed): her W Vanish doesn't move her, so she can cast it while rooted, and the enemies on her lose her.
+- **Korsavil** (designed): her W Vanish doesn't move her, so she can cast it while rooted, and the enemies on her lose her. *(Korsavil v2, 2026-10-09: his W, Cloak & Dagger, doesn't move him either, and its first 1.5 s are untargetable: CHAMPIONS.md, Korsavil v2.)*
 - **No new Knight tool now** (Ryan, 2026-10-05; Claude's proposal). The dodgeable opener and diminishing returns carry it: a root lets him fight back where he stands, and only a stun is a real lockout. Revisit at AI-M with the low-health judgment call. *(The options not picked: Iron Resolve also breaking roots and slows, or base tenacity on the Knight.)*
 
 #### Ally parity (ALLIES.md; built with ALLIES AL6)
@@ -589,6 +589,202 @@ Both are use rules on the same ability, never new abilities.
   - **The Knight at 25%:** smell blood, its finisher held for the finish.
   - **A whiff** (Judgement at nothing; after AI6): recovering, so `strike_first`.
 - **Tests:** Build order, AI-D1 and AI-D2.
+
+### The Vampyr Shade (an elite Assassin; Ryan's board, 2026-10-09; designed, not built)
+- **What it is:** Ryan's first enemy sheet from the champion board (his `champion-kit-board` v2 export of 2026-10-10 UTC; board id `cmuz4rt1tv1zi`): an elite Assassin of the Vampire faction (DUNGEONS' vampire crypts) that traps, pulls and blinks behind its target. The first enemy outside the test set, and the first to need a trap (WORLD_INTERACTION.md, Hazards), a pull and a backstab.
+- **What's MUST:** Ryan's sheet (word for word below) and his interview answers (2026-10-09). Every other value is *(proposed)*, and each departure from the sheet keeps the sheet's own value beside it (Departures from the sheet, below). Built in AI-V1–AI-V3 (Build order), after Korsavil's K-M and before ARCHETYPES AR7 (Ryan, 2026-10-09).
+
+#### The sheet (Ryan's board export, word for word)
+Board id `cmuz4rt1tv1zi`, kind enemy, rank **elite**, role/archetype **Assassin**, faction Vampire, race revenant, resource none, health note "1000 Elite", poise max **150**, behavior preset blank, overrides `aim_lead` 0.4 and `crowded_commit` 0.55, no passive, no behavior notes, no archetype-layer note, no paperdoll. Basic attack: damage 20, range 1.5 m, windup 0.25 s, physical, deflectable unset.
+
+| Slot | Name | Cast | Range / width | Cast time | Cooldown | Cost | Telegraph | Roles | Deflectable | AI uses |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | Vampyr Pull | pull, then a ring 0.55 s after | 6.5 m / 1.5; ring range 6, width 3.05, inner 1.5 | 0.6 s | 10 s | 20 | unset | opener | unset | `gap_close` 0.7; `damage` 0.6 |
+| 2 | Vampyr Blink | blink | 6 m / 2 | 0.7 s | 10 s | 28 | 0.5 s | extender | true | `punish` 1.0, rule: "can be used anytime. but prefers to use it to combo it with another ability" |
+| 3 | Vampyr Trap | trap, then charge | 6 m / 3; charge 5.5 m / 1.35, length 8.25 | 1.0 s | 13 s | 40 | 0.8 s | extender, opener | false | `damage` 1.0; `cc` 1.0 |
+
+**1 Vampyr Pull:**
+```text
+Perilous attack:Pull the Champion towards you slowing their movement speed by 15% for 2 seconds then deal 120 AD damage in a circle. bleeding them for 12 damage per second for 4 seconds
+```
+**2 Vampyr Blink:**
+```text
+Blink behind the champion and stab dealing 100 damage if its from behind, 60 damage otherwise
+```
+**3 Vampyr Trap** (tags projectile, area, core, lifesteal):
+```text
+deploy a hidden trap for 4 seconds. if the champion activates it they are rooted for 2 seconds. you can instantly recast to charge up a a thrown dagger for up to 80 damage
+```
+**Combo plans** (names as typed; all weight 1, no abort notes):
+1. `E`: Trap -> Pull -> Blink, every step `AFTER_LANDED`, delay 0; fits "When both you and the champion are >6m away".
+2. `Vampyr_Trap_Blink`: Trap -> Blink, `AFTER_LANDED`; fits "When both you and the champion are >6m away".
+3. `Vampyr_Pull_Blink`: Pull -> Blink, `AFTER_LANDED`; fits "Champion is <50% HP or is CC'd".
+
+#### Ryan's answers (the interview, 2026-10-09; MUST)
+1. **The locked enemy Assassin layer applies whole** (ARCHETYPES.md, Assassin, The enemy's layer): poise 100, the elite's (D8; the sheet's 150 isn't used), a Riposte Stance and a 3–4 hit string at 0.4 s. His three abilities are unchanged.
+2. **The Pull is a real perilous move** (ARCHETYPES.md, Perilous attacks; D5):
+   - the icon; a 0.9 s windup (sheet 0.6 s); a 12 s cooldown (sheet 10 s); deflectable;
+   - attacker-centered: the pull from its body, the ring round itself;
+   - the ring's damage raised into the 35–40% band (the enemies test checks against the Knight's 650: 228–260), the bleed on top;
+   - a deflect rebuffs the Shade and cancels the ring.
+3. **The Trap is readable, then faint:**
+   - its 0.8 s floor telegraph shows where it lands, and it stays visible while it arms (0.5 s);
+   - then a faint shimmer a champion sees within about 2 m;
+   - walking onto it roots; a dash or a blink over it doesn't;
+   - it lasts 4 s;
+   - **the root is 1.5 s** (sheet 2 s): a recorded exception to the 1 s cap on enemy roots on the player (the enemies test gets an allow-list entry).
+4. **The Trap's recast is its own ability, the Vampyr Dagger:**
+   - a charged throw along a line, up to 80 at full charge;
+   - castable only while its trap is out;
+   - deflectable (an aimed single-target dagger: D7), with a telegraph of at least 0.6 s;
+   - it heals the Shade for 50% of the damage it deals (the built `heal_on_hit_ratio`): the sheet's "lifesteal".
+5. **The Blink:**
+   - "behind" means the Shade is in the back half of the champion's facing when the stab lands (a new condition kind), so turning to face it takes 60;
+   - its 0.5 s stays (legal as a follow-up, and on the beat);
+   - it can cast alone through a `damage` use at weight 0.5; its `punish` use joins with AI6; plans are preferred.
+6. **The defaults** (Ryan: "All defaults"):
+   - **numbers:** flat;
+   - **stats:** 1000 health, AD 20, 20 armor, 380 move speed, 150 u range, a 0.25 s windup;
+   - **plans:** plan 3 as two plans; plans 1 and 2 at 6 m or more put the trap on the champion's path within its 6 m reach, and their trap step lands when she triggers it;
+   - **the Pull:** a ground drag (dash-cancelable, not airborne), and the ring a donut from 1.5 to 3.05 m round the Shade;
+   - **when:** built as AI-V1–AI-V3, after K-M and before AR7.
+
+#### EnemyData (`enemy_vampyr_shade.tres`)
+| Field | Value | Source |
+|---|---|---|
+| `id`, `display_name` | `&"vampyr_shade"`, "Vampyr Shade" | the id *(proposed)*; the name Ryan's |
+| `rank` | ELITE | Ryan: 2 tokens, 20% tenacity, think rate 15, one perilous move |
+| `behavior` | `enemy_behavior_assassin.tres` (built AR3b: a skirmisher's band and dive, the stance's use) | Ryan's archetype; the sheet's preset is blank |
+| `overrides` | `aim_lead` 0.4, `crowded_commit` 0.55 | Ryan (two of the three allowed) |
+| `stats` | `data/units/vampyr_shade.tres`: health 1000 (Ryan), `attack_damage` 20 (Ryan's basic attack damage), `attack_range` 150 u (Ryan's 1.5 m), a 0.25 s windup (Ryan), armor 20, magic resist 0, move speed 380, attack speed 0.8, gameplay radius the test Assassin's | Ryan's four; the rest *(proposed: the test Assassin's)*. Ryan's advisor proposed the test Assassin's 40 AD; the sheet's 20 wins |
+| `abilities` | q Vampyr Pull, w Vampyr Blink, e Vampyr Trap (Ryan's slots 1–3), r its Riposte Stance (Ryan, 2026-10-09), and a fifth slot for the Vampyr Dagger (Ryan, 2026-10-09: its own ability) | the slot letters *(proposed)*. **Enemies have four slots today** (Kits: more come with AI6), so a fifth is brought forward *(proposed)*: an elite may hold 5 |
+| `attack_string` | `combo_vampyr_shade.tres` *(proposed name)*: 4 swings (an elite's full range of the Assassin's 3–4; its short end 3), 0.4 s apart, the first winding up for the beat (0.5 s), the later ones 0.25 s or more; each 1.0 × AD (20: 4% of Korsavil's 500, 3.1% of the Knight's 650, the chip band); every hit deflectable | Ryan, 2026-10-09 (the layer's string); the numbers *(proposed)* |
+| `poise_max` | −1: the elite's 100 | Ryan, 2026-10-09 (sheet 150) |
+| `combo_plans` | the four below | Ryan's three, plan 3 split *(proposed)* |
+| `model_scene`, `model_color` | empty: a capsule in a dark crimson | *(proposed)* |
+| `duelist` (`thinks_like_boss`) | false | *(proposed)* |
+| `detect_range` | 450 (the default) | *(proposed)* |
+| Faction, race | Vampire: its roster's faction preset (`EnemyRoster.faction`, AI7); revenant: nothing reads a race today (a codex and look note) | Ryan |
+| Resource | none: the sheet's costs (20, 28, 40) stay in the data and nothing reads them (a unit with no ResourceComponent pays nothing: `AbilityComponent.can_afford()`) | Ryan; checked in the code |
+
+#### Its kit
+Damage as a share of Korsavil's 500 and the Knight's 650 max health.
+
+| Slot | Ability (file) | Shape and timing | Damage | Cooldown | Combo roles | Deflectable / perilous |
+|---|---|---|---|---|---|---|
+| q | **Vampyr Pull** (`vampyr_shade_q_pull.tres`) | **The band:** a band from its body, 6.5 m × 1.5 m (Ryan), at the end of a 0.9 s windup (Ryan, 2026-10-09; sheet 0.6 s), with the perilous icon for its first 0.4 s and the band's floor telegraph. **The drag:** on a hit, slowed 15% for 2 s (Ryan) and dragged toward it over 0.25 s *(proposed)*, to 2.25 m from its center (the ring's middle, *(proposed)*): a ground drag, dash-cancelable, not airborne (Ryan, 2026-10-09). **The ring:** 0.8 s after the band (the drag's 0.25 s plus Ryan's 0.55 s), whether or not the band hit *(proposed)*: a donut round its body from 1.5 m to 3.05 m (Ryan's inner 1.5 and width 3.05; Ryan, 2026-10-09). The Shade stays casting through the ring *(proposed)* | the ring 240 *(proposed: the perilous band; sheet 120)*: 48% / 36.9%, flat; plus `status_vampyr_bleed`, 12 a second for 4 s (Ryan: 48 in all) | 12 s (Ryan, 2026-10-09; sheet 10 s) | opener (Ryan) | both the band and the ring deflectable (Ryan, 2026-10-09: attacker-centered); `perilous`; a deflect counts as two (the riposte), rebuffs it for 1.0 s and cuts its cast: no drag, no ring |
+| w | **Vampyr Blink** (`vampyr_shade_w_blink.tres`) | a 0.7 s cast (Ryan): at 0.2 s it blinks behind its target *(proposed)*, then the stab lands 0.5 s later (Ryan's telegraph: on the beat), a 2 m wide circle in front of it (Ryan's width 2, *(proposed reading)*). Range 6 m (Ryan) | 60, +40 from behind (Ryan: 100 or 60): 20% / 15.4% from behind, 12% / 9.2% otherwise. A `ConditionalBonus` on `SELF_BEHIND_TARGET` (new: the back half of the target's facing, read at the hit: Ryan, 2026-10-09) | 10 s (Ryan) | extender (Ryan) | deflectable (Ryan: the stab from its body) |
+| e | **Vampyr Trap** (`vampyr_shade_e_trap.tres`) | a 1.0 s cast (Ryan) placing a 3 m wide trap (Ryan's width as its diameter, *(proposed)*) up to 6 m away (Ryan). Its 0.8 s floor telegraph (Ryan) shows where it lands; visible while it arms (0.5 s), then a faint shimmer a champion sees within about 2 m (Ryan, 2026-10-09). The first champion who walks onto it is rooted 1.5 s (Ryan, 2026-10-09; sheet 2 s; `status_vampyr_trap_root`); a dash or a blink over it doesn't trigger it (Ryan, 2026-10-09). It lasts 4 s (Ryan); one at a time *(proposed)*. A `Hazard` (layer 10), the first enemy-made one | none (the root) | 13 s (Ryan) | extender, opener (Ryan) | no (Ryan: false; an area placed at the player) |
+| r | **Riposte Stance** (`vampyr_shade_r_riposte_stance.tres`, on `scripts/abilities/enemy/riposte_stance.gd`) | the locked layer's (Ryan, 2026-10-09): a 0.5 s deflect window, one hit, 0.6 s recovery on a whiff | none (its riposte: +1.0 AD on its next basic attack hit: 40) | 6 s | none | the stance deflects the champion's melee swings and single-target melee abilities |
+| fifth | **Vampyr Dagger** (`vampyr_shade_<slot>_dagger.tres`, the slot's letter with the fifth slot) | CHARGE_UP *(proposed)*: a line from its body, 1.35 m wide (Ryan), 5.5 m long at a tap and 8.25 m at full charge (Ryan's "charge 5.5 m / 1.35, length 8.25", *(proposed reading)*), charged over 0.8 s *(proposed: the 0.6 s telegraph floor)*; castable only while its trap is out (Ryan, 2026-10-09: a cast condition on `vampyr_trap_out`, a status the trap keeps on the Shade *(proposed)*); once per trap *(proposed)* | up to 80 at full charge (Ryan), 40 at a tap *(proposed)*: 16% / 12.3%; heals the Shade 50% of the damage dealt (Ryan, 2026-10-09: `heal_on_hit_ratio` 0.5) | none of its own *(proposed)*: one per trap | extender *(proposed)* | yes (Ryan, 2026-10-09: an aimed single-target dagger, D7) |
+
+- **Statuses** *(proposed names; none taken in CONVENTIONS.md)*:
+  - `status_vampyr_bleed`: id and tag `vampyr_bleed`, plus `debuff`; 4 s; a tick of 6 every 0.5 s (12 a second: Ryan); PHYSICAL. Not `bleed`: ALLIES has "bleed-out".
+  - `status_vampyr_pull_slow`: `move_speed` −15%, 2 s (Ryan). The built `status_slow` is a different number.
+  - `status_vampyr_trap_root`: tags `cc`, `root`, `debuff`; blocks moving and dashing; 1.5 s (Ryan). The built `status_root` is 1 s and stays.
+  - `status_vampyr_trap_out`: on the Shade while its trap lives; read by the dagger's cast condition.
+- **Its respect** follows its role tags (derived): the Pull `ultimate` *(proposed: its perilous key, as the test Assassin's charge)*, the Blink `mobility`, the Trap `core` (Ryan's tag), the stance `defensive`, the dagger `core`. So the Pull is its key ability, the one `spend_eagerness` holds.
+
+#### `ai_uses` and combo roles
+| Ability | Uses (`AIUse`: intent, conditions, weight) | Source |
+|---|---|---|
+| Pull | `gap_close`, no conditions, 0.7; `damage`, no conditions, 0.6 (the brain asks `gap_close` out of reach and `damage` in reach; the band's plan needs its target inside 6.5 m) | Ryan |
+| Blink | `punish`, no conditions, 1.0 (Ryan's rule, "can be used anytime. but prefers to use it to combo it with another ability", is its weights: `punish` from AI6, plans first); `damage`, no conditions, 0.5 | Ryan; the `damage` use Ryan, 2026-10-09 |
+| Trap | `damage`, no conditions, 1.0; `cc`, no conditions, 1.0 (its crowded answer) | Ryan |
+| Riposte Stance | `defend`, [TARGET_CLOSED_IN], 1.0 (as the test Assassin's) | the locked layer |
+| Dagger | `poke`, [SELF_HAS_STATUS `vampyr_trap_out`], 1.0 | *(proposed)* |
+
+Combo roles: Pull `opener`; Blink `extender`; Trap `extender`, `opener` (Ryan); the stance none; the dagger `extender` *(proposed)*. No plan needs a `finisher` (the enemies test checks only openers), so every plan ending on the Blink is fine.
+
+#### Its plans (`EnemyData.combo_plans`)
+| Plan | Steps (timing; window) | Fits when (conditions, all must pass) | Weight |
+|---|---|---|---|
+| `vampyr_trap_pull_blink` (Ryan's `E`, renamed *(proposed)*) | Trap → Pull (`AFTER_LANDED`; its trigger is the trap rooting the target) → Blink (`AFTER_LANDED`); windows 1 s | TARGET_DISTANCE AT_LEAST 600 u, edge to edge (Ryan: ">6m away") | 1.0 (Ryan) |
+| `vampyr_trap_blink` (Ryan's `Vampyr_Trap_Blink`, its id in snake case *(proposed)*) | Trap → Blink (`AFTER_LANDED`) | TARGET_DISTANCE AT_LEAST 600 u (Ryan) | 0.8 *(proposed; sheet 1)*: with the Pull ready, the plan with it wins; with the Pull down only this one fits (every step that isn't optional must be ready) |
+| `vampyr_pull_blink_low` (Ryan's `Vampyr_Pull_Blink`, half 1) | Pull → Blink (`AFTER_LANDED`) | TARGET_HEALTH_PERCENT LESS_THAN 0.5 (Ryan: "<50% HP") | 1.0 (Ryan) |
+| `vampyr_pull_blink_cc` (half 2) | Pull → Blink (`AFTER_LANDED`) | TARGET_HAS_STATUS `cc` (Ryan: "or is CC'd") | 1.0 (Ryan) |
+
+- **Plan 3's OR as two plans** (Ryan, 2026-10-09): `Condition` has no OR (ABILITIES.md, Conditions); two plans with the same steps and one condition each need no new piece. A target both low and held fits both, and either runs the same steps.
+- **The trap as a plan step** (Ryan, 2026-10-09, new; *(proposed)* details):
+  - The trap's AI plan puts it on the target's path, not at its feet: its center on the line to the target, no farther than 5 m, so all of it is inside the Pull's 6.5 m reach.
+  - The step **lands** when the trap roots its target, and **misses** when its 4 s end untriggered (its miss time is the trap's life, not the cast's end plus `whiff_time`).
+  - A missed trap step ends the plan, unless `combo_greed` carries it on, as any miss.
+- **The perilous gate** (ARCHETYPES.md, Perilous attacks) holds the Pull: in a fight's first 6 s, or while another perilous attack is live, the plans with the Pull don't fit and only `vampyr_trap_blink` can run.
+- **A Pull step lands** at its band's hit (the slow and the drag), but the Blink can't start mid-cast, so it starts as the Pull's cast ends with the ring (Where a plan lives in the brain: "a step can't start mid-cast").
+
+#### Plan 1's timeline (`vampyr_trap_pull_blink`)
+From the moment the champion walks onto the trap (T), with the numbers above.
+
+| Time | What happens |
+|---|---|
+| before T | The commit's tell (0.3 s), the Trap's 1.0 s cast and its 0.8 s telegraph, its 0.5 s arm in sight, then the faint shimmer. The champion walks onto it |
+| T + 0 | Rooted 1.5 s (until T + 1.5). The Pull's cast starts at once (a plan's own steps never wait a reaction time), the perilous icon to T + 0.4 |
+| T + 0.9 | The band. Rooted, she can't dash, so she can't dodge or deflect it (a deflect needs a dash). Slowed 15%, dragged in over 0.25 s (forced movement moves a rooted unit) |
+| T + 1.15 | The drag ends, 2.25 m from the Shade |
+| T + 1.5 | The root ends |
+| T + 1.7 | The ring: 240, then the bleed to T + 5.7. Its answers in those 0.2 s: a dash (i-frames, or Korsavil's deflect of a perilous hit: the riposte, the Shade rebuffed). Stepping out of the band takes about 0.75 m either way, about 0.3 s on foot at her slowed speed: too late |
+| T + 1.7 | The Blink's cast (the Pull's cast has ended); it appears behind her at T + 1.9 |
+| T + 2.4 | The stab: 100 from behind, 60 if she turned to face it; deflectable and dash-answerable, 0.5 s after it appeared |
+
+- **Does it fit inside the root?** The band lands inside it (T + 0.9, unanswerable then), the ring 0.2 s after it ends, the stab 0.9 s after.
+- **Its damage:** 240 + 48 + 100 = 388: **77.6% of Korsavil's 500, 59.7% of the Knight's 650** (60 from the front: 348, 69.6% / 53.5%). On the sheet's numbers (a 120 ring, a 2 s root) it was 268 (53.6% / 41.2%) with the ring inside the root.
+- **Flagged for Ryan, not changed.** No kill protection and no combo budget (Ryan, 2026-10-05) allow it, but once she's rooted the perilous band can't be answered by a dash. The trap's read is the real answer.
+  - **Korsavil** can still cast W while rooted (it doesn't move him): 1.5 s untargetable blocks the band and the ring.
+  - **The Knight** has nothing until the root ends.
+
+#### What a champion can do (VISION.md: no unanswerable enemy)
+- **The trap:** see it land (0.8 s) and arm (0.5 s), then its shimmer within 2 m; walk round it, or dash or blink over it.
+- **The Pull:** leave the band in its 0.9 s, dash through it, or (Korsavil, after AR5) deflect it for the riposte, which also cancels the ring. Caught, dash out of the drag. Then step inside 1.5 m or out past 3.05 m before the ring, or dash it.
+- **The Blink:** turn to face it (60, not 100), dash, or deflect the stab in its 0.5 s.
+- **The string:** deflect each hit (Korsavil) or dash; its stance: bait it, punish its cooldown.
+
+#### Scenarios (`SandboxBrains`: Shift+H gains the Shade)
+- **You 7 m away, everything ready:** the trap lands on your path, then (if you walk on it) the Pull and the Blink: `vampyr_trap_pull_blink`.
+- **The same with its Pull on cooldown:** `vampyr_trap_blink`.
+- **In a fight's first 6 s:** no Pull (the gate); `vampyr_trap_blink` at range.
+- **You at 40%:** `vampyr_pull_blink_low`. **You rooted by its trap or stunned by another enemy:** `vampyr_pull_blink_cc`.
+- **You walk into it:** it raises its Riposte Stance; swinging into it rebuffs you.
+- **No plan fits:** its commit runs its 4-hit string, 0.4 s apart.
+- **The Blink:** standing still, the stab deals 100; turning to face it, 60.
+- **The trap:** seen landing and arming, then only a shimmer within 2 m; walking onto it roots 1.5 s; dashing or blinking over it doesn't.
+- **The dagger:** thrown only while a trap is out; it heals the Shade half its damage.
+- **The Pull:** a dash during the drag escapes it; standing inside 1.5 m or outside 3.05 m takes no ring; Korsavil's deflect (AR5) rebuffs it and no ring comes.
+
+#### The library entries it adds (templates; `res://data/abilities/enemy/enemy_<name>.tres`)
+It reuses none of the flurry, the charge or the snare; the band's shape is `dash_strike.gd`'s, without the dash.
+
+| Template *(proposed)* | Script | Shape | Telegraph | `ai_uses` hint |
+|---|---|---|---|---|
+| `enemy_pull` | `pull.gd` (new) | a band from its body; a hit drags the target toward it (the ground drag); an optional ring round itself after a delay | 0.9 s as a perilous move, else 0.6 s | `gap_close`, `damage` |
+| `enemy_blink_strike` | `blink_strike.gd` (new) | a blink behind its target, then a stab with a bonus from behind (`SELF_BEHIND_TARGET`) | from the blink to the stab: 0.5 s as a follow-up, 0.6 s as an opener | `damage`, `punish` |
+| `enemy_trap` | `trap.gd` (new; it places a `Hazard`) | a placed circle, visible landing and arming, then faint; it roots the first champion who walks onto it | its landing telegraph (0.8 s) and its arm (0.5 s) | `damage`, `cc` |
+| `enemy_charged_dagger` | the bolt's script (`test/bolt.gd`) if it can take a charge-up, else its own | a line from its body whose reach grows with the charge; may heal on hit | its charge (0.6 s or more) | `poke` |
+| `enemy_riposte_stance` | `riposte_stance.gd` (built AR3b, the test Assassin's) | the deflect window | none (a reaction) | `defend` |
+
+#### Departures from the sheet
+| What | Sheet | Here | Why |
+|---|---|---|---|
+| Poise | 150 | 100 (the elite's) | Ryan, 2026-10-09: the locked layer (D8) |
+| A Riposte Stance and a string | none | added | Ryan, 2026-10-09: the locked layer |
+| Pull: windup, cooldown, deflectable | 0.6 s, 10 s, unset | 0.9 s, 12 s, yes | Ryan, 2026-10-09: a real perilous move (D5) |
+| Pull: the ring's damage | 120 | 240 *(proposed: 228–260 against the Knight)* | Ryan, 2026-10-09: into the perilous band |
+| Pull: the ring | ring range 6, width 3.05, inner 1.5 | a donut 1.5–3.05 m round the Shade, 0.8 s after the band | Ryan, 2026-10-09 (the donut); the timing *(proposed)* |
+| Pull: the pull | pull | a ground drag, not airborne | Ryan, 2026-10-09 (enemies don't knock up the player: 3D.md) |
+| Trap: the root | 2 s | 1.5 s | Ryan, 2026-10-09 (an exception to the 1 s cap) |
+| Trap: "hidden" | hidden | seen landing and arming, then a shimmer within 2 m | Ryan, 2026-10-09 (WORLD_INTERACTION: every trap shows a telegraph while it arms) |
+| Trap: the recast dagger | a recast | its own ability (the brain has no recasts) | Ryan, 2026-10-09 |
+| Blink: a lone use | `punish` only | plus `damage` 0.5 | Ryan, 2026-10-09 (`punish` waits for AI6) |
+| Plan 1's name | `E` | `vampyr_trap_pull_blink` | *(proposed)*: `E` is the board's default |
+| Plan 2's weight | 1 | 0.8 | *(proposed)* |
+| Plan 3 | one plan, "or" | two plans | Ryan, 2026-10-09 |
+| Plan ids | `Vampyr_Trap_Blink`, `Vampyr_Pull_Blink` | snake case | *(proposed)*: CONVENTIONS' `StringName` ids |
+| Costs | 20, 28, 40 | kept, read by nothing | Ryan's sheet: resource none |
+
+#### Rules it changes (Ryan's answers, 2026-10-09; each has a pointer where the rule lives)
+- **Crowd control on the player at first** (Combos, Being combo'd: a root up to 1 s): the Shade's trap roots 1.5 s, a recorded exception; the enemies test's check gets an allow-list entry for `status_vampyr_trap_root`.
+- **The "later" crowd control on the player** (same list: slows from enemies, pulls): the Shade brings the first enemy slow (15%, 2 s) and the first pull (a ground drag, not a knock-up) forward. Slows don't count for diminishing returns (as today); the drag is a displacement, not a status.
+- **Enemies have four slots** (Kits): the Shade needs a fifth for its dagger (*(proposed)*: AI6's "more slots" brought forward to AI-V3; Ryan to OK).
+- **A trap as a plan step** (Combo plans): a new reading of "landed" and "missed" for a placed hazard (above).
 
 ### Dodging (MUST: beatable, elites and bosses only; Ryan 2026-10-03)
 - **Elites and bosses only.** Fodder and regulars never dodge.
@@ -704,7 +900,7 @@ Both are use rules on the same ability, never new abilities.
   - **It ends** when the 3 s are up (it goes back: a pack walks home and recovers as on a leash; an arena or boss enemy never leaves, so it holds where it is); when the champion's stealth ends where it can notice her (the usual waking rule: within `detect_range` and in sight), and the pick takes her again; or when a hit wakes it (the usual rules: from inside the leash).
   - **A pack:** each member searches the spot its own target was last at; the shout isn't repeated.
   - `memory_time` (Later sliders) is the later knob on this; `search_time` is its first, fixed form.
-- **Built with Korsavil** (her K6, CHAMPIONS.md, Build order). Tests: a dummy turning stealthed sends its chaser to the spot for 3 s, then home; its stealth ending in sight during the search brings the chase back; a second candidate is picked instead of searching.
+- **Built with Korsavil** (her K6, CHAMPIONS.md, Build order). Tests: a dummy turning stealthed sends its chaser to the spot for 3 s, then home; its stealth ending in sight during the search brings the chase back; a second candidate is picked instead of searching. *(Korsavil v2, 2026-10-09: still needed, by his W and his R's Finish; it's his K9 once Ryan confirms v2: CHAMPIONS.md, Build order, Korsavil v2.)*
 
 ### Low health: role-based (MUST; Ryan 2026-10-03)
 - **Fodder and brutes fight to the death.**
@@ -735,6 +931,7 @@ Both are use rules on the same ability, never new abilities.
   - **Tenacity:** elites take 20% shorter (1.5 s → 1.2 s); fodder and regulars the full time.
   - **Bosses refuse it:** `RankRules` gives every boss a permanent status tagged `boss` at spawn (as it gives tenacity), and `status_fear`'s `refused_by_tags` lists `boss` (COMBAT.md). Unstoppable refuses it anyway (a boss's phase change).
   - Enemies don't fear the player in v1, as with knock-ups.
+- *(Korsavil v2, 2026-10-09: v2 has no fear, so once Ryan confirms v2 the fear has no user and no step; it stays designed here and in COMBAT.md until a kit needs it.)*
 - **Built with Korsavil** (her K6, CHAMPIONS.md, Build order). Tests: a feared brute walks away for 1.5 s and doesn't attack or cast, then picks again; an elite's lasts 1.2 s; a boss and an unstoppable enemy refuse it; a cornered one stops at the wall.
 
 ### Movement and positioning (proposed)
@@ -1086,6 +1283,7 @@ The global rules, held by `Brains.table` (the pattern of `LootTable`, `AllyTable
 - *(Built AI3d: full kits from the library; Ryan, 2026-10-04)* The test brute: smash, cleave arc (`test_brute_w_cleave_arc.tres`), charge (`test_brute_e_charge.tres`). The test skirmisher: leap, stab (30 damage now), flurry (`test_skirmisher_e_flurry.tres`). The test caster: bolt, lobbed orb (`test_caster_w_lobbed_orb.tres`), blink away. The elite test caster: bolt, guard, blink away, snare (`test_caster_r_snare.tres`). The elite slime: slam, shockwave (`slime_elite_w_shockwave.tres`), big hit (`slime_elite_e_big_hit.tres`). The elite slime is placed only in the two sandboxes (room_01 has slimes only).
 - *(Combos, proposed; AI-D1–AI-D2)* **`enemy_test_duelist.tres`** (an elite brute flagged `duelist`; `data/units/test_duelist.tres`) in `scenes/enemies/test_duelist.tscn`, with `test_duelist_q_snare.tres`, `test_duelist_w_guard.tres` (the library's guard: Ryan, 2026-10-05), `test_duelist_e_strike.tres` and `test_duelist_r_finisher.tres`, and its three plans (The test duelist). Shift+H's cycle gains it.
 - *(Built AI-D1, 2026-10-06)* The duelist as above in `scenes/enemies/test_duelist.tscn` (a steel blue capsule); its plans come with AI-D2.
+- *(The Vampyr Shade, Ryan 2026-10-09; *(proposed)* names, AI-V1–AI-V3)* `enemy_vampyr_shade.tres`, `data/units/vampyr_shade.tres`, `scenes/enemies/vampyr_shade.tscn` (a crimson capsule), `combo_vampyr_shade.tres`, its abilities `vampyr_shade_q_pull.tres`, `vampyr_shade_w_blink.tres`, `vampyr_shade_e_trap.tres`, `vampyr_shade_r_riposte_stance.tres` and the fifth slot's dagger, its four statuses and its four plans (The Vampyr Shade). Shift+H's cycle gains it.
 
 ## Architecture / contracts
 ### Brains (autoload, `res://scripts/autoload/brains.gd`) *(built AI1: the table, the generator, the schedule, the shared read; AI2: the enemies with data, tokens, the shout, the fodder ring; whiffs AI6, sleep AI7)*
@@ -1309,7 +1507,7 @@ Audio hooks: see AUDIO.md. To add when built (synthesized placeholders until rea
 
 ## Build order (proposed; one step per request; each ends with Ryan's play test)
 **Before AI1:** nothing in the code blocks it. Where it goes in the order of work is Ryan's call (Open questions): CLAUDE.md has LOOT L4 next, ALLIES.md puts the second champion before "Tier B" (AI1–AI2), and DUNGEONS.md wants AI1–AI2 before its D1. Dodging (AI4) is best tested against a ranged kit with skillshots. *(Answered: Ryan started AI1 on 2026-10-04, before the second champion.)*
-**The order of work from 2026-10-07** (Ryan; DECISIONS.md, Enemies; ARCHETYPES.md, Build order): ARCHETYPES AR1–AR3 (after AI-D3's play test, passed) → AR4–AR6 → Korsavil's K3–K6 and K-M → AR7–AR8 → AR-M (the duel) → DUNGEONS' slice (D0–D9 and D-M), with AI7 before D1, AI5 before D3, AI6 before D4, and AI-M after AI7 without dodging → AI4 (dodging) and AI8 (the later roles). AI-D4 still waits for ALLIES AL6.
+**The order of work from 2026-10-07** (Ryan; DECISIONS.md, Enemies; ARCHETYPES.md, Build order): ARCHETYPES AR1–AR3 (after AI-D3's play test, passed) → AR4–AR6 → Korsavil's K3–K6 and K-M → AR7–AR8 → AR-M (the duel) → DUNGEONS' slice (D0–D9 and D-M), with AI7 before D1, AI5 before D3, AI6 before D4, and AI-M after AI7 without dodging → AI4 (dodging) and AI8 (the later roles). AI-D4 still waits for ALLIES AL6. *(2026-10-09, Ryan: the Vampyr Shade's AI-V1–AI-V3 come after Korsavil's K-M and before AR7; Korsavil's K3–K6 become v2's K3–K10 once Ryan confirms v2: CHAMPIONS.md, Build order, Korsavil v2.)*
 Every step: Ryan runs `git status` first; the Knight's abilities, talents, enemies chasing and the HUD still work; an enemy with no `EnemyData` plays exactly as before; the new `enemies_test` suite joins the baseline (every suite green, the counts in CHANGELOG.md under an Enemies AI section); this doc keeps one line per built step.
 
 1. **AI1 – The tooling and the brain skeleton.** `EnemyData` (the slimes and the test brute on data), `EnemyBehavior` with the twelve sliders, `BrainAdjust`, `RankRules` (with tenacity by rank), `EnemyAITable`, the `Brains` autoload (the staggered schedule, the shared snapshot), `UnitController`, `EnemyBrain` with `SituationContext` and `BrainDecision`, the intents `hold`, `commit` and `poke` for the brute, respect (derived values, `respect_value`) and patience, `AIUse` and `Ability.ai_uses`, `CastPlan` and the default `get_ai_plan()`, the `RESPECT` condition kind and the situation argument, the `tell_time` lead, the brute's poses (`PoseSet`, UnitView's pose hooks), `Enemy.naive_casting` (the naive loop off behind it), `SandboxBrains` (I, N with saving, H), `ScriptedController`, `enemies_test`. **The measured performance budget** (Performance), written into this doc. **Built 2026-10-04 (see CHANGELOG.md); passed Ryan's play test 2026-10-04.**
@@ -1340,6 +1538,15 @@ D3. **AI-D3 – Diminishing returns on crowd control.** Diminishing returns in S
    *Built 2026-10-07 (CHANGELOG.md); passed Ryan's play test the same day.* The only crowd control enemies put on the player today is the three snares' 1 s root. The existing checks that crowd-controlled one unit again and again (combat's C9 re-stun, abilities' AB15 roots) now switch diminishing returns off for their stretch; the rule's own checks are combat_test's and enemies_test's AI-D3 sections.
 D4. **AI-D4 – Ally parity** (with ALLIES AL6, after AL1–AL5). `AllyBrain` calls `ComboPlanner` (the reads and the plans); `AllyStance`'s five sliders and `AllyTable`'s weights; `ChampionData.combo_plans` (the Knight's Lunge → Cleave); the no-waste rules, the follow-up and the peel for the player.
    **Done means:** the ally holds its crowd control on what you've just stunned and hits it instead, follows your crowd control with its payoff, and peels an enemy off you when you're swarmed. **Tests:** the ally holds its crowd control on a target the player already crowd-controlled (and on one under Judgement's channel) and follows up on one the player just crowd-controlled (no reaction wait, the cast delay kept); the peel from the player's crowding; the stance's sliders; nothing read from the enemy table. **Play test:** with the ally (ALLIES AL6's).
+
+*The Vampyr Shade (Ryan's board, 2026-10-09; The Vampyr Shade): three steps, after Korsavil's K-M and before ARCHETYPES AR7 (Ryan, 2026-10-09). Named AI-V1 to AI-V3 (V for Vampyr; free in every doc). Each ends with Ryan's play test; the step names and contents are *(proposed)*.*
+
+V1. **AI-V1 – The Shade's body, its string and its Blink.** `enemy_vampyr_shade.tres`, `data/units/vampyr_shade.tres`, `scenes/enemies/vampyr_shade.tscn` (a crimson capsule), `combo_vampyr_shade.tres` (4 hits at 0.4 s), its Riposte Stance (a copy on `riposte_stance.gd`), the Vampyr Blink (`blink_strike.gd`, the `enemy_blink_strike` template, the Condition kind `SELF_BEHIND_TARGET` and its +40 bonus), its `ai_uses`; Shift+H gains it. No plans yet (each needs the Pull or the trap).
+   **Done means:** it commits into its 4-hit string 0.4 s apart; it raises its stance when you close in; it blinks behind you and stabs 0.5 s later, 100 from behind and 60 if you turned to face it; its meter is the elite's 100 and breaks as the test Assassin's. **Tests:** its data (rank, stats, poise −1 → 100, two overrides, 3 abilities now); the string's spacing and the beat; `SELF_BEHIND_TARGET` (back half, front half, a target with no facing); the Blink's damage both ways; its stance's use; the telegraph floors (a follow-up's 0.25 s). **Play test:** Ryan fights it as the Knight and as Korsavil.
+V2. **AI-V2 – The Vampyr Pull and its two plans.** The ground drag (`pull_to()`: dash-cancelable, refused by unstoppable and untargetable, moving a rooted unit, no airborne), `pull.gd` and the `enemy_pull` template (the perilous band, the drag, the donut ring 0.8 s after the band), `status_vampyr_bleed`, `status_vampyr_pull_slow`, its uses; the plans `vampyr_pull_blink_low` and `vampyr_pull_blink_cc`.
+   **Done means:** the perilous icon shows and the band hits 0.9 s after; a dash during the drag escapes it; standing inside 1.5 m or outside 3.05 m takes no ring; a deflect of the band (Korsavil) rebuffs it and no ring comes; with you below 50% or crowd-controlled it chains Pull → Blink. **Tests:** every perilous check (deflectable, attacker-centered, 0.9 s, the band against the Knight, 12 s, one per elite); the drag's rules; the ring's donut and timing; the bleed and the slow; the gate (no Pull in a fight's first 6 s, or with another perilous attack live); both plans' fits. **Play test:** Ryan answers the Pull every way.
+V3. **AI-V3 – The Vampyr Trap, its dagger and the full Shade.** The core of WORLD_INTERACTION's `Hazard` built here for its first user *(proposed: it brings forward part of the world pieces DUNGEONS D1 waits on; Ryan may prefer it as its own step first)*: layer 10, `hazard_entered`, `arm_time`, `lifetime`, the team filter, a faint look a champion sees only near it. `trap.gd` and the `enemy_trap` template (its tells, `status_vampyr_trap_root` at 1.5 s, dashes and blinks not triggering it, the AI plan on the target's path), the trap as a plan step (lands on its root, misses at its end), the fifth enemy slot *(Ryan's OK)*, the Vampyr Dagger (`enemy_charged_dagger`, the charge, the heal, `status_vampyr_trap_out`), the plans `vampyr_trap_pull_blink` and `vampyr_trap_blink`.
+   **Done means:** the trap shows where it lands and while it arms, then only a shimmer within 2 m; walking onto it roots 1.5 s, dashing or blinking over it doesn't; the dagger flies only while a trap is out and heals the Shade half its damage; from 6 m it opens trap → Pull → Blink, and trap → Blink with its Pull down. **Tests:** the Hazard's arm, life and team filter; the trigger rules; the enemies test's root cap with its one allow-list entry; the dagger's condition, charge and heal; the trap step's landing and miss; plan 1's timeline measured against the table (The Vampyr Shade, Plan 1's timeline). **Play test:** Ryan fights the whole Shade, as the Knight and as Korsavil.
 
 4. **AI4 – Dodging.** The sidestep (elites and bosses), the reaction delay, one roll per attack, the dodge cooldown, never while casting or crowd-controlled, the free-side check, the `sidestep` pose; which party abilities are dodgeable (Dodging).
    **Done means:** an elite sidesteps a Cleave Wave thrown from range a beat late, never twice inside its cooldown, never a Judgement; a stunned or casting elite takes the hit. **Tests:** no dodge before the reaction time; none on cooldown; none while casting, stunned, rooted or airborne; never into a wall or off a ledge; fodder and regulars never dodge. **Play test:** baiting and beating a dodging elite.
@@ -1459,6 +1666,15 @@ Arena waves and mid-fight reinforcements (deferred; Spawning); habit reading for
 ### Open from ARCHETYPES (2026-10-07; answered by Ryan the same day: ARCHETYPES.md, Open questions)
 47. ~~**`mixup`'s "held beat":** "the beat" is now the archetypes' timing (every deflectable hit 0.5 s after its tell).~~ Answered (Ryan, ARCHETYPES.md, Open questions 14): **"a held pause"** in the docs (Combo plans, the slider table) and in the overlay (renamed in ARCHETYPES AR8).
 48. ~~**The later roles' archetypes** (support, summoner, perched sniper).~~ Answered (Ryan, ARCHETYPES.md, Open questions 12): **a perched sniper is a Mage or a Skirmisher, support and summoner are Mages;** decided at AI8, which now comes after DUNGEONS' slice (Roles, ranks and ability counts; Build order).
+
+### Open from the Vampyr Shade (2026-10-09; Claude's proposals, written in above as *(proposed)*; Ryan can overrule any)
+49. **Its numbers off the sheet:** the ring's 240 (the perilous band against the Knight's 650; it's 48% of Korsavil's 500); armor 20, move speed 380, attack speed 0.8 (the test Assassin's); its string's 4 hits at 1.0 × AD (20 each); the dagger's 40 at a tap, its 0.8 s charge, its 5.5 m to 8.25 m reading; the drag's 0.25 s to 2.25 m; the ring 0.8 s after the band whether or not it hit; the Blink's 0.2 s to the blink and its 2 m stab; the trap's 3 m width as a diameter, one trap at a time.
+50. **The names:** `enemy_vampyr_shade.tres` (`&"vampyr_shade"`), its ability files (`vampyr_shade_<slot>_<name>.tres`), `combo_vampyr_shade.tres`, the four statuses (`status_vampyr_bleed`, `status_vampyr_pull_slow`, `status_vampyr_trap_root`, `status_vampyr_trap_out`), the plan ids (`vampyr_trap_pull_blink` for Ryan's `E`, the others in snake case), the five templates, the steps AI-V1–AI-V3.
+51. **Plan 2's weight 0.8** (sheet 1), so the plan with the Pull wins while the Pull is ready.
+52. **The trap as a plan step:** its AI plan puts it on the target's path, its center no farther than 5 m (all of it inside the Pull's 6.5 m); the step lands on the root and misses when the trap's 4 s end.
+53. **The fifth enemy slot** (Kits: four until AI6): brought forward to AI-V3 for the dagger. The other way would be the dagger inside the trap's script (no fifth slot), which Ryan didn't pick.
+54. **The Hazard's core in AI-V3** (WORLD_INTERACTION.md: unscheduled; DUNGEONS D1 waits on it): built here for its first user, or as its own WORLD_INTERACTION step just before AI-V3.
+55. **Plan 1's damage** (The Vampyr Shade, Plan 1's timeline): 388, 77.6% of Korsavil's 500 and 59.7% of the Knight's 650, with the perilous band landing inside the trap's root. Flagged, not changed (no kill protection, no combo budget: Ryan, 2026-10-05).
 
 ### Conflicts and notes for Ryan (found 2026-10-03)
 - **Found building AI3b (2026-10-05; details in Duels and odds):**

@@ -145,36 +145,34 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 
 ## Current status
 - **Now:**
-  - The Knight ships; CHAMPIONS, TALENTS, LOOT and the 3D pivot (up to the P-spike) are done. Korsavil: K1–K2 passed; K3–K6 next (Ryan, 2026-10-09: he's designing her kit in the champion concepting app, built in another session), then ARCHETYPES AR5–AR6 onto her finished kit, then K-M.
+  - The Knight ships; CHAMPIONS, TALENTS, LOOT, STATS and the 3D pivot (up to the P-spike) are done.
+  - **Korsavil is redesigned (v2, Ryan's board, 2026-10-09; docs only):** K1–K2 passed; the old K3–K6 are replaced by v2's K3–K10 pending Ryan's OK (CHAMPIONS.md, Korsavil v2).
   - ENEMIES_AI: AI1–AI3, AI3b–AI3d and AI-D1–AI-D3 passed; R0 and R1 committed (4,095/4,095).
-  - FEEL2 (2026-10-09; the combat advisor's first feel pass): Slices A–C committed locally (not pushed). Ryan picked preset 3 in the blind round; it's now the shipped default (shake after the hitstop, directional, 16 px/s; the hit-taken freeze; champions' models turn at 45): passed Ryan's play test, committed (c2efc46). Still sandbox-only, Ryan's read pending: F9 / Shift+F9 latency probe and press flash, F10 / Shift+F10 / Ctrl+F10 blind presets, F7 threat palettes, the N panel's "pose lean x" row (DECISIONS.md, Combat; CHANGELOG.md).
-  - ARCHETYPES: AR1a, AR1b (with the mix), AR2 (with R0's quirk fix), AR3a, AR3b and AR4 (weak basic attacks; the test duelist at 1.89×, short of 2×: ARCHETYPES.md, Open questions 20) passed and are committed.
-  - The deflect/riposte/poise prototype on the Knight is built behind flags, off in shipped config (sandbox: V, Shift+V, M); it and the TEMP enemy attack speed multiplier **await his play test**; the TEMP weak-auto lever is off since AR4 (the stat replaced it) and goes on his OK (CHANGELOG.md; DECISIONS.md, Combat, Testing).
+  - ARCHETYPES: AR1a–AR4 passed and committed (the test duelist at 1.89×, short of 2×: Open questions 20).
+  - FEEL2: preset 3 shipped and passed (c2efc46). Sandbox-only, Ryan's read pending: F9 latency probe, F10 blind presets, F7 threat palettes, the N panel's "pose lean x" (CHANGELOG.md).
+  - The Knight's deflect/poise prototype (flags off in shipped config; sandbox V, Shift+V, M) and the TEMP enemy attack speed multiplier **await his play test**; the TEMP weak-auto lever is off since AR4 and goes on his OK.
 - **Last 3 done:**
-  1. STATS step 7 (2026-10-09, passed; every STATS step done): the F3 stat overlay: every stat's base, final value and modifiers by source, the notes, the scoped modifiers; Shift+F3 the unit under the cursor.
-  2. AR4 (2026-10-09, passed): weak basic attacks: `unempowered_attack_damage` 0.5 on both champions (empowered swings full, enemies 1), the TEMP lever off, the rotation simulation.
-  3. AR3b (2026-10-09, passed): the test Assassin (Shift+H in the sandbox): its Riposte Stance, rebuffing the champion, its riposte, its perilous charge.
-- **Next** (ARCHETYPES.md, Open question 15, with Ryan's later changes):
-  1. Korsavil's K3–K6 (CHAMPIONS.md, Build order; Ryan's kit design, built in another session).
-  2. AR5 (her Assassin layer) and AR6 (the Knight's test version goes), then K-M (Claude's proposed placement, 2026-10-09; Ryan to confirm).
-  3. AR7 (duel pressure), AR8 (the rename pass), then AR-M (the duel).
-  4. DUNGEONS' slice, D0–D9 and D-M: AI7 before D1, AI5 before D3, AI6 before D4, AI-M after AI7 (without dodging).
-  5. AI4 (dodging), then AI8 (the later roles).
-  6. Then the Future docs.
+  1. STATS step 7 (2026-10-09, passed; every STATS step done): the F3 stat overlay (Shift+F3: the unit under the cursor).
+  2. AR4 (2026-10-09, passed): weak basic attacks, `unempowered_attack_damage` 0.5 on both champions, the rotation simulation.
+  3. AR3b (2026-10-09, passed): the test Assassin (Shift+H): its Riposte Stance, the rebuff, its riposte, its perilous charge.
+- **Next** (ARCHETYPES.md, Open questions 15, with Ryan's changes):
+  1. Korsavil v2's K3–K9 (CHAMPIONS.md, Build order, Korsavil v2), on Ryan's OK.
+  2. AR5 (his Assassin layer) and AR6, then K10 and K-M *(proposed)*.
+  3. The Vampyr Shade, AI-V1–AI-V3 (ENEMIES_AI.md; Ryan: after K-M), then AR7, AR8 and AR-M (the duel).
+  4. DUNGEONS' slice (D0–D9, D-M): AI7 before D1, AI5 before D3, AI6 before D4, AI-M after AI7 (no dodging).
+  5. AI4 (dodging) and AI8 (the later roles); then the Future docs.
 - **Pending** (each lives in the doc named):
-  - Ryan's OK on AI-D1–AI-D3's names (ENEMIES_AI.md, Open from Combos 9, AI-D2, AI-D3).
-  - Claude's AI3 proposals 17–19 and other open proposals: the Open questions of ENEMIES_AI, COMPANIONS, DUNGEONS, CHAMPIONS (Korsavil's names).
-  - COMBAT C8's play test, crits and on-hit (CHANGELOG.md, How to use).
+  - Ryan's OK on Korsavil v2 and the Vampyr Shade (designed 2026-10-09) and their *(proposed)* readings: CHAMPIONS.md (Open questions, Korsavil v2), ENEMIES_AI.md (Open from the Vampyr Shade), ARCHETYPES.md (Open questions 21–24).
+  - Ryan's OK on AI-D1–AI-D3's names; Claude's other open proposals (ENEMIES_AI, COMPANIONS, DUNGEONS, CHAMPIONS).
+  - COMBAT C8's play test, crits and on-hit (CHANGELOG.md).
   - Clearing `player.tscn`'s old exports, on Ryan's OK (CHAMPIONS.md, Loading a champion).
-  - Corner forgiveness, proposed (MOVEMENT.md).
-  - The pit step: no place in a build order yet (WORLD_INTERACTION.md, Pits and movement types).
-  - DUNGEONS D1 waits for the P-spike (3D.md, Build order 10) and WORLD_INTERACTION's unscheduled pieces (DUNGEONS.md, Build order).
-  - AI-D4 waits for ALLIES AL6 (ALLIES.md).
-  - AUDIO A4 (conditional audio) and A5 (the audition tool): approved, not started, Ryan's call; real CC0 files can replace the placeholders any time, same names (AUDIO.md).
-  - COMPANIONS CO1: any time, on Ryan's OK (COMPANIONS.md, Build order).
-  - ALLIES' second champion (ranged/support, mana, a heal or shield on another unit): still planned; AI1 and Korsavil went first (ALLIES.md, Status).
-  - Ryan's pre-L-M saves: `%APPDATA%/Godot/app_userdata/uhgame/backups/` (the 10:22 copy: his 34-item inventory and last talent loadout).
-- **Open judgment call (revisit at ENEMIES_AI's milestone AI-M, not before):** whether the Knight's low-health rewards stacking (Unbroken's attack damage, Cleave's heal, Judgement's easier payoff) feel like real risk or too safe. Ryan's read after CH-M: a mix, depending on the fight; the sandbox's enemies (two slimes, one telegraphed elite) can't stress it. Don't tune it until real enemy content exists.
+  - Corner forgiveness, proposed (MOVEMENT.md); the pit step, unscheduled (WORLD_INTERACTION.md).
+  - DUNGEONS D1 waits for the P-spike and WORLD_INTERACTION's unscheduled pieces; AI-D4 for ALLIES AL6.
+  - AUDIO A4 and A5: approved, not started; CC0 files can replace the placeholders any time (AUDIO.md).
+  - COMPANIONS CO1: any time, on Ryan's OK.
+  - ALLIES' second champion (ranged/support, mana): still planned (ALLIES.md, Status).
+  - Ryan's pre-L-M saves: `%APPDATA%/Godot/app_userdata/uhgame/backups/` (the 10:22 copy).
+- **Open judgment call (revisit at AI-M, not before):** do the Knight's low-health rewards (Unbroken, Cleave's heal, Judgement's payoff) feel like real risk or too safe? Ryan after CH-M: a mix; the sandbox can't stress it. Don't tune it until real enemy content exists.
 
 ## Known issues (leave for now)
 - A Godot editor left open while Claude writes files keeps its old in-memory copies and can write them back (project settings, open scenes and scripts). Close Godot before Claude writes, or reopen it afterwards; if Godot says files are newer on disk, choose Reload.

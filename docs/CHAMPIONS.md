@@ -1,6 +1,6 @@
 # CHAMPIONS.md: Champions, Passives, Resource Rhythms and the Knight's Kit
 
-**Read when:** the task involves a champion's data (ChampionData), a passive, a champion's resource type and how it fills and drains (fury, energy, mana), a champion's level/progress field, or any part of the Knight's kit (Unbroken, Fury, Staggered, Cleave's heal, Judgement's Fury payoff) or Korsavil's (designed, not built: Energy, Blades, Inevitable Demise and its detonation, Vanish, Umbral Stalker).
+**Read when:** the task involves a champion's data (ChampionData), a passive, a champion's resource type and how it fills and drains (fury, energy, mana), a champion's level/progress field, or any part of the Knight's kit (Unbroken, Fury, Staggered, Cleave's heal, Judgement's Fury payoff) or Korsavil's (designed, not built: Energy, Blades, Inevitable Demise and its detonation, Vanish, Umbral Stalker). Korsavil v2 (Ryan's redesign, 2026-10-09; not built): his 4-swing chain, the passive's Inevitable Demise stacks, Blade Singer, Cloak & Dagger, Spectral Assault, Reckoning, his archetype-layer note.
 **Depends on:** CLAUDE.md, VISION.md (Game structure: champion level, fixed slots), CONVENTIONS.md, STATS.md (StatsComponent, ResourceComponent, scoped modifiers), COMBAT.md (HitPipeline, statuses, Sustain), ABILITIES.md (the toolkit: conditions, conditional bonuses, named inputs, AB14's cast progress), AUDIO.md (hooks).
 **Used by:** TALENTS (per-champion trees gated by the champion level), LOOT (champion-specific items, weapons by class), UI (the hub's champion pick, the passive tooltip, the resource bar), PROGRESSION (saving the champion level), DUNGEONS (respawn rules for the resource; one champion quest line per wing; a champion's class and ability tags matched against a wing's recommendations).
 **Status:** champion archetypes and the Assassin layer (the deflect-dash, the refund, the jab, the riposte, the poise meter; weak basic attacks for every champion) are specified in ARCHETYPES.md (2026-10-07), and this doc was synced with it the same day.
@@ -186,12 +186,216 @@ Conditional bonuses: RESOURCE_AT_LEAST 60 → base_damage +30%, ad_ratio +30%, s
 - *(ENEMIES_AI Combos, proposed; with ALLIES AL6)* `ChampionData.combo_plans` (`Array[ComboPlan]`, empty): a champion's own ability chains (the Knight's Lunge → Cleave), read only when an AI drives the champion (the ally). The human never uses them.
 
 ## Korsavil
+> **v2 (Ryan, 2026-10-09):** Ryan redesigned Korsavil from scratch; the redesign is the next subsection (Korsavil v2) and replaces the 2026-10-04 kit described after it once Ryan confirms. The old text stays until then, each replaced subsection under a banner.
+
+### Korsavil v2 (Ryan, 2026-10-09; the board's design)
+**Ryan redesigned Korsavil from scratch** in the champion board (his `champion-kit-board` v2 export of 2026-10-10 UTC; board id `cmuz4bc22varc`; his game id stays `&"korsavil"`): a new passive, Q, W, E and R, one weapon pair and an archetype-layer note. **It replaces the 2026-10-04 kit** (Blades, the Bladesinger orbit, Blade Dance, Vanish and its empowers, Spectral and the Umbral Stalker, Demise's DoT tiers and the detonation, the two cycles) **once Ryan confirms.** K1 and K2 are built and passed, and this design deletes or edits none of them: the old pieces are disabled by unassigning them from his ChampionData in K3 and kept on disk (Ryan, 2026-10-09). Ryan's sheet is MUST and quoted word for word below, and so are his interview answers (2026-10-09); Claude's readings are *(proposed)* and listed in Open questions (Korsavil v2). **Pronoun:** "he" from v2 on (Ryan, 2026-10-09); the older text keeps "she" until Ryan says otherwise. **Where each part lives:** this section holds the kit (the sheet, identity, the chain, the passive, Energy, statuses, what each hit deals, the kit's edge cases, the build steps); his four ability sheets (their fields, steps and edge cases) are ABILITIES.md's (Korsavil v2). Units: the board's ranges and widths are metres; 100 u = 1 m = 32 px.
+
+#### The sheet (Ryan's board export, word for word)
+Kind champion, role Assassin, archetype Assassin, resource Energy, race goblin. The passive's name and the R's name are blank on the board. Ranges and widths are metres; costs are Energy.
+
+**Fantasy:** "Loaded with ways to get in deal alot of damage and get out with his very high mobility."
+
+**Weapon:** Dagger + Sword, type sword, attack chain 4 swings: "3 fast attacks. your fourth has a small delay and deals 5% bonus AD".
+
+**Passive** (name blank; tags dot, mobility, generator, movement):
+```text
+Every 4th Attack gain 2 stacks of Inevitable Demise up to a max of 6. (5 sec cooldown). at 4 stacks, your next auto attack is greatly empowered dealing 50+75% AD
+
+Every stack of inevitable demise grants 2% movement speed.
+```
+
+| Slot | Name | Board cast | Range / width | Cast time | Cooldown | Cost | Damage | Board tags | Parts |
+|---|---|---|---|---|---|---|---|---|---|
+| Q | Blade Singer | `chain` | 7 m / 1.5 | 0.15 s | 11 s | 25 | physical | melee, recast, chain, dot, dash, empower | (1) chain, range 7, width 1.5, count 2, with the cast; (2) charge, range 11.75, width 1.25, count 3, on recast, delay 1.5 s |
+| W | Cloak & Dagger | `self` | | 0.25 s | 16 s | 30 | none | invulnerable, mobility, empower, stealth | |
+| E | Spectral Assault | `blink` | 9 m | 0.25 s | 10 s | 30 | physical | melee, cone, blink | (1) blink, 9 m, with the cast; (2) cone, range 5.5 m, width 3, angle 160 degrees, after the blink |
+| R | (blank) | `fan` | 8 m / 0.6 | 0.5 s | 60 s | 50 | physical | none | count 4 |
+
+**Q, Blade Singer:**
+```text
+Throw a dagger at an enemy for 30 + 25% AD per enemy and bounces up to three times. You are able to Recast if the dagger bounces off three enemies. The dagger is lodged into the last enemy hit in the chain Reducing their movement speed by 10%  Recasting lunges you to where the dagger is lodged. Dealing 40 + 65% AD
+
+If you have 6 stacks of inevitable demise. you are able to cast this ability within 3.5 seconds without the dagger bounces consuming your stacks. On the cast you lunge fowards for a huge sweeping attack dealing 40 + 110% AD and 20 +35% AD per second to all enemies hit for 4 seconds. 
+```
+
+**W, Cloak & Dagger:**
+```text
+Enter into stealth for 5 seconds, granting 15% movement speed and you are untargetable. Attacking or using abilities cancels the stealth but next attack or ability deals 20 + 25% AD per second
+```
+
+**E, Spectral Assault:**
+```text
+Blink to your cursor location and spin and slice your sword for 20 + 40% AD 160 degrees then stab nearest enemy with your dagger for 20 + 55% AD.
+```
+
+**R** (the board's name is blank; the working name **Reckoning** is Ryan's advisor's proposal of 2026-10-09, *(proposed)*):
+```text
+Active: Korsavil hurls 4 daggers at the nearest enemies within 8 meters,
+one per enemy (extra daggers strike the nearest enemy again). Each dagger
+deals 30 + 30% AD physical damage and lodges in its target for 6 seconds,
+Sentencing it and slowing it by 10%.
+
+Recast (up to 4 times, within 2 seconds of the last): Blink to the
+Sentenced enemy nearest your cursor and cut it for 60 + 80% AD physical
+damage, pulling out its dagger. Deals double damage to enemies below 25%
+health. Each cut counts as a basic attack.
+
+Finish: After the fourth cut, or when no Sentenced enemy remains, become
+Untargetable and stealthed for 1.5 seconds and gain 4 stacks of Inevitable
+Demise (max 6).
+```
+
+**Archetype layer note** (the sheet's field, Ryan's text for what the Assassin layer adds):
+```text
+Assassin: Dash Deflect. upon a successful deflect, gain 1 more dash. Breaking poise stuns the enemies and makes the next attack or ability a guaranteed critical strike and deals True Damage.
+```
+
+**Stats** aren't on the sheet: the placeholders stay (Ryan, 2026-10-09): 500 health, 60 AD, 0.7 attack speed, 390 move speed, 150 u range, 0.25 crit, Energy 100 at 10 a second, starting full (Identity, below; `data/units/korsavil.tres`, unchanged).
+
+#### Ryan's answers (the interview, 2026-10-09; MUST)
+1. **The old kit:** disabled, not deleted. K3 points `korsavil.tres` at v2; the old Q, Blades, orbit and Stalker files stay on disk, unassigned; the old Q's two cast tests spawn a test copy of his ChampionData with the old Q; the K1 checks move to v2's values (each test edit listed in its step); `combo_korsavil.tres` is edited in place to 4 swings (the 3-swing version stays in git). Deleted only after v2 works and Ryan confirms.
+2. **The archetype-layer note:** Korsavil's own, **in addition** to the locked Assassin layer (The archetype-layer note, below).
+3. **The passive's "4th Attack":** the chain's 4th swing, when it hits (the built `finisher` hit tag, moved to swing 4). The 5 s cooldown is on the gain: after gaining 2, a 4th swing within 5 s gives none. A dash-strike doesn't count; the chain restarting resets the count.
+4. **Demise's stacks:** one shared timer restarted by each gain (the built `STACK_SHARED`), 6 s *(proposed number)*. Reaching 4 or more from below gives one empowered swing (a status, used by the next swing that hits); it doesn't spend stacks.
+5. **Q's 6 stacks:** reaching 6 opens a 3.5 s window in which pressing Q casts the sweep instead of the dagger (no throw, no bounces), spending all 6 stacks; it needs Q off cooldown.
+6. **Q's dagger:** thrown at an enemy, it hits it, then bounces up to 3 more times (4 enemies at most, never one twice), 30 + 25% AD on each; the recast unlocks once it hit 3 enemies; the dagger lodges in the last one hit (10% slow) until the recast or the window ends; the recast dashes to that enemy where it stands at the press; a dead lodged enemy: the lunge goes to where it fell.
+7. **W:** the DoT reading: his next attack or ability applies 20 + 25% AD a second for 4 s *(the 4 s proposed)* to what it hits; untargetable only for the stealth's first 1.5 s (ABILITIES.md's 0.5–2 s rule); the old Vanish's +15 Energy a second is gone.
+8. **E:** a blink of up to 9 m to the cursor, then the 160° spin out to 5.5 m round where he lands, then the stab on the nearest enemy the spin hit; a spin that hits nothing: no stab.
+9. **R:** a cut counts as a basic attack for on-hit effects only: it isn't a chain swing (no passive count), doesn't use his swing empowers and isn't halved by weak basic attacks; each cut restarts the 2 s; the Finish comes after the 4th cut, when no Sentenced enemy remains, or when the 2 s run out. The working name Reckoning stays *(proposed)*.
+10. **He**, and **the costs stay** (Q 25, W 30, E 30, R 50), **and the chain's 4th swing restores 10 Energy** (Ryan's addition).
+
+#### Identity (v2)
+- `id` `&"korsavil"`, `display_name` "Korsavil", `champion_class` `&"assassin"` (unchanged). Race goblin (Ryan's sheet): no data field reads it today (a look and lore note: NARRATIVE.md).
+- **Resource:** ENERGY, the pool unchanged (Energy (v2), below).
+- **Stats:** the placeholders, unchanged (`data/units/korsavil.tres`), with `unempowered_attack_damage` 0.5 (ARCHETYPES AR4).
+- **Archetype: Assassin.** The locked layer (the 2026-10-07 Identity below; ARCHETYPES.md) is his unchanged, built in AR5 after his K3–K9; plus his own addition (The archetype-layer note, below).
+- **Role tags** *(proposed)*: Q `core`, W `defensive`, E `mobility`, R `ultimate`. The board's tags against CONVENTIONS' ability tags *(proposed)*: shape and reach tags are kept where they fit (Q's dagger `projectile`, its lunge and sweep `dash` and `melee`; E `blink`, `cone`, `melee`; R's daggers `projectile`); W's board `mobility` reads as a description (its +15% speed), so its one role is `defensive`; `recast`, `chain`, `dot`, `empower`, `invulnerable` and `stealth` (and the passive's `generator`, `movement`) aren't ability tags: what they describe is data (the recasts, the chain projectile, the DoT statuses, the empowers, the untargetable and stealth statuses).
+- **Walls** *(proposed)*: E's and R's blinks go over walls (the blink's default); Q's dagger and its bounces stop at walls and bounce only to an enemy in sight; Q's lunges are dashes, sliding along walls.
+- **Ultimate:** a cooldown (60 s), not a meter.
+
+#### The chain (his basic attack)
+Ryan: "3 fast attacks. your fourth has a small delay and deals 5% bonus AD". One chain, melee, replacing the two cycles; `combo_korsavil.tres` is edited in place at K3 (Ryan, 2026-10-09). Numbers *(proposed, tuned at the play test; reach his `attack_range`, 150 u)*:
+
+| Swing | Windup | Root | Damage | Arc |
+|---|---|---|---|---|
+| 1 / 2 / 3 | 0.06 s | 0.20 s | 0.9 × AD | 90° |
+| 4, `finisher` | 0.14 s (the "small delay") | 0.36 s | 0.95 × AD ("5% bonus AD" read as +0.05 AD ratio over the others) | 120° |
+
+- About 0.96 s per chain, then the finisher's 0.2 s breather (K1's three swings took 0.76 s). Knockback and steps as K1's: 6 px on the light swings and 20 px on swing 4; steps 6 px, swing 4's 10 px.
+- **Swing 4 carries the hit tag `finisher`** (built in K1 on swing 3; moved). It is the passive's "4th Attack" (Ryan, 2026-10-09) and gives the 10 Energy (Ryan, 2026-10-09).
+- **Weak basic attacks** (ARCHETYPES AR4, built): an unempowered swing deals half (27 / 27 / 27 / 28.5 at 60 AD); the Demise empower's swing hits full.
+- **The dash-strike** stays 1.3 × AD; it isn't a chain swing, so it doesn't count for the passive or the Energy.
+
+#### Passive (name blank)
+Under the source id `passive_korsavil`, as the built one. **Until AR5** it also keeps the built +1 `dash_charges` (its removal is AR5's, on Ryan's OK), so his dashes don't change before his Assassin layer.
+- **The gain** (Ryan, 2026-10-09): when swing 4 hits, +2 stacks of Inevitable Demise (`status_demise`), unless he gained within the last 5 s. *(proposed)* As data, one unit rule, `reaction_korsavil_demise`: trigger HIT, `required_hit_tags` [`finisher`], owner SOURCE, conditions [SELF_HAS_STATUS `demise_cooldown`, negated], effects (target OTHER, him): `ApplyStatusGameplayEffect` `status_demise` twice, then `status_demise_cooldown` (5 s). A swing 4 that hits three enemies fires the rule once: the first HIT event's cooldown status fails the other two.
+- **The stacks** (`status_demise`): max 6; one shared timer of 6 s *(proposed number)* that each gain restarts (`STACK_SHARED`, built in K2), so they all go together 6 s after the last gain; each stack +2% move speed (Ryan): a `stat_scaling` on the built input `self_status_stacks` (`demise` ÷ 6, `move_speed` PERCENT_ADD +0.12, linear: exactly 2% a stack, +12% at 6).
+- **The empowered auto** (Ryan: "at 4 stacks, your next auto attack is greatly empowered dealing 50+75% AD"): reaching 4 or more from below gives `empower_demise`, used by his next swing that hits: +50 base damage and +0.75 AD ratio in that swing's hit (an empowered swing isn't halved: 0.9 × 60 + 50 + 45 = 149 on swing 1). It doesn't spend the stacks (Ryan, 2026-10-09). *(proposed)* It lasts until used or 6 s; one at a time (REFRESH); given by the passive's script (a `Passive` subclass hook: the built rules can't see a count crossing 4), which also opens Q's 6-stack window.
+- **Q's 6-stack window** (Ryan, 2026-10-09): reaching 6 from below gives `status_blade_singer_sweep` (3.5 s), whose REPLACE turns Q into the sweep (ABILITIES.md, Korsavil v2, Q); the sweep spends every stack.
+- Tooltip *(proposed)*: "Every 4th strike of your chain gives you 2 stacks of Inevitable Demise (once every 5 seconds), up to 6; each stack gives 2% movement speed, and they fade together 6 seconds after the last. At 4 stacks your next basic attack deals 50 + 75% AD bonus damage. At 6, your Q becomes a lunging sweep for 3.5 seconds."
+
+#### Energy (v2)
+| Number | Value | Where |
+|---|---|---|
+| `max_resource`, `resource_regen`, starts, decay | 100, 10 a second, full, none (unchanged) | `korsavil.tres` (UnitStats), ChampionData |
+| Costs | Q 25, W 30, E 30, R 50 (Ryan's sheet; kept, Ryan 2026-10-09); every recast 0 *(proposed: the default)* | each ability's `resource_cost` |
+| The chain's 4th swing | +10 when it hits, once per swing however many it hits (Ryan, 2026-10-09; "once per swing" and "when it hits" *(proposed)*). Not under the passive's 5 s cooldown | *(proposed)* a new `AttackSwing.resource_on_land` (ABILITIES.md, Later toolkit pieces, v2) |
+| Deflects | cost nothing; a successful one +10 (the Assassin layer, AR5) | unchanged |
+| During stealth | nothing extra: the old Vanish's +15 a second is gone (Ryan, 2026-10-09) | |
+
+Rhythm: all four casts (135) take the full bar plus 3.5 s of regen, so from full he opens with three of the four (Q, W and E: 85; or E and R: 80) and has the fourth 0.5–3.5 s later. Casting each ability as its cooldown allows costs about 8 a second (Q 2.3, W 1.9, E 3.0, R 0.8) against 10 of regen, and a chain (about 1.16 s with its breather) adds about 8.6 a second while he swings: Energy limits only his opener (Balance flags, Open questions, Korsavil v2). The HUD bar stays yellow; no ability reads RESOURCE_AT_LEAST, so no tick.
+
+#### The abilities
+Ryan's text is above (The sheet); each ability's fields, steps and edge cases are ABILITIES.md's (Korsavil v2):
+- **Q, Blade Singer** (`korsavil_blade_singer`): the dagger and its recast lunge; at 6 stacks, the sweep (`korsavil_blade_singer_sweep`, a REPLACE variant).
+- **W, Cloak & Dagger** (`korsavil_cloak_and_dagger`): stealth, 1.5 s untargetable, and the DoT on his next attack or ability.
+- **E, Spectral Assault** (`korsavil_spectral_assault`): the blink, the spin, the stab.
+- **R, Reckoning** *(proposed name)* (`korsavil_reckoning`): the four daggers, up to four cuts, the Finish.
+
+#### What each hit deals at his placeholder AD 60
+Before crit and armor. Abilities are never halved by weak basic attacks; a swing is, unless empowered.
+
+| Source | Hit | Formula | At 60 AD |
+|---|---|---|---|
+| Chain | swing 1 / 2 / 3, unempowered | 0.9 × AD × 0.5 | 27 |
+| Chain | swing 4, unempowered | 0.95 × AD × 0.5 | 28.5 |
+| Passive | the empowered swing (swing 1) | 0.9 × AD + 50 + 0.75 × AD | 149 |
+| Q | each dagger hit (up to 4 enemies) | 30 + 0.25 × AD | 45 (180 on four) |
+| Q | the recast lunge | 40 + 0.65 × AD | 79 |
+| Q at 6 stacks | the sweep, each enemy | 40 + 1.10 × AD | 106 |
+| Q at 6 stacks | its DoT, each enemy | 20 + 0.35 × AD a second, 4 s | 41 a second, 164 |
+| W | the DoT from his next attack or ability, each enemy hit | 20 + 0.25 × AD a second, 4 s *(proposed length)* | 35 a second, 140 |
+| E | the spin, each enemy | 20 + 0.40 × AD | 44 |
+| E | the stab | 20 + 0.55 × AD | 53 |
+| R | each dagger | 30 + 0.30 × AD | 48 (192 for four) |
+| R | each cut | 60 + 0.80 × AD; ×2 below 25% health | 108 (216); four cuts 432 (864) |
+
+#### The archetype-layer note (his own, in addition: Ryan, 2026-10-09)
+Ryan's text is above (The sheet). The locked Assassin layer (ARCHETYPES.md, D3, D8, D11; built in AR5) stays whole, and this note adds to it for Korsavil only:
+- **"upon a successful deflect, gain 1 more dash"** is the built refund (the first deflect of a streak gives the dash charge back for 3 s): nothing new.
+- **"Breaking poise stuns the enemies"** is the locked break: an enemy's meter at full puts `status_poise_broken` on it (1.8 s on an elite, ×1.5 damage taken). Only enemy Assassins have a meter (D3).
+- **New, his alone:** when an enemy's meter breaks on his hit or his deflect, he gets `empower_poise_break` *(proposed name)*: his next basic attack that hits **or** his next ability cast (a new empower trigger) is a **guaranteed critical strike** and deals **TRUE damage** (the whole hit: `empower_damage_type` TRUE). *(proposed)* It lasts 5 s; the guaranteed crit is a new empower field (an empower that always crits), not a `crit_chance` modifier, since an ability's empower is used at its cast start, before its hits roll.
+- Built in K10, after AR5 (his deflects and his hits' poise damage are what break a meter).
+- ARCHETYPES.md records it as an entry awaiting a locked-decision number (Open questions 21); no locked text changes.
+
+#### Statuses (v2; names *(proposed)*, checked against CONVENTIONS.md: none taken)
+The built statuses (`status_inevitable_demise` and the others) stay on disk under their own names, unassigned.
+
+| Status | What | Fields *(proposed unless Ryan's)* |
+|---|---|---|
+| `status_demise` | Inevitable Demise (v2), on him | id and tag `demise`, `buff`; display name "Inevitable Demise" (Ryan's); STACK_SHARED, max 6 (Ryan), 6 s; `stat_scalings`: `move_speed` +0.12 on `demise` ÷ 6. A new file: the built `status_inevitable_demise` is a debuff on enemies (DoT tiers, max 8) |
+| `status_demise_cooldown` | the gain's 5 s (Ryan) | tag `demise_cooldown`; 5 s; nothing else |
+| `empower_demise` (`status_empower_demise.tres`) | the 4-stack auto | tags `empower`, `buff`; BASIC_ATTACK_HIT; `empower_base_damage` 50, `empower_ad_ratio` 0.75 (Ryan); 6 s; REFRESH |
+| `status_blade_singer_sweep` | Q's 6-stack window | tag `buff`; 3.5 s (Ryan); one REPLACE, scope `ability:korsavil_blade_singer`, the sweep variant; removed when the sweep is cast |
+| `status_lodged_dagger` | Q's lodged dagger | tags `lodged_dagger`, `debuff` (not `cc`); `move_speed` −10% (Ryan); until the recast or the window ends (Q's script removes it) |
+| `status_blade_singer_wound` | the sweep's DoT | tags `blade_singer_wound`, `debuff`; 4 s (Ryan); a tick every 0.5 s of 10 + 0.175 × AD (20 + 35% AD a second: Ryan); PHYSICAL |
+| `status_cloak_and_dagger` | W's stealth | tags `stealth`, `buff`; 5 s (Ryan); `move_speed` +15% (Ryan); ends when he starts a cast or a swing (Ryan: "Attacking or using abilities cancels the stealth"), not a dash (the sheet names neither) |
+| `status_cloak_untargetable` | W's first 1.5 s (Ryan, 2026-10-09) | tags `untargetable`, `buff`; 1.5 s; removed with the stealth if that ends first |
+| `empower_cloak_and_dagger` | W's next attack or ability | tags `empower`, `buff`; the new attack-or-cast trigger; `empower_statuses` [`status_cloak_wound`]; on from W's effect until used or 8 s (the stealth's 5 s plus 3), so the act that breaks the stealth uses it |
+| `status_cloak_wound` | W's DoT (Ryan, 2026-10-09) | tags `cloak_wound`, `debuff`; 4 s; a tick every 0.5 s of 10 + 0.125 × AD (20 + 25% AD a second: Ryan); PHYSICAL |
+| `status_sentenced` | R's lodged daggers | tags `sentenced`, `debuff` (not `cc`); STACK, max 4 (a dagger each); 6 s (Ryan); `move_speed` −10% (Ryan) once, however many daggers |
+| `status_reckoning_shroud` | R's Finish | tags `stealth`, `untargetable`, `buff`; 1.5 s (Ryan); it doesn't end when he acts (it isn't W's stealth) |
+| `empower_poise_break` | the layer note's payoff | tags `empower`, `buff`; the attack-or-cast trigger; always crits (new); `empower_damage_type` TRUE; 5 s |
+
+#### Kit edge cases (v2)
+Ability-level cases are ABILITIES.md's (Korsavil v2).
+
+| Edge case | Handling *(proposed unless marked)* |
+|---|---|
+| Swing 4 hits three enemies | +2 Demise once and +10 Energy once (the cooldown status; `resource_on_land` is per swing). |
+| Swing 4 within 5 s of the last gain | +10 Energy, no Demise (Ryan's cooldown is on the gain). |
+| Swing 4 whiffs | Nothing: the gain and the Energy need a hit. |
+| A gain at 6 stacks | Still 6; the shared 6 s restarts. |
+| No gain for 6 s | Every stack goes at once; the speed goes with them. A waiting `empower_demise` keeps its own 6 s. |
+| R's Finish from 0, 2 or 3 stacks | +4, capped at 6 (Ryan): from under 4 it gives the empowered auto; reaching 6 also opens Q's sweep window. |
+| Reaching 4 again while `empower_demise` waits | One at a time: REFRESH, no second. |
+| 6 stacks with Q on cooldown | The 3.5 s window runs; the sweep needs Q off cooldown (Ryan), so it's lost if Q isn't ready in time. |
+| He holds 6 stacks and wants the dagger | Not for those 3.5 s: Q is the sweep while the window lasts. |
+| A chain broken before swing 4 | No count carries over: the next chain starts at swing 1 (Ryan: the chain restarting resets the count). |
+| W cast while rooted | Allowed (it doesn't move him): the stealth and the 1.5 s untargetable start where he stands (his answer to the Vampyr Shade's trap: ENEMIES_AI.md). |
+| He dies | His statuses clear (Demise, the stealth, the empowers, the windows); DoTs he applied tick on with his snapshot (COMBAT.md, DoT). |
+| The Knight picked | Nothing of this exists on him; his kit plays as before. |
+
+#### What he waits on (v2)
+- **Toolkit pieces** (ABILITIES.md, Later toolkit pieces, Korsavil v2; each *(proposed; built when needed)*): the chain projectile with a per-hit callback (Q); ending a recast sequence early, `AbilityComponent.end_recast()` (Q, R); a recast part's own targeting, `Ability.recast_targeting` (designed for the old R; Q's recast needs no enemy under the cursor); the attack-or-cast empower trigger (W, the layer note); `ends_on_cast` / `ends_on_swing` (W; designed for the old Vanish, still unbuilt); `empower_damage_type` and an empower that always crits (the layer note); an ability hit tagged as a basic attack (R); R's auto-picked daggers and its Sentenced pick (script one-offs); `AttackSwing.resource_on_land` (the 10 Energy); the passive's count-crossing hook (the empowered auto, Q's window).
+- **No longer needed by him:** the bounce projectile as designed for Blade Dance (the chain projectile replaces it), `combo_override` and `combo_korsavil_vanish.tres` (never built), `empower_uses`, `ends_on_dash`, the "higher of" heal, and **the fear status**: COMBAT.md's and ENEMIES_AI.md's fear stays designed as written, with no champion and no build step now.
+- **Other docs:** **the search** (ENEMIES_AI.md, Losing a stealthed target) is still needed: enemies chasing him when W or R's Finish hides him lose him and search. His K9.
+- A model and sounds (a capsule and the Knight's swing sounds until then).
+
+### The 2026-10-04 kit (v1)
+> Replaced by Korsavil v2 once Ryan confirms (CHAMPIONS.md, Korsavil v2); kept until then.
+
 An assassin who gathers Blades, throws them through packs and cashes in what they marked. **Designed 2026-10-04; K1 built and passed the same day** (her data, loading, 3-swing cycle and the hub's pick), **K2 built 2026-10-04 and passed 2026-10-05** (Q Bladesinger, Blades, Inevitable Demise); her build steps are K1–K6 and K-M (Build order, Korsavil), right after Ryan's play test of ENEMIES_AI AI3d (Ryan, 2026-10-04). Ryan's decisions are MUST (Ryan, 2026-10-04); Claude's picks are marked *(proposed)* and listed in Open questions (Korsavil). Her ability sheets are in ABILITIES.md (Korsavil); the toolkit pieces she needs that don't exist yet are in ABILITIES.md, Later toolkit pieces. **She is an Assassin** (ARCHETYPES.md, 2026-10-07): her one dash, the deflect window, the refund, the jab, the riposte and her poise meter are the archetype's layer, not her kit's (Identity, below), built in ARCHETYPES AR5 before her K3. Units: League units, 100 u = 1 m = 32 px.
 
 ### Player experience
+> Replaced by Korsavil v2 once Ryan confirms (CHAMPIONS.md, Korsavil v2); kept until then.
+
 You pick Korsavil at the hub. She starts every fight with a full yellow bar and one long dash that deflects: dash into an enemy's hit as it lands and it's gone, the dash comes straight back, and a swing then jabs, or a second deflect readies a riposte that tears off a chunk of its health. Q sets Blades spinning around her, one more each second, and the more she holds the faster she moves and the less damage she takes. Her thrown knife (E) ricochets through a pack, and every enemy it cuts gives her another Blade. Recast Q and every Blade flies at the cursor: land all four and her ultimate changes for 10 seconds. Every Blade that lands marks its enemy with Inevitable Demise, damage over time that grows with the marks, and at eight marks her next finisher detonates them. When a fight turns, she Vanishes (W): the enemies on her lose her, and the longer she stays hidden, the harder her next three attacks hit. Her ultimate blinks her onto a target to strike, then lets her blink back out with a heal.
 
 ### Identity
+> Partly replaced by Korsavil v2 once Ryan confirms: the stats and the Assassin layer below stay his; the combo, role tags, walls and ultimate lines are v2's (CHAMPIONS.md, Korsavil v2, Identity (v2)). Kept until then.
+
 - `id` `&"korsavil"`, `display_name` "Korsavil", `champion_class` `&"assassin"` (Ryan, 2026-10-04; in CONVENTIONS' class list since the same day).
 - Resource: ENERGY (Ryan, 2026-10-04; Energy, below).
 - Stats: `data/units/korsavil.tres` (new), placeholders until the play test (Ryan, 2026-10-04: Claude's placeholders): health **500** (lower than the Knight's 650, in 450–550), AD 60, attack speed 0.7, move speed 390 u (125 px/s), attack range 150 u (48 px, 1.5 m), crit chance 0.25, armor and magic resist 0. `dash_charges` stays 1 there~~: the second dash is the passive's (below)~~ (superseded 2026-10-07: ARCHETYPES.md, Assassin; D11): her one dash is the archetype's (next).
@@ -212,6 +416,8 @@ You pick Korsavil at the hub. She starts every fight with a full yellow bar and 
 - Sounds: none yet (her swings use the Knight's swing sounds as placeholders since K1). Audio hooks: see AUDIO.md.
 
 ### Combo: two cycles
+> Replaced by Korsavil v2 once Ryan confirms (CHAMPIONS.md, Korsavil v2); kept until then.
+
 Ryan, 2026-10-04: her basic attack has two cycles, 3 melee swings and 4, switched by state: the 4-swing cycle from Vanish (while she's stealthed and while its empower lasts), the 3-swing cycle otherwise. Each cycle's last swing is a finisher. The rest is *(proposed)*:
 - **Two combos:** `combo_korsavil.tres` (3 swings) on her ChampionData, and `combo_korsavil_vanish.tres` (4 swings) carried by `status_vanish` and both Vanish empowers through a new `StatusEffect.combo_override` (ABILITIES.md, Later toolkit pieces). Both MELEE with the default melee rules (COMBAT.md, Melee basic attacks); the last swing of each has `hit_tags` [`finisher`].
 - **A cycle is picked when a chain starts** (at its first swing; this rule and the next approved by Ryan, 2026-10-04): the 4-swing cycle while a status with a `combo_override` is on, else the 3-swing. It then runs to its end even if the state ends inside it. This matters: the empower's third use is the 4-swing cycle's swing 3, so its swing 4, the finisher, still comes. A chain ends at its finisher (and breather), after the reset time (0.6 s) or at a forced reset (a stun, a cancel in a windup).
@@ -230,6 +436,8 @@ Ryan, 2026-10-04: her basic attack has two cycles, 3 melee swings and 4, switche
 - **Weak basic attacks** (ARCHETYPES.md, Weak basic attacks; D12; Ryan, 2026-10-07): from ARCHETYPES AR4 (built 2026-10-09) an unempowered swing deals 50% of the numbers above (`unempowered_attack_damage` 0.5 on her UnitStats); her empowers hit full: the jab, the riposte and Vanish's.
 
 ### Passive (name TBD)
+> Replaced by Korsavil v2 once Ryan confirms (CHAMPIONS.md, Korsavil v2); kept until then.
+
 Three parts, all under the source id `passive_korsavil` (Ryan, 2026-10-04). Since 2026-10-07 two remain (Inevitable Demise and the detonation): part 1's dash is the Assassin archetype's (Identity, Archetype: Assassin; D11).
 1. ~~**Two dashes:** `dash_charges` 2 (MOVEMENT.md, Dash: a charge returns every 0.35 s, and every dash carries its i-frames). *(proposed)* A FLAT +1 `dash_charges` StatModifier in the passive's `modifiers`; the alternative is 2 on her UnitStats. Either needs no new code: DashComponent reads the stat, and a raised max recharges up to it (STATS.md, Current code). The difference: from the passive she loads with one charge and gets the second 0.35 s later (the passive attaches after `Unit._ready()`, when DashComponent has taken its starting charges), and a talent or form could take it away; from UnitStats she loads with both.~~ (superseded 2026-10-07: ARCHETYPES.md, Assassin; D11). Her one dash comes from the archetype; the built +1 `dash_charges` modifier is removed in ARCHETYPES AR5.
 2. **Inevitable Demise** (`status_inevitable_demise`, below): every Blade that hits an enemy adds one stack: each of Q's recast Blades and each E hit (bounce) that gets through. Its damage over 5 s is a replacing tier: 5 / 8 / 10 / 12% AD at 2 / 4 / 6 / 8 stacks; only the current tier applies, the tiers don't add up. A new Blade restarts the 5 s (Ryan, 2026-10-04). The stacks ride Q's and E's hits (their hit statuses, like Lunge's Staggered); the passive is what cashes them in.
@@ -240,6 +448,8 @@ Three parts, all under the source id `passive_korsavil` (Ryan, 2026-10-04). Sinc
 - Tooltip *(proposed)*: "~~You have two dashes.~~ Your Blades mark enemies with Inevitable Demise, damage over 5 seconds that grows at 2, 4, 6 and 8 marks. At 8 marks your next finisher detonates them into a fresh wound (25% AD over 5 seconds), and you move 10% faster while it bleeds." ("You have two dashes." superseded 2026-10-07: ARCHETYPES.md, Assassin; D11.)
 
 ### Energy (Korsavil's resource)
+> Partly replaced by Korsavil v2 once Ryan confirms: the pool (100, 10 a second, full, no decay) stays; the costs, the Vanish regen and the rhythm are v2's (CHAMPIONS.md, Korsavil v2, Energy (v2)). Kept until then.
+
 A steady pool, full when a fight starts and refilling on its own: spending is paced by the regen, not built by hitting (Ryan, 2026-10-04). This answers this doc's open item on energy's rhythm (Resource rhythms: mana and energy get their numbers with their first champion; mana stays open).
 
 | Number | Value | Where |
@@ -255,6 +465,8 @@ A steady pool, full when a fight starts and refilling on its own: spending is pa
 Rhythm: from a full bar she can open with Q, E and R (90) and has W 3.5 s later; all four (135) take the bar plus 3.5 s of regen. E (15 every 7 s) is nearly free; W is the cast that empties the bar, and a full Vanish pays it back (Open questions, Korsavil, Balance flags). The HUD bar is yellow (ENERGY; ABILITIES.md, HUD). No ability reads RESOURCE_AT_LEAST, so the bar has no tick.
 
 ### Blades
+> Replaced by Korsavil v2 once Ryan confirms (CHAMPIONS.md, Korsavil v2); kept until then.
+
 Blades are a count she holds: the stacks of `status_blade` on her, 0–4 (Ryan, 2026-10-04). Her kit's "slash lists" are steps by Blades or stacks held, never ability ranks (there are none: Ability ranks).
 - **Gained:** +1 each second while Q's orbit lasts (6 s); +1 per E hit (bounce) that gets through; +2 from W's third empowered attack; +2 from the base R's recast (after its strike landed).
 - **Spent:** Q's recast sends every held Blade.
@@ -262,6 +474,8 @@ Blades are a count she holds: the stacks of `status_blade` on her, 0–4 (Ryan, 
 - **Read by:** Q's orbit (damage reduction and speed by Blades held, only while the orbit lasts), Q's recast (how many fly and how hard each hits) and its condition (at least 1 *(proposed)*). Held outside the orbit, Blades give nothing until Q is cast.
 
 ### Status: Blade (`res://data/statuses/status_blade.tres`)
+> Replaced by Korsavil v2 once Ryan confirms (CHAMPIONS.md, Korsavil v2); kept until then.
+
 | Field | Value |
 |---|---|
 | `id` / `display_name` | `&"blade"` / "Blade" |
@@ -275,6 +489,8 @@ Blades are a count she holds: the stacks of `status_blade` on her, 0–4 (Ryan, 
 | Audio | Audio hooks: see AUDIO.md |
 
 ### Status: Inevitable Demise (`res://data/statuses/status_inevitable_demise.tres`)
+> Replaced by Korsavil v2 once Ryan confirms (CHAMPIONS.md, Korsavil v2); kept until then.
+
 | Field | Value |
 |---|---|
 | `id` / `display_name` | `&"inevitable_demise"` / "Inevitable Demise" |
@@ -289,6 +505,8 @@ Blades are a count she holds: the stacks of `status_blade` on her, 0–4 (Ryan, 
 | Audio | Audio hooks: see AUDIO.md |
 
 ### Status: Umbral Stalker (`res://data/statuses/status_umbral_stalker.tres`)
+> Replaced by Korsavil v2 once Ryan confirms (CHAMPIONS.md, Korsavil v2); kept until then.
+
 | Field | Value |
 |---|---|
 | `id` / `display_name` | `&"umbral_stalker"` / "Umbral Stalker" |
@@ -302,6 +520,8 @@ Blades are a count she holds: the stacks of `status_blade` on her, 0–4 (Ryan, 
 | Audio | Audio hooks: see AUDIO.md |
 
 ### Status: Vanish (`res://data/statuses/status_vanish.tres`)
+> Replaced by Korsavil v2 once Ryan confirms (CHAMPIONS.md, Korsavil v2); kept until then.
+
 | Field | Value |
 |---|---|
 | `id` / `display_name` | `&"vanish"` / "Vanish" |
@@ -316,6 +536,8 @@ Blades are a count she holds: the stacks of `status_blade` on her, 0–4 (Ryan, 
 | Audio | Audio hooks: see AUDIO.md |
 
 ### Other statuses her kit needs *(proposed names)*
+> Replaced by Korsavil v2 once Ryan confirms (CHAMPIONS.md, Korsavil v2); kept until then.
+
 | Status | What | Fields |
 |---|---|---|
 | `status_bladesinger` | Q's orbit | tags `bladesinger`, `buff`; 6 s; REFRESH; two StatScalings on the Blades' count (`incoming_damage` PERCENT_MULT −0.20 and `move_speed` PERCENT_ADD +0.20 at 4 Blades, linear: 5% per Blade). Needs the stack-count input (ABILITIES.md, Later toolkit pieces) |
@@ -325,6 +547,8 @@ Blades are a count she holds: the stacks of `status_blade` on her, 0–4 (Ryan, 
 | `status_fear` | the Stalker's fear | ABILITIES.md, Later toolkit pieces (the fear status) |
 
 ### The numbers
+> Replaced by Korsavil v2 once Ryan confirms (CHAMPIONS.md, Korsavil v2); kept until then.
+
 | | Q Bladesinger | W Vanish | E Blade Dance | R Spectral (placeholder name) |
 |---|---|---|---|---|
 | Role | `core` *(proposed)* | `defensive` *(proposed)* | `generator` | `ultimate` |
@@ -338,6 +562,8 @@ Blades are a count she holds: the stacks of `status_blade` on her, 0–4 (Ryan, 
 Passive: ~~two dashes;~~ Demise 5 / 8 / 10 / 12% AD per 5 s at 2 / 4 / 6 / 8 stacks (max 8); at 8, a finisher detonates: 25% AD over 5 s and +10% movement speed for 5 s. Dash: one dash (the Assassin's: 500 u, recharging in 1.2 s, with the deflect layer; the passive's two dashes superseded 2026-10-07: ARCHETYPES.md, Assassin; D11). Energy: 100, 10 a second, starts full, no decay. Stats (placeholders): health 500, AD 60, attack speed 0.7, move speed 390 u, range 150 u, crit 0.25. Combo: 3 melee swings, 4 from Vanish, a finisher at the end of each.
 
 ### ChampionData (`res://data/champions/korsavil.tres`)
+> Replaced by Korsavil v2 once Ryan confirms (CHAMPIONS.md, Korsavil v2); kept until then.
+
 | Field | Korsavil |
 |---|---|
 | `id` | `&"korsavil"` |
@@ -356,6 +582,8 @@ Passive: ~~two dashes;~~ Demise 5 / 8 / 10 / 12% AD per 5 s at 2 / 4 / 6 / 8 sta
 | `model_scene` | empty (a placeholder capsule) until a model exists |
 
 ### What she waits on
+> Replaced by Korsavil v2 once Ryan confirms (CHAMPIONS.md, Korsavil v2); kept until then.
+
 - **Toolkit pieces** (ABILITIES.md, Later toolkit pieces, each *(proposed; built when Korsavil is)*): built in K2: numbers that follow a stack count (Q's orbit, Demise's tiers) and stacks that share one timer (Demise); still to come: the bounce projectile (E), a status that ends when its holder acts (W), an empower with several uses, an empower damage type and a status that swaps the combo (W), the finisher hit tag (the detonation), a recast part's own targeting (R), the fear status (the Stalker), the "higher of" heal (R; a script one-off).
 - **Other docs (open dependencies, recorded there 2026-10-04):**
   - **The search** (ENEMIES_AI.md, Losing a stealthed target): enemies chasing her when she Vanishes lose her and search, a simulated look-around at her last known spot (not a real vision cone) for 3 s *(proposed)*, then go back (Ryan, 2026-10-04). A new enemy behavior, not built. Today ALLIES' pick only drops a stealthed target (ENEMIES_AI AI2, built), and a pack with nobody else to pick walks home after 6 s with nothing in reach.
@@ -364,6 +592,8 @@ Passive: ~~two dashes;~~ Demise 5 / 8 / 10 / 12% AD per 5 s at 2 / 4 / 6 / 8 sta
 - A model and sounds (a capsule and silence until then).
 
 ### Korsavil's kit edge cases
+> Replaced by Korsavil v2 once Ryan confirms (CHAMPIONS.md, Korsavil v2); kept until then.
+
 Ability-level cases (Q's recast with 0 Blades, Vanish's own cast, its 5 s expiry, E with no next target, R's recast while rooted, the Stalker revert, fear on an unstoppable enemy) are in ABILITIES.md, Korsavil.
 
 | Edge case | Handling |
@@ -549,6 +779,8 @@ Placed right after Ryan's play test of ENEMIES_AI AI3d, before AI3b and AI3c (Ry
    **Done means:** the orbit gives a Blade a second up to 4, and damage taken and speed follow the count (5% per Blade) only while it lasts; the recast sends every Blade at 80–110% AD each and fails at 0 Blades; Blades stay after the orbit; each Blade that hits adds a Demise stack, dealing 0 / 5 / 5 / 8 / 8 / 10 / 10 / 12% AD per 5 s at 1–8 stacks on one shared 5 s timer that each Blade restarts; 4 hits give Umbral Stalker for 10 s.
    Built 2026-10-04 and passed Ryan's play test 2026-10-05, see CHANGELOG.md. Demise's ticks are under 1, so their numbers carry until they reach 1 (COMBAT.md, Damage numbers; the K2 fix).
 
+> **The v1 steps from here to K-M are replaced** by Korsavil v2's steps (the next subsection) once Ryan confirms; kept until then. K1 and K2 above stand (built and passed).
+
 **Before K3: ARCHETYPES AR5, her Assassin layer** (Ryan, 2026-10-07; specified, built and logged as ARCHETYPES.md's step, with its own done-means and tests). Her one dash from the archetype (500 u, recharging in 1.2 s, tuned 0.8–1.5), the 0.2 s deflect window, the refund, the jab and its 1.5 m snap, the banked streak's 10 s expiry, the riposte's health share and its 6 m projectile snap, +10 Energy on a deflect, her poise meter, its HUD bar and her break; her passive's +1 `dash_charges` removed. AR4 (weak basic attacks, hers and the Knight's) comes just before it, AR6 (the Knight's test deflect disabled, with Ryan's OK) just after. This doc gets one line when it passes. *(Moved 2026-10-09, Ryan: "korsavil isnt even done": K3–K6 come first, then AR5–AR6, then K-M; ARCHETYPES.md, Build order.)*
 
 3. **K3 – E Blade Dance and the detonation.** The bounce projectile (`projectile_bounces`, `bounce_range`, the `bounce` input, a per-hit callback), `blade_dance.gd`, `korsavil_e_blade_dance.tres`; `status_demise_detonation`, `status_detonation_haste` and the two detonation rules in her passive.
@@ -561,6 +793,32 @@ Placed right after Ryan's play test of ENEMIES_AI AI3d, before AI3b and AI3c (Ry
    **Done means:** ENEMIES_AI's fear and search tests pass (a feared brute walks away for 1.5 s without attacking or casting, an elite 1.2 s, a boss and an unstoppable enemy refuse it; an enemy whose target turns stealthed searches its last known spot for 3 s, then goes home, and comes back if her stealth ends in its sight).
 
 **Milestone K-M – Korsavil's kit** (after K6): Ryan's play test in the sandbox against the test enemies and packs: build Blades with Q and E, spend them, detonate an elite, Vanish out and come back in with the 4-swing cycle, R in and out, the Stalker's fear; the balance flags (Open questions, Korsavil) reviewed.
+**Done means:** Ryan's play test: the kit reads at a glance and the numbers feel right (then they stop being placeholders).
+
+### Korsavil v2 (K3–K10 and K-M; *(proposed)* steps: Open questions, Korsavil v2)
+One step per request, each ending in Ryan's play test. **The order** *(proposed)*: K3–K9 now (Ryan, 2026-10-09: his kit comes first; ARCHETYPES.md, Build order), then ARCHETYPES AR5 (his Assassin layer) and AR6, then K10 (the layer note's payoff, which needs AR5), then K-M, then the Vampyr Shade (ENEMIES_AI AI-V1–AI-V3, Ryan 2026-10-09: after K-M, before AR7), then AR7–AR8 and AR-M. **The numbers repeat the old steps' on purpose** (Ryan's brief: K3–K8 and K-M, extended here): v2's K3–K6 aren't the old ones, and where other docs cite "her K6" for the search or the fear they mean the old plan (the search is v2's K9; the fear has no step now). Every step: Ryan runs `git status` first; with the Knight picked the game plays exactly as before (his abilities, talents, enemies chasing, the HUD); every suite green; build logs in CHANGELOG.md (the Champions section); this doc keeps one line per built step. His checks join `champions_test`, the toolkit pieces' `abilities_test` and `combat_test`, K9's `enemies_test`.
+
+3. **K3 – The data swap, the 4-swing chain, the passive and its Energy.** `korsavil.tres` points at v2: the new passive (`reaction_korsavil_demise`, `status_demise`, `status_demise_cooldown`, `empower_demise`, the count-crossing script at 4; the built +1 `dash_charges` kept until AR5) and Q empty until K4 (the old Q unassigned, kept on disk); `combo_korsavil.tres` edited in place to the 4-swing chain (`finisher` moved to swing 4); `AttackSwing.resource_on_land` (10 on swing 4). **Built files changed, each listed for Ryan's OK first:** `korsavil.tres`, `combo_korsavil.tres`; in `champions_test` the K1 checks move to v2's values (`_test_korsavil_data`, `_test_korsavil_loaded`, `_test_korsavil_swings`, `_test_korsavil_hub_pick`), and the old Q's cast tests (`_test_bladesinger_orbit`, `_test_bladesinger_recast`) spawn a test copy of his ChampionData with the old Q; `_test_bladesinger_data` and `_test_demise` stay pinned to their files and unchanged.
+   **Done means:** as Korsavil he swings the 4-swing chain (swing 4 slower; half damage unempowered); swing 4's hit gives +2 Demise (not again within 5 s) and +10 Energy (once, however many it hits); each stack is +2% speed, and all go 6 s after the last gain; at 4 stacks his next swing that hits deals +50 + 75% AD at full strength; his slots are empty (Q comes in K4); the old Q's tests pass on the test copy; the Knight plays as before.
+4. **K4 – Q Blade Singer: the dagger and the recast lunge.** The chain projectile (bounces with a per-hit callback, never one enemy twice), `status_lodged_dagger`, the recast condition (3 enemies hit), `AbilityComponent.end_recast()`, the lunge (`dash()` to the lodged enemy, or where it fell); `blade_singer.gd`, `korsavil_q_blade_singer.tres`.
+   **Done means:** Q at an enemy hits it and up to 3 more (45 each at 60 AD), never one twice, ending with no next enemy; with 3 hit the recast unlocks and the last one is slowed 10%; the recast lunges him to it (79), or to where it fell; with fewer than 3 hit the window ends at once and the 11 s cooldown starts; a rooted recast fails with "Rooted".
+5. **K5 – Q's 6-stack sweep.** `status_blade_singer_sweep` (3.5 s, its REPLACE), `korsavil_q_blade_singer_sweep.tres` (`blade_singer_sweep.gd`), `status_blade_singer_wound`; the count-crossing script opens the window at 6. Its own step after Phase 1's risk review (three modes in one slot).
+   **Done means:** reaching 6 stacks makes Q the sweep for 3.5 s (Q off cooldown); the sweep lunges toward the aim and hits every enemy in front (106 at 60 AD, then 41 a second for 4 s) and spends all 6 stacks; unused for 3.5 s, Q is the dagger again.
+6. **K6 – W Cloak & Dagger.** `ends_on_cast` / `ends_on_swing`, the attack-or-cast empower trigger; `status_cloak_and_dagger`, `status_cloak_untargetable`, `empower_cloak_and_dagger`, `status_cloak_wound`, `korsavil_w_cloak_and_dagger.tres` (a script only if the data can't do it).
+   **Done means:** enemies drop him (today's pick); he's untargetable for 1.5 s and stealthed for 5 s at +15% speed; a swing or a cast ends the stealth (W's own cast and a dash don't); that swing or cast puts 35 a second for 4 s on each enemy it hits; Energy gets nothing extra.
+7. **K7 – E Spectral Assault.** `spectral_assault.gd`, `korsavil_e_spectral_assault.tres`.
+   **Done means:** E blinks him up to 9 m to the cursor (over walls, onto the floor), spins 160° out to 5.5 m (44) and stabs the nearest enemy the spin hit (53); a spin hitting nothing gives no stab; a rooted press fails with "Rooted".
+8. **K8 – R Reckoning.** The four auto-picked daggers, `status_sentenced`, the recast's pick of the Sentenced enemy nearest the cursor (a blink), the cut tagged as a basic attack, the Finish (`status_reckoning_shroud`, +4 Demise), `end_recast()` reused; `reckoning.gd`, `korsavil_r_reckoning.tres`.
+   **Done means:** R throws a dagger at each of the 4 nearest enemies within 8 m (extras on the nearest again; 48 each), Sentencing them for 6 s; each recast within 2 s of the last blinks him to the Sentenced enemy nearest the cursor and cuts it (108; 216 below 25% health), pulling a dagger; a cut gives on-hit effects but no chain count; after the 4th cut, with no Sentenced enemy left or when the 2 s run out, he's untargetable and stealthed for 1.5 s and gains 4 Demise.
+9. **K9 – The search** (ENEMIES_AI.md, Losing a stealthed target; Ryan, 2026-10-04): `search_time`, the walk to the last known spot, the look-around, its end rules.
+   **Done means:** ENEMIES_AI's search tests pass: an enemy whose target turns stealthed walks to his last known spot, searches 3 s and goes home; his stealth ending in its sight brings the chase back; a second candidate is picked instead of searching.
+
+**Then ARCHETYPES AR5 (his Assassin layer) and AR6** (ARCHETYPES.md, Build order). AR5's two calls stand: removing the passive's +1 `dash_charges` (Ryan's OK) and its split into AR5a and AR5b *(proposed there)*.
+
+10. **K10 – The layer note's payoff** (after AR5; The archetype-layer note). The empower that always crits, `empower_damage_type` (TRUE), `empower_poise_break`, given when an enemy's meter breaks on his hit or deflect.
+   **Done means:** breaking the test Assassin's poise stuns it (the locked break) and makes his next swing that hits, or his next ability cast, a crit dealing TRUE damage, once; the Knight breaking it gets nothing.
+
+**Milestone K-M – Korsavil v2** (after K10): Ryan's play test in the sandbox against the test enemies, the test Assassin and packs: the chain and the Demise rhythm, Q's dagger and lunge, the 6-stack sweep, W out and back in, E, R through a pack and its Finish, the layer note's payoff; the balance flags (Open questions, Korsavil v2) reviewed.
 **Done means:** Ryan's play test: the kit reads at a glance and the numbers feel right (then they stop being placeholders).
 
 ## Out of scope
@@ -618,3 +876,28 @@ Balance flags (recorded, not changed; Ryan's call):
 - W costs 45 but returns up to 75 energy (15 a second for 5 s), so a held Vanish is energy-positive.
 - The flat heals (100 and 150) are about 20% and 30% of 500 health; the percent side only wins above 2,000 / 1,500 max health.
 - W's 12 s cooldown and E's 0.5 s cast time sit outside ABILITIES' 3–10 s and 0.15–0.3 s guides (guides, not rules).
+
+Korsavil v2 (designed 2026-10-09 from Ryan's board; Claude's proposals, written in above and in ABILITIES.md, Korsavil v2, as *(proposed)*; Ryan can overrule any):
+1. **Ids and files:** `korsavil_blade_singer` (one underscore from the built `korsavil_bladesinger`: flagged; Progress counts ability uses by id, so the two never mix), `korsavil_blade_singer_sweep`, `korsavil_cloak_and_dagger`, `korsavil_spectral_assault` (the old R's reserved `korsavil_spectral` was never built), `korsavil_reckoning`; files `korsavil_<slot>_<ability>.tres`, scripts in `scripts/abilities/korsavil/`; the statuses (Korsavil v2, Statuses (v2)); the rule `reaction_korsavil_demise`.
+2. **The names Ryan left blank:** the R's (working name "Reckoning", Ryan's advisor's) and the passive's.
+3. **The chain's numbers** (Korsavil v2, The chain): 0.06 s wind-ups and 0.20 s roots, swing 4 at 0.14 s and 0.36 s; "5% bonus AD" as +0.05 AD ratio (0.95 against 0.9).
+4. **Swing 4's 10 Energy:** when it hits, once per swing, not under the passive's 5 s cooldown; a new `AttackSwing.resource_on_land`.
+5. **Demise:** the shared timer's 6 s; the empowered auto lasting 6 s, one at a time; the passive's script watching the count (4: the empower; 6: Q's window).
+6. **Q:** UNIT at 7 m, the dagger homing (not dodgeable, as a UNIT cast) at 1,500 u/s; a bounce goes to the nearest enemy not yet hit within 4 m (400 u) of the one just hit, in its sight; the recast window 3 s (the default) from Q's effect; **the board's part 2 "delay 1.5 s" has no reading yet** (ignored until Ryan says); "count 3" read as the 3 enemies the recast needs; the lunge a dash of at most 11.75 m (the board's part 2 range) at 3,000 u/s, its damage on the lodged enemy only (the board's 1.25 m width read as the dash's body); fewer than 3 hit: the window ends when the dagger does (`end_recast()`); the sweep a 3 m lunge toward the aim, then a 3.5 m half circle in front of him, with Q's 0.15 s cast time.
+7. **W:** a dash doesn't end the stealth; the DoT's 4 s; the empower on from W's effect until used or 8 s (the stealth's 5 s plus 3); its 0.25 s cast walks (no root).
+8. **E:** the spin faces the blink's direction; the board's width 3 unused by a cone; the stab 0.15 s after the spin; rooted for its 0.25 s cast.
+9. **R:** the daggers home at 1,500 u/s on enemies in sight; no enemy within 8 m: the cast fails ("No target"), nothing spent; `status_sentenced` a stack per dagger, its slow 10% however many; a recast pressed with no Sentenced enemy gives the Finish at once; the Finish's stealth doesn't end when he acts. **Flagged:** each cut keeps R's 0.5 s cast time (the built rule: a recast part has no cast time of its own; Ryan, 2026-10-04, at LOOT L-M), so four cuts take at least 2 s; a shorter cut needs a recast part's own cast time, which that answer ruled out for Lunge.
+10. **Role tags** (Q `core`, W `defensive`, E `mobility`, R `ultimate`) and the board's other tags read as data (Korsavil v2, Identity (v2)).
+11. **The layer note's payoff:** `empower_poise_break` lasting 5 s; an empower that always crits (a new field) rather than a `crit_chance` modifier.
+12. **The order** (Build order, Korsavil v2): K3–K9, AR5–AR6, K10, K-M, then the Vampyr Shade; the step numbers reuse the old ones.
+
+Found in v2's check (2026-10-09), still open:
+- **Locked D11's kit clause** ("her passive keeps Blades and Demise, Q its reduction and speed") describes the 2026-10-04 kit, and v2 drops both. Not edited (locked): ARCHETYPES.md, Open questions 23.
+- **Other docs still cite the old kit** (COMBAT.md's fear and its first user; ALLIES.md's `status_stealth` breaking "as Korsavil's Vanish does"; CONVENTIONS.md's reserved names): not edited in this docs job; they get a pointer once Ryan confirms v2.
+
+Balance flags (v2; recorded, not changed; Ryan's call):
+- R on one enemy: 4 daggers and 4 cuts deal 192 + 432 = 624 at 60 AD (62% of the Vampyr Shade's 1000), 1,056 when it's below 25% health.
+- Swing 4's 10 Energy adds about 8.6 a second while he chains; with the 10 regen, Energy only limits his opener.
+- The empowered auto deals 149 against a plain swing's 27, each time he reaches 4 stacks.
+- W's DoT goes on every enemy his next ability hits: 140 each through an E spin or a Q sweep.
+- W's 16 s cooldown sits outside ABILITIES' 3–10 s guide, and R's 0.5 s cast time at the ultimates' top (guides, not rules).

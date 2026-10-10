@@ -157,7 +157,7 @@ A **blink** moves a unit to a point instantly: no travel, no time in the air (Le
 - Enemies and an untargetable player (Ryan, AB10): no new aggro; an enemy already aggroed keeps aggro and keeps chasing, but stops attacking (a windup is cancelled) until the player is targetable again. Untargetable windows are short (0.5–2 s), and a frozen enemy looks broken.
 
 ### Empowers ("your next attack / next ability")
-- An empower is a StatusEffect tagged `empower` with `empower_*` fields: what consumes it (the next basic attack swing that hits, or the next ability cast) and, for abilities, which ones (a scope); a bonus base damage and AD ratio; statuses to apply to what it hits. HitPipeline adds the bonus into the hit itself, so it crits with the hit and applies to every enemy that swing or cast hits. It's consumed once per swing or cast; free casts never consume one (Ryan, AB10). Extra behavior rides the status's `reaction_rules`. Iron Resolve's is the first example (`empower_iron_resolve`); `add_next_attack_modifier()` stays as a thin wrapper (change policy).
+- An empower is a StatusEffect tagged `empower` with `empower_*` fields: what consumes it (the next basic attack swing that hits, or the next ability cast) and, for abilities, which ones (a scope); a bonus base damage and AD ratio; statuses to apply to what it hits. HitPipeline adds the bonus into the hit itself, so it crits with the hit and applies to every enemy that swing or cast hits. It's consumed once per swing or cast; free casts never consume one (Ryan, AB10). Extra behavior rides the status's `reaction_rules`. Iron Resolve's is the first example (`empower_iron_resolve`); `add_next_attack_modifier()` stays as a thin wrapper (change policy). *(Planned 2026-10-09, Korsavil v2's W and archetype-layer note: an empower used by whichever comes first, the next swing that hits or the next ability cast; and one that always crits. Later toolkit pieces, Korsavil v2.)*
 
 ### Ability ranks
 - None, in any form (decided 2026-09-29). There is no ability-rank mechanic: what would have been ranks is fully replaced by the talent tree (TALENTS.md), a deliberate, capped choice made at the hub, not an automatic per-level upgrade. In-run power comes from loot (VISION.md, Game structure).
@@ -178,6 +178,7 @@ A **blink** moves a unit to a point instantly: no travel, no time in the air (Le
   - RESOURCE_AT_LEAST (N)
   - LAST_PART_HIT (the previous recast part hit something)
   - CONSUMES_COMPANION (planned, COMPANIONS.md: this cast is consuming the caster's companion; a devour's payoff bonus)
+  - SELF_BEHIND_TARGET (planned, 2026-10-09, *(proposed)*: the Vampyr Shade's Blink, ENEMIES_AI.md): self stands in the target's back half, read at the hit (Later toolkit pieces, Korsavil v2 and the Vampyr Shade)
   - RESPECT (built in ENEMIES_AI AI1, 2026-10-04): the brain's respect (the party's, before the enemy's `respect_weight`) compared with N (0–1). Planned by ENEMIES_AI.md for the AI's use rules: THREATENED (built in AI3, 2026-10-04: an attack the brain has seen coming at self, after its reaction time, lands within N seconds; 0 = any), TARGET_WHIFFED (AI6: the target's punish window is open and at least N seconds long). They read the brain's `SituationContext`, passed as an optional last argument; anywhere without one they're false, even negated.
 - Each condition has a "not" toggle (`negate`). A list of conditions means all must pass (AND). No OR and no nesting; that's what scripts are for.
 - "Target" means the unit hit, for hit-time checks. For cast checks: a UNIT ability's chosen target; otherwise the enemy nearest the cursor within cast range. No target = every TARGET_ condition fails, even when negated. In a reaction rule, "self" is the unit the effects come from (the rule's source) and "target" the effect target.
@@ -299,6 +300,8 @@ Extra tunables: cone_half_angle_deg 60. (The old `knockback` export was deleted 
 ```
 
 ### Korsavil (designed 2026-10-04; nothing built)
+> Replaced by Korsavil v2 (below; CHAMPIONS.md, Korsavil v2) once Ryan confirms; kept until then. Bladesinger was built in CHAMPIONS K2 (2026-10-04) and stays on disk, unassigned, from v2's K3.
+
 Her four abilities and the Stalker variant, from Ryan's decisions (Ryan, 2026-10-04). Claude's picks are marked *(proposed)* and listed in CHAMPIONS.md, Open questions (Korsavil), which also holds her passive, statuses, Energy and Blades. Lines at their default are left out. "New" marks a toolkit piece that doesn't exist yet (Later toolkit pieces). The draft's ranges read as metres *(proposed)*: 100 u = 1 m = 32 px.
 
 **Q's steps by Blades: a script-set named input (the existing piece chosen).** How many Blades fly and how hard each hits (80 / 90 / 100 / 110% AD at 1 / 2 / 3 / 4 Blades sent) come from a named input, `blades` = Blades held ÷ 4, which `bladesinger.gd` sets on the recast's cast at its effect start, before it spends them (Conditions: "an ability script can set any other"); `ChargeScaling` entries read it. A conditional bonus on SELF_HAS_STATUS `blade` with a minimum stack count can't do it: bonuses are checked at each hit, and every Blade lands after the recast has spent the Blades, so the condition would read 0. The orbit's damage reduction and speed aren't ability params but her stats while the orbit lasts, so they follow the Blades' count through the new stack-count input (Later toolkit pieces).
@@ -580,6 +583,251 @@ Extra tunables: strike_interval 0.15 s, arc_radius 300 u, heal_max_health_ratio 
 | The aim point in a wall, a pit or past the room's floor | The leap's landing rule: the nearest walkable floor of the room (Blinks). |
 | No enemy in the half circle | The blink and the heal still happen. |
 
+### Korsavil v2 (Ryan, 2026-10-09; designed, not built)
+His four abilities from Ryan's redesign. **Ryan's sheet, his text word for word and his interview answers are CHAMPIONS.md's (Korsavil v2): the kit's one home;** these sheets map them onto `Ability` fields and steps. Lines at their default are left out; "new" marks a toolkit piece that doesn't exist yet (Later toolkit pieces, Korsavil v2); every name and every value not on Ryan's sheet or in his answers is *(proposed)* (CHAMPIONS.md, Open questions, Korsavil v2). The board's ranges and widths are metres: 100 u = 1 m = 32 px. "He" for Korsavil (Ryan, 2026-10-09).
+
+```
+Name / Champion / Slot / id: Blade Singer / Korsavil / Q / korsavil_blade_singer  (korsavil_q_blade_singer.tres,
+  korsavil/blade_singer.gd) (proposed names: one underscore from the built korsavil_bladesinger, flagged)
+Role tag / other tags: core (proposed) / projectile (the board's melee, recast, chain, dot, dash, empower are data:
+  CHAMPIONS.md, Korsavil v2, Identity (v2))
+Cast style: INSTANT
+Targeting: UNIT ("Throw a dagger at an enemy": Ryan, 2026-10-09). The recast: SELF (recast_targeting, new: it
+  needs no enemy under the cursor; its target is the lodged dagger)
+Cost: 25 (recast 0, proposed)      Cooldown: 11 s
+Recasts: recast_count 1, recast_window 3 s (proposed: the default), opened at part 0's effect. The board's part 2
+  "delay 1.5 s" has no reading yet (Ryan to say). Part 0: the dagger. Part 1: the lunge.
+Cast time: 0.15 s, each part (a recast part has no cast time of its own)      Range: cast_range 700 u (224 px, 7 m)
+Movement during the cast: roots_during_cast off (proposed: he walks through the 0.15 s, as the old Q)
+Damage (part 0, each enemy the dagger hits): base_damage 30, ad_ratio 0.25 (Ryan), PHYSICAL (Ryan), blocked by walls
+Damage (part 1, the lunge): 40 + 0.65 AD (Ryan) on the lodged enemy only (proposed), through hit_units() with the
+  script's lunge_base_damage and lunge_ad_ratio
+Projectile (part 0): the chain projectile (new): projectile_bounces 3, so 4 enemies at most, never one twice (Ryan,
+  2026-10-09); bounce_range 400 u (proposed); projectile_speed 1500 u/s (proposed); homing, so it can't be
+  sidestepped (as a UNIT cast); one crit roll for the cast. The board's width 1.5 m means nothing for a homing
+  dagger (proposed: unused).
+Recast conditions: the dagger hit 3 enemies (Ryan): can_cast_custom() reads ctx.sequence[&"hits"] (one kit: a
+  one-off), fail text "Needs 3 hits" (proposed); and, as every ability that moves its caster, "Rooted" while
+  rooted (the lunge is a dash: Roots)
+What it does, step by step:
+  Part 0 (the dagger)
+  1. Out of range or sight: he walks until both hold (UNIT, as Judgement). Cast start: cast_sound; 0.15 s, walking.
+  2. Effect: the dagger from his feet, homing on the target. Each enemy it hits takes 30 + 25% AD (from_ability()
+     with the cast) and is counted in ctx.sequence[&"hits"]; then it flies on to the nearest enemy within 400 u of
+     the one just hit, in that one's sight, not hit yet, homing on it; up to 3 bounces.
+  3. When the dagger ends: the last enemy hit gets status_lodged_dagger (10% slow: Ryan; 3 s, the window, as a
+     backstop) and is kept as ctx.sequence[&"lodged"], with its position updated each frame while it lives
+     (proposed). With fewer than 3 enemies hit, blade_singer.gd ends the sequence (end_recast(), new), so the 11 s
+     cooldown starts at once (proposed).
+  Part 1 (the recast: within 3 s, only after 3 hits)
+  4. Cast start: 0.15 s. Effect: dash() toward the lodged enemy where it stands at the press, or where it fell if
+     it died (Ryan, 2026-10-09), at most 1175 u (376 px, 11.75 m: the board's part 2 range) at 3000 u/s
+     (proposed), passing through units as every dash.
+  5. On arrival: hit_units() on the lodged enemy (if it's alive and in reach): 40 + 65% AD; status_lodged_dagger
+     removed.
+Supported augment flags: none yet
+Sounds (AUDIO.md): none yet
+Walls: the dagger and its bounces stop at walls, and a bounce only picks an enemy in sight of the one just hit; the
+  lunge slides along walls (dash()).
+World: dash() (part 1); no displacement on enemies.
+Stunned mid-cast: either part interrupted at once and refunded; part 1 keeps its window time and the lodged dagger.
+Caster dies mid-cast / mid-effect: interrupted; a dagger in flight keeps bouncing on his snapshot (Projectiles);
+  the lodged dagger's slow ends with its 3 s.
+Tooltip template (proposed): "Throw a dagger at an enemy that bounces to up to 3 more, dealing {damage} physical
+  damage to each. If it hits 3 enemies it lodges in the last one, slowing it by 10%: recast within
+  {recast_window}s to lunge to it for 40 + 65% AD."
+Extra tunables: bounce_range 400 u, hits_for_recast 3, lunge_speed 3000 u/s, lunge_max 1175 u,
+  lunge_base_damage 40, lunge_ad_ratio 0.65.
+```
+
+| Edge case (Q) | Handling *(proposed unless marked)* |
+|---|---|
+| The dagger hits 1 or 2 enemies | No recast: the sequence ends when the dagger does and the cooldown starts. |
+| An enemy in the chain dies to the dagger | It still counts as hit; the dagger bounces on from where it fell. If it was the last one hit, the lunge goes to where it fell (Ryan, 2026-10-09). |
+| The lodged enemy walks away | The lunge goes to it where it stands at the press (Ryan, 2026-10-09), up to 11.75 m. |
+| The lodged enemy turns untargetable | The lunge still goes to it; the hit is blocked. |
+| A bounce target dies or turns untargetable in flight | The dagger ends there (as the old bounce projectile). |
+| The recast while rooted | "Rooted" (a dash: Roots); the window keeps running. |
+| Enemies that dodge (ENEMIES_AI.md, Dodging) | None: the dagger homes, like a UNIT cast. |
+| 6 Demise stacks | Q is the sweep for 3.5 s (next sheet), not the dagger (Ryan, 2026-10-09). |
+
+```
+Name / Champion / Slot / id: the sweep (a placeholder name) / Korsavil / Q, a REPLACE variant /
+  korsavil_blade_singer_sweep  (korsavil_q_blade_singer_sweep.tres, korsavil/blade_singer_sweep.gd);
+  variant_of korsavil_blade_singer
+Granted by: status_blade_singer_sweep (3.5 s: Ryan), which the passive's script gives when his Demise reaches 6
+  (Ryan, 2026-10-09: "pressing Q then casts the sweep instead of the dagger"; CHAMPIONS.md, Korsavil v2, Passive)
+Role tag / other tags: core / dash, melee, area (proposed)
+Cast style: INSTANT
+Targeting: DIRECTION (proposed: the lunge goes toward the aim)
+Cost: 25 (proposed: Q's)      Cooldown: 11 s (the slot's: a REPLACE keeps it, so the sweep needs Q off cooldown,
+  as Ryan wants)
+Cast time: 0.15 s (Q's)      Range: the lunge 300 u (96 px, 3 m, proposed)
+Movement during the cast: roots (proposed: it ends in a lunge)
+Damage: base_damage 40, ad_ratio 1.10 (Ryan), PHYSICAL, blocked by walls
+Conditional bonuses: (no conditions) → target_statuses status_blade_singer_wound (20 + 35% AD a second for 4 s:
+  Ryan; CHAMPIONS.md, Korsavil v2, Statuses (v2))
+Cast conditions: not dash-blocked ("Rooted")
+What it does, step by step:
+  1. Cast start: 0.15 s, rooted.
+  2. Effect start: removes every stack of status_demise (Ryan: it spends them) and status_blade_singer_sweep (so
+     the slot is the dagger again).
+  3. dash() 300 u toward the aim; then every enemy in a half circle of 350 u (112 px, 3.5 m, proposed) in front of
+     him along the lunge, in sight of where he stopped: 40 + 110% AD and the wound.
+Supported augment flags: none yet
+Stunned mid-cast: interrupted and refunded; the 3.5 s keep running.
+Tooltip template (proposed): "Lunge forward and sweep in front of you, dealing {damage} physical damage and 20 + 35%
+  AD physical damage a second for 4 seconds to every enemy hit. Spends your Inevitable Demise."
+Extra tunables: lunge_distance 300 u, arc_radius 350 u.
+```
+
+```
+Name / Champion / Slot / id: Cloak & Dagger / Korsavil / W / korsavil_cloak_and_dagger
+  (korsavil_w_cloak_and_dagger.tres; a script only if the data can't do it) (proposed names)
+Role tag / other tags: defensive (proposed) / buff (proposed)
+Cast style: INSTANT
+Targeting: SELF
+Cost: 30      Cooldown: 16 s
+Cast time: 0.25 s      Range: self
+Movement during the cast: roots_during_cast off (proposed)
+What it does, step by step:
+  1. Cast start: cast_sound; 0.25 s, walking.
+  2. Effect (after its own ABILITY_CAST, so its own cast never ends it): three statuses on him:
+     - status_cloak_and_dagger: stealth 5 s, +15% move speed (Ryan); ends_on_cast and ends_on_swing (designed for
+       the old Vanish, new): a cast's start or a swing's start ends it (Ryan: "Attacking or using abilities
+       cancels the stealth"); a dash and taking damage don't (proposed);
+     - status_cloak_untargetable: untargetable for 1.5 s (Ryan, 2026-10-09: ABILITIES' 0.5–2 s rule), removed with
+       the stealth if that ends first (proposed);
+     - empower_cloak_and_dagger: the new attack-or-cast trigger (BASIC_ATTACK_OR_CAST): used by his next swing that
+       hits or his next ability cast, whichever comes first; its empower_statuses [status_cloak_wound] go on every
+       enemy that swing or cast hits (Ryan, 2026-10-09: 20 + 25% AD a second, 4 s, the length proposed); it lasts
+       until used or 8 s (proposed: the stealth's 5 s plus 3).
+  3. While stealthed: enemies never pick him, and one already on him drops him (ALLIES' pick, built in ENEMIES_AI
+     AI2); they search (ENEMIES_AI.md, Losing a stealthed target; CHAMPIONS.md's K9).
+  4. The act that ends the stealth uses the empower: a swing reads its empowers at its hit, a cast takes its
+     ability empowers at its start, and the empower went on at W's effect, before both.
+  No Energy while hidden (the old Vanish's +15 a second is gone: Ryan, 2026-10-09).
+Supported augment flags: none yet
+Walls / World: none.
+Stunned mid-cast: interrupted at once and refunded: no stealth.
+Caster dies mid-cast / mid-effect: interrupted; dead, his statuses clear (no empower).
+Tooltip template (proposed): "Vanish into stealth for 5s, moving 15% faster, and become untargetable for the first
+  1.5s. Attacking or casting reveals you, and that attack or ability deals 20 + 25% AD physical damage a second for
+  4s to every enemy it hits."
+```
+
+| Edge case (W) | Handling *(proposed unless marked)* |
+|---|---|
+| Cast while rooted | Allowed: it doesn't move him. The stealth and the 1.5 s untargetable start where he stands. |
+| Hit while stealthed, after the 1.5 s | The stealth stays (only his own swings and casts end it); the hit lands (he isn't untargetable any more). |
+| An enemy mid-windup on him | During the 1.5 s untargetable its hit is blocked; after, it lands where aimed; its pick drops him either way (built). |
+| He dashes while stealthed | The stealth stays (the sheet names attacks and abilities only). |
+| A swing that whiffs | Ends the stealth (a swing's start) but keeps the empower (an empower is used by a swing that hits). |
+| A free cast (an item's) | Doesn't end the stealth (as `ends_on_cast` was designed) and doesn't use the empower (free casts never do). |
+| The stealth runs its 5 s | The empower waits 3 s more (its 8 s), then ends unused. |
+| Its DoT on an enemy already wounded | REFRESH: a fresh 4 s on his current AD (COMBAT's DoT snapshot). |
+
+```
+Name / Champion / Slot / id: Spectral Assault / Korsavil / E / korsavil_spectral_assault
+  (korsavil_e_spectral_assault.tres, korsavil/spectral_assault.gd) (proposed names; the old R's reserved
+  korsavil_spectral was never built)
+Role tag / other tags: mobility (proposed) / blink, cone, melee (the board's)
+Cast style: INSTANT
+Targeting: POINT, clamped to cast_range
+Cost: 30      Cooldown: 10 s
+Cast time: 0.25 s      Range: cast_range 900 u (288 px, 9 m)
+Movement during the cast: roots (proposed)
+Damage: the spin base_damage 20, ad_ratio 0.40 (Ryan); the stab 20 + 0.55 AD (Ryan; the script's stab_base_damage
+  and stab_ad_ratio); PHYSICAL (Ryan); one crit roll for the cast, shared by the spin and the stab
+  (hit_units()' crit_roll)
+Cast conditions: can_cast_custom() fails while is_blink_blocked(), fail text "Rooted" (Roots)
+What it does, step by step:
+  1. Cast start: cast_sound; 0.25 s, rooted.
+  2. Effect: blink() to the aim point (over walls, the leap's landing rule: Blinks).
+  3. The spin: every enemy in a 160° cone (Ryan) of 550 u (176 px, 5.5 m: Ryan) from where he landed, facing the
+     blink's direction (proposed; his facing for a blink of no length), in sight of the landing spot: 20 + 40% AD.
+     The board's width 3 means nothing for a cone (proposed: unused).
+  4. 0.15 s later (proposed): the stab on the nearest enemy the spin hit (Ryan, 2026-10-09), if it's still a
+     target: 20 + 55% AD. The spin hit nothing: no stab (Ryan, 2026-10-09).
+Supported augment flags: none yet
+Walls: the blink goes over walls; the spin and the stab hit only enemies in sight of the landing spot.
+World: blink().
+Stunned mid-cast: interrupted and refunded. Between the spin and the stab: no stab.
+Caster dies mid-cast / mid-effect: interrupted; dead between the spin and the stab, no stab.
+Tooltip template (proposed): "Blink to the cursor, slicing every enemy in front of you for {damage} physical damage,
+  then stab the nearest one you hit for 20 + 55% AD."
+Extra tunables: cone_half_angle_deg 80, stab_delay 0.15 s, stab_base_damage 20, stab_ad_ratio 0.55.
+```
+
+| Edge case (E) | Handling *(proposed unless marked)* |
+|---|---|
+| The aim in a wall, a pit or past the room's floor | The landing rule: the nearest walkable floor (Blinks). |
+| The stab's target dies or turns untargetable in the 0.15 s | The stab goes to the next nearest enemy the spin hit; none left, no stab. |
+| A spin hit blocked by i-frames | That enemy wasn't hit: it can't be the stab's target. |
+| Rooted | "Rooted": nothing spent, not buffered. |
+
+```
+Name / Champion / Slot / id: Reckoning (proposed: Ryan's advisor's working name; the board's is blank) / Korsavil /
+  R / korsavil_reckoning  (korsavil_r_reckoning.tres, korsavil/reckoning.gd) (proposed names)
+Role tag / other tags: ultimate / projectile, blink (proposed)
+Cast style: INSTANT
+Targeting: SELF (proposed: the daggers pick their own targets, and each recast its Sentenced enemy)
+Cost: 50 (recasts 0, proposed)      Cooldown: 60 s (starts when the sequence ends)
+Recasts: recast_count 4, recast_window 2 s (Ryan: "up to 4 times, within 2 seconds of the last": the built window
+  restarts after each part). Part 0: the daggers. Parts 1–4: the cuts.
+Cast time: 0.5 s (Ryan's sheet; the advisor's 0.25 s isn't used), each part (a recast part has no cast time of its
+  own; flagged: four cuts take at least 2 s)      Range: 800 u (256 px, 8 m) for the daggers
+Movement during the cast: roots (proposed)
+Damage: the daggers base_damage 30, ad_ratio 0.30 (Ryan); each cut 60 + 0.80 AD (Ryan; the script's cut_base_damage,
+  cut_ad_ratio), PHYSICAL (Ryan)
+Projectiles (part 0): projectile_count 4 (Ryan), homing (proposed), projectile_speed 1500 u/s (proposed),
+  projectile_width 60 u (the board's 0.6 m)
+Cast conditions: ENEMIES_IN_RANGE count 1, radius 800 u, fail text "No target" (proposed)
+Recast conditions: can_cast_custom() fails while is_blink_blocked() ("Rooted")
+Conditional bonuses (the cuts): TARGET_HEALTH_PERCENT LESS_THAN 0.25 → the cut's damage ×2 (Ryan: "double damage to
+  enemies below 25% health"; checked at the hit)
+What it does, step by step:
+  Part 0
+  1. Cast start: cast_sound; 0.5 s, rooted.
+  2. Effect: the 4 nearest enemies within 800 u in his sight, one dagger each; with fewer, the extras go to the
+     nearest again (Ryan); one crit roll for the cast. A one-off in reckoning.gd.
+  3. Each dagger that hits: 30 + 30% AD and a stack of status_sentenced (6 s; 10% slow: Ryan).
+  Parts 1–4 (the cuts, each within 2 s of the last)
+  4. Cast start: 0.5 s. Effect: blink() to the Sentenced enemy nearest the cursor (Ryan; the script picks it at the
+     effect: a one-off), landing just in front of it on his side (proposed); then hit_units() on it: 60 + 80% AD,
+     ×2 below 25% health, one Sentenced stack removed ("pulling out its dagger").
+  5. The cut counts as a basic attack (Ryan, 2026-10-09: on-hit only): its hit is tagged basic_attack as well as
+     ability (new: an ability hit tagged as a basic attack), so on-hit effects, life_steal and hit:basic_attack
+     scopes treat it as one; it isn't a chain swing (no passive count, no Energy), doesn't use his swing empowers
+     and isn't halved by weak basic attacks.
+  The Finish
+  6. After the 4th cut, when no Sentenced enemy remains (the script ends the sequence: end_recast(), new), or when
+     the 2 s run out (recast_window_finished) (Ryan, 2026-10-09): status_reckoning_shroud (1.5 s, stealth and
+     untargetable) and 4 stacks of status_demise (max 6) on him.
+Supported augment flags: none yet
+Sounds (AUDIO.md): none yet
+Walls: the daggers need sight from him and stop at walls; the cuts' blinks go over walls.
+World: blink() per cut.
+Stunned mid-cast: either part interrupted and refunded; a cut keeps its window time.
+Caster dies mid-cast / mid-effect: interrupted; dead, no Finish (statuses clear); the Sentenced daggers end with
+  their 6 s.
+Tooltip template (proposed): "Hurl 4 daggers at the nearest enemies, dealing {damage} physical damage and Sentencing
+  them. Recast up to 4 times to blink to the Sentenced enemy nearest the cursor and cut it for 60 + 80% AD (double
+  below 25% health). When you're done, become untargetable and stealthed for 1.5s and gain 4 Inevitable Demise."
+Extra tunables: cut_base_damage 60, cut_ad_ratio 0.80, execute_health 0.25, finish_demise 4, shroud_time 1.5 s.
+```
+
+| Edge case (R) | Handling *(proposed unless marked)* |
+|---|---|
+| No enemy within 8 m | "No target": nothing spent, not buffered. |
+| One enemy | All 4 daggers hit it (Ryan): 4 Sentenced stacks, so up to 4 cuts on it. |
+| The Sentenced enemy nearest the cursor dies during a cut's cast time | The cut goes to the next nearest Sentenced enemy; none left, the Finish. |
+| A recast pressed with no Sentenced enemy left | The Finish at once. |
+| The 2 s run out with Sentenced enemies left | The Finish (Ryan, 2026-10-09). Their daggers stay until their 6 s end (nothing reads them). |
+| A cut while rooted | "Rooted"; the window keeps running; if it runs out, the Finish. |
+| A cut that kills | The Finish still waits for the other Sentenced enemies or the window. |
+| R at 3 Demise | The Finish's +4 caps at 6 (Ryan): the empowered auto and Q's sweep window both open (CHAMPIONS.md, Korsavil v2, Kit edge cases). |
+
 ## Numbers (TARGET: start, range)
 - Player cast times: movement and quick strikes 0.0–0.1 s; strikes 0.15–0.3 s; ultimates up to 0.5 s.
 - Cooldowns: non-ultimate abilities 3–10 s; ultimates 30–60 s (shorter than League, for run pacing); a companion's command 25–50 s, never shortened by ability haste (Ryan, 2026-10-03; COMPANIONS.md).
@@ -729,6 +977,7 @@ Kinds (`Condition.Kind`):
 - `RESOURCE_AT_LEAST`: self's `resource_pool.current` ≥ `value`; a unit without a pool fails.
 - `LAST_PART_HIT`: in a recast sequence, the previous part hit something (reads `cast`); false anywhere else.
 - `CONSUMES_COMPANION` (planned, COMPANIONS.md; appended to the enum): the cast is consuming self's companion (`cast.consumes_companion`, which the consume at the effect start leaves true only if the companion was out); false without a cast.
+- `SELF_BEHIND_TARGET` (planned 2026-10-09 for the Vampyr Shade, ENEMIES_AI.md; appended; *(proposed)*): the angle between the target's facing and the line from the target to self is more than 90°. A target with no facing (no `facing`: every enemy today) fails it, even negated, as a TARGET_ kind with no target does.
 
 Methods: `is_met(self_unit, target, cast = null)` (the kind's check, then `negate`; a TARGET_ kind with no valid target is false either way), `is_target_kind()`; static `all_met(conditions, self_unit, target, cast)` (AND; an empty list passes), `first_failed(...)` (for the fail text), `any_target_kind(conditions)`.
 Built in ENEMIES_AI AI1 (2026-10-04): the kind `RESPECT` and the `situation` argument below (`is_situation_kind()`); AI3 (2026-10-04): `THREATENED`; planned (AI6): `TARGET_WHIFFED`. The kinds `THREATENED`, `TARGET_WHIFFED` and `RESPECT` (appended; `value` is seconds for the first two and 0–1 for RESPECT, with `comparison`), and an optional last argument `situation: SituationContext` on `is_met()`, `all_met()` and `first_failed()`; the three kinds read it and are false without it; every other kind ignores it. *(ENEMIES_AI Combos, proposed; AI-D1)* Four more situation kinds, appended: `CROWDING` and `OPENING` (0–1 with `value` and `comparison`), `TARGET_ESCAPES_READY` (at least `count` of the target's `mobility` and `defensive` abilities ready) and `TARGET_CORNERED`; and `THREATENED` reads `status_tag`, when set, as the incoming ability's tag (`major` = any of the AI table's `major_tags`). ARCHETYPES AR3b (built 2026-10-08) appends `TARGET_CLOSED_IN` (the situation's `target_closed_in`: an enemy Assassin's Riposte Stance), and adds `Ability.get_cast_recovery_time(caster, ctx)`: the recovery after a cast's effect (`recovery_time` unless a script decides per cast; the stance recovers only after a whiff).
@@ -799,6 +1048,7 @@ All take the usual `apply(target, source, trigger_ctx)`; the source id is the ru
   - `empower_scope: StringName` (`&""` = any ability; `ability:<id>` / `tag:<tag>`)
   - `empower_base_damage`, `empower_ad_ratio` (the source's AD, at the hit): added to every hit of that swing or cast
   - `empower_statuses`: applied to every enemy that swing or cast hits (through `HitContext.statuses`). Typed `Array[Resource]`: a typed array of its own class made the script reference itself, reported as leaked resources at exit.
+  - *(planned 2026-10-09 for Korsavil v2, *(proposed)*; Later toolkit pieces)* `EmpowerTrigger.BASIC_ATTACK_OR_CAST` (appended): used by the next swing that hits or the next ability cast, whichever comes first; `empower_always_crits: bool` (false): the swing or cast that uses it crits.
 - Status tags used by rules here: `empower`, `unstoppable`, `untargetable`, `form`.
 - *(AUDIO A4: approved 2026-10-04, not built)* Sounds: next to `apply_sound`, `loop_sound` and `expire_sound` (AUDIO A3), a `consume_sound` for an end by `CONSUMED` (an empower used by its swing or cast: the "big impact"; a shield used up); `expire_sound` then plays for EXPIRED, CLEANSED and REMOVED; nothing at death, as today. The enum `StatusEffect.EndReason` (`EXPIRED`, `CONSUMED`, `CLEANSED`, `DIED`, `REMOVED`). AUDIO.md, Why a status ended, and its ring-out example (an empower whose ring loops while it's up, sheathes on a timeout and lands a big impact when used).
 
@@ -1131,6 +1381,7 @@ Not build steps. Each is data once 2+ kits use it (Data or script, above).
 - Displace with a max distance, an optional speed Curve (.tres) and a "landed" signal (early on walls).
 - Example use: capture-and-throw abilities (Tahm Kench, Singed E style).
 - **Korsavil's pieces** (CHAMPIONS.md, Korsavil; designed 2026-10-04). Each is *(proposed; built when Korsavil is)*; the field and value names are proposals too.
+  - *(2026-10-09: Korsavil v2, once Ryan confirms it, still needs the bounce projectile (as Q's chain), `ends_on_cast` / `ends_on_swing`, `empower_damage_type` and `recast_targeting` from this list; the rest loses its first user. Korsavil v2's pieces, below.)*
   - **A bounce projectile** (her E): a `Projectile` that, after a hit, flies on to the nearest enemy (of its team's foes, as `enemies_of_team()`) within `bounce_range` (LoL units) of the unit it hit, in sight of that unit and not yet hit by this projectile, homing on it, up to `projectile_bounces` times (a scoped param, so "+1 bounce" is an item modifier). Each hit sets the named input `bounce` (bounces so far ÷ `projectile_bounces`), so damage that grows or falls per bounce is data (a `ChargeScaling` on it). It ends with no next enemy, at a wall, at the end of its range with no first hit, or when the enemy it homes on dies or turns untargetable. A per-hit callback lets the ability's script act on each hit that gets through (her Blades). One crit roll for the cast, as today.
   - **A status that ends when its holder acts** (her W; ALLIES' `status_stealth` will want the same): `StatusEffect.ends_on_cast`, `ends_on_swing`, `ends_on_dash` (bools). StatusComponent ends the status when its unit starts a cast (`AbilityComponent.cast_started`; a free cast doesn't count), starts a swing (`AutoAttackComponent.swing_started`) or starts a dash (`DashComponent.dash_started`, a local signal: a dash isn't an ability, and no reaction trigger sees it). A cast that started before the status was applied never ends it. The end is an ordinary removal (`status_removed`).
   - **Numbers that follow a stack count** (her Q's orbit, Demise's tiers). **Built in CHAMPIONS K2 (2026-10-04)**, as below; `_sync_modifiers()` now swaps its exact per-stack copies so a status's scaling copies survive its stack changes (CHANGELOG.md). Checked in the code before: a status's `modifiers` already scale with its own stacks (one copy per stack, `StatusComponent._sync_modifiers()`), and its DoT deals its tick × stacks. That isn't enough here: Q's reduction and speed sit on the orbit but follow another status's count (the Blades, which outlive the orbit); per-stack copies of a PERCENT_MULT compound (four −5% copies make × 0.815, not × 0.80); and Demise's damage is a replacing tier, not × stacks. So:
@@ -1146,6 +1397,22 @@ Not build steps. Each is data once 2+ kits use it (Data or script, above).
   - **The finisher hit tag** (her detonation): COMBAT.md's `AttackSwing.hit_tags` (Ryan, 2026-10-04: "noted for later, built when a champion needs it"; Korsavil is that champion). The last swing of each of her two cycles gets `finisher`, added to its hits, so the detonation is a HIT rule (data). A dash-strike isn't a finisher.
   - **A status that swaps the basic attack combo** (her two cycles; Ryan, 2026-10-04: 3 swings normally, 4 from Vanish): `StatusEffect.combo_override` (an `AttackCombo`). AutoAttackComponent picks the combo when a chain starts (its first swing): a status's `combo_override` while one is on (the newest, if several), else the unit's own; the chain keeps that combo to its finisher, its reset or a forced reset, even if the status ends inside it. Her `status_vanish` and both Vanish empowers carry `combo_korsavil_vanish.tres`; a Vanish restarts her chain. A champion's dash-strike stays its own combo's.
   - **A recast part's own targeting** (her R): every press of a UNIT ability, recast parts included, needs a targetable enemy within range and sight (`AbilityComponent.try_cast()`, checked), so R's recast (a blink back) and the Stalker's (a blink to a point) couldn't be pressed on empty ground. `Ability.recast_targeting`: the targeting of every part after the first, defaulting to "the same as `targeting`", so every ability stays as it is. R: SELF; the Stalker: POINT.
+- **Korsavil v2's pieces** (CHAMPIONS.md, Korsavil v2; Ryan's redesign, 2026-10-09). Each is *(proposed; built when needed)*, its names too; the step that builds it is CHAMPIONS.md's (Build order, Korsavil v2).
+  - **The chain projectile** (Q, K4): the bounce projectile above, unchanged in shape: after a hit it flies on to the nearest enemy within `bounce_range` of the unit it hit, in that unit's sight, not hit yet, homing, up to `projectile_bounces` times, with a per-hit callback; Q's first throw homes too (a UNIT cast). Every hit deals the same, so the `bounce` input isn't needed for Q.
+  - **Ending a recast sequence early** (Q, R; K4): `AbilityComponent.end_recast(slot)`, public (today's `_end_recast()` is private): the sequence ends and the cooldown starts the next physics frame, as at a window's end. Q ends its own when the dagger hit fewer than 3 enemies; R when no Sentenced enemy remains.
+  - **A recast part's own targeting** (Q's recast, K4): `recast_targeting` above, SELF for Q (its target is the lodged dagger, not the cursor).
+  - **The attack-or-cast empower trigger** (W, K6; the layer note's payoff, K10): `StatusEffect.EmpowerTrigger.BASIC_ATTACK_OR_CAST`, used by the next swing that hits or the next ability cast (not a free cast), whichever comes first; its bonus and statuses go into that swing's hit or into every hit of that cast.
+  - **A status that ends when its holder acts** (W, K6): `ends_on_cast`, `ends_on_swing` above; v2 doesn't use `ends_on_dash` (ALLIES' stealth may).
+  - **An empower that always crits** (K10): `StatusEffect.empower_always_crits` (false): the swing or cast that uses it crits (its crit roll is decided as a crit before it rolls). Not a `crit_chance` modifier on the status: an ability's empower is used at its cast start, before its hits roll.
+  - **An empower damage type** (K10): `empower_damage_type` above; the layer note's payoff is TRUE.
+  - **An ability hit that counts as a basic attack** (R's cuts, K8): `hit_units()` takes extra hit tags (proposed: an `extra_tags` argument), and R's cuts carry `basic_attack` beside `ability`: on-hit, `life_steal` and `hit:basic_attack` scopes treat the cut as one; what reads a swing (empowers, the chain's count, weak basic attacks) doesn't see it.
+  - **Energy on a swing that lands** (the chain's swing 4, K3): `AttackSwing.resource_on_land` (0): restored once when that swing hits anything, however many it hits.
+  - **A passive's stack-count hook** (K3, K5): a one-off in Korsavil's passive script (a `Passive` subclass): when `status_demise` goes from under 4 to 4 or more, `empower_demise`; from under 6 to 6, `status_blade_singer_sweep`. The built rules can't see a count crossing a line.
+  - **R's daggers and its Sentenced pick** (K8): one kit, so one-offs in `reckoning.gd`: the 4 nearest enemies in his sight, extras on the nearest again; each cut's blink target, the Sentenced enemy nearest the cursor.
+- **The Vampyr Shade's pieces** (ENEMIES_AI.md, The Vampyr Shade; Ryan's board, 2026-10-09). *(proposed; built in its AI-V steps)*:
+  - **The Condition kind `SELF_BEHIND_TARGET`** (Conditions, above): its Blink's +40 from behind as a `ConditionalBonus`. Usable by any kit with a backstab.
+  - **A ground drag** (the toolkit's "later `pull_to()`"): another unit moved toward a point over a time as a displacement, dash-cancelable like a knockback and with no airborne status (enemies don't knock up the player in v1: 3D.md), refused by unstoppable and untargetable, moving a rooted unit (forced movement: Roots). Its Pull. `pull_airborne()` (LOOT L5, Judgement's drag) stays as it is.
+  - **Ground areas** (the first bullet of this list; WORLD_INTERACTION.md, Hazards): its Trap is the first enemy-made Hazard.
 
 ## Out of scope
 Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modifiers, unit reaction rules, statuses, empowers and an optional script, all under a source id like `passive_knight`, built on this toolkit); items and affix rolls (LOOT.md); enemy AI choosing abilities (ENEMIES_AI.md, written 2026-10-03: the brain, intents, use rules; this doc keeps only the fields it adds to Ability and Condition); ability ranks (none, replaced by talents: Ability ranks); talents (TALENTS.md, built on augments); summons; ability slot swapping by the player (decided no, 2026-09-29: slots are fixed, VISION.md, Build variety; REPLACE augments and forms still change what's active in a slot); TOGGLE and SUSTAINED cast styles (not planned: Cast styles); the ultimate meter (CHAMPIONS.md).
@@ -1166,3 +1433,4 @@ Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modi
 - Conditions: will we ever need OR, or do scripts cover it?
 - Do conditional bonuses show in tooltips always, or only while active? *(AB12 starts with always)*
 - Korsavil (designed 2026-10-04): her proposals are in CHAMPIONS.md, Open questions (Korsavil); the toolkit pieces she needs are in Later toolkit pieces, each *(proposed; built when Korsavil is)*.
+- Korsavil v2 (Ryan's redesign, 2026-10-09): his proposals are in CHAMPIONS.md, Open questions (Korsavil v2); his sheets in Korsavil v2 (above); the pieces he and the Vampyr Shade need in Later toolkit pieces, each *(proposed)*. Two readings wait for Ryan: Q's board field "delay 1.5 s" (no reading yet), and R's cuts keeping its 0.5 s cast time each (a recast part has no cast time of its own: Ryan, 2026-10-04).
