@@ -7,4 +7,3 @@
 script = ExtResource("1_sound")
 variations = Array[AudioStream]([ExtResource("2_kk6r5")])
 volume_db = 5.0
-pitch_scale = 1.25

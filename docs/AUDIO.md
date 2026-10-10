@@ -195,7 +195,7 @@ Loot (LOOT L7, 3 files, synthesized in a GDScript tool, assigned in `loot_table_
 
 Enemies (ENEMIES_AI AI2, 1 file, synthesized in a GDScript tool, assigned in `enemy_ai_table_default.tres` as `alert_sound`): `sound_enemy_alert` (a short rough grunt rising then falling, ~0.28 s; −8 dB, pitch jitter 0.08, at most 2 at once), played on the enemy that notices you as its pack wakes, with its `alert` pose (never audio only).
 
-Korsavil v2 (CHAMPIONS K5b, 3 files; Ryan, 2026-10-10: the passive has two sounds, and the empowered Q sounds different from the normal one). **Placeholders that reuse today's WAVs at other pitches**, no new audio files (no LICENSES.md rows): `sound_korsavil_demise_four` (`status_haste_apply_01.wav`, pitch 1.25, −4 dB) as `empower_demise`'s `consume_sound`, so it plays when the strike that uses his 4-stack empower hits (Ryan, 2026-10-10: on that hit, not when the 4th stack comes); `sound_korsavil_demise_six` (`ui_ultimate_ready_01.wav` on SFX, pitch 0.85, −3 dB) as `status_blade_singer_sweep`'s `apply_sound`, at 6; `sound_korsavil_sweep_cast` (`knight_judgement_cast_01.wav`, pitch 1.15) as the sweep's `cast_sound`. The dagger (Blade Singer) has no cast sound yet; when it gets one it stays different from the sweep's. Real files replace the placeholders in the same SoundEvents (How to add a sound, step 1).
+Korsavil v2 (CHAMPIONS K5b, 3 files; Ryan, 2026-10-10: the passive has two sounds, and the empowered Q sounds different from the normal one). **Placeholders that reuse today's WAVs at other pitches**, no new audio files (no LICENSES.md rows): `sound_korsavil_demise_four` (`status_haste_apply_01.wav`, pitch 1.25, −4 dB) as `empower_demise`'s `consume_sound`, so it plays when the strike that uses his 4-stack empower hits (Ryan, 2026-10-10: on that hit, not when the 4th stack comes); since A6a's play test it holds Ryan's own `Korsavil_Deflect01.wav` (+5 dB, pitch 1.0) and his sheet plays it at the empowered swing's start; `sound_korsavil_demise_six` (`ui_ultimate_ready_01.wav` on SFX, pitch 0.85, −3 dB) as `status_blade_singer_sweep`'s `apply_sound`, at 6; `sound_korsavil_sweep_cast` (`knight_judgement_cast_01.wav`, pitch 1.15) as the sweep's `cast_sound`. The dagger (Blade Singer) has no cast sound yet; when it gets one it stays different from the sweep's. Real files replace the placeholders in the same SoundEvents (How to add a sound, step 1).
 
 ## Architecture / contracts
 ### Audio (autoload, `res://scripts/autoload/audio.gd`)
@@ -397,7 +397,7 @@ Its fields sit in four Inspector groups, so it reads as When / Which / Where / H
 | Which | `stacks` | `int` | 0 | `STACKS_REACHED`: the count, reached from below |
 | Which | `end_reason` | `SoundTrigger.EndFilter` | `ANY` | `STATUS_ENDED`: `ANY`, or one `StatusEffect.EndReason` (EXPIRED, CONSUMED, CLEANSED, DIED, REMOVED) |
 | Which | `hit_tags` | `Array[StringName]` | `[]` | hit events: every tag must be on the hit (`finisher`, `empowered`, `melee`, `proc`...) |
-| Which | `used_empower` | `StringName` | `&""` | hit events: the hit used this empower (a swing's `HitContext.empowers_used`, new; a cast's `cast.empowers`) |
+| Which | `used_empower` | `StringName` | `&""` | hit events: the hit used this empower (a swing's `HitContext.empowers_used`, new; a cast's `cast.empowers`). Swing events (since 2026-10-10): a `SWING_START` while he holds it (the swing that carries it: if it whiffs, the empower stays and the next swing plays it again), a `SWING_LANDED` whose hits used it, never a `SWING_WHIFF` |
 | Which | `crit_only`, `kill_only` | `bool` | false | hit events |
 | Which | `conditions` | `Array[Condition]` | `[]` | all must pass: self = the sheet's unit, target = the event's other unit, cast = the event's cast |
 | Where | `place` | `SoundTrigger.Place` | `DEFAULT` | the table below |
@@ -453,12 +453,13 @@ The one place triggers play. It keeps the rule that a game rule never plays a so
 
 ### Korsavil's sheet (the first one, A6a)
 `data/sound_sheets/sound_sheet_korsavil.tres`, three triggers for his K5b sounds, moved **in two steps** (Ryan, 2026-10-10: only after the sheet is verified to play them at the same moments as the old slots):
-1. "Demise 4: empowered hit": `HIT_DEALT`, `used_empower` `empower_demise`, `once_per_frame`, place `DEFAULT` (an impact sound, so `AT_OTHER` may put it at the enemy hit), `sound_korsavil_demise_four`.
+1. "Demise 4: empowered swing": `SWING_START`, `used_empower` `empower_demise` (the swing that carries his 4-stack empower), `once_per_frame`, place `DEFAULT` (centered), `sound_korsavil_demise_four`. Ryan, 2026-10-10, after A6a's play test: at the empowered swing's start rather than its hit, with his file `Korsavil_Deflect01.wav` (first an `HIT_DEALT` on the empowered hit; renamed from "Demise 4: empowered hit").
 2. "Demise 6": `STACKS_REACHED`, `status_id` `demise`, `stacks` 6, `sound_korsavil_demise_six`.
 3. "Sweep cast": `CAST_START`, `ability_id` `korsavil_blade_singer_sweep`, `at_progress` 0 (0.8 puts it near the lunge; centered either way: a cast), `sound_korsavil_sweep_cast`.
 
 - **Step 1 (in A6a):** the sheet is built and verified, not yet his: a test gives a copy of his ChampionData the sheet and checks, from the audio log, that each trigger plays in the same physics frame as its old slot (the empowered hit's frame, the frame his stacks reach 6, the sweep's press) and at the same place (centered). His `korsavil.tres` doesn't point at it yet, so nothing plays twice.
-- **Step 2 (its own step, after Ryan's play test of step 1):** `korsavil.tres` gets `sound_sheet`, and `empower_demise.consume_sound`, the sweep window's `apply_sound` and the sweep's `cast_sound` go back to empty. The SoundEvent files don't change.
+- **Since the A6a commit (6385fc4), `korsavil.tres` holds the sheet** (assigned in Ryan's play test and committed with it), so his three sounds play from the sheet and still from their slots until step 2; the 4-stack one twice apart (the sheet at the swing's start, the slot at its hit).
+- **Step 2 (its own step, after Ryan's play test of step 1):** `korsavil.tres` gets `sound_sheet` (done, above), and `empower_demise.consume_sound`, the sweep window's `apply_sound` and the sweep's `cast_sound` go back to empty. The SoundEvent files don't change.
 
 ### The tuning panel (A6b): in SandboxAudio, on Z
 A5's panel (The audition tool) gets a **Triggers** view, built first; A5's lists join the same panel when A5 is built. Sandbox only, never room_01; a click on it also swings, as on N's panel.
@@ -486,6 +487,8 @@ A5's panel (The audition tool) gets a **Triggers** view, built first; A5's lists
 - **`STACKS_REACHED`** reads the count after each application (one application adds one stack at most) and rereads it every physics tick, so stacks running out one by one (`STACK`) are seen; a status ending sets it to 0.
 - **`STATUS_ENDED`'s other unit** is the source remembered when the status was applied (the status is gone when it ends).
 - A unit is watched once it's ready (the Player's champion loads before `_ready()`): `watch()` waits for `ready` when it has to. An enemy is watched after its data's abilities, so its casts are heard.
+- **`used_empower` on swing events** (2026-10-10, after A6a's play test: Ryan's SWING_START trigger with `used_empower` played on every swing, since the filter read hits only): a swing start checks that he holds the empower; a landing, that its hits used it (recorded from his hits that frame, blocked ones too: the empower is spent); a whiff never matches.
+- **Korsavil's file `Korsavil_Deflect01.wav`** (Ryan's, 2026-10-10): 24-bit stereo, 44.1 kHz, 4.19 s; loud from about 10 ms, **its peak at 0.23 s**, audible to about 1.3 s, then 2.9 s of silence. His swing lands 0.06 s after it starts, so even from the swing's start the peak comes about 0.17 s after the hit: to put the peak on the hit, the file's first ~0.17 s would go (an audio edit). The silent tail only holds a voice: Import dock → Trim on → Reimport drops it.
 
 ## How each edge case is handled
 | Edge case | Handling |

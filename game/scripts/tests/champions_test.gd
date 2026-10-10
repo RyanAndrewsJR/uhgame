@@ -1879,8 +1879,8 @@ func _test_k5b_sounds_play() -> void:
 	d.stats_component.add_modifier(StatModifier.create(&"max_health", StatModifier.Type.FLAT, 5000.0, &"test_tough"))
 	await _frames(1)
 	var sc := k.status_component
-	var played := func(ev: SoundEvent) -> Array:
-		return Audio.get_log().filter(func(e: Dictionary) -> bool: return e.sound == ev and e.result == Audio.RESULT_PLAYED)
+	var played := func(ev: SoundEvent) -> Array:   # the slots' plays only (his sheet's triggers: AUDIO A6a's test)
+		return Audio.get_log().filter(func(e: Dictionary) -> bool: return e.sound == ev and e.result == Audio.RESULT_PLAYED and e.trigger == "")
 	Audio.stop_all()
 	Audio.clear_log()
 	for i in 4:
@@ -1957,37 +1957,64 @@ func _test_k5b_end_reasons() -> void:
 
 
 func _test_a6a_korsavil_sheet() -> void:
-	_section("AUDIO A6a: Korsavil's sound sheet, step 1: built and verified on a test copy, not yet his")
+	_section("AUDIO A6a: Korsavil's sound sheet (his since the A6a commit; his three slots still play until step 2)")
 	var sheet := SOUND_SHEET_KORSAVIL
 	var rows := sheet.triggers.map(func(t: SoundTrigger) -> Array:
 		return [t.name, t.event, t.used_empower, t.status_id, t.stacks, t.ability_id, t.at_progress, t.place, t.sound])
-	_check("three triggers: the empowered hit, 6 stacks, the sweep's press; DEFAULT places (centered for him); his three SoundEvents", rows, [
-		["Demise 4: empowered hit", SoundTrigger.Event.HIT_DEALT, &"empower_demise", &"", 0, &"", -1.0, SoundTrigger.Place.DEFAULT, SOUND_DEMISE_FOUR],
+	_check("three triggers: the swing that carries the 4-stack empower (Ryan, 2026-10-10: at its start), 6 stacks, the sweep's press; DEFAULT places (centered for him); his three SoundEvents", rows, [
+		["Demise 4: empowered swing", SoundTrigger.Event.SWING_START, &"empower_demise", &"", 0, &"", -1.0, SoundTrigger.Place.DEFAULT, SOUND_DEMISE_FOUR],
 		["Demise 6", SoundTrigger.Event.STACKS_REACHED, &"", &"demise", 6, &"", -1.0, SoundTrigger.Place.DEFAULT, SOUND_DEMISE_SIX],
 		["Sweep cast", SoundTrigger.Event.CAST_START, &"", &"", 0, &"korsavil_blade_singer_sweep", 0.0, SoundTrigger.Place.DEFAULT, SOUND_SWEEP_CAST]])
-	_check("step 1: korsavil.tres has no sheet yet, and his three slots still hold the sounds",
-		[KORSAVIL.sound_sheet, EMPOWER_DEMISE.consume_sound == SOUND_DEMISE_FOUR, STATUS_SWEEP.apply_sound == SOUND_DEMISE_SIX, BLADE_SINGER_SWEEP.cast_sound == SOUND_SWEEP_CAST],
-		[null, true, true, true])
+	_check("korsavil.tres holds the sheet (assigned in Ryan's A6a play test); the three slots still hold the sounds (emptied in step 2)",
+		[KORSAVIL.sound_sheet == sheet, EMPOWER_DEMISE.consume_sound == SOUND_DEMISE_FOUR, STATUS_SWEEP.apply_sound == SOUND_DEMISE_SIX, BLADE_SINGER_SWEEP.cast_sound == SOUND_SWEEP_CAST],
+		[true, true, true, true])
 	var sounds := Audio.get_sound_triggers()
-	var real := await _spawn(false, KORSAVIL)
-	_check("the real Korsavil: not watched (nothing plays twice)", sounds.is_watching(real), false)
-	real.queue_free()
-	var copy: ChampionData = KORSAVIL.duplicate()
-	copy.sound_sheet = sheet
-	var k := await _spawn(false, copy)
+	var k := await _spawn(false, KORSAVIL)
 	_no_crits(k)
 	var d := _dummy(k.global_position + Vector2(36, 0))
 	d.stats_component.add_modifier(StatModifier.create(&"max_health", StatModifier.Type.FLAT, 5000.0, &"test_tough"))
 	await _frames(1)
-	_check("a copy with the sheet: the Player watches it at load", [sounds.is_watching(k), sounds.get_sheet(k) == sheet], [true, true])
+	_check("he loads watched with it", [sounds.is_watching(k), sounds.get_sheet(k) == sheet], [true, true])
 	var sc := k.status_component
+	var starts: Array = []
+	var on_start := func(_index: int, _dir: Vector2, _swing: AttackSwing) -> void: starts.append(Engine.get_physics_frames())
+	k.attack.swing_started.connect(on_start)
 	Audio.stop_all()
 	Audio.clear_log()
+	await _swing_times(k, 1)
+	_check("a plain swing (no empower): no 4-stack sound", _slot_and_trigger(SOUND_DEMISE_FOUR, "Demise 4: empowered swing").slice(0, 2), [0, 0])
 	for i in 4:
 		sc.apply_status(STATUS_DEMISE_V2, k)
+	Audio.clear_log()
+	starts.clear()
 	await _swing_times(k, 1)
-	_check("the empowered hit: the old slot (consume_sound) and the trigger, once each, in the same physics frame, both centered",
-		_slot_and_trigger(SOUND_DEMISE_FOUR, "Demise 4: empowered hit"), [1, 1, true, false, false])
+	var four := _slot_and_trigger(SOUND_DEMISE_FOUR, "Demise 4: empowered swing")
+	var trig_entries := Audio.get_log().filter(func(e: Dictionary) -> bool: return e.trigger == "Demise 4: empowered swing" and e.result == Audio.RESULT_PLAYED)
+	var slot_entries := Audio.get_log().filter(func(e: Dictionary) -> bool: return e.sound == SOUND_DEMISE_FOUR and e.trigger == "" and e.result == Audio.RESULT_PLAYED)
+	_check("the swing that carries the empower: the trigger at its start (the swing_started frame), the old slot at its hit (later by the windup), once each, both centered",
+		[four[0], four[1], trig_entries.size() == 1 and starts.size() == 1 and int(trig_entries[0].frame) == int(starts[0]),
+			slot_entries.size() == 1 and trig_entries.size() == 1 and int(slot_entries[0].frame) > int(trig_entries[0].frame), four[3], four[4]],
+		[1, 1, true, true, false, false])
+	sc.remove_status(&"demise")
+	for i in 4:
+		sc.apply_status(STATUS_DEMISE_V2, k)
+	_place_beside(d, k, Vector2(0, 400))
+	await _frames(1)
+	Audio.clear_log()
+	await _swing_times(k, 1)
+	_check("a whiff while carrying it: the trigger plays (the swing carried it), the empower stays, no slot sound",
+		[_slot_and_trigger(SOUND_DEMISE_FOUR, "Demise 4: empowered swing").slice(0, 2), sc.has_status(&"empower_demise")], [[0, 1], true])
+	_place_beside(d, k, Vector2(36, 0))
+	await _frames(1)
+	Audio.clear_log()
+	await _swing_times(k, 1)
+	_check("the next swing, landing: it plays again, and the slot at the hit", _slot_and_trigger(SOUND_DEMISE_FOUR, "Demise 4: empowered swing").slice(0, 2), [1, 1])
+	k.attack.swing_started.disconnect(on_start)
+	sc.remove_status(&"demise")
+	for i in 4:
+		sc.apply_status(STATUS_DEMISE_V2, k)
+	Audio.stop_all()   # that 4th swing was the finisher: its +2 reached 6 a moment ago, inside the sound's instance limit
+	Audio.clear_log()
 	sc.apply_status(STATUS_DEMISE_V2, k)
 	sc.apply_status(STATUS_DEMISE_V2, k)
 	_check("reaching 6: the old slot (the window's apply_sound) and the trigger, same frame, centered",

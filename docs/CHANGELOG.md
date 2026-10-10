@@ -1405,7 +1405,17 @@ Note (2026-09-29): those 4 failures weren't about AB1. The AB1 commit (7217b5e) 
 
 ## Audio (AUDIO.md)
 
-### A6a – Sound triggers: 2026-10-10, Built (awaiting Ryan's play test)
+### A6a follow-up – Demise 4 on the empowered swing: 2026-10-10, Built (awaiting Ryan's play test)
+Ryan passed A6a and committed it (6385fc4) with his play-test edits in it: `korsavil.tres` holding his sheet, "Demise 4" switched to `SWING_START`, `sound_korsavil_demise_four` on his `Korsavil_Deflect01.wav` (+5 dB). Then: the trigger "activates without having the stack" (every swing), and the sound might be cut off or late. That commit failed 9 champions checks (the K5b sound counts and A6a's step-1 checks, which expected no sheet on him).
+- **Changed:**
+  - `sound_triggers.gd`: `used_empower` on swing events: a swing start while he holds it, a landing whose hits used it (`Watch.empowers_frame`, `empowers_used`, recorded from his hits that frame), never a whiff. `sound_trigger.gd`: its doc comment.
+  - Data: the trigger renamed "Demise 4: empowered swing"; `sound_korsavil_demise_four.tres` pitch 1.25 → 1.0 (Claude's placeholder pitch had stayed on Ryan's file).
+  - `champions_test`: the K5b sound test counts the slots' plays only (his sheet plays them too now); A6a's Korsavil test rewritten for the state Ryan committed (the sheet his; the trigger at the empowered swing's start, the slot at its hit; a plain swing silent; a whiff carrying it plays, the empower stays, the next swing plays it again); `audio_test`: swing start, landing and whiff with `used_empower`.
+- **Measured:** `Korsavil_Deflect01.wav` is 4.19 s (24-bit stereo, 44.1 kHz), loud from ~10 ms, peak at 0.23 s, audible to ~1.3 s, then silence: nothing cuts it off; its peak simply lands ~0.17 s after the hit even from the swing's start (AUDIO.md, Found while building A6a).
+- **Results:** 4,518/4,518 (the commit as Ryan made it: 9 champions checks failing): stats 206, audio 162 (+1), view 474, talents 311, champions 348 (+2), deflect 207, loot 750, combat 510, abilities 608, brain_golden 144 (golden files unchanged), enemies 681, feel 117; every suite with `-d`, output to files: no script errors, no new GDScript warnings.
+- **How to play test:** as Korsavil, plain swings make no Demise 4 sound; at 4 stacks the next swing plays it as it starts (and his old slot still plays it again at the hit until step 2). The file now plays at its own pitch.
+
+### A6a – Sound triggers: 2026-10-10, Passed (Ryan's play test, 2026-10-10; committed 6385fc4 with his play-test edits: the follow-up above)
 Ryan approved A6's design with his changes (DECISIONS.md, Audio), committed K5b (d9ec267), then: "start A6a". His concern 4 (the panel's Save guards) belongs to A6b; the "slices" he mentioned weren't given, so this is Claude's A6a / A6b cut.
 - **New:**
   - `scripts/data/sound_trigger.gd` (`SoundTrigger`: `Event` (14 events), `Place` (7), `EndFilter`; When / Which / Where / How groups; `get_label()`, `is_placed_impact()`), `scripts/data/sound_sheet.gd` (`SoundSheet.triggers`).

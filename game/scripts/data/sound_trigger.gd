@@ -78,8 +78,11 @@ enum EndFilter { ANY, EXPIRED, CONSUMED, CLEANSED, DIED, REMOVED }
 @export var end_reason: EndFilter = EndFilter.ANY
 ## Hit events: every tag must be on the hit.
 @export var hit_tags: Array[StringName] = []
-## Hit events: the hit used this empower (its status id): a swing's
-## HitContext.empowers_used, a cast's CastContext.empowers.
+## The empower (its status id). Hit events: the hit used it (a swing's
+## HitContext.empowers_used, a cast's CastContext.empowers). Swing events: a
+## SWING_START while he holds it (the swing that carries it: it plays again
+## on the next swing if this one whiffs), a SWING_LANDED whose hits used it,
+## never a SWING_WHIFF.
 @export var used_empower: StringName = &""
 @export var crit_only: bool = false
 @export var kill_only: bool = false

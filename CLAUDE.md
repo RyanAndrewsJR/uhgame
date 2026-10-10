@@ -169,7 +169,7 @@ The game in `game/` is the **reference build**. It works, and changes build on i
   - Corner forgiveness, proposed (MOVEMENT.md); the pit step, unscheduled (WORLD_INTERACTION.md).
   - DUNGEONS D1 waits for the P-spike and WORLD_INTERACTION's unscheduled pieces; AI-D4 for ALLIES AL6.
   - AUDIO A4 and A5: approved, not started; CC0 files can replace the placeholders any time (AUDIO.md).
-  - AUDIO A6a (sound triggers) built 2026-10-10, awaiting Ryan's play test (4,515/4,515); then Korsavil's sheet step 2, then A6b (the panel: needs his concern 4, the Save guards).
+  - AUDIO A6a passed (6385fc4); its follow-up (Demise 4 on the empowered swing, `used_empower` on swings) built 2026-10-10, awaiting Ryan's play test (4,518/4,518); then Korsavil's sheet step 2, then A6b (the panel: needs his concern 4, the Save guards).
   - COMPANIONS CO1: any time, on Ryan's OK.
   - ALLIES' second champion (ranged/support, mana): still planned (ALLIES.md, Status).
   - Ryan's pre-L-M saves: `%APPDATA%/Godot/app_userdata/uhgame/backups/` (the 10:22 copy).

@@ -1008,6 +1008,12 @@ func _test_trigger_filters() -> void:
 	dot.once_per_frame = false
 	var empowered := _trigger(SoundTrigger.Event.HIT_DEALT, "f_empower")
 	empowered.used_empower = &"test_trigger_empower"
+	var swing_empower := _trigger(SoundTrigger.Event.SWING_START, "f_swing_empower")
+	swing_empower.used_empower = &"test_trigger_empower"
+	var land_empower := _trigger(SoundTrigger.Event.SWING_LANDED, "f_land_empower")
+	land_empower.used_empower = &"test_trigger_empower"
+	var whiff_empower := _trigger(SoundTrigger.Event.SWING_WHIFF, "f_whiff_empower")
+	whiff_empower.used_empower = &"test_trigger_empower"
 	var part_1 := _trigger(SoundTrigger.Event.CAST_START, "f_part_1")
 	part_1.part = 1
 	var by_id := _trigger(SoundTrigger.Event.STATUS_GAINED, "f_status_id")
@@ -1029,7 +1035,7 @@ func _test_trigger_filters() -> void:
 	cond.kind = Condition.Kind.SELF_HAS_STATUS
 	cond.status_tag = &"test_trigger_tag"
 	focused.conditions = [cond]
-	sounds.watch(knight, _sheet([swing_2, basic, finisher, each, cleave, cleave_only, crit, kill, dot, empowered, part_1, by_id, by_tag, expired, consumed, three, focused]))
+	sounds.watch(knight, _sheet([swing_2, basic, finisher, each, cleave, cleave_only, crit, kill, dot, empowered, swing_empower, land_empower, whiff_empower, part_1, by_id, by_tag, expired, consumed, three, focused]))
 	Audio.clear_log()
 	for i in 2:
 		await _wait_until(func() -> bool: return knight.attack.can_swing(), 120)
@@ -1071,12 +1077,13 @@ func _test_trigger_filters() -> void:
 	Audio.clear_log()
 	knight.attack.try_swing(Vector2.LEFT)
 	await _wait_until(func() -> bool: return _fired("f_basic").size() > 0, 60)
-	_check("the swing that uses the empower: used_empower plays (HitContext.empowers_used), once", _fired("f_empower").size(), 1)
+	_check("the swing that uses the empower: used_empower plays on its hit (HitContext.empowers_used), at its start (he held it) and at its landing (its hits used it), once each",
+		[_fired("f_empower").size(), _fired("f_swing_empower").size(), _fired("f_land_empower").size()], [1, 1, 1])
 	await _ready_knight()
 	Audio.clear_log()
 	knight.attack.try_swing(Vector2.LEFT)
 	await _wait_until(func() -> bool: return _fired("f_basic").size() > 0, 60)
-	_check("the next swing (no empower): not", _fired("f_empower").size(), 0)
+	_check("the next swing (no empower): none of them", [_fired("f_empower").size(), _fired("f_swing_empower").size(), _fired("f_land_empower").size()], [0, 0, 0])
 	Audio.clear_log()
 	var ctx_0 := CastContext.new()
 	var ctx_1 := CastContext.new()
@@ -1107,6 +1114,18 @@ func _test_trigger_filters() -> void:
 	var k_hit := d.make_hit_context(100000.0, knight)
 	d.on_hit(k_hit)
 	_check("a hit that kills: kill_only", _fired("f_kill").size(), 1)
+	for x in dummies:
+		if is_instance_valid(x) and x != d:
+			_place(x, knight.global_position + Vector2(0, 400))   # out of the aim snap's reach
+	await _ready_knight()
+	knight.status_component.apply_status(empower, knight)
+	Audio.clear_log()
+	knight.attack.try_swing(Vector2.UP)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+	_check("a whiff carrying the empower: its start plays, no landing, a SWING_WHIFF never; the empower stays",
+		[_fired("f_swing_empower").size(), _fired("f_land_empower").size(), _fired("f_whiff_empower").size(), knight.status_component.has_status(&"test_trigger_empower")],
+		[1, 0, 0, true])
+	knight.status_component.remove_status(&"test_trigger_empower")
 	knight.status_component.remove_status(&"test_trigger_stack")
 	sounds.unwatch(knight)
 	for x in dummies:

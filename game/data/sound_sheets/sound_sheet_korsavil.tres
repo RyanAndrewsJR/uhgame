@@ -9,7 +9,7 @@
 
 [sub_resource type="Resource" id="demise_four"]
 script = ExtResource("2_trigger")
-name = "Demise 4: empowered hit"
+name = "Demise 4: empowered swing"
 event = 0
 used_empower = &"empower_demise"
 sound = ExtResource("3_four")

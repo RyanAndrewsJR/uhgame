@@ -32,6 +32,8 @@ class Watch:
 	var stacks: Dictionary = {}      # status id -> stacks last seen
 	var sources: Dictionary = {}     # status id -> who applied it (for STATUS_ENDED)
 	var swing_cancelled: bool = false
+	var empowers_frame: int = -1     # the physics frame of empowers_used
+	var empowers_used: Dictionary = {}  # empower id -> true: used by his hits that frame (a swing's landing)
 
 
 ## What an event gives a trigger: who, where, which cast. Positions are
@@ -162,14 +164,15 @@ func _on_swing_started(index: int, _direction: Vector2, swing: AttackSwing, w: W
 	_end_swing_waits(w, true)   # a new swing: the last one ran to its end
 	w.swing_cancelled = false
 	var other: Unit = w.unit.attack.get_assist_target()
-	_match(w, SoundTrigger.Event.SWING_START, _fire(w, other), {"swing_index": index}, swing, null)
+	_match(w, SoundTrigger.Event.SWING_START, _fire(w, other), {"swing_index": index, "unit": w.unit}, swing, null)
 
 
 func _on_swing_landed(index: int, targets: Array[Unit], w: Watch) -> void:
 	if targets.is_empty():
 		_match(w, SoundTrigger.Event.SWING_WHIFF, _fire(w, null), {"swing_index": index})
 	else:
-		_match(w, SoundTrigger.Event.SWING_LANDED, _fire(w, targets[0]), {"swing_index": index})
+		var used: Dictionary = w.empowers_used if w.empowers_frame == Engine.get_physics_frames() else {}
+		_match(w, SoundTrigger.Event.SWING_LANDED, _fire(w, targets[0]), {"swing_index": index, "used": used})
 
 
 func _on_swing_cancelled(w: Watch) -> void:
@@ -199,10 +202,18 @@ func _on_dash_started(_direction: Vector2, w: Watch) -> void:
 # --- Events -----------------------------------------------------------------------
 
 func _on_events_unit_hit(ctx: HitContext) -> void:
-	if ctx.blocked:
-		return
 	var target := ctx.target as Unit
 	var source_watch: Watch = _watches.get(ctx.source) if is_instance_valid(ctx.source) else null
+	if source_watch != null and not ctx.empowers_used.is_empty():   # for SWING_LANDED's used_empower (blocked hits too: the empower is spent)
+		var frame := Engine.get_physics_frames()
+		if source_watch.empowers_frame != frame:
+			source_watch.empowers_frame = frame
+			source_watch.empowers_used = {}
+		for e in ctx.empowers_used:
+			if e != null:
+				source_watch.empowers_used[e.id] = true
+	if ctx.blocked:
+		return
 	if source_watch != null:
 		_match(source_watch, SoundTrigger.Event.HIT_DEALT, _fire(source_watch, target, ctx.cast), {"hit": ctx})
 	var target_watch: Watch = _watches.get(target) if is_instance_valid(target) else null
@@ -314,6 +325,17 @@ func _passes(t: SoundTrigger, info: Dictionary) -> bool:
 				return false
 			if t.swing_number > 0 and index != t.swing_number - 1:
 				return false
+			if t.used_empower != &"":   # a swing start: he holds it (this swing carries it); a landing: its hits used it; a whiff: never
+				match t.event:
+					SoundTrigger.Event.SWING_START:
+						var unit: Unit = info.get("unit")
+						if unit == null or unit.status_component == null or not unit.status_component.has_status(t.used_empower):
+							return false
+					SoundTrigger.Event.SWING_LANDED:
+						if not (info.get("used", {}) as Dictionary).has(t.used_empower):
+							return false
+					_:
+						return false
 		SoundTrigger.Event.CAST_START, SoundTrigger.Event.CAST_EFFECT:
 			if not _ability_matches(t, info.get("ability")):
 				return false
