@@ -47,16 +47,43 @@ func get_hitstop_left() -> float:
 ## Shakes the current camera: the 3D view's GameCamera3D (since the cleanup's
 ## C1), or a test's spy Camera3D, when it has a shake(). The 2D camera it
 ## used to fall back to went in the cleanup's C3.
-func shake(amount: float) -> void:
+## `direction` (FEEL2, sim px, ZERO = none) is passed on only to a camera
+## whose shake() takes it; the camera uses it only with CameraLook's
+## shake_directional on. Without one the call is today's.
+func shake(amount: float, direction: Vector2 = Vector2.ZERO) -> void:
 	var cam_3d := get_viewport().get_camera_3d()
 	if cam_3d and cam_3d.has_method(&"shake"):
-		cam_3d.call(&"shake", amount)
+		if direction != Vector2.ZERO and cam_3d.get_method_argument_count(&"shake") >= 2:
+			cam_3d.call(&"shake", amount, direction)
+		else:
+			cam_3d.call(&"shake", amount)
+
+
+## Which way a hit pushes (sim px, normalized): from its knockback_from, else
+## its source, to its target. ZERO when it has neither or they overlap.
+static func get_hit_direction(ctx: HitContext) -> Vector2:
+	var target := ctx.target as Node2D
+	if target == null or not is_instance_valid(target):
+		return Vector2.ZERO
+	var from := ctx.knockback_from
+	if from == Vector2.INF:
+		if ctx.source == null or not is_instance_valid(ctx.source):
+			return Vector2.ZERO
+		from = ctx.source.global_position
+	var d := target.global_position - from
+	return d.normalized() if d.length() > 0.01 else Vector2.ZERO
 
 
 ## A hit's hitstop and shake by its tier (HitContext.feel; a kill uses the
 ## kill tier). Feel NONE plays nothing here: those callers keep their own.
+## FEEL2: the shake carries the hit's direction (used only with CameraLook's
+## shake_directional), and the hit-taken feel (HitFeel, off by default) runs
+## first for any hit on the tracked player.
 func play_hit_feel(ctx: HitContext) -> void:
-	if ctx.blocked or ctx.feel == HitContext.Feel.NONE:
+	if ctx.blocked:
+		return
+	_play_hit_taken_feel(ctx)
+	if ctx.feel == HitContext.Feel.NONE:
 		return
 	var stop := hit_feel.light_hitstop
 	var amount := hit_feel.light_shake
@@ -69,4 +96,30 @@ func play_hit_feel(ctx: HitContext) -> void:
 	if stop > 0.0:
 		hitstop(stop)
 	if amount > 0.0:
-		shake(amount)
+		shake(amount, get_hit_direction(ctx))
+
+
+## True when `ctx` would play the hit-taken feel (HitFeel.hit_taken_feel_enabled
+## aside): a hit on the tracked player that took health. Blocked hits (dash
+## and post-hit i-frames, dead, untargetable) and deflects never get here or
+## lose no health; a shield that absorbs all of it leaves health_lost 0. DoT
+## ticks and on-hit extra hits don't count.
+static func is_hit_taken(ctx: HitContext) -> bool:
+	if ctx.blocked or ctx.deflected or ctx.health_lost <= 0.0:
+		return false
+	if ctx.has_tag(&"dot") or ctx.has_tag(&"proc"):
+		return false
+	var player := Progress.get_tracked_player()
+	return player != null and ctx.target == player
+
+
+## EXPERIMENT (FEEL2 F3): the tracked player losing health to a hit: a short
+## hitstop and a shake pointing away from the attacker (HitFeel's taken_*).
+## Off (hit_taken_feel_enabled) = today.
+func _play_hit_taken_feel(ctx: HitContext) -> void:
+	if not hit_feel.hit_taken_feel_enabled or not is_hit_taken(ctx):
+		return
+	if hit_feel.taken_hitstop > 0.0:
+		hitstop(hit_feel.taken_hitstop)
+	if hit_feel.taken_shake > 0.0:
+		shake(hit_feel.taken_shake, get_hit_direction(ctx))

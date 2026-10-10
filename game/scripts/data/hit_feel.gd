@@ -18,6 +18,16 @@ extends Resource
 @export_range(0.0, 4.0) var heavy_shake: float = 2.0
 @export_range(0.0, 4.0) var kill_shake: float = 3.0
 
+@export_group("Being hit (EXPERIMENT, FEEL2 F3)")
+## Off = today. On: when the tracked player loses health to a hit (not one
+## blocked, deflected, eaten by i-frames or fully absorbed by a shield; not
+## a DoT tick or an on-hit extra hit), a short hitstop and a shake pointing
+## away from the attacker (GameFeel.play_hit_feel()). The player's existing
+## 2 px hit shake stays; the stronger shake wins. Presentation only.
+@export var hit_taken_feel_enabled: bool = false
+@export_range(0.0, 0.1) var taken_hitstop: float = 0.06
+@export_range(0.0, 4.0) var taken_shake: float = 2.5
+
 @export_group("Sounds")
 ## The hit sound for hits without their own (AUDIO.md; CombatSounds plays
 ## them, once per swing or cast). LIGHT and NONE hits use the light sound.

@@ -74,6 +74,14 @@ enum ProjectionMode { PERSPECTIVE, ORTHOGRAPHIC }
 ## GameFeel.shake()'s size (screen px) drops this much a second, real time.
 ## (GameCamera's `shake_decay`.)
 @export var shake_decay_px: float = 30.0
+## EXPERIMENT (FEEL2 F1, 2026-10-09): the shake holds while a hitstop runs (no
+## offset, no decay) and starts when it ends. Off = today: it decays during
+## the freeze, so a heavy hit's 2 px is 0.2 px when its 0.06 s hitstop ends.
+@export var shake_after_hitstop: bool = false
+## EXPERIMENT (FEEL2 F1): a shake given a direction (GameFeel.shake(amount,
+## direction): basic attack hits, kills, the hit-taken feel) leans along it:
+## its mean offset points that way. Off = today (random in every direction).
+@export var shake_directional: bool = false
 
 @export_group("Debug")
 ## Draws on the screen: the lean's dead zone (white oval), the target lean

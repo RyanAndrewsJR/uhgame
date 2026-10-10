@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="FeelPreset" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/feel_preset.gd" id="1_preset"]
+
+[resource]
+script = ExtResource("1_preset")
+display_name = "the shake_turn preset plus the hit-taken feel (0.06 s, 2.5 px)"
+shake_decay_px = 16.0
+shake_after_hitstop = true
+shake_directional = true
+player_turn_rate = 45.0
+hit_taken_feel_enabled = true
+taken_hitstop = 0.06
+taken_shake = 2.5

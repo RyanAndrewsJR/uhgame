@@ -47,6 +47,7 @@ var shake_offset_px: Vector2 = Vector2.ZERO
 var _goal: Vector3 = Vector3.ZERO    # where the camera is heading (the target plus the lean, or the panned spot)
 var _focus: Vector3 = Vector3.ZERO   # where it looks now: _goal, smoothed
 var _shake_amount: float = 0.0
+var _shake_dir: Vector2 = Vector2.ZERO   # the running shake's direction (FEEL2), ZERO = none
 var _lead: Vector2 = Vector2.ZERO          # current lean (eased), screen px
 var _lead_target: Vector2 = Vector2.ZERO   # lean it's easing toward
 var _aim_hold_left: float = 0.0            # full-lean time left after aiming
@@ -79,9 +80,18 @@ func get_focus() -> Vector3:
 
 
 ## GameFeel.shake(): the strongest running shake wins; it decays by the
-## look's shake_decay_px a second (real time).
-func shake(amount: float) -> void:
+## look's shake_decay_px a second (real time). `direction` (sim px, any
+## length; ZERO = none) goes with the shake that wins; only the look's
+## shake_directional uses it (FEEL2).
+func shake(amount: float, direction: Vector2 = Vector2.ZERO) -> void:
+	if amount > _shake_amount or (amount >= _shake_amount and direction != Vector2.ZERO):
+		_shake_dir = direction.normalized()
 	_shake_amount = maxf(_shake_amount, amount)
+
+
+## The running shake's size now (screen px), before this frame's offset.
+func get_shake_amount() -> float:
+	return _shake_amount
 
 
 ## Jumps to the target with no lean and no smoothing (the scene's start, a
@@ -183,10 +193,29 @@ func _get_move_lead() -> Vector2:
 
 func _update_shake(real_delta: float) -> void:
 	if _shake_amount > 0.0:
+		if look.shake_after_hitstop and _is_hitstop_active():
+			# FEEL2 F1: held through the freeze; it starts when the hitstop ends.
+			shake_offset_px = Vector2.ZERO
+			return
 		_shake_amount = move_toward(_shake_amount, 0.0, look.shake_decay_px * real_delta)
-		shake_offset_px = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * _shake_amount
+		if look.shake_directional and _shake_dir != Vector2.ZERO:
+			# FEEL2 F1: mostly along the direction (mean 0.375 x the size that
+			# way), a little across it.
+			var across := Vector2(-_shake_dir.y, _shake_dir.x)
+			shake_offset_px = (_shake_dir * randf_range(-0.25, 1.0) + across * randf_range(-0.35, 0.35)) * _shake_amount
+		else:
+			shake_offset_px = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * _shake_amount
 	else:
 		shake_offset_px = Vector2.ZERO
+		_shake_dir = Vector2.ZERO
+
+
+## GameFeel's hitstop, read through the tree: naming the autoload here would
+## tie this script's load to GameFeel's (HitContext -> Unit -> ... -> this),
+## the kind of cycle the `player` var's comment above describes.
+func _is_hitstop_active() -> bool:
+	var feel := get_node_or_null(^"/root/GameFeel")
+	return feel != null and bool(feel.call(&"is_hitstop_active"))
 
 
 ## How far the floor under a point `offset_px` away from the screen's center

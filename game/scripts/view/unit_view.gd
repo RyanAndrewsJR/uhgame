@@ -25,6 +25,15 @@ enum Phase { NONE, LEAD_BY_PROGRESS, LEAD_BY_TIME, FOLLOW, DASH }
 ## How fast the model turns to the unit's facing (exponential, per second; P0b).
 @export var turn_rate: float = 20.0
 
+## EXPERIMENT (FEEL2 F2, 2026-10-09; set by FeelPreset, SandboxFeel): the
+## tracked player's model turns at this rate instead of turn_rate; below 0
+## (the default) = turn_rate, today. Enemies always use their own.
+static var player_turn_rate: float = -1.0
+## EXPERIMENT (FEEL2 F2; SandboxFeel Ctrl+F10): the tracked player's model
+## snaps its yaw to the swing's direction when a basic attack swing starts.
+## Off = today.
+static var swing_yaw_snap: bool = false
+
 @export_group("Base clips")
 ## The model's clips by role, as named in its AnimationPlayer (KayKit's names
 ## by default). A clip the model doesn't have is skipped.
@@ -290,7 +299,7 @@ func _on_sync() -> void:
 		return
 	var f := _facing()
 	if f != Vector2.ZERO:
-		_yaw = lerp_angle(_yaw, atan2(f.x, f.y), 1.0 - exp(-turn_rate * get_physics_process_delta_time()))
+		_yaw = lerp_angle(_yaw, atan2(f.x, f.y), 1.0 - exp(-get_turn_rate() * get_physics_process_delta_time()))
 	_model.rotation.y = _yaw   # a glTF model faces +z: a sim facing (x, y) is the yaw atan2(x, y)
 	_progress_prev = _progress_cur
 	_progress_cur = _sim_progress()
@@ -381,6 +390,27 @@ func _sync_airborne() -> void:
 	else:
 		_air_total = 0.0
 	_air_left_prev = left
+
+
+## The rate this model turns at: turn_rate, or player_turn_rate for the
+## tracked player when one is set (FEEL2).
+func get_turn_rate() -> float:
+	if player_turn_rate >= 0.0 and _is_tracked_player():
+		return player_turn_rate
+	return turn_rate
+
+
+## The model's yaw now (radians; tests).
+func get_yaw() -> float:
+	return _yaw
+
+
+## Read through the tree, not by naming Progress or Player: those names here
+## could tie the view's load to the Player's (the cycle GameCamera3D's
+## `player` comment describes).
+func _is_tracked_player() -> bool:
+	var progress := get_node_or_null(^"/root/Progress")
+	return unit != null and progress != null and progress.call(&"get_tracked_player") == unit
 
 
 ## A swing's or a cast's progress now (0 when nothing runs).
@@ -571,7 +601,12 @@ func _end_action() -> void:
 		_update_base_clip()
 
 
-func _on_swing_started(_index: int, _direction: Vector2, swing: AttackSwing) -> void:
+func _on_swing_started(_index: int, direction: Vector2, swing: AttackSwing) -> void:
+	if swing_yaw_snap and direction != Vector2.ZERO and not _dead and _is_tracked_player():
+		# FEEL2 F2: the model faces the swing at once (no blend from the last tick).
+		_yaw = atan2(direction.x, direction.y)
+		_model.rotation.y = _yaw
+		_model.reset_physics_interpolation()
 	if unit.attack.is_running_string():
 		# ARCHETYPES AR1a: each string swing shows its wind-up as a League-style
 		# attack's does (the capsule's squash), so the beat reads as body language.
