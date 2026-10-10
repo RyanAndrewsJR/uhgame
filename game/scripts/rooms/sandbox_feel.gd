@@ -11,7 +11,7 @@ extends Node
 ##   F10       the next feel preset, blind: the screen shows only "feel 1",
 ##             "feel 2" or "feel 3", shuffled each session (FeelPreset; the
 ##             files in res://data/feel_presets/). Before the first F10 it's
-##             today's feel and shows nothing.
+##             the shipped feel (preset 3 since 2026-10-09) and shows nothing.
 ##   Shift+F10 prints which shown number is which preset (the console only)
 ##   Ctrl+F10  the swing yaw snap on/off (UnitView.swing_yaw_snap; in no preset)
 ##   F7        the next threat palette, named (ThreatPalette; the files in
@@ -24,13 +24,14 @@ extends Node
 ## touches the player's saves, and does nothing in a test scene unless a
 ## test calls it.
 
-## The presets in their true order: 1 = today, exactly.
 ## The threat palettes: 1 = today, exactly.
 const PALETTES: Array[ThreatPalette] = [
 	preload("res://data/threat_palettes/threat_palette_today.tres"),
 	preload("res://data/threat_palettes/threat_palette_amber.tres"),
 	preload("res://data/threat_palettes/threat_palette_violet.tres"),
 ]
+## The presets in their true order: 1 = the feel before FEEL2 shipped,
+## exactly; 3 = the shipped feel since 2026-10-09 (Ryan's pick).
 const PRESETS: Array[FeelPreset] = [
 	preload("res://data/feel_presets/feel_preset_today.tres"),
 	preload("res://data/feel_presets/feel_preset_shake_turn.tres"),
@@ -45,7 +46,7 @@ var feel: HitFeel = GameFeel.hit_feel
 ## shown_order[i] = the preset index shown as "feel i+1" (shuffled per session).
 var shown_order: Array[int] = [0, 1, 2]
 
-var _shown := -1   # the shown number's index now; -1 = none (today, untouched)
+var _shown := -1   # the shown number's index now; -1 = none (the shipped feel, untouched)
 var _found: FeelPreset   # the values as found, put back on exit
 var _found_snap := false
 var _found_palette: ThreatPalette = null
@@ -144,7 +145,8 @@ func get_shown_number() -> int:
 	return _shown + 1
 
 
-## The true preset (1 = today) behind the shown number now, or 0.
+## The true preset (1 = before FEEL2, 3 = shipped) behind the shown number
+## now, or 0.
 func get_active_preset_number() -> int:
 	return shown_order[_shown] + 1 if _shown >= 0 else 0
 

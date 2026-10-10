@@ -243,6 +243,7 @@ var _failed: int = 0
 var _odds_threshold_saved := -1.0   # _no_press() (AI3c)
 var _mix_saved := 0.5   # the table's string_then_cast_chance (pinned to 0 for the older checks)
 var _perilous_quiet_saved := 6.0   # the table's perilous_quiet_time (pinned to 0 for the older checks; AR2)
+var _hit_taken_saved := true   # HitFeel.hit_taken_feel_enabled (pinned off for the run; FEEL2)
 
 
 func _ready() -> void:
@@ -264,6 +265,11 @@ func _ready() -> void:
 	# gate's quiet time (ARCHETYPES AR2) has its own test.
 	_perilous_quiet_saved = Brains.table.perilous_quiet_time
 	Brains.table.perilous_quiet_time = 0.0
+	# The brain and timing checks run without the hit-taken freeze (FEEL2 preset 3,
+	# shipped 2026-10-09): a real 0.06 s hitstop each time the Knight loses health
+	# stretches their clocks. Presentation only; feel_test covers it.
+	_hit_taken_saved = GameFeel.hit_feel.hit_taken_feel_enabled
+	GameFeel.hit_feel.hit_taken_feel_enabled = false
 
 	_test_table()
 	_test_brute_preset()
@@ -418,6 +424,7 @@ func _ready() -> void:
 
 	Brains.table.string_then_cast_chance = _mix_saved
 	Brains.table.perilous_quiet_time = _perilous_quiet_saved
+	GameFeel.hit_feel.hit_taken_feel_enabled = _hit_taken_saved
 	Audio.stop_all()
 	await _frames(120)   # stop_all() leaves the UI bus: let the ultimate-ready pings (reset_cooldown()) finish
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])

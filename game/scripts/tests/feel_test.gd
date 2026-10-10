@@ -154,16 +154,26 @@ func _test_sandbox_probe_keys() -> void:
 # --- Slice B: blind feel presets -----------------------------------------------------
 
 func _test_shipped_defaults() -> void:
-	_section("Slice B: shipped config is today")
+	_section("Slice B: shipped config is preset 3 (Ryan's pick, 2026-10-09)")
 	var feel := GameFeel.hit_feel
-	_check("CameraLook: decay 30, no hold through the hitstop, no direction",
-		[LOOK.shake_decay_px, LOOK.shake_after_hitstop, LOOK.shake_directional], [30.0, false, false])
-	_check("HitFeel: the tiers unchanged (hitstop 0.03 / 0.06 / 0.08 s, shake 0 / 2 / 3 px), the hit-taken feel off",
-		[feel.light_hitstop, feel.heavy_hitstop, feel.kill_hitstop, feel.light_shake, feel.heavy_shake, feel.kill_shake, feel.hit_taken_feel_enabled],
-		[0.03, 0.06, 0.08, 0.0, 2.0, 3.0, false])
-	_check("UnitView: no player turn rate set (everyone's turn_rate), no swing yaw snap",
-		[UnitView.player_turn_rate, UnitView.swing_yaw_snap], [-1.0, false])
-	_check("preset 1 (feel_preset_today) holds today's values (player turn 20 = turn_rate)",
+	var knight_data: ChampionData = load("res://data/champions/knight.tres")
+	var korsavil_data: ChampionData = load("res://data/champions/korsavil.tres")
+	_check("CameraLook: decay 16, held through the hitstop, directional",
+		[LOOK.shake_decay_px, LOOK.shake_after_hitstop, LOOK.shake_directional], [16.0, true, true])
+	_check("HitFeel: the tiers unchanged (hitstop 0.03 / 0.06 / 0.08 s, shake 0 / 2 / 3 px), the hit-taken feel on (0.06 s, 2.5 px)",
+		[feel.light_hitstop, feel.heavy_hitstop, feel.kill_hitstop, feel.light_shake, feel.heavy_shake, feel.kill_shake,
+			feel.hit_taken_feel_enabled, feel.taken_hitstop, feel.taken_shake],
+		[0.03, 0.06, 0.08, 0.0, 2.0, 3.0, true, 0.06, 2.5])
+	_check("champions' models turn at 45 (ChampionData.model_turn_rate: the Knight, Korsavil); the class default 45",
+		[knight_data.model_turn_rate, korsavil_data.model_turn_rate, ChampionData.new().model_turn_rate], [45.0, 45.0, 45.0])
+	var plain_view := UnitView.new()
+	_check("UnitView: no sandbox turn override set, no swing yaw snap, enemies' turn_rate 20",
+		[UnitView.player_turn_rate, UnitView.swing_yaw_snap, plain_view.turn_rate], [-1.0, false, 20.0])
+	plain_view.free()
+	_check("preset 3 holds the shipped values (shake, turn, being hit)", SandboxFeel.PRESETS[2].to_array(),
+		[LOOK.shake_decay_px, LOOK.shake_after_hitstop, LOOK.shake_directional, knight_data.model_turn_rate,
+			feel.hit_taken_feel_enabled, feel.taken_hitstop, feel.taken_shake])
+	_check("preset 1 (feel_preset_today) holds the feel before FEEL2 shipped (decay 30, no hold, no direction, turn 20, no hit-taken feel)",
 		SandboxFeel.PRESETS[0].to_array(), [30.0, false, false, 20.0, false, 0.06, 2.5])
 	_check("preset 2: decay 16, after the hitstop, directional, player turn 45, no hit-taken feel",
 		SandboxFeel.PRESETS[1].to_array(), [16.0, true, true, 45.0, false, 0.06, 2.5])
@@ -231,7 +241,7 @@ func _test_directional_shake() -> void:
 	_check_near("a diagonal one: not across it", m.dot(Vector2(-diag.y, diag.x)), 0.0, 0.05)
 	_check_near("no direction (the one-argument call): no lean (x)", _mean_offset(cam, Vector2.ZERO).x, 0.0, 0.07)
 	look_dir.shake_directional = false
-	_check_near("the flag off (today): a direction changes nothing (x)", _mean_offset(cam, Vector2.RIGHT).x, 0.0, 0.07)
+	_check_near("the flag off: a direction changes nothing (x)", _mean_offset(cam, Vector2.RIGHT).x, 0.0, 0.07)
 	cam.set(&"_shake_amount", 0.0)
 	cam.shake(1.0, Vector2.RIGHT)
 	cam.shake(2.0)
@@ -289,8 +299,9 @@ func _test_hit_taken_feel() -> void:
 	var feel := GameFeel.hit_feel
 	var was := [feel.hit_taken_feel_enabled, feel.taken_hitstop, feel.taken_shake]
 
+	feel.hit_taken_feel_enabled = false
 	var r := await _hit_knight(cam)
-	_check("off (today): a hit that takes health: no hitstop, the player's own 2 px shake",
+	_check("switched off: a hit that takes health: no hitstop, the player's own 2 px shake",
 		[r["lost"] > 0.0, r["hitstop"], r["shake"]], [true, false, 2.0])
 	feel.hit_taken_feel_enabled = true
 	r = await _hit_knight(cam)
@@ -386,11 +397,11 @@ func _test_turning() -> void:
 	if kv == null or sv == null:
 		view.free()
 		return
-	_check("today: both turn at 20", [kv.get_turn_rate(), sv.get_turn_rate()], [20.0, 20.0])
-	UnitView.player_turn_rate = 45.0
-	_check("a player turn rate of 45: the tracked player's model only; the slime keeps 20", [kv.get_turn_rate(), sv.get_turn_rate()], [45.0, 20.0])
+	_check("shipped: the Knight (a champion) turns at 45, the slime at 20", [kv.get_turn_rate(), sv.get_turn_rate()], [45.0, 20.0])
+	UnitView.player_turn_rate = 30.0
+	_check("the sandbox override (30): the tracked player's model only; the slime keeps 20", [kv.get_turn_rate(), sv.get_turn_rate()], [30.0, 20.0])
 	UnitView.player_turn_rate = -1.0
-	_check("back to none: 20 again", kv.get_turn_rate(), 20.0)
+	_check("no override: the champion's 45 again", kv.get_turn_rate(), 45.0)
 
 	var swing := _knight.attack.combo.swings[0]
 	var hit_time := swing.windup / maxf(_knight.attack.get_swing_speed(), 0.001)
@@ -425,21 +436,24 @@ func _test_presets_and_restore() -> void:
 	_section("Slice B: switching presets back and forth restores exactly")
 	var look := LOOK.duplicate() as CameraLook
 	var feel := GameFeel.hit_feel.duplicate() as HitFeel
-	var start := FeelPreset.capture(look, feel).to_array()
+	var captured := FeelPreset.capture(look, feel)
+	var start := captured.to_array()
 	SandboxFeel.PRESETS[1].apply(look, feel)
 	SandboxFeel.PRESETS[2].apply(look, feel)
 	SandboxFeel.PRESETS[0].apply(look, feel)
-	_check("2, then 3, then 1: today's values (the player's turn 20 = turn_rate)",
+	_check("2, then 3, then 1: preset 1's values (the feel before FEEL2; the player's turn 20)",
 		FeelPreset.capture(look, feel).to_array(), [30.0, false, false, 20.0, false, 0.06, 2.5])
 	_check("the tier values never move", [feel.heavy_hitstop, feel.kill_hitstop, feel.heavy_shake, feel.kill_shake], [0.06, 0.08, 2.0, 3.0])
-	UnitView.player_turn_rate = -1.0
+	captured.apply(look, feel)
+	_check("the captured values put back: the shipped ones exactly (no turn override)",
+		[FeelPreset.capture(look, feel).to_array(), UnitView.player_turn_rate], [start, -1.0])
 
 	var sandbox := SandboxFeel.new()
 	sandbox.look = look
 	sandbox.feel = feel
 	add_child(sandbox)
 	var label := sandbox.find_child("FeelLabel", true, false) as Label
-	_check("before F10: nothing shown, today's values", [sandbox.get_shown_number(), label.visible, FeelPreset.capture(look, feel).to_array()],
+	_check("before F10: nothing shown, the shipped values", [sandbox.get_shown_number(), label.visible, FeelPreset.capture(look, feel).to_array()],
 		[0, false, start])
 	var shown := []
 	var truth := []
@@ -451,7 +465,7 @@ func _test_presets_and_restore() -> void:
 	truth_sorted.sort()
 	_check("F10 three times: shown 1, 2, 3; behind them each preset once", [shown, truth_sorted], [[1, 2, 3], [1, 2, 3]])
 	_check("the screen shows only the number", [label.text, label.visible], ["feel 3", true])
-	_check("Shift+F10's mapping names today", "preset 1 (today)" in sandbox.print_mapping(), true)
+	_check("Shift+F10's mapping names preset 1 (before FEEL2) and preset 3", "preset 1 (before FEEL2" in sandbox.print_mapping() and "preset 3 (" in sandbox.print_mapping(), true)
 	sandbox._unhandled_input(_key(KEY_F10, false, true))
 	_check("Ctrl+F10: the swing yaw snap on", UnitView.swing_yaw_snap, true)
 	sandbox.free()

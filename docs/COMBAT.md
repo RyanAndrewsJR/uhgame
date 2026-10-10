@@ -187,12 +187,13 @@ Crit multiplier: 1.75 (the `crit_damage` default for every unit). Crit chance is
 
 Feel per hit (basic attacks, and the default for other hits; abilities set their own):
 - hitstop: light 0.03 s (0–0.05); finisher/heavy 0.06 s (0.04–0.08); kill 0.08 s (0.05–0.10). Overlapping hitstops don't stack: take the longest.
-- shake: light 0; heavy 2 px; kill 3 px (0–4)
+- shake: light 0; heavy 2 px; kill 3 px (0–4). Since FEEL2 shipped preset 3 (Ryan, 2026-10-09): the shake waits for the hitstop to end, leans along the hit's direction, and fades at 16 px/s (was 30; `CameraLook`, each its own setting)
 - hit flash: white, 0.06 s
 
 Player getting hit:
 - post-hit i-frames: 0.3 s (0.3–0.8; was 0.5 s until M1), starting from the first hit in a frame (the other hits in that frame are blocked). DoT ticks don't start them.
-- knockback on the player: 12 px (0–24); no loss of control beyond the push itself
+- knockback on the player: 12 px (0–24); no loss of control beyond the push itself and the hit-taken freeze below (Ryan, 2026-10-09: the freeze stops the whole game for 0.06 s, but presses still read and fire)
+- hit-taken feel (FEEL2 preset 3, shipped 2026-10-09): when the player loses health to a hit, a 0.06 s hitstop (0–0.1) and a 2.5 px shake pointing away from the attacker (0–4). Not for a hit that's blocked, deflected, eaten by i-frames or fully absorbed by a shield, nor DoT ticks or on-hit extra hits. `HitFeel.hit_taken_feel_enabled`, `taken_hitstop`, `taken_shake`: off or tuned without code. A champion's model turns at `ChampionData.model_turn_rate` 45 (enemies 20), so it faces a swing by its hit (3D.md).
 
 Enemy damage bands (per hit, as % of the player's max health; a tuning guide for each enemy's damage number, not a formula in-game):
 - swarm chip: 2–5%, telegraph 0–0.3 s. Slimes: 22 damage (3.4% of the Knight's 650), 0.25 s windup (`attack_windup` 0.175 at 0.7 attack speed; was 0.5 s), 12 px push

@@ -407,11 +407,11 @@ func _test_game_camera_3d() -> void:
 		probe.process_priority > 0 and probe.process_priority < view.process_priority, true)
 	probe.free()
 	view.free()
-	_check("CameraLook holds GameCamera's tuning, the same values (follow 10; lean 80 px, dead zone 0.35, full at 0.9, y 0.6, easing 4, idle 0.5, hold 0.75 s, walk lean off; pan 420 px/s, margin 6 px; shake decay 30; debug off)",
+	_check("CameraLook holds GameCamera's tuning, the same values (follow 10; lean 80 px, dead zone 0.35, full at 0.9, y 0.6, easing 4, idle 0.5, hold 0.75 s, walk lean off; pan 420 px/s, margin 6 px; shake decay 16, held through the hitstop, directional since FEEL2 shipped preset 3; debug off)",
 		[look.follow_smoothing_speed, look.aim_lead_px, look.aim_lead_dead_zone, look.aim_lead_full_at, look.aim_lead_y_scale,
 			look.aim_lead_smoothing, look.aim_lead_idle_scale, look.aim_lead_hold_time, look.move_lead_px,
-			look.edge_pan_speed_px, look.edge_margin_px, look.shake_decay_px, look.aim_lead_curve.resource_path, look.debug_draw],
-		[10.0, 80.0, 0.35, 0.9, 0.6, 4.0, 0.5, 0.75, 0.0, 420.0, 6.0, 30.0, "res://data/curves/curve_camera_lead.tres", false])
+			look.edge_pan_speed_px, look.edge_margin_px, look.shake_decay_px, look.shake_after_hitstop, look.shake_directional, look.aim_lead_curve.resource_path, look.debug_draw],
+		[10.0, 80.0, 0.35, 0.9, 0.6, 4.0, 0.5, 0.75, 0.0, 420.0, 6.0, 16.0, true, true, "res://data/curves/curve_camera_lead.tres", false])
 	_check("GameCamera is gone (the cleanup's C3): CameraLook is the one place these are tuned",
 		ResourceLoader.exists("res://scripts/camera/game_camera.gd"), false)
 	_check_near("follow smoothing: GameCamera's speed 10 at 60 ticks is 10.94 per second", GameCamera3D.follow_rate_per_second(10.0, 60), 10.9393, 0.0001)
@@ -512,10 +512,10 @@ func _test_game_camera_3d() -> void:
 	_check_near("the picture moves as in 2D: the target moves against the offset (px off)",
 		cam.unproject_position(FOCUS).distance_to(center - offset), 0.0, 0.05)
 	cam._process(0.2)
-	_check("it decays at 30 px a second, real time: up to 4 px after 0.2 s",
-		absf(cam.shake_offset_px.x) <= 4.0 and absf(cam.shake_offset_px.y) <= 4.0, true)
-	cam._process(0.2)
-	_check("and it's gone", cam.shake_offset_px, Vector2.ZERO)
+	_check("it decays at 16 px a second (FEEL2 preset 3; 30 before), real time: up to 6.8 px after 0.2 s",
+		absf(cam.shake_offset_px.x) <= 6.8 and absf(cam.shake_offset_px.y) <= 6.8, true)
+	cam._process(0.45)
+	_check("and it's gone (10 px at 16 px/s: 0.625 s)", cam.shake_offset_px, Vector2.ZERO)
 
 	# The lock (Y) and the pan.
 	var toggle := InputEventAction.new()

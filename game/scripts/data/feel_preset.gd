@@ -1,11 +1,12 @@
 class_name FeelPreset
 extends Resource
-## EXPERIMENT (FEEL2, Slice B; Ryan with his combat advisor, 2026-10-09): one
-## blind A/B option set for the shake, the player's turning and being hit.
-## Data only; apply() writes it into the live look and feel. Three files in
-## res://data/feel_presets/ (feel_preset_today.tres is today, exactly);
-## SandboxFeel cycles them blind (F10). Presentation only: none of these
-## changes a gameplay number.
+## FEEL2 (Slice B; Ryan with his combat advisor, 2026-10-09): one blind A/B
+## option set for the shake, the player's turning and being hit. Data only;
+## apply() writes it into the live look and feel. Three files in
+## res://data/feel_presets/: feel_preset_today.tres is the feel before FEEL2
+## shipped, feel_preset_hit_taken.tres (preset 3) the shipped feel since
+## 2026-10-09 (Ryan's pick). SandboxFeel cycles them blind (F10) for later
+## rounds. Presentation only: none of these changes a gameplay number.
 
 ## For the console's mapping (Shift+F10); never shown on screen.
 @export var display_name: String = "today"

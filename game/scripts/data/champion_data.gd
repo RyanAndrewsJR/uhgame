@@ -76,6 +76,12 @@ extends Resource
 ## The champion's rigged 3D model (3D.md, Data, Models); the Player takes it
 ## at load (Unit.model_scene). null = a placeholder capsule.
 @export var model_scene: PackedScene
+## How fast the champion's model turns to its facing (UnitView; exponential,
+## per second). 45 since FEEL2 (Ryan, 2026-10-09: preset 3 shipped), so the
+## model faces a swing by its hit (98% of the turn at the first swing's hit;
+## 81% at enemies' 20). Below 0 = the view's own turn_rate (20). The view
+## only; never gameplay.
+@export var model_turn_rate: float = 45.0
 
 @export_group("Champion level")
 ## The champion's own persistent level (VISION.md, Game structure). Only ever

@@ -25,13 +25,14 @@ enum Phase { NONE, LEAD_BY_PROGRESS, LEAD_BY_TIME, FOLLOW, DASH }
 ## How fast the model turns to the unit's facing (exponential, per second; P0b).
 @export var turn_rate: float = 20.0
 
-## EXPERIMENT (FEEL2 F2, 2026-10-09; set by FeelPreset, SandboxFeel): the
-## tracked player's model turns at this rate instead of turn_rate; below 0
-## (the default) = turn_rate, today. Enemies always use their own.
+## A champion's model turns at its ChampionData.model_turn_rate (45 since
+## FEEL2 shipped preset 3, 2026-10-09); every other unit at turn_rate.
+## Sandbox override (FeelPreset, SandboxFeel F10): the tracked player's model
+## turns at this rate instead; below 0 (the default) = no override.
 static var player_turn_rate: float = -1.0
 ## EXPERIMENT (FEEL2 F2; SandboxFeel Ctrl+F10): the tracked player's model
 ## snaps its yaw to the swing's direction when a basic attack swing starts.
-## Off = today.
+## Off in shipped config.
 static var swing_yaw_snap: bool = false
 ## EXPERIMENT (FEEL2 Slice C; SandboxBrains' panel, N): every pose's lean
 ## angle x this (0.5-2), to test tell readability at the camera's distance.
@@ -396,11 +397,17 @@ func _sync_airborne() -> void:
 	_air_left_prev = left
 
 
-## The rate this model turns at: turn_rate, or player_turn_rate for the
-## tracked player when one is set (FEEL2).
+## The rate this model turns at: the sandbox's player_turn_rate for the
+## tracked player when one is set, else a champion's model_turn_rate, else
+## turn_rate (FEEL2).
 func get_turn_rate() -> float:
 	if player_turn_rate >= 0.0 and _is_tracked_player():
 		return player_turn_rate
+	var champion: Variant = sim.get(&"champion") if sim else null
+	if champion is Resource:
+		var rate: Variant = (champion as Resource).get(&"model_turn_rate")
+		if rate is float and float(rate) >= 0.0:
+			return rate
 	return turn_rate
 
 

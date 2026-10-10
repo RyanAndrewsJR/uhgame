@@ -18,8 +18,10 @@ extends Resource
 @export_range(0.0, 4.0) var heavy_shake: float = 2.0
 @export_range(0.0, 4.0) var kill_shake: float = 3.0
 
-@export_group("Being hit (EXPERIMENT, FEEL2 F3)")
-## Off = today. On: when the tracked player loses health to a hit (not one
+@export_group("Being hit (FEEL2 F3)")
+## On in hit_feel_default.tres since FEEL2 shipped preset 3 (Ryan,
+## 2026-10-09); off, getting hit has no hitstop (only the player's 2 px
+## shake). On: when the tracked player loses health to a hit (not one
 ## blocked, deflected, eaten by i-frames or fully absorbed by a shield; not
 ## a DoT tick or an on-hit extra hit), a short hitstop and a shake pointing
 ## away from the attacker (GameFeel.play_hit_feel()). The player's existing

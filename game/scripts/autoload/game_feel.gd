@@ -113,9 +113,9 @@ static func is_hit_taken(ctx: HitContext) -> bool:
 	return player != null and ctx.target == player
 
 
-## EXPERIMENT (FEEL2 F3): the tracked player losing health to a hit: a short
-## hitstop and a shake pointing away from the attacker (HitFeel's taken_*).
-## Off (hit_taken_feel_enabled) = today.
+## FEEL2 F3 (on in shipped config since preset 3 shipped, 2026-10-09): the
+## tracked player losing health to a hit: a short hitstop and a shake pointing
+## away from the attacker (HitFeel's taken_*). Off (hit_taken_feel_enabled): none.
 func _play_hit_taken_feel(ctx: HitContext) -> void:
 	if not hit_feel.hit_taken_feel_enabled or not is_hit_taken(ctx):
 		return

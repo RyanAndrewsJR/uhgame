@@ -6,3 +6,6 @@
 [resource]
 script = ExtResource("1_look")
 visible_width_m = 30.0
+shake_decay_px = 16.0
+shake_after_hitstop = true
+shake_directional = true

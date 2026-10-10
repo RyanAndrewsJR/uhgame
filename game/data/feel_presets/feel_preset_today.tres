@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1_preset")
-display_name = "today"
+display_name = "before FEEL2 shipped (the old feel)"
 shake_decay_px = 30.0
 shake_after_hitstop = false
 shake_directional = false

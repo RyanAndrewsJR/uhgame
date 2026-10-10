@@ -405,6 +405,7 @@ Every field defaults to "change nothing"; a Player with no ChampionData keeps us
 | `champion_level` | `int` | 1 | new; plain storage, nothing reads it |
 | `champion_xp` | `int` | 0 | new; XP toward the next level; plain storage |
 | `model_scene` | `PackedScene` | the placeholder KayKit Knight (`art/models/placeholder/kaykit_knight/kaykit_knight.tscn`) | built in 3D pivot P6 (2026-10-03; 3D.md): the champion's rigged 3D model, copied to `Unit.model_scene` at load like the fields above; empty = a placeholder capsule. Champions stay data: a new champion's look is a model file plus this field |
+| `model_turn_rate` | `float` | 45 (the class default; below 0 = the view's own 20) | FEEL2 (Ryan, 2026-10-09: preset 3 shipped): how fast the champion's model turns to its facing (`UnitView.get_turn_rate()`); the view only |
 
 No `growth`: champions don't level their stats (STATS.md, Fill in). Enemies keep per-level growth through `StatsComponent.setup()` (DUNGEONS.md).
 

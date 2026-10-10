@@ -72,15 +72,18 @@ enum ProjectionMode { PERSPECTIVE, ORTHOGRAPHIC }
 
 @export_group("Shake")
 ## GameFeel.shake()'s size (screen px) drops this much a second, real time.
-## (GameCamera's `shake_decay`.)
+## (GameCamera's `shake_decay`.) camera_look_default.tres: 16 since FEEL2
+## shipped preset 3 (Ryan, 2026-10-09; 30 before).
 @export var shake_decay_px: float = 30.0
-## EXPERIMENT (FEEL2 F1, 2026-10-09): the shake holds while a hitstop runs (no
-## offset, no decay) and starts when it ends. Off = today: it decays during
-## the freeze, so a heavy hit's 2 px is 0.2 px when its 0.06 s hitstop ends.
+## FEEL2 F1: the shake holds while a hitstop runs (no offset, no decay) and
+## starts when it ends. On in camera_look_default.tres since preset 3
+## shipped. Off: it decays during the freeze (a heavy hit's 2 px is 0.2 px
+## when its 0.06 s hitstop ends).
 @export var shake_after_hitstop: bool = false
-## EXPERIMENT (FEEL2 F1): a shake given a direction (GameFeel.shake(amount,
-## direction): basic attack hits, kills, the hit-taken feel) leans along it:
-## its mean offset points that way. Off = today (random in every direction).
+## FEEL2 F1: a shake given a direction (GameFeel.shake(amount, direction):
+## basic attack hits, kills, the hit-taken feel) leans along it: its mean
+## offset points that way. On in camera_look_default.tres since preset 3
+## shipped. Off: random in every direction.
 @export var shake_directional: bool = false
 
 @export_group("Debug")

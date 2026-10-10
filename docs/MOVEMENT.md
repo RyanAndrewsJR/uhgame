@@ -114,7 +114,7 @@ The LoL actions `move` / `stop` / `attack_move` (were right mouse / S / A) and `
 - Pits: not scheduled (step 8 was removed 2026-09-25). If they come back, the dash crosses them and the fall rule is in WORLD_INTERACTION.md, Pits and movement types (approved 2026-09-30, with every displacement ignoring the pit layer while it runs).
 
 ## Input buffering and cancels
-- **Buffer** (`PlayerInput`, `buffer_time` = 0.15 s): a `dash`, `attack` or Q/W/E/R press that isn't allowed yet fires as soon as it is.
+- **Buffer** (`PlayerInput`, `buffer_time` = 0.15 s): a `dash`, `attack` or Q/W/E/R press that isn't allowed yet fires as soon as it is. A hitstop counts in game time (a 0.08 s freeze uses about 0.004 s of it at 60 ticks; FEEL2), so a press survives one and still fires during it.
   - One buffered press at a time; a newer press replaces an older one.
   - The timer pauses while a dash, a cast, a basic attack swing or a swing's breather (`pause_after`, COMBAT.md) is playing out, so a press during one fires the moment it ends (a click early in a swing queues the next swing; a click in the finisher's breather fires when it ends). It doesn't pause for stuns or cooldowns.
   - When a press is allowed: dash = `DashComponent.can_dash()`. Ability = `can_cast(slot)` and not dashing (no casting mid-dash). Attack = not stunned, casting or dashing, and `AutoAttackComponent.can_swing()` (not swinging, not in a breather, no attack lock). An ability during a swing only if its `cancels_swing` allows it right now (`Player.can_interrupt_swing()`; COMBAT.md).
