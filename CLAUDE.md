@@ -128,15 +128,15 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 | `docs/WORLD_INTERACTION.md` | abilities touching the world, collision layers, tile tags, interactables (and their puzzle element rules), hazards, pits and pit-drops, destructibles, kill credit |
 | `docs/COMBAT.md` | basic attacks, hits and damage, damage types, crit and mitigation, status effects and CC, i-frames, hitstop/shake/flash, damage numbers, reaction rules, enemy attack damage and telegraphs |
 | `docs/STATS.md` | any stat, health/mana, champion base stats, modifiers from gear/buffs/levels, items changing ability numbers |
-| `docs/ABILITIES.md` | abilities: casting, cast styles, charge-up, scalings, tooltips, tags, costs, cooldowns, charges, recasts, projectiles, augments, forms, empowers, conditions, blinks; Korsavil's ability sheets and the toolkit pieces she needs |
-| `docs/CHAMPIONS.md` | ChampionData, passives, resource rhythms (Fury, Energy), the champion level field, the Knight's kit and its functional HUD (CH6), Korsavil's kit (Blades, Inevitable Demise, Vanish, Umbral Stalker) and her build steps |
+| `docs/ABILITIES.md` | abilities: casting, cast styles, charge-up, scalings, tooltips, tags, costs, cooldowns, charges, recasts, projectiles, augments, forms, empowers, conditions, blinks; Korsavil's ability sheets and the toolkit pieces she needs; Korsavil v2's sheets and pieces |
+| `docs/CHAMPIONS.md` | ChampionData, passives, resource rhythms (Fury, Energy), the champion level field, the Knight's kit and its functional HUD (CH6), Korsavil's kit (Blades, Inevitable Demise, Vanish, Umbral Stalker) and her build steps (v1); Korsavil v2 (2026-10-09: his chain, Demise stacks, Blade Singer, Cloak & Dagger, Spectral Assault, Reckoning) and its K3–K10 |
 | `docs/AUDIO.md` | any sound, music, the mix, volume settings, how to add a sound, conditional sounds (variants, cues, a status's end reason), the audition tool |
 | `docs/TALENTS.md` | talents, unlock requirements (`TalentRequirement`), the loadout and talent points, ability-use and kill counters, the XP curve, the hub's talent screen, the kind-not-magnitude rule, the Knight's set |
 | `docs/LOOT.md` | items, bases, affixes, rarities, sigils, named items, equipping (`EquipmentComponent`), the inventory, its save and the materials bucket, drop tables, depth and magic find, pickups (layer 9), dropping and trashing |
 | `docs/COMPANIONS.md` | companions: species, quirks, passives, bond, evolutions, the command on Tab (the fifth slot), consuming and the imprint, eggs, kindling, the hub screen, `user://companions.cfg`; the exception to VISION's no-shared-power rule |
 | `docs/ALLIES.md` | the AI ally, controllers (`UnitController`: player input, enemy brain, ally brain), teams and smart cast, how enemies pick between champions (`threat`, taunt, stealth), downed and revive, party scaling, `get_ai_plan()`, stances |
 | `docs/DUNGEONS.md` | dungeons and wings (a wing is a run), spaces, checkpoints, content slots and the shuffle, packs and arenas, bosses, puzzles, secrets, collectibles, quests, the codex, the map, difficulty tiers, the champion lens, the dungeon save |
-| `docs/ENEMIES_AI.md` | enemy brains (intents, respect, patience), ranks and archetypes (formerly roles), kits (`ai_uses`), tokens, packs, dodging, tells, elites, the boss director, spawning, scaling, `EnemyData`, performance, the tuning toolkit, duels, combos |
+| `docs/ENEMIES_AI.md` | enemy brains (intents, respect, patience), ranks and archetypes (formerly roles), kits (`ai_uses`), tokens, packs, dodging, tells, elites, the boss director, spawning, scaling, `EnemyData`, performance, the tuning toolkit, duels, combos, the Vampyr Shade (AI-V1–AI-V3) |
 | `docs/ARCHETYPES.md` | archetypes shared by champions and enemies (Assassin, Mage, Skirmisher, Bruiser, Duelist; Basic) and rank × archetype; deflect and poise; enemy strings and the beat; perilous attacks; duel pressure; weak basic attacks; AR1–AR8 |
 | `docs/3D.md` | what the player sees in 3D: sim/view, px ↔ m, the camera (`CameraLook`), models, views, rooms built in 3D (`RoomLayout`, `Footprint`, `SimMarker`), `FloorOverlay`, `ScreenOverlay`, aim, terrain, ledges, airborne, leaps, perches |
 | `docs/3D_PIVOT.md` | only when asked how the 3D choice was made: the 2D baseline and inventory, the A1/A2 costing, the spikes' plans and results, the interview |
@@ -146,7 +146,7 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 ## Current status
 - **Now:**
   - The Knight ships; CHAMPIONS, TALENTS, LOOT, STATS and the 3D pivot (up to the P-spike) are done.
-  - **Korsavil is redesigned (v2, Ryan's board, 2026-10-09; docs only):** K1–K2 passed; the old K3–K6 are replaced by v2's K3–K10 pending Ryan's OK (CHAMPIONS.md, Korsavil v2).
+  - **Korsavil is redesigned (v2, Ryan's board, 2026-10-09; docs only):** K1–K2 passed; v2's K3–K10 replace the old K3–K6 (Ryan confirmed it before K3, 2026-10-09; CHAMPIONS.md, Korsavil v2).
   - ENEMIES_AI: AI1–AI3, AI3b–AI3d and AI-D1–AI-D3 passed; R0 and R1 committed (4,095/4,095).
   - ARCHETYPES: AR1a–AR4 passed and committed (the test duelist at 1.89×, short of 2×: Open questions 20).
   - FEEL2: preset 3 shipped and passed (c2efc46). Sandbox-only, Ryan's read pending: F9 latency probe, F10 blind presets, F7 threat palettes, the N panel's "pose lean x" (CHANGELOG.md).
@@ -156,13 +156,12 @@ The game in `game/` is the **reference build**. It works, and changes build on i
   2. AR4 (2026-10-09, passed): weak basic attacks, `unempowered_attack_damage` 0.5 on both champions, the rotation simulation.
   3. AR3b (2026-10-09, passed): the test Assassin (Shift+H): its Riposte Stance, the rebuff, its riposte, its perilous charge.
 - **Next** (ARCHETYPES.md, Open questions 15, with Ryan's changes):
-  1. Korsavil v2's K3–K9 (CHAMPIONS.md, Build order, Korsavil v2), on Ryan's OK.
+  1. Korsavil v2's K3–K9 (CHAMPIONS.md, Build order, Korsavil v2): K3 first (the data swap, the chain, the passive).
   2. AR5 (his Assassin layer) and AR6, then K10 and K-M *(proposed)*.
   3. The Vampyr Shade, AI-V1–AI-V3 (ENEMIES_AI.md; Ryan: after K-M), then AR7, AR8 and AR-M (the duel).
   4. DUNGEONS' slice (D0–D9, D-M): AI7 before D1, AI5 before D3, AI6 before D4, AI-M after AI7 (no dodging).
   5. AI4 (dodging) and AI8 (the later roles); then the Future docs.
 - **Pending** (each lives in the doc named):
-  - Ryan's OK on Korsavil v2 and the Vampyr Shade (designed 2026-10-09) and their *(proposed)* readings: CHAMPIONS.md (Open questions, Korsavil v2), ENEMIES_AI.md (Open from the Vampyr Shade), ARCHETYPES.md (Open questions 21–24).
   - Ryan's OK on AI-D1–AI-D3's names; Claude's other open proposals (ENEMIES_AI, COMPANIONS, DUNGEONS, CHAMPIONS).
   - COMBAT C8's play test, crits and on-hit (CHANGELOG.md).
   - Clearing `player.tscn`'s old exports, on Ryan's OK (CHAMPIONS.md, Loading a champion).

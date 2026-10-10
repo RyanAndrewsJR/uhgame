@@ -584,7 +584,7 @@ Extra tunables: strike_interval 0.15 s, arc_radius 300 u, heal_max_health_ratio 
 | No enemy in the half circle | The blink and the heal still happen. |
 
 ### Korsavil v2 (Ryan, 2026-10-09; designed, not built)
-His four abilities from Ryan's redesign. **Ryan's sheet, his text word for word and his interview answers are CHAMPIONS.md's (Korsavil v2): the kit's one home;** these sheets map them onto `Ability` fields and steps. Lines at their default are left out; "new" marks a toolkit piece that doesn't exist yet (Later toolkit pieces, Korsavil v2); every name and every value not on Ryan's sheet or in his answers is *(proposed)* (CHAMPIONS.md, Open questions, Korsavil v2). The board's ranges and widths are metres: 100 u = 1 m = 32 px. "He" for Korsavil (Ryan, 2026-10-09).
+His four abilities from Ryan's redesign. **Ryan's sheet, his text word for word and his interview answers are CHAMPIONS.md's (Korsavil v2): the kit's one home;** these sheets map them onto `Ability` fields and steps. Lines at their default are left out; "new" marks a toolkit piece that doesn't exist yet (Later toolkit pieces, Korsavil v2); every name and every value not on Ryan's sheet or in his answers is *(proposed)* (CHAMPIONS.md, Open questions, Korsavil v2). The board's ranges and widths are metres: 100 u = 1 m = 32 px. "He" for Korsavil (Ryan, 2026-10-09). **Ryan accepted every *(proposed)* reading here before K3 (2026-10-09)**, with two changes written in below: Q's "delay 1.5 s" is ignored, and R's cuts take 0.1 s each.
 
 ```
 Name / Champion / Slot / id: Blade Singer / Korsavil / Q / korsavil_blade_singer  (korsavil_q_blade_singer.tres,
@@ -596,7 +596,7 @@ Targeting: UNIT ("Throw a dagger at an enemy": Ryan, 2026-10-09). The recast: SE
   needs no enemy under the cursor; its target is the lodged dagger)
 Cost: 25 (recast 0, proposed)      Cooldown: 11 s
 Recasts: recast_count 1, recast_window 3 s (proposed: the default), opened at part 0's effect. The board's part 2
-  "delay 1.5 s" has no reading yet (Ryan to say). Part 0: the dagger. Part 1: the lunge.
+  "delay 1.5 s" is ignored (Ryan, 2026-10-09). Part 0: the dagger. Part 1: the lunge.
 Cast time: 0.15 s, each part (a recast part has no cast time of its own)      Range: cast_range 700 u (224 px, 7 m)
 Movement during the cast: roots_during_cast off (proposed: he walks through the 0.15 s, as the old Q)
 Damage (part 0, each enemy the dagger hits): base_damage 30, ad_ratio 0.25 (Ryan), PHYSICAL (Ryan), blocked by walls
@@ -767,7 +767,7 @@ Extra tunables: cone_half_angle_deg 80, stab_delay 0.15 s, stab_base_damage 20, 
 | Rooted | "Rooted": nothing spent, not buffered. |
 
 ```
-Name / Champion / Slot / id: Reckoning (proposed: Ryan's advisor's working name; the board's is blank) / Korsavil /
+Name / Champion / Slot / id: Reckoning (Ryan, 2026-10-09: his advisor's working name; the board's is blank) / Korsavil /
   R / korsavil_reckoning  (korsavil_r_reckoning.tres, korsavil/reckoning.gd) (proposed names)
 Role tag / other tags: ultimate / projectile, blink (proposed)
 Cast style: INSTANT
@@ -775,8 +775,8 @@ Targeting: SELF (proposed: the daggers pick their own targets, and each recast i
 Cost: 50 (recasts 0, proposed)      Cooldown: 60 s (starts when the sequence ends)
 Recasts: recast_count 4, recast_window 2 s (Ryan: "up to 4 times, within 2 seconds of the last": the built window
   restarts after each part). Part 0: the daggers. Parts 1–4: the cuts.
-Cast time: 0.5 s (Ryan's sheet; the advisor's 0.25 s isn't used), each part (a recast part has no cast time of its
-  own; flagged: four cuts take at least 2 s)      Range: 800 u (256 px, 8 m) for the daggers
+Cast time: 0.5 s for the throw (Ryan's sheet; the advisor's 0.25 s isn't used); each cut 0.1 s (Ryan, 2026-10-09:
+  recast_cast_time, new)      Range: 800 u (256 px, 8 m) for the daggers
 Movement during the cast: roots (proposed)
 Damage: the daggers base_damage 30, ad_ratio 0.30 (Ryan); each cut 60 + 0.80 AD (Ryan; the script's cut_base_damage,
   cut_ad_ratio), PHYSICAL (Ryan)
@@ -793,7 +793,7 @@ What it does, step by step:
      nearest again (Ryan); one crit roll for the cast. A one-off in reckoning.gd.
   3. Each dagger that hits: 30 + 30% AD and a stack of status_sentenced (6 s; 10% slow: Ryan).
   Parts 1–4 (the cuts, each within 2 s of the last)
-  4. Cast start: 0.5 s. Effect: blink() to the Sentenced enemy nearest the cursor (Ryan; the script picks it at the
+  4. Cast start: 0.1 s (recast_cast_time). Effect: blink() to the Sentenced enemy nearest the cursor (Ryan; the script picks it at the
      effect: a one-off), landing just in front of it on his side (proposed); then hit_units() on it: 60 + 80% AD,
      ×2 below 25% health, one Sentenced stack removed ("pulling out its dagger").
   5. The cut counts as a basic attack (Ryan, 2026-10-09: on-hit only): its hit is tagged basic_attack as well as
@@ -889,6 +889,7 @@ Audio hooks: see AUDIO.md (`charge_sound` is added there for CHARGE_UP).
 | `recast_count` | `int` | 0 | extra parts after the first. |
 | `recast_window` | `float` | 3.0 | seconds; scoped param. |
 | `recast_resource_cost` | `float` | 0 | each later part; scoped param. |
+| `recast_cast_time` | `float` | −1 | planned (Ryan, 2026-10-09, for Korsavil v2's R): the cast time of every part after the first; −1 = `cast_time` (today's rule: a recast part has no cast time of its own). |
 | `charge_time` | `float` | 1.5 | seconds to full charge; scoped param. |
 | `overhold_time` | `float` | 2.0 | seconds held after full; scoped param. |
 | `overhold` | `Ability.Overhold` | `FIRE` | `FIRE`, `CANCEL_REFUND`. |
@@ -1401,6 +1402,7 @@ Not build steps. Each is data once 2+ kits use it (Data or script, above).
   - **The chain projectile** (Q, K4): the bounce projectile above, unchanged in shape: after a hit it flies on to the nearest enemy within `bounce_range` of the unit it hit, in that unit's sight, not hit yet, homing, up to `projectile_bounces` times, with a per-hit callback; Q's first throw homes too (a UNIT cast). Every hit deals the same, so the `bounce` input isn't needed for Q.
   - **Ending a recast sequence early** (Q, R; K4): `AbilityComponent.end_recast(slot)`, public (today's `_end_recast()` is private): the sequence ends and the cooldown starts the next physics frame, as at a window's end. Q ends its own when the dagger hit fewer than 3 enemies; R when no Sentenced enemy remains.
   - **A recast part's own targeting** (Q's recast, K4): `recast_targeting` above, SELF for Q (its target is the lodged dagger, not the cursor).
+  - **A recast part's own cast time** (R's cuts, K8; Ryan, 2026-10-09): `Ability.recast_cast_time` (−1 = the ability's `cast_time`, today's rule), the cast time of every part after the first; R's cuts 0.1 s against its throw's 0.5 s. Opt-in: Ryan's 2026-10-04 answer (a recast part has no cast time of its own) stays the default, so Homeward Lunge keeps its 0.05 s.
   - **The attack-or-cast empower trigger** (W, K6; the layer note's payoff, K10): `StatusEffect.EmpowerTrigger.BASIC_ATTACK_OR_CAST`, used by the next swing that hits or the next ability cast (not a free cast), whichever comes first; its bonus and statuses go into that swing's hit or into every hit of that cast.
   - **A status that ends when its holder acts** (W, K6): `ends_on_cast`, `ends_on_swing` above; v2 doesn't use `ends_on_dash` (ALLIES' stealth may).
   - **An empower that always crits** (K10): `StatusEffect.empower_always_crits` (false): the swing or cast that uses it crits (its crit roll is decided as a crit before it rolls). Not a `crit_chance` modifier on the status: an ability's empower is used at its cast start, before its hits roll.
@@ -1419,7 +1421,7 @@ Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modi
 
 ## Open questions
 - ~~Blinks: Claude's proposals~~ (the API and `blinked`, the refusals, no status or i-frames, the tag, enemies may blink, the view's look, the test blink on B): approved when Ryan started AB15 (2026-10-04).
-- ~~Should a recast part have its own cast time?~~ Answered (Ryan, 2026-10-04, at LOOT L-M): no. Homeward Lunge's return keeps Lunge's 0.05 s (3 ticks) before the blink.
+- ~~Should a recast part have its own cast time?~~ Answered (Ryan, 2026-10-04, at LOOT L-M): no. Homeward Lunge's return keeps Lunge's 0.05 s (3 ticks) before the blink. *(2026-10-09, Ryan: yes for Korsavil v2's R, through an opt-in `recast_cast_time`; every other ability keeps this answer.)*
 - ~~Should a root also block the dashes (Lunge, Triple Step) as it blocks blinks?~~ Answered (Ryan, 2026-10-04, at LOOT L-M): "roots are roots. You shouldn't be able to move at all until it ends." Built the same day (Roots, under Blinks).
 - Ultimate meter details (CHAMPIONS.md, when a champion first uses one).
 - The element tag list.
@@ -1433,4 +1435,4 @@ Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modi
 - Conditions: will we ever need OR, or do scripts cover it?
 - Do conditional bonuses show in tooltips always, or only while active? *(AB12 starts with always)*
 - Korsavil (designed 2026-10-04): her proposals are in CHAMPIONS.md, Open questions (Korsavil); the toolkit pieces she needs are in Later toolkit pieces, each *(proposed; built when Korsavil is)*.
-- Korsavil v2 (Ryan's redesign, 2026-10-09): his proposals are in CHAMPIONS.md, Open questions (Korsavil v2); his sheets in Korsavil v2 (above); the pieces he and the Vampyr Shade need in Later toolkit pieces, each *(proposed)*. Two readings wait for Ryan: Q's board field "delay 1.5 s" (no reading yet), and R's cuts keeping its 0.5 s cast time each (a recast part has no cast time of its own: Ryan, 2026-10-04).
+- Korsavil v2 (Ryan's redesign, 2026-10-09): his proposals are in CHAMPIONS.md, Open questions (Korsavil v2); his sheets in Korsavil v2 (above); the pieces he and the Vampyr Shade need in Later toolkit pieces, each *(proposed)*. Two readings wait for Ryan: Q's board field "delay 1.5 s" (no reading yet), and R's cuts keeping its 0.5 s cast time each (a recast part has no cast time of its own: Ryan, 2026-10-04). **Answered (Ryan, 2026-10-09, before K3):** the delay is ignored; R's cuts take 0.1 s each; every other reading accepted.
