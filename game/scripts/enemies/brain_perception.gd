@@ -75,6 +75,7 @@ func build_situation() -> SituationContext:
 	var snap := Brains.get_snapshot()
 	var m := snap.get_member(target)
 	_read_crowding(s, m, target, now)   # AI-D1: crowding starts the episode
+	_read_closed_in(s, now)   # ARCHETYPES AR3b: the Riposte Stance's read
 	brain._brain_duel._update_episode(s, target, now)
 	s.target_in_sight = WorldQuery.has_line_of_sight(brain._enemy.global_position, target.global_position)
 	s.target_reachable = brain._enemy.is_target_reachable()
@@ -186,8 +187,8 @@ func _gather_uses(s: SituationContext) -> void:
 		for intent in SituationContext.OPENER_INTENTS:   # AI-D1: a setup's opener
 			if not wanted.has(intent):
 				wanted.append(intent)
-	if not s.incoming.is_empty() or s.crowding > 0.0:
-		wanted.append(EnemyBrain.DEFEND)   # AI-D1: a defend use may read crowding (the duelist's guard)
+	if not s.incoming.is_empty() or s.crowding > 0.0 or s.target_closed_in:
+		wanted.append(EnemyBrain.DEFEND)   # AI-D1: a defend use may read crowding (the duelist's guard); AR3b: or its target closing in (the Riposte Stance)
 	if not s.cornered and s.target_edge_distance_px < Units.to_px(brain.behavior.range_band_min):
 		wanted.append(EnemyBrain.ESCAPE)
 	abilities.set_aim_hint(s.target_position)   # conditions look at the target (AB12)
@@ -233,6 +234,41 @@ func _read_crowding(s: SituationContext, m: Dictionary, target: Unit, now: float
 		s.target_gap_closer_in = edge < s.band_min_px
 	s.recent_hits = Brains.get_recent_hits(brain._enemy, table.crowding_hit_window)
 	s.crowding = ComboPlanner.get_crowding(s, table.crowding_weights, s.crowding_terms)
+
+
+## ARCHETYPES AR3b: its target closed in on it (SituationContext
+## .target_closed_in): inside the table's riposte_stance_range, edge to edge,
+## or a gap-closer of its ended inside its band's minimum (crowding's read),
+## seen for its reaction time (from the moment it first was; Brains wakes it
+## then). Never while it commits: its own swings close the gap (D4: the stance
+## answers the player closing in). Read only by an enemy whose kit has a use
+## that reads it (no other brain thinks differently).
+func _read_closed_in(s: SituationContext, now: float) -> void:
+	var inside := s.target_edge_distance_px < Units.to_px(Brains.table.riposte_stance_range) or s.target_gap_closer_in
+	if not inside or s.committing or not _reads_closed_in():
+		brain._closed_in_since = -1.0
+		return
+	var reaction := brain.behavior.reaction_time
+	if brain._closed_in_since < 0.0:
+		brain._closed_in_since = now
+		Brains.wake_at(brain, now + reaction)
+	s.target_closed_in = now - brain._closed_in_since + 0.0001 >= reaction
+
+
+## One of its abilities has an AI use with a TARGET_CLOSED_IN rule (AR3b).
+func _reads_closed_in() -> bool:
+	var abilities := brain._enemy.abilities
+	if abilities == null:
+		return false
+	for slot in AbilityComponent.SLOTS:
+		var ability := abilities.get_ability(slot)
+		if ability == null:
+			continue
+		for use in ability.get_ai_uses():
+			for c in use.conditions:
+				if c != null and c.kind == Condition.Kind.TARGET_CLOSED_IN:
+					return true
+	return false
 
 
 ## The opening's inputs and the read (ComboPlanner.get_opening()): its

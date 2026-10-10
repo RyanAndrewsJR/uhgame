@@ -15,7 +15,8 @@ extends Resource
 ## enemy's overrides, times its rank's, faction's, difficulty tier's and elite
 ## modifiers' BrainAdjust multipliers, each clamped to its limits.
 
-enum Role { BRUTE, SKIRMISHER, CASTER }   ## later SUPPORT, SUMMONER, SNIPER (AI8)
+## ARCHETYPES AR3b appends ASSASSIN, stored as 4 (3 is kept for AR8's DUELIST).
+enum Role { BRUTE, SKIRMISHER, CASTER, ASSASSIN = 4 }   ## later SUPPORT, SUMMONER, SNIPER (AI8)
 enum LowHealth { FIGHT_ON, FALL_BACK, HIT_AND_RESET }
 
 ## The slider fields, in the panel's order (the band's two ends are one slider).
@@ -154,13 +155,16 @@ func get_intent_weight(intent: StringName) -> float:
 
 
 ## Its role's archetype id (ARCHETYPES AR3a; Archetype.of()): BRUTE is a
-## Bruiser, SKIRMISHER a Skirmisher, CASTER a Mage (AR8 renames the roles).
+## Bruiser, SKIRMISHER a Skirmisher, CASTER a Mage (AR8 renames the roles),
+## ASSASSIN an Assassin (AR3b).
 func get_archetype_id() -> StringName:
 	match role:
 		Role.SKIRMISHER:
 			return &"skirmisher"
 		Role.CASTER:
 			return &"mage"
+		Role.ASSASSIN:
+			return &"assassin"
 		_:
 			return &"bruiser"
 

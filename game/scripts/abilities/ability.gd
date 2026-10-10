@@ -793,6 +793,13 @@ func on_cast_started(_caster: Unit, _ctx: CastContext) -> void:
 	pass
 
 
+## The recovery after this cast's effect (s; AbilityComponent's recovery):
+## recovery_time (a scoped param). Override where a cast decides it (ARCHETYPES
+## AR3b: the Riposte Stance recovers only when it deflected nothing).
+func get_cast_recovery_time(caster: Unit, _ctx: CastContext) -> float:
+	return get_param(caster, &"recovery_time")
+
+
 ## Draws the aiming indicator. `canvas` is the caster (local coordinates),
 ## `aim` is the cursor in world space. Override for custom shapes.
 func draw_indicator(canvas: Node2D, caster: Unit, aim: Vector2) -> void:

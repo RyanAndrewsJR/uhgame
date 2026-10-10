@@ -10,3 +10,4 @@ low_health = 0.4
 low_health_decay_scale = 0.5
 break_damage_bonus = 0.5
 break_immunity = 4.0
+own_deflect_drain = 15.0

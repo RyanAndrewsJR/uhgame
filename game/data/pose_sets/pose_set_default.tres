@@ -81,6 +81,18 @@ script = ExtResource("1_ttykm")
 lean_deg = -10.0
 squash = 0.9
 
+[sub_resource type="Resource" id="Resource_riposte_stance"]
+script = ExtResource("1_ttykm")
+lean_deg = -5.0
+squash = 0.95
+rim_color = Color(0.55, 0.75, 1, 0.9)
+
+[sub_resource type="Resource" id="Resource_rebuffed"]
+script = ExtResource("1_ttykm")
+lean_deg = -20.0
+squash = 1.05
+rim_color = Color(1, 1, 1, 0.9)
+
 [resource]
 script = ExtResource("2_v8hyr")
 poses = Dictionary[StringName, ExtResource("1_ttykm")]({
@@ -94,9 +106,11 @@ poses = Dictionary[StringName, ExtResource("1_ttykm")]({
 &"hold": SubResource("Resource_fgdym"),
 &"press": SubResource("Resource_press"),
 &"pressure": SubResource("Resource_gcybp"),
+&"rebuffed": SubResource("Resource_rebuffed"),
 &"recoil": SubResource("Resource_ejg0a"),
 &"recover": SubResource("Resource_recover"),
 &"return": SubResource("Resource_8uet0"),
+&"riposte_stance": SubResource("Resource_riposte_stance"),
 &"sidestep": SubResource("Resource_tkby7"),
 &"stalk": SubResource("Resource_grkk2"),
 &"step_back": SubResource("Resource_0cbmv")

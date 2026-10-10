@@ -325,6 +325,12 @@ extends Resource
 ## ...or this many while a boss fights.
 @export var perilous_live_max_boss: int = 2
 
+@export_group("Riposte Stance (ARCHETYPES AR3b)")
+## LoL units, edge to edge (300 = 3 m): its target this close, seen for its
+## reaction time, has closed in (SituationContext.target_closed_in; Condition
+## TARGET_CLOSED_IN): an enemy Assassin raises its Riposte Stance (D4).
+@export var riposte_stance_range: float = 300.0
+
 ## Derived respect values, cached per ability (they read only data).
 var _respect_cache: Dictionary = {}
 ## applies_cc() per ability, cached (AI-D2).

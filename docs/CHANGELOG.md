@@ -12,7 +12,29 @@
 
 ## Archetypes (ARCHETYPES.md)
 
-### AR3a, the poise meter's new rules: 2026-10-08, Built (awaiting Ryan's play test)
+### AR3b, the test Assassin: 2026-10-08, Built (awaiting Ryan's play test)
+Ryan passed AR3a and committed it, then asked for the next step.
+- **New:**
+  - `scripts/abilities/enemy/riposte_stance.gd`: the Riposte Stance, a deflect ability. On itself with no cast time; its effect opens the unit's deflect window for `window_time` 0.5 s and holds still (the move lock `riposte_stance`). Anything that blocks casting closes it early; `get_cast_recovery_time()` gives its `recovery_time` only after a whiff. `glint_vfx` (empty: a white ring).
+  - Data:
+    - `data/statuses/status_rebuffed.tres` (0.4 s, blocks attacking, tags `rebuffed` and `debuff`, not `cc`, ignores tenacity, no cleanse);
+    - `data/enemy_behaviors/enemy_behavior_assassin.tres` (the skirmisher's band and sliders, role ASSASSIN, fights on);
+    - the test Assassin: `data/units/test_assassin.tres` (1400 health, 20 armor, 40 AD, 150 u, 380 move speed, a 0.25 s basic attack wind-up), `data/enemies/enemy_test_assassin.tres` (an elite; its meter its rank's 100), `scenes/enemies/test_assassin.tscn` (a dark violet capsule, a `DeflectComponent` with its riposte's numbers, a deflectable basic attack), `data/combos/combo_test_assassin.tres` (3–4 hits 0.4 s apart, 30 damage each), `test_assassin_q_riposte_stance.tres` (6 s cooldown, 0.6 s recovery, one `defend` use reading `TARGET_CLOSED_IN`), `test_assassin_e_flurry.tres` (the library's flurry with a `gap_close` use), `test_assassin_r_charge.tres` (the library's charge, perilous: deflectable, 0.9 s, 240 damage, 12 s).
+- **Changed:**
+  - `deflect_component.gd`: `archetype` (an enemy's, at spawn) runs it without the flag (`has_archetype_deflect()`, `_is_on()`); `open_window(duration)`, `close_window()`, `get_window_deflects()`, `deflects_by_ability()`. An enemy's deflect (`_on_ability_deflected()`) closes the window, rebuffs the champion and cancels his swing (both at the end of the frame), gives the enemy its riposte and its basic attack at the champion at once, and drains its own meter.
+  - `poise_component.gd`: `drain_poise()`; `poise_rules.gd`: `own_deflect_drain` 15.
+  - `ability.gd`: `get_cast_recovery_time()`; `ability_component.gd`: the recovery asks it (with the cast's context).
+  - `enemy_behavior.gd`: `Role.ASSASSIN` (stored as 4) and its archetype id; `condition.gd`: `TARGET_CLOSED_IN` (14), a situation kind; `situation_context.gd`: `target_closed_in`; `enemy_ai_table.gd`: `riposte_stance_range` 300.
+  - The brain: `brain_perception.gd` `_read_closed_in()` (inside the range or a gap-closer in its band, after its reaction time, never while committing, only for a kit that reads it) and defend gathered with it; `enemy_brain.gd` `_closed_in_since` and its header; `brain_scoring.gd` an Assassin stalks.
+  - `enemy.gd`: the archetype to the `DeflectComponent` at spawn; `get_pose()` shows `rebuffed`, then `riposte_stance`.
+  - `pose_set_default.tres`: `riposte_stance`, `rebuffed`; `sandbox_brains.gd`: the test Assassin last in Shift+H.
+- **Found while building** (ARCHETYPES.md, Assassin, The enemy's layer): one read (`TARGET_CLOSED_IN`) in place of the two proposed uses; the riposte swing is the League-style attack; applying the rebuff inside the champion's hit cancelled his swing mid-landing (a script error on the first run), so it lands at the end of the frame; the charge first carried two role tags (`ultimate`, `mobility`: a warning in the enemies run), so it keeps `ultimate`. The slip isn't built.
+- **Tests:**
+  - deflect +16: the stance (the flags off; the window; the Knight's swing 2 deflected, his combo back to swing 1, rebuffed 0.4 s; its riposte 0.25 s later at twice its AD; one hit per stance; Cleave, Lunge and Judgement through it; a stun cutting it; the dash-strike deflected; the whiff's recovery; its own meter's drain; `status_rebuffed`'s data) and AR3's done line (the Knight's pair plus the riposte breaking it, 1.8 s).
+  - enemies +16: AR3b's data, a real Assassin's stance (from 4 m none; at 2 m after its reaction time, 0.37 s, no token, the pose; the recovery after a whiff; not again on its cooldown), the read's rules, a brute never tracking it; changed: the test strings' list and shapes (the Assassin's), Shift+H's order.
+- **Results:** 4,183/4,183 (was 4,151): stats 180, audio 110, view 474, talents 310, champions 238, deflect 193 (+16), loot 750, combat 510, abilities 593, brain_golden 144 (the golden files unchanged: no other brain thinks differently), enemies 681 (+16); no leaks, no GDScript warnings (deflect with `-d`). Think time p95 (µs): regular 966, elite 808, boss 920, duelist 1,142.
+
+### AR3a, the poise meter's new rules: 2026-10-08, Passed (Ryan's play test, 2026-10-08; committed 3b091af)
 Ryan split AR3 (2026-10-08: "go AR3a"; DECISIONS.md, Archetypes): AR3a the meter's new rules, then AR3b the test Assassin. Ryan passed AR1b and AR2 before it.
 - **New:**
   - `scripts/data/poise_rules.gd` (`PoiseRules`: `decay_delay` 3, `decay_rate` 15, `low_health` 0.4, `low_health_decay_scale` 0.5, `break_damage_bonus` 0.5, `break_immunity` 4) and `data/poise_rules/poise_rules_assassin.tres`;

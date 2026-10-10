@@ -46,7 +46,8 @@ extends Node
 ##                rest ready (the opening's escapes term: 0.5).
 ##   Shift+H      (AI3) the next test enemy the scenarios spawn: the test
 ##                brute, skirmisher, caster, elite caster (AI-D1: and the test
-##                duelist); the scenario running now spawns it again.
+##                duelist; ARCHETYPES AR3b: and the test Assassin); the
+##                scenario running now spawns it again.
 ## AI-D1: the overlay adds crowding (with its biggest term; at its
 ## peel_threshold, the peel), the opening (for an enemy with an opener; at its
 ## opening_bar, the setup's opener) and a recovery; the panel the two new
@@ -78,11 +79,12 @@ const FRIENDLY_SCENE := preload("res://scenes/enemies/slime.tscn")
 
 ## What H spawns (the test brute; Shift+H picks another of scenario_enemies).
 @export var scenario_enemy: PackedScene = preload("res://scenes/enemies/test_brute.tscn")
-## The test enemies Shift+H cycles through (AI3; AI-D1 the test duelist).
+## The test enemies Shift+H cycles through (AI3; AI-D1 the test duelist;
+## ARCHETYPES AR3b the test Assassin).
 @export var scenario_enemies: Array[PackedScene] = [
 	preload("res://scenes/enemies/test_brute.tscn"), preload("res://scenes/enemies/test_skirmisher.tscn"),
 	preload("res://scenes/enemies/test_caster.tscn"), preload("res://scenes/enemies/test_caster_elite.tscn"),
-	preload("res://scenes/enemies/test_duelist.tscn"),
+	preload("res://scenes/enemies/test_duelist.tscn"), preload("res://scenes/enemies/test_assassin.tscn"),
 ]
 ## The mixed pack (AI3), spawned in this order (members after the first stand
 ## around it).

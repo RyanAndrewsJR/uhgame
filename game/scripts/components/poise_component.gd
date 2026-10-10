@@ -195,6 +195,18 @@ func take_poise_damage(amount: float, source: Unit = null) -> void:
 		_break(source)
 
 
+## Lowers poise by `amount` (its own successful deflect: ARCHETYPES AR3b,
+## PoiseRules.own_deflect_drain), not below 0; the decay delay runs on.
+## Nothing while inactive or broken.
+func drain_poise(amount: float) -> void:
+	if amount <= 0.0 or not is_active() or _broken:
+		return
+	var before := minf(_poise, poise_max)
+	_poise = maxf(before - amount, 0.0)
+	if _poise != before:
+		_emit_changed()
+
+
 # --- Update ---------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:

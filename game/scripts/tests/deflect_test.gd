@@ -17,7 +17,12 @@ extends Node2D
 ## to a break (D1), with its decay's low-health scale; the Archetype resource,
 ## the ranks' sizes and break times, and an archetype's meter running with
 ## the flag off (a regular breaking on a deflect pair, an elite on the pair
-## plus the riposte, a boss needing 45 more). Slice C: the feel (hitstop, shake, the
+## plus the riposte, a boss needing 45 more). ARCHETYPES AR3b, the test
+## Assassin's Riposte Stance with both flags off: its window, one deflect,
+## the Knight rebuffed (his swing gone, his combo reset, 0.4 s), its riposte
+## at once (twice its AD), what it deflects (swings; never Cleave, Lunge,
+## Judgement), a stun cutting it, its whiff recovery, its own meter's drain;
+## the Knight's test deflect breaking its meter. Slice C: the feel (hitstop, shake, the
 ## riposte's ring; empty slots) and SandboxDeflect (keys, the panel's rows
 ## applied live and to new enemies, its edits put back).
 ## The Knight's crit is held at 0 and his passive (Unbroken) is off, so
@@ -50,6 +55,10 @@ const SKIRMISHER_DATA: EnemyData = preload("res://data/enemies/enemy_test_skirmi
 const CASTER_ELITE_DATA: EnemyData = preload("res://data/enemies/enemy_test_caster_elite.tres")
 const STATUS_POISE_BROKEN: StatusEffect = preload("res://data/statuses/status_poise_broken.tres")
 const STATUS_REBUFFED_PERILOUS: StatusEffect = preload("res://data/statuses/status_rebuffed_perilous.tres")
+const STATUS_REBUFFED: StatusEffect = preload("res://data/statuses/status_rebuffed.tres")
+const STATUS_STUN: StatusEffect = preload("res://data/statuses/status_stun.tres")
+const ASSASSIN_SCENE: PackedScene = preload("res://scenes/enemies/test_assassin.tscn")
+const LUNGE: Ability = preload("res://data/abilities/knight_e_lunge.tres")
 const AURA_SCRIPT: Script = preload("res://scripts/vfx/aura.gd")
 const FLAT := StatModifier.Type.FLAT
 const BASELINE_SOURCE := &"test_baseline"
@@ -123,6 +132,8 @@ func _ready() -> void:
 	await _test_pair_and_riposte_break()
 	_test_ar3a_data()   # ARCHETYPES AR3a
 	await _test_ar3a_meter()
+	await _test_ar3b_stance()   # ARCHETYPES AR3b
+	await _test_ar3b_break()
 	# Slice C: feel, readouts and the sandbox.
 	await _test_feel()
 	await _test_sandbox()
@@ -869,6 +880,154 @@ func _test_ar3a_meter() -> void:
 		[none, own, no_archetype, prototype_off, prototype_on], [[0.0, false], [80.0, true], [0.0, false], false, true])
 	other.queue_free()
 	await get_tree().physics_frame
+
+
+# --- ARCHETYPES AR3b: the test Assassin's Riposte Stance -------------------------------
+
+func _test_ar3b_stance() -> void:
+	_section("AR3b: the test Assassin's Riposte Stance: its archetype runs it (no flag), a 0.5 s window, one deflect, the champion rebuffed, its riposte at once, what it deflects, a stun cuts it, its whiff recovery, its own meter")
+	DeflectComponent.deflect_test_enabled = false
+	PoiseComponent.poise_test_enabled = false
+	await _fresh()
+	var r := STATUS_REBUFFED
+	_check("status_rebuffed: tags rebuffed + debuff, 0.4 s, blocks only attacking; not cc, not counted, no cleanse, tenacity ignored",
+		[r.id, r.tags.size() == 2 and r.tags.has(&"rebuffed") and r.tags.has(&"debuff"), r.duration, r.blocks_attack, r.blocks_move, r.blocks_cast, r.blocks_dash,
+			r.is_cc(), StatusComponent.counts_for_diminishing(r), r.cleansable, r.ignores_tenacity],
+		[&"rebuffed", true, 0.4, true, false, false, false, false, false, false, true])
+	var a := _spawn(ASSASSIN_SCENE, ARENA + Vector2(55, 0))
+	await get_tree().physics_frame
+	var ad := a.deflect_component
+	var ap := a.poise_component
+	_check("the test Assassin, both flags off: its archetype runs its deflect and its meter (the elite's 100, empty); the Knight's deflect stays off",
+		[ad != null, ad.has_archetype_deflect() if ad else false, ad.is_active() if ad else false, ap.has_archetype_meter(), ap.poise_max, ap.get_poise(), deflect.is_active()],
+		[true, true, true, true, 100.0, 0.0, false])
+	if ad == null:
+		return
+	knight.attack.cancel_swing()
+	await _wait_until(func() -> bool: return knight.attack.can_swing(), 60)
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+	var first_landed := _last_hit_on(a) != null
+	var next_index := knight.attack.get_combo_index()
+	a.health.heal(100000.0)
+	_raise_stance(a)
+	_check("the Knight's swing 1 lands (his combo moves on to %d); its stance (Q, no cast time): the window open 0.5 s, it stands still, casting, in its pose" % next_index,
+		[first_landed, next_index > 0, ad.is_window_open(), absf(ad.get_window_left() - 0.5) < 0.02, a.movement.can_move(), a.abilities.casting, a.get_pose()],
+		[true, true, true, true, false, true, &"riposte_stance"])
+	var health := a.health.current
+	_deflects.clear()
+	_ripostes.clear()
+	await _wait_until(func() -> bool: return knight.attack.can_swing(), 60)
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return not _deflects.is_empty(), 60)
+	var deflected_at := Brains.get_time()
+	var d: Array = _deflects.back() if not _deflects.is_empty() else [null, null, null]
+	var ctx: HitContext = d[2]
+	_check("his swing 2 is deflected: the Knight's hit, blocked, no damage; the window closes (one hit per stance)",
+		[d[0] == knight, d[1] == a, ctx.deflected if ctx else false, ctx.blocked if ctx else false, a.health.current, ad.is_window_open(), ad.get_window_deflects()],
+		[true, true, true, true, health, false, 1])
+	var left := knight.status_component.get_time_left(STATUS_REBUFFED.id)
+	await get_tree().physics_frame   # the swing's cancel (deferred out of its hit) and the stance's end
+	_check("the Knight is rebuffed (0.4 s): his swing gone, his combo back to swing 1, no attacking",
+		[left > 0.35 and left <= 0.4, knight.attack.is_swinging(), knight.attack.get_combo_index(), knight.attack.can_swing()], [true, false, 0, false])
+	var empower := a.status_component.get_status(DeflectComponent.get_riposte_status_id())
+	_check("its riposte: empower_riposte (+1.0 AD ratio on its next basic attack hit, 1 s), Events.riposte_ready; the stance over with no recovery; its basic attack on the Knight at once",
+		[empower != null, empower.empower_ad_ratio if empower else -1.0, empower.duration if empower else -1.0, _ripostes == [a], a.abilities.casting, a.abilities.is_recovering(), a.attack.target == knight],
+		[true, 1.0, 1.0, true, false, false, true])
+	await _wait_until(func() -> bool: return _hit_by(a, knight) != null, 60)
+	var riposte := _hit_by(a, knight)
+	var took := Brains.get_time() - deflected_at
+	_check("...it lands %.2f s after the deflect (its 0.25 s wind-up): twice its 40 AD (80 before armor), deflectable, the empower used" % took,
+		[took > 0.2 and took < 0.36, riposte.raw_damage if riposte else -1.0, riposte.deflectable if riposte else false, a.status_component.has_status(DeflectComponent.get_riposte_status_id())],
+		[true, 80.0, true, false])
+	a.attack.cancel()
+	await _wait_until(func() -> bool: return knight.attack.can_swing(), 60)
+	_check("the rebuff over: the Knight swings again", knight.attack.can_swing(), true)
+
+	_raise_stance(a)
+	var c1 := _knight_hit(a)
+	var c2 := _knight_hit(a)
+	_check("one hit per stance: the first deflected, the window shut, the second hits", [c1.deflected, ad.is_window_open(), c2.deflected, c2.blocked], [true, false, false, false])
+	a.attack.cancel()
+	await _wait_until(func() -> bool: return not a.abilities.casting, 10)
+	_raise_stance(a)
+	var cleave := HitPipeline.resolve(HitPipeline.from_ability(knight, CLEAVE, a))
+	var lunge := HitPipeline.resolve(HitPipeline.from_ability(knight, LUNGE, a))
+	var judgement := HitPipeline.resolve(HitPipeline.from_ability(knight, JUDGEMENT, a))
+	_check("what it deflects: never Cleave (an area), Lunge (a dash through a line) or Judgement (an ultimate): each lands through the stance, which stays up",
+		[cleave.deflected, lunge.deflected, judgement.deflected, cleave.blocked, lunge.blocked, judgement.blocked, ad.is_window_open()],
+		[false, false, false, false, false, false, true])
+	a.status_component.apply_status(STATUS_STUN, knight, 0.3)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check("a stun cuts it short: the window closes", [a.is_stunned(), ad.is_window_open(), a.get_pose() == &"riposte_stance"], [true, false, false])
+	await _wait_until(func() -> bool: return not a.is_stunned() and not a.abilities.casting and not a.abilities.is_recovering(), 120)
+	a.health.heal(100000.0)
+	_deflects.clear()
+	_raise_stance(a)
+	await _swing(Vector2.RIGHT, a, true)
+	_check("the dash-strike (a swing) is deflected too", [_deflects.size(), _deflects[0][1] == a if not _deflects.is_empty() else false], [1, true])
+	a.attack.cancel()
+	await _wait_until(func() -> bool: return not a.abilities.casting, 10)
+	await _wait_until(func() -> bool: return knight.attack.can_swing(), 60)
+
+	_raise_stance(a)
+	await _seconds(0.55)
+	var rec_left := a.abilities.get_recovery_left()
+	_check("nothing comes: the window closes after 0.5 s and it recovers (%.2f s left of 0.6): no moving, attacking or casting, the player's opening" % rec_left,
+		[ad.is_window_open(), a.abilities.is_recovering(), rec_left > 0.5 and rec_left <= 0.6, a.movement.can_move(), a.abilities.can_cast(&"e")],
+		[false, true, true, false, false])
+	await _wait_until(func() -> bool: return not a.abilities.is_recovering(), 60)
+	ap.take_poise_damage(30.0, knight)
+	var before := ap.get_poise()
+	_raise_stance(a)
+	_knight_hit(a)
+	_check("its own deflect drains 15 from its meter (%.0f -> %.0f; the deflected hit carries none)" % [before, before - 15.0],
+		[before >= 30.0, ap.get_poise()], [true, before - 15.0])
+	a.attack.cancel()
+	a.queue_free()
+	knight.status_component.remove_status(STATUS_REBUFFED.id)
+	await _frames(2)
+
+
+func _test_ar3b_break() -> void:
+	_section("AR3b: the Knight's test deflect against the test Assassin (AR3's done line): a deflect pair of its attacks plus the riposte breaks its meter (100: 75 + 44), 1.8 s")
+	DeflectComponent.deflect_test_enabled = true
+	PoiseComponent.poise_test_enabled = false
+	await _fresh()
+	var a := _spawn(ASSASSIN_SCENE, ARENA + Vector2(0, 220))
+	await get_tree().physics_frame
+	var p := a.poise_component
+	await _deflect_pair(a)   # its basic attack: deflectable (its scene's)
+	_check("the pair fills 75 of its 100, not broken; the Knight's riposte ready", [p.get_poise(), p.is_broken(), deflect.has_riposte()], [75.0, false, true])
+	_place(knight, ARENA)
+	_place(a, ARENA + Vector2(55, 0))
+	await _swing(Vector2.RIGHT, a)
+	_check("...his riposte (40 + the swing's 4) breaks it, for 1.8 s", [p.is_broken(), absf(p.get_break_left() - 1.8) < 0.05], [true, true])
+	a.queue_free()
+	DeflectComponent.deflect_test_enabled = false
+	await _frames(2)
+
+
+## The test Assassin raises its stance now (its Q, ready; no cast time).
+func _raise_stance(a: Enemy) -> void:
+	a.abilities.reset_cooldown(&"q")
+	a.abilities.try_cast(&"q", a.global_position, null)
+
+
+## A deflectable melee hit from the Knight on `target`, as his swing makes one.
+func _knight_hit(target: Unit) -> HitContext:
+	var ctx := knight.attack.make_attack_context(target)
+	ctx.deflectable = true
+	return HitPipeline.resolve(ctx)
+
+
+## The last hit `source` got through on `target` (Events.unit_hit), or null.
+func _hit_by(source: Unit, target: Unit) -> HitContext:
+	for i in range(_hits.size() - 1, -1, -1):
+		if _hits[i].source == source and _hits[i].target == target:
+			return _hits[i]
+	return null
 
 
 # --- Feel, readouts and the sandbox (slice C) ----------------------------------------

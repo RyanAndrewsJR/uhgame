@@ -178,6 +178,11 @@ var band_min_px: float = 0.0
 var band_max_px: float = 0.0
 var target_closing_px: float = 0.0
 var target_gap_closer_in: bool = false
+## ARCHETYPES AR3b: its target closed in on it: inside the table's
+## riposte_stance_range (edge to edge) or a gap-closer of its ended inside its
+## band's minimum (target_gap_closer_in), seen for its reaction time; never
+## while it commits (Condition TARGET_CLOSED_IN; the Riposte Stance's use).
+var target_closed_in: bool = false
 var recent_hits: int = 0
 var crowding_closing_full_px: float = 128.0
 var crowding_hits_full: int = 3

@@ -344,7 +344,7 @@ static func get_intent_pose(intent: StringName, role: EnemyBehavior.Role, corner
 		EnemyBrain.HOLD, EnemyBrain.POKE:
 			if pressing:
 				return &"press"   # the press shows: a lean in, an amber rim (Odds)
-			return &"stalk" if role == EnemyBehavior.Role.SKIRMISHER else &"hold"
+			return &"stalk" if role == EnemyBehavior.Role.SKIRMISHER or role == EnemyBehavior.Role.ASSASSIN else &"hold"   # AR3b: an Assassin stalks
 		EnemyBrain.DEFEND:
 			return &"guard"
 		EnemyBrain.ESCAPE:

@@ -28,6 +28,7 @@ enum Kind {
 	OPENING,                ## The brain's situation: the opening (0-1, how open its target is to its crowd control and burst) compared with value (AI-D1).
 	TARGET_ESCAPES_READY,   ## The brain's situation: at least count of its target's mobility and defensive abilities ready, as the HUD shows them (AI-D1).
 	TARGET_CORNERED,        ## The brain's situation: a wall or a ledge just behind its target, seen from self (AI-D1).
+	TARGET_CLOSED_IN,       ## The brain's situation: its target closed in on it (inside the table's riposte_stance_range, or a gap-closer of its ended inside its band's minimum), seen after its reaction time, never while it commits (ARCHETYPES AR3b: the Riposte Stance's use).
 }
 
 enum Comparison {
@@ -86,11 +87,11 @@ func is_target_kind() -> bool:
 
 
 ## A kind that reads a brain's SituationContext (RESPECT, THREATENED; AI-D1's
-## CROWDING, OPENING, TARGET_ESCAPES_READY, TARGET_CORNERED; later
-## TARGET_WHIFFED, ENEMIES_AI AI6).
+## CROWDING, OPENING, TARGET_ESCAPES_READY, TARGET_CORNERED; ARCHETYPES AR3b's
+## TARGET_CLOSED_IN; later TARGET_WHIFFED, ENEMIES_AI AI6).
 func is_situation_kind() -> bool:
 	return kind == Kind.RESPECT or kind == Kind.THREATENED or kind == Kind.CROWDING or kind == Kind.OPENING \
-		or kind == Kind.TARGET_ESCAPES_READY or kind == Kind.TARGET_CORNERED
+		or kind == Kind.TARGET_ESCAPES_READY or kind == Kind.TARGET_CORNERED or kind == Kind.TARGET_CLOSED_IN
 
 
 ## All of `conditions` pass (AND). An empty list passes.
@@ -147,7 +148,8 @@ func _check(self_unit: Unit, target: Unit, cast: CastContext) -> bool:
 ## AI-D1: CROWDING and OPENING compare the situation's reads (0-1);
 ## TARGET_ESCAPES_READY: at least `count` of the target's mobility and
 ## defensive abilities ready; TARGET_CORNERED: a wall or a ledge just behind
-## the target.
+## the target. ARCHETYPES AR3b: TARGET_CLOSED_IN, its target closed in on it
+## (SituationContext.target_closed_in).
 func _check_situation(situation: SituationContext) -> bool:
 	match kind:
 		Kind.RESPECT:
@@ -162,6 +164,8 @@ func _check_situation(situation: SituationContext) -> bool:
 			return situation.has_target and situation.target_escapes_ready >= count
 		Kind.TARGET_CORNERED:
 			return situation.has_target and situation.target_cornered
+		Kind.TARGET_CLOSED_IN:
+			return situation.has_target and situation.target_closed_in
 	return false
 
 

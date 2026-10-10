@@ -1075,15 +1075,17 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext, precharged: 
 	casting_slot = &""
 	if not interrupted:
 		_advance_recast(slot, ctx.part)
-		_start_recovery(ability)
+		_start_recovery(ability, ctx)
 	cast_finished.emit(slot, ability)
 
 
 ## Its recovery after the effect (ENEMIES_AI AI-D1): the caster can't move
 ## (the move lock &"recovery"), attack (the attack lock) or cast (can_cast(),
-## get_fail_reason(): busy) for the ability's recovery_time. Nothing at 0.
-func _start_recovery(ability: Ability) -> void:
-	var time := ability.get_param(unit, &"recovery_time") if ability != null else 0.0
+## get_fail_reason(): busy) for the ability's recovery_time
+## (Ability.get_cast_recovery_time(): a cast may decide, ARCHETYPES AR3b).
+## Nothing at 0.
+func _start_recovery(ability: Ability, ctx: CastContext = null) -> void:
+	var time := ability.get_cast_recovery_time(unit, ctx) if ability != null else 0.0
 	if time <= 0.0 or not unit.is_alive():
 		return
 	_recovery_left = time

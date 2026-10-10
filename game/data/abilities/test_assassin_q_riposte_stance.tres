@@ -1,0 +1,28 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/abilities/enemy/riposte_stance.gd" id="1_script"]
+[ext_resource type="Script" path="res://scripts/data/ai_use.gd" id="2_use"]
+[ext_resource type="Script" path="res://scripts/data/condition.gd" id="3_condition"]
+
+[sub_resource type="Resource" id="closed_in"]
+script = ExtResource("3_condition")
+kind = 14
+
+[sub_resource type="Resource" id="use_defend"]
+script = ExtResource("2_use")
+intent = &"defend"
+conditions = Array[ExtResource("3_condition")]([SubResource("closed_in")])
+
+[resource]
+script = ExtResource("1_script")
+id = &"test_assassin_riposte_stance"
+tags = Array[StringName]([&"defensive"])
+display_name = "Riposte Stance"
+description = "Raises its blade across its body for {window_time} s: the first melee hit it meets is deflected, the attacker rebuffed, and its riposte comes at once. If nothing comes, it stands open for {recovery_time} s."
+icon_color = Color(0.55, 0.75, 1, 1)
+targeting = 0
+cooldown = 6.0
+cast_time = 0.0
+resets_auto_attack = false
+recovery_time = 0.6
+ai_uses = Array[ExtResource("2_use")]([SubResource("use_defend")])

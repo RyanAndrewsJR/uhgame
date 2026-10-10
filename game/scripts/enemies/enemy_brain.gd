@@ -141,6 +141,16 @@ extends UnitController
 ## - a perilous attack deflected rebuffs it (status_rebuffed_perilous, 1.0 s,
 ##   blocking attacks: Enemy.is_cc_blocked()), so its string ends, its commit
 ##   breaks off and its token goes, as a stun's would.
+## ARCHETYPES AR3b, the Assassin (ARCHETYPES.md, Assassin: The enemy's layer;
+## D4):
+## - EnemyBehavior.Role.ASSASSIN (a skirmisher's band and dive, its stalk
+##   pose; no reset hop: its string's end ends its commit as anyone's);
+## - its target closing in (SituationContext.target_closed_in: inside the
+##   table's riposte_stance_range, or a gap-closer of its ending inside its
+##   band, seen after its reaction time; never while it commits) passes its
+##   Riposte Stance's defend use (Condition TARGET_CLOSED_IN): defend wins,
+##   and the stance goes up (no token). Only a brain whose kit reads it
+##   tracks it.
 
 signal intent_changed(intent: StringName)
 @warning_ignore("unused_signal")
@@ -304,6 +314,9 @@ var _string_done_at := -1.0          # when (the mix's finisher waits from then)
 var _string_mix_rolled := false      # the commit rolled the mix (Ryan, 2026-10-08)
 var _string_then_cast := false       # ... and its string comes first, its damage cast after it
 var _string_step := -1               # the plan step running its string (−1 = none)
+# AR3b
+@warning_ignore("unused_private_class_variable")
+var _closed_in_since := -1.0         # when its target first closed in (−1 = it hasn't; BrainPerception)
 # R1: its code by job, in helpers that read and write the state above (the brain
 # owns them; each holds it as `brain`). Godot counts a variable's uses per class,
 # so the ones only the helpers use carry @warning_ignore.

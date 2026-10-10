@@ -140,6 +140,12 @@ extends Node2D
 ##   wall, a freed attacker's snapshot); real casters committing into it from
 ##   their band, their token held, a poke scoring higher mid-volley taking
 ##   nothing back.
+## ARCHETYPES AR3b, the test Assassin (its stance's deflect, the rebuff, its
+## riposte and its meter: deflect_test): Role.ASSASSIN and its preset, its
+## data, kit and string against its archetype's shape, the stance's data and
+## use, the table's range, its scene, the poses; a real one raising its
+## stance when the Knight closes in (after its reaction time, no token),
+## recovering after a whiff, not again on its cooldown; the read's rules.
 ## TEMP, the enemy attack speed test multiplier (DECISIONS.md, Testing): off
 ## by default; at x1.0 every number is today's exactly; at x1.5 with keep DPS
 ## the same damage per second over 10 s, more swings, the windup floor; the
@@ -218,6 +224,10 @@ const FOLLOW_UP_MIN := 0.25
 const ARENA := Vector2(3000, 0)
 # AI-D1
 const DUELIST_SCENE: PackedScene = preload("res://scenes/enemies/test_duelist.tscn")
+# ARCHETYPES AR3b
+const ASSASSIN_SCENE: PackedScene = preload("res://scenes/enemies/test_assassin.tscn")
+const ASSASSIN_DATA: EnemyData = preload("res://data/enemies/enemy_test_assassin.tres")
+const ASSASSIN_BEHAVIOR: EnemyBehavior = preload("res://data/enemy_behaviors/enemy_behavior_assassin.tres")
 const DUELIST_DATA: EnemyData = preload("res://data/enemies/enemy_test_duelist.tres")
 const D_SNARE: Ability = preload("res://data/abilities/test_duelist_q_snare.tres")
 const D_GUARD: Ability = preload("res://data/abilities/test_duelist_w_guard.tres")
@@ -236,7 +246,7 @@ var _perilous_quiet_saved := 6.0   # the table's perilous_quiet_time (pinned to 
 
 
 func _ready() -> void:
-	print("\n=== Enemies test (ENEMIES_AI AI1–AI3d, AI3b, AI3c, AI-D1, AI-D2, AI-D3; ARCHETYPES AR1a, AR1b, AR2) ===")
+	print("\n=== Enemies test (ENEMIES_AI AI1–AI3d, AI3b, AI3c, AI-D1, AI-D2, AI-D3; ARCHETYPES AR1a, AR1b, AR2, AR3b) ===")
 	Progress.get_progress(KNIGHT)   # the save guards latch off first (a test scene)
 	Loot.get_inventory(KNIGHT)
 	Brains.rng.seed = 20261004
@@ -398,6 +408,10 @@ func _ready() -> void:
 	await _test_ar2_gate()
 	await _test_ar2_brain_gate()
 	await _test_ar2_rebuffed()
+
+	# ARCHETYPES AR3b: the test Assassin (its stance's deflect, the rebuff and its meter: deflect_test).
+	_test_ar3b_data()
+	await _test_ar3b_brain()
 
 	# TEMP: the enemy attack speed test multiplier (DECISIONS.md, Testing).
 	await _test_temp_attack_speed()
@@ -4758,10 +4772,10 @@ func _test_aid1_sandbox() -> void:
 	add_child(sb)
 	await _frames(2)
 	var order: Array = []
-	for i in 5:
+	for i in 6:
 		order.append(sb.cycle_scenario_enemy().resource_path.get_file())
-	_check("Shift+H: brute → skirmisher → caster → elite caster → duelist → brute", order,
-		["test_skirmisher.tscn", "test_caster.tscn", "test_caster_elite.tscn", "test_duelist.tscn", "test_brute.tscn"])
+	_check("Shift+H: brute → skirmisher → caster → elite caster → duelist → Assassin (ARCHETYPES AR3b) → brute", order,
+		["test_skirmisher.tscn", "test_caster.tscn", "test_caster_elite.tscn", "test_duelist.tscn", "test_assassin.tscn", "test_brute.tscn"])
 	sb.scenario_enemy = DUELIST_SCENE
 	var d := sb.run_scenario(&"escapes_down")
 	if d != null and d.get_brain() != null:
@@ -5612,6 +5626,7 @@ const STRING_TARGETS := {
 	&"test_skirmisher": [2, 3, 0.35],                           # Skirmisher
 	&"test_caster": [3, 3, 0.45], &"test_caster_elite": [3, 3, 0.45],   # Mage: the volley (AR1b)
 	&"test_duelist": [4, 5, 0.5],                               # Duelist
+	&"test_assassin": [3, 4, 0.4],                              # Assassin (AR3b)
 }
 ## The authoring tolerance on a string's spacing (s; ARCHETYPES.md, Data).
 const STRING_SPACING_TOLERANCE := 0.05
@@ -5671,9 +5686,9 @@ func _test_ar1a_data() -> void:
 			if d.stats.attack_damage * w.ad_ratio > chip + 0.0001:
 				breaches.append("%s hit %d: %.0f damage, over the chip band's %.1f" % [d.id, i + 1, d.stats.attack_damage * w.ad_ratio, chip])
 	found.sort()
-	_check("the test strings: the brute and the elite slime (Bruiser), the skirmisher, the duelist, the casters (AR1b, the volley); none on the slime", found,
-		["slime_elite", "test_brute", "test_caster", "test_caster_elite", "test_duelist", "test_skirmisher"] as Array[String])
-	_check("each string: Bruiser 2–3 at 0.9 s, Skirmisher 2–3 at 0.35 s, Duelist 4–5 at 0.5 s, Mage a 3-bolt volley at 0.45 s (±%.2f s, the repeated last swing too); its first wind-up the beat, later ones %.2f s or more; melee (a Mage's ranged), deflectable, no hit feel, each hit %d%% of the Knight's health or less" % [STRING_SPACING_TOLERANCE, FOLLOW_UP_MIN, roundi(CHIP_SHARE * 100.0)],
+	_check("the test strings: the brute and the elite slime (Bruiser), the skirmisher, the duelist, the casters (AR1b, the volley), the Assassin (AR3b); none on the slime", found,
+		["slime_elite", "test_assassin", "test_brute", "test_caster", "test_caster_elite", "test_duelist", "test_skirmisher"] as Array[String])
+	_check("each string: Bruiser 2–3 at 0.9 s, Skirmisher 2–3 at 0.35 s, Duelist 4–5 at 0.5 s, Assassin 3–4 at 0.4 s, Mage a 3-bolt volley at 0.45 s (±%.2f s, the repeated last swing too); its first wind-up the beat, later ones %.2f s or more; melee (a Mage's ranged), deflectable, no hit feel, each hit %d%% of the Knight's health or less" % [STRING_SPACING_TOLERANCE, FOLLOW_UP_MIN, roundi(CHIP_SHARE * 100.0)],
 		breaches, [] as Array[String])
 
 
@@ -6761,6 +6776,149 @@ func _test_ar2_rebuffed() -> void:
 	var left := e.status_component.get_time_left(STATUS_REBUFFED_PERILOUS.id)
 	_check("...1.0 s of it (%.2f s left after 3 ticks), no diminishing returns step" % left, [left > 0.9 and left <= 1.0, e.status_component.get_dr_count()], [true, 0])
 	await _free_committing_enemy(e, rec)
+
+
+# --- ARCHETYPES AR3b: the test Assassin (ARCHETYPES.md, Assassin: The enemy's layer) -------------
+
+func _test_ar3b_data() -> void:
+	_section("AR3b data: Role.ASSASSIN (4) and its preset (a skirmisher's band and sliders); the test Assassin (an elite Assassin: its stats, its kit, its string against its archetype's shape); the Riposte Stance's data and use; the table's riposte_stance_range; the scene's deflect; the two poses")
+	_check("Role.ASSASSIN is stored as 4 (3 kept for AR8's DUELIST); its archetype id assassin",
+		[EnemyBehavior.Role.ASSASSIN, EnemyBehavior.Role.keys(), ASSASSIN_BEHAVIOR.role, ASSASSIN_BEHAVIOR.get_archetype_id()],
+		[4, ["BRUTE", "SKIRMISHER", "CASTER", "ASSASSIN"], EnemyBehavior.Role.ASSASSIN, &"assassin"])
+	var same := true
+	for s: StringName in EnemyBehavior.SLIDERS:
+		same = same and is_equal_approx(ASSASSIN_BEHAVIOR.get_slider(s), SKIRMISHER_BEHAVIOR.get_slider(s))
+	_check("enemy_behavior_assassin.tres: the skirmisher's band (4–6 m) and every slider; it fights on at low health (no reset)",
+		[same, ASSASSIN_BEHAVIOR.range_band_min, ASSASSIN_BEHAVIOR.range_band_max, ASSASSIN_BEHAVIOR.low_health], [true, 400.0, 600.0, EnemyBehavior.LowHealth.FIGHT_ON])
+	var d := ASSASSIN_DATA
+	var st := d.stats
+	_check("the test Assassin: an elite, its archetype the Assassin (Archetype.of()), its meter its rank's (−1), a dark violet capsule; 1400 health, 20 armor, 40 AD, 150 u reach, 380 move speed",
+		[d.id, d.rank, d.behavior == ASSASSIN_BEHAVIOR, d.get_archetype_id(), Archetype.of(d.get_archetype_id()) != null, d.poise_max, d.model_scene == null,
+			st.max_health, st.armor, st.attack_damage, st.attack_range, st.move_speed],
+		[&"test_assassin", EnemyData.Rank.ELITE, true, &"assassin", true, -1.0, true, 1400.0, 20.0, 40.0, 150.0, 380.0])
+	var kit := d.get_abilities_at(5)
+	var q: Ability = kit.get(&"q")
+	var e_ability: Ability = kit.get(&"e")
+	var r: Ability = kit.get(&"r")
+	_check("its kit (an elite's 3–5): Q the Riposte Stance, E a gap-closer (the library's flurry), R its perilous move (the library's charge)",
+		[kit.size(), q.id if q else &"", e_ability.id if e_ability else &"", r.id if r else &""],
+		[3, &"test_assassin_riposte_stance", &"test_assassin_flurry", &"test_assassin_charge"])
+	if q == null or e_ability == null or r == null:
+		return
+	var use: AIUse = q.ai_uses[0] if not q.ai_uses.is_empty() else null
+	var cond: Condition = use.conditions[0] if use != null and not use.conditions.is_empty() else null
+	_check("the stance: on itself, no cast time, a 0.5 s window, 6 s cooldown, a 0.6 s recovery (after a whiff), no damage, not deflectable; one use, defend when its target closes in (TARGET_CLOSED_IN, a situation read)",
+		[q.targeting, q.cast_time, q.get(&"window_time"), q.cooldown, q.recovery_time, q.base_damage, q.deflectable, q.ai_uses.size(),
+			use.intent if use else &"", cond.kind if cond else -1, cond.is_situation_kind() if cond else false],
+		[Ability.Targeting.SELF, 0.0, 0.5, 6.0, 0.6, 0.0, false, 1, &"defend", Condition.Kind.TARGET_CLOSED_IN, true])
+	var intents := func(a: Ability) -> Array: return a.get_ai_uses().map(func(u: AIUse) -> StringName: return u.intent)
+	_check("E's uses gap_close, damage, punish; R perilous and deflectable, 0.9 s, 240 damage, 12 s, its uses damage and gap_close",
+		[intents.call(e_ability), r.perilous, r.deflectable, r.cast_time, r.base_damage, r.cooldown, intents.call(r)],
+		[[&"gap_close", &"damage", &"punish"], true, true, 0.9, 240.0, 12.0, [&"damage", &"gap_close"]])
+	var arch := Archetype.of(&"assassin")
+	var s := d.attack_string
+	var gaps: Array = []
+	for i in s.swings.size():
+		var w := s.swings[i]
+		var after := s.swings[mini(i + 1, s.swings.size() - 1)]
+		gaps.append(snappedf((w.duration - w.windup) + w.pause_after + after.windup, 0.001))
+	var on_shape := gaps.all(func(g: float) -> bool: return absf(g - arch.string_spacing) <= STRING_SPACING_TOLERANCE + 0.0001)
+	_check("its string against its archetype's shape (Archetype: %d–%d hits, %.2f s apart): %d–%d hits, %s s apart" % [arch.string_hits_min, arch.string_hits_max, arch.string_spacing, s.get_string_hits_min(), s.swings.size(), gaps],
+		[s.get_string_hits_min(), s.swings.size(), on_shape], [arch.string_hits_min, arch.string_hits_max, true])
+	_check("the table: riposte_stance_range 300 u (3 m)", Brains.table.riposte_stance_range, 300.0)
+	var scene := ASSASSIN_SCENE.instantiate() as Enemy
+	var dc := scene.get_node_or_null(^"DeflectComponent") as DeflectComponent
+	var aa := scene.get_node(^"AutoAttackComponent") as AutoAttackComponent
+	_check("its scene: a DeflectComponent (its riposte +1.0 AD ratio for 1 s, no snap, no poise damage) and a deflectable basic attack (its riposte swing)",
+		[dc != null, dc.riposte_ad_ratio if dc else -1.0, dc.riposte_window if dc else -1.0, dc.riposte_snap_range if dc else -1.0, dc.riposte_poise_damage if dc else -1.0, aa.deflectable],
+		[true, 1.0, 1.0, 0.0, 0.0, true])
+	scene.free()
+	var stance := POSE_SET.get_look(&"riposte_stance")
+	var rebuffed := POSE_SET.get_look(&"rebuffed")
+	_check("the poses: riposte_stance (lean back 5°, squash 0.95, a steel-blue rim), rebuffed (thrown back 20°, stretched 1.05, a white rim)",
+		[stance != null, stance.lean_deg if stance else 0.0, stance.squash if stance else 0.0, rebuffed != null, rebuffed.lean_deg if rebuffed else 0.0, rebuffed.squash if rebuffed else 0.0,
+			rebuffed.rim_color if rebuffed else Color()],
+		[true, -5.0, 0.95, true, -20.0, 1.05, Color(1, 1, 1, 0.9)])
+
+
+func _test_ar3b_brain() -> void:
+	_section("AR3b, a brain: the test Assassin raises its stance when the Knight closes in (inside 3 m, after its reaction time; not from 4 m; no token), holds it 0.5 s, recovers after a whiff (the recover pose), not again on its cooldown; the read's rules (a gap-closer, never while committing, only for a kit that reads it)")
+	await _reset_knight()
+	var steady := _tag_status(&"test_unstoppable", [&"unstoppable"] as Array[StringName])
+	knight.status_component.apply_status(steady)
+	_spend_kit()
+	var e := _spawn(ASSASSIN_SCENE, knight.global_position + Vector2(170, 0), false)
+	_pin_ai3(e)
+	var brain := e.get_brain()
+	var intents: Array[StringName] = []
+	var on_intent := func(i: StringName) -> void: intents.append(i)
+	brain.intent_changed.connect(on_intent)
+	var stances: Array = []
+	var on_cast := func(slot: StringName, _a: Ability, _c: CastContext) -> void: stances.append([slot, Brains.get_time(), Brains.has_token(e)])
+	e.abilities.cast_started.connect(on_cast)
+	e.alert(knight)
+	var calm := func() -> bool:
+		brain.set(&"_patience", 0.0)   # it holds: no commit while the read is checked
+		return false
+	await _wait_until(func() -> bool: return e.is_brain_active() and not calm.call(), 240)
+	for slot in AbilityComponent.SLOTS:
+		if e.abilities.get_ability(slot) != null:
+			e.abilities.start_cooldown(slot)
+	e.abilities.reset_cooldown(&"q")
+	_place(e, knight.global_position + Vector2(170, 0))
+	await _wait_until(calm, 36)
+	var far_edge := e.edge_distance_to(knight)
+	_check("from %.1f m (outside 3 m), no stance; the read not started" % (Units.to_units(far_edge) / 100.0),
+		[far_edge > Units.to_px(300.0), stances.is_empty(), brain.get(&"_closed_in_since")], [true, true, -1.0])
+	var radii := e.get_gameplay_radius_px() + knight.get_gameplay_radius_px()
+	_place(knight, e.global_position + Vector2(-(Units.to_px(200.0) + radii), 0))
+	var closed_at := Brains.get_time()
+	await _wait_until(func() -> bool: return e.deflect_component.is_window_open() or calm.call(), 60)
+	var took := Brains.get_time() - closed_at
+	var pose := e.get_pose()
+	_check("the Knight 2 m away: after its reaction time (%.2f s; 0.3 s or more), defend, its stance (Q) up with no token, in its pose" % took,
+		[e.deflect_component.is_window_open(), took >= 0.3 - 0.001 and took <= 0.45, intents.has(EnemyBrain.DEFEND), stances.size(), stances[0][0] if not stances.is_empty() else &"",
+			stances[0][2] if not stances.is_empty() else true, pose],
+		[true, true, true, 1, &"q", false, &"riposte_stance"])
+	await _wait_until(func() -> bool: return not e.deflect_component.is_window_open() or calm.call(), 45)
+	await _frames(2)
+	_check("nothing comes: after 0.5 s its window shuts and it recovers, still, in the recover pose",
+		[e.deflect_component.is_window_open(), brain.is_in_ability_recovery(), e.get_pose()], [false, true, &"recover"])
+	await _wait_until(calm, 90)
+	_check("the Knight still 2 m away 1.5 s later: no second stance (its 6 s cooldown)", stances.size(), 1)
+	brain.intent_changed.disconnect(on_intent)
+	e.abilities.cast_started.disconnect(on_cast)
+
+	var perception := brain.get(&"_brain_perception") as BrainPerception
+	var read := func(edge_px: float, gap: bool, committing: bool, now: float) -> bool:
+		var s := SituationContext.new()
+		s.target_edge_distance_px = edge_px
+		s.target_gap_closer_in = gap
+		s.committing = committing
+		perception._read_closed_in(s, now)
+		return s.target_closed_in
+	brain.set(&"_closed_in_since", -1.0)
+	var t0 := Brains.get_time()
+	var gap_rows := [read.call(500.0, true, false, t0), read.call(500.0, true, false, t0 + 0.29), read.call(500.0, true, false, t0 + 0.31)]
+	var committing: bool = read.call(10.0, false, true, t0 + 0.4)
+	var since: float = brain.get(&"_closed_in_since")
+	var out: bool = read.call(500.0, false, false, t0 + 0.5)
+	_check("the read: a gap-closer of its ended inside its band from 15 m off counts too, once its reaction time has passed (no, no, yes); never while it commits (and it starts over); far and no gap-closer: no",
+		[gap_rows, committing, since, out], [[false, false, true], false, -1.0, false])
+	e.passive = true
+	e.attack.cancel()
+	e.queue_free()
+	var brute := _spawn(BRUTE_SCENE, knight.global_position + Vector2(-80, 0), false)
+	brute.alert(knight)
+	await _wait_until(func() -> bool: return brute.is_brain_active(), 240)
+	await _frames(30)
+	_check("a brute (no use reads it) 1 m from the Knight: it never tracks the read", [brute.get_brain().get(&"_closed_in_since")], [-1.0])
+	brute.passive = true
+	brute.attack.cancel()
+	brute.queue_free()
+	knight.status_component.remove_status(&"test_unstoppable")
+	await _frames(2)
+	await _reset_knight()
 
 
 # --- Helpers ----------------------------------------------------------------------------

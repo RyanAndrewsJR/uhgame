@@ -168,8 +168,11 @@ func _apply_enemy_data() -> void:
 	if rules != null and status_component != null:   # AI-D3: fodder takes crowd control in full
 		status_component.cc_diminishing = rules.cc_diminishing
 		status_component.poise = rules.poise
+	var archetype := Archetype.of(data.get_archetype_id())
 	if poise_component != null:   # ARCHETYPES AR3a: its meter, by its archetype and rank
-		poise_component.setup(Archetype.of(data.get_archetype_id()), data.poise_max, rules)
+		poise_component.setup(archetype, data.poise_max, rules)
+	if deflect_component != null:   # AR3b: an archetype that deflects runs its deflect window
+		deflect_component.archetype = archetype
 	if brain_enabled:
 		_add_brain()
 
@@ -234,7 +237,13 @@ func get_target() -> Unit:
 
 ## The pose it shows (&"" = none): the view reads it. `alert` as it wakes and
 ## `return` while it walks home (AI2, fodder too), else its brain's (its tell).
+## ARCHETYPES AR3b: `rebuffed` while a status tagged `rebuffed` is on it, and
+## `riposte_stance` while a deflect ability holds its window open, first.
 func get_pose() -> StringName:
+	if is_alive() and status_component != null and status_component.has_tag(&"rebuffed"):
+		return &"rebuffed"
+	if is_alive() and deflect_component != null and deflect_component.deflects_by_ability() and deflect_component.is_window_open():
+		return &"riposte_stance"
 	if _alert_left > 0.0 and is_alive():
 		return &"alert"
 	if ai == AI.RETURN and not _recovering and is_alive():

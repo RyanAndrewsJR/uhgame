@@ -43,11 +43,24 @@ extends Node
 ## still gives the refund), the second deflect's poise damage, and the
 ## attacker rebuffed (status_rebuffed_perilous: 1.0 s without attacking,
 ## casting or dashing; not crowd control).
+## ARCHETYPES AR3b, an enemy's deflect (ARCHETYPES.md, Assassin: The enemy's
+## layer; D4): an enemy whose archetype deflects (Archetype.deflects, given at
+## spawn: `archetype`) runs this node without the flag, and a deflect ability
+## opens its window (open_window(duration): the Riposte Stance's 0.5 s). Its
+## deflect is the stance's one hit: the window closes, the champion is
+## rebuffed (status_rebuffed: 0.4 s without attacking; its swing cancelled,
+## its combo back to swing 1; no damage), the enemy gets its riposte (the same
+## empower_riposte, with its scene's riposte_ad_ratio and riposte_window: +1.0
+## AD ratio on its next basic attack hit, 1 s; never a perilous hit, which is
+## an ability) and swings it at once (its basic attack at the champion), and
+## its own meter drains PoiseRules.own_deflect_drain. No streak, no refund.
 
 ## The riposte's empower: AutoAttackComponent.get_empower_status_id(RIPOSTE_ID).
 const RIPOSTE_ID := &"riposte"
 ## ARCHETYPES AR2: on the attacker whose perilous attack was deflected.
 const STATUS_REBUFFED_PERILOUS: StatusEffect = preload("res://data/statuses/status_rebuffed_perilous.tres")
+## ARCHETYPES AR3b: on the champion whose hit an enemy's deflect ability deflected.
+const STATUS_REBUFFED: StatusEffect = preload("res://data/statuses/status_rebuffed.tres")
 ## Timers at or below this are done (float residue).
 const EPSILON := 0.0001
 
@@ -115,9 +128,14 @@ static var deflect_test_enabled: bool = false
 @export var riposte_sound: SoundEvent
 
 var unit: Unit
+## ARCHETYPES AR3b: its unit's archetype (an enemy's, given at spawn by
+## Enemy._apply_enemy_data(); a champion's with AR5). One that deflects runs
+## this node without the flag. null = none: the flag decides, as before.
+var archetype: Archetype
 
 var _dash: DashComponent
 var _window_left: float = 0.0
+var _window_deflects: int = 0       # deflects since the window last opened (AR3b)
 var _dash_on: bool = false          # its dash is running
 var _dash_pending: bool = false     # a dash's chance isn't over (it runs, or its window is open)
 var _dash_deflected: bool = false   # that dash deflected something
@@ -140,18 +158,35 @@ func _ready() -> void:
 
 # --- Queries --------------------------------------------------------------------
 
-## The prototype runs for this unit: the flag is on and it's alive.
+## It runs for this unit: alive, and the prototype's flag is on or its
+## archetype deflects (AR3b).
 func is_active() -> bool:
-	return deflect_test_enabled and unit.is_alive()
+	return _is_on() and unit.is_alive()
 
 
-## A deflectable hit now would be deflected (the flag on, the window open).
+## Its archetype deflects (Archetype.deflects; AR3b): no flag needed.
+func has_archetype_deflect() -> bool:
+	return archetype != null and archetype.deflects
+
+
+## A deflectable hit now would be deflected (it runs, the window open).
 func is_window_open() -> bool:
 	return is_active() and _window_left > EPSILON
 
 
 func get_window_left() -> float:
-	return _window_left if deflect_test_enabled else 0.0
+	return _window_left if _is_on() else 0.0
+
+
+## Deflects since the window last opened (AR3b: a deflect ability's one hit).
+func get_window_deflects() -> int:
+	return _window_deflects
+
+
+## AR3b: it deflects by a deflect ability (an enemy's stance), not by a dash:
+## its deflect rebuffs the champion instead of building a streak.
+func deflects_by_ability() -> bool:
+	return unit is Enemy
 
 
 ## Deflects in a row (0–1: the second gives the riposte and starts over).
@@ -211,17 +246,27 @@ func get_riposte_snap_target(stop_px: float) -> Unit:
 
 # --- Commands -------------------------------------------------------------------
 
-## Opens the deflect window (deflect_window s) for a dash starting now. The
-## unit's DashComponent calls it through dash_started; nothing while the flag
-## is off. A dash before it whose chance wasn't over and that deflected
+## Opens the deflect window for `duration` s (−1 = deflect_window: a dash's).
+## The unit's DashComponent calls it through dash_started; a deflect ability
+## with its own time (AR3b: the Riposte Stance's 0.5 s). Nothing while it
+## doesn't run. A dash before it whose chance wasn't over and that deflected
 ## nothing ends the streak first.
-func open_window() -> void:
+func open_window(duration: float = -1.0) -> void:
 	if not is_active():
 		return
+	_window_deflects = 0
+	if deflects_by_ability():
+		_window_left = deflect_window if duration < 0.0 else duration
+		return   # AR3b: a deflect ability's window: no dash chance, no streak
 	_close_dash_chance()
-	_window_left = deflect_window
+	_window_left = deflect_window if duration < 0.0 else duration
 	_dash_pending = true
 	_dash_deflected = false
+
+
+## Closes the window now (AR3b: a deflect ability cut short, by a stun).
+func close_window() -> void:
+	_window_left = 0.0
 
 
 ## Unit.on_hit() asks first: true if `ctx` is deflected (the flag on, the
@@ -242,7 +287,7 @@ func try_deflect(ctx: HitContext) -> bool:
 # --- Update ---------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
-	if not deflect_test_enabled:
+	if not _is_on():
 		if _streak != 0 or _window_left > 0.0 or _dash_pending:   # turned off: everything stops
 			_window_left = 0.0
 			_dash_pending = false
@@ -283,7 +328,11 @@ func _close_dash_chance() -> void:
 
 
 func _on_deflected(ctx: HitContext) -> void:
+	if deflects_by_ability():
+		_on_ability_deflected(ctx)   # AR3b: an enemy's stance
+		return
 	var attacker: Unit = ctx.source if is_instance_valid(ctx.source) else null
+	_window_deflects += 1
 	_dash_deflected = true
 	_chain_left = 0.0 if streak_persists else chain_window
 	var first := _streak == 0
@@ -301,6 +350,36 @@ func _on_deflected(ctx: HitContext) -> void:
 		_give_riposte(attacker)
 		_chain_left = 0.0
 		_set_streak(0)   # the payoff: the streak starts over
+
+
+## AR3b: an enemy's deflect ability deflected `ctx` (its one hit): the window
+## closes; the champion who swung is rebuffed (status_rebuffed; its swing
+## cancelled once its hit's loop is over, its combo back to swing 1); this
+## enemy's riposte (_give_riposte(), its scene's numbers) and its basic attack
+## at the champion at once; its own meter drains own_deflect_drain. The
+## deflect's feel and Events.hit_deflected as a dash's.
+func _on_ability_deflected(ctx: HitContext) -> void:
+	var attacker: Unit = ctx.source if is_instance_valid(ctx.source) else null
+	_window_deflects += 1
+	_window_left = 0.0   # one hit per stance (Ryan, Open questions 11)
+	Events.hit_deflected.emit(attacker, unit, ctx)
+	_play_deflect_feel(attacker)
+	var poise := unit.poise_component
+	if poise != null:
+		poise.drain_poise(poise.get_rules().own_deflect_drain)
+	if attacker == null:
+		return
+	# This runs inside the champion's swing as its hit lands: the rebuff's lock
+	# would cancel the swing mid-landing, so it (and the cancel) waits for the
+	# end of this frame. Its swing goes, its combo back to swing 1.
+	if attacker.status_component != null:
+		attacker.status_component.apply_status.call_deferred(STATUS_REBUFFED, unit)
+	if attacker.attack != null:
+		attacker.attack.cancel_swing.call_deferred()
+	_give_riposte(attacker)
+	if unit.attack != null:
+		unit.attack.reset_attack_timer()
+		unit.attack.attack(attacker)   # its riposte swings at once (the stance's lock lifts as its window closes)
 
 
 ## The riposte: a basic attack empower status (ABILITIES AB10), refreshed by
@@ -346,6 +425,11 @@ func _on_riposte_landed(target: Unit) -> void:
 	Audio.play_on(riposte_sound, unit)
 	var angle := (target.global_position - unit.global_position).angle()
 	VFX.spawn_scene(riposte_vfx, target, target.global_position, angle, [unit, target])
+
+
+## The prototype's flag is on, or its archetype deflects (AR3b).
+func _is_on() -> bool:
+	return deflect_test_enabled or has_archetype_deflect()
 
 
 func _set_streak(value: int) -> void:

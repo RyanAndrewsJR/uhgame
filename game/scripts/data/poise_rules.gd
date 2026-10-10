@@ -25,3 +25,6 @@ extends Resource
 @export_range(0.0, 3.0, 0.05) var break_damage_bonus: float = 0.5
 ## Seconds after a break during which poise damage does nothing.
 @export_range(0.0, 30.0, 0.5) var break_immunity: float = 4.0
+## Its own successful deflect drains this much (ARCHETYPES AR3b: an enemy
+## Assassin's stance, D3b's "same loop" as Korsavil's; hers with AR5).
+@export_range(0.0, 100.0, 1.0) var own_deflect_drain: float = 15.0
