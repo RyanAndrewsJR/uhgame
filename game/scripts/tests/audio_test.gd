@@ -1084,6 +1084,17 @@ func _test_trigger_filters() -> void:
 	knight.attack.try_swing(Vector2.LEFT)
 	await _wait_until(func() -> bool: return _fired("f_basic").size() > 0, 60)
 	_check("the next swing (no empower): none of them", [_fired("f_empower").size(), _fired("f_swing_empower").size(), _fired("f_land_empower").size()], [0, 0, 0])
+	empower.empower_scope = &"hit:test_never"   # CHAMPIONS K5c: only a swing whose hits carry that tag uses it
+	await _ready_knight()
+	knight.status_component.apply_status(empower, knight)
+	Audio.clear_log()
+	knight.attack.try_swing(Vector2.LEFT)
+	await _wait_until(func() -> bool: return _fired("f_basic").size() > 0, 60)
+	_check("held, but outside this swing's scope (hit:<tag> its hits don't carry): none of them, at its start either; it stays",
+		[_fired("f_empower").size(), _fired("f_swing_empower").size(), _fired("f_land_empower").size(), knight.status_component.has_status(&"test_trigger_empower")],
+		[0, 0, 0, true])
+	knight.status_component.remove_status(&"test_trigger_empower")
+	empower.empower_scope = &""
 	Audio.clear_log()
 	var ctx_0 := CastContext.new()
 	var ctx_1 := CastContext.new()

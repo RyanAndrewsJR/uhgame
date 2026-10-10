@@ -164,7 +164,10 @@ func _on_swing_started(index: int, _direction: Vector2, swing: AttackSwing, w: W
 	_end_swing_waits(w, true)   # a new swing: the last one ran to its end
 	w.swing_cancelled = false
 	var other: Unit = w.unit.attack.get_assist_target()
-	_match(w, SoundTrigger.Event.SWING_START, _fire(w, other), {"swing_index": index, "unit": w.unit}, swing, null)
+	var carried := {}   # used_empower: the empowers this swing would use (their scope admits it: CHAMPIONS K5c)
+	for e in w.unit.attack.get_swing_empowers(swing, index < 0):
+		carried[e.id] = true
+	_match(w, SoundTrigger.Event.SWING_START, _fire(w, other), {"swing_index": index, "carried": carried}, swing, null)
 
 
 func _on_swing_landed(index: int, targets: Array[Unit], w: Watch) -> void:
@@ -325,11 +328,10 @@ func _passes(t: SoundTrigger, info: Dictionary) -> bool:
 				return false
 			if t.swing_number > 0 and index != t.swing_number - 1:
 				return false
-			if t.used_empower != &"":   # a swing start: he holds it (this swing carries it); a landing: its hits used it; a whiff: never
+			if t.used_empower != &"":   # a swing start: this swing carries it (he holds it and its scope admits the swing); a landing: its hits used it; a whiff: never
 				match t.event:
 					SoundTrigger.Event.SWING_START:
-						var unit: Unit = info.get("unit")
-						if unit == null or unit.status_component == null or not unit.status_component.has_status(t.used_empower):
+						if not (info.get("carried", {}) as Dictionary).has(t.used_empower):
 							return false
 					SoundTrigger.Event.SWING_LANDED:
 						if not (info.get("used", {}) as Dictionary).has(t.used_empower):

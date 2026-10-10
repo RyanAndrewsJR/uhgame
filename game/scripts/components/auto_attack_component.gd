@@ -518,9 +518,25 @@ func has_next_attack_modifier(id: StringName) -> bool:
 	return unit.status_component != null and unit.status_component.has_status(get_empower_status_id(id))
 
 
-## The next swing that hits has a bonus (any basic attack empower).
+## The next swing that hits has a bonus (any basic attack empower, whatever
+## its empower_scope: get_swing_empowers() says which swing uses it).
 func is_empowered() -> bool:
 	return not _get_basic_attack_empowers().is_empty()
+
+
+## The basic attack empowers `swing` would use if it hit now (ABILITIES AB10):
+## each one whose empower_scope is &"" (any swing) or a hit scope of its hits
+## (&"hit:<tag>": CHAMPIONS K5c, Korsavil's empower_demise on &"hit:finisher",
+## used only by swing 4). `dash_strike`: the dash-strike's (its hits carry
+## &"dash_strike"). Read at its hit by _land_swing(), at its start by
+## SoundTriggers (the swing that carries it).
+func get_swing_empowers(swing: AttackSwing, dash_strike := false) -> Array[StatusEffect]:
+	if swing == null:
+		return []
+	var probe := HitPipeline.basic_attack(unit, null, swing)   # the tags its hits get, no target
+	if dash_strike:
+		probe.add_tag(&"dash_strike")
+	return _get_empowers_for_hit(probe)
 
 
 ## ARCHETYPES AR4 (D12, weak basic attacks): x the damage of a swing that
@@ -541,6 +557,17 @@ func _get_basic_attack_empowers() -> Array[StatusEffect]:
 	if unit.status_component == null:
 		return []
 	return unit.status_component.get_empowers(StatusEffect.EmpowerTrigger.BASIC_ATTACK_HIT)
+
+
+## The basic attack empowers a hit like `ctx` uses: empower_scope &"" or one
+## of its hit scopes (HitPipeline.get_hit_scopes(): &"hit:<tag>" per tag).
+func _get_empowers_for_hit(ctx: HitContext) -> Array[StatusEffect]:
+	var scopes := HitPipeline.get_hit_scopes(ctx)
+	var result: Array[StatusEffect] = []
+	for e in _get_basic_attack_empowers():
+		if e.empower_scope == &"" or scopes.has(e.empower_scope):
+			result.append(e)
+	return result
 
 
 ## Removes `empowers` (used up by the swing landing) and returns their
@@ -1024,7 +1051,8 @@ func _on_debug_node_draw() -> void:
 
 ## The hit moment: every enemy in the arc (with hit forgiveness) takes a
 ## basic attack hit. Basic attack empowers (Iron Resolve's, AB10) are used up
-## by the first swing that hits anything, and apply to every enemy it hits.
+## by the first swing that hits anything (a scoped one by the first such swing
+## its scope admits: K5c), and apply to every enemy it hits.
 ## A swing marked deflectable (AttackSwing.deflectable) gives its hits that
 ## mark (AR1a). The swing is read once: a hit that locks the attacker (a
 ## deflect that breaks its poise) cancels it mid-loop. A swing with no
@@ -1044,7 +1072,7 @@ func _land_swing() -> void:
 	var targets := AbilityUtil.in_sight(unit.global_position,
 		AbilityUtil.in_cone(unit, unit.global_position, _swing_direction, reach, half_arc))   # no hits through walls
 	var on_hits: Array[Callable] = []
-	var empowers := _get_basic_attack_empowers()   # read at the hit moment (AB10)
+	var empowers := get_swing_empowers(swing, _is_dash_strike)   # read at the hit moment (AB10), this swing's (K5c: by scope)
 	var empowered := not targets.is_empty() and not empowers.is_empty()
 	if empowered:
 		on_hits.append_array(_use_up_empowers(empowers))   # used up before the hits resolve
@@ -1131,7 +1159,7 @@ func _land_attack() -> void:
 		attack_whiffed.emit(hit)   # Out of reach, or a wall in between: a miss.
 		return
 	var ctx := make_attack_context(hit)
-	var empowers := _get_basic_attack_empowers()   # AB10: the same empowers as a swing
+	var empowers := _get_empowers_for_hit(ctx)   # AB10: the same empowers as a swing (K5c: by scope)
 	HitPipeline.add_empowers(ctx, empowers)
 	var on_hits := _use_up_empowers(empowers)
 	attack_landed.emit(hit, HitPipeline.get_scaled_damage(ctx))

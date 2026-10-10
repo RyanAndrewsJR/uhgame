@@ -147,15 +147,15 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 ## Current status
 - **Now:**
   - The Knight ships; CHAMPIONS, TALENTS, LOOT, STATS and the 3D pivot (up to the P-spike) are done.
-  - **Korsavil is redesigned (v2, Ryan's board, 2026-10-09; docs only):** K1–K2 passed; v2's K3–K10 replace the old K3–K6 (Ryan confirmed it before K3, 2026-10-09; CHAMPIONS.md, Korsavil v2). **K3–K5 passed; K5b (Q's wind-ups, the three sounds) built 2026-10-10, awaiting Ryan's play test** (4,456/4,456).
+  - **Korsavil is redesigned (v2, Ryan's board, 2026-10-09; docs only):** K1–K2 passed; v2's K3–K10 replace the old K3–K6 (Ryan confirmed it before K3, 2026-10-09; CHAMPIONS.md, Korsavil v2). **K3–K5b passed; K5c (the empowered finisher, his sound sheet's step 2) built 2026-10-10, awaiting Ryan's play test** (4,525/4,525).
   - ENEMIES_AI: AI1–AI3, AI3b–AI3d and AI-D1–AI-D3 passed; R0 and R1 committed (4,095/4,095).
   - ARCHETYPES: AR1a–AR4 passed and committed (the test duelist at 1.89×, short of 2×: Open questions 20).
   - FEEL2: preset 3 shipped and passed (c2efc46). Sandbox-only, Ryan's read pending: F9 latency probe, F10 blind presets, F7 threat palettes, the N panel's "pose lean x" (CHANGELOG.md).
   - The Knight's deflect/poise prototype (flags off in shipped config; sandbox V, Shift+V, M) and the TEMP enemy attack speed multiplier **await his play test**; the TEMP weak-auto lever is off since AR4 and goes on his OK.
 - **Last 3 done:**
-  1. STATS step 7 (2026-10-09, passed; every STATS step done): the F3 stat overlay (Shift+F3: the unit under the cursor).
-  2. AR4 (2026-10-09, passed): weak basic attacks, `unempowered_attack_damage` 0.5 on both champions, the rotation simulation.
-  3. AR3b (2026-10-09, passed): the test Assassin (Shift+H): its Riposte Stance, the rebuff, its riposte, its perilous charge.
+  1. AUDIO A6a and its follow-up (2026-10-10, passed): sound triggers (`SoundSheet`), Korsavil's sheet, Demise 4 at the empowered swing's start.
+  2. K5b (2026-10-10, passed): Q's 0.5 s recast and 0.6 s sweep wind-ups; the Demise and sweep sounds.
+  3. K5 (2026-10-10, passed): Q's 6-stack sweep.
 - **Next** (ARCHETYPES.md, Open questions 15, with Ryan's changes):
   1. Korsavil v2's K6–K9 (CHAMPIONS.md, Build order, Korsavil v2): K6 (W Cloak & Dagger) next.
   2. AR5 (his Assassin layer) and AR6, then K10 and K-M *(proposed)*.
@@ -169,7 +169,7 @@ The game in `game/` is the **reference build**. It works, and changes build on i
   - Corner forgiveness, proposed (MOVEMENT.md); the pit step, unscheduled (WORLD_INTERACTION.md).
   - DUNGEONS D1 waits for the P-spike and WORLD_INTERACTION's unscheduled pieces; AI-D4 for ALLIES AL6.
   - AUDIO A4 and A5: approved, not started; CC0 files can replace the placeholders any time (AUDIO.md).
-  - AUDIO A6a passed (6385fc4); its follow-up (Demise 4 on the empowered swing, `used_empower` on swings) built 2026-10-10, awaiting Ryan's play test (4,518/4,518); then Korsavil's sheet step 2, then A6b (the panel: needs his concern 4, the Save guards).
+  - AUDIO A6a and its follow-up passed (6385fc4, 8385b3f); Korsavil's sheet step 2 built in K5c; next A6b (the panel: needs his concern 4, the Save guards).
   - COMPANIONS CO1: any time, on Ryan's OK.
   - ALLIES' second champion (ranged/support, mana): still planned (ALLIES.md, Status).
   - Ryan's pre-L-M saves: `%APPDATA%/Godot/app_userdata/uhgame/backups/` (the 10:22 copy).

@@ -7,7 +7,6 @@
 [ext_resource type="Script" uid="uid://b03uhk6wyab30" path="res://scripts/data/status_effect.gd" id="3_status"]
 [ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="4_wlo57"]
 [ext_resource type="Resource" path="res://data/statuses/status_blade_singer_wound.tres" id="4_wound"]
-[ext_resource type="Resource" path="res://data/sounds/sound_korsavil_sweep_cast.tres" id="5_sound"]
 [ext_resource type="Script" uid="uid://cvwv2nrsbyrah" path="res://scripts/data/stat_modifier.gd" id="6_462d8"]
 [ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="9_xaqw1"]
 
@@ -31,4 +30,3 @@ ad_ratio = 1.1
 hit_shake = 3.0
 hit_hitstop = 0.05
 conditional_bonuses = Array[ExtResource("2_bonus")]([SubResource("wound")])
-cast_sound = ExtResource("5_sound")

@@ -7,11 +7,16 @@
 [ext_resource type="Resource" path="res://data/sounds/sound_korsavil_demise_six.tres" id="4_six"]
 [ext_resource type="Resource" path="res://data/sounds/sound_korsavil_sweep_cast.tres" id="5_sweep"]
 
+[sub_resource type="Resource" id="during_gain_cooldown"]
+script = ExtResource("3_co003")
+status_tag = &"demise_cooldown"
+
 [sub_resource type="Resource" id="demise_four"]
 script = ExtResource("2_trigger")
-name = "Demise 4: empowered swing"
+name = "Demise 4: empowered finisher"
 event = 0
 used_empower = &"empower_demise"
+conditions = Array[ExtResource("3_co003")]([SubResource("during_gain_cooldown")])
 sound = ExtResource("3_four")
 
 [sub_resource type="Resource" id="demise_six"]

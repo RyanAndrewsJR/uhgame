@@ -204,6 +204,7 @@ Every 4th Attack gain 2 stacks of Inevitable Demise up to a max of 6. (5 sec coo
 
 Every stack of inevitable demise grants 2% movement speed.
 ```
+*Changed by Ryan, 2026-10-10 (K5c; his sheet's words above are kept as written): the 4-stack strike is his next 4th strike, the finisher, not his next auto attack.*
 
 | Slot | Name | Board cast | Range / width | Cast time | Cooldown | Cost | Damage | Board tags | Parts |
 |---|---|---|---|---|---|---|---|---|---|
@@ -307,9 +308,9 @@ Ryan: "3 fast attacks. your fourth has a small delay and deals 5% bonus AD". One
 Under the source id `passive_korsavil`, as the built one. **Until AR5** it also keeps the built +1 `dash_charges` (its removal is AR5's, on Ryan's OK), so his dashes don't change before his Assassin layer.
 - **The gain** (Ryan, 2026-10-09): when swing 4 hits, +2 stacks of Inevitable Demise (`status_demise`), unless he gained within the last 5 s. *(proposed)* As data, one unit rule, `reaction_korsavil_demise`: trigger HIT, `required_hit_tags` [`finisher`], owner SOURCE, conditions [SELF_HAS_STATUS `demise_cooldown`, negated], effects (target OTHER, him): `ApplyStatusGameplayEffect` `status_demise` twice, then `status_demise_cooldown` (5 s). A swing 4 that hits three enemies fires the rule once: the first HIT event's cooldown status fails the other two.
 - **The stacks** (`status_demise`): max 6; one shared timer of 6 s *(proposed number)* that each gain restarts (`STACK_SHARED`, built in K2), so they all go together 6 s after the last gain; each stack +2% move speed (Ryan): a `stat_scaling` on the built input `self_status_stacks` (`demise` ÷ 6, `move_speed` PERCENT_ADD +0.12, linear: exactly 2% a stack, +12% at 6).
-- **The empowered auto** (Ryan: "at 4 stacks, your next auto attack is greatly empowered dealing 50+75% AD"): reaching 4 or more from below gives `empower_demise`, used by his next swing that hits: +50 base damage and +0.75 AD ratio in that swing's hit (an empowered swing isn't halved: 0.9 × 60 + 50 + 45 = 149 on swing 1). It doesn't spend the stacks (Ryan, 2026-10-09). *(proposed)* It lasts until used or 6 s; one at a time (REFRESH); given by the passive's script (a `Passive` subclass hook: the built rules can't see a count crossing 4), which also opens Q's 6-stack window.
+- **The empowered finisher** (Ryan: "at 4 stacks, your next auto attack is greatly empowered dealing 50+75% AD"; **changed by Ryan, 2026-10-10 (K5c): his next 4th strike**, so its sound lands on a beat the player sees coming, as Yasuo's Q3 does): reaching 4 or more from below gives `empower_demise`, used by his next swing 4 that hits (scope `hit:finisher`); swings 1–3 leave it waiting. +50 base damage and +0.75 AD ratio in that swing's hit (an empowered swing isn't halved: 1.4 × 60 + 50 + 45 = 179, against 42 for a plain swing 4; until K5c his next swing that hit, 149 on swing 1). It doesn't spend the stacks (Ryan, 2026-10-09). *(proposed)* It lasts until used or 6 s; one at a time (REFRESH); given by the passive's script (a `Passive` subclass hook: the built rules can't see a count crossing 4), which also opens Q's 6-stack window.
 - **Q's 6-stack window** (Ryan, 2026-10-09): reaching 6 from below gives `status_blade_singer_sweep` (3.5 s), whose REPLACE turns Q into the sweep (ABILITIES.md, Korsavil v2, Q); the sweep spends every stack.
-- Tooltip *(proposed)*: "Every 4th strike of your chain gives you 2 stacks of Inevitable Demise (once every 5 seconds), up to 6; each stack gives 2% movement speed, and they fade together 6 seconds after the last. At 4 stacks your next basic attack deals 50 + 75% AD bonus damage. At 6, your Q becomes a lunging sweep for 3.5 seconds."
+- Tooltip *(proposed)*: "Every 4th strike of your chain gives you 2 stacks of Inevitable Demise (once every 5 seconds), up to 6; each stack gives 2% movement speed, and they fade together 6 seconds after the last. At 4 stacks your next 4th strike deals 50 + 75% AD bonus damage. At 6, your Q becomes a lunging sweep for 3.5 seconds." ("next basic attack" until K5c.)
 - **Found while building K3** (2026-10-10; Claude's readings, *(proposed)*):
   - The rule is a file, `data/reactions/reaction_korsavil_demise.tres` (id `korsavil_demise`), in the passive's `reaction_rules`; the passive's script is `scripts/abilities/korsavil/passive_korsavil.gd`, with the statuses it watches and gives as exports (`demise_status`, `empower_status` at `empower_at` 4; `sweep_status` at 6 stays empty until K5; set to `status_blade_singer_sweep` in K5).
   - One Passive resource serves every unit loaded from his ChampionData, so the script keeps each unit's state (the count it last saw, its signal connection) on the unit, never on the resource.
@@ -369,7 +370,7 @@ The built statuses (`status_inevitable_demise` and the others) stay on disk unde
 |---|---|---|
 | `status_demise` | Inevitable Demise (v2), on him | id and tag `demise`, `buff`; display name "Inevitable Demise" (Ryan's); STACK_SHARED, max 6 (Ryan), 6 s; `stat_scalings`: `move_speed` +0.12 on `demise` ÷ 6. A new file: the built `status_inevitable_demise` is a debuff on enemies (DoT tiers, max 8) |
 | `status_demise_cooldown` | the gain's 5 s (Ryan) | tag `demise_cooldown`; 5 s; nothing else |
-| `empower_demise` (`status_empower_demise.tres`) | the 4-stack auto | tags `empower`, `buff`; BASIC_ATTACK_HIT; `empower_base_damage` 50, `empower_ad_ratio` 0.75 (Ryan); 6 s; REFRESH |
+| `empower_demise` (`status_empower_demise.tres`) | the 4-stack finisher (K5c) | tags `empower`, `buff`; BASIC_ATTACK_HIT, `empower_scope` `hit:finisher` (K5c: Ryan); `empower_base_damage` 50, `empower_ad_ratio` 0.75 (Ryan); 6 s; REFRESH |
 | `status_blade_singer_sweep` | Q's 6-stack window | tag `buff`; 3.5 s (Ryan); one REPLACE, scope `ability:korsavil_blade_singer`, the sweep variant; removed when the sweep is cast |
 | `status_lodged_dagger` | Q's lodged dagger | tags `lodged_dagger`, `debuff` (not `cc`); `move_speed` −10% (Ryan); until the recast or the window ends (Q's script removes it) |
 | `status_blade_singer_wound` | the sweep's DoT | tags `blade_singer_wound`, `debuff`; 4 s (Ryan); a tick every 0.5 s of 10 + 0.175 × AD (20 + 35% AD a second: Ryan); PHYSICAL |
@@ -391,8 +392,11 @@ Ability-level cases are ABILITIES.md's (Korsavil v2).
 | Swing 4 whiffs | Nothing: the gain and the Energy need a hit. |
 | A gain at 6 stacks | Still 6; the shared 6 s restarts. |
 | No gain for 6 s | Every stack goes at once; the speed goes with them. A waiting `empower_demise` keeps its own 6 s. |
-| R's Finish from 0, 2 or 3 stacks | +4, capped at 6 (Ryan): from under 4 it gives the empowered auto; reaching 6 also opens Q's sweep window. |
+| R's Finish from 0, 2 or 3 stacks | +4, capped at 6 (Ryan): from under 4 it gives the empowered finisher; reaching 6 also opens Q's sweep window. |
 | Reaching 4 again while `empower_demise` waits | One at a time: REFRESH, no second. |
+| Swings 1–3 while `empower_demise` waits (K5c) | Plain (halved); it waits for swing 4. A chain broken before swing 4 starts again at swing 1, and the empower waits on (its 6 s). |
+| The empowered finisher whiffs (K5c) | The empower stays for the next swing 4 (an empower is used by a swing that hits); its sound plays again then. |
+| The empowered finisher's own gain reaches 6 (K5c) | It's used by that swing and the stacks reach 6: only the 6-stack sound plays ("6 wins": the 4-stack sound plays only while the gain's 5 s cooldown runs, when the finisher can't gain). |
 | 6 stacks with Q on cooldown | The 3.5 s window runs; the sweep needs Q off cooldown (Ryan), so it's lost if Q isn't ready in time. |
 | He holds 6 stacks and wants the dagger | Not for those 3.5 s: Q is the sweep while the window lasts. |
 | A chain broken before swing 4 | No count carries over: the next chain starts at swing 1 (Ryan: the chain restarting resets the count). |
@@ -852,6 +856,13 @@ One step per request, each ending in Ryan's play test. Ryan accepted these steps
    - During the recast's 0.5 s he walks, as through the throw (Q's `roots_during_cast` is off for both parts). A root before the press refuses it ("Rooted"); a root during the 0.5 s doesn't cancel it, but the dash is then refused, so he stays and the lunge doesn't hit (as in K4).
    - The sweep's direction is read at the press: the wind-up can't be re-aimed, so a moving enemy can leave the half circle.
    - The placeholders reuse today's files at other pitches: the haste sound (4), the ultimate-ready ping (6), Judgement's cast (the sweep). The dagger's own cast sound is still none: Ryan's "different from the normal one" holds once it gets one.
+   **5c. K5c – The empowered finisher, and his sound sheet's step 2** (Ryan, 2026-10-10, after A6a's follow-up: the Demise 4 sound "triggers at a awkward time"; his pick, the empowered finisher, with "just the payoff sound for now"). The 4-stack empower goes on his next swing 4 (a basic attack empower's `empower_scope` `hit:finisher`, new for swings: ABILITIES.md, Later toolkit pieces, Korsavil v2); the "Demise 4" trigger plays as that finisher starts, only while the gain's 5 s cooldown runs (6 wins); AUDIO A6a's step 2 empties the three old slots, so his sheet alone plays them.
+   **Done means:** at 4 stacks swings 1–3 stay plain and the next swing 4 deals 179 (60 AD); the Demise 4 sound plays as that swing starts, never on swings 1–3; a finisher that takes him to 6 plays only the 6-stack sound; the three sounds play once each (no slot doubles them); the tooltip says "your next 4th strike".
+   Built 2026-10-10, see CHANGELOG.md (awaiting Ryan's play test). **Found while building K5c** (Claude's readings, *(proposed)*):
+   - The trigger needs no `swing_number`: `used_empower` on a swing start now means "this swing carries it" (he holds it and its scope admits the swing), so it follows the empower if its scope ever changes.
+   - "6 wins" is read at the swing's start: if the 5 s cooldown ends inside the finisher's 0.14 s wind-up, both sounds play (rare).
+   - **For K8 (R's Finish, +4):** if the Finish gives the empower without starting `demise_cooldown`, the next empowered finisher plays neither sound when it can't reach 6 from below (at 6 already, or after a sweep spent the stacks). K8 either starts the cooldown with the Finish or adds a second "Demise 4" trigger (no cooldown, at 6 stacks); Ryan's call then.
+   - Earlier notes above still say "the empowered auto" and K5b's "consume_sound": history, kept as written.
 6. **K6 – W Cloak & Dagger.** `ends_on_cast` / `ends_on_swing`, the attack-or-cast empower trigger; `status_cloak_and_dagger`, `status_cloak_untargetable`, `empower_cloak_and_dagger`, `status_cloak_wound`, `korsavil_w_cloak_and_dagger.tres` (a script only if the data can't do it).
    **Done means:** enemies drop him (today's pick); he's untargetable for 1.5 s and stealthed for 5 s at +15% speed; a swing or a cast ends the stealth (W's own cast and a dash don't); that swing or cast puts 35 a second for 4 s on each enemy it hits; Energy gets nothing extra.
 7. **K7 – E Spectral Assault.** `spectral_assault.gd`, `korsavil_e_spectral_assault.tres`.
@@ -947,6 +958,6 @@ Found in v2's check (2026-10-09), still open:
 Balance flags (v2; recorded, not changed; Ryan's call):
 - R on one enemy: 4 daggers and 4 cuts deal 192 + 432 = 624 at 60 AD (62% of the Vampyr Shade's 1000), 1,056 when it's below 25% health.
 - Swing 4's 10 Energy adds about 8.6 a second while he chains; with the 10 regen, Energy only limits his opener.
-- The empowered auto deals 149 against a plain swing's 27, each time he reaches 4 stacks.
+- The empowered finisher deals 179 against a plain swing 4's 42, each time he reaches 4 stacks (until K5c the empowered auto: 149 against a plain swing's 27).
 - W's DoT goes on every enemy his next ability hits: 140 each through an E spin or a Q sweep.
 - W's 16 s cooldown sits outside ABILITIES' 3–10 s guide, and R's 0.5 s cast time at the ultimates' top (guides, not rules).

@@ -1287,9 +1287,9 @@ func _test_korsavil_v2_passive_data() -> void:
 		[STATUS_DEMISE_COOLDOWN.id, STATUS_DEMISE_COOLDOWN.duration, _plain(STATUS_DEMISE_COOLDOWN.tags), STATUS_DEMISE_COOLDOWN.modifiers.size(), STATUS_DEMISE_COOLDOWN.is_empower()],
 		[&"demise_cooldown", 5.0, [&"demise_cooldown"], 0, false])
 	var e := EMPOWER_DEMISE
-	_check("empower_demise: the next swing that hits, +50 and +0.75 AD, 6 s, REFRESH, tags empower + buff",
-		[e.id, e.empower_consumed_by, e.empower_base_damage, e.empower_ad_ratio, e.duration, e.stack_rule, _plain(e.tags)],
-		[&"empower_demise", StatusEffect.EmpowerTrigger.BASIC_ATTACK_HIT, 50.0, 0.75, 6.0, StatusEffect.StackRule.REFRESH, [&"empower", &"buff"]])
+	_check("empower_demise: the next finisher that hits (scope hit:finisher since K5c), +50 and +0.75 AD, 6 s, REFRESH, tags empower + buff",
+		[e.id, e.empower_consumed_by, e.empower_scope, e.empower_base_damage, e.empower_ad_ratio, e.duration, e.stack_rule, _plain(e.tags)],
+		[&"empower_demise", StatusEffect.EmpowerTrigger.BASIC_ATTACK_HIT, &"hit:finisher", 50.0, 0.75, 6.0, StatusEffect.StackRule.REFRESH, [&"empower", &"buff"]])
 	var rule := RULE_DEMISE as ReactionRule
 	var cond: Condition = rule.conditions[0] if rule.conditions.size() == 1 else null
 	_check("the rule: HIT on `finisher`, his own hits (SOURCE), on him (OTHER), not while demise_cooldown is on",
@@ -1385,7 +1385,7 @@ func _test_korsavil_v2_many_and_expiry() -> void:
 
 
 func _test_korsavil_v2_empower() -> void:
-	_section("K3: at 4 stacks the next swing that hits is empowered (50 + 75% AD, full strength), one at a time; a gain at 6 stays 6")
+	_section("K3, K5c: at 4 stacks his next finisher (swing 4) that hits is empowered (50 + 75% AD, full strength), one at a time; a gain at 6 stays 6")
 	var k := await _spawn(false, KORSAVIL)
 	_no_crits(k)
 	var d := _dummy(k.global_position + Vector2(36, 0))
@@ -1408,10 +1408,19 @@ func _test_korsavil_v2_empower() -> void:
 		if ctx.source == k and ctx.has_tag(&"basic_attack"):
 			hits.append([roundi(ctx.raw_damage), ctx.has_tag(&"empowered")])
 	Events.unit_hit.connect(on_hit)
-	await _swing_times(k, 2)
+	await _swing_times(k, 3)
+	_check("swings 1–3 hit plain (0.9 x 60, halved: 27 each, untagged); the empower waits for the finisher (Ryan, 2026-10-10: K5c)",
+		[hits, sc.has_status(&"empower_demise")], [[[27, false], [27, false], [27, false]], true])
+	hits.clear()
+	_place_beside(d, k, Vector2(36, 0))
+	await _frames(1)
+	await _swing_times(k, 1)
+	_place_beside(d, k, Vector2(36, 0))
+	await _frames(1)
+	await _swing_times(k, 1)
 	Events.unit_hit.disconnect(on_hit)
-	_check("the next swing that hits: 0.9 x 60 + 50 + 0.75 x 60 = 149 raw at full strength (not halved), tagged empowered; the next one plain (27)",
-		hits, [[149, true], [27, false]])
+	_check("swing 4, the finisher: 1.4 x 60 + 50 + 0.75 x 60 = 179 raw at full strength (not halved), tagged empowered; the next swing 1 plain (27)",
+		hits, [[179, true], [27, false]])
 	_check("the empower used; the stacks kept (it spends none: Ryan)", [sc.has_status(&"empower_demise"), sc.get_stacks(&"demise")], [false, 6])
 	sc.remove_status(&"demise")
 	for i in 4:
@@ -1789,11 +1798,12 @@ func _test_blade_singer_sweep_during_recast() -> void:
 
 
 func _test_k5b_sounds_data() -> void:
-	_section("K5b: the three new sounds (Ryan, 2026-10-10): Demise at 4, Demise at 6, the sweep's own cast (placeholders)")
-	_check("4 stacks: empower_demise's consume_sound (Ryan: on the empowered hit, not at the gain), no apply_sound",
-		[EMPOWER_DEMISE.consume_sound == SOUND_DEMISE_FOUR, EMPOWER_DEMISE.apply_sound], [true, null])
-	_check("6 stacks: the sweep window's apply_sound (it lands exactly at 6)", STATUS_SWEEP.apply_sound == SOUND_DEMISE_SIX, true)
-	_check("the sweep's cast_sound is its own, not the dagger's", [BLADE_SINGER_SWEEP.cast_sound == SOUND_SWEEP_CAST, BLADE_SINGER.cast_sound != SOUND_SWEEP_CAST], [true, true])
+	_section("K5b: the three new sounds (Ryan, 2026-10-10): Demise at 4, Demise at 6, the sweep's own cast; on his sheet only since K5c (AUDIO A6a's step 2)")
+	_check("the old slots are empty (step 2): empower_demise's consume_sound and apply_sound, the sweep window's apply_sound, the sweep's cast_sound",
+		[EMPOWER_DEMISE.consume_sound, EMPOWER_DEMISE.apply_sound, STATUS_SWEEP.apply_sound, BLADE_SINGER_SWEEP.cast_sound], [null, null, null, null])
+	_check("his sheet holds the three, in order; the sweep's is its own, not the dagger's",
+		[SOUND_SHEET_KORSAVIL.triggers.map(func(t: SoundTrigger) -> SoundEvent: return t.sound), BLADE_SINGER.cast_sound != SOUND_SWEEP_CAST],
+		[[SOUND_DEMISE_FOUR, SOUND_DEMISE_SIX, SOUND_SWEEP_CAST], true])
 	_check("three SoundEvents on the SFX bus, each with a placeholder file",
 		[SOUND_DEMISE_FOUR.bus, SOUND_DEMISE_SIX.bus, SOUND_SWEEP_CAST.bus, SOUND_DEMISE_FOUR.variations.size(), SOUND_DEMISE_SIX.variations.size(), SOUND_SWEEP_CAST.variations.size()],
 		[SoundEvent.Bus.SFX, SoundEvent.Bus.SFX, SoundEvent.Bus.SFX, 1, 1, 1])
@@ -1872,31 +1882,35 @@ func _test_k5b_sweep_wind_up() -> void:
 
 
 func _test_k5b_sounds_play() -> void:
-	_section("K5b: the sounds play: the 4-stack sound on the empowered hit (not at the gain), the 6-stack sound at 6 (not again on a gain at 6), the sweep's cast")
+	_section("K5b, K5c: the sounds play (from his sheet since K5c): the 4-stack sound as the empowered finisher starts (not at the gain, not on swings 1–3), the 6-stack sound at 6 (not again on a gain at 6), the sweep's cast")
 	var k := await _spawn(false, KORSAVIL)
 	_no_crits(k)
 	var d := _dummy(k.global_position + Vector2(36, 0))
 	d.stats_component.add_modifier(StatModifier.create(&"max_health", StatModifier.Type.FLAT, 5000.0, &"test_tough"))
 	await _frames(1)
 	var sc := k.status_component
-	var played := func(ev: SoundEvent) -> Array:   # the slots' plays only (his sheet's triggers: AUDIO A6a's test)
-		return Audio.get_log().filter(func(e: Dictionary) -> bool: return e.sound == ev and e.result == Audio.RESULT_PLAYED and e.trigger == "")
+	var played := func(ev: SoundEvent) -> Array:   # every play (the slots are empty since K5c: his sheet's triggers)
+		return Audio.get_log().filter(func(e: Dictionary) -> bool: return e.sound == ev and e.result == Audio.RESULT_PLAYED)
 	Audio.stop_all()
 	Audio.clear_log()
 	for i in 4:
 		sc.apply_status(STATUS_DEMISE_V2, k)
-	_check("4 stacks: the empowered auto waits, no sound yet", [sc.has_status(&"empower_demise"), played.call(SOUND_DEMISE_FOUR).size(), played.call(SOUND_DEMISE_SIX).size()], [true, 0, 0])
-	var hit_frames: Array = []
-	var on_hit := func(ctx: HitContext) -> void:
-		if ctx.source == k and ctx.has_tag(&"empowered"):
-			hit_frames.append(Engine.get_physics_frames())
-	Events.unit_hit.connect(on_hit)
+	sc.apply_status(STATUS_DEMISE_COOLDOWN, k)   # the gain that gave the 4 started it: the finisher then gains nothing (6 wins: the sheet's test)
+	_check("4 stacks: the empowered finisher waits, no sound yet", [sc.has_status(&"empower_demise"), played.call(SOUND_DEMISE_FOUR).size(), played.call(SOUND_DEMISE_SIX).size()], [true, 0, 0])
+	await _swing_times(k, 3)
+	_check("swings 1–3: no 4-stack sound; the empower still waits", [played.call(SOUND_DEMISE_FOUR).size(), sc.has_status(&"empower_demise")], [0, true])
+	var starts: Array = []
+	var on_start := func(index: int, _dir: Vector2, _swing: AttackSwing) -> void: starts.append([index, Engine.get_physics_frames()])
+	k.attack.swing_started.connect(on_start)
+	_place_beside(d, k, Vector2(36, 0))
+	await _frames(1)
 	await _swing_times(k, 1)
-	Events.unit_hit.disconnect(on_hit)
+	k.attack.swing_started.disconnect(on_start)
 	var four: Array = played.call(SOUND_DEMISE_FOUR)
-	_check("the empowered swing hits: the 4-stack sound once, in the frame of its hit; the empower used",
-		[hit_frames.size(), four.size(), four[0].frame == hit_frames[0] if four.size() == 1 and hit_frames.size() == 1 else false, sc.has_status(&"empower_demise")],
-		[1, 1, true, false])
+	_check("the finisher (swing 4) carrying it: the 4-stack sound once, in the frame it starts; the empower used at its hit",
+		[starts.size(), starts[0][0] if starts.size() == 1 else -1, four.size(), int(four[0].frame) == int(starts[0][1]) if four.size() == 1 and starts.size() == 1 else false,
+			sc.has_status(&"empower_demise")],
+		[1, 3, 1, true, false])
 	sc.apply_status(STATUS_DEMISE_V2, k)
 	sc.apply_status(STATUS_DEMISE_V2, k)
 	_check("the 6th: the 6-stack sound once", played.call(SOUND_DEMISE_SIX).size(), 1)
@@ -1907,7 +1921,7 @@ func _test_k5b_sounds_play() -> void:
 	for i in 4:
 		sc.apply_status(STATUS_DEMISE_V2, k)
 	sc.remove_status(&"empower_demise")
-	_check("an empowered auto taken away unused: no 4-stack sound", played.call(SOUND_DEMISE_FOUR).size(), 1)
+	_check("an empowered finisher taken away unused: no 4-stack sound", played.call(SOUND_DEMISE_FOUR).size(), 1)
 	k.abilities.try_cast(&"q", k.global_position + Vector2(0, 300))
 	_check("the sweep's press: its own cast sound", played.call(SOUND_SWEEP_CAST).size(), 1)
 	await _wait_until(func() -> bool: return not k.abilities.casting, 120)
@@ -1957,17 +1971,22 @@ func _test_k5b_end_reasons() -> void:
 
 
 func _test_a6a_korsavil_sheet() -> void:
-	_section("AUDIO A6a: Korsavil's sound sheet (his since the A6a commit; his three slots still play until step 2)")
+	_section("AUDIO A6a: Korsavil's sound sheet (step 2 in K5c: his three sounds play only from it; Demise 4 on the empowered finisher, 6 wins)")
 	var sheet := SOUND_SHEET_KORSAVIL
 	var rows := sheet.triggers.map(func(t: SoundTrigger) -> Array:
-		return [t.name, t.event, t.used_empower, t.status_id, t.stacks, t.ability_id, t.at_progress, t.place, t.sound])
-	_check("three triggers: the swing that carries the 4-stack empower (Ryan, 2026-10-10: at its start), 6 stacks, the sweep's press; DEFAULT places (centered for him); his three SoundEvents", rows, [
-		["Demise 4: empowered swing", SoundTrigger.Event.SWING_START, &"empower_demise", &"", 0, &"", -1.0, SoundTrigger.Place.DEFAULT, SOUND_DEMISE_FOUR],
-		["Demise 6", SoundTrigger.Event.STACKS_REACHED, &"", &"demise", 6, &"", -1.0, SoundTrigger.Place.DEFAULT, SOUND_DEMISE_SIX],
-		["Sweep cast", SoundTrigger.Event.CAST_START, &"", &"", 0, &"korsavil_blade_singer_sweep", 0.0, SoundTrigger.Place.DEFAULT, SOUND_SWEEP_CAST]])
-	_check("korsavil.tres holds the sheet (assigned in Ryan's A6a play test); the three slots still hold the sounds (emptied in step 2)",
-		[KORSAVIL.sound_sheet == sheet, EMPOWER_DEMISE.consume_sound == SOUND_DEMISE_FOUR, STATUS_SWEEP.apply_sound == SOUND_DEMISE_SIX, BLADE_SINGER_SWEEP.cast_sound == SOUND_SWEEP_CAST],
-		[true, true, true, true])
+		return [t.name, t.event, t.swing_number, t.used_empower, t.status_id, t.stacks, t.ability_id, t.at_progress, t.place, t.sound])
+	_check("three triggers: the swing that carries the 4-stack empower (its scope makes that swing 4; Ryan, 2026-10-10: at its start), 6 stacks, the sweep's press; DEFAULT places (centered for him); his three SoundEvents", rows, [
+		["Demise 4: empowered finisher", SoundTrigger.Event.SWING_START, 0, &"empower_demise", &"", 0, &"", -1.0, SoundTrigger.Place.DEFAULT, SOUND_DEMISE_FOUR],
+		["Demise 6", SoundTrigger.Event.STACKS_REACHED, 0, &"", &"demise", 6, &"", -1.0, SoundTrigger.Place.DEFAULT, SOUND_DEMISE_SIX],
+		["Sweep cast", SoundTrigger.Event.CAST_START, 0, &"", &"", 0, &"korsavil_blade_singer_sweep", 0.0, SoundTrigger.Place.DEFAULT, SOUND_SWEEP_CAST]])
+	var four_trigger: SoundTrigger = sheet.triggers[0]
+	var cond: Condition = four_trigger.conditions[0] if four_trigger.conditions.size() == 1 else null
+	_check("Demise 4's one condition: SELF_HAS_STATUS demise_cooldown, not negated (6 wins: a finisher that will gain plays only Demise 6); the other two none",
+		[cond != null and cond.kind == Condition.Kind.SELF_HAS_STATUS, cond.status_tag if cond else &"", cond.negate if cond else true,
+			sheet.triggers[1].conditions.size(), sheet.triggers[2].conditions.size()],
+		[true, &"demise_cooldown", false, 0, 0])
+	_check("korsavil.tres holds the sheet; the three old slots are empty (step 2)",
+		[KORSAVIL.sound_sheet == sheet, EMPOWER_DEMISE.consume_sound, STATUS_SWEEP.apply_sound, BLADE_SINGER_SWEEP.cast_sound], [true, null, null, null])
 	var sounds := Audio.get_sound_triggers()
 	var k := await _spawn(false, KORSAVIL)
 	_no_crits(k)
@@ -1977,51 +1996,83 @@ func _test_a6a_korsavil_sheet() -> void:
 	_check("he loads watched with it", [sounds.is_watching(k), sounds.get_sheet(k) == sheet], [true, true])
 	var sc := k.status_component
 	var starts: Array = []
-	var on_start := func(_index: int, _dir: Vector2, _swing: AttackSwing) -> void: starts.append(Engine.get_physics_frames())
+	var on_start := func(index: int, _dir: Vector2, _swing: AttackSwing) -> void: starts.append([index, Engine.get_physics_frames()])
 	k.attack.swing_started.connect(on_start)
-	Audio.stop_all()
-	Audio.clear_log()
-	await _swing_times(k, 1)
-	_check("a plain swing (no empower): no 4-stack sound", _slot_and_trigger(SOUND_DEMISE_FOUR, "Demise 4: empowered swing").slice(0, 2), [0, 0])
+	var fours := func() -> Array:   # the combo index of the swing each Demise 4 play started with (-1: no swing started that frame)
+		var out: Array = []
+		for e: Dictionary in Audio.get_log():
+			if e.trigger == "Demise 4: empowered finisher" and e.result == Audio.RESULT_PLAYED:
+				var index := -1
+				for s: Array in starts:
+					if int(s[1]) == int(e.frame):
+						index = s[0]
+				out.append(index)
+		return out
+	# 1. Inside the gain's cooldown (the gain that gave the 4 started it): the finisher plays it.
 	for i in 4:
 		sc.apply_status(STATUS_DEMISE_V2, k)
+	sc.apply_status(STATUS_DEMISE_COOLDOWN, k)
+	Audio.stop_all()
 	Audio.clear_log()
 	starts.clear()
+	await _swing_times(k, 3)
+	_place_beside(d, k, Vector2(36, 0))
+	await _frames(1)
 	await _swing_times(k, 1)
-	var four := _slot_and_trigger(SOUND_DEMISE_FOUR, "Demise 4: empowered swing")
-	var trig_entries := Audio.get_log().filter(func(e: Dictionary) -> bool: return e.trigger == "Demise 4: empowered swing" and e.result == Audio.RESULT_PLAYED)
-	var slot_entries := Audio.get_log().filter(func(e: Dictionary) -> bool: return e.sound == SOUND_DEMISE_FOUR and e.trigger == "" and e.result == Audio.RESULT_PLAYED)
-	_check("the swing that carries the empower: the trigger at its start (the swing_started frame), the old slot at its hit (later by the windup), once each, both centered",
-		[four[0], four[1], trig_entries.size() == 1 and starts.size() == 1 and int(trig_entries[0].frame) == int(starts[0]),
-			slot_entries.size() == 1 and trig_entries.size() == 1 and int(slot_entries[0].frame) > int(trig_entries[0].frame), four[3], four[4]],
-		[1, 1, true, true, false, false])
+	_check("inside the gain's cooldown: swings 1–3 silent, the finisher plays it once, in the frame it starts; centered, not the old slot; the empower used",
+		[fours.call(), _slot_and_trigger(SOUND_DEMISE_FOUR, "Demise 4: empowered finisher"), sc.has_status(&"empower_demise")],
+		[[3], [0, 1, false, null, false], false])
+	# 2. 6 wins: the cooldown over, the empowered finisher's gain reaches 6.
+	sc.remove_status(&"demise")
+	sc.remove_status(&"demise_cooldown")
+	for i in 4:
+		sc.apply_status(STATUS_DEMISE_V2, k)
+	_place_beside(d, k, Vector2(36, 0))
+	await _frames(1)
+	Audio.stop_all()
+	Audio.clear_log()
+	starts.clear()
+	await _swing_times(k, 3)
+	_place_beside(d, k, Vector2(36, 0))
+	await _frames(1)
+	await _swing_times(k, 1)
+	_check("6 wins: no cooldown, so the empowered finisher gains to 6: no Demise 4, Demise 6 once; the empower used, 6 stacks",
+		[fours.call(), _slot_and_trigger(SOUND_DEMISE_SIX, "Demise 6").slice(0, 2), sc.has_status(&"empower_demise"), sc.get_stacks(&"demise")],
+		[[], [0, 1], false, 6])
+	# 3. A whiffed finisher carrying it (the gain's cooldown on again from 2.).
 	sc.remove_status(&"demise")
 	for i in 4:
 		sc.apply_status(STATUS_DEMISE_V2, k)
-	_place_beside(d, k, Vector2(0, 400))
-	await _frames(1)
-	Audio.clear_log()
-	await _swing_times(k, 1)
-	_check("a whiff while carrying it: the trigger plays (the swing carried it), the empower stays, no slot sound",
-		[_slot_and_trigger(SOUND_DEMISE_FOUR, "Demise 4: empowered swing").slice(0, 2), sc.has_status(&"empower_demise")], [[0, 1], true])
 	_place_beside(d, k, Vector2(36, 0))
 	await _frames(1)
 	Audio.clear_log()
+	starts.clear()
+	await _swing_times(k, 3)
+	_place_beside(d, k, Vector2(0, 400))
+	await _frames(1)
 	await _swing_times(k, 1)
-	_check("the next swing, landing: it plays again, and the slot at the hit", _slot_and_trigger(SOUND_DEMISE_FOUR, "Demise 4: empowered swing").slice(0, 2), [1, 1])
+	_check("a whiffed finisher carrying it: it plays (the swing carried it); the empower stays",
+		[fours.call(), sc.has_status(&"demise_cooldown"), sc.has_status(&"empower_demise")], [[3], true, true])
+	_place_beside(d, k, Vector2(36, 0))
+	await _frames(1)
+	Audio.clear_log()
+	starts.clear()
+	await _swing_times(k, 4)
+	_check("the next chain: swings 1–3 silent, its finisher plays it again and uses the empower", [fours.call(), sc.has_status(&"empower_demise")], [[3], false])
 	k.attack.swing_started.disconnect(on_start)
+	# 4. Demise 6 and the sweep's press, from the sheet alone.
 	sc.remove_status(&"demise")
 	for i in 4:
 		sc.apply_status(STATUS_DEMISE_V2, k)
-	Audio.stop_all()   # that 4th swing was the finisher: its +2 reached 6 a moment ago, inside the sound's instance limit
+	Audio.stop_all()
 	Audio.clear_log()
 	sc.apply_status(STATUS_DEMISE_V2, k)
 	sc.apply_status(STATUS_DEMISE_V2, k)
-	_check("reaching 6: the old slot (the window's apply_sound) and the trigger, same frame, centered",
-		_slot_and_trigger(SOUND_DEMISE_SIX, "Demise 6"), [1, 1, true, false, false])
+	_check("reaching 6: the trigger once, centered; the window's old apply_sound silent",
+		_slot_and_trigger(SOUND_DEMISE_SIX, "Demise 6"), [0, 1, false, null, false])
 	k.abilities.try_cast(&"q", k.global_position + Vector2(0, -300))
-	_check("the sweep's press: the old slot (cast_sound) and the trigger, same frame, centered",
-		_slot_and_trigger(SOUND_SWEEP_CAST, "Sweep cast"), [1, 1, true, false, false])
+	_check("the sweep's press: the trigger once, in the press's frame, centered; the old cast_sound silent",
+		_slot_and_trigger(SOUND_SWEEP_CAST, "Sweep cast"), [0, 1, false, null, false])
 	await _wait_until(func() -> bool: return not k.abilities.casting, 120)
 	d.queue_free()   # its wound's ticks would hitstop the next wind-up
 	await _frames(2)
@@ -2039,7 +2090,7 @@ func _test_a6a_korsavil_sheet() -> void:
 	await _wait_until(func() -> bool: return not k.abilities.casting, 120)
 	var late := Audio.get_log().filter(func(e: Dictionary) -> bool: return e.trigger == "Sweep cast" and e.result == Audio.RESULT_PLAYED)
 	sweep_trigger.at_progress = 0.0
-	_check_near("at_progress 0.8: 0.8 of the 0.6 s wind-up (29 physics frames) after the press, the slot still at the press",
+	_check_near("at_progress 0.8: 0.8 of the 0.6 s wind-up (29 physics frames) after the press",
 		float(int(late[0].frame) - f0) if late.size() == 1 else -1.0, 29.0, 2.0)
 	k.queue_free()
 	Audio.stop_all()

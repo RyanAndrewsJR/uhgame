@@ -193,6 +193,7 @@ func _ready() -> void:
 	await _test_fake_item()
 	await _test_forms()
 	await _test_empower_basic_attack()
+	await _test_empower_swing_scope()
 	await _test_empower_abilities()
 	await _test_unstoppable()
 	await _test_untargetable()
@@ -2382,6 +2383,72 @@ func _test_empower_basic_attack() -> void:
 	Events.unit_hit.disconnect(on_hit)
 	a.queue_free()
 	b.queue_free()
+	await _frames(5)
+
+
+func _test_empower_swing_scope() -> void:
+	_section("CHAMPIONS K5c: a basic attack empower's scope: hit:<tag> = only a swing whose hits carry the tag uses it")
+	await _reset_knight()
+	await _hitstop_over()
+	var sc := knight.status_component
+	var a := _dummy_at(Vector2(50, 0))
+	_tough(a)
+	var hits: Array[HitContext] = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == knight:
+			hits.append(ctx)
+	Events.unit_hit.connect(on_hit)
+	var ids := func(empowers: Array[StatusEffect]) -> Array:
+		return empowers.map(func(s: StatusEffect) -> StringName: return s.id)
+	sc.apply_status(_empower(&"test_scope_basic", StatusEffect.EmpowerTrigger.BASIC_ATTACK_HIT, 20.0, &"hit:basic_attack"), knight)
+	sc.apply_status(_empower(&"test_scope_never", StatusEffect.EmpowerTrigger.BASIC_ATTACK_HIT, 50.0, &"hit:test_never"), knight)
+	sc.apply_status(_empower(&"test_scope_dash", StatusEffect.EmpowerTrigger.BASIC_ATTACK_HIT, 0.0, &"hit:dash_strike"), knight)
+	var first: AttackSwing = knight.attack.combo.swings[0]
+	_check("get_swing_empowers(): a combo swing carries hit:basic_attack's (every swing hit has the tag), not hit:test_never's or hit:dash_strike's; the dash-strike also hit:dash_strike's; is_empowered() reads any",
+		[ids.call(knight.attack.get_swing_empowers(first)), ids.call(knight.attack.get_swing_empowers(first, true)), knight.attack.is_empowered()],
+		[[&"test_scope_basic"], [&"test_scope_basic", &"test_scope_dash"], true])
+	sc.remove_status(&"test_scope_dash")
+	await _frames(12)
+	var hp := a.health.current
+	var expected := 64.0 * _next_swing_ratio() + 20.0
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 30)
+	_check("the swing hits with the one in its scope (64 x ratio + 20, full strength), tagged empowered; it's used, the other waits",
+		[snappedf(hp - a.health.current, 0.01), hits.size() == 1 and hits[0].has_tag(&"empowered"), sc.has_status(&"test_scope_basic"), sc.has_status(&"test_scope_never")],
+		[snappedf(expected, 0.01), true, false, true])
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+	hits.clear()
+	hp = a.health.current
+	var plain := 64.0 * _next_swing_ratio() * knight.stats_component.get_stat(&"unempowered_attack_damage")
+	knight.attack.try_swing(Vector2.RIGHT)
+	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 30)
+	_check("holding only an empower outside its scope, a swing is plain (half, AR4; untagged) and leaves it",
+		[snappedf(hp - a.health.current, 0.01), hits[0].has_tag(&"empowered") if hits.size() > 0 else true, sc.has_status(&"test_scope_never")],
+		[snappedf(plain, 0.01), false, true])
+	sc.remove_status(&"test_scope_never")
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
+
+	# The League-style attack path (enemies): its hit carries basic_attack only.
+	var slime := _dummy_at(Vector2(0, 40))
+	slime.passive = false
+	slime.status_component.apply_status(_empower(&"test_scope_slime", StatusEffect.EmpowerTrigger.BASIC_ATTACK_HIT, 10.0, &"hit:finisher"), slime)
+	var knight_hp := knight.health.current
+	var slime_hits: Array[HitContext] = []
+	var on_slime_hit := func(ctx: HitContext) -> void:
+		if ctx.source == slime:
+			slime_hits.append(ctx)
+	Events.unit_hit.connect(on_slime_hit)
+	slime.attack.attack(knight)
+	await _wait_until(func() -> bool: return not slime_hits.is_empty(), 180)
+	_check("an enemy's attack leaves a hit:finisher empower: plain damage, untagged, still waiting",
+		[slime_hits[0].raw_damage if slime_hits.size() > 0 else -1.0, slime_hits[0].has_tag(&"empowered") if slime_hits.size() > 0 else true,
+			slime.status_component.has_status(&"test_scope_slime")],
+		[slime.stats_component.get_stat(&"attack_damage"), false, true])
+	Events.unit_hit.disconnect(on_slime_hit)
+	slime.queue_free()
+	knight.health.heal(knight_hp)
+	Events.unit_hit.disconnect(on_hit)
+	a.queue_free()
 	await _frames(5)
 
 

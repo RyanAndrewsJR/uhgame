@@ -4,7 +4,8 @@ extends Passive
 ## gives 2 stacks of Inevitable Demise, status_demise, once every 5 s) and the
 ## statuses it applies. This script is the one-off the rules can't do: it
 ## watches his Demise count and acts when it crosses a line from below.
-## - 4 or more: the empowered auto (empower_demise; it spends no stacks).
+## - 4 or more: the empowered finisher (empower_demise, used by his next swing 4
+##   that hits since K5c; it spends no stacks).
 ## - 6: Q's sweep window (sweep_status: status_blade_singer_sweep since K5).
 ## The Passive resource is shared by every unit loaded from the ChampionData,
 ## so the per-unit state (the count last seen, the connection) lives on the

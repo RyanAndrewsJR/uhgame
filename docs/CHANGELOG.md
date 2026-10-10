@@ -1405,7 +1405,7 @@ Note (2026-09-29): those 4 failures weren't about AB1. The AB1 commit (7217b5e) 
 
 ## Audio (AUDIO.md)
 
-### A6a follow-up – Demise 4 on the empowered swing: 2026-10-10, Built (awaiting Ryan's play test)
+### A6a follow-up – Demise 4 on the empowered swing: 2026-10-10, Passed (Ryan's play test, 2026-10-10; committed 8385b3f; then CHAMPIONS K5c moved the empower to his finisher)
 Ryan passed A6a and committed it (6385fc4) with his play-test edits in it: `korsavil.tres` holding his sheet, "Demise 4" switched to `SWING_START`, `sound_korsavil_demise_four` on his `Korsavil_Deflect01.wav` (+5 dB). Then: the trigger "activates without having the stack" (every swing), and the sound might be cut off or late. That commit failed 9 champions checks (the K5b sound counts and A6a's step-1 checks, which expected no sheet on him).
 - **Changed:**
   - `sound_triggers.gd`: `used_empower` on swing events: a swing start while he holds it, a landing whose hits used it (`Watch.empowers_frame`, `empowers_used`, recorded from his hits that frame), never a whiff. `sound_trigger.gd`: its doc comment.
@@ -1469,7 +1469,21 @@ Combat test 450/450, stats test 172/172 (unchanged). A headless in-game check of
 
 ## Champions (CHAMPIONS.md)
 
-### K5b (Korsavil v2) – Q's wind-ups and the three sounds: 2026-10-10, Built (awaiting Ryan's play test)
+### K5c (Korsavil v2) – The empowered finisher, and his sound sheet's step 2: 2026-10-10, Built (awaiting Ryan's play test)
+Ryan committed the A6a follow-up (8385b3f), then found the Demise 4 sound came "at a awkward time": the empower went on whichever swing hit next, usually a light swing 1. He picked the empowered finisher (Claude's option 1, compared with Yasuo's Q3) and "just the payoff sound for now", which changes his MUST sheet line ("your next auto attack") with his OK. AUDIO A6a's step 2 is folded in, as Claude proposed.
+- **New:**
+  - `AutoAttackComponent.get_swing_empowers(swing, dash_strike)`: the basic attack empowers a swing would use (scope `&""`, or a `hit:<tag>` its hits carry; its tags from `HitPipeline.basic_attack()` with no target), and the private `_get_empowers_for_hit(ctx)`.
+  - `empower_scope` on BASIC_ATTACK_HIT empowers (`hit:<tag>`); its doc comment and the enum's in `status_effect.gd`.
+- **Changed:**
+  - `auto_attack_component.gd`: `_land_swing()` reads its swing's empowers (by scope), the League-style `_land_attack()` its hit's; `is_empowered()` unchanged (any held).
+  - `sound_triggers.gd`: a `SWING_START` with `used_empower` matches when the swing carries it (`get_swing_empowers()`, its info key `carried` in place of `unit`); `sound_trigger.gd`: the doc comment.
+  - Data: `status_empower_demise.tres` `empower_scope` `hit:finisher`, its `consume_sound` emptied; `status_blade_singer_sweep.tres` `apply_sound` and `korsavil_q_blade_singer_sweep.tres` `cast_sound` emptied (step 2; the SoundEvents unchanged); `sound_sheet_korsavil.tres`: "Demise 4: empowered swing" renamed "Demise 4: empowered finisher", with one condition, SELF_HAS_STATUS `demise_cooldown` (6 wins); `korsavil.tres`: the passive's tooltip says "your next 4th strike". `passive_korsavil.gd`: its doc comment.
+  - Tests: `champions_test`: the K3 empower test (swings 1–3 plain at 27, the finisher 179, the next swing 1 plain), the passive data's scope, K5b's sound data (the slots empty, the sheet's three) and its play test (every play, the 4-stack sound in swing 4's start frame), A6a's sheet test rewritten (the condition; inside the cooldown, 6 wins, a whiffed finisher, the next chain; the slots silent); `abilities_test`: a new section, the swing scope (`get_swing_empowers()`, a swing in scope, one outside it plain and the empower kept, the dash-strike's, an enemy's attack); `audio_test`: an empower held outside the swing's scope plays nothing.
+- **Found while building:** CHAMPIONS.md, Build order, Korsavil v2, K5c (the K8 note on R's Finish).
+- **Results:** 4,525/4,525 (was 4,518): stats 206, audio 163 (+1), view 474, talents 311, champions 350 (+2), deflect 207, loot 750, combat 510, abilities 612 (+4), brain_golden 144 (golden files unchanged; its think-time checks failed only while 13 suites ran at once under `-d` with another Godot busy, and passed alone at the baseline's times), enemies 681, feel 117; every suite with `-d`, output to files: no script errors, the same warnings as before. Champions holds one more resource at exit, the sheet's new condition (`--verbose`), beside the sheet it already held. Sensitivity: ignoring the scope fails 4 abilities and 7 champions checks; a swing start carrying every held empower fails 7 champions checks and audio's new one; the sheet without its condition fails 2.
+- **How to play test:** at the hub pick Korsavil, then Sandbox, near slimes. Chain attacks until you have 4 stacks (two gains, at least 5 s apart). Keep chaining: swings 1–3 stay light, and the next swing 4 plays your Demise 4 sound as it starts and hits for about 179. To hear "6 wins": after reaching 4, hold off your swing 4 (stop after swing 3) until 5 s have passed since the gain, then land one before the stacks fade at 6 s: it takes you to 6 and plays only the 6-stack sound. Each of the three sounds plays once (nothing doubled at the hit any more), and the passive's tooltip says "your next 4th strike".
+
+### K5b (Korsavil v2) – Q's wind-ups and the three sounds: 2026-10-10, Passed (Ryan's play test, 2026-10-10; committed d9ec267)
 Ryan passed and committed K5, then asked for Q's recast to take about 0.5 s, the sweep to be "a charged up skill shot" of about 0.6 s, and three sounds (Demise at 4, at 6, the sweep's own). His picks among Claude's readings: the dash kept, a 0.6 s wind-up, the sounds wired now on placeholders (CHAMPIONS.md, Ryan's adjustments after K5).
 - **New:**
   - `Ability.recast_cast_time` (−1 = `cast_time`) and `get_cast_time_for_part()` (ABILITIES.md's planned piece, built ahead of R).

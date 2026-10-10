@@ -17,7 +17,7 @@ enum StackRule {
 ## What uses up an empower (ABILITIES AB10). NONE = not an empower.
 enum EmpowerTrigger {
 	NONE,
-	BASIC_ATTACK_HIT,  ## The next basic attack swing that hits anything.
+	BASIC_ATTACK_HIT,  ## The next basic attack swing that hits anything (matching empower_scope, since CHAMPIONS K5c).
 	ABILITY_CAST,      ## The next ability cast (started by the player or the AI; not a free cast) matching empower_scope.
 }
 
@@ -85,7 +85,9 @@ enum EndReason {
 ## matching cast's effect start; its bonus goes into every hit of that swing
 ## or cast (so it crits with the hit).
 @export var empower_consumed_by: EmpowerTrigger = EmpowerTrigger.NONE
-## ABILITY_CAST only: &"" = any ability; &"ability:<id>" / &"tag:<tag>".
+## ABILITY_CAST: &"" = any ability; &"ability:<id>" / &"tag:<tag>".
+## BASIC_ATTACK_HIT (CHAMPIONS K5c): &"" = any swing; &"hit:<tag>" = only a
+## swing whose hits carry that tag (&"hit:finisher": a combo's last swing).
 @export var empower_scope: StringName = &""
 @export var empower_base_damage: float = 0.0
 ## Of the attacker's attack_damage at the hit.
