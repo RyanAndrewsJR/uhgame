@@ -1,8 +1,11 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" format=3 uid="uid://caw0o773ddknh"]
 
-[ext_resource type="Script" path="res://scripts/abilities/test_caster/guard.gd" id="1_script"]
-[ext_resource type="Script" path="res://scripts/data/ai_use.gd" id="2_use"]
-[ext_resource type="Script" path="res://scripts/data/condition.gd" id="3_condition"]
+[ext_resource type="Script" uid="uid://de28gs3tnwxud" path="res://scripts/abilities/test_caster/guard.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://dqnryfnfjqenh" path="res://scripts/data/ai_use.gd" id="2_use"]
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="3_condition"]
+[ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="3_xegax"]
+[ext_resource type="Script" uid="uid://effvdqcl7tjf" path="res://scripts/data/conditional_bonus.gd" id="4_vnwni"]
+[ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="5_6pora"]
 
 [sub_resource type="Resource" id="threatened_major"]
 script = ExtResource("3_condition")

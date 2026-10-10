@@ -1,14 +1,15 @@
-[gd_resource type="Resource" script_class="EnemyData" format=3]
+[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://byrreaskee04i"]
 
-[ext_resource type="Script" path="res://scripts/data/enemy_ability_slot.gd" id="1_slot"]
-[ext_resource type="Resource" path="res://data/abilities/test_caster_q_bolt.tres" id="2_bolt"]
-[ext_resource type="Resource" path="res://data/abilities/test_caster_w_guard.tres" id="3_guard"]
-[ext_resource type="Resource" path="res://data/abilities/test_caster_e_blink.tres" id="4_blink"]
+[ext_resource type="Script" uid="uid://bgwd8lmpkp36g" path="res://scripts/data/enemy_ability_slot.gd" id="1_slot"]
+[ext_resource type="Resource" uid="uid://bi5dhld2tcds3" path="res://data/abilities/test_caster_q_bolt.tres" id="2_bolt"]
+[ext_resource type="Resource" uid="uid://c4xc8gloeo1kx" path="res://data/abilities/test_caster_w_guard.tres" id="3_guard"]
+[ext_resource type="Resource" uid="uid://cys75yotnaeww" path="res://data/abilities/test_caster_e_blink.tres" id="4_blink"]
 [ext_resource type="Resource" path="res://data/enemy_behaviors/enemy_behavior_caster.tres" id="5_behavior"]
-[ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="6_data"]
+[ext_resource type="Script" uid="uid://cguop83exi7gy" path="res://scripts/data/enemy_data.gd" id="6_data"]
 [ext_resource type="Resource" path="res://data/units/test_caster.tres" id="7_stats"]
-[ext_resource type="Resource" path="res://data/abilities/test_caster_r_snare.tres" id="8_snare"]
-[ext_resource type="Resource" path="res://data/combos/combo_test_caster.tres" id="20_string"]
+[ext_resource type="Script" uid="uid://di5nx63xs7qx4" path="res://scripts/data/combo_plan.gd" id="8_r10m7"]
+[ext_resource type="Resource" uid="uid://ccrvk8vdg14no" path="res://data/abilities/test_caster_r_snare.tres" id="8_snare"]
+[ext_resource type="Resource" uid="uid://hvalxkkp570c" path="res://data/combos/combo_test_caster.tres" id="20_string"]
 
 [sub_resource type="Resource" id="slot_q"]
 script = ExtResource("1_slot")

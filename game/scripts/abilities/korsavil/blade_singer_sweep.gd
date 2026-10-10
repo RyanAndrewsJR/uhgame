@@ -12,6 +12,10 @@ extends Ability
 ## (his width, in sight of the path): 40 + 110% AD each, and the wound
 ## (status_blade_singer_wound, its conditional bonus with no conditions).
 ## Each enemy once. The `dash` tag refuses a press while he's rooted.
+## K5b (Ryan, 2026-10-10: "a charged up skill shot"): a 0.6 s wind-up, rooted,
+## aimed at the press; the half circle where the lunge will stop shows on the
+## floor through it (a Telegraph that fills with the cast) and flashes as the
+## effect starts. Its own cast_sound, not the dagger's.
 
 ## The lunge's speed (LoL units a second); its length is cast_range.
 @export var lunge_speed: float = 2000.0
@@ -26,7 +30,18 @@ extends Ability
 @export var window_status_id: StringName = &"blade_singer_sweep"
 
 
+## The half circle where the lunge will stop, filling with the wind-up.
+func on_cast_started(caster: Unit, ctx: CastContext) -> void:
+	var area := get_effect_area(caster, ctx)
+	if area.get("kind", &"none") != &"cone":
+		return
+	ctx.telegraph = Telegraph.cone(caster, area.origin, area.direction, area.range, area.half_angle,
+		get_cast_time_for_part(ctx.part), Color(icon_color, 0.9))
+
+
 func execute(caster: Unit, ctx: CastContext) -> void:
+	if is_instance_valid(ctx.telegraph):
+		ctx.telegraph.finish()
 	_spend(caster)
 	var dir := ctx.direction if ctx.direction.length() > 0.001 else Vector2.RIGHT
 	var start := caster.global_position

@@ -1,10 +1,10 @@
-[gd_resource type="Resource" script_class="ReactionRule" format=3]
+[gd_resource type="Resource" script_class="ReactionRule" format=3 uid="uid://bqctw4iexi7ni"]
 
-[ext_resource type="Script" path="res://scripts/data/reaction_rule.gd" id="1_rule"]
-[ext_resource type="Script" path="res://scripts/data/apply_status_gameplay_effect.gd" id="2_apply"]
-[ext_resource type="Script" path="res://scripts/data/gameplay_effect.gd" id="3_effect"]
-[ext_resource type="Script" path="res://scripts/data/condition.gd" id="4_condition"]
-[ext_resource type="Resource" path="res://data/statuses/status_demise.tres" id="5_demise"]
+[ext_resource type="Script" uid="uid://4jx6fbr85xri" path="res://scripts/data/reaction_rule.gd" id="1_rule"]
+[ext_resource type="Script" uid="uid://dmrsclaw152j6" path="res://scripts/data/apply_status_gameplay_effect.gd" id="2_apply"]
+[ext_resource type="Script" uid="uid://bnt28s0u3qkaw" path="res://scripts/data/gameplay_effect.gd" id="3_effect"]
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="4_condition"]
+[ext_resource type="Resource" uid="uid://dx2k8mis0vye5" path="res://data/statuses/status_demise.tres" id="5_demise"]
 [ext_resource type="Resource" path="res://data/statuses/status_demise_cooldown.tres" id="6_cooldown"]
 
 [sub_resource type="Resource" id="not_on_cooldown"]

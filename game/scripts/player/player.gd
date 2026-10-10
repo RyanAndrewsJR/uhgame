@@ -662,7 +662,7 @@ func _on_cast_started(_slot: StringName, ability: Ability, ctx: CastContext) -> 
 			if is_instance_valid(ctx.target):
 				_cast_face_point = ctx.target.global_position
 	if targeting != Ability.Targeting.SELF:
-		_swing_sword(maxf(ability.cast_time, 0.1))
+		_swing_sword(maxf(ability.get_cast_time_for_part(ctx.part), 0.1))   # CHAMPIONS K5b: the part's
 
 
 func _on_cast_finished(_slot: StringName, _ability: Ability) -> void:

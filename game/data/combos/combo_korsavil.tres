@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="AttackCombo" format=3]
+[gd_resource type="Resource" script_class="AttackCombo" format=3 uid="uid://l4r4y0yjkx2t"]
 
 [ext_resource type="Script" uid="uid://b2lklesjh0cq5" path="res://scripts/data/attack_combo.gd" id="1_combo"]
 [ext_resource type="Script" uid="uid://dcrgf6ul273xi" path="res://scripts/data/attack_swing.gd" id="2_swing"]

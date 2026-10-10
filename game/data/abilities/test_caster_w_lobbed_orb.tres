@@ -1,9 +1,13 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" format=3 uid="uid://cubp1urqjrbg5"]
 
-[ext_resource type="Script" path="res://scripts/abilities/slime/slam.gd" id="1_script"]
-[ext_resource type="Script" path="res://scripts/data/ai_use.gd" id="2_use"]
+[ext_resource type="Script" uid="uid://cgmmwemqkl54j" path="res://scripts/abilities/slime/slam.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="2_cah3h"]
+[ext_resource type="Script" uid="uid://dqnryfnfjqenh" path="res://scripts/data/ai_use.gd" id="2_use"]
+[ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="3_0lslx"]
 [ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_hit.tres" id="3_hit"]
+[ext_resource type="Script" uid="uid://effvdqcl7tjf" path="res://scripts/data/conditional_bonus.gd" id="4_75tht"]
 [ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_telegraph.tres" id="4_telegraph"]
+[ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="6_uba1a"]
 
 [sub_resource type="Resource" id="use_poke"]
 script = ExtResource("2_use")
@@ -26,7 +30,6 @@ display_name = "Lobbed orb"
 description = "Marks a {radius_px} px circle where the target stands, up to {range} units away, fills it over {cast_time} s, then the orb lands: {damage} magic damage to everyone inside."
 icon_color = Color(0.75, 0.45, 1, 1)
 targeting = 2
-cooldown = 5.0
 cast_time = 1.0
 cast_range = 900.0
 resets_auto_attack = false

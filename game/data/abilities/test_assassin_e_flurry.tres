@@ -1,9 +1,13 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" format=3 uid="uid://dtqnbk751s5eu"]
 
-[ext_resource type="Script" path="res://scripts/abilities/enemy/dash_strike.gd" id="1_script"]
-[ext_resource type="Script" path="res://scripts/data/ai_use.gd" id="2_use"]
+[ext_resource type="Script" uid="uid://dvppmn50qfdmv" path="res://scripts/abilities/enemy/dash_strike.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="2_keytc"]
+[ext_resource type="Script" uid="uid://dqnryfnfjqenh" path="res://scripts/data/ai_use.gd" id="2_use"]
 [ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_hit.tres" id="3_hit"]
+[ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="3_n2ewh"]
+[ext_resource type="Script" uid="uid://effvdqcl7tjf" path="res://scripts/data/conditional_bonus.gd" id="4_mnykr"]
 [ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_telegraph.tres" id="4_telegraph"]
+[ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="6_bjrm3"]
 
 [sub_resource type="Resource" id="use_gap_close"]
 script = ExtResource("2_use")
@@ -11,7 +15,6 @@ intent = &"gap_close"
 
 [sub_resource type="Resource" id="use_damage"]
 script = ExtResource("2_use")
-intent = &"damage"
 weight = 1.1
 
 [sub_resource type="Resource" id="use_punish"]

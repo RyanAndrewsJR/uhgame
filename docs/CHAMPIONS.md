@@ -275,6 +275,12 @@ Assassin: Dash Deflect. upon a successful deflect, gain 1 more dash. Breaking po
 7. **R's name is Reckoning;** the passive's name comes later.
 8. **Every remaining *(proposed)* reading is accepted** (in this section, its build steps and its open questions): they're the plan, tuned at each step's play test. The marks stay to show they were Claude's readings.
 
+#### Ryan's adjustments after K5 (2026-10-10; MUST)
+Ryan, after passing K5: "recasts shouldnt be instant. dagger lodge blink should have about a 0.5 cast time and the empowered Q should be a charged up skill shot. about a 0.6 second cast time." And: Inevitable Demise has two sound effects, one for gaining the 4th stack (on swing 4) and one for gaining the 6th; the empowered Q's sound differs from the normal Q's. His picks the same day (Claude's three questions):
+1. **Q's recast** keeps the dash (the "blink" is the lunge): a 0.5 s cast time of its own (`recast_cast_time`), then the same dash and hit. The throw keeps its 0.15 s.
+2. **The sweep** is a 0.6 s wind-up: rooted, aimed at the press, its half circle on the floor through it, then the lunge and the sweep. Not a hold-to-charge, not a projectile.
+3. **The sounds** are written down and wired now, each on a placeholder until real files exist: the 4th stack's on `empower_demise` (its `consume_sound`: Ryan, hearing it at the gain the same day, moved it to "when the 4th stack of demise attack hits an enemy", the empowered strike's hit), the 6th's on `status_blade_singer_sweep` (`apply_sound`), the sweep's own `cast_sound`. Built in K5b.
+
 #### Identity (v2)
 - `id` `&"korsavil"`, `display_name` "Korsavil", `champion_class` `&"assassin"` (unchanged). Race goblin (Ryan's sheet): no data field reads it today (a look and lore note: NARRATIVE.md).
 - **Resource:** ENERGY, the pool unchanged (Energy (v2), below).
@@ -825,18 +831,27 @@ One step per request, each ending in Ryan's play test. Ryan accepted these steps
    - With fewer than 3 hits no dagger lodges: the slow comes only with a recast to use it.
    - The homing dagger hits only the unit it flies at; others on the way are passed. A blocked hit doesn't count toward the 3, but it still bounces on; a hit that kills bounces on from where the enemy fell.
    - A leg of the dagger gives up after flying twice its starting distance plus 2 m (a target outrunning it).
-   - The lunge stops at the lodged enemy's edge, and its hit needs him within 150 u of it when the dash ends (a root during the recast's 0.15 s stops the dash, so no hit).
+   - The lunge stops at the lodged enemy's edge, and its hit needs him within 150 u of it when the dash ends (a root during the recast's cast time stops the dash, so no hit; 0.5 s since K5b).
    - "Rooted" on the recast comes from the script, not a `dash` tag: a tag would refuse the throw too, which doesn't move him.
    - The target gone during the throw's 0.15 s: no dagger, and the sequence ends right after the cast.
 5. **K5 – Q's 6-stack sweep.** `status_blade_singer_sweep` (3.5 s, its REPLACE), `korsavil_q_blade_singer_sweep.tres` (`blade_singer_sweep.gd`), `status_blade_singer_wound`; the count-crossing script opens the window at 6. Its own step after Phase 1's risk review (three modes in one slot).
    **Done means:** reaching 6 stacks makes Q the sweep for 3.5 s (Q off cooldown); the sweep lunges toward the aim and hits every enemy in front (106 at 60 AD, then 41 a second for 4 s) and spends all 6 stacks; unused for 3.5 s, Q is the dagger again.
-   Built 2026-10-10, see CHANGELOG.md (awaiting Ryan's play test). **Found while building K5** (Claude's readings, *(proposed)*):
+   Built 2026-10-10 and passed Ryan's play test the same day, see CHANGELOG.md. **Found while building K5** (Claude's readings, *(proposed)*):
    - The sweep also hits every enemy along the lunge's path (his width, in sight of the path), not only the half circle where he stops: a 3 m lunge passes through an enemy close in front, which would then be behind the half circle. Each enemy is hit once.
    - The lunge is 2,000 u/s (0.15 s for its 3 m); its length is the ability's `cast_range` (300 u), one number for the lunge, the indicator and the tooltip, not a separate `lunge_distance`.
    - The REPLACE is an augment file, `data/augments/augment_blade_singer_sweep.tres` (id `blade_singer_sweep`), held by the window's status; the sweep's tooltip ends with its line. The sweep finds its window and his stacks by status id (`demise_status_id`, `window_status_id`): the window's file holds the sweep through its REPLACE, so the sweep can't hold the file back.
    - Reaching 6 while Q's dagger window is open: Q's press is still the dagger's recast (a recast sequence keeps the ability that opened it), so the lunge starts Q's cooldown and the sweep is lost unless Q comes back within the 3.5 s.
    - A gain at 6 doesn't restart the 3.5 s (the count doesn't cross 6 again); a stun in the sweep's cast time refunds it and keeps the window and the stacks.
    - Its display name is "Sweep" (the sheet's placeholder).
+   **5b. K5b – Q's wind-ups and the three sounds** (Ryan's adjustments after K5, 2026-10-10). `Ability.recast_cast_time` and `get_cast_time_for_part()` (planned for R's cuts, built now for Q), read wherever a cast's time is; Q's recast 0.5 s; the sweep 0.6 s with its telegraph; A4's "why a status ended" slice built early (`StatusEffect.EndReason`, `remove_status()`'s reason, `status_ended` on StatusComponent and Events, `StatusEffect.consume_sound`, CombatSounds' use-up sound); `sound_korsavil_demise_four`, `sound_korsavil_demise_six`, `sound_korsavil_sweep_cast` (placeholders) on `empower_demise`, `status_blade_singer_sweep` and the sweep.
+   **Done means:** the throw still leaves at 0.15 s; the recast winds up 0.5 s (he walks, as in the throw) before the lunge; the sweep winds up 0.6 s rooted with its half circle on the floor; a sound when the 4-stack empowered strike hits (not at the gain, not if it goes unused), another at 6 stacks (not again on a gain at 6), and the sweep's own cast sound; every other ability's cast times unchanged.
+   Built 2026-10-10, see CHANGELOG.md (awaiting Ryan's play test). **Found while building K5b** (Claude's readings, *(proposed)*):
+   - The 6-stack sound needs no code: it's the `apply_sound` of the sweep window, which lands exactly at 6, played by CombatSounds as every status sound is (AUDIO.md, Rules: a sound never comes from a rule, only from what it applies).
+   - The 4-stack sound is `empower_demise`'s `consume_sound`, played when the swing that uses it lands, in the frame of its hit, on him (the unit that carried it). It needed AUDIO A4's `consume_sound`, built early with only what it needs: every removal path passes its reason (EXPIRED, CONSUMED, CLEANSED, DIED, REMOVED) and `status_ended` follows `status_removed`, which is unchanged. `expire_sound` still plays on `status_removed`, as before, until A4 moves it (so until then a status with both would play both on a use-up; none has both). A4's shield data change isn't needed yet: the shield's break stays its `expire_sound`.
+   - A gain that passes 4 and 6 at once (R's Finish from 2 or 3) plays both in the same frame.
+   - During the recast's 0.5 s he walks, as through the throw (Q's `roots_during_cast` is off for both parts). A root before the press refuses it ("Rooted"); a root during the 0.5 s doesn't cancel it, but the dash is then refused, so he stays and the lunge doesn't hit (as in K4).
+   - The sweep's direction is read at the press: the wind-up can't be re-aimed, so a moving enemy can leave the half circle.
+   - The placeholders reuse today's files at other pitches: the haste sound (4), the ultimate-ready ping (6), Judgement's cast (the sweep). The dagger's own cast sound is still none: Ryan's "different from the normal one" holds once it gets one.
 6. **K6 – W Cloak & Dagger.** `ends_on_cast` / `ends_on_swing`, the attack-or-cast empower trigger; `status_cloak_and_dagger`, `status_cloak_untargetable`, `empower_cloak_and_dagger`, `status_cloak_wound`, `korsavil_w_cloak_and_dagger.tres` (a script only if the data can't do it).
    **Done means:** enemies drop him (today's pick); he's untargetable for 1.5 s and stealthed for 5 s at +15% speed; a swing or a cast ends the stealth (W's own cast and a dash don't); that swing or cast puts 35 a second for 4 s on each enemy it hits; Energy gets nothing extra.
 7. **K7 – E Spectral Assault.** `spectral_assault.gd`, `korsavil_e_spectral_assault.tres`.

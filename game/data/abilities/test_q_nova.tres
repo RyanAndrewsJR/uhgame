@@ -1,5 +1,6 @@
 [gd_resource type="Resource" format=3 uid="uid://clnn177g0j1hp"]
 
+[ext_resource type="Script" uid="uid://dqnryfnfjqenh" path="res://scripts/data/ai_use.gd" id="1_mdb45"]
 [ext_resource type="Script" uid="uid://driwb5300fer5" path="res://scripts/abilities/test/nova.gd" id="1_script"]
 [ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="2_scaling"]
 [ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="3_condition"]

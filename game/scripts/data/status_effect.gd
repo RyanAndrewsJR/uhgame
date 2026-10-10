@@ -21,6 +21,17 @@ enum EmpowerTrigger {
 	ABILITY_CAST,      ## The next ability cast (started by the player or the AI; not a free cast) matching empower_scope.
 }
 
+## Why a status ended (AUDIO.md, Why a status ended; A4's design, built early
+## in CHAMPIONS K5b): StatusComponent.status_ended and Events.status_ended
+## carry it, and CombatSounds plays consume_sound on CONSUMED.
+enum EndReason {
+	EXPIRED,   ## Its time ran out.
+	CONSUMED,  ## Used up: an empower by its swing or cast, a shield by damage.
+	CLEANSED,  ## remove_statuses_with_tags(): a cleanse, unstoppable ending every cc.
+	DIED,      ## clear() at death.
+	REMOVED,   ## Anything else (a source taking it back, a form replaced...).
+}
+
 ## &"stun". Its StatModifiers use the source id &"status_stun"
 ## (get_source_id()), and its move / attack locks use the id itself.
 @export var id: StringName = &""
@@ -127,6 +138,11 @@ enum EmpowerTrigger {
 @export var expire_sound: SoundEvent
 ## Plays while the status is active: one loop per unit, however many stacks.
 @export var loop_sound: SoundEvent
+## When it's used up (EndReason CONSUMED): an empower by the swing or cast
+## that uses it, a shield by damage. No fallback to expire_sound (Ryan,
+## 2026-10-04). A4's field, built early in CHAMPIONS K5b. Until A4 moves
+## expire_sound to status_ended, expire_sound also plays on a use-up.
+@export var consume_sound: SoundEvent
 
 
 ## The source id its StatModifiers use: &"status_<id>" (CONVENTIONS.md).

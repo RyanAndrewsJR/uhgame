@@ -5,9 +5,10 @@
 [ext_resource type="Resource" path="res://data/enemy_behaviors/enemy_behavior_brute.tres" id="3_o8fod"]
 [ext_resource type="Script" uid="uid://cguop83exi7gy" path="res://scripts/data/enemy_data.gd" id="4_p5ogv"]
 [ext_resource type="Resource" path="res://data/units/test_brute.tres" id="5_6ospw"]
-[ext_resource type="Resource" path="res://data/abilities/test_brute_w_cleave_arc.tres" id="6_cleave_arc"]
-[ext_resource type="Resource" path="res://data/abilities/test_brute_e_charge.tres" id="7_charge"]
-[ext_resource type="Resource" path="res://data/combos/combo_test_brute.tres" id="20_string"]
+[ext_resource type="Resource" uid="uid://dp4sj14uct7rg" path="res://data/abilities/test_brute_w_cleave_arc.tres" id="6_cleave_arc"]
+[ext_resource type="Script" uid="uid://di5nx63xs7qx4" path="res://scripts/data/combo_plan.gd" id="7_6ospw"]
+[ext_resource type="Resource" uid="uid://cu8n7w181r1lo" path="res://data/abilities/test_brute_e_charge.tres" id="7_charge"]
+[ext_resource type="Resource" uid="uid://cmvgemg1n6ky3" path="res://data/combos/combo_test_brute.tres" id="20_string"]
 
 [sub_resource type="Resource" id="Resource_4a4ds"]
 script = ExtResource("1_k4115")

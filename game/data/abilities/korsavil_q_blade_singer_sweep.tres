@@ -1,9 +1,15 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" format=3 uid="uid://b0uo802bcvlf2"]
 
-[ext_resource type="Script" path="res://scripts/abilities/korsavil/blade_singer_sweep.gd" id="1_script"]
-[ext_resource type="Script" path="res://scripts/data/conditional_bonus.gd" id="2_bonus"]
-[ext_resource type="Script" path="res://scripts/data/status_effect.gd" id="3_status"]
+[ext_resource type="Script" uid="uid://dqnryfnfjqenh" path="res://scripts/data/ai_use.gd" id="1_bunsx"]
+[ext_resource type="Script" uid="uid://cijqs24b2xy8k" path="res://scripts/abilities/korsavil/blade_singer_sweep.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://effvdqcl7tjf" path="res://scripts/data/conditional_bonus.gd" id="2_bonus"]
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="2_sh6on"]
+[ext_resource type="Script" uid="uid://b03uhk6wyab30" path="res://scripts/data/status_effect.gd" id="3_status"]
+[ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="4_wlo57"]
 [ext_resource type="Resource" path="res://data/statuses/status_blade_singer_wound.tres" id="4_wound"]
+[ext_resource type="Resource" path="res://data/sounds/sound_korsavil_sweep_cast.tres" id="5_sound"]
+[ext_resource type="Script" uid="uid://cvwv2nrsbyrah" path="res://scripts/data/stat_modifier.gd" id="6_462d8"]
+[ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="9_xaqw1"]
 
 [sub_resource type="Resource" id="wound"]
 script = ExtResource("2_bonus")
@@ -12,18 +18,17 @@ target_statuses = Array[ExtResource("3_status")]([ExtResource("4_wound")])
 [resource]
 script = ExtResource("1_script")
 id = &"korsavil_blade_singer_sweep"
-variant_of = &"korsavil_blade_singer"
 tags = Array[StringName]([&"core", &"dash", &"melee", &"area"])
 display_name = "Sweep"
+variant_of = &"korsavil_blade_singer"
 description = "Lunge forward and sweep in front of you, dealing {damage} physical damage ({base_damage} {ratios}) and 20 + 35% AD physical damage a second for 4 seconds to every enemy hit. Spends your Inevitable Demise."
 icon_color = Color(0.95, 0.42, 0.62, 1)
-targeting = 1
 cooldown = 11.0
 resource_cost = 25.0
-cast_time = 0.15
-cast_range = 300.0
+cast_time = 0.6
 base_damage = 40.0
 ad_ratio = 1.1
 hit_shake = 3.0
 hit_hitstop = 0.05
 conditional_bonuses = Array[ExtResource("2_bonus")]([SubResource("wound")])
+cast_sound = ExtResource("5_sound")

@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="AttackCombo" format=3]
+[gd_resource type="Resource" script_class="AttackCombo" format=3 uid="uid://bcmllwvwjgucy"]
 
-[ext_resource type="Script" path="res://scripts/data/attack_combo.gd" id="1_combo"]
-[ext_resource type="Script" path="res://scripts/data/attack_swing.gd" id="2_swing"]
+[ext_resource type="Script" uid="uid://b2lklesjh0cq5" path="res://scripts/data/attack_combo.gd" id="1_combo"]
+[ext_resource type="Script" uid="uid://dcrgf6ul273xi" path="res://scripts/data/attack_swing.gd" id="2_swing"]
 
 [sub_resource type="Resource" id="hit_1"]
 script = ExtResource("2_swing")

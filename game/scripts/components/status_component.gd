@@ -34,6 +34,9 @@ extends Node
 
 signal status_applied(effect: StatusEffect)
 signal status_removed(effect: StatusEffect)
+## Right after status_removed, why it ended (AUDIO.md, Why a status ended; A4's
+## design, built early in CHAMPIONS K5b). status_removed stays as it was.
+signal status_ended(effect: StatusEffect, reason: StatusEffect.EndReason)
 ## A counted crowd control took: its duration after tenacity and diminishing
 ## returns, and its step (0 full, 1 × dr_factor). AI-D3.
 signal cc_applied(source: Unit, effect: StatusEffect, duration: float, dr_step: int)
@@ -223,7 +226,9 @@ func apply_status(effect: StatusEffect, source: Unit = null, duration_override: 
 
 
 ## Removes a status and everything it added. Returns false if it wasn't there.
-func remove_status(id: StringName) -> bool:
+## `reason`: why it ended (status_ended; CHAMPIONS K5b): every path in this
+## component passes its own, an empower's use passes CONSUMED.
+func remove_status(id: StringName, reason: StatusEffect.EndReason = StatusEffect.EndReason.REMOVED) -> bool:
 	var active: ActiveStatus = _active.get(id)
 	if active == null:
 		return false
@@ -232,6 +237,9 @@ func remove_status(id: StringName) -> bool:
 	status_removed.emit(active.effect)
 	if is_instance_valid(unit):
 		Events.status_removed.emit(unit, active.effect)
+	status_ended.emit(active.effect, reason)
+	if is_instance_valid(unit):
+		Events.status_ended.emit(unit, active.effect, reason)
 	return true
 
 
@@ -246,7 +254,7 @@ func remove_statuses_with_tags(tags: Array[StringName]) -> int:
 			continue
 		for t in tags:
 			if active.effect.tags.has(t):
-				if remove_status(id):
+				if remove_status(id, StatusEffect.EndReason.CLEANSED):
 					removed += 1
 				break
 	return removed
@@ -255,7 +263,7 @@ func remove_statuses_with_tags(tags: Array[StringName]) -> int:
 ## Removes every status (death), and starts diminishing returns' count over.
 func clear() -> void:
 	for id: StringName in _active.keys():
-		remove_status(id)
+		remove_status(id, StatusEffect.EndReason.DIED)
 	_dr_count = 0
 	_dr_window_left = 0.0
 
@@ -394,7 +402,7 @@ func absorb_damage(amount: float) -> float:
 			active.stack_times.remove_at(indexes[k])
 			active.stack_shields.remove_at(indexes[k])
 		if active.stack_times.is_empty():
-			remove_status(id)
+			remove_status(id, StatusEffect.EndReason.CONSUMED)   # the shield used up
 		else:
 			_sync_modifiers(active)
 	return amount - left
@@ -478,7 +486,7 @@ func _physics_process(delta: float) -> void:
 				active.stack_shields.remove_at(i)
 				expired = true
 		if active.stack_times.is_empty():
-			remove_status(id)
+			remove_status(id, StatusEffect.EndReason.EXPIRED)
 		elif expired:
 			_sync_modifiers(active)
 

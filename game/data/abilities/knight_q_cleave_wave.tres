@@ -44,7 +44,6 @@ description = "+50% damage to Staggered enemies."
 [resource]
 script = ExtResource("1_script")
 id = &"knight_cleave_wave"
-poise_damage = 20.0
 tags = Array[StringName]([&"core", &"projectile"])
 display_name = "Cleave Wave"
 supported_flags = Array[StringName]([&"cleave_whirl", &"cleave_rend"])
@@ -58,6 +57,7 @@ cast_time = 0.2
 cast_range = 700.0
 base_damage = 80.0
 ad_ratio = 0.7
+poise_damage = 20.0
 heal_missing_health_ratio = 0.55
 conditional_bonuses = Array[ExtResource("c2_bonus")]([SubResource("staggered_bonus")])
 projectile_speed = 900.0

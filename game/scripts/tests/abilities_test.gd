@@ -247,6 +247,7 @@ func _ready() -> void:
 	await _test_roots_hold_still()
 	knight.status_component.cc_diminishing = true
 	await _test_k4_toolkit()
+	await _test_k5b_toolkit()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	# A sound still playing at quit prints a harmless leak warning (AUDIO.md).
@@ -4941,6 +4942,37 @@ func _test_k4_toolkit() -> void:
 	await _wait_until(func() -> bool: return not is_instance_valid(shots[0]), 120)
 	_check("a straight projectile: one hit_resolved (the dummy, not blocked), finished once", [resolved, done[0]], [[[true, false]], 1])
 	dummy.queue_free()
+	await _frames(2)
+
+
+func _test_k5b_toolkit() -> void:
+	_section("CHAMPIONS K5b: recast_cast_time, a recast part's own cast time")
+	await _reset_knight()
+	var ab := knight.abilities
+	_check("every built ability: recast_cast_time -1 (its parts keep cast_time: Ryan, 2026-10-04)",
+		[CLEAVE.recast_cast_time, LUNGE.recast_cast_time, TRIPLE_STEP.recast_cast_time, TRIPLE_STEP.get_cast_time_for_part(1), TRIPLE_STEP.get_cast_time_for_part(0)],
+		[-1.0, -1.0, -1.0, 0.0, 0.0])
+	var original_q := ab.q
+	var slow_recast: Ability = TRIPLE_STEP.duplicate()
+	slow_recast.recast_cast_time = 0.3
+	ab.q = slow_recast
+	await _wait_until(func() -> bool: return ab.can_cast(&"q"), 300)
+	_check("a copy with recast_cast_time 0.3: part 0 keeps its 0, later parts 0.3",
+		[slow_recast.get_cast_time_for_part(0), slow_recast.get_cast_time_for_part(1), slow_recast.get_cast_time_for_part(2)], [0.0, 0.3, 0.3])
+	ab.try_cast(&"q", knight.global_position + Vector2(300, 0))
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("part 0 instant: its window open", ab.get_recast_part(&"q"), 1)
+	var start := knight.global_position
+	_check("part 1 pressed: casting, 0.3 s of cast time, progress 0",
+		[ab.try_cast(&"q", knight.global_position + Vector2(300, 0)), ab.casting, snappedf(ab.get_cast_time_left(), 0.001), ab.get_cast_progress()], [true, true, 0.3, 0.0])
+	await _frames(15)
+	_check("0.25 s in: still casting, not stepped yet", [ab.casting, knight.global_position.distance_to(start) < 1.0], [true, true])
+	await _wait_until(func() -> bool: return not ab.casting, 30)
+	_check("then the step, and part 2 is next", [knight.global_position.distance_to(start) > 10.0, ab.get_recast_part(&"q")], [true, 2])
+	ab.end_recast(&"q")
+	await _frames(1)
+	ab.reset_cooldown(&"q")
+	ab.q = original_q
 	await _frames(2)
 
 

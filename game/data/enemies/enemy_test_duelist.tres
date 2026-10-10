@@ -1,17 +1,17 @@
-[gd_resource type="Resource" script_class="EnemyData" format=3]
+[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://divg7705ked4t"]
 
-[ext_resource type="Script" path="res://scripts/data/enemy_ability_slot.gd" id="1_slot"]
-[ext_resource type="Resource" path="res://data/abilities/test_duelist_q_snare.tres" id="2_snare"]
-[ext_resource type="Resource" path="res://data/abilities/test_duelist_w_guard.tres" id="3_guard"]
-[ext_resource type="Resource" path="res://data/abilities/test_duelist_e_strike.tres" id="4_strike"]
-[ext_resource type="Resource" path="res://data/abilities/test_duelist_r_finisher.tres" id="5_finisher"]
+[ext_resource type="Script" uid="uid://bgwd8lmpkp36g" path="res://scripts/data/enemy_ability_slot.gd" id="1_slot"]
+[ext_resource type="Resource" uid="uid://c1c0kmm235rcm" path="res://data/abilities/test_duelist_q_snare.tres" id="2_snare"]
+[ext_resource type="Resource" uid="uid://caw0o773ddknh" path="res://data/abilities/test_duelist_w_guard.tres" id="3_guard"]
+[ext_resource type="Resource" uid="uid://dfvfovitl1s63" path="res://data/abilities/test_duelist_e_strike.tres" id="4_strike"]
+[ext_resource type="Resource" uid="uid://bfl26ldkgj5k2" path="res://data/abilities/test_duelist_r_finisher.tres" id="5_finisher"]
 [ext_resource type="Resource" path="res://data/enemy_behaviors/enemy_behavior_brute.tres" id="6_behavior"]
-[ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="7_data"]
+[ext_resource type="Script" uid="uid://cguop83exi7gy" path="res://scripts/data/enemy_data.gd" id="7_data"]
 [ext_resource type="Resource" path="res://data/units/test_duelist.tres" id="8_stats"]
-[ext_resource type="Script" path="res://scripts/data/combo_plan.gd" id="9_plan"]
-[ext_resource type="Script" path="res://scripts/data/combo_step.gd" id="10_step"]
-[ext_resource type="Script" path="res://scripts/data/condition.gd" id="11_condition"]
-[ext_resource type="Resource" path="res://data/combos/combo_test_duelist.tres" id="20_string"]
+[ext_resource type="Script" uid="uid://di5nx63xs7qx4" path="res://scripts/data/combo_plan.gd" id="9_plan"]
+[ext_resource type="Script" uid="uid://de723fk4cvos4" path="res://scripts/data/combo_step.gd" id="10_step"]
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="11_condition"]
+[ext_resource type="Resource" uid="uid://4w3i75weht17" path="res://data/combos/combo_test_duelist.tres" id="20_string"]
 
 [sub_resource type="Resource" id="slot_q"]
 script = ExtResource("1_slot")
@@ -99,7 +99,6 @@ weight = 0.6
 [resource]
 script = ExtResource("7_data")
 id = &"test_duelist"
-poise_max = 100.0
 display_name = "Test Duelist"
 rank = 2
 behavior = ExtResource("6_behavior")
@@ -119,4 +118,5 @@ abilities = Array[ExtResource("1_slot")]([SubResource("slot_q"), SubResource("sl
 model_color = Color(0.35, 0.5, 0.75, 1)
 duelist = true
 combo_plans = Array[ExtResource("9_plan")]([SubResource("plan_snare_first"), SubResource("plan_strike_first"), SubResource("plan_strike_finish")])
+poise_max = 100.0
 attack_string = ExtResource("20_string")

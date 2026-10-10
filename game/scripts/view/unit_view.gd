@@ -643,12 +643,13 @@ func _on_swing_landed(_index: int, _targets: Array[Unit]) -> void:
 
 func _on_cast_started(_slot: StringName, ability: Ability, ctx: CastContext) -> void:
 	_face_px = ctx.point if ctx and ctx.point != Vector2.INF else Vector2.INF
-	if _anim == null and ability.cast_time > 0.0:
-		_windup_total = ability.cast_time
+	var cast_time := ability.get_cast_time_for_part(ctx.part) if ctx else ability.cast_time   # CHAMPIONS K5b
+	if _anim == null and cast_time > 0.0:
+		_windup_total = cast_time
 		_windup_left = _windup_total
 	if not _start_action(ability.cast_anim, true):
 		return
-	if ability.cast_time > 0.0:
+	if cast_time > 0.0:
 		_phase = Phase.LEAD_BY_PROGRESS
 	else:
 		_phase = Phase.LEAD_BY_TIME

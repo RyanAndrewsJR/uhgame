@@ -16,6 +16,9 @@ extends Node
 ## - Events.status_applied / status_removed: the status's apply sound (every
 ##   application), one loop per unit and status (not per stack), and the
 ##   expire sound when it ends while the unit is alive (A3).
+## - Events.status_ended with CONSUMED: the status's consume sound (an empower
+##   used by its swing or cast, a shield used up; A4's, built early in
+##   CHAMPIONS K5b). The other reasons stay with status_removed until A4.
 ## Priority: HIGH when the Player is the source or the target, else LOW.
 
 var _frame_key: String = ""
@@ -32,6 +35,7 @@ func _ready() -> void:
 	Events.unit_died.connect(_on_events_unit_died)
 	Events.status_applied.connect(_on_events_status_applied)
 	Events.status_removed.connect(_on_events_status_removed)
+	Events.status_ended.connect(_on_events_status_ended)
 
 
 ## Forgets the pack burst window and this frame's pending deaths (a scene
@@ -159,6 +163,14 @@ func _on_events_status_removed(unit: Unit, status: StatusEffect) -> void:
 	if is_instance_valid(unit) and unit.is_alive():   # the death clear() is silent
 		var priority: int = SoundEvent.Priority.HIGH if unit is Player else -1
 		Audio.play_at(status.expire_sound, unit.global_position, unit, 1.0, priority)
+
+
+## A use-up (CONSUMED): the consume sound, on the unit that carried it.
+func _on_events_status_ended(unit: Unit, status: StatusEffect, reason: StatusEffect.EndReason) -> void:
+	if reason != StatusEffect.EndReason.CONSUMED or not is_instance_valid(unit) or not unit.is_alive():
+		return
+	var priority: int = SoundEvent.Priority.HIGH if unit is Player else -1
+	Audio.play_at(status.consume_sound, unit.global_position, unit, 1.0, priority)
 
 
 func _status_key(unit: Unit, status: StatusEffect) -> String:

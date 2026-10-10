@@ -1,13 +1,14 @@
-[gd_resource type="Resource" script_class="EnemyData" format=3]
+[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://cmfgguum6kdsg"]
 
-[ext_resource type="Script" path="res://scripts/data/enemy_ability_slot.gd" id="1_slot"]
-[ext_resource type="Resource" path="res://data/abilities/test_caster_q_bolt.tres" id="2_bolt"]
-[ext_resource type="Resource" path="res://data/abilities/test_caster_e_blink.tres" id="3_blink"]
+[ext_resource type="Script" uid="uid://bgwd8lmpkp36g" path="res://scripts/data/enemy_ability_slot.gd" id="1_slot"]
+[ext_resource type="Resource" uid="uid://bi5dhld2tcds3" path="res://data/abilities/test_caster_q_bolt.tres" id="2_bolt"]
+[ext_resource type="Resource" uid="uid://cys75yotnaeww" path="res://data/abilities/test_caster_e_blink.tres" id="3_blink"]
 [ext_resource type="Resource" path="res://data/enemy_behaviors/enemy_behavior_caster.tres" id="4_behavior"]
-[ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="5_data"]
+[ext_resource type="Script" uid="uid://cguop83exi7gy" path="res://scripts/data/enemy_data.gd" id="5_data"]
 [ext_resource type="Resource" path="res://data/units/test_caster.tres" id="6_stats"]
-[ext_resource type="Resource" path="res://data/abilities/test_caster_w_lobbed_orb.tres" id="7_orb"]
-[ext_resource type="Resource" path="res://data/combos/combo_test_caster.tres" id="20_string"]
+[ext_resource type="Script" uid="uid://di5nx63xs7qx4" path="res://scripts/data/combo_plan.gd" id="7_mn5yh"]
+[ext_resource type="Resource" uid="uid://cubp1urqjrbg5" path="res://data/abilities/test_caster_w_lobbed_orb.tres" id="7_orb"]
+[ext_resource type="Resource" uid="uid://hvalxkkp570c" path="res://data/combos/combo_test_caster.tres" id="20_string"]
 
 [sub_resource type="Resource" id="slot_q"]
 script = ExtResource("1_slot")

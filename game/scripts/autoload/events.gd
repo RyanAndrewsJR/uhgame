@@ -20,6 +20,10 @@ signal status_applied(unit: Unit, status: StatusEffect)
 ## A status effect ended on a unit (ran out, removed, or the unit died).
 @warning_ignore("unused_signal")
 signal status_removed(unit: Unit, status: StatusEffect)
+## Right after status_removed, why it ended (StatusEffect.EndReason; AUDIO.md,
+## Why a status ended; A4's design, built early in CHAMPIONS K5b).
+@warning_ignore("unused_signal")
+signal status_ended(unit: Unit, status: StatusEffect, reason: StatusEffect.EndReason)
 ## A crowd control diminishing returns counts (a stun, a root...; not a slow
 ## or a knock-up) took on `unit` (COMBAT.md, Status effects; ENEMIES_AI
 ## AI-D3): its duration after tenacity and diminishing returns, and its step

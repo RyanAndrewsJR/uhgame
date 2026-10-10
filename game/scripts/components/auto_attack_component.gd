@@ -551,7 +551,7 @@ func _use_up_empowers(empowers: Array[StatusEffect]) -> Array[Callable]:
 		var f: Callable = _empower_callbacks.get(e.id, Callable())
 		if f.is_valid():
 			on_hits.append(f)
-		unit.status_component.remove_status(e.id)
+		unit.status_component.remove_status(e.id, StatusEffect.EndReason.CONSUMED)
 	return on_hits
 
 

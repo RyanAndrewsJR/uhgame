@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/data/status_effect.gd" id="1_status"]
 [ext_resource type="Resource" path="res://data/augments/augment_blade_singer_sweep.tres" id="2_augment"]
+[ext_resource type="Resource" path="res://data/sounds/sound_korsavil_demise_six.tres" id="3_sound"]
 
 [resource]
 script = ExtResource("1_status")
@@ -11,3 +12,4 @@ tags = Array[StringName]([&"buff"])
 duration = 3.5
 stack_rule = 1
 augments = Array[Resource]([ExtResource("2_augment")])
+apply_sound = ExtResource("3_sound")

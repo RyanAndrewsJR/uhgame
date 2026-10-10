@@ -1,18 +1,20 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" format=3 uid="uid://bv2nx6683nnf7"]
 
-[ext_resource type="Script" path="res://scripts/abilities/enemy/shockwave.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://67qfj5iw7k7t" path="res://scripts/abilities/enemy/shockwave.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="2_bcjgu"]
+[ext_resource type="Script" uid="uid://dqnryfnfjqenh" path="res://scripts/data/ai_use.gd" id="2_use"]
+[ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="3_astoq"]
+[ext_resource type="Script" uid="uid://effvdqcl7tjf" path="res://scripts/data/conditional_bonus.gd" id="4_kwn3e"]
+[ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="6_dloks"]
 [ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_telegraph.tres" id="s1_telegraph_sound"]
 [ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_hit.tres" id="s2_hit_sound"]
-[ext_resource type="Script" path="res://scripts/data/ai_use.gd" id="2_use"]
 
 [sub_resource type="Resource" id="use_damage"]
 script = ExtResource("2_use")
-intent = &"damage"
 
 [resource]
 script = ExtResource("1_script")
-telegraph_sound = ExtResource("s1_telegraph_sound")
-hit_sound = ExtResource("s2_hit_sound")
+radius_px = 72.0
 id = &"slime_elite_slam"
 tags = Array[StringName]([&"area", &"core"])
 display_name = "Slam"
@@ -23,11 +25,9 @@ cooldown = 12.0
 cast_time = 0.9
 cast_range = 250.0
 resets_auto_attack = false
+base_damage = 240.0
 deflectable = true
 perilous = true
-base_damage = 240.0
-ad_ratio = 0.0
-radius_px = 72.0
-enemy_hit_forgiveness = 0.1
-knockback_px = 20.0
+hit_sound = ExtResource("s2_hit_sound")
+telegraph_sound = ExtResource("s1_telegraph_sound")
 ai_uses = Array[ExtResource("2_use")]([SubResource("use_damage")])

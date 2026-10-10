@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/sound_event.gd" id="1_sound"]
+[ext_resource type="AudioStream" path="res://audio/sfx/ui_ultimate_ready_01.wav" id="2_placeholder"]
+
+[resource]
+script = ExtResource("1_sound")
+variations = Array[AudioStream]([ExtResource("2_placeholder")])
+volume_db = -3.0
+pitch_scale = 0.85

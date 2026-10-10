@@ -992,6 +992,7 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext, precharged: 
 	_cast_ability = ability
 	_cast_part = ctx.part
 	var cost := get_slot_cost(slot)   # read before a new sequence starts (part 0 pays resource_cost)
+	var cast_time := ability.get_cast_time_for_part(ctx.part)   # CHAMPIONS K5b: a recast part's own
 	if ctx.part == 0:
 		# Take a charge; its recharge starts now unless one is already running
 		# (charges come back one at a time). A cancel or interrupt gives it back.
@@ -1015,10 +1016,10 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext, precharged: 
 		_cast_cost = 0.0
 		if unit.resource_pool != null and unit.resource_pool.try_spend(cost):
 			_cast_cost = maxf(cost, 0.0)
-		_begin_cast_locks(ability, false)
+		_begin_cast_locks(ability, false, cast_time)
 	var rooted := _cast_rooted
 	_cast_ctx = ctx
-	ctx.progress = 0.0 if ability.cast_time > 0.0 else 1.0   # AB14
+	ctx.progress = 0.0 if cast_time > 0.0 else 1.0   # AB14
 	Audio.play_on(ability.cast_sound, unit)
 	ability.play_cast_vfx(unit, ctx)   # AB14 hook: nothing while cast_vfx is empty
 	cast_started.emit(slot, ability, ctx)
@@ -1028,11 +1029,11 @@ func _do_cast(slot: StringName, ability: Ability, ctx: CastContext, precharged: 
 	if is_instance_valid(ctx.telegraph):
 		ctx.telegraph.play_sound(ability.telegraph_sound)   # stops with the telegraph (AUDIO.md)
 
-	if ability.cast_time > 0.0:
+	if cast_time > 0.0:
 		# AB14: cast progress, advanced by _advance_cast_time(); a cancel or
 		# interrupt also emits _cast_time_elapsed (then the serial differs).
-		_cast_time_total = ability.cast_time
-		_cast_time_left = ability.cast_time
+		_cast_time_total = cast_time
+		_cast_time_left = cast_time
 		_cast_time_running = true
 		if is_instance_valid(ctx.telegraph):
 			ctx.telegraph.set_progress(0.0)   # the telegraph follows the cast from now on
@@ -1113,10 +1114,11 @@ func _update_recovery(delta: float) -> void:
 ## cancels a swing or windup); a root (&"casting" move lock) if the ability
 ## roots or is a channel (a channel also stops the unit); otherwise the walk
 ## multiplier. A cast with no cast time doesn't root; a charge-up
-## (`charging`) roots for the whole hold if it roots at all.
-func _begin_cast_locks(ability: Ability, charging: bool) -> void:
+## (`charging`) roots for the whole hold if it roots at all. `cast_time`: the
+## part's (CHAMPIONS K5b: Ability.get_cast_time_for_part()); -1 = the ability's.
+func _begin_cast_locks(ability: Ability, charging: bool, cast_time: float = -1.0) -> void:
 	unit.attack.add_lock(&"casting")   # also cancels an auto-attack windup
-	var has_time := charging or ability.cast_time > 0.0
+	var has_time := charging or (ability.cast_time if cast_time < 0.0 else cast_time) > 0.0
 	# Channels always root, whatever roots_during_cast says.
 	var rooted := (ability.roots_during_cast or ability.is_channel()) and has_time
 	if rooted:
@@ -1527,7 +1529,7 @@ func _use_up_ability_empowers(ability: Ability, ctx: CastContext) -> void:
 	for empower in unit.status_component.get_empowers(StatusEffect.EmpowerTrigger.ABILITY_CAST):
 		if empower.empower_scope == &"" or scopes.has(empower.empower_scope):
 			ctx.empowers.append(empower)
-			unit.status_component.remove_status(empower.id)
+			unit.status_component.remove_status(empower.id, StatusEffect.EndReason.CONSUMED)
 
 
 ## Events.ability_cast at the cast's chain depth (0 for a slot cast).

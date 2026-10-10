@@ -1,13 +1,14 @@
-[gd_resource type="Resource" script_class="EnemyData" format=3]
+[gd_resource type="Resource" script_class="EnemyData" format=3 uid="uid://u2du8sgthfeu"]
 
-[ext_resource type="Script" path="res://scripts/data/enemy_ability_slot.gd" id="1_slot"]
-[ext_resource type="Resource" path="res://data/abilities/test_assassin_q_riposte_stance.tres" id="2_stance"]
-[ext_resource type="Resource" path="res://data/abilities/test_assassin_e_flurry.tres" id="3_flurry"]
-[ext_resource type="Resource" path="res://data/abilities/test_assassin_r_charge.tres" id="4_charge"]
+[ext_resource type="Script" uid="uid://bgwd8lmpkp36g" path="res://scripts/data/enemy_ability_slot.gd" id="1_slot"]
+[ext_resource type="Resource" uid="uid://bya5s4obxkv7b" path="res://data/abilities/test_assassin_q_riposte_stance.tres" id="2_stance"]
+[ext_resource type="Resource" uid="uid://dtqnbk751s5eu" path="res://data/abilities/test_assassin_e_flurry.tres" id="3_flurry"]
+[ext_resource type="Resource" uid="uid://43h1ro1w55dx" path="res://data/abilities/test_assassin_r_charge.tres" id="4_charge"]
 [ext_resource type="Resource" path="res://data/enemy_behaviors/enemy_behavior_assassin.tres" id="5_behavior"]
-[ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="6_data"]
+[ext_resource type="Script" uid="uid://cguop83exi7gy" path="res://scripts/data/enemy_data.gd" id="6_data"]
+[ext_resource type="Script" uid="uid://di5nx63xs7qx4" path="res://scripts/data/combo_plan.gd" id="7_q32lr"]
 [ext_resource type="Resource" path="res://data/units/test_assassin.tres" id="7_stats"]
-[ext_resource type="Resource" path="res://data/combos/combo_test_assassin.tres" id="20_string"]
+[ext_resource type="Resource" uid="uid://bcmllwvwjgucy" path="res://data/combos/combo_test_assassin.tres" id="20_string"]
 
 [sub_resource type="Resource" id="slot_q"]
 script = ExtResource("1_slot")

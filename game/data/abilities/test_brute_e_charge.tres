@@ -1,9 +1,13 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" format=3 uid="uid://cu8n7w181r1lo"]
 
-[ext_resource type="Script" path="res://scripts/abilities/enemy/dash_strike.gd" id="1_script"]
-[ext_resource type="Script" path="res://scripts/data/ai_use.gd" id="2_use"]
+[ext_resource type="Script" uid="uid://dvppmn50qfdmv" path="res://scripts/abilities/enemy/dash_strike.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://dqnryfnfjqenh" path="res://scripts/data/ai_use.gd" id="2_use"]
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="2_x7m3c"]
+[ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="3_5s12d"]
 [ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_hit.tres" id="3_hit"]
+[ext_resource type="Script" uid="uid://effvdqcl7tjf" path="res://scripts/data/conditional_bonus.gd" id="4_pasdg"]
 [ext_resource type="Resource" path="res://data/sounds/sound_slime_elite_slam_telegraph.tres" id="4_telegraph"]
+[ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="6_0cywb"]
 
 [sub_resource type="Resource" id="use_gap_close"]
 script = ExtResource("2_use")
@@ -12,10 +16,6 @@ weight = 0.9
 
 [resource]
 script = ExtResource("1_script")
-length_px = 192.0
-overshoot_px = 32.0
-width_px = 38.0
-dash_time = 0.3
 id = &"test_brute_charge"
 tags = Array[StringName]([&"mobility", &"dash", &"line"])
 display_name = "Charge"

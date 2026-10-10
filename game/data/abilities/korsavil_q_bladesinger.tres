@@ -1,24 +1,17 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" format=3 uid="uid://dhtcxppxp40pp"]
 
-[ext_resource type="Script" path="res://scripts/abilities/korsavil/bladesinger.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://dqnryfnfjqenh" path="res://scripts/data/ai_use.gd" id="1_lhw5h"]
+[ext_resource type="Script" uid="uid://djjwe0vrd1p00" path="res://scripts/abilities/korsavil/bladesinger.gd" id="1_script"]
 [ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="2_condition"]
 [ext_resource type="Script" uid="uid://effvdqcl7tjf" path="res://scripts/data/conditional_bonus.gd" id="3_bonus"]
 [ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="4_scaling"]
 [ext_resource type="Script" uid="uid://b03uhk6wyab30" path="res://scripts/data/status_effect.gd" id="5_status"]
-[ext_resource type="Resource" path="res://data/statuses/status_bladesinger.tres" id="6_orbit"]
+[ext_resource type="Script" uid="uid://cvwv2nrsbyrah" path="res://scripts/data/stat_modifier.gd" id="6_3s3lo"]
+[ext_resource type="Resource" uid="uid://b7hpooswu0ini" path="res://data/statuses/status_bladesinger.tres" id="6_orbit"]
 [ext_resource type="Resource" path="res://data/statuses/status_blade.tres" id="7_blade"]
 [ext_resource type="Resource" path="res://data/statuses/status_umbral_stalker.tres" id="8_stalker"]
 [ext_resource type="Resource" path="res://data/statuses/status_inevitable_demise.tres" id="9_demise"]
-
-[sub_resource type="Resource" id="has_blade"]
-script = ExtResource("2_condition")
-status_tag = &"blade"
-fail_text = "No Blades"
-
-[sub_resource type="Resource" id="marks_demise"]
-script = ExtResource("3_bonus")
-target_statuses = Array[ExtResource("5_status")]([ExtResource("9_demise")])
-description = "Each Blade that hits marks the enemy with Inevitable Demise."
+[ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="10_1b4t6"]
 
 [sub_resource type="Resource" id="damage_by_blades"]
 script = ExtResource("4_scaling")
@@ -31,6 +24,16 @@ script = ExtResource("4_scaling")
 param = &"projectile_count"
 min_fraction = 0.0
 input = &"blades"
+
+[sub_resource type="Resource" id="marks_demise"]
+script = ExtResource("3_bonus")
+target_statuses = Array[ExtResource("5_status")]([ExtResource("9_demise")])
+description = "Each Blade that hits marks the enemy with Inevitable Demise."
+
+[sub_resource type="Resource" id="has_blade"]
+script = ExtResource("2_condition")
+status_tag = &"blade"
+fail_text = "No Blades"
 
 [resource]
 script = ExtResource("1_script")
@@ -47,13 +50,12 @@ cooldown = 10.0
 resource_cost = 25.0
 recast_count = 1
 recast_window = 6.0
-cast_time = 0.25
+charge_scalings = Array[ExtResource("4_scaling")]([SubResource("damage_by_blades"), SubResource("count_by_blades")])
 cast_range = 600.0
 roots_during_cast = false
 ad_ratio = 1.1
+recast_conditions = Array[ExtResource("2_condition")]([SubResource("has_blade")])
+conditional_bonuses = Array[ExtResource("3_bonus")]([SubResource("marks_demise")])
 projectile_speed = 1500.0
 projectile_count = 4
 projectile_spread_deg = 30.0
-recast_conditions = Array[ExtResource("2_condition")]([SubResource("has_blade")])
-conditional_bonuses = Array[ExtResource("3_bonus")]([SubResource("marks_demise")])
-charge_scalings = Array[ExtResource("4_scaling")]([SubResource("damage_by_blades"), SubResource("count_by_blades")])

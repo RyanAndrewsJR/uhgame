@@ -104,6 +104,12 @@ const DEFAULT_AREA_RADIUS_PX := 40.0
 ## v2's Q, whose UNIT throw is followed by a SELF lunge). -1 = the same as
 ## `targeting`: every ability before K4. get_targeting_for_part().
 @export_enum("Same:-1", "Self:0", "Direction:1", "Point:2", "Unit:3") var recast_targeting: int = -1
+## The cast time of every part after the first, seconds (ABILITIES.md, Later
+## toolkit pieces: a recast part's own cast time; built in CHAMPIONS K5b for
+## Korsavil v2's Q, whose lunge winds up 0.5 s after a 0.15 s throw). -1 =
+## `cast_time`: every ability before K5b (a recast part has no cast time of
+## its own: Ryan, 2026-10-04). get_cast_time_for_part().
+@export var recast_cast_time: float = -1.0
 
 @export_group("Charge-up")
 ## CHARGE_UP only: seconds of holding to reach full charge (a scoped param).
@@ -574,6 +580,14 @@ func get_targeting_for_part(part: int) -> Targeting:
 	if part > 0 and recast_targeting >= 0:
 		return recast_targeting as Targeting
 	return targeting
+
+
+## The cast time of recast part `part` (0 = the first cast): `cast_time`, or
+## recast_cast_time for a later part when it's set (CHAMPIONS K5b).
+func get_cast_time_for_part(part: int) -> float:
+	if part > 0 and recast_cast_time >= 0.0:
+		return recast_cast_time
+	return cast_time
 
 
 ## True if a cast of this needs a condition target even when it doesn't pick

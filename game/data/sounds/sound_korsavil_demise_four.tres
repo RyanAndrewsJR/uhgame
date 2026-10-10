@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="SoundEvent" format=3 uid="uid://dve7fk3qogohc"]
+
+[ext_resource type="Script" uid="uid://bmps51ct7hu5w" path="res://scripts/data/sound_event.gd" id="1_sound"]
+[ext_resource type="AudioStream" uid="uid://nifv00xu7hae" path="res://audio/sfx/Korsavil_Deflect01.wav" id="2_kk6r5"]
+
+[resource]
+script = ExtResource("1_sound")
+variations = Array[AudioStream]([ExtResource("2_kk6r5")])
+volume_db = 5.0
+pitch_scale = 1.25

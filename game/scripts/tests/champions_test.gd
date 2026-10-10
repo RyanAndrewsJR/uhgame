@@ -97,6 +97,11 @@ const STATUS_SWEEP: StatusEffect = preload("res://data/statuses/status_blade_sin
 const STATUS_WOUND: StatusEffect = preload("res://data/statuses/status_blade_singer_wound.tres")
 const AUGMENT_SWEEP: AbilityAugment = preload("res://data/augments/augment_blade_singer_sweep.tres")
 const STATUS_STUN: StatusEffect = preload("res://data/statuses/status_stun.tres")
+const LUNGE_RETURN: Ability = preload("res://data/abilities/knight_e_lunge_return.tres")
+const SOUND_DEMISE_FOUR: SoundEvent = preload("res://data/sounds/sound_korsavil_demise_four.tres")
+const SOUND_DEMISE_SIX: SoundEvent = preload("res://data/sounds/sound_korsavil_demise_six.tres")
+const SOUND_SWEEP_CAST: SoundEvent = preload("res://data/sounds/sound_korsavil_sweep_cast.tres")
+const STATUS_SHIELD: StatusEffect = preload("res://data/statuses/status_shield.tres")
 
 const MANA := ResourceComponent.ResourceType.MANA
 const FURY := ResourceComponent.ResourceType.FURY
@@ -157,6 +162,11 @@ func _ready() -> void:
 	await _test_blade_singer_sweep_cast()
 	await _test_blade_singer_sweep_refusals()
 	await _test_blade_singer_sweep_during_recast()
+	_test_k5b_sounds_data()
+	await _test_k5b_recast_wind_up()
+	await _test_k5b_sweep_wind_up()
+	await _test_k5b_sounds_play()
+	await _test_k5b_end_reasons()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -1443,6 +1453,8 @@ func _test_blade_singer_data() -> void:
 	_check("25 Energy (its recast 0), 11 s cooldown, 0.15 s cast, 7 m, one recast in a 3 s window, he walks while casting",
 		[q.resource_cost, q.recast_resource_cost, q.cooldown, q.cast_time, q.cast_range, q.recast_count, q.recast_window, q.roots_during_cast],
 		[25.0, 0.0, 11.0, 0.15, 700.0, 1, 3.0, false])
+	_check("K5b: the throw 0.15 s, the recast its own 0.5 s (recast_cast_time; Ryan, 2026-10-10)",
+		[q.recast_cast_time, q.get_cast_time_for_part(0), q.get_cast_time_for_part(1)], [0.5, 0.15, 0.5])
 	_check("each hit 30 + 25% AD, PHYSICAL; the dagger 1500 u/s, 3 bounces within 400 u",
 		[q.base_damage, q.ad_ratio, q.damage_type, q.projectile_speed, q.projectile_bounces, q.bounce_range],
 		[30.0, 0.25, HitContext.DamageType.PHYSICAL, 1500.0, 3, 400.0])
@@ -1457,6 +1469,9 @@ func _test_blade_singer_data() -> void:
 	_check("every other built ability keeps one targeting for every part (recast_targeting -1) and no bounces",
 		[BLADESINGER.recast_targeting, CLEAVE.recast_targeting, LUNGE.recast_targeting, LUNGE.get_targeting_for_part(1) == LUNGE.targeting, BOLT.projectile_bounces],
 		[-1, -1, -1, true, 0])
+	_check("K5b: every other built ability's parts keep its cast_time (recast_cast_time -1; Homeward Lunge's return 0.05 s)",
+		[BLADESINGER.recast_cast_time, CLEAVE.recast_cast_time, LUNGE.recast_cast_time, LUNGE_RETURN.recast_cast_time, LUNGE_RETURN.get_cast_time_for_part(1), BLADE_SINGER_SWEEP.recast_cast_time],
+		[-1.0, -1.0, -1.0, -1.0, 0.05, -1.0])
 
 
 func _test_blade_singer_chain() -> void:
@@ -1612,9 +1627,9 @@ func _test_blade_singer_sweep_data() -> void:
 	_check("id, a variant of Blade Singer, tags core + dash + melee + area (it moves him: a root refuses it), DIRECTION, INSTANT, no recast",
 		[s.id, s.variant_of, _plain(s.tags), s.moves_caster(), s.targeting, s.cast_style, s.recast_count],
 		[&"korsavil_blade_singer_sweep", &"korsavil_blade_singer", [&"core", &"dash", &"melee", &"area"], true, Ability.Targeting.DIRECTION, Ability.CastStyle.INSTANT, 0])
-	_check("Q's 25 Energy and 11 s, its 0.15 s cast (rooted), the lunge 300 u at 2000 u/s, a half circle of 350 u",
+	_check("Q's 25 Energy and 11 s, a 0.6 s wind-up (rooted; K5b, Ryan: 0.15 s in K5), the lunge 300 u at 2000 u/s, a half circle of 350 u",
 		[s.resource_cost, s.cooldown, s.cast_time, s.roots_during_cast, s.cast_range, s.get("lunge_speed"), s.get("arc_radius"), s.get("arc_half_angle_deg")],
-		[25.0, 11.0, 0.15, true, 300.0, 2000.0, 350.0, 90.0])
+		[25.0, 11.0, 0.6, true, 300.0, 2000.0, 350.0, 90.0])
 	var bonus: ConditionalBonus = s.conditional_bonuses[0] if s.conditional_bonuses.size() == 1 else null
 	_check("40 + 110% AD, PHYSICAL; one bonus with no conditions: the wound on each enemy hit",
 		[s.base_damage, s.ad_ratio, s.damage_type, bonus != null and bonus.conditions.is_empty(), bonus.target_statuses == [STATUS_WOUND] if bonus else false],
@@ -1694,7 +1709,7 @@ func _test_blade_singer_sweep_cast() -> void:
 	_check("the wound on those three only",
 		dummies.map(func(d: Enemy) -> bool: return d.status_component.has_status(&"blade_singer_wound")), [true, true, true, false, false, false])
 	_check("spent: no Demise, no window, Q is the dagger again; the 11 s cooldown runs",
-		[sc.has_status(&"demise"), sc.has_status(&"blade_singer_sweep"), k.abilities.get_ability(&"q") == BLADE_SINGER, k.abilities.get_cooldown_left(&"q") > 10.5],
+		[sc.has_status(&"demise"), sc.has_status(&"blade_singer_sweep"), k.abilities.get_ability(&"q") == BLADE_SINGER, k.abilities.get_cooldown_left(&"q") > 10.0],
 		[false, false, true, true])
 	await _wait_until(func() -> bool: return not dummies[0].status_component.has_status(&"blade_singer_wound"), 320)
 	await _frames(2)
@@ -1737,7 +1752,7 @@ func _test_blade_singer_sweep_refusals() -> void:
 	await _frames(2)
 	k.status_component.apply_status(STATUS_STUN, k)
 	await _frames(2)
-	_check("stunned in its 0.15 s: interrupted, the Energy and the cooldown refunded, the window and the stacks kept, Q still the sweep",
+	_check("stunned in its 0.6 s wind-up: interrupted, the Energy and the cooldown refunded, the window and the stacks kept, Q still the sweep",
 		[k.abilities.casting, k.resource_pool.current >= energy, k.abilities.get_cooldown_left(&"q"), sc.has_status(&"blade_singer_sweep"), sc.get_stacks(&"demise"), k.abilities.get_ability(&"q") == BLADE_SINGER_SWEEP],
 		[false, true, 0.0, true, 6, true])
 	k.status_component.remove_status(&"stun")
@@ -1769,6 +1784,174 @@ func _test_blade_singer_sweep_during_recast() -> void:
 	k.queue_free()
 	Audio.stop_all()
 	await _frames(10)
+
+
+func _test_k5b_sounds_data() -> void:
+	_section("K5b: the three new sounds (Ryan, 2026-10-10): Demise at 4, Demise at 6, the sweep's own cast (placeholders)")
+	_check("4 stacks: empower_demise's consume_sound (Ryan: on the empowered hit, not at the gain), no apply_sound",
+		[EMPOWER_DEMISE.consume_sound == SOUND_DEMISE_FOUR, EMPOWER_DEMISE.apply_sound], [true, null])
+	_check("6 stacks: the sweep window's apply_sound (it lands exactly at 6)", STATUS_SWEEP.apply_sound == SOUND_DEMISE_SIX, true)
+	_check("the sweep's cast_sound is its own, not the dagger's", [BLADE_SINGER_SWEEP.cast_sound == SOUND_SWEEP_CAST, BLADE_SINGER.cast_sound != SOUND_SWEEP_CAST], [true, true])
+	_check("three SoundEvents on the SFX bus, each with a placeholder file",
+		[SOUND_DEMISE_FOUR.bus, SOUND_DEMISE_SIX.bus, SOUND_SWEEP_CAST.bus, SOUND_DEMISE_FOUR.variations.size(), SOUND_DEMISE_SIX.variations.size(), SOUND_SWEEP_CAST.variations.size()],
+		[SoundEvent.Bus.SFX, SoundEvent.Bus.SFX, SoundEvent.Bus.SFX, 1, 1, 1])
+
+
+func _test_k5b_recast_wind_up() -> void:
+	_section("K5b: Q's recast winds up 0.5 s before the lunge (the throw keeps its 0.15 s)")
+	var k := await _spawn(false, KORSAVIL)
+	_no_crits(k)
+	var dummies := _row_of_dummies(k, 3)
+	await _frames(1)
+	var lodged := dummies[2]
+	k.abilities.try_cast(&"q", dummies[0].global_position, dummies[0])
+	_check_near("the throw: 0.15 s of cast time", k.abilities.get_cast_time_left(), 0.15, 0.001)
+	await _wait_until(func() -> bool: return lodged.status_component.has_status(&"lodged_dagger"), 240)
+	var start := k.global_position
+	var lunge_hits: Array = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == k and ctx.ability == BLADE_SINGER and ctx.cast != null and ctx.cast.part == 1:
+			lunge_hits.append(ctx.target)
+	Events.unit_hit.connect(on_hit)
+	_check("the recast pressed: casting part 1, 0.5 s of cast time",
+		[k.abilities.try_cast(&"q", k.global_position), k.abilities.get_cast_context().part if k.abilities.get_cast_context() else -1, snappedf(k.abilities.get_cast_time_left(), 0.001)],
+		[true, 1, 0.5])
+	await _frames(27)
+	_check("0.45 s in: still winding up, not moved toward the dagger, no hit yet",
+		[k.abilities.casting, k.global_position.distance_to(start) < 4.0, lunge_hits.size()], [true, true, 0])
+	await _wait_until(func() -> bool: return k.abilities.get_recast_part(&"q") == 0 and not k.abilities.casting, 120)
+	Events.unit_hit.disconnect(on_hit)
+	_check("then the lunge and its hit on the lodged enemy, as before", [lunge_hits.size(), lunge_hits[0] == lodged if lunge_hits.size() > 0 else false], [1, true])
+	for d in dummies:
+		d.queue_free()
+	k.queue_free()
+	Audio.stop_all()
+	await _frames(10)
+
+
+func _test_k5b_sweep_wind_up() -> void:
+	_section("K5b: the sweep winds up 0.6 s, rooted, its half circle on the floor where the lunge will stop")
+	var k := await _spawn(false, KORSAVIL)
+	_no_crits(k)
+	var start := k.global_position
+	var d := _dummy(start + Vector2(180, 0))
+	d.stats_component.add_modifier(StatModifier.create(&"max_health", StatModifier.Type.FLAT, 5000.0, &"test_tough"))
+	await _frames(1)
+	for i in 6:
+		k.status_component.apply_status(STATUS_DEMISE_V2, k)
+	var hit := []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == k and ctx.ability == BLADE_SINGER_SWEEP:
+			hit.append(ctx.target)
+	Events.unit_hit.connect(on_hit)
+	k.abilities.try_cast(&"q", start + Vector2(300, 0))
+	var cast := k.abilities.get_cast_context()
+	var t: Telegraph = cast.telegraph if cast != null and is_instance_valid(cast.telegraph) else null
+	_check("cast: 0.6 s of cast time, rooted (a move lock), a cone telegraph",
+		[snappedf(k.abilities.get_cast_time_left(), 0.001), not k.movement.can_move(), t != null],
+		[0.6, true, true])
+	if t != null:
+		_check("its telegraph: at the lunge's end (96 px ahead), pointing along it, 112 px (3.5 m), a half circle",
+			[t.global_position.distance_to(start + Vector2(96, 0)) < 0.5, t.cone_direction.is_equal_approx(Vector2.RIGHT), snappedf(t.radius_px, 0.01), snappedf(t.cone_half_angle, 0.001)],
+			[true, true, Units.to_px(350.0), snappedf(PI / 2.0, 0.001)])
+	await _frames(33)
+	_check("0.55 s in: still winding up, not moved, no hit; the telegraph filling", [k.abilities.casting, k.global_position.distance_to(start) < 1.0, hit.size(), t.is_driven() if t else false],
+		[true, true, 0, true])
+	await _wait_until(func() -> bool: return not k.abilities.casting, 120)
+	Events.unit_hit.disconnect(on_hit)
+	_check("then the lunge and the sweep (the enemy hit), and the telegraph flashes and goes",
+		[k.global_position.distance_to(start + Vector2(96, 0)) < 2.0, hit.size()], [true, 1])
+	await _frames(15)
+	_check("the telegraph gone", is_instance_valid(t), false)
+	d.queue_free()
+	k.queue_free()
+	Audio.stop_all()
+	await _frames(10)
+
+
+func _test_k5b_sounds_play() -> void:
+	_section("K5b: the sounds play: the 4-stack sound on the empowered hit (not at the gain), the 6-stack sound at 6 (not again on a gain at 6), the sweep's cast")
+	var k := await _spawn(false, KORSAVIL)
+	_no_crits(k)
+	var d := _dummy(k.global_position + Vector2(36, 0))
+	d.stats_component.add_modifier(StatModifier.create(&"max_health", StatModifier.Type.FLAT, 5000.0, &"test_tough"))
+	await _frames(1)
+	var sc := k.status_component
+	var played := func(ev: SoundEvent) -> Array:
+		return Audio.get_log().filter(func(e: Dictionary) -> bool: return e.sound == ev and e.result == Audio.RESULT_PLAYED)
+	Audio.stop_all()
+	Audio.clear_log()
+	for i in 4:
+		sc.apply_status(STATUS_DEMISE_V2, k)
+	_check("4 stacks: the empowered auto waits, no sound yet", [sc.has_status(&"empower_demise"), played.call(SOUND_DEMISE_FOUR).size(), played.call(SOUND_DEMISE_SIX).size()], [true, 0, 0])
+	var hit_frames: Array = []
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == k and ctx.has_tag(&"empowered"):
+			hit_frames.append(Engine.get_physics_frames())
+	Events.unit_hit.connect(on_hit)
+	await _swing_times(k, 1)
+	Events.unit_hit.disconnect(on_hit)
+	var four: Array = played.call(SOUND_DEMISE_FOUR)
+	_check("the empowered swing hits: the 4-stack sound once, in the frame of its hit; the empower used",
+		[hit_frames.size(), four.size(), four[0].frame == hit_frames[0] if four.size() == 1 and hit_frames.size() == 1 else false, sc.has_status(&"empower_demise")],
+		[1, 1, true, false])
+	sc.apply_status(STATUS_DEMISE_V2, k)
+	sc.apply_status(STATUS_DEMISE_V2, k)
+	_check("the 6th: the 6-stack sound once", played.call(SOUND_DEMISE_SIX).size(), 1)
+	await _frames(6)
+	sc.apply_status(STATUS_DEMISE_V2, k)
+	_check("a gain at 6: no sound again", [played.call(SOUND_DEMISE_FOUR).size(), played.call(SOUND_DEMISE_SIX).size()], [1, 1])
+	sc.remove_status(&"demise")
+	for i in 4:
+		sc.apply_status(STATUS_DEMISE_V2, k)
+	sc.remove_status(&"empower_demise")
+	_check("an empowered auto taken away unused: no 4-stack sound", played.call(SOUND_DEMISE_FOUR).size(), 1)
+	k.abilities.try_cast(&"q", k.global_position + Vector2(0, 300))
+	_check("the sweep's press: its own cast sound", played.call(SOUND_SWEEP_CAST).size(), 1)
+	await _wait_until(func() -> bool: return not k.abilities.casting, 120)
+	d.queue_free()
+	k.queue_free()
+	Audio.stop_all()
+	await _frames(10)
+
+
+func _test_k5b_end_reasons() -> void:
+	_section("K5b: why a status ended (A4's EndReason, built early): status_ended after status_removed, on the component and on Events")
+	var d := _dummy(Vector2(_next_x + 400.0, 0))
+	_next_x += 400.0
+	await _frames(1)
+	var sc := d.status_component
+	var reasons: Array = []
+	var events: Array = []
+	var watched: Array[StringName] = [&"lodged_dagger", &"root", &"shield"]
+	var on_ended := func(effect: StatusEffect, reason: StatusEffect.EndReason) -> void:
+		if watched.has(effect.id):
+			reasons.append([effect.id, reason])
+	var on_event := func(unit: Unit, effect: StatusEffect, reason: StatusEffect.EndReason) -> void:
+		if unit == d and watched.has(effect.id):
+			events.append([effect.id, reason])
+	sc.status_ended.connect(on_ended)
+	Events.status_ended.connect(on_event)
+	var short: StatusEffect = STATUS_LODGED.duplicate()
+	short.duration = 0.1
+	sc.apply_status(short, d)
+	await _wait_until(func() -> bool: return not sc.has_status(&"lodged_dagger"), 30)
+	sc.apply_status(STATUS_LODGED, d)
+	sc.remove_status(&"lodged_dagger")
+	sc.apply_status(STATUS_ROOT, d)
+	sc.remove_statuses_with_tags([&"cc"])
+	sc.apply_status(STATUS_SHIELD, d)
+	sc.absorb_damage(1000.0)
+	sc.apply_status(STATUS_LODGED, d)
+	sc.clear()
+	_check("ran out: EXPIRED; removed: REMOVED; a cleanse: CLEANSED; a shield used up: CONSUMED; death's clear(): DIED",
+		reasons, [[&"lodged_dagger", StatusEffect.EndReason.EXPIRED], [&"lodged_dagger", StatusEffect.EndReason.REMOVED], [&"root", StatusEffect.EndReason.CLEANSED],
+			[&"shield", StatusEffect.EndReason.CONSUMED], [&"lodged_dagger", StatusEffect.EndReason.DIED]])
+	_check("Events.status_ended carries the same", events, reasons)
+	sc.status_ended.disconnect(on_ended)
+	Events.status_ended.disconnect(on_event)
+	d.queue_free()
+	await _frames(1)
 
 
 ## `count` tough passive dummies in a row to `k`'s right: the first at 120 px,

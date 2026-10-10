@@ -49,7 +49,6 @@ of = 3
 [resource]
 script = ExtResource("1_script")
 id = &"knight_judgement"
-poise_damage = 40.0
 tags = Array[StringName]([&"ultimate", &"channel"])
 display_name = "Judgement"
 supported_flags = Array[StringName]([&"judgement_shockwave", &"judgement_drag"])
@@ -64,6 +63,7 @@ cancel_on_move = true
 base_damage = 150.0
 ad_ratio = 1.0
 scalings = Array[ExtResource("2_scaling")]([SubResource("missing_health")])
+poise_damage = 40.0
 hit_shake = 6.0
 hit_hitstop = 0.09
 conditional_bonuses = Array[ExtResource("c2_bonus")]([SubResource("fury_bonus")])

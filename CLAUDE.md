@@ -130,7 +130,7 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 | `docs/STATS.md` | any stat, health/mana, champion base stats, modifiers from gear/buffs/levels, items changing ability numbers |
 | `docs/ABILITIES.md` | abilities: casting, cast styles, charge-up, scalings, tooltips, tags, costs, cooldowns, charges, recasts, projectiles, augments, forms, empowers, conditions, blinks; Korsavil's ability sheets and the toolkit pieces she needs; Korsavil v2's sheets and pieces |
 | `docs/CHAMPIONS.md` | ChampionData, passives, resource rhythms (Fury, Energy), the champion level field, the Knight's kit and its functional HUD (CH6), Korsavil's kit (Blades, Inevitable Demise, Vanish, Umbral Stalker) and her build steps (v1); Korsavil v2 (2026-10-09: his chain, Demise stacks, Blade Singer, Cloak & Dagger, Spectral Assault, Reckoning) and its K3–K10 |
-| `docs/AUDIO.md` | any sound, music, the mix, volume settings, how to add a sound, conditional sounds (variants, cues, a status's end reason), the audition tool |
+| `docs/AUDIO.md` | any sound, music, the mix, volume settings, how to add a sound, conditional sounds (variants, cues, a status's end reason), the audition tool, sound triggers (when, where and how a sound plays) and the tuning panel (A6) |
 | `docs/TALENTS.md` | talents, unlock requirements (`TalentRequirement`), the loadout and talent points, ability-use and kill counters, the XP curve, the hub's talent screen, the kind-not-magnitude rule, the Knight's set |
 | `docs/LOOT.md` | items, bases, affixes, rarities, sigils, named items, equipping (`EquipmentComponent`), the inventory, its save and the materials bucket, drop tables, depth and magic find, pickups (layer 9), dropping and trashing |
 | `docs/COMPANIONS.md` | companions: species, quirks, passives, bond, evolutions, the command on Tab (the fifth slot), consuming and the imprint, eggs, kindling, the hub screen, `user://companions.cfg`; the exception to VISION's no-shared-power rule |
@@ -146,7 +146,7 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 ## Current status
 - **Now:**
   - The Knight ships; CHAMPIONS, TALENTS, LOOT, STATS and the 3D pivot (up to the P-spike) are done.
-  - **Korsavil is redesigned (v2, Ryan's board, 2026-10-09; docs only):** K1–K2 passed; v2's K3–K10 replace the old K3–K6 (Ryan confirmed it before K3, 2026-10-09; CHAMPIONS.md, Korsavil v2). **K3–K4 passed; K5 (Q's 6-stack sweep) built 2026-10-10, awaiting Ryan's play test** (4,427/4,427).
+  - **Korsavil is redesigned (v2, Ryan's board, 2026-10-09; docs only):** K1–K2 passed; v2's K3–K10 replace the old K3–K6 (Ryan confirmed it before K3, 2026-10-09; CHAMPIONS.md, Korsavil v2). **K3–K5 passed; K5b (Q's wind-ups, the three sounds) built 2026-10-10, awaiting Ryan's play test** (4,456/4,456).
   - ENEMIES_AI: AI1–AI3, AI3b–AI3d and AI-D1–AI-D3 passed; R0 and R1 committed (4,095/4,095).
   - ARCHETYPES: AR1a–AR4 passed and committed (the test duelist at 1.89×, short of 2×: Open questions 20).
   - FEEL2: preset 3 shipped and passed (c2efc46). Sandbox-only, Ryan's read pending: F9 latency probe, F10 blind presets, F7 threat palettes, the N panel's "pose lean x" (CHANGELOG.md).
@@ -168,6 +168,7 @@ The game in `game/` is the **reference build**. It works, and changes build on i
   - Corner forgiveness, proposed (MOVEMENT.md); the pit step, unscheduled (WORLD_INTERACTION.md).
   - DUNGEONS D1 waits for the P-spike and WORLD_INTERACTION's unscheduled pieces; AI-D4 for ALLIES AL6.
   - AUDIO A4 and A5: approved, not started; CC0 files can replace the placeholders any time (AUDIO.md).
+  - AUDIO A6 (sound triggers and the live tuning panel): designed and approved 2026-10-10 with Ryan's changes; before A6a: his concern 4 (the Save guards) and his slices (AUDIO.md, Open questions).
   - COMPANIONS CO1: any time, on Ryan's OK.
   - ALLIES' second champion (ranged/support, mana): still planned (ALLIES.md, Status).
   - Ryan's pre-L-M saves: `%APPDATA%/Godot/app_userdata/uhgame/backups/` (the 10:22 copy).

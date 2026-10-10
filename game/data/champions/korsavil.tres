@@ -1,15 +1,18 @@
-[gd_resource type="Resource" script_class="ChampionData" format=3]
+[gd_resource type="Resource" script_class="ChampionData" format=3 uid="uid://cu04aupjo7xis"]
 
 [ext_resource type="Script" uid="uid://b8guk2etqvw6k" path="res://scripts/data/champion_data.gd" id="1_champion"]
 [ext_resource type="Resource" path="res://data/units/korsavil.tres" id="2_stats"]
-[ext_resource type="Resource" path="res://data/combos/combo_korsavil.tres" id="3_combo"]
+[ext_resource type="Resource" uid="uid://l4r4y0yjkx2t" path="res://data/combos/combo_korsavil.tres" id="3_combo"]
+[ext_resource type="Script" uid="uid://p26v7iodp8m8" path="res://scripts/data/named_item.gd" id="3_x7lcx"]
 [ext_resource type="Script" uid="uid://cvwv2nrsbyrah" path="res://scripts/data/stat_modifier.gd" id="4_stat_modifier"]
-[ext_resource type="Script" path="res://scripts/abilities/korsavil/passive_korsavil.gd" id="5_passive"]
-[ext_resource type="Resource" path="res://data/reactions/reaction_korsavil_demise.tres" id="6_rule"]
-[ext_resource type="Resource" path="res://data/statuses/status_demise.tres" id="7_demise"]
+[ext_resource type="Script" uid="uid://cmv04y6s8w5up" path="res://scripts/abilities/korsavil/passive_korsavil.gd" id="5_passive"]
+[ext_resource type="Resource" uid="uid://bqctw4iexi7ni" path="res://data/reactions/reaction_korsavil_demise.tres" id="6_rule"]
+[ext_resource type="Resource" uid="uid://dx2k8mis0vye5" path="res://data/statuses/status_demise.tres" id="7_demise"]
+[ext_resource type="Script" uid="uid://4f7eiawforfq" path="res://scripts/data/stat_scaling.gd" id="8_2pmsd"]
 [ext_resource type="Resource" path="res://data/statuses/status_empower_demise.tres" id="8_empower"]
 [ext_resource type="Resource" path="res://data/abilities/korsavil_q_blade_singer.tres" id="9_q"]
 [ext_resource type="Resource" path="res://data/statuses/status_blade_singer_sweep.tres" id="10_sweep"]
+[ext_resource type="Script" uid="uid://bu2artg4nhd6d" path="res://scripts/data/talent.gd" id="13_ncjpc"]
 
 [sub_resource type="Resource" id="StatModifier_second_dash"]
 script = ExtResource("4_stat_modifier")
@@ -18,14 +21,14 @@ value = 1.0
 
 [sub_resource type="Resource" id="Passive_korsavil"]
 script = ExtResource("5_passive")
+demise_status = ExtResource("7_demise")
+empower_status = ExtResource("8_empower")
+sweep_status = ExtResource("10_sweep")
 display_name = "Passive"
 description = "Every 4th strike of your chain gives you 2 stacks of Inevitable Demise (once every 5 seconds), up to 6. Each stack gives 2% movement speed, and they fade together 6 seconds after the last. At 4 stacks your next basic attack deals 50 + 75% AD bonus damage. At 6, your Q becomes a lunging sweep for 3.5 seconds. The 4th strike also restores 10 Energy. You have two dashes."
 icon_color = Color(0.62, 0.45, 0.95, 1)
 modifiers = Array[ExtResource("4_stat_modifier")]([SubResource("StatModifier_second_dash")])
 reaction_rules = Array[Resource]([ExtResource("6_rule")])
-demise_status = ExtResource("7_demise")
-empower_status = ExtResource("8_empower")
-sweep_status = ExtResource("10_sweep")
 
 [resource]
 script = ExtResource("1_champion")

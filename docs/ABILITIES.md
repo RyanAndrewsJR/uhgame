@@ -597,7 +597,7 @@ Targeting: UNIT ("Throw a dagger at an enemy": Ryan, 2026-10-09). The recast: SE
 Cost: 25 (recast 0, proposed)      Cooldown: 11 s
 Recasts: recast_count 1, recast_window 3 s (proposed: the default), opened at part 0's effect. The board's part 2
   "delay 1.5 s" is ignored (Ryan, 2026-10-09). Part 0: the dagger. Part 1: the lunge.
-Cast time: 0.15 s, each part (a recast part has no cast time of its own)      Range: cast_range 700 u (224 px, 7 m)
+Cast time: 0.15 s; the recast 0.5 s (recast_cast_time: Ryan, 2026-10-10, K5b)      Range: cast_range 700 u (224 px, 7 m)
 Movement during the cast: roots_during_cast off (proposed: he walks through the 0.15 s, as the old Q)
 Damage (part 0, each enemy the dagger hits): base_damage 30, ad_ratio 0.25 (Ryan), PHYSICAL (Ryan), blocked by walls
 Damage (part 1, the lunge): 40 + 0.65 AD (Ryan) on the lodged enemy only (proposed), through hit_units() with the
@@ -620,13 +620,13 @@ What it does, step by step:
      (proposed). With fewer than 3 enemies hit, blade_singer.gd ends the sequence (end_recast(), new), so the 11 s
      cooldown starts at once (proposed).
   Part 1 (the recast: within 3 s, only after 3 hits)
-  4. Cast start: 0.15 s. Effect: dash() toward the lodged enemy where it stands at the press, or where it fell if
+  4. Cast start: 0.5 s (K5b; he walks). Effect: dash() toward the lodged enemy where it stands at the press, or where it fell if
      it died (Ryan, 2026-10-09), at most 1175 u (376 px, 11.75 m: the board's part 2 range) at 3000 u/s
      (proposed), passing through units as every dash.
   5. On arrival: hit_units() on the lodged enemy (if it's alive and in reach): 40 + 65% AD; status_lodged_dagger
      removed.
 Supported augment flags: none yet
-Sounds (AUDIO.md): none yet
+Sounds (AUDIO.md): none yet (the sweep has its own: Ryan, 2026-10-10)
 Walls: the dagger and its bounces stop at walls, and a bounce only picks an enemy in sight of the one just hit; the
   lunge slides along walls (dash()).
 World: dash() (part 1); no displacement on enemies.
@@ -662,15 +662,16 @@ Cast style: INSTANT
 Targeting: DIRECTION (proposed: the lunge goes toward the aim)
 Cost: 25 (proposed: Q's)      Cooldown: 11 s (the slot's: a REPLACE keeps it, so the sweep needs Q off cooldown,
   as Ryan wants)
-Cast time: 0.15 s (Q's)      Range: the lunge 300 u (96 px, 3 m, proposed)
+Cast time: 0.6 s (Ryan, 2026-10-10, K5b: "a charged up skill shot", a wind-up; 0.15 s in K5)      Range: the lunge 300 u (96 px, 3 m, proposed)
 Movement during the cast: roots (proposed: it ends in a lunge)
 Damage: base_damage 40, ad_ratio 1.10 (Ryan), PHYSICAL, blocked by walls
 Conditional bonuses: (no conditions) → target_statuses status_blade_singer_wound (20 + 35% AD a second for 4 s:
   Ryan; CHAMPIONS.md, Korsavil v2, Statuses (v2))
 Cast conditions: not dash-blocked ("Rooted")
 What it does, step by step:
-  1. Cast start: 0.15 s, rooted.
-  2. Effect start: removes every stack of status_demise (Ryan: it spends them) and status_blade_singer_sweep (so
+  1. Cast start: cast_sound (sound_korsavil_sweep_cast, its own: Ryan, K5b); 0.6 s, rooted, aimed at the press; the
+     half circle where the lunge will stop telegraphed on the floor, filling with the cast (K5b).
+  2. Effect start: the telegraph flashes; removes every stack of status_demise (Ryan: it spends them) and status_blade_singer_sweep (so
      the slot is the dagger again).
   3. dash() 300 u toward the aim; then every enemy in a half circle of 350 u (112 px, 3.5 m, proposed) in front of
      him along the lunge, in sight of where he stopped: 40 + 110% AD and the wound. K5 (proposed): also every enemy along
@@ -892,7 +893,7 @@ Audio hooks: see AUDIO.md (`charge_sound` is added there for CHARGE_UP).
 | `recast_count` | `int` | 0 | extra parts after the first. |
 | `recast_window` | `float` | 3.0 | seconds; scoped param. |
 | `recast_resource_cost` | `float` | 0 | each later part; scoped param. |
-| `recast_cast_time` | `float` | −1 | planned (Ryan, 2026-10-09, for Korsavil v2's R): the cast time of every part after the first; −1 = `cast_time` (today's rule: a recast part has no cast time of its own). |
+| `recast_cast_time` | `float` | −1 | *built CHAMPIONS K5b (2026-10-10)* (Ryan: planned 2026-10-09 for Korsavil v2's R, first used by his Q's recast, 0.5 s): the cast time of every part after the first; −1 = `cast_time` (the rule before: a recast part has no cast time of its own). `get_cast_time_for_part(part)` reads it: AbilityComponent's cast, its root, the Player's facing swing, the 3D view's wind-up. |
 | `recast_targeting` | `int` (`Targeting` or −1) | −1 | *built CHAMPIONS K4 (2026-10-10)*: the targeting of every part after the first; −1 = `targeting` (every ability before K4). `get_targeting_for_part(part)` reads it. Korsavil v2's Q: SELF after its UNIT throw. |
 | `projectile_bounces`, `bounce_range` | `int`, `float` | 0, 400 | *built CHAMPIONS K4*: a chain projectile's bounces and their range (LoL units from the unit just hit); scoped params; read only by `Projectile.fire_chain()`. |
 | `charge_time` | `float` | 1.5 | seconds to full charge; scoped param. |
@@ -1407,7 +1408,7 @@ Not build steps. Each is data once 2+ kits use it (Data or script, above).
   - **The chain projectile** (Q, K4): **Built in CHAMPIONS K4 (2026-10-10)** as `Projectile.fire_chain()`, with the signals `hit_resolved` (the per-hit callback) and `finished`, and `get_hit_units()`. the bounce projectile above, unchanged in shape: after a hit it flies on to the nearest enemy within `bounce_range` of the unit it hit, in that unit's sight, not hit yet, homing, up to `projectile_bounces` times, with a per-hit callback; Q's first throw homes too (a UNIT cast). Every hit deals the same, so the `bounce` input isn't needed for Q.
   - **Ending a recast sequence early** (Q, R; K4): **Built in K4 (2026-10-10);** it leaves a sequence alone while its part is being cast. `AbilityComponent.end_recast(slot)`, public (today's `_end_recast()` is private): the sequence ends and the cooldown starts the next physics frame, as at a window's end. Q ends its own when the dagger hit fewer than 3 enemies; R when no Sentenced enemy remains.
   - **A recast part's own targeting** (Q's recast, K4): **Built in K4 (2026-10-10):** `Ability.recast_targeting` (-1 = the same) and `get_targeting_for_part()`, read by every press (AbilityComponent, the Player). `recast_targeting` above, SELF for Q (its target is the lodged dagger, not the cursor).
-  - **A recast part's own cast time** (R's cuts, K8; Ryan, 2026-10-09): `Ability.recast_cast_time` (−1 = the ability's `cast_time`, today's rule), the cast time of every part after the first; R's cuts 0.1 s against its throw's 0.5 s. Opt-in: Ryan's 2026-10-04 answer (a recast part has no cast time of its own) stays the default, so Homeward Lunge keeps its 0.05 s.
+  - **A recast part's own cast time** (R's cuts, K8; Ryan, 2026-10-09): **Built in CHAMPIONS K5b (2026-10-10)** for Q's recast (0.5 s: Ryan), with `get_cast_time_for_part()`. `Ability.recast_cast_time` (−1 = the ability's `cast_time`, today's rule), the cast time of every part after the first; R's cuts 0.1 s against its throw's 0.5 s. Opt-in: Ryan's 2026-10-04 answer (a recast part has no cast time of its own) stays the default, so Homeward Lunge keeps its 0.05 s.
   - **The attack-or-cast empower trigger** (W, K6; the layer note's payoff, K10): `StatusEffect.EmpowerTrigger.BASIC_ATTACK_OR_CAST`, used by the next swing that hits or the next ability cast (not a free cast), whichever comes first; its bonus and statuses go into that swing's hit or into every hit of that cast.
   - **A status that ends when its holder acts** (W, K6): `ends_on_cast`, `ends_on_swing` above; v2 doesn't use `ends_on_dash` (ALLIES' stealth may).
   - **An empower that always crits** (K10): `StatusEffect.empower_always_crits` (false): the swing or cast that uses it crits (its crit roll is decided as a crit before it rolls). Not a `crit_chance` modifier on the status: an ability's empower is used at its cast start, before its hits roll.
@@ -1426,7 +1427,7 @@ Passives themselves and champion kits (CHAMPIONS.md: a Passive bundles stat modi
 
 ## Open questions
 - ~~Blinks: Claude's proposals~~ (the API and `blinked`, the refusals, no status or i-frames, the tag, enemies may blink, the view's look, the test blink on B): approved when Ryan started AB15 (2026-10-04).
-- ~~Should a recast part have its own cast time?~~ Answered (Ryan, 2026-10-04, at LOOT L-M): no. Homeward Lunge's return keeps Lunge's 0.05 s (3 ticks) before the blink. *(2026-10-09, Ryan: yes for Korsavil v2's R, through an opt-in `recast_cast_time`; every other ability keeps this answer.)*
+- ~~Should a recast part have its own cast time?~~ Answered (Ryan, 2026-10-04, at LOOT L-M): no. Homeward Lunge's return keeps Lunge's 0.05 s (3 ticks) before the blink. *(2026-10-09, Ryan: yes for Korsavil v2's R, through an opt-in `recast_cast_time`; 2026-10-10, his Q's recast too, 0.5 s; every other ability keeps this answer.)*
 - ~~Should a root also block the dashes (Lunge, Triple Step) as it blocks blinks?~~ Answered (Ryan, 2026-10-04, at LOOT L-M): "roots are roots. You shouldn't be able to move at all until it ends." Built the same day (Roots, under Blinks).
 - Ultimate meter details (CHAMPIONS.md, when a champion first uses one).
 - The element tag list.

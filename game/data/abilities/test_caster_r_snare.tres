@@ -1,15 +1,14 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" format=3 uid="uid://ccrvk8vdg14no"]
 
-[ext_resource type="Script" path="res://scripts/abilities/test/bolt.gd" id="1_script"]
-[ext_resource type="Script" path="res://scripts/data/ai_use.gd" id="2_use"]
-[ext_resource type="Script" path="res://scripts/data/conditional_bonus.gd" id="3_bonus"]
+[ext_resource type="Script" uid="uid://xe8syitpy4eq" path="res://scripts/abilities/test/bolt.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="2_45ft3"]
+[ext_resource type="Script" uid="uid://dqnryfnfjqenh" path="res://scripts/data/ai_use.gd" id="2_use"]
+[ext_resource type="Script" uid="uid://cmf5kh8knu8l7" path="res://scripts/data/charge_scaling.gd" id="3_bcloc"]
+[ext_resource type="Script" uid="uid://effvdqcl7tjf" path="res://scripts/data/conditional_bonus.gd" id="3_bonus"]
 [ext_resource type="Resource" path="res://data/statuses/status_root.tres" id="4_root"]
-[ext_resource type="Script" path="res://scripts/data/status_effect.gd" id="5_status"]
-
-[sub_resource type="Resource" id="always_roots"]
-script = ExtResource("3_bonus")
-target_statuses = Array[ExtResource("5_status")]([ExtResource("4_root")])
-description = "Roots the one it hits for 1 s."
+[ext_resource type="Script" uid="uid://cvwv2nrsbyrah" path="res://scripts/data/stat_modifier.gd" id="5_l6117"]
+[ext_resource type="Script" uid="uid://b03uhk6wyab30" path="res://scripts/data/status_effect.gd" id="5_status"]
+[ext_resource type="Script" uid="uid://i3gtfaj3p111" path="res://scripts/data/damage_scaling.gd" id="8_bm512"]
 
 [sub_resource type="Resource" id="use_poke"]
 script = ExtResource("2_use")
@@ -19,6 +18,11 @@ weight = 1.1
 [sub_resource type="Resource" id="use_cc"]
 script = ExtResource("2_use")
 intent = &"cc"
+
+[sub_resource type="Resource" id="always_roots"]
+script = ExtResource("3_bonus")
+target_statuses = Array[ExtResource("5_status")]([ExtResource("4_root")])
+description = "Roots the one it hits for 1 s."
 
 [resource]
 script = ExtResource("1_script")
