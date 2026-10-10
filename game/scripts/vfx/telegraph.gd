@@ -139,6 +139,15 @@ func is_driven() -> bool:
 	return _driven
 
 
+## The color it draws in: its own color, except that the threat color follows
+## the active ThreatPalette (EXPERIMENT, FEEL2 Slice C; none active = today's
+## THREAT_COLOR). A telegraph tinted by its ability keeps its tint.
+func get_draw_color() -> Color:
+	if color == THREAT_COLOR and ThreatPalette.active != null:
+		return ThreatPalette.active.threat_color
+	return color
+
+
 ## 0..1: how full the telegraph is: its cast's progress when driven
 ## (set_progress(); read during a physics frame it's the exact value, while
 ## drawing it's interpolated between the last two ticks), else its own clock.
@@ -161,6 +170,7 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
+	var shown := get_draw_color()
 	if line_vector != Vector2.ZERO:
 		_draw_line_shape()
 		return
@@ -168,38 +178,40 @@ func _draw() -> void:
 		_draw_cone_shape()
 		return
 	if _finishing:
-		draw_circle(Vector2.ZERO, radius_px, Color(color, 0.6 * clampf(_flash / 0.12, 0.0, 1.0)))
+		draw_circle(Vector2.ZERO, radius_px, Color(shown, 0.6 * clampf(_flash / 0.12, 0.0, 1.0)))
 		return
-	draw_circle(Vector2.ZERO, radius_px, Color(color, 0.12))
-	draw_circle(Vector2.ZERO, radius_px * get_progress(), Color(color, 0.35))
-	draw_arc(Vector2.ZERO, radius_px, 0.0, TAU, 48, Color(color, 0.9), 1.0)
+	draw_circle(Vector2.ZERO, radius_px, Color(shown, 0.12))
+	draw_circle(Vector2.ZERO, radius_px * get_progress(), Color(shown, 0.35))
+	draw_arc(Vector2.ZERO, radius_px, 0.0, TAU, 48, Color(shown, 0.9), 1.0)
 
 
 ## The line: a band from the start, the fill growing along it.
 func _draw_line_shape() -> void:
+	var shown := get_draw_color()
 	if _finishing:
-		draw_colored_polygon(_band(1.0), Color(color, 0.6 * clampf(_flash / 0.12, 0.0, 1.0)))
+		draw_colored_polygon(_band(1.0), Color(shown, 0.6 * clampf(_flash / 0.12, 0.0, 1.0)))
 		return
-	draw_colored_polygon(_band(1.0), Color(color, 0.12))
+	draw_colored_polygon(_band(1.0), Color(shown, 0.12))
 	if get_progress() > 0.0:
-		draw_colored_polygon(_band(get_progress()), Color(color, 0.35))
+		draw_colored_polygon(_band(get_progress()), Color(shown, 0.35))
 	var outline := _band(1.0)
 	outline.append(outline[0])
-	draw_polyline(outline, Color(color, 0.9), 1.0)
+	draw_polyline(outline, Color(shown, 0.9), 1.0)
 
 
 ## The cone: a fan from its origin, the fill growing outward.
 func _draw_cone_shape() -> void:
+	var shown := get_draw_color()
 	if _finishing:
-		draw_colored_polygon(_fan(radius_px), Color(color, 0.6 * clampf(_flash / 0.12, 0.0, 1.0)))
+		draw_colored_polygon(_fan(radius_px), Color(shown, 0.6 * clampf(_flash / 0.12, 0.0, 1.0)))
 		return
-	draw_colored_polygon(_fan(radius_px), Color(color, 0.12))
+	draw_colored_polygon(_fan(radius_px), Color(shown, 0.12))
 	var filled := radius_px * get_progress()
 	if filled >= 1.0:   # a fan smaller than a pixel can't be drawn
-		draw_colored_polygon(_fan(filled), Color(color, 0.35))
+		draw_colored_polygon(_fan(filled), Color(shown, 0.35))
 	var outline := _fan(radius_px)
 	outline.append(outline[0])
-	draw_polyline(outline, Color(color, 0.9), 1.0)
+	draw_polyline(outline, Color(shown, 0.9), 1.0)
 
 
 ## The fan's points out to `r` px (local): the origin, then the arc.

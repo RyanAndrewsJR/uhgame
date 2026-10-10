@@ -12,6 +12,10 @@ extends Node2D
 ## REPORT lines: the shake left at each hitstop tier's end under presets 1
 ## and 2, and the model's yaw error at the first swing's hit at turn rates 20
 ## and 45. Real hitstops run here (60-80 ms each).
+## Slice C: the threat palettes (palette 1 and none are today; the floor
+## color and the glyph's look per palette; a tinted telegraph keeps its tint;
+## no timing or shape changes) and the pose lean scale (1 = today; 2 doubles
+## the lean angle and nothing else), and their sandbox keys.
 ## Prints PASS/FAIL per check, then a total.
 ## Run headless and it quits with the number of failures as the exit code.
 
@@ -43,6 +47,10 @@ func _ready() -> void:
 	await _test_hitstop_and_buffer()
 	await _test_turning()
 	_test_presets_and_restore()
+	_test_palettes()
+	_test_glyph()
+	_test_lean_scale()
+	_test_sandbox_palette_and_lean()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -456,6 +464,161 @@ func _test_presets_and_restore() -> void:
 		orders[str(s.shown_order)] = true
 		s.free()
 	_check("the shown order is shuffled per session (12 sessions, more than one order)", orders.size() > 1, true)
+
+
+# --- Slice C: telegraph clarity ---------------------------------------------------------
+
+func _test_palettes() -> void:
+	_section("Slice C: threat palettes, the floor telegraph")
+	var today := SandboxFeel.PALETTES[0]
+	var overlay := ScreenOverlay.new()
+	_check("shipped: no palette set (today's built-ins)", ThreatPalette.active, null)
+	_check("palette 1 is today: the threat color and the glyph's color, outline and size, steady",
+		[today.threat_color, today.glyph_color, today.glyph_outline_color, today.glyph_outline_size, today.glyph_pulse_hz],
+		[Telegraph.THREAT_COLOR, overlay.perilous_icon_color, overlay.perilous_icon_outline_color, overlay.perilous_icon_outline_size, 0.0])
+	overlay.free()
+	var amber := SandboxFeel.PALETTES[1]
+	var violet := SandboxFeel.PALETTES[2]
+	_check("palette 2: an amber-orange floor (1, 0.55, 0.1); a white glyph, a thick red outline, a pulse",
+		[amber.threat_color, amber.glyph_color, amber.glyph_outline_color, amber.glyph_outline_size, amber.glyph_pulse_hz > 0.0],
+		[Color(1.0, 0.55, 0.1), Color.WHITE, Color(0.95, 0.12, 0.1, 1.0), 8, true])
+	_check("palette 3: today's floor; a violet-magenta glyph with the same pulse",
+		[violet.threat_color, violet.glyph_color.b > violet.glyph_color.g and violet.glyph_color.r > violet.glyph_color.g, violet.glyph_pulse_hz],
+		[Telegraph.THREAT_COLOR, true, amber.glyph_pulse_hz])
+	var threat := Telegraph.new()
+	var tinted := Telegraph.new()
+	tinted.color = Color(0.3, 0.7, 1.0)
+	var radius := threat.radius_px
+	var duration := threat.duration
+	var shown := []
+	for p: Variant in [null, today, amber, violet]:
+		ThreatPalette.active = p
+		shown.append(threat.get_draw_color())
+		_check("a tinted telegraph keeps its own tint (%s)" % (p.display_name if p else "none"), tinted.get_draw_color(), Color(0.3, 0.7, 1.0))
+	ThreatPalette.active = null
+	_check("the threat telegraph draws in: none / 1 today, 2 amber, 3 today",
+		shown, [Telegraph.THREAT_COLOR, Telegraph.THREAT_COLOR, Color(1.0, 0.55, 0.1), Telegraph.THREAT_COLOR])
+	_check("no timing or shape changes (its radius and duration as made)", [threat.radius_px, threat.duration, threat.color], [radius, duration, Telegraph.THREAT_COLOR])
+	var names := []
+	for prop in ThreatPalette.new().get_property_list():
+		if int(prop["usage"]) & PROPERTY_USAGE_EDITOR and String(prop["name"]) != "resource_name" and String(prop["name"]) != "resource_path" and String(prop["name"]) != "resource_local_to_scene":
+			names.append(String(prop["name"]))
+	_check("a palette holds only looks: no time, size or shape of a telegraph",
+		names.filter(func(n: String) -> bool: return n.contains("time") or n.contains("radius") or n.contains("duration") or n.contains("width")), [])
+	threat.free()
+	tinted.free()
+
+
+func _test_glyph() -> void:
+	_section("Slice C: threat palettes, the perilous glyph")
+	var overlay := ScreenOverlay.new()
+	add_child(overlay)
+	overlay.show_perilous_icon(_slime)
+	var label := overlay.get_perilous_icon(_slime)
+	_check("today: red, a 4 px black outline, full", [label.get_theme_color(&"font_color"), label.get_theme_color(&"font_outline_color"),
+		label.get_theme_constant(&"outline_size"), label.modulate.a], [Color(0.95, 0.12, 0.1, 1.0), Color(0, 0, 0, 1), 4, 1.0])
+	overlay._update_icons(0.2)
+	_check("today: steady 0.2 s in", label.modulate.a, 1.0)
+	ThreatPalette.active = SandboxFeel.PALETTES[1]
+	overlay._update_icons(0.0)
+	_check("palette 2: white, an 8 px red outline", [label.get_theme_color(&"font_color"), label.get_theme_color(&"font_outline_color"),
+		label.get_theme_constant(&"outline_size")], [Color.WHITE, Color(0.95, 0.12, 0.1, 1.0), 8])
+	_check_near("palette 2: half a pulse in (0.2 s at 2.5 Hz): its lowest alpha", label.modulate.a, SandboxFeel.PALETTES[1].glyph_pulse_min_alpha, 0.001)
+	_check("the icon's time doesn't change (0.4 s)", overlay.perilous_icon_time, 0.4)
+	overlay._update_icons(0.19)   # not the full 0.2 s: at 0.4 s the icon goes
+	_check_near("nearly a whole pulse in (0.39 s): nearly full again", label.modulate.a, 1.0, 0.01)
+	ThreatPalette.active = SandboxFeel.PALETTES[2]
+	overlay.show_perilous_icon(_slime)
+	_check("palette 3: violet-magenta, a 4 px black outline", [label.get_theme_color(&"font_color"), label.get_theme_constant(&"outline_size")],
+		[SandboxFeel.PALETTES[2].glyph_color, 4])
+	ThreatPalette.active = null
+	overlay._update_icons(0.0)
+	_check("none set again: today's look", [label.get_theme_color(&"font_color"), label.modulate.a], [Color(0.95, 0.12, 0.1, 1.0), 1.0])
+	overlay.free()
+
+
+func _test_lean_scale() -> void:
+	_section("Slice C: the pose lean scale")
+	_check("shipped: 1", UnitView.pose_lean_scale, 1.0)
+	var view := WorldView.new()
+	add_child(view)
+	var target := Node3D.new()
+	view.add_child(target)
+	var cam := GameCamera3D.new()
+	cam.target = target
+	view.add_child(cam)
+	cam.make_current()
+	view.camera = cam
+	view.watch_sim()
+	var brute := (load("res://scenes/enemies/test_brute.tscn") as PackedScene).instantiate() as Enemy
+	$Entities.add_child(brute)
+	_place(brute, Vector2(300.0, -400.0))
+	var bv := view.view_of(brute) as UnitView
+	var body := bv.find_child("Body", true, false) as Node3D if bv else null
+	var brain := brute.get_brain()
+	_check("a brute with a view, a capsule and a brain", [bv != null, body != null, brain != null], [true, true, true])
+	if bv == null or body == null or brain == null:
+		brute.free()
+		view.free()
+		return
+	brute.ai = Enemy.AI.AGGRO
+	brain.set(&"_pose", &"crouch")
+	for i in 40:
+		bv._process(0.02)
+	var at_1: Dictionary = bv.get_pose_look_now()
+	var squash_1 := body.scale
+	_check_near("scale 1 (today): crouch leans 15°", at_1["lean_deg"], 15.0, 0.05)
+	UnitView.pose_lean_scale = 2.0
+	for i in 40:
+		bv._process(0.02)
+	var at_2: Dictionary = bv.get_pose_look_now()
+	_check_near("scale 2: 30°, double", at_2["lean_deg"], 30.0, 0.05)
+	_check_near("the capsule tilts 30° about its base", body.rotation.x, deg_to_rad(30.0), 0.002)
+	_check("nothing else changes: the squash (0.8) and the rim", [absf(float(at_2["squash"]) - float(at_1["squash"])) < 0.001,
+		body.scale.is_equal_approx(squash_1), at_2["rim"]], [true, true, at_1["rim"]])
+	UnitView.pose_lean_scale = 0.5
+	for i in 40:
+		bv._process(0.02)
+	_check_near("scale 0.5: 7.5°", bv.get_pose_look_now()["lean_deg"], 7.5, 0.05)
+	UnitView.pose_lean_scale = 1.0
+	for i in 40:
+		bv._process(0.02)
+	_check_near("back to 1: 15°", bv.get_pose_look_now()["lean_deg"], 15.0, 0.05)
+	brain.set(&"_pose", &"")
+	brute.ai = Enemy.AI.IDLE
+	brute.free()
+	view.free()
+
+
+func _test_sandbox_palette_and_lean() -> void:
+	_section("Slice C: the sandbox's keys (F7, the N panel's lean row)")
+	var sandbox := SandboxFeel.new()
+	add_child(sandbox)
+	_check("before F7: none set", [sandbox.get_palette_number(), ThreatPalette.active], [0, null])
+	var numbers := []
+	for i in 4:
+		sandbox._unhandled_input(_key(KEY_F7))
+		numbers.append(sandbox.get_palette_number())
+	_check("F7 four times: 1, 2, 3, 1", numbers, [1, 2, 3, 1])
+	sandbox._unhandled_input(_key(KEY_F7))
+	_check("palette 2 active", ThreatPalette.active, SandboxFeel.PALETTES[1])
+	sandbox.free()
+	_check("leaving the sandbox: none set again", ThreatPalette.active, null)
+
+	var brains := SandboxBrains.new()
+	add_child(brains)
+	brains.set_panel(true)
+	var slider := brains.get(&"_lean_slider") as HSlider
+	_check("the N panel has the lean row (0.5-2, at 1)", [slider != null, slider.min_value if slider else 0.0, slider.max_value if slider else 0.0,
+		slider.value if slider else 0.0], [true, 0.5, 2.0, 1.0])
+	slider.value = 1.5
+	_check("moving it sets every pose's scale", UnitView.pose_lean_scale, 1.5)
+	brains.set_pose_lean_scale(5.0)
+	_check("clamped to 2", UnitView.pose_lean_scale, 2.0)
+	brains.set_pose_lean_scale(0.1)
+	_check("clamped to 0.5", UnitView.pose_lean_scale, 0.5)
+	brains.free()
+	_check("leaving the sandbox puts 1 back", UnitView.pose_lean_scale, 1.0)
 
 
 # --- Slice B helpers ------------------------------------------------------------------

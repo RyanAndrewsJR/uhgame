@@ -33,6 +33,10 @@ static var player_turn_rate: float = -1.0
 ## snaps its yaw to the swing's direction when a basic attack swing starts.
 ## Off = today.
 static var swing_yaw_snap: bool = false
+## EXPERIMENT (FEEL2 Slice C; SandboxBrains' panel, N): every pose's lean
+## angle x this (0.5-2), to test tell readability at the camera's distance.
+## 1 = today; the squash and the rim don't change.
+static var pose_lean_scale: float = 1.0
 
 @export_group("Base clips")
 ## The model's clips by role, as named in its AnimationPlayer (KayKit's names
@@ -739,7 +743,7 @@ func _target_pose_look() -> PoseLook:
 func _update_pose(delta: float) -> void:
 	var look := _target_pose_look()
 	var k := 1.0 - exp(-3.0 * delta / maxf(pose_blend_time, 0.001))
-	_pose_lean = lerpf(_pose_lean, look.lean_deg if look else 0.0, k)
+	_pose_lean = lerpf(_pose_lean, look.lean_deg * pose_lean_scale if look else 0.0, k)
 	_pose_squash = lerpf(_pose_squash, look.squash if look else 1.0, k)
 	_pose_rim = _pose_rim.lerp(look.rim_color if look else Color(_pose_rim, 0.0), k)
 	_pose_pulse_t += delta

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ThreatPalette" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/threat_palette.gd" id="1_palette"]
+
+[resource]
+script = ExtResource("1_palette")
+display_name = "2 amber floor, white glyph with a thick red outline, pulsing"
+threat_color = Color(1, 0.55, 0.1, 1)
+glyph_color = Color(1, 1, 1, 1)
+glyph_outline_color = Color(0.95, 0.12, 0.1, 1)
+glyph_outline_size = 8
+glyph_pulse_hz = 2.5

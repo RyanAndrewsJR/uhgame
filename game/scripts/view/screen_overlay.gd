@@ -28,6 +28,11 @@ const PROCESS_PRIORITY := 30
 ## art pass.
 @export var perilous_icon_text: String = "危"
 @export var perilous_icon_color: Color = Color(0.95, 0.12, 0.1, 1.0)
+## Its outline (FEEL2 Slice C made these data; today's black, 4 px). While a
+## ThreatPalette is active (the sandbox's F7) the palette's glyph look
+## replaces the color and these, and can pulse.
+@export var perilous_icon_outline_color: Color = Color(0, 0, 0, 1)
+@export var perilous_icon_outline_size: int = 4
 @export var perilous_icon_font_size: int = 22
 ## Its bottom sits this far above the top of its unit's model (canvas px;
 ## clear of the health bar).
@@ -79,9 +84,7 @@ func show_perilous_icon(unit: Unit) -> void:
 	label.name = "PerilousIcon"
 	label.text = perilous_icon_text
 	label.add_theme_font_size_override(&"font_size", perilous_icon_font_size)
-	label.add_theme_color_override(&"font_color", perilous_icon_color)
-	label.add_theme_color_override(&"font_outline_color", Color(0, 0, 0, 1))
-	label.add_theme_constant_override(&"outline_size", 4)
+	_style_icon(label, 0.0)
 	add_child(label)
 	_icons[unit] = {"label": label, "left": perilous_icon_time}
 	_place_icon(unit, _icons[unit])
@@ -217,9 +220,21 @@ func _update_icons(delta: float) -> void:
 		_place_icon(unit as Unit, entry)
 
 
+## The glyph's look `shown_for` seconds after it appeared: the active
+## ThreatPalette's (EXPERIMENT, FEEL2 Slice C), else the exports above,
+## steady (today).
+func _style_icon(label: Label, shown_for: float) -> void:
+	var palette := ThreatPalette.active
+	label.add_theme_color_override(&"font_color", palette.glyph_color if palette else perilous_icon_color)
+	label.add_theme_color_override(&"font_outline_color", palette.glyph_outline_color if palette else perilous_icon_outline_color)
+	label.add_theme_constant_override(&"outline_size", palette.glyph_outline_size if palette else perilous_icon_outline_size)
+	label.modulate.a = palette.get_glyph_alpha(shown_for) if palette else 1.0
+
+
 ## Centers the icon over `unit`'s head, perilous_icon_gap_px above its model.
 func _place_icon(unit: Unit, entry: Dictionary) -> void:
 	var label: Label = entry["label"]
+	_style_icon(label, perilous_icon_time - float(entry["left"]))
 	var head := point_over(unit, 1.0)
 	if camera == null or camera.is_position_behind(head):
 		label.visible = false

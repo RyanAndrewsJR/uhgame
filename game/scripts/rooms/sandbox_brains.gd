@@ -55,6 +55,9 @@ extends Node
 ## follow-through), a missed step's carry-on, the blind read; the panel its
 ## three new sliders (follow_through, combo_greed, mixup). ARCHETYPES AR1a:
 ## the overlay's string line (its hit, its length, the next hit's time).
+## EXPERIMENT (FEEL2 Slice C): the panel's "pose lean x" row scales every
+## pose's lean angle (UnitView.pose_lean_scale, 0.5-2, 1 = today), put back
+## when the sandbox leaves.
 ## It never touches the player's saves. room_01 has none of this.
 
 const TEXT_COLOR := Color(0.92, 0.92, 0.92)
@@ -163,6 +166,7 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	_temp_test_exit()
+	_feel_exit()
 
 
 func _on_entity(node: Node) -> void:
@@ -700,6 +704,7 @@ func _build_panel() -> void:
 		list.add_child(row)
 		_rows[slider] = {"slider": s, "value": value_label}
 	_build_temp_test_rows(box)   # TEMP
+	_build_feel_rows(box)   # EXPERIMENT (FEEL2)
 	_status_label = _small_label("")
 	_status_label.add_theme_color_override("font_color", HINT_COLOR)
 	box.add_child(_status_label)
@@ -738,6 +743,7 @@ func _sync_panel() -> void:
 		for slider: StringName in _rows:
 			(_rows[slider].slider as HSlider).value = get_slider_base(enemy, slider)
 	_sync_temp_test_rows()   # TEMP
+	_sync_feel_rows()   # EXPERIMENT (FEEL2)
 	_syncing = false
 	_status_label.text = _status
 	_update_panel_values()
@@ -1064,3 +1070,62 @@ func _sync_temp_test_rows() -> void:
 	_temp_slider.value = mult
 	_temp_keep_dps.button_pressed = AutoAttackComponent.enemy_attack_test_keep_dps
 	_temp_value.text = "x%.2f%s" % [mult, " (off)" if mult == 1.0 else " every enemy"]
+
+
+# --- EXPERIMENT (FEEL2 Slice C): the pose lean scale row ---------------------------------
+# Every pose's lean angle x UnitView.pose_lean_scale (0.5-2, 1 = today), to
+# test tell readability at the real camera distance. Put back on exit.
+
+const POSE_LEAN_SCALE_MIN := 0.5
+const POSE_LEAN_SCALE_MAX := 2.0
+
+var _lean_slider: HSlider
+var _lean_value: Label
+var _lean_found: float = NAN   # the scale before this sandbox's first edit
+
+
+func get_pose_lean_scale() -> float:
+	return UnitView.pose_lean_scale
+
+
+## Sets every pose's lean scale (clamped to 0.5-2), live.
+func set_pose_lean_scale(value: float) -> void:
+	if is_nan(_lean_found):
+		_lean_found = UnitView.pose_lean_scale
+	UnitView.pose_lean_scale = clampf(value, POSE_LEAN_SCALE_MIN, POSE_LEAN_SCALE_MAX)
+	_status = "Pose lean x%.2f (every pose)" % UnitView.pose_lean_scale
+	_sync_panel()
+
+
+func _feel_exit() -> void:
+	if not is_nan(_lean_found):
+		UnitView.pose_lean_scale = _lean_found
+
+
+func _build_feel_rows(box: VBoxContainer) -> void:
+	var row := HBoxContainer.new()
+	var name_label := _small_label("pose lean x")
+	name_label.custom_minimum_size = Vector2(72, 0)
+	row.add_child(name_label)
+	_lean_slider = HSlider.new()
+	_lean_slider.min_value = POSE_LEAN_SCALE_MIN
+	_lean_slider.max_value = POSE_LEAN_SCALE_MAX
+	_lean_slider.step = 0.05
+	_lean_slider.custom_minimum_size = Vector2(80, 10)
+	_lean_slider.scrollable = false
+	_lean_slider.value_changed.connect(func(v: float) -> void:
+		if not _syncing:
+			set_pose_lean_scale(v))
+	row.add_child(_lean_slider)
+	_lean_value = _small_label("")
+	_lean_value.custom_minimum_size = Vector2(90, 0)
+	row.add_child(_lean_value)
+	box.add_child(row)
+
+
+## Called by _sync_panel() while _syncing is set.
+func _sync_feel_rows() -> void:
+	if _lean_slider == null:
+		return
+	_lean_slider.value = UnitView.pose_lean_scale
+	_lean_value.text = "x%.2f%s" % [UnitView.pose_lean_scale, " (today)" if UnitView.pose_lean_scale == 1.0 else ""]

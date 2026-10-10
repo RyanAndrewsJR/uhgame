@@ -10,6 +10,11 @@
 - Play tests closed 2026-09-30 (Ryan), though their entries below still say "awaiting": the audit cleanup pass (2026-09-29), Feel pass F1–F4, AUDIO A3, AB13, "a swing counts once its hit has landed", COMBAT C9–C12, STATS steps 5–6. COMBAT C8 (crits and on-hit) wasn't in that round and stays open. (Moved from CLAUDE.md, 2026-10-08.)
 - Entries up to 2026-09-27 were moved here word for word from the system docs.
 
+## Combat feel (FEEL2, EXPERIMENT)
+
+### FEEL2, the combat advisor's first feel pass: 2026-10-09, Built (awaiting Ryan's play test; three local commits, not pushed)
+- Latency probe and press flash (F9 / Shift+F9), blind feel presets (F10), threat palettes (F7) and the pose lean scale (N panel), all off in shipped config. Windowed sandbox at 180 Hz, V-Sync on, 48 injected presses: event→tick 6.9 / 9.8 / 11.1 ms (mean / p95 / max), tick→frame 4.7 / 5.2 / 6.1, event→frame 11.6 / 13.5 / 16.2. Shake left at the hitstop's end, preset 1 → 2: heavy 0.2 → 2.0 px, kill 0.6 → 3.0 px. Model off the swing at the first swing's hit (5 view ticks), 90° / 180° turns: 17.0° / 34.0° at turn rate 20, 2.1° / 4.2° at 45. **Results:** 4,337/4,337: feel 114 (new); stats 206, audio 110, view 474, talents 310, champions 238, deflect 207, loot 750, combat 510, abilities 593, brain_golden 144 (golden files unchanged), enemies 681; no GDScript warnings (feel and stats with `-d`).
+
 ## Archetypes (ARCHETYPES.md)
 
 ### AR4, weak basic attacks: 2026-10-09, Passed (Ryan's play test, 2026-10-09; committed e050bff)

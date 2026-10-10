@@ -14,11 +14,23 @@ extends Node
 ##             today's feel and shows nothing.
 ##   Shift+F10 prints which shown number is which preset (the console only)
 ##   Ctrl+F10  the swing yaw snap on/off (UnitView.swing_yaw_snap; in no preset)
+##   F7        the next threat palette, named (ThreatPalette; the files in
+##             res://data/threat_palettes/): 1 today, 2 amber floor and a
+##             white glyph with a thick red outline, pulsing, 3 today's floor
+##             and a violet-magenta glyph, pulsing. Before the first F7 none is
+##             set (today's built-ins). The lean scale is on SandboxBrains' N
+##             panel.
 ## Leaving the sandbox puts every value back as it found it. It never
 ## touches the player's saves, and does nothing in a test scene unless a
 ## test calls it.
 
 ## The presets in their true order: 1 = today, exactly.
+## The threat palettes: 1 = today, exactly.
+const PALETTES: Array[ThreatPalette] = [
+	preload("res://data/threat_palettes/threat_palette_today.tres"),
+	preload("res://data/threat_palettes/threat_palette_amber.tres"),
+	preload("res://data/threat_palettes/threat_palette_violet.tres"),
+]
 const PRESETS: Array[FeelPreset] = [
 	preload("res://data/feel_presets/feel_preset_today.tres"),
 	preload("res://data/feel_presets/feel_preset_shake_turn.tres"),
@@ -36,6 +48,8 @@ var shown_order: Array[int] = [0, 1, 2]
 var _shown := -1   # the shown number's index now; -1 = none (today, untouched)
 var _found: FeelPreset   # the values as found, put back on exit
 var _found_snap := false
+var _found_palette: ThreatPalette = null
+var _palette := -1   # the palette index now; -1 = none set (today)
 var _label_layer: CanvasLayer
 var _label: Label
 
@@ -45,6 +59,7 @@ func _ready() -> void:
 	add_child(probe)
 	_found = FeelPreset.capture(look, feel)
 	_found_snap = UnitView.swing_yaw_snap
+	_found_palette = ThreatPalette.active
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
 	for i in range(shown_order.size() - 1, 0, -1):   # Fisher-Yates
@@ -67,7 +82,7 @@ func _ready() -> void:
 	_label_layer.add_child(_label)
 	if Progress.is_test_scene():
 		return
-	print("SandboxFeel: F9 latency probe, Shift+F9 press flash, F10 next feel preset (blind), Shift+F10 print the mapping, Ctrl+F10 swing yaw snap")
+	print("SandboxFeel: F9 latency probe, Shift+F9 press flash, F10 next feel preset (blind), Shift+F10 print the mapping, Ctrl+F10 swing yaw snap, F7 next threat palette")
 
 
 func _exit_tree() -> void:
@@ -91,6 +106,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				print_mapping()
 			else:
 				next_preset()
+		KEY_F7:
+			next_palette()
 		_:
 			return
 	get_viewport().set_input_as_handled()
@@ -148,11 +165,28 @@ func set_swing_yaw_snap(on: bool) -> void:
 	print("SandboxFeel: swing yaw snap %s" % ("ON" if on else "off"))
 
 
+# --- Slice C: threat palettes ----------------------------------------------------------
+
+## Sets the next palette (1, 2, 3, 1...); returns its number (1-3).
+func next_palette() -> int:
+	_palette = (_palette + 1) % PALETTES.size()
+	ThreatPalette.active = PALETTES[_palette]
+	print("SandboxFeel: threat palette %s" % PALETTES[_palette].display_name)
+	return _palette + 1
+
+
+## The palette's number now (1-3), or 0 before the first F7.
+func get_palette_number() -> int:
+	return _palette + 1
+
+
 ## Puts back every value as the sandbox found it (on exit).
 func restore_found() -> void:
 	if _found != null:
 		_found.apply(look, feel)
 	UnitView.swing_yaw_snap = _found_snap
+	ThreatPalette.active = _found_palette
+	_palette = -1
 	_shown = -1
 	if _label != null:
 		_label.visible = false
