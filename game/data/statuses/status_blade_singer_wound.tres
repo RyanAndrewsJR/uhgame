@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="StatusEffect" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/status_effect.gd" id="1_status"]
+
+[resource]
+script = ExtResource("1_status")
+id = &"blade_singer_wound"
+display_name = "Blade Singer's wound"
+tags = Array[StringName]([&"blade_singer_wound", &"debuff"])
+duration = 4.0
+tick_interval = 0.5
+tick_damage = 10.0
+tick_ad_ratio = 0.175
+tick_damage_type = 0

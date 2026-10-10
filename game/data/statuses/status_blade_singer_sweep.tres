@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="StatusEffect" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/status_effect.gd" id="1_status"]
+[ext_resource type="Resource" path="res://data/augments/augment_blade_singer_sweep.tres" id="2_augment"]
+
+[resource]
+script = ExtResource("1_status")
+id = &"blade_singer_sweep"
+display_name = "Blade Singer: the sweep"
+tags = Array[StringName]([&"buff"])
+duration = 3.5
+stack_rule = 1
+augments = Array[Resource]([ExtResource("2_augment")])

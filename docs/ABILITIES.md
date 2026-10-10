@@ -649,7 +649,7 @@ Extra tunables: bounce_range 400 u, hits_for_recast 3, lunge_speed 3000 u/s, lun
 | A bounce target dies or turns untargetable in flight | The dagger ends there (as the old bounce projectile). |
 | The recast while rooted | "Rooted" (a dash: Roots); the window keeps running. |
 | Enemies that dodge (ENEMIES_AI.md, Dodging) | None: the dagger homes, like a UNIT cast. |
-| 6 Demise stacks | Q is the sweep for 3.5 s (next sheet), not the dagger (Ryan, 2026-10-09). |
+| 6 Demise stacks | Q is the sweep for 3.5 s (next sheet), not the dagger (Ryan, 2026-10-09). *Built in CHAMPIONS K5 (2026-10-10).* A dagger recast window still open keeps Q the dagger's recast (CHAMPIONS.md, K5). |
 
 ```
 Name / Champion / Slot / id: the sweep (a placeholder name) / Korsavil / Q, a REPLACE variant /
@@ -673,12 +673,15 @@ What it does, step by step:
   2. Effect start: removes every stack of status_demise (Ryan: it spends them) and status_blade_singer_sweep (so
      the slot is the dagger again).
   3. dash() 300 u toward the aim; then every enemy in a half circle of 350 u (112 px, 3.5 m, proposed) in front of
-     him along the lunge, in sight of where he stopped: 40 + 110% AD and the wound.
+     him along the lunge, in sight of where he stopped: 40 + 110% AD and the wound. K5 (proposed): also every enemy along
+     the lunge's path (his width, in sight of the path), each enemy once: one close in front is passed through.
 Supported augment flags: none yet
 Stunned mid-cast: interrupted and refunded; the 3.5 s keep running.
 Tooltip template (proposed): "Lunge forward and sweep in front of you, dealing {damage} physical damage and 20 + 35%
   AD physical damage a second for 4 seconds to every enemy hit. Spends your Inevitable Demise."
-Extra tunables: lunge_distance 300 u, arc_radius 350 u.
+Extra tunables: lunge_distance 300 u, arc_radius 350 u. K5: lunge_speed 2000 u/s (proposed), arc_radius 350 u,
+  arc_half_angle_deg 90; the lunge's length is cast_range (300 u), no lunge_distance; demise_status_id and
+  window_status_id (the stacks and the window it spends). Its REPLACE: augment_blade_singer_sweep.tres.
 ```
 
 ```
@@ -1411,7 +1414,7 @@ Not build steps. Each is data once 2+ kits use it (Data or script, above).
   - **An empower damage type** (K10): `empower_damage_type` above; the layer note's payoff is TRUE.
   - **An ability hit that counts as a basic attack** (R's cuts, K8): `hit_units()` takes extra hit tags (proposed: an `extra_tags` argument), and R's cuts carry `basic_attack` beside `ability`: on-hit, `life_steal` and `hit:basic_attack` scopes treat the cut as one; what reads a swing (empowers, the chain's count, weak basic attacks) doesn't see it.
   - **Energy on a swing that lands** (the chain's swing 4, K3): **Built in CHAMPIONS K3 (2026-10-10).** `AttackSwing.resource_on_land` (0): restored once when that swing hits anything, however many it hits.
-  - **A passive's stack-count hook** (K3, K5): a one-off in Korsavil's passive script (a `Passive` subclass): when `status_demise` goes from under 4 to 4 or more, `empower_demise`; from under 6 to 6, `status_blade_singer_sweep`. The built rules can't see a count crossing a line.
+  - **A passive's stack-count hook** (K3, K5): **Built in CHAMPIONS K3; its 6 in K5 (2026-10-10).** A one-off in Korsavil's passive script (a `Passive` subclass): when `status_demise` goes from under 4 to 4 or more, `empower_demise`; from under 6 to 6, `status_blade_singer_sweep`. The built rules can't see a count crossing a line.
   - **R's daggers and its Sentenced pick** (K8): one kit, so one-offs in `reckoning.gd`: the 4 nearest enemies in his sight, extras on the nearest again; each cut's blink target, the Sentenced enemy nearest the cursor.
 - **The Vampyr Shade's pieces** (ENEMIES_AI.md, The Vampyr Shade; Ryan's board, 2026-10-09). *(proposed; built in its AI-V steps)*:
   - **The Condition kind `SELF_BEHIND_TARGET`** (Conditions, above): its Blink's +40 from behind as a `ConditionalBonus`. Usable by any kit with a backstab.

@@ -19,7 +19,7 @@ extends Ability
 ## lunge_ad_ratio) on it if it's within lunge_hit_reach. The lodged dagger
 ## comes out (the status goes). The lunge is a dash, so a root refuses its
 ## press ("Rooted"); the throw doesn't move him and isn't refused.
-## The 6-stack sweep is a REPLACE variant (K5).
+## The 6-stack sweep is a REPLACE variant (blade_singer_sweep.gd, K5).
 
 ## The lodged dagger on the last enemy hit (status_lodged_dagger).
 @export var lodged_status: StatusEffect

@@ -92,6 +92,11 @@ const PASSIVE_KORSAVIL_SCRIPT: Script = preload("res://scripts/abilities/korsavi
 const BLADE_SINGER: Ability = preload("res://data/abilities/korsavil_q_blade_singer.tres")
 const STATUS_LODGED: StatusEffect = preload("res://data/statuses/status_lodged_dagger.tres")
 const STATUS_ROOT: StatusEffect = preload("res://data/statuses/status_root.tres")
+const BLADE_SINGER_SWEEP: Ability = preload("res://data/abilities/korsavil_q_blade_singer_sweep.tres")
+const STATUS_SWEEP: StatusEffect = preload("res://data/statuses/status_blade_singer_sweep.tres")
+const STATUS_WOUND: StatusEffect = preload("res://data/statuses/status_blade_singer_wound.tres")
+const AUGMENT_SWEEP: AbilityAugment = preload("res://data/augments/augment_blade_singer_sweep.tres")
+const STATUS_STUN: StatusEffect = preload("res://data/statuses/status_stun.tres")
 
 const MANA := ResourceComponent.ResourceType.MANA
 const FURY := ResourceComponent.ResourceType.FURY
@@ -147,6 +152,11 @@ func _ready() -> void:
 	await _test_blade_singer_short_chain()
 	await _test_blade_singer_lodged_dies()
 	await _test_blade_singer_rooted()
+	_test_blade_singer_sweep_data()
+	await _test_blade_singer_sweep_window()
+	await _test_blade_singer_sweep_cast()
+	await _test_blade_singer_sweep_refusals()
+	await _test_blade_singer_sweep_during_recast()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -918,9 +928,10 @@ func _test_korsavil_data() -> void:
 	_check("the passive (K3): the FLAT +1 dash_charges (until AR5) and the Demise rule, no other pieces",
 		[mods, p.stat_scalings.size(), p.reaction_rules == [RULE_DEMISE], p.statuses.size(), p.augments.size()],
 		[[[&"dash_charges", StatModifier.Type.FLAT, 1.0, &""]], 0, true, 0, 0])
-	_check("its script: passive_korsavil.gd watching status_demise, the empower at 4, no sweep until K5",
-		[p.get_script() == PASSIVE_KORSAVIL_SCRIPT, p.get("demise_status") == STATUS_DEMISE_V2, p.get("empower_status") == EMPOWER_DEMISE, p.get("empower_at"), p.get("sweep_status")],
-		[true, true, true, 4, null])
+	_check("its script: passive_korsavil.gd watching status_demise, the empower at 4, Q's sweep window at 6 (K5)",
+		[p.get_script() == PASSIVE_KORSAVIL_SCRIPT, p.get("demise_status") == STATUS_DEMISE_V2, p.get("empower_status") == EMPOWER_DEMISE, p.get("empower_at"),
+			p.get("sweep_status") == STATUS_SWEEP, p.get("sweep_at")],
+		[true, true, true, 4, true, 6])
 	_check("combo: combo_korsavil.tres, MELEE, 4 swings (K3: the chain), reset 0.6 s, no speed scale",
 		[KORSAVIL.combo == COMBO_KORSAVIL, COMBO_KORSAVIL.attack_style, COMBO_KORSAVIL.swings.size(), COMBO_KORSAVIL.combo_reset_time, COMBO_KORSAVIL.speed_scale],
 		[true, AttackCombo.AttackStyle.MELEE, 4, 0.6, 1.0])
@@ -1588,6 +1599,171 @@ func _test_blade_singer_rooted() -> void:
 	_check("rooted, the throw itself still goes (it doesn't move him)", k.abilities.try_cast(&"q", dummies[0].global_position, dummies[0]), true)
 	k.status_component.remove_status(&"root")
 	await _frames(60)
+	for d in dummies:
+		d.queue_free()
+	k.queue_free()
+	Audio.stop_all()
+	await _frames(10)
+
+
+func _test_blade_singer_sweep_data() -> void:
+	_section("K5: Q's 6-stack sweep (korsavil_q_blade_singer_sweep.tres), its window, its REPLACE and its wound (data)")
+	var s := BLADE_SINGER_SWEEP
+	_check("id, a variant of Blade Singer, tags core + dash + melee + area (it moves him: a root refuses it), DIRECTION, INSTANT, no recast",
+		[s.id, s.variant_of, _plain(s.tags), s.moves_caster(), s.targeting, s.cast_style, s.recast_count],
+		[&"korsavil_blade_singer_sweep", &"korsavil_blade_singer", [&"core", &"dash", &"melee", &"area"], true, Ability.Targeting.DIRECTION, Ability.CastStyle.INSTANT, 0])
+	_check("Q's 25 Energy and 11 s, its 0.15 s cast (rooted), the lunge 300 u at 2000 u/s, a half circle of 350 u",
+		[s.resource_cost, s.cooldown, s.cast_time, s.roots_during_cast, s.cast_range, s.get("lunge_speed"), s.get("arc_radius"), s.get("arc_half_angle_deg")],
+		[25.0, 11.0, 0.15, true, 300.0, 2000.0, 350.0, 90.0])
+	var bonus: ConditionalBonus = s.conditional_bonuses[0] if s.conditional_bonuses.size() == 1 else null
+	_check("40 + 110% AD, PHYSICAL; one bonus with no conditions: the wound on each enemy hit",
+		[s.base_damage, s.ad_ratio, s.damage_type, bonus != null and bonus.conditions.is_empty(), bonus.target_statuses == [STATUS_WOUND] if bonus else false],
+		[40.0, 1.1, HitContext.DamageType.PHYSICAL, true, true])
+	_check("it spends status_demise's and its window's stacks (by id)", [s.get("demise_status_id"), s.get("window_status_id")], [STATUS_DEMISE_V2.id, STATUS_SWEEP.id])
+	_check("status_blade_singer_sweep: tag buff, 3.5 s (Ryan), REFRESH, one augment",
+		[STATUS_SWEEP.id, _plain(STATUS_SWEEP.tags), STATUS_SWEEP.duration, STATUS_SWEEP.stack_rule, STATUS_SWEEP.augments == [AUGMENT_SWEEP]],
+		[&"blade_singer_sweep", [&"buff"], 3.5, StatusEffect.StackRule.REFRESH, true])
+	_check("augment_blade_singer_sweep: a REPLACE of korsavil_blade_singer by the sweep",
+		[AUGMENT_SWEEP.id, AUGMENT_SWEEP.kind, AUGMENT_SWEEP.scope, AUGMENT_SWEEP.replacement == s],
+		[&"blade_singer_sweep", AbilityAugment.Kind.REPLACE, &"ability:korsavil_blade_singer", true])
+	var w := STATUS_WOUND
+	_check("status_blade_singer_wound: tags blade_singer_wound + debuff, 4 s, a tick every 0.5 s of 10 + 17.5% AD (20 + 35% AD a second), PHYSICAL, not cc",
+		[w.id, _plain(w.tags), w.duration, w.tick_interval, w.tick_damage, w.tick_ad_ratio, w.tick_damage_type, w.is_dot(), w.is_cc()],
+		[&"blade_singer_wound", [&"blade_singer_wound", &"debuff"], 4.0, 0.5, 10.0, 0.175, HitContext.DamageType.PHYSICAL, true, false])
+
+
+func _test_blade_singer_sweep_window() -> void:
+	_section("K5: reaching 6 Demise makes Q the sweep for 3.5 s; a gain at 6 doesn't restart it; unused, Q is the dagger again")
+	var k := await _spawn(false, KORSAVIL)
+	var sc := k.status_component
+	for i in 5:
+		sc.apply_status(STATUS_DEMISE_V2, k)
+	_check("5 stacks: Q is Blade Singer, no window", [k.abilities.get_ability(&"q") == BLADE_SINGER, sc.has_status(&"blade_singer_sweep")], [true, false])
+	sc.apply_status(STATUS_DEMISE_V2, k)
+	_check("the 6th: the window on for 3.5 s, Q casts the sweep (the slot's own ability unchanged), its augment active",
+		[sc.has_status(&"blade_singer_sweep"), sc.get_time_left(&"blade_singer_sweep"), k.abilities.get_ability(&"q") == BLADE_SINGER_SWEEP,
+			k.abilities.get_base_ability(&"q") == BLADE_SINGER, k.abilities.get_augments(&"q").map(func(a: AbilityAugment) -> StringName: return a.id)],
+		[true, 3.5, true, true, [&"blade_singer_sweep"]])
+	_check("the sweep's tooltip ends with its augment's line",
+		BLADE_SINGER_SWEEP.get_tooltip_plain(k).ends_with(AUGMENT_SWEEP.description), true)
+	await _frames(30)
+	sc.apply_status(STATUS_DEMISE_V2, k)
+	_check("a gain at 6 half a second later: still 6, the window not restarted", [sc.get_stacks(&"demise"), sc.get_time_left(&"blade_singer_sweep") < 3.2], [6, true])
+	await _wait_until(func() -> bool: return not sc.has_status(&"blade_singer_sweep"), 300)
+	_check("the 3.5 s out unused: no window, Q is the dagger again, the stacks kept (their own 6 s)",
+		[sc.has_status(&"blade_singer_sweep"), k.abilities.get_ability(&"q") == BLADE_SINGER, sc.get_stacks(&"demise")], [false, true, 6])
+	k.queue_free()
+	await _frames(1)
+
+
+func _test_blade_singer_sweep_cast() -> void:
+	_section("K5: the sweep: a 3 m lunge toward the aim, then 40 + 110% AD and the wound on every enemy in the half circle in front and along the lunge; it spends the stacks and the window")
+	var k := await _spawn(false, KORSAVIL)
+	_no_crits(k)
+	var start := k.global_position
+	# 0: in the lunge's path; 1, 2: in the half circle (ahead, to the side);
+	# 3: beyond it; 4: behind him; 5: beside the path, behind the half circle.
+	var offsets: Array[Vector2] = [Vector2(40, 0), Vector2(180, 0), Vector2(130, 80), Vector2(260, 0), Vector2(-60, 0), Vector2(40, -70)]
+	var dummies: Array[Enemy] = []
+	for o in offsets:
+		var d := _dummy(start + o)
+		d.stats_component.add_modifier(StatModifier.create(&"max_health", StatModifier.Type.FLAT, 5000.0, &"test_tough"))
+		dummies.append(d)
+	await _frames(1)
+	var sc := k.status_component
+	for i in 6:
+		sc.apply_status(STATUS_DEMISE_V2, k)
+	var hits: Array = []
+	var ticks := {}
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source != k:
+			return
+		var i := dummies.find(ctx.target)
+		if ctx.ability == BLADE_SINGER_SWEEP:
+			hits.append([i, roundi(ctx.raw_damage)])
+		elif ctx.has_tag(&"blade_singer_wound"):
+			ticks[i] = ticks.get(i, 0.0) + ctx.raw_damage
+	Events.unit_hit.connect(on_hit)
+	_check("Q pressed toward the right: the sweep casts, 25 Energy spent",
+		[k.abilities.try_cast(&"q", start + Vector2(300, 0)), k.abilities.get_cast_ability() == BLADE_SINGER_SWEEP, k.resource_pool.current], [true, true, 75.0])
+	await _wait_until(func() -> bool: return not k.abilities.casting, 120)
+	hits.sort()
+	_check_near("he lunged 3 m (96 px) to the right", k.global_position.distance_to(start + Vector2(96, 0)), 0.0, 2.0)
+	_check("106 raw (40 + 110% of 60 AD) on the one he cut through and the two in the half circle; none beyond it, behind him or beside the path",
+		hits, [[0, 106], [1, 106], [2, 106]])
+	_check("the wound on those three only",
+		dummies.map(func(d: Enemy) -> bool: return d.status_component.has_status(&"blade_singer_wound")), [true, true, true, false, false, false])
+	_check("spent: no Demise, no window, Q is the dagger again; the 11 s cooldown runs",
+		[sc.has_status(&"demise"), sc.has_status(&"blade_singer_sweep"), k.abilities.get_ability(&"q") == BLADE_SINGER, k.abilities.get_cooldown_left(&"q") > 10.5],
+		[false, false, true, true])
+	await _wait_until(func() -> bool: return not dummies[0].status_component.has_status(&"blade_singer_wound"), 320)
+	await _frames(2)
+	Events.unit_hit.disconnect(on_hit)
+	_check("the wound: 8 ticks of 20.5 over 4 s, 164 raw on each of the three (41 a second at 60 AD)",
+		[snappedf(ticks.get(0, 0.0), 0.01), snappedf(ticks.get(1, 0.0), 0.01), snappedf(ticks.get(2, 0.0), 0.01), ticks.size()], [164.0, 164.0, 164.0, 3])
+	for d in dummies:
+		d.queue_free()
+	k.queue_free()
+	Audio.stop_all()
+	await _frames(10)
+
+
+func _test_blade_singer_sweep_refusals() -> void:
+	_section("K5: the sweep needs Q off cooldown, refuses a root (\"Rooted\"), and a stun in its cast time refunds it with the window kept")
+	var k := await _spawn(false, KORSAVIL)
+	var sc := k.status_component
+	for i in 6:
+		sc.apply_status(STATUS_DEMISE_V2, k)
+	k.abilities.try_cast(&"q", k.global_position + Vector2(300, 0))
+	await _wait_until(func() -> bool: return not k.abilities.casting, 120)
+	for i in 6:
+		sc.apply_status(STATUS_DEMISE_V2, k)
+	_check("6 again with Q on its cooldown: Q is the sweep, but the press refused (not ready)",
+		[k.abilities.get_ability(&"q") == BLADE_SINGER_SWEEP, k.abilities.get_fail_reason(&"q"), k.abilities.try_cast(&"q", k.global_position + Vector2(300, 0))],
+		[true, "not ready", false])
+	await _wait_until(func() -> bool: return not sc.has_status(&"blade_singer_sweep"), 300)
+	_check("its 3.5 s out: lost; Q the dagger, still on its cooldown", [k.abilities.get_ability(&"q") == BLADE_SINGER, k.abilities.get_cooldown_left(&"q") > 0.0], [true, true])
+	k.abilities.reset_cooldown(&"q")
+	sc.remove_status(&"demise")
+	for i in 6:
+		sc.apply_status(STATUS_DEMISE_V2, k)
+	k.status_component.apply_status(STATUS_ROOT, k)
+	_check("rooted: the press refused, \"Rooted\"; the window and the stacks kept",
+		[k.abilities.get_fail_reason(&"q", k.global_position + Vector2(300, 0)), k.abilities.try_cast(&"q", k.global_position + Vector2(300, 0)), sc.has_status(&"blade_singer_sweep"), sc.get_stacks(&"demise")],
+		["condition", false, true, 6])
+	k.status_component.remove_status(&"root")
+	var energy := k.resource_pool.current
+	_check("the root gone: the sweep starts", k.abilities.try_cast(&"q", k.global_position + Vector2(300, 0)), true)
+	await _frames(2)
+	k.status_component.apply_status(STATUS_STUN, k)
+	await _frames(2)
+	_check("stunned in its 0.15 s: interrupted, the Energy and the cooldown refunded, the window and the stacks kept, Q still the sweep",
+		[k.abilities.casting, k.resource_pool.current >= energy, k.abilities.get_cooldown_left(&"q"), sc.has_status(&"blade_singer_sweep"), sc.get_stacks(&"demise"), k.abilities.get_ability(&"q") == BLADE_SINGER_SWEEP],
+		[false, true, 0.0, true, 6, true])
+	k.status_component.remove_status(&"stun")
+	k.queue_free()
+	Audio.stop_all()
+	await _frames(10)
+
+
+func _test_blade_singer_sweep_during_recast() -> void:
+	_section("K5: 6 stacks while the dagger's recast window is open: Q's press is still the lunge (a sequence keeps its ability), so the sweep then waits on Q's cooldown")
+	var k := await _spawn(false, KORSAVIL)
+	_no_crits(k)
+	var dummies := _row_of_dummies(k, 3)
+	await _frames(1)
+	var sc := k.status_component
+	k.abilities.try_cast(&"q", dummies[0].global_position, dummies[0])
+	await _wait_until(func() -> bool: return dummies[2].status_component.has_status(&"lodged_dagger"), 240)
+	for i in 6:
+		sc.apply_status(STATUS_DEMISE_V2, k)
+	_check("the window on, but Q's press is Blade Singer's recast (part 1)",
+		[sc.has_status(&"blade_singer_sweep"), k.abilities.get_ability(&"q") == BLADE_SINGER, k.abilities.get_recast_part(&"q")], [true, true, 1])
+	_check("the press: the lunge", k.abilities.try_cast(&"q", k.global_position), true)
+	await _wait_until(func() -> bool: return k.abilities.get_recast_part(&"q") == 0 and not k.abilities.casting, 120)
+	await _frames(2)
+	_check("after it: Q is the sweep, on the 11 s cooldown the lunge started: refused (not ready); the stacks kept",
+		[k.abilities.get_ability(&"q") == BLADE_SINGER_SWEEP, k.abilities.get_fail_reason(&"q"), sc.get_stacks(&"demise")], [true, "not ready", 6])
 	for d in dummies:
 		d.queue_free()
 	k.queue_free()

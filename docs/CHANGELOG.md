@@ -1444,7 +1444,22 @@ Combat test 450/450, stats test 172/172 (unchanged). A headless in-game check of
 
 ## Champions (CHAMPIONS.md)
 
-### K4 (Korsavil v2) – Q Blade Singer: the dagger and the recast lunge: 2026-10-10, Built (awaiting Ryan's play test)
+### K5 (Korsavil v2) – Q's 6-stack sweep: 2026-10-10, Built (awaiting Ryan's play test)
+Ryan passed and committed K4, then: "start K5".
+- **New:**
+  - `scripts/abilities/korsavil/blade_singer_sweep.gd` and `data/abilities/korsavil_q_blade_singer_sweep.tres` (id `korsavil_blade_singer_sweep`, `variant_of` `korsavil_blade_singer`, display "Sweep"; DIRECTION, 0.15 s rooted, 25 Energy, 11 s; tags core, dash, melee, area; the lunge `cast_range` 300 u at `lunge_speed` 2000 u/s; the half circle `arc_radius` 350 u, `arc_half_angle_deg` 90; 40 + 110% AD; one bonus with no conditions giving the wound). Its effect spends `status_demise` and its window by id, lunges, then hits the half circle in front of where he stops and the lunge's path, each enemy once; its own indicator (the line and the half circle) and effect area (the half circle at the lunge's end).
+  - `data/statuses/status_blade_singer_sweep.tres` (3.5 s, REFRESH, the augment), `data/augments/augment_blade_singer_sweep.tres` (REPLACE of `ability:korsavil_blade_singer` by the sweep), `data/statuses/status_blade_singer_wound.tres` (4 s, a tick every 0.5 s of 10 + 17.5% AD, PHYSICAL).
+- **Changed:**
+  - `data/champions/korsavil.tres`: the passive's `sweep_status` is the window; its tooltip adds "At 6, your Q becomes a lunging sweep for 3.5 seconds."
+  - Comments only: `passive_korsavil.gd`, `blade_singer.gd`.
+  - `champions_test`: the K1 passive check reads the window at 6 (was empty until K5).
+  - `view_test`: the count of `VFX.slash()` calls, 6 → 7 (the sweep's slash; it centers on `VFX.drawing_origin()` as the check wants).
+- **Found while building:** CHAMPIONS.md, Build order, Korsavil v2, K5.
+- **Tests:** `champions_test` +26 (the data; the window at 6, the sweep on Q, its tooltip line, a gain at 6 not restarting it, unused it ends with Q the dagger and the stacks kept; the cast: a 96 px lunge, 106 on the enemy he cut through and the two in the half circle, none beyond, behind or beside, the wound on those three only, 164 each over its 8 ticks, the stacks and the window spent, the 11 s cooldown; Q on cooldown refuses it and the window runs out, "Rooted", a stun in its cast time refunds it and keeps the window; 6 stacks during the dagger's recast window: the press is the lunge, then the sweep waits on the cooldown); `talents_test` +1 by itself (every REPLACE variant's flags: the sweep's none).
+- **Results:** 4,427/4,427 (was 4,400/4,400): stats 206, audio 110, view 474, talents 311 (+1), champions 315 (+26), deflect 207, loot 750, combat 510, abilities 602, brain_golden 144 (golden files unchanged), enemies 681, feel 117. No script errors or GDScript warnings from K5 (every suite with `-d`; the errors they print are their own deliberate checks). A first run piped the output into `grep`: combat's "a shorter one changes nothing" and loot's two confirm timers failed, at HEAD too, since each print into a pipe takes ~15 ms on this machine (known since 2026-10-03); written to a file, both pass.
+- **How to play test:** at the hub pick Korsavil, then Sandbox, near a pack of slimes. Keep swinging until he has 6 Demise (three gains from swing 4: one every 5 s at most, and the stacks go 6 s after the last, so keep the chain going; F3 shows +12% `move_speed`): Q's slot becomes "Sweep" for 3.5 s. Aim and press Q: after 0.15 s he lunges 3 m toward the aim and sweeps the half circle in front, 106 at 60 AD on each slime, then 41 a second for 4 s; his stacks and speed bonus go, and Q is the dagger again on its 11 s cooldown. Let the 3.5 s run out instead: Q is the dagger again and the stacks stay. With Q on cooldown at 6 the sweep can't be cast. The Knight plays as before.
+
+### K4 (Korsavil v2) – Q Blade Singer: the dagger and the recast lunge: 2026-10-10, Passed (Ryan's play test, 2026-10-10; committed 58cc8e7)
 Ryan passed and committed K3, then: "start K4".
 - **New:**
   - `scripts/abilities/korsavil/blade_singer.gd` and `data/abilities/korsavil_q_blade_singer.tres` (id `korsavil_blade_singer`; UNIT, 7 m, 0.15 s, 25 Energy, 11 s; 30 + 25% AD a hit; 3 bounces within 4 m at 1500 u/s; one recast in 3 s, its targeting SELF; the lunge 3000 u/s up to 1175 u, 40 + 65% AD within 150 u).

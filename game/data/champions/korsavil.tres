@@ -9,6 +9,7 @@
 [ext_resource type="Resource" path="res://data/statuses/status_demise.tres" id="7_demise"]
 [ext_resource type="Resource" path="res://data/statuses/status_empower_demise.tres" id="8_empower"]
 [ext_resource type="Resource" path="res://data/abilities/korsavil_q_blade_singer.tres" id="9_q"]
+[ext_resource type="Resource" path="res://data/statuses/status_blade_singer_sweep.tres" id="10_sweep"]
 
 [sub_resource type="Resource" id="StatModifier_second_dash"]
 script = ExtResource("4_stat_modifier")
@@ -18,12 +19,13 @@ value = 1.0
 [sub_resource type="Resource" id="Passive_korsavil"]
 script = ExtResource("5_passive")
 display_name = "Passive"
-description = "Every 4th strike of your chain gives you 2 stacks of Inevitable Demise (once every 5 seconds), up to 6. Each stack gives 2% movement speed, and they fade together 6 seconds after the last. At 4 stacks your next basic attack deals 50 + 75% AD bonus damage. The 4th strike also restores 10 Energy. You have two dashes."
+description = "Every 4th strike of your chain gives you 2 stacks of Inevitable Demise (once every 5 seconds), up to 6. Each stack gives 2% movement speed, and they fade together 6 seconds after the last. At 4 stacks your next basic attack deals 50 + 75% AD bonus damage. At 6, your Q becomes a lunging sweep for 3.5 seconds. The 4th strike also restores 10 Energy. You have two dashes."
 icon_color = Color(0.62, 0.45, 0.95, 1)
 modifiers = Array[ExtResource("4_stat_modifier")]([SubResource("StatModifier_second_dash")])
 reaction_rules = Array[Resource]([ExtResource("6_rule")])
 demise_status = ExtResource("7_demise")
 empower_status = ExtResource("8_empower")
+sweep_status = ExtResource("10_sweep")
 
 [resource]
 script = ExtResource("1_champion")

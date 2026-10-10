@@ -5,7 +5,7 @@ extends Passive
 ## statuses it applies. This script is the one-off the rules can't do: it
 ## watches his Demise count and acts when it crosses a line from below.
 ## - 4 or more: the empowered auto (empower_demise; it spends no stacks).
-## - 6: Q's sweep window (sweep_status; K5, null until then).
+## - 6: Q's sweep window (sweep_status: status_blade_singer_sweep since K5).
 ## The Passive resource is shared by every unit loaded from the ChampionData,
 ## so the per-unit state (the count last seen, the connection) lives on the
 ## unit as meta, never on this resource.
@@ -15,7 +15,7 @@ extends Passive
 ## Applied when the stacks go from under empower_at to empower_at or more.
 @export var empower_status: StatusEffect
 @export var empower_at: int = 4
-## K5: applied when the stacks reach sweep_at. null = nothing (until K5).
+## Applied when the stacks reach sweep_at (K5: Q's sweep window). null = nothing.
 @export var sweep_status: StatusEffect
 @export var sweep_at: int = 6
 

@@ -305,11 +305,11 @@ Under the source id `passive_korsavil`, as the built one. **Until AR5** it also 
 - **Q's 6-stack window** (Ryan, 2026-10-09): reaching 6 from below gives `status_blade_singer_sweep` (3.5 s), whose REPLACE turns Q into the sweep (ABILITIES.md, Korsavil v2, Q); the sweep spends every stack.
 - Tooltip *(proposed)*: "Every 4th strike of your chain gives you 2 stacks of Inevitable Demise (once every 5 seconds), up to 6; each stack gives 2% movement speed, and they fade together 6 seconds after the last. At 4 stacks your next basic attack deals 50 + 75% AD bonus damage. At 6, your Q becomes a lunging sweep for 3.5 seconds."
 - **Found while building K3** (2026-10-10; Claude's readings, *(proposed)*):
-  - The rule is a file, `data/reactions/reaction_korsavil_demise.tres` (id `korsavil_demise`), in the passive's `reaction_rules`; the passive's script is `scripts/abilities/korsavil/passive_korsavil.gd`, with the statuses it watches and gives as exports (`demise_status`, `empower_status` at `empower_at` 4; `sweep_status` at 6 stays empty until K5).
+  - The rule is a file, `data/reactions/reaction_korsavil_demise.tres` (id `korsavil_demise`), in the passive's `reaction_rules`; the passive's script is `scripts/abilities/korsavil/passive_korsavil.gd`, with the statuses it watches and gives as exports (`demise_status`, `empower_status` at `empower_at` 4; `sweep_status` at 6 stays empty until K5; set to `status_blade_singer_sweep` in K5).
   - One Passive resource serves every unit loaded from his ChampionData, so the script keeps each unit's state (the count it last saw, its signal connection) on the unit, never on the resource.
   - "Reaching 4 from below" is read on each stack the StatusComponent adds: the rule's 2 stacks are two applications, so 3 → 5 gives the empower on the first.
   - Removing the passive also removes his Demise stacks, the cooldown and a waiting empowered auto, so he's restored exactly.
-  - Until K5 the in-game tooltip leaves the sweep out and says "You have two dashes" (the +1 kept until AR5).
+  - Until K5 the in-game tooltip leaves the sweep out and says "You have two dashes" (the +1 kept until AR5). K5 added "At 6, your Q becomes a lunging sweep for 3.5 seconds."
   - The Energy (`AttackSwing.resource_on_land`) needs a hit that got through: a blocked, deflected or i-framed hit gives none, and a dead attacker restores nothing.
 
 #### Energy (v2)
@@ -820,7 +820,7 @@ One step per request, each ending in Ryan's play test. Ryan accepted these steps
    Built 2026-10-10 and passed Ryan's play test the same day, see CHANGELOG.md.
 4. **K4 – Q Blade Singer: the dagger and the recast lunge.** The chain projectile (bounces with a per-hit callback, never one enemy twice), `status_lodged_dagger`, the recast condition (3 enemies hit), `AbilityComponent.end_recast()`, the lunge (`dash()` to the lodged enemy, or where it fell); `blade_singer.gd`, `korsavil_q_blade_singer.tres`.
    **Done means:** Q at an enemy hits it and up to 3 more (45 each at 60 AD), never one twice, ending with no next enemy; with 3 hit the recast unlocks and the last one is slowed 10%; the recast lunges him to it (79), or to where it fell; with fewer than 3 hit the window ends at once and the 11 s cooldown starts; a rooted recast fails with "Rooted".
-   Built 2026-10-10, see CHANGELOG.md (awaiting Ryan's play test). **Found while building K4** (Claude's readings, *(proposed)*):
+   Built 2026-10-10 and passed Ryan's play test the same day, see CHANGELOG.md. **Found while building K4** (Claude's readings, *(proposed)*):
    - The dagger flies on its own: the throw's cast ends as it's thrown (he can swing and move), and the recast window opens at once. The recast unlocks once the dagger is done flying with 3 or more hits, since only then is its last enemy known; until then the slot shows the recast greyed ("Needs 3 hits").
    - With fewer than 3 hits no dagger lodges: the slow comes only with a recast to use it.
    - The homing dagger hits only the unit it flies at; others on the way are passed. A blocked hit doesn't count toward the 3, but it still bounces on; a hit that kills bounces on from where the enemy fell.
@@ -830,6 +830,13 @@ One step per request, each ending in Ryan's play test. Ryan accepted these steps
    - The target gone during the throw's 0.15 s: no dagger, and the sequence ends right after the cast.
 5. **K5 – Q's 6-stack sweep.** `status_blade_singer_sweep` (3.5 s, its REPLACE), `korsavil_q_blade_singer_sweep.tres` (`blade_singer_sweep.gd`), `status_blade_singer_wound`; the count-crossing script opens the window at 6. Its own step after Phase 1's risk review (three modes in one slot).
    **Done means:** reaching 6 stacks makes Q the sweep for 3.5 s (Q off cooldown); the sweep lunges toward the aim and hits every enemy in front (106 at 60 AD, then 41 a second for 4 s) and spends all 6 stacks; unused for 3.5 s, Q is the dagger again.
+   Built 2026-10-10, see CHANGELOG.md (awaiting Ryan's play test). **Found while building K5** (Claude's readings, *(proposed)*):
+   - The sweep also hits every enemy along the lunge's path (his width, in sight of the path), not only the half circle where he stops: a 3 m lunge passes through an enemy close in front, which would then be behind the half circle. Each enemy is hit once.
+   - The lunge is 2,000 u/s (0.15 s for its 3 m); its length is the ability's `cast_range` (300 u), one number for the lunge, the indicator and the tooltip, not a separate `lunge_distance`.
+   - The REPLACE is an augment file, `data/augments/augment_blade_singer_sweep.tres` (id `blade_singer_sweep`), held by the window's status; the sweep's tooltip ends with its line. The sweep finds its window and his stacks by status id (`demise_status_id`, `window_status_id`): the window's file holds the sweep through its REPLACE, so the sweep can't hold the file back.
+   - Reaching 6 while Q's dagger window is open: Q's press is still the dagger's recast (a recast sequence keeps the ability that opened it), so the lunge starts Q's cooldown and the sweep is lost unless Q comes back within the 3.5 s.
+   - A gain at 6 doesn't restart the 3.5 s (the count doesn't cross 6 again); a stun in the sweep's cast time refunds it and keeps the window and the stacks.
+   - Its display name is "Sweep" (the sheet's placeholder).
 6. **K6 – W Cloak & Dagger.** `ends_on_cast` / `ends_on_swing`, the attack-or-cast empower trigger; `status_cloak_and_dagger`, `status_cloak_untargetable`, `empower_cloak_and_dagger`, `status_cloak_wound`, `korsavil_w_cloak_and_dagger.tres` (a script only if the data can't do it).
    **Done means:** enemies drop him (today's pick); he's untargetable for 1.5 s and stealthed for 5 s at +15% speed; a swing or a cast ends the stealth (W's own cast and a dash don't); that swing or cast puts 35 a second for 4 s on each enemy it hits; Energy gets nothing extra.
 7. **K7 – E Spectral Assault.** `spectral_assault.gd`, `korsavil_e_spectral_assault.tres`.

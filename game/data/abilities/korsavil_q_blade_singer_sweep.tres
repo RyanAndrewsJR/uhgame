@@ -1,0 +1,29 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/abilities/korsavil/blade_singer_sweep.gd" id="1_script"]
+[ext_resource type="Script" path="res://scripts/data/conditional_bonus.gd" id="2_bonus"]
+[ext_resource type="Script" path="res://scripts/data/status_effect.gd" id="3_status"]
+[ext_resource type="Resource" path="res://data/statuses/status_blade_singer_wound.tres" id="4_wound"]
+
+[sub_resource type="Resource" id="wound"]
+script = ExtResource("2_bonus")
+target_statuses = Array[ExtResource("3_status")]([ExtResource("4_wound")])
+
+[resource]
+script = ExtResource("1_script")
+id = &"korsavil_blade_singer_sweep"
+variant_of = &"korsavil_blade_singer"
+tags = Array[StringName]([&"core", &"dash", &"melee", &"area"])
+display_name = "Sweep"
+description = "Lunge forward and sweep in front of you, dealing {damage} physical damage ({base_damage} {ratios}) and 20 + 35% AD physical damage a second for 4 seconds to every enemy hit. Spends your Inevitable Demise."
+icon_color = Color(0.95, 0.42, 0.62, 1)
+targeting = 1
+cooldown = 11.0
+resource_cost = 25.0
+cast_time = 0.15
+cast_range = 300.0
+base_damage = 40.0
+ad_ratio = 1.1
+hit_shake = 3.0
+hit_hitstop = 0.05
+conditional_bonuses = Array[ExtResource("2_bonus")]([SubResource("wound")])

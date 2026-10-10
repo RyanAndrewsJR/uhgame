@@ -146,7 +146,7 @@ The game in `game/` is the **reference build**. It works, and changes build on i
 ## Current status
 - **Now:**
   - The Knight ships; CHAMPIONS, TALENTS, LOOT, STATS and the 3D pivot (up to the P-spike) are done.
-  - **Korsavil is redesigned (v2, Ryan's board, 2026-10-09; docs only):** K1–K2 passed; v2's K3–K10 replace the old K3–K6 (Ryan confirmed it before K3, 2026-10-09; CHAMPIONS.md, Korsavil v2). **K3 passed; K4 (Q Blade Singer) built 2026-10-10, awaiting Ryan's play test** (4,400/4,400).
+  - **Korsavil is redesigned (v2, Ryan's board, 2026-10-09; docs only):** K1–K2 passed; v2's K3–K10 replace the old K3–K6 (Ryan confirmed it before K3, 2026-10-09; CHAMPIONS.md, Korsavil v2). **K3–K4 passed; K5 (Q's 6-stack sweep) built 2026-10-10, awaiting Ryan's play test** (4,427/4,427).
   - ENEMIES_AI: AI1–AI3, AI3b–AI3d and AI-D1–AI-D3 passed; R0 and R1 committed (4,095/4,095).
   - ARCHETYPES: AR1a–AR4 passed and committed (the test duelist at 1.89×, short of 2×: Open questions 20).
   - FEEL2: preset 3 shipped and passed (c2efc46). Sandbox-only, Ryan's read pending: F9 latency probe, F10 blind presets, F7 threat palettes, the N panel's "pose lean x" (CHANGELOG.md).
@@ -156,7 +156,7 @@ The game in `game/` is the **reference build**. It works, and changes build on i
   2. AR4 (2026-10-09, passed): weak basic attacks, `unempowered_attack_damage` 0.5 on both champions, the rotation simulation.
   3. AR3b (2026-10-09, passed): the test Assassin (Shift+H): its Riposte Stance, the rebuff, its riposte, its perilous charge.
 - **Next** (ARCHETYPES.md, Open questions 15, with Ryan's changes):
-  1. Korsavil v2's K3–K9 (CHAMPIONS.md, Build order, Korsavil v2): K3 first (the data swap, the chain, the passive).
+  1. Korsavil v2's K6–K9 (CHAMPIONS.md, Build order, Korsavil v2): K6 (W Cloak & Dagger) next.
   2. AR5 (his Assassin layer) and AR6, then K10 and K-M *(proposed)*.
   3. The Vampyr Shade, AI-V1–AI-V3 (ENEMIES_AI.md; Ryan: after K-M), then AR7, AR8 and AR-M (the duel).
   4. DUNGEONS' slice (D0–D9, D-M): AI7 before D1, AI5 before D3, AI6 before D4, AI-M after AI7 (no dodging).

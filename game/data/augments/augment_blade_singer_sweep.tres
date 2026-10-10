@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="AbilityAugment" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ability_augment.gd" id="1_augment"]
+[ext_resource type="Resource" path="res://data/abilities/korsavil_q_blade_singer_sweep.tres" id="2_sweep"]
+
+[resource]
+script = ExtResource("1_augment")
+id = &"blade_singer_sweep"
+kind = 2
+scope = &"ability:korsavil_blade_singer"
+replacement = ExtResource("2_sweep")
+display_name = "Inevitable Demise"
+description = "6 Inevitable Demise: Blade Singer is the sweep for 3.5 seconds."
