@@ -105,7 +105,7 @@ Built from landing basic attacks, drained out of combat, meant to be spent fast 
 
 Rhythm, single target: the combo is about 3 swings per second, so about 24 Fury per second of landed swings; a pack of three fills the bar in about 1.5 s. Cleave's 3 s cooldown caps how fast Fury can be spent on it, so the rest builds toward Judgement's threshold or decays.
 
-**Weak basic attacks** (ARCHETYPES.md, Weak basic attacks; D12; Ryan, 2026-10-07): from ARCHETYPES AR4 his unempowered swings deal 50% of today's damage (the per-champion stat `unempowered_attack_damage`, 0.5 on `knight.tres`, replacing the sandbox's TEMP lever). What empowers them is his Bruiser layer (D12): Iron Resolve's empowered swing (full damage) and the Fury payoffs his swings build toward (Cleave, Judgement at 60+), abilities the rule never touches. Fury per hit is unchanged: +8 per enemy a swing hits, weak or not, so the rhythm above holds.
+**Weak basic attacks** (ARCHETYPES.md, Weak basic attacks; D12; Ryan, 2026-10-07): from ARCHETYPES AR4 (built 2026-10-09) his unempowered swings deal 50% of today's damage (the per-champion stat `unempowered_attack_damage`, 0.5 on `knight.tres`, replacing the sandbox's TEMP lever). What empowers them is his Bruiser layer (D12): Iron Resolve's empowered swing (full damage) and the Fury payoffs his swings build toward (Cleave, Judgement at 60+), abilities the rule never touches. Fury per hit is unchanged: +8 per enemy a swing hits, weak or not, so the rhythm above holds.
 
 ### The combo: Lunge → Staggered → Cleave (the systemic-conditions showcase)
 League's Lee Sin Q1 → Q2 pattern, built from AB12's existing pieces; no new condition kind.
@@ -227,7 +227,7 @@ Ryan, 2026-10-04: her basic attack has two cycles, 3 melee swings and 4, switche
 
   About 0.76 s for the 3-swing cycle and 0.92 s for the 4-swing one (the Knight's 3 swings take 1.0 s before his `speed_scale`), each with a 0.2 s breather after its finisher. Knockback and steps the Knight's light and heavy ones (6 px and 20 px; steps 6 px, the finisher 10 px).
 - **One dash-strike for both cycles:** 1.3 × AD (the assassin's number in COMBAT.md's "by class"), the Knight's thrust shape otherwise; it isn't a finisher and keeps her place in the chain (as today).
-- **Weak basic attacks** (ARCHETYPES.md, Weak basic attacks; D12; Ryan, 2026-10-07): from ARCHETYPES AR4 an unempowered swing deals 50% of the numbers above (`unempowered_attack_damage` 0.5 on her UnitStats); her empowers hit full: the jab, the riposte and Vanish's.
+- **Weak basic attacks** (ARCHETYPES.md, Weak basic attacks; D12; Ryan, 2026-10-07): from ARCHETYPES AR4 (built 2026-10-09) an unempowered swing deals 50% of the numbers above (`unempowered_attack_damage` 0.5 on her UnitStats); her empowers hit full: the jab, the riposte and Vanish's.
 
 ### Passive (name TBD)
 Three parts, all under the source id `passive_korsavil` (Ryan, 2026-10-04). Since 2026-10-07 two remain (Inevitable Demise and the detonation): part 1's dash is the Assassin archetype's (Identity, Archetype: Assassin; D11).

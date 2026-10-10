@@ -157,7 +157,7 @@ func _test_scoped_key_typos() -> void:
 func _test_registry() -> void:
 	_section("Registry")
 	var keys := knight_stats.registry.get_keys()
-	_check("27 stats registered (5 added in COMBAT C8; threat in ENEMIES_AI AI2)", keys.size(), 27)
+	_check("28 stats registered (5 added in COMBAT C8; threat in ENEMIES_AI AI2; unempowered_attack_damage in ARCHETYPES AR4)", keys.size(), 28)
 	for key in keys:
 		var def := knight_stats.registry.get_definition(key)
 		var field := def.get_base_field()

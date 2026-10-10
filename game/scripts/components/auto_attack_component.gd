@@ -244,13 +244,17 @@ func _update_temp_test_speed() -> void:
 # A test lever for "autos are weak unless something empowers them" (Ryan), not
 # a design rule. To revert: set it back to 1.0 here (the one line below); to
 # remove: this block and its use in _land_swing().
+# OFF since ARCHETYPES AR4 (2026-10-09): the stat unempowered_attack_damage
+# replaced it (get_unempowered_attack_damage()) and SandboxDeflect no longer
+# sets it, so it stays at 1.0. It goes once Ryan confirms the stat (Change
+# policy: disable before deleting); set off 1.0, it stacks with the stat.
 
 ## TEMP: the Knight's basic attack swings that carry no empower deal this much
 ## of their damage (their ad_ratio x it). 1.0 = off (the shipped value), range
 ## 0.2–1.0. Only the tracked player's swings while it's the Knight: empowered
 ## swings (Iron Resolve, the riposte), enemies (League-style attacks) and any
 ## other champion or ally are untouched; Fury from hits is untouched (it's per
-## hit). SandboxDeflect sets it outside test scenes (starts at 0.5).
+## hit). Nothing sets it since AR4 (above).
 static var prototype_unempowered_auto_mult: float = 1.0
 
 
@@ -517,6 +521,14 @@ func has_next_attack_modifier(id: StringName) -> bool:
 ## The next swing that hits has a bonus (any basic attack empower).
 func is_empowered() -> bool:
 	return not _get_basic_attack_empowers().is_empty()
+
+
+## ARCHETYPES AR4 (D12, weak basic attacks): x the damage of a swing that
+## carries no empower (its ad_ratio x it): the unit's unempowered_attack_damage
+## stat, 0.5 on every champion and 1 on enemies. An empowered swing is full;
+## the resource a hit gives (the Knight's Fury) is per hit, so it's unchanged.
+func get_unempowered_attack_damage() -> float:
+	return unit.stats_component.get_stat(&"unempowered_attack_damage") if unit.stats_component != null else 1.0
 
 
 ## The status id add_next_attack_modifier(id) uses: &"empower_<id>" (so it
@@ -1015,7 +1027,9 @@ func _on_debug_node_draw() -> void:
 ## by the first swing that hits anything, and apply to every enemy it hits.
 ## A swing marked deflectable (AttackSwing.deflectable) gives its hits that
 ## mark (AR1a). The swing is read once: a hit that locks the attacker (a
-## deflect that breaks its poise) cancels it mid-loop.
+## deflect that breaks its poise) cancels it mid-loop. A swing with no
+## empower deals x get_unempowered_attack_damage() (AR4: weak basic attacks;
+## the dash-strike too).
 func _land_swing() -> void:
 	_swing_landed = true
 	var swing := _swing
@@ -1036,6 +1050,7 @@ func _land_swing() -> void:
 		on_hits.append_array(_use_up_empowers(empowers))   # used up before the hits resolve
 	var crit_roll := HitContext.CritRoll.new()   # one crit roll per swing
 	var weak := not empowered and _is_prototype_weak_auto()   # TEMP: the weak-auto lever
+	var unempowered := 1.0 if empowered else get_unempowered_attack_damage()   # AR4: weak basic attacks
 	for t in targets:
 		var ctx := HitPipeline.basic_attack(unit, t, swing)
 		ctx.deflectable = swing.deflectable   # AR1a
@@ -1044,8 +1059,10 @@ func _land_swing() -> void:
 			ctx.add_tag(&"dash_strike")   # hit:dash_strike bonuses, reaction rules (C12)
 		if empowered:
 			HitPipeline.add_empowers(ctx, empowers)
-		elif weak:
-			ctx.ad_ratio *= clampf(prototype_unempowered_auto_mult, 0.2, 1.0)   # TEMP
+		else:
+			ctx.ad_ratio *= unempowered   # AR4
+			if weak:
+				ctx.ad_ratio *= clampf(prototype_unempowered_auto_mult, 0.2, 1.0)   # TEMP
 		HitPipeline.resolve(ctx)
 		if not ctx.blocked:
 			for f in on_hits:

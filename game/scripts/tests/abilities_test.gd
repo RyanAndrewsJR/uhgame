@@ -2311,10 +2311,10 @@ func _test_empower_basic_attack() -> void:
 	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
 	hits.clear()
 	var hp := a.health.current
-	var plain := 64.0 * _next_swing_ratio()
+	var plain := 64.0 * _next_swing_ratio() * knight.stats_component.get_stat(&"unempowered_attack_damage")   # x 0.5 since ARCHETYPES AR4
 	knight.attack.try_swing(Vector2.RIGHT)
 	await _wait_until(func() -> bool: return knight.attack.is_in_recovery(), 30)
-	_check("the next swing has no bonus and no tag", [snappedf(hp - a.health.current, 0.01), hits[0].has_tag(&"empowered") if hits.size() > 0 else true], [snappedf(plain, 0.01), false])
+	_check("the next swing has no bonus and no tag (a plain swing: half, AR4)", [snappedf(hp - a.health.current, 0.01), hits[0].has_tag(&"empowered") if hits.size() > 0 else true], [snappedf(plain, 0.01), false])
 	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 40)
 
 	# Unused, it runs out after 4 s.

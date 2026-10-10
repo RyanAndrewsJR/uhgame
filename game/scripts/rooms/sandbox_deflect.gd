@@ -12,17 +12,19 @@ extends Node
 ##            Knight's DeflectComponent; every meter's: the size of the two
 ##            prototype meters, the elite rank's break time and the shared
 ##            PoiseRules, so new enemies spawn with them; the poise damage of
-##            the Knight's swings, Cleave and Judgement in memory; the TEMP
-##            weak-auto lever; whether the Knight's deflects bank,
-##            streak_persists, on at the start)
+##            the Knight's swings, Cleave and Judgement in memory; the tracked
+##            champion's unempowered_attack_damage, as a modifier; whether
+##            the Knight's deflects bank, streak_persists, on at the start)
 ## Readouts (placeholders, drawn over the 3D view; they never decide state):
 ## a thin poise bar under the health bar of any unit whose meter runs (gold
 ## filling toward the break, since ARCHETYPES AR3a; orange draining while
 ## broken; grey while immune), and under the Knight's
 ## health bar his dash charges (the refunded one gold), his deflect streak
-## (two pips) and "RIPOSTE" while it's ready. The TEMP weak-auto lever
-## (AutoAttackComponent.prototype_unempowered_auto_mult) starts at its export
-## here. It never touches the player's saves.
+## (two pips) and "RIPOSTE" while it's ready. Since ARCHETYPES AR4 it no
+## longer sets the TEMP weak-auto lever
+## (AutoAttackComponent.prototype_unempowered_auto_mult, off at 1.0): every
+## champion's stat unempowered_attack_damage replaced it, and the panel's row
+## edits that stat. It never touches the player's saves.
 
 const TEXT_COLOR := Color(0.92, 0.92, 0.92)
 const HINT_COLOR := Color(0.65, 0.65, 0.7)
@@ -33,6 +35,9 @@ const DASH_COLOR := Color(0.5, 0.9, 1.0)
 ## The panel's slider list height (px): it scrolls, so the panel ends inside
 ## the 360 px canvas (SandboxBrains' rule).
 const SLIDER_LIST_HEIGHT := 176.0
+## The source of the panel's unempowered_attack_damage edit (AR4): a FLAT
+## modifier on the tracked champion, removed when the sandbox leaves.
+const STAT_SOURCE := &"sandbox_deflect"
 ## The swings, Cleave and Judgement whose poise damage the panel edits. Plain
 ## vars, not consts: a read through a const chain is folded when the script
 ## compiles, so it would never see the edits.
@@ -63,15 +68,14 @@ const POISE_ROWS: Array = [
 @export var deflect_test_enabled: bool = true
 ## The poise flag this sandbox starts with.
 @export var poise_test_enabled: bool = true
-## TEMP: the weak-auto lever this sandbox starts with (1.0 = off).
-@export_range(0.2, 1.0, 0.05) var prototype_unempowered_auto_mult: float = 0.5
 ## The readouts are on at the start.
 @export var readouts_on: bool = true
 ## Ryan's test (2026-10-07): the Knight's deflects bank (DeflectComponent
 ## .streak_persists) from the start; the panel's checkbox flips it.
 @export var streak_persists: bool = true
 
-var _previous: Array = []   # [deflect flag, poise flag, weak-auto lever] as found
+var _previous: Array = []   # [deflect flag, poise flag] as found
+var _stat_edited: Unit = null   # the champion carrying the panel's STAT_SOURCE modifier
 var _readout_layer: CanvasLayer
 var _readout: Node2D
 var _panel_layer: CanvasLayer
@@ -84,8 +88,7 @@ var _originals: Dictionary = {}   # [resource, property] key String -> [resource
 
 
 func _ready() -> void:
-	_previous = [DeflectComponent.deflect_test_enabled, PoiseComponent.poise_test_enabled,
-		AutoAttackComponent.prototype_unempowered_auto_mult]
+	_previous = [DeflectComponent.deflect_test_enabled, PoiseComponent.poise_test_enabled]
 	_readout_layer = CanvasLayer.new()
 	_readout_layer.layer = 2
 	add_child(_readout_layer)
@@ -99,7 +102,6 @@ func _ready() -> void:
 		return   # a test sets its own
 	DeflectComponent.deflect_test_enabled = deflect_test_enabled
 	PoiseComponent.poise_test_enabled = poise_test_enabled
-	AutoAttackComponent.prototype_unempowered_auto_mult = prototype_unempowered_auto_mult
 	set_streak_persists(streak_persists)   # a Knight already here; a later one in _on_node_added()
 	print("SandboxDeflect: ", get_status_text(), " (V: deflect, Shift+V: poise, M: the panel)")
 
@@ -108,11 +110,13 @@ func _exit_tree() -> void:
 	for entry: Array in _originals.values():   # the shared data the panel edited, as it was
 		(entry[0] as Object).set(entry[1], entry[2])
 	_originals.clear()
+	if is_instance_valid(_stat_edited) and _stat_edited.stats_component != null:
+		_stat_edited.stats_component.remove_modifiers_from(STAT_SOURCE)
+	_stat_edited = null
 	if _previous.is_empty() or Progress.is_test_scene():
 		return
 	DeflectComponent.deflect_test_enabled = _previous[0]
 	PoiseComponent.poise_test_enabled = _previous[1]
-	AutoAttackComponent.prototype_unempowered_auto_mult = _previous[2]
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -160,10 +164,10 @@ func set_poise_enabled(on: bool) -> void:
 	print("SandboxDeflect: ", get_status_text())
 
 
-## One line: the flags and the lever now.
+## One line: the flags and the tracked champion's plain swings now (AR4).
 func get_status_text() -> String:
-	return "deflect %s, poise %s, weak autos x%.2f" % ["ON" if DeflectComponent.deflect_test_enabled else "off",
-		"ON" if PoiseComponent.poise_test_enabled else "off", AutoAttackComponent.prototype_unempowered_auto_mult]
+	return "deflect %s, poise %s, plain swings x%.2f" % ["ON" if DeflectComponent.deflect_test_enabled else "off",
+		"ON" if PoiseComponent.poise_test_enabled else "off", _get_unempowered()]
 
 
 ## The Knight the panel tunes and the readouts follow: the tracked player.
@@ -256,9 +260,8 @@ func _build_panel() -> void:
 	_add_row(list, &"swing_poise", 0.0, 30.0, 1.0, func() -> float: return _combo_knight.swings[0].poise_damage, _set_swing_poise)
 	_add_row(list, &"cleave_poise", 0.0, 100.0, 1.0, func() -> float: return _cleaves[0].poise_damage, _set_ability_poise.bind(_cleaves))
 	_add_row(list, &"judgement_poise", 0.0, 100.0, 1.0, func() -> float: return _judgements[0].poise_damage, _set_ability_poise.bind(_judgements))
-	_heading(list, "TEMP")
-	_add_row(list, &"weak_autos", 0.2, 1.0, 0.05, func() -> float: return AutoAttackComponent.prototype_unempowered_auto_mult,
-		func(v: float) -> void: AutoAttackComponent.prototype_unempowered_auto_mult = v)
+	_heading(list, "weak basic attacks (AR4)")
+	_add_row(list, &"unempowered_attack_damage", 0.0, 1.0, 0.05, _get_unempowered, _set_unempowered)
 	var hint := _small_label("The wheel scrolls. Edits last while the sandbox runs.")
 	hint.add_theme_color_override("font_color", HINT_COLOR)
 	box.add_child(hint)
@@ -404,6 +407,30 @@ func _set_swing_poise(value: float) -> void:
 func _set_ability_poise(value: float, abilities: Array[Ability]) -> void:
 	for a in abilities:
 		_edit(a, &"poise_damage", value)
+
+
+## The tracked champion's unempowered_attack_damage (AR4), 1 with none.
+func _get_unempowered() -> float:
+	var champion := get_knight()
+	if champion == null or champion.stats_component == null:
+		return 1.0
+	return champion.stats_component.get_stat(&"unempowered_attack_damage")
+
+
+## Sets it on the tracked champion, live: one FLAT modifier (STAT_SOURCE)
+## from its own value to `value`, gone when the sandbox leaves.
+func _set_unempowered(value: float) -> void:
+	var champion := get_knight()
+	if champion == null or champion.stats_component == null:
+		return
+	if is_instance_valid(_stat_edited) and _stat_edited != champion and _stat_edited.stats_component != null:
+		_stat_edited.stats_component.remove_modifiers_from(STAT_SOURCE)
+	var stats := champion.stats_component
+	stats.remove_modifiers_from(STAT_SOURCE)
+	_stat_edited = champion
+	var own := stats.get_stat(&"unempowered_attack_damage")
+	if not is_equal_approx(value, own):
+		stats.add_modifier(StatModifier.create(&"unempowered_attack_damage", StatModifier.Type.FLAT, value - own, STAT_SOURCE))
 
 
 ## Sets a shared resource's property, remembering what it was (put back on exit).

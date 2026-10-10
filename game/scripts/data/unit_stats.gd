@@ -45,6 +45,11 @@ extends Resource
 ## Damage multiplier on a crit. 1.75 for every unit (COMBAT.md); nothing
 ## changes in play while crit_chance is 0.
 @export var crit_damage: float = 1.75
+## x the damage of a basic attack swing that carries no empower (ARCHETYPES
+## D12, weak basic attacks; AR4). 1 = full; every champion sets it (0.5 to
+## start), enemies keep 1. Empowered swings (Iron Resolve, the riposte) are
+## full.
+@export_range(0.0, 1.0, 0.05) var unempowered_attack_damage: float = 1.0
 ## Fraction of damage dealt healed back, 0-1. Basic attacks only (COMBAT C8).
 @export var life_steal: float = 0.0
 ## "Increased" damage: 0.2 = +20%. Items give it as FLAT modifiers, often

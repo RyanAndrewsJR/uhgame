@@ -12,7 +12,20 @@
 
 ## Archetypes (ARCHETYPES.md)
 
-### AR3b, the test Assassin: 2026-10-08, Built (awaiting Ryan's play test)
+### AR4, weak basic attacks: 2026-10-09, Built (awaiting Ryan's play test)
+Ryan passed AR3b and committed it, then said "go AR4", taking Claude's three suggestions: the TEMP lever off now and deleted once he confirms the stat, the dash-strike a plain swing, the rotation simulation the Knight's only.
+- **New:** the stat `unempowered_attack_damage`: a `UnitStats` field (1 by default) and its registry entry (default 1, limits 0 to 1, shown as a percent); 0.5 on `knight.tres` and `korsavil.tres`.
+- **Changed:**
+  - `auto_attack_component.gd`: `get_unempowered_attack_damage()`; `_land_swing()` multiplies a swing with no empower (the dash-strike too) by it. The TEMP lever's block says it's off; its code stays.
+  - `sandbox_deflect.gd`: it no longer sets the lever (its `prototype_unempowered_auto_mult` export and writes are gone); the panel's TEMP row `weak_autos` is now `unempowered_attack_damage` (heading "weak basic attacks (AR4)"), a FLAT modifier on the tracked champion (`STAT_SOURCE`, `sandbox_deflect`) removed when the sandbox leaves; its status line reads "plain swings x0.50".
+- **Found while building** (ARCHETYPES.md, Weak basic attacks): the stat scales a swing's `ad_ratio` at its hit (on-hit procs and Fury unchanged); only combo-mode swings read it; it's the champion's, so an ally Knight's plain swings are weak too. **The rotation simulation:** the elite slime 8.08 s only swinging against 3.65 s with the kit (2.21×; casts: Iron Resolve, Lunge, Judgement once each); the test duelist 33.68 s against 17.82 s (**1.89×**; Cleave 5, Iron Resolve 3, Lunge 3, Judgement 1). Measured with a temporary probe (deleted): at 0.45 the duelist 1.95× (37.42 / 19.18 s), at 0.4 2.01× (41.95 / 20.87 s); the elite slime 2.34× and 2.48×. Ryan: "Keep 0.5, record the gap" (ARCHETYPES.md, Open questions 20).
+- **Tests:**
+  - deflect +14: the lever's section became AR4's (the lever 1.0 and the Knight's stat 0.5, live; a plain swing 32 with +8 Fury; the dash-strike 48; the stat at 1 gives 64, capped at 1; the riposte 256 and Iron Resolve's swing full, the swing after it 32; an enemy's stat 1 and its League-style attack 26; an ally Knight 32); AR4's data (the registry entry; every champion's UnitStats 0.5, every other unit's 1); the rotation simulation (both runs kill, never out of reach; the elite slime at 2×, the duelist at 1.85×, guarding today's 1.89×); changed: the poise check's plain swing (32), the sandbox's rows (the stat's row, its modifier, put back on exit; no lever export).
+  - stats +1: 28 stats registered (and the new one read from UnitStats).
+  - Changed, the same counts: combat (its baseline holds the Knight's stat at 1, as it holds his crit at 0: the combo, crit, on-hit, life steal, shield and dash-strike checks keep their full numbers); champions (Korsavil's three swings 27 / 27 / 42, half); abilities (the swing after Iron Resolve's is plain: half).
+- **Results:** 4,198/4,198 (was 4,183): stats 181 (+1), audio 110, view 474, talents 310, champions 238, deflect 207 (+14), loot 750, combat 510, abilities 593, brain_golden 144 (the golden files unchanged: its Knight never swings), enemies 681; no leaks, no GDScript warnings (deflect with `-d`).
+
+### AR3b, the test Assassin: 2026-10-08, Passed (Ryan's play test, 2026-10-09; committed e356ba4)
 Ryan passed AR3a and committed it, then asked for the next step.
 - **New:**
   - `scripts/abilities/enemy/riposte_stance.gd`: the Riposte Stance, a deflect ability. On itself with no cast time; its effect opens the unit's deflect window for `window_time` 0.5 s and holds still (the move lock `riposte_stance`). Anything that blocks casting closes it early; `get_cast_recovery_time()` gives its `recovery_time` only after a whiff. `glint_vfx` (empty: a white ring).

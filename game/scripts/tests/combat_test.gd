@@ -49,7 +49,9 @@ extends Node2D
 ## baseline (_zero_knight_extras()), so exact-number checks aren't random;
 ## the same baseline removes his passive (Unbroken, CHAMPIONS CH2), so his AD
 ## stays 64 after he takes damage (the champions test covers Unbroken).
-## It also cancels Cleave's 20 fury cost (CH3), since the Knight starts at 0.
+## It also cancels Cleave's 20 fury cost (CH3), since the Knight starts at 0,
+## and holds his unempowered_attack_damage at 1 (ARCHETYPES AR4: weak basic
+## attacks, checked in the deflect test), so a swing deals its full ratio.
 ## Combo timings are read from the data (combo_knight.tres speed_scale, 1.266):
 ## a data check pins the tuning, timing checks derive from it
 ## (_swing_frames()), and a check that changes the shared combo puts back
@@ -115,7 +117,9 @@ func _ready() -> void:
 ## (knight.tres) taken back to 0 for the whole run (a FLAT minus each base
 ## value), so checks of exact numbers aren't random. Crit and life steal
 ## checks add their own on top (+0.25 gives exactly 25%); C8 checks the real
-## values.
+## values. His unempowered_attack_damage (0.5, ARCHETYPES AR4) goes back to 1
+## the same way: these swing checks test the combo and the hit, and the
+## deflect test checks weak basic attacks.
 const BASELINE_SOURCE := &"test_baseline"
 
 
@@ -124,6 +128,9 @@ func _zero_knight_extras() -> void:
 		var base := knight.stats_component.get_base_value(stat)
 		if base != 0.0:
 			knight.stats_component.add_modifier(StatModifier.create(stat, FLAT, -base, BASELINE_SOURCE))
+	var unempowered := knight.stats_component.get_base_value(&"unempowered_attack_damage")
+	if unempowered != 1.0:
+		knight.stats_component.add_modifier(StatModifier.create(&"unempowered_attack_damage", FLAT, 1.0 - unempowered, BASELINE_SOURCE))
 	if knight.champion != null and knight.champion.passive != null:
 		knight.champion.passive.remove_from(knight, knight.champion.get_passive_source_id())
 	# No Fury from swings (CHAMPIONS CH3), so Judgement never reaches its 60 Fury

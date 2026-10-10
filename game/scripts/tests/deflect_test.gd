@@ -9,7 +9,9 @@ extends Node2D
 ## the same hit after the window is only blocked, a non-deflectable one is
 ## only blocked); the streak, the refund and the chain window; the riposte
 ## (its damage, a whiff keeps it, it runs out, its snap toward the attacker);
-## the TEMP weak-auto lever; a deflect on sources it wasn't written for.
+## weak basic attacks (ARCHETYPES AR4, in place of the TEMP weak-auto lever's
+## checks: a plain swing at half, empowered ones full, enemies untouched); a
+## deflect on sources it wasn't written for.
 ## Slice B: poise (the flag off, the data, the meter and its decay, the break
 ## and what it cuts, blocks and boosts, tenacity and diminishing returns left
 ## out, the immunity, poise damage on hits and deflects, a pair plus a riposte
@@ -22,7 +24,10 @@ extends Node2D
 ## the Knight rebuffed (his swing gone, his combo reset, 0.4 s), its riposte
 ## at once (twice its AD), what it deflects (swings; never Cleave, Lunge,
 ## Judgement), a stun cutting it, its whiff recovery, its own meter's drain;
-## the Knight's test deflect breaking its meter. Slice C: the feel (hitstop, shake, the
+## the Knight's test deflect breaking its meter. ARCHETYPES AR4: the stat's
+## data (0.5 on every champion, 1 on every other unit) and the rotation
+## simulation (only swings at least twice as slow to kill the elite slime and
+## the test duelist as the kit). Slice C: the feel (hitstop, shake, the
 ## riposte's ring; empty slots) and SandboxDeflect (keys, the panel's rows
 ## applied live and to new enemies, its edits put back).
 ## The Knight's crit is held at 0 and his passive (Unbroken) is off, so
@@ -66,6 +71,15 @@ const ARENA := Vector2(-3000, 0)
 ## The Knight's swing reach (175 u = 56 px) and the brute's radius (70 u).
 const KNIGHT_REACH_PX := 56.0
 const BRUTE_RADIUS_PX := 22.4
+## AR4: the source of a test's own unempowered_attack_damage modifiers.
+const FULL_SWINGS_SOURCE := &"test_full_swings"
+## AR4's rotation simulation: where its target stands, and the longest a run
+## may take (s) before it counts as not killed.
+const ROTATION_SPOT := ARENA + Vector2(0, 700)
+const ROTATION_LIMIT := 120.0
+## The test duelist's bar: today's 1.89x guarded, short of D12's 2x (Ryan,
+## 2026-10-09: keep 0.5 and record the gap; ARCHETYPES.md, Open questions).
+const DUELIST_ROTATION_BAR := 1.85
 
 @onready var entities: Node2D = $Entities
 
@@ -120,7 +134,7 @@ func _ready() -> void:
 	await _test_streak_persists()   # Ryan's follow-up: deflects bank
 	await _test_riposte()
 	await _test_riposte_snap()
-	await _test_weak_autos()
+	await _test_ar4_weak()   # ARCHETYPES AR4 (in place of the TEMP lever's checks)
 	await _test_other_sources()
 	await _test_perilous_deflect()   # ARCHETYPES AR2
 	# Slice B: poise.
@@ -134,6 +148,8 @@ func _ready() -> void:
 	await _test_ar3a_meter()
 	await _test_ar3b_stance()   # ARCHETYPES AR3b
 	await _test_ar3b_break()
+	_test_ar4_data()   # ARCHETYPES AR4
+	await _test_ar4_rotation()
 	# Slice C: feel, readouts and the sandbox.
 	await _test_feel()
 	await _test_sandbox()
@@ -409,36 +425,41 @@ func _test_riposte_snap() -> void:
 	await get_tree().physics_frame
 
 
-# --- The weak-auto lever (TEMP) -----------------------------------------------------
+# --- Weak basic attacks (ARCHETYPES AR4) ----------------------------------------------
 
-func _test_weak_autos() -> void:
-	_section("The weak-auto lever (TEMP)")
+## AR4 (D12): a swing with no empower deals x its champion's
+## unempowered_attack_damage (0.5): the Knight's plain swings and his
+## dash-strike, an ally Knight's; the riposte and Iron Resolve's swing full;
+## Fury per hit unchanged; an enemy's League-style attack untouched. The TEMP
+## weak-auto lever it replaced stays at 1.0 (off; it goes with Ryan's OK).
+## (Korsavil's three swings at half: the champions test.)
+func _test_ar4_weak() -> void:
+	_section("AR4: weak basic attacks (the TEMP lever off)")
 	DeflectComponent.deflect_test_enabled = true
 	await _fresh()
+	_check("the TEMP lever is off (1.0); the Knight's stat is 0.5, live", [AutoAttackComponent.prototype_unempowered_auto_mult,
+		knight.stats_component.get_stat(&"unempowered_attack_damage"), knight.attack.get_unempowered_attack_damage()], [1.0, 0.5, 0.5])
 	var brute := _spawn(BRUTE_SCENE, ARENA + Vector2(50, 0))
 	var decay := knight.resource_pool.decay_per_second
 	knight.resource_pool.decay_per_second = 0.0   # Fury's decay would blur the +8 per hit
-	AutoAttackComponent.prototype_unempowered_auto_mult = 1.0
 	var fury := knight.resource_pool.current
-	var full := await _swing(Vector2.RIGHT, brute)
-	_check("1.0 changes nothing: a swing deals 64, +8 Fury", [full.damage, knight.resource_pool.current - fury], [64.0, 8.0])
-	AutoAttackComponent.prototype_unempowered_auto_mult = 0.5
-	fury = knight.resource_pool.current
 	var weak := await _swing(Vector2.RIGHT, brute)
-	_check("0.5: an unempowered swing deals 32, Fury unchanged (+8)", [weak.damage, knight.resource_pool.current - fury], [32.0, 8.0])
+	_check("a plain swing deals 32 (64 x 0.5), Fury unchanged (+8)", [weak.damage, weak.empowered, knight.resource_pool.current - fury], [32.0, false, 8.0])
 	var weak_dash := await _swing(Vector2.RIGHT, brute, true)
-	_check("...a dash-strike 48 (1.5 x 64 x 0.5)", weak_dash.damage, 48.0)
-	AutoAttackComponent.prototype_unempowered_auto_mult = 0.1
-	var floor_hit := await _swing(Vector2.RIGHT, brute)
-	_check("...clamped to 0.2 at least (12.8)", floor_hit.damage, 12.8)
+	_check("...a dash-strike 48 (1.5 x 64 x 0.5)", [weak_dash.damage, weak_dash.dash_strike], [48.0, true])
+	knight.stats_component.add_modifier(StatModifier.create(&"unempowered_attack_damage", FLAT, 0.5, FULL_SWINGS_SOURCE))
+	var at_one := await _swing(Vector2.RIGHT, brute)
+	_check("the stat at 1 gives the full swing (64)", at_one.damage, 64.0)
+	knight.stats_component.add_modifier(StatModifier.create(&"unempowered_attack_damage", FLAT, 5.0, FULL_SWINGS_SOURCE))
+	_check("...it's capped at 1 (a plain swing never deals more than a full one)", knight.stats_component.get_stat(&"unempowered_attack_damage"), 1.0)
+	knight.stats_component.remove_modifiers_from(FULL_SWINGS_SOURCE)
 	knight.resource_pool.decay_per_second = decay
-	AutoAttackComponent.prototype_unempowered_auto_mult = 0.5
 	await _fresh()
 	await _deflect_pair(brute)
 	_place(knight, ARENA)
 	_place(brute, ARENA + Vector2(50, 0))
 	var riposte := await _swing(Vector2.RIGHT, brute)
-	_check("the riposte is untouched (256)", riposte.damage, 256.0)
+	_check("the riposte is full (256)", [riposte.damage, riposte.empowered], [256.0, true])
 	knight.resource_pool.restore(1000.0)
 	knight.abilities.reset_cooldown(&"w")
 	await get_tree().physics_frame
@@ -446,15 +467,18 @@ func _test_weak_autos() -> void:
 	_check("Iron Resolve casts", knight.cast_ability(&"w", knight.global_position + Vector2.RIGHT * 40.0), true)
 	await _wait_until(func() -> bool: return not knight.abilities.casting, 60)
 	var iron := await _swing(Vector2.RIGHT, brute)
-	_check("an Iron Resolve swing is untouched (64 + its bonus)", [iron.damage, iron.empowered], [64.0 + iron_bonus, true])
+	_check("an Iron Resolve swing is full (64 + its bonus)", [iron.damage, iron.empowered], [64.0 + iron_bonus, true])
+	var after := await _swing(Vector2.RIGHT, brute)
+	_check("...the swing after it plain again (32)", [after.damage, after.empowered], [32.0, false])
 
 	var dummy := _spawn(SLIME_SCENE, ARENA + Vector2(0, 260))
 	dummy.team = Unit.Team.PLAYER
 	var hitter := _spawn(BRUTE_SCENE, ARENA + Vector2(30, 260))
+	_check("an enemy keeps 1 (its basic attacks are its damage)", hitter.stats_component.get_stat(&"unempowered_attack_damage"), 1.0)
 	hitter.attack.attack(dummy)
 	var dummy_health := dummy.health.current
 	await _wait_until(func() -> bool: return dummy.health.current < dummy_health, 120)
-	_check("an enemy's League-style attack is untouched (26)", dummy_health - dummy.health.current, 26.0)
+	_check("...its League-style attack is untouched (26)", dummy_health - dummy.health.current, 26.0)
 	hitter.attack.cancel()
 
 	var ally := PLAYER_SCENE.instantiate() as Player
@@ -468,11 +492,131 @@ func _test_weak_autos() -> void:
 	var before := ally_target.health.current
 	ally.attack.try_swing(Vector2.RIGHT)
 	await _wait_until(func() -> bool: return ally_target.health.current < before, 30)
-	_check("an ally Knight (not the tracked player) is untouched (64 at 0.5)", before - ally_target.health.current, 64.0)
-	AutoAttackComponent.prototype_unempowered_auto_mult = 1.0
+	_check("an ally Knight (not the tracked player) deals half too (32): the stat is the champion's", before - ally_target.health.current, 32.0)
 	for n: Node in [brute, dummy, hitter, ally, ally_target]:
 		n.queue_free()
 	await _frames(2)
+
+
+## AR4's data: the stat in the registry, 0.5 on every champion's UnitStats,
+## 1 on every other unit's.
+func _test_ar4_data() -> void:
+	_section("AR4: the stat unempowered_attack_damage")
+	var def := knight.stats_component.registry.get_definition(&"unempowered_attack_damage")
+	_check("registered", def != null, true)
+	if def == null:
+		return
+	_check("...default 1, limits 0 to 1, shown as a percent", [def.default_value, def.has_min, def.min_value, def.has_max, def.max_value, def.format],
+		[1.0, true, 0.0, true, 1.0, StatDefinition.Format.PERCENT])
+	var champion_stats: Dictionary = {}   # resource_path -> champion id
+	for file in DirAccess.get_files_at("res://data/champions/"):
+		var champion := load("res://data/champions/" + file.trim_suffix(".remap")) as ChampionData
+		if champion != null and champion.stats != null:
+			champion_stats[champion.stats.resource_path] = champion.id
+	var champions: Dictionary = {}   # champion id -> its value
+	var others: Array = []   # [file, value] of any other unit off 1
+	for file in DirAccess.get_files_at("res://data/units/"):
+		var path := "res://data/units/" + file.trim_suffix(".remap")
+		var stats := load(path) as UnitStats
+		if stats == null:
+			continue
+		if champion_stats.has(path):
+			champions[champion_stats[path]] = stats.unempowered_attack_damage
+		elif not is_equal_approx(stats.unempowered_attack_damage, 1.0):
+			others.append([file, stats.unempowered_attack_damage])
+	_check("every champion's UnitStats sets 0.5 (the Knight, Korsavil)", champions, {&"knight": 0.5, &"korsavil": 0.5})
+	_check("every other unit keeps 1 (enemies)", others, [])
+
+
+## AR4's check (D12): the rotation simulation. The Knight against a held
+## target (passive and put back on its spot every tick: a training dummy, the
+## same for both runs), from full health, Fury empty and every cooldown
+## ready, his crit at 0 and Unbroken off (the suite's baseline). Only swings:
+## a swing as soon as one can start. The kit: the same, plus each ability as
+## soon as it's ready, cast between swings (_kit_cast()). Kill times in
+## physics ticks; only swings must take at least twice as long as the kit
+## against the elite slime (D12). Against the test duelist (2800 health, 30
+## armor: a fight about four times as long, Judgement landing once) the kit
+## measured 1.89x at 0.5 (1.95x at 0.45, 2.01x at 0.4), so its bar guards
+## today's number, 1.85x, and the gap to 2x is ARCHETYPES' open question for
+## the Knight's kit (Ryan, 2026-10-09: keep 0.5, record the gap).
+func _test_ar4_rotation() -> void:
+	_section("AR4: the rotation simulation (only swings at least 2x slower than the kit on the elite slime)")
+	DeflectComponent.deflect_test_enabled = false
+	PoiseComponent.poise_test_enabled = false
+	var hitstop_scale := GameFeel.hitstop_time_scale
+	GameFeel.hitstop_time_scale = 1.0   # a hitstop runs in real time: it would stretch the runs unevenly
+	for entry: Array in [[ELITE_SCENE, "the elite slime", 2.0], [DUELIST_SCENE, "the test duelist", DUELIST_ROTATION_BAR]]:
+		var swings: Dictionary = await _kill_time(entry[0], false)
+		var kit: Dictionary = await _kill_time(entry[0], true)
+		var s: float = swings.time
+		var k: float = kit.time
+		var bar: float = entry[2]
+		print("    %s: only swings %.2f s, the kit %.2f s (x%.2f); casts %s" % [entry[1], s, k, s / maxf(k, 0.001), kit.casts])
+		_check("%s: both runs kill it, never out of reach" % entry[1], [swings.killed, kit.killed, swings.replaced, kit.replaced], [true, true, 0, 0])
+		_check("%s: only swings (%.1f s) at least %.2fx the kit (%.1f s)" % [entry[1], s, bar, k], k > 0.0 and s >= bar * k, true)
+	GameFeel.hitstop_time_scale = hitstop_scale
+
+
+## One run of the rotation simulation against a fresh `scene`: {time (s),
+## killed, casts (per slot), replaced (times the Knight was put back in
+## reach: 0 expected)}.
+func _kill_time(scene: PackedScene, use_kit: bool) -> Dictionary:
+	await _fresh()
+	for slot: StringName in [&"q", &"w", &"e", &"r"]:
+		knight.abilities.reset_cooldown(slot)
+	knight.resource_pool.try_spend(knight.resource_pool.current)   # Fury empty, as a fight starts
+	var target := _spawn(scene, ROTATION_SPOT)
+	var gap := knight.get_gameplay_radius_px() + target.get_gameplay_radius_px() + 16.0
+	_place(knight, ROTATION_SPOT - Vector2(gap, 0))
+	await _frames(2)
+	target.health.heal(100000.0)
+	var casts := {&"q": 0, &"w": 0, &"e": 0, &"r": 0}
+	var replaced := 0
+	var ticks := 0
+	var limit := roundi(ROTATION_LIMIT * Engine.physics_ticks_per_second)
+	while is_instance_valid(target) and target.is_alive() and ticks < limit:
+		_place(target, ROTATION_SPOT)   # held: its knockback undone
+		var to := ROTATION_SPOT - knight.global_position
+		var busy := knight.abilities.casting or knight.dash.is_dashing() or knight.movement.is_displaced()
+		if not busy and knight.attack.can_swing() and to.length() > gap + KNIGHT_REACH_PX * 0.5:
+			replaced += 1   # out of reach: put back (none expected; it would flatter the run)
+			_place(knight, ROTATION_SPOT - to.normalized() * gap)
+			to = ROTATION_SPOT - knight.global_position
+		var direction := to.normalized() if to.length() > 0.01 else Vector2.RIGHT
+		if use_kit and not knight.abilities.casting and (not knight.attack.is_swinging() or knight.attack.is_in_recovery()):
+			var slot := _kit_cast(target, direction)
+			if slot != &"":
+				casts[slot] += 1
+		if not knight.abilities.casting:
+			knight.attack.try_swing(direction)
+		await get_tree().physics_frame
+		ticks += 1
+	var killed := not is_instance_valid(target) or not target.is_alive()
+	if is_instance_valid(target):
+		target.queue_free()
+	await _frames(2)
+	return {"time": float(ticks) / Engine.physics_ticks_per_second, "killed": killed, "casts": casts, "replaced": replaced}
+
+
+## The kit's next cast, if any, as a player using it would: Judgement once
+## Fury reaches its 60 payoff (CHAMPIONS CH4), Iron Resolve when no swing
+## empower is waiting, Lunge through the target, Cleave when its 20 Fury
+## leaves Judgement's 60 while Judgement is ready. Returns the slot cast.
+func _kit_cast(target: Unit, direction: Vector2) -> StringName:
+	var a := knight.abilities
+	var fury := knight.resource_pool.current
+	var at := target.global_position
+	if a.can_cast(&"r") and fury >= 60.0 and a.try_cast(&"r", at, target):
+		return &"r"
+	if a.can_cast(&"w") and not knight.attack.is_empowered() and a.try_cast(&"w", knight.global_position + direction * 40.0):
+		return &"w"
+	if a.can_cast(&"e") and a.try_cast(&"e", at + direction * target.get_gameplay_radius_px()):
+		return &"e"
+	var keep := 60.0 if a.is_ready(&"r") else 0.0
+	if a.can_cast(&"q") and fury >= 20.0 + keep and a.try_cast(&"q", at):
+		return &"q"
+	return &""
 
 
 # --- Sources it wasn't written for ------------------------------------------------
@@ -579,7 +723,7 @@ func _test_poise_flags_off() -> void:
 	_check("1000 poise damage: no break, no status, no events", [p.is_broken(), elite.status_component.has_status(STATUS_POISE_BROKEN.id), _poise_breaks.size(), _poise_changes.size()], [false, false, 0, 0])
 	var swing := await _swing(Vector2.RIGHT, elite)
 	var hit := _last_hit_on(elite)
-	_check("a Knight swing deals its 64 as before; its 4 poise damage does nothing", [swing.damage, hit.poise_damage if hit else -1.0, p.get_poise(), _poise_changes.size()], [64.0, 4.0, 0.0, 0])
+	_check("a Knight swing deals its 32 as before (a plain swing, AR4); its 4 poise damage does nothing", [swing.damage, hit.poise_damage if hit else -1.0, p.get_poise(), _poise_changes.size()], [32.0, 4.0, 0.0, 0])
 	elite.queue_free()
 	await get_tree().physics_frame
 
@@ -1085,7 +1229,7 @@ func _test_sandbox() -> void:
 	add_child(sd)
 	await _frames(2)
 	_check("in a test scene it leaves the flags and the lever alone", [DeflectComponent.deflect_test_enabled, PoiseComponent.poise_test_enabled, AutoAttackComponent.prototype_unempowered_auto_mult], [false, false, 1.0])
-	_check("its starting values: both flags on, the lever 0.5, readouts on, deflects bank", [sd.deflect_test_enabled, sd.poise_test_enabled, sd.prototype_unempowered_auto_mult, sd.is_readouts_on(), sd.streak_persists], [true, true, 0.5, true, true])
+	_check("its starting values: both flags on, readouts on, deflects bank (since AR4 it never sets the TEMP lever)", [sd.deflect_test_enabled, sd.poise_test_enabled, sd.is_readouts_on(), sd.streak_persists, "prototype_unempowered_auto_mult" in sd], [true, true, true, true, false])
 	_check("...a test scene's Knight keeps his own", deflect.streak_persists, false)
 	sd.set_streak_persists(true)
 	_check("its switch sets the Knight's, live", deflect.streak_persists, true)
@@ -1104,9 +1248,9 @@ func _test_sandbox() -> void:
 		&"riposte_ad_ratio", &"riposte_window", &"riposte_snap_range", &"deflect_poise_damage_first", &"deflect_poise_damage_second",
 		&"riposte_poise_damage", &"deflect_hitstop", &"deflect_shake", &"poise_max", &"poise_break_time", &"decay_delay",
 		&"decay_rate", &"low_health_decay_scale", &"break_damage_bonus", &"break_immunity", &"swing_poise", &"cleave_poise",
-		&"judgement_poise", &"weak_autos"]
-	_check("every tunable has a row (23: AR3a's meter reads PoiseRules and the elite rank's break time)", keys == expected, true)
-	_check("its rows read the live values", [sd.get_value(&"deflect_window"), sd.get_value(&"poise_max"), sd.get_value(&"poise_break_time"), sd.get_value(&"decay_rate"), sd.get_value(&"swing_poise"), sd.get_value(&"weak_autos")], [0.15, 100.0, 1.8, 15.0, 4.0, 1.0])
+		&"judgement_poise", &"unempowered_attack_damage"]
+	_check("every tunable has a row (23: AR3a's meter reads PoiseRules and the elite rank's break time; AR4's stat in place of the TEMP lever)", keys == expected, true)
+	_check("its rows read the live values", [sd.get_value(&"deflect_window"), sd.get_value(&"poise_max"), sd.get_value(&"poise_break_time"), sd.get_value(&"decay_rate"), sd.get_value(&"swing_poise"), sd.get_value(&"unempowered_attack_damage")], [0.15, 100.0, 1.8, 15.0, 4.0, 0.5])
 	var elite := _spawn(ELITE_SCENE, ARENA + Vector2(0, 220))
 	sd.set_value(&"deflect_window", 0.2)
 	sd.set_value(&"decay_rate", 30.0)
@@ -1114,14 +1258,20 @@ func _test_sandbox() -> void:
 	sd.set_value(&"poise_break_time", 2.0)
 	sd.set_value(&"swing_poise", 6.0)
 	sd.set_value(&"cleave_poise", 25.0)
-	sd.set_value(&"weak_autos", 0.7)
+	sd.set_value(&"unempowered_attack_damage", 0.7)
 	_check("a change applies at once: the Knight's window, a live elite's meter (its rules, its size, its break time)", [deflect.deflect_window, elite.poise_component.get_rules().decay_rate, elite.poise_component.poise_max, elite.poise_component.poise_break_time], [0.2, 30.0, 150.0, 2.0])
 	var later := _spawn(DUELIST_SCENE, ARENA + Vector2(0, 280))
 	_check("...and to an enemy spawned after (its data, its rank, the shared rules)", [later.poise_component.get_rules().decay_rate, later.poise_component.poise_max, later.poise_component.poise_break_time, _rd(DUELIST_DATA, &"poise_max")], [30.0, 150.0, 2.0, 150.0])
-	_check("...the poise damage on the shared data, the lever", [_rd(COMBO_KNIGHT.swings[2], &"poise_damage"), _rd(COMBO_KNIGHT.dash_strike, &"poise_damage"), _rd(CLEAVE, &"poise_damage"), _rd(CLEAVE_WAVE, &"poise_damage"), AutoAttackComponent.prototype_unempowered_auto_mult], [6.0, 6.0, 25.0, 25.0, 0.7])
+	_check("...the poise damage on the shared data", [_rd(COMBO_KNIGHT.swings[2], &"poise_damage"), _rd(COMBO_KNIGHT.dash_strike, &"poise_damage"), _rd(CLEAVE, &"poise_damage"), _rd(CLEAVE_WAVE, &"poise_damage")], [6.0, 6.0, 25.0, 25.0])
+	_check("...the Knight's stat as one modifier of its own (the lever left at 1.0)", [knight.stats_component.get_stat(&"unempowered_attack_damage"),
+		knight.stats_component.get_modifiers_from(SandboxDeflect.STAT_SOURCE).size(), sd.get_value(&"unempowered_attack_damage"), AutoAttackComponent.prototype_unempowered_auto_mult], [0.7, 1, 0.7, 1.0])
+	sd.set_value(&"unempowered_attack_damage", 0.5)
+	_check("...back to his own 0.5: no modifier left", [knight.stats_component.get_stat(&"unempowered_attack_damage"), knight.stats_component.get_modifiers_from(SandboxDeflect.STAT_SOURCE).size()], [0.5, 0])
+	sd.set_value(&"unempowered_attack_damage", 0.8)
 	sd.queue_free()
 	await _frames(2)
 	_check("gone: the shared data is put back", [_rd(ELITE_DATA, &"poise_max"), _rd(DUELIST_DATA, &"poise_max"), _rd(COMBO_KNIGHT.swings[0], &"poise_damage"), _rd(COMBO_KNIGHT.dash_strike, &"poise_damage"), _rd(CLEAVE, &"poise_damage"), _rd(CLEAVE_WAVE, &"poise_damage")], [100.0, 100.0, 4.0, 4.0, 20.0, 20.0])
+	_check("...the Knight's stat too (0.5, its modifier gone)", [knight.stats_component.get_stat(&"unempowered_attack_damage"), knight.stats_component.get_modifiers_from(SandboxDeflect.STAT_SOURCE).size()], [0.5, 0])
 	_check("...the rules and the elite rank's break time too", [_rd(PoiseComponent.DEFAULT_RULES, &"decay_rate"), _rd(Brains.table.get_rank_rules(EnemyData.Rank.ELITE), &"poise_break_time")], [15.0, 1.8])
 	AutoAttackComponent.prototype_unempowered_auto_mult = 1.0
 	DeflectComponent.deflect_test_enabled = false

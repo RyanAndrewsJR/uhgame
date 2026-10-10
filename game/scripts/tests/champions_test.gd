@@ -951,8 +951,8 @@ func _test_korsavil_swings() -> void:
 		k.attack.try_swing(Vector2.RIGHT)
 		await _wait_until(func() -> bool: return hits.size() > before, 60)
 	Events.unit_hit.disconnect(on_hit)
-	_check("three swings: 54 / 54 / 84 raw (0.9 / 0.9 / 1.4 x 60 AD), all melee, only the third tagged `finisher`",
-		hits, [[false, true, 54], [false, true, 54], [true, true, 84]])
+	_check("three swings: 27 / 27 / 42 raw (0.9 / 0.9 / 1.4 x 60 AD, x 0.5 since ARCHETYPES AR4: weak basic attacks), all melee, only the third tagged `finisher`",
+		hits, [[false, true, 27], [false, true, 27], [true, true, 42]])
 	var knight := await _spawn()
 	var tags := HitPipeline.basic_attack(knight, d, COMBO_KNIGHT.swings[2]).tags
 	_check("the Knight's finisher hit: no `finisher` tag (his data unchanged)", tags.has(&"finisher"), false)
