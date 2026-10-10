@@ -66,6 +66,9 @@ var knockback_from: Vector2 = Vector2.INF
 ## Statuses applied to the target after the damage, from the source
 ## (COMBAT C9). Blocked hits apply none.
 var statuses: Array[StatusEffect] = []
+## The empowers this hit used (HitPipeline.add_empowers(): a swing's; a cast's
+## are its CastContext.empowers). AUDIO A6a: a sound trigger's used_empower.
+var empowers_used: Array[StatusEffect] = []
 var feel: Feel = Feel.NONE
 ## The swing's or ability's own hit sound (AUDIO.md); CombatSounds plays it
 ## once per swing or cast. null = HitFeel's sound for the hit's tier.

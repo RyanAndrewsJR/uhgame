@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="SoundSheet" format=3 uid="uid://cngrsmlfvc71s"]
+
+[ext_resource type="Script" uid="uid://b2luxvlvair4y" path="res://scripts/data/sound_sheet.gd" id="1_sheet"]
+[ext_resource type="Script" uid="uid://bvno6yp84udj5" path="res://scripts/data/sound_trigger.gd" id="2_trigger"]
+[ext_resource type="Script" uid="uid://rmkkourgx2vm" path="res://scripts/data/condition.gd" id="3_co003"]
+[ext_resource type="Resource" uid="uid://dve7fk3qogohc" path="res://data/sounds/sound_korsavil_demise_four.tres" id="3_four"]
+[ext_resource type="Resource" path="res://data/sounds/sound_korsavil_demise_six.tres" id="4_six"]
+[ext_resource type="Resource" path="res://data/sounds/sound_korsavil_sweep_cast.tres" id="5_sweep"]
+
+[sub_resource type="Resource" id="demise_four"]
+script = ExtResource("2_trigger")
+name = "Demise 4: empowered hit"
+event = 0
+used_empower = &"empower_demise"
+sound = ExtResource("3_four")
+
+[sub_resource type="Resource" id="demise_six"]
+script = ExtResource("2_trigger")
+name = "Demise 6"
+event = 9
+status_id = &"demise"
+stacks = 6
+sound = ExtResource("4_six")
+
+[sub_resource type="Resource" id="sweep_cast"]
+script = ExtResource("2_trigger")
+name = "Sweep cast"
+event = 5
+at_progress = 0.0
+ability_id = &"korsavil_blade_singer_sweep"
+sound = ExtResource("5_sweep")
+
+[resource]
+script = ExtResource("1_sheet")
+triggers = Array[ExtResource("2_trigger")]([SubResource("demise_four"), SubResource("demise_six"), SubResource("sweep_cast")])

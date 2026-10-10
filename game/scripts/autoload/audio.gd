@@ -17,6 +17,9 @@ extends Node
 ##   slider in Settings (0 mutes).
 ## - Every play, drop, stop and steal is logged (get_log()) so tests can check
 ##   audio without hearing it; debug_draw lists the recent ones on screen.
+## - Sound triggers (AUDIO A6a): its child SoundTriggers plays the triggers of
+##   watched units' SoundSheets through play_triggered() (the log's `trigger`);
+##   `rng` rolls their chance (tests seed it).
 
 ## Buses whose players pause with the scene tree (AUDIO.md, Rules).
 const PAUSABLE_BUSES: Array[StringName] = [&"SFX", &"Ambience", &"Voice"]
@@ -39,6 +42,9 @@ const RESULT_STOLEN := &"stolen"
 ## a sound at the screen's edge is as loud and as panned as in 2D; back to 1
 ## when that camera leaves.
 var distance_scale: float = 1.0
+## Rolls sound triggers' chance (AUDIO A6a). Randomized at start; a test
+## seeds it.
+var rng := RandomNumberGenerator.new()
 
 
 ## One sound that's playing.
@@ -51,6 +57,7 @@ class Voice:
 	var priority: int
 	var started_ms: int
 	var follow: Node2D   # play_on(): followed, and the sound stops when it leaves the tree
+	var trigger: String = ""   # the sound trigger that played it (A6a), for the log
 
 
 var _voices: Dictionary = {}          # handle -> Voice
@@ -71,6 +78,7 @@ var _last_ticks_usec: int = 0
 var _debug_layer: CanvasLayer
 var _debug_text: RichTextLabel
 var _combat_sounds: CombatSounds
+var _sound_triggers: SoundTriggers
 
 
 func _ready() -> void:
@@ -88,6 +96,10 @@ func _ready() -> void:
 	_combat_sounds = CombatSounds.new()   # hit, death and status sounds from Events (A2)
 	_combat_sounds.name = "CombatSounds"
 	add_child(_combat_sounds)
+	rng.randomize()
+	_sound_triggers = SoundTriggers.new()   # sound triggers from watched units' sheets (A6a)
+	_sound_triggers.name = "SoundTriggers"
+	add_child(_sound_triggers)
 
 
 # --- Playing --------------------------------------------------------------------
@@ -114,6 +126,25 @@ func play_on(event: SoundEvent, node: Node2D, pitch: float = 1.0, priority: int 
 	return _play(event, position, not _is_player(node), node, pitch, priority)
 
 
+## A sound trigger's play (AUDIO A6a; SoundTriggers decides the place):
+## `positional` false = centered, else at `position` (still centered when the
+## event isn't positional); `follow` as play_on(). `volume_db` is added to the
+## event's; the log entry carries `trigger_name`. Returns its handle.
+func play_triggered(event: SoundEvent, position: Vector2, positional: bool, follow: Node2D, pitch: float = 1.0,
+		volume_db: float = 0.0, priority: int = -1, trigger_name: String = "") -> int:
+	if event != null and follow != null and (not is_instance_valid(follow) or not follow.is_inside_tree()):
+		var entry := _make_entry(event, Vector2.ZERO, false, _priority_of(event, priority))
+		entry.trigger = trigger_name
+		_add_log(entry, RESULT_DROPPED, &"no_owner")
+		return 0
+	return _play(event, position, positional, follow, pitch, priority, volume_db, trigger_name)
+
+
+## The SoundTriggers node (AUDIO A6a): watch() and unwatch() units' sheets.
+func get_sound_triggers() -> SoundTriggers:
+	return _sound_triggers
+
+
 ## Stops a sound. 0 or a sound that already ended does nothing.
 func stop(handle: int) -> void:
 	var voice: Voice = _voices.get(handle)
@@ -138,6 +169,8 @@ func stop_all() -> void:
 	_starts.clear()
 	if _combat_sounds != null:
 		_combat_sounds.reset()
+	if _sound_triggers != null:
+		_sound_triggers.reset()   # waiting progress points and delays
 
 
 # --- Queries --------------------------------------------------------------------
@@ -154,7 +187,8 @@ func get_player(handle: int) -> Node:
 
 ## Every play, drop, stop and steal, oldest first (the last mix.log_size).
 ## Each entry: time_ms, frame, event (resource path or name), sound (the
-## SoundEvent), handle, result, reason, bus, priority, positional, position.
+## SoundEvent), handle, result, reason, bus, priority, positional, position,
+## trigger (the sound trigger's name; "" for every other sound: AUDIO A6a).
 func get_log() -> Array[Dictionary]:
 	return _log.duplicate()
 
@@ -199,12 +233,14 @@ func _physics_process(_delta: float) -> void:
 
 # --- Internals ------------------------------------------------------------------
 
-func _play(event: SoundEvent, position: Vector2, wants_position: bool, follow: Node2D, pitch: float, priority: int) -> int:
+func _play(event: SoundEvent, position: Vector2, wants_position: bool, follow: Node2D, pitch: float, priority: int,
+		volume_offset_db: float = 0.0, trigger_name: String = "") -> int:
 	if event == null:
 		return 0
 	var positional := wants_position and event.positional
 	var prio := _priority_of(event, priority)
 	var entry := _make_entry(event, position, positional, prio)
+	entry.trigger = trigger_name
 
 	var stream := event.get_stream()
 	if stream == null:
@@ -238,7 +274,8 @@ func _play(event: SoundEvent, position: Vector2, wants_position: bool, follow: N
 	voice.bus = bus
 	voice.priority = prio
 	voice.started_ms = now
-	voice.player = _start_player(event, stream, bus, positional, position, pitch)
+	voice.trigger = trigger_name
+	voice.player = _start_player(event, stream, bus, positional, position, pitch, volume_offset_db)
 	if follow != null:
 		voice.follow = follow
 		if not _follow_handles.has(follow):
@@ -252,7 +289,8 @@ func _play(event: SoundEvent, position: Vector2, wants_position: bool, follow: N
 	return voice.handle
 
 
-func _start_player(event: SoundEvent, stream: AudioStream, bus: StringName, positional: bool, position: Vector2, pitch: float) -> Node:
+func _start_player(event: SoundEvent, stream: AudioStream, bus: StringName, positional: bool, position: Vector2, pitch: float,
+		volume_offset_db: float = 0.0) -> Node:
 	var player: Node
 	if positional:
 		var p2 := _take_player_2d()
@@ -262,14 +300,14 @@ func _start_player(event: SoundEvent, stream: AudioStream, bus: StringName, posi
 		p2.global_position = position
 		p2.stream = stream
 		p2.bus = bus
-		p2.volume_db = event.volume_db
+		p2.volume_db = event.volume_db + volume_offset_db
 		p2.pitch_scale = maxf(event.pitch_scale * pitch, 0.01)
 		player = p2
 	else:
 		var p := _take_player_flat()
 		p.stream = stream
 		p.bus = bus
-		p.volume_db = event.volume_db
+		p.volume_db = event.volume_db + volume_offset_db
 		p.pitch_scale = maxf(event.pitch_scale * pitch, 0.01)
 		player = p
 	player.process_mode = Node.PROCESS_MODE_PAUSABLE if bus in PAUSABLE_BUSES else Node.PROCESS_MODE_ALWAYS
@@ -298,6 +336,7 @@ func _take_player_2d() -> AudioStreamPlayer2D:
 func _stop_voice(voice: Voice, result: StringName, reason: StringName) -> void:
 	var entry := _make_entry(voice.event, Vector2.ZERO, voice.player is AudioStreamPlayer2D, voice.priority)
 	entry.handle = voice.handle
+	entry.trigger = voice.trigger
 	_release(voice)
 	_add_log(entry, result, reason)
 
@@ -315,6 +354,7 @@ func _release(voice: Voice) -> void:
 			if is_instance_valid(voice.follow) and voice.follow.tree_exiting.is_connected(_on_follow_tree_exiting):
 				voice.follow.tree_exiting.disconnect(_on_follow_tree_exiting)
 	voice.follow = null
+	voice.trigger = ""
 	voice.player.call(&"stop")
 	voice.player.set(&"stream", null)
 	if voice.player is AudioStreamPlayer2D:
@@ -383,6 +423,7 @@ func _make_entry(event: SoundEvent, position: Vector2, positional: bool, priorit
 		"priority": priority,
 		"positional": positional,
 		"position": position,
+		"trigger": "",
 	}
 
 

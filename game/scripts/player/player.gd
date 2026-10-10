@@ -104,6 +104,8 @@ func _ready() -> void:
 	super._ready()
 	if champion != null:
 		_attach_champion()
+		if champion.sound_sheet != null:
+			Audio.get_sound_triggers().watch(self, champion.sound_sheet)   # AUDIO A6a
 	add_to_group("player")
 	attack.swing_landed.connect(_on_swing_landed)
 	abilities.cast_started.connect(_on_cast_started)

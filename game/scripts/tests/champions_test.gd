@@ -102,6 +102,7 @@ const SOUND_DEMISE_FOUR: SoundEvent = preload("res://data/sounds/sound_korsavil_
 const SOUND_DEMISE_SIX: SoundEvent = preload("res://data/sounds/sound_korsavil_demise_six.tres")
 const SOUND_SWEEP_CAST: SoundEvent = preload("res://data/sounds/sound_korsavil_sweep_cast.tres")
 const STATUS_SHIELD: StatusEffect = preload("res://data/statuses/status_shield.tres")
+const SOUND_SHEET_KORSAVIL: SoundSheet = preload("res://data/sound_sheets/sound_sheet_korsavil.tres")
 
 const MANA := ResourceComponent.ResourceType.MANA
 const FURY := ResourceComponent.ResourceType.FURY
@@ -167,6 +168,7 @@ func _ready() -> void:
 	await _test_k5b_sweep_wind_up()
 	await _test_k5b_sounds_play()
 	await _test_k5b_end_reasons()
+	await _test_a6a_korsavil_sheet()
 	print("=== %d passed, %d failed ===\n" % [_passed, _failed])
 
 	if DisplayServer.get_name() == "headless":
@@ -1952,6 +1954,79 @@ func _test_k5b_end_reasons() -> void:
 	Events.status_ended.disconnect(on_event)
 	d.queue_free()
 	await _frames(1)
+
+
+func _test_a6a_korsavil_sheet() -> void:
+	_section("AUDIO A6a: Korsavil's sound sheet, step 1: built and verified on a test copy, not yet his")
+	var sheet := SOUND_SHEET_KORSAVIL
+	var rows := sheet.triggers.map(func(t: SoundTrigger) -> Array:
+		return [t.name, t.event, t.used_empower, t.status_id, t.stacks, t.ability_id, t.at_progress, t.place, t.sound])
+	_check("three triggers: the empowered hit, 6 stacks, the sweep's press; DEFAULT places (centered for him); his three SoundEvents", rows, [
+		["Demise 4: empowered hit", SoundTrigger.Event.HIT_DEALT, &"empower_demise", &"", 0, &"", -1.0, SoundTrigger.Place.DEFAULT, SOUND_DEMISE_FOUR],
+		["Demise 6", SoundTrigger.Event.STACKS_REACHED, &"", &"demise", 6, &"", -1.0, SoundTrigger.Place.DEFAULT, SOUND_DEMISE_SIX],
+		["Sweep cast", SoundTrigger.Event.CAST_START, &"", &"", 0, &"korsavil_blade_singer_sweep", 0.0, SoundTrigger.Place.DEFAULT, SOUND_SWEEP_CAST]])
+	_check("step 1: korsavil.tres has no sheet yet, and his three slots still hold the sounds",
+		[KORSAVIL.sound_sheet, EMPOWER_DEMISE.consume_sound == SOUND_DEMISE_FOUR, STATUS_SWEEP.apply_sound == SOUND_DEMISE_SIX, BLADE_SINGER_SWEEP.cast_sound == SOUND_SWEEP_CAST],
+		[null, true, true, true])
+	var sounds := Audio.get_sound_triggers()
+	var real := await _spawn(false, KORSAVIL)
+	_check("the real Korsavil: not watched (nothing plays twice)", sounds.is_watching(real), false)
+	real.queue_free()
+	var copy: ChampionData = KORSAVIL.duplicate()
+	copy.sound_sheet = sheet
+	var k := await _spawn(false, copy)
+	_no_crits(k)
+	var d := _dummy(k.global_position + Vector2(36, 0))
+	d.stats_component.add_modifier(StatModifier.create(&"max_health", StatModifier.Type.FLAT, 5000.0, &"test_tough"))
+	await _frames(1)
+	_check("a copy with the sheet: the Player watches it at load", [sounds.is_watching(k), sounds.get_sheet(k) == sheet], [true, true])
+	var sc := k.status_component
+	Audio.stop_all()
+	Audio.clear_log()
+	for i in 4:
+		sc.apply_status(STATUS_DEMISE_V2, k)
+	await _swing_times(k, 1)
+	_check("the empowered hit: the old slot (consume_sound) and the trigger, once each, in the same physics frame, both centered",
+		_slot_and_trigger(SOUND_DEMISE_FOUR, "Demise 4: empowered hit"), [1, 1, true, false, false])
+	sc.apply_status(STATUS_DEMISE_V2, k)
+	sc.apply_status(STATUS_DEMISE_V2, k)
+	_check("reaching 6: the old slot (the window's apply_sound) and the trigger, same frame, centered",
+		_slot_and_trigger(SOUND_DEMISE_SIX, "Demise 6"), [1, 1, true, false, false])
+	k.abilities.try_cast(&"q", k.global_position + Vector2(0, -300))
+	_check("the sweep's press: the old slot (cast_sound) and the trigger, same frame, centered",
+		_slot_and_trigger(SOUND_SWEEP_CAST, "Sweep cast"), [1, 1, true, false, false])
+	await _wait_until(func() -> bool: return not k.abilities.casting, 120)
+	d.queue_free()   # its wound's ticks would hitstop the next wind-up
+	await _frames(2)
+	while GameFeel.is_hitstop_active():
+		await get_tree().process_frame
+	var sweep_trigger: SoundTrigger = sheet.triggers[2]
+	sweep_trigger.at_progress = 0.8
+	k.abilities.reset_cooldown(&"q")
+	sc.remove_status(&"demise")
+	for i in 6:
+		sc.apply_status(STATUS_DEMISE_V2, k)
+	Audio.clear_log()
+	var f0 := Engine.get_physics_frames()
+	k.abilities.try_cast(&"q", k.global_position + Vector2(0, -300))
+	await _wait_until(func() -> bool: return not k.abilities.casting, 120)
+	var late := Audio.get_log().filter(func(e: Dictionary) -> bool: return e.trigger == "Sweep cast" and e.result == Audio.RESULT_PLAYED)
+	sweep_trigger.at_progress = 0.0
+	_check_near("at_progress 0.8: 0.8 of the 0.6 s wind-up (29 physics frames) after the press, the slot still at the press",
+		float(int(late[0].frame) - f0) if late.size() == 1 else -1.0, 29.0, 2.0)
+	k.queue_free()
+	Audio.stop_all()
+	await _frames(10)
+
+
+## [slot plays, trigger plays, same physics frame, slot positional, trigger
+## positional] for `ev` in the audio log: the slot's entries name no trigger.
+func _slot_and_trigger(ev: SoundEvent, trigger_name: String) -> Array:
+	var played := Audio.get_log().filter(func(e: Dictionary) -> bool: return e.sound == ev and e.result == Audio.RESULT_PLAYED)
+	var slot := played.filter(func(e: Dictionary) -> bool: return e.trigger == "")
+	var trig := played.filter(func(e: Dictionary) -> bool: return e.trigger == trigger_name)
+	var same: bool = slot.size() == 1 and trig.size() == 1 and slot[0].frame == trig[0].frame
+	return [slot.size(), trig.size(), same, slot[0].positional if slot.size() > 0 else null, trig[0].positional if trig.size() > 0 else null]
 
 
 ## `count` tough passive dummies in a row to `k`'s right: the first at 120 px,

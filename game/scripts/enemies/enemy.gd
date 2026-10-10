@@ -106,6 +106,8 @@ func _ready() -> void:
 	if data != null:
 		_apply_enemy_data()
 		_join_pack()
+		if data.sound_sheet != null:
+			Audio.get_sound_triggers().watch(self, data.sound_sheet)   # AUDIO A6a
 	_enter_idle()
 
 

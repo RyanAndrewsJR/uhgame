@@ -21,6 +21,12 @@ extends Node2D
 ## status sounds (apply on every application, one loop per unit however many
 ## stacks, expire only while alive, the shield's apply and break) and the
 ## Knight's low-health heartbeat.
+## A6a: sound triggers (SoundTrigger, SoundSheet, SoundTriggers): every event,
+## every filter, the places (the Player's sounds centered but his impact),
+## at_progress on a cast and a swing (a cancel drops it), delays in real time
+## (through a hitstop and a pause), once per frame, every Nth, cooldown,
+## chance (seeded), off, no sound, volume and pitch; each read from the log's
+## `trigger`.
 ## The Knight's own crit_chance is held at 0 by a test baseline, so a hit
 ## plays a crit layer only when a check adds crit itself.
 ## Prints PASS/FAIL per check, then a total.
@@ -81,6 +87,7 @@ func _ready() -> void:
 	_test_volumes()
 	await _test_log_and_debug()
 	await _test_combat_sounds()
+	await _test_sound_triggers()   # A6a
 	await _measure()
 
 	Audio.stop_all()
@@ -846,6 +853,548 @@ func _measure() -> void:
 	print("  one physics frame later: playing=%s" % (p2.playing if p2 else false))
 	await _real_wait(0.4)
 	print("  a 0.05 s one-shot 0.4 s later: still held by Audio=%s (false = the driver ran it to the end)" % Audio.is_playing(h))
+
+
+# --- A6a: sound triggers ----------------------------------------------------------
+
+func _test_sound_triggers() -> void:
+	Audio.stop_all()
+	_test_trigger_data()
+	await _test_trigger_events()
+	await _test_trigger_filters()
+	await _test_trigger_places()
+	await _test_trigger_progress()
+	await _test_trigger_delays()
+	await _test_trigger_gates()
+	Audio.stop_all()
+
+
+func _test_trigger_data() -> void:
+	_section("A6a: SoundTrigger and SoundSheet (data); the Player's place rule")
+	var t := SoundTrigger.new()
+	_check("a new trigger: HIT_DEALT at the event, no delay, every filter open, DEFAULT, chance 1, no cooldown, every match, once per frame, on",
+		[t.event, t.at_progress, t.delay, t.swing_number, t.ability_id, t.include_variants, t.part, t.status_id, t.stacks, t.end_reason,
+			t.hit_tags.size(), t.used_empower, t.crit_only, t.kill_only, t.place, t.chance, t.cooldown, t.every_nth, t.once_per_frame, t.enabled,
+			t.volume_db, t.pitch, t.sound],
+		[SoundTrigger.Event.HIT_DEALT, -1.0, 0.0, 0, &"", true, -1, &"", 0, SoundTrigger.EndFilter.ANY,
+			0, &"", false, false, SoundTrigger.Place.DEFAULT, 1.0, 0.0, 1, true, true, 0.0, 1.0, null])
+	_check("the events, in their stored order", SoundTrigger.Event.keys(),
+		["SWING_START", "SWING_LANDED", "SWING_WHIFF", "HIT_DEALT", "HIT_TAKEN", "CAST_START", "CAST_EFFECT", "STATUS_GAINED",
+			"STATUS_ENDED", "STACKS_REACHED", "KILL", "DIED", "DASH", "DEFLECT"])
+	_check("the places and the end filter", [SoundTrigger.Place.keys(), SoundTrigger.EndFilter.keys()],
+		[["DEFAULT", "ON_SELF", "AT_SELF", "ON_OTHER", "AT_OTHER", "AT_AIM", "CENTERED"], ["ANY", "EXPIRED", "CONSUMED", "CLEANSED", "DIED", "REMOVED"]])
+	var placed := func(event: SoundTrigger.Event, place: SoundTrigger.Place, is_player: bool) -> SoundTrigger.Place:
+		var x := SoundTrigger.new()
+		x.event = event
+		x.place = place
+		return SoundTriggers.get_effective_place(x, is_player)
+	var E: Dictionary = SoundTrigger.Event
+	var P: Dictionary = SoundTrigger.Place
+	_check("where: DEFAULT centered for the Player, on him for anyone else; the Player's HIT_DEALT may sit at the enemy (AT_ / ON_OTHER), never his swing, his cast's aim or his own spot; an enemy's anywhere",
+		[placed.call(E.HIT_DEALT, P.DEFAULT, true), placed.call(E.HIT_DEALT, P.DEFAULT, false), placed.call(E.HIT_DEALT, P.AT_OTHER, true),
+			placed.call(E.HIT_DEALT, P.ON_OTHER, true), placed.call(E.SWING_START, P.AT_OTHER, true), placed.call(E.CAST_START, P.AT_AIM, true),
+			placed.call(E.HIT_DEALT, P.AT_SELF, true), placed.call(E.SWING_START, P.AT_OTHER, false), placed.call(E.CAST_START, P.AT_AIM, false)],
+		[P.CENTERED, P.ON_SELF, P.AT_OTHER, P.ON_OTHER, P.CENTERED, P.CENTERED, P.CENTERED, P.AT_OTHER, P.AT_AIM])
+	_check("a sheet starts empty; Audio has its SoundTriggers child", [SoundSheet.new().triggers.size(), Audio.get_sound_triggers() != null], [0, true])
+
+
+func _test_trigger_events() -> void:
+	_section("A6a: each event plays its trigger once (the log's `trigger`)")
+	await _ready_knight()
+	var sounds := Audio.get_sound_triggers()
+	var dummy := _dummies_in_front(1)[0]
+	await get_tree().physics_frame
+	var sheet := SoundSheet.new()
+	for key: String in SoundTrigger.Event.keys():
+		var t := _trigger(SoundTrigger.Event[key], "ev_" + key.to_lower())
+		t.once_per_frame = false
+		sheet.triggers.append(t)
+	sounds.watch(knight, sheet)
+	_check("the Knight watched with the sheet", [sounds.is_watching(knight), sounds.get_sheet(knight) == sheet], [true, true])
+	Audio.clear_log()
+	knight.attack.try_swing(Vector2.LEFT)
+	await _wait_until(func() -> bool: return _fired("ev_swing_landed").size() > 0, 60)
+	_check("a swing that lands: SWING_START, SWING_LANDED and HIT_DEALT once each, no whiff",
+		[_fired("ev_swing_start").size(), _fired("ev_swing_landed").size(), _fired("ev_hit_dealt").size(), _fired("ev_swing_whiff").size()], [1, 1, 1, 0])
+	var swing_sound := _played("sound_knight_swing")
+	_check("each entry names its trigger; a slot's sound names none",
+		[_fired("ev_hit_dealt")[0].trigger if _fired("ev_hit_dealt").size() > 0 else "", swing_sound[0].trigger if swing_sound.size() > 0 else "?"],
+		["ev_hit_dealt", ""])
+	await _ready_knight()
+	_place(dummy, knight.global_position + Vector2(0, 400))   # out of the aim snap's reach
+	await get_tree().physics_frame
+	Audio.clear_log()
+	knight.attack.try_swing(Vector2.UP)   # nothing there (the suite's slime stands to his right)
+	await _wait_until(func() -> bool: return _fired("ev_swing_whiff").size() > 0, 60)
+	_check("a swing at nothing: SWING_WHIFF, no landing, no hit",
+		[_fired("ev_swing_whiff").size(), _fired("ev_swing_landed").size(), _fired("ev_hit_dealt").size()], [1, 0, 0])
+	await _ready_knight()
+	Audio.clear_log()
+	knight.on_hit(dummy.make_hit_context(5.0, dummy))
+	_check("a hit on him: HIT_TAKEN", _fired("ev_hit_taken").size(), 1)
+	var saved_w := knight.abilities.w
+	var quick := Ability.new()
+	quick.id = &"test_trigger_cast"
+	quick.targeting = Ability.Targeting.SELF
+	quick.cooldown = 0.1
+	quick.cast_time = 0.1
+	knight.abilities.w = quick
+	await _ready_knight()
+	Audio.clear_log()
+	knight.abilities.try_cast(&"w", knight.global_position)
+	_check("a cast starts: CAST_START, not yet its effect", [_fired("ev_cast_start").size(), _fired("ev_cast_effect").size()], [1, 0])
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 60)
+	_check("its effect: CAST_EFFECT", _fired("ev_cast_effect").size(), 1)
+	knight.abilities.w = saved_w
+	var mark := _mark("test_trigger_mark", 5.0, 3)
+	Audio.clear_log()
+	knight.status_component.apply_status(mark, dummy)
+	_check("a status on him: STATUS_GAINED, and its first stack STACKS_REACHED (stacks 0: every new stack)",
+		[_fired("ev_status_gained").size(), _fired("ev_stacks_reached").size()], [1, 1])
+	knight.status_component.remove_status(mark.id)
+	_check("it ends: STATUS_ENDED", _fired("ev_status_ended").size(), 1)
+	await _wait_until(func() -> bool: return knight.dash.get_charges() > 0 and not knight.dash.is_dashing(), 120)
+	Audio.clear_log()
+	knight.dash.try_dash(Vector2.UP)
+	_check("a dash: DASH", _fired("ev_dash").size(), 1)
+	await _wait_until(func() -> bool: return not knight.dash.is_dashing(), 60)
+	Audio.clear_log()
+	Events.hit_deflected.emit(dummy, knight, dummy.make_hit_context(5.0, dummy))
+	_check("a deflect (Events.hit_deflected): DEFLECT", _fired("ev_deflect").size(), 1)
+	var victim := _dummies_in_front(1)[0]
+	await get_tree().physics_frame
+	sounds.watch(victim, _sheet([_trigger(SoundTrigger.Event.DIED, "victim_died")]))
+	Audio.clear_log()
+	victim.on_hit(victim.make_hit_context(100000.0, knight))
+	_check("he kills a watched slime: his KILL, its DIED", [_fired("ev_kill").size(), _fired("victim_died").size()], [1, 1])
+	await _wait_until(func() -> bool: return not is_instance_valid(victim) or not sounds.is_watching(victim), 240)
+	_check("it left the tree: no longer watched", is_instance_valid(victim) and sounds.is_watching(victim), false)
+	sounds.unwatch(knight)
+	await _ready_knight()
+	Audio.clear_log()
+	knight.attack.try_swing(Vector2.LEFT)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+	_check("unwatched: nothing plays", [sounds.is_watching(knight), _fired("ev_swing_start").size(), _fired("ev_hit_dealt").size()], [false, 0, 0])
+	if is_instance_valid(dummy):
+		dummy.queue_free()
+	await _frames(2)
+
+
+func _test_trigger_filters() -> void:
+	_section("A6a: filters: swing number, hit tags, ability (and variants), part, status, end reason, stacks, crits, kills, DoT ticks, the empower used, conditions")
+	await _ready_knight()
+	var sounds := Audio.get_sound_triggers()
+	var dummies := _dummies_in_front(3)
+	await get_tree().physics_frame
+	var swing_2 := _trigger(SoundTrigger.Event.SWING_START, "f_swing_2")
+	swing_2.swing_number = 2
+	var basic := _trigger(SoundTrigger.Event.HIT_DEALT, "f_basic")
+	basic.hit_tags = [&"basic_attack"]
+	var finisher := _trigger(SoundTrigger.Event.HIT_DEALT, "f_finisher")
+	finisher.hit_tags = [&"basic_attack", &"finisher"]
+	var each := _trigger(SoundTrigger.Event.HIT_DEALT, "f_each")
+	each.once_per_frame = false
+	var cleave := _trigger(SoundTrigger.Event.HIT_DEALT, "f_cleave")
+	cleave.ability_id = &"knight_cleave"
+	var cleave_only := _trigger(SoundTrigger.Event.HIT_DEALT, "f_cleave_only")
+	cleave_only.ability_id = &"knight_cleave"
+	cleave_only.include_variants = false
+	var crit := _trigger(SoundTrigger.Event.HIT_DEALT, "f_crit")
+	crit.crit_only = true
+	var kill := _trigger(SoundTrigger.Event.HIT_DEALT, "f_kill")
+	kill.kill_only = true
+	var dot := _trigger(SoundTrigger.Event.HIT_DEALT, "f_dot")
+	dot.hit_tags = [&"dot"]
+	dot.once_per_frame = false
+	var empowered := _trigger(SoundTrigger.Event.HIT_DEALT, "f_empower")
+	empowered.used_empower = &"test_trigger_empower"
+	var part_1 := _trigger(SoundTrigger.Event.CAST_START, "f_part_1")
+	part_1.part = 1
+	var by_id := _trigger(SoundTrigger.Event.STATUS_GAINED, "f_status_id")
+	by_id.status_id = &"test_trigger_stack"
+	by_id.once_per_frame = false
+	var by_tag := _trigger(SoundTrigger.Event.STATUS_GAINED, "f_status_tag")
+	by_tag.status_tag = &"test_trigger_tag"
+	var expired := _trigger(SoundTrigger.Event.STATUS_ENDED, "f_expired")
+	expired.end_reason = SoundTrigger.EndFilter.EXPIRED
+	expired.status_tag = &"test_trigger_tag"
+	var consumed := _trigger(SoundTrigger.Event.STATUS_ENDED, "f_consumed")
+	consumed.end_reason = SoundTrigger.EndFilter.CONSUMED
+	consumed.status_id = &"shield"
+	var three := _trigger(SoundTrigger.Event.STACKS_REACHED, "f_three")
+	three.status_id = &"test_trigger_stack"
+	three.stacks = 3
+	var focused := _trigger(SoundTrigger.Event.SWING_START, "f_condition")
+	var cond := Condition.new()
+	cond.kind = Condition.Kind.SELF_HAS_STATUS
+	cond.status_tag = &"test_trigger_tag"
+	focused.conditions = [cond]
+	sounds.watch(knight, _sheet([swing_2, basic, finisher, each, cleave, cleave_only, crit, kill, dot, empowered, part_1, by_id, by_tag, expired, consumed, three, focused]))
+	Audio.clear_log()
+	for i in 2:
+		await _wait_until(func() -> bool: return knight.attack.can_swing(), 120)
+		knight.attack.try_swing(Vector2.LEFT)
+		await _wait_until(func() -> bool: return knight.attack.is_in_recovery() or not knight.attack.is_swinging(), 60)
+	await _wait_until(func() -> bool: return not knight.attack.is_swinging(), 60)
+	_check("two swings into three slimes: swing_number 2 once; `basic_attack` once a swing (once per frame), three a swing without it; never `finisher` (the Knight's swings carry none), no ability",
+		[_fired("f_swing_2").size(), _fired("f_basic").size(), _fired("f_each").size(), _fired("f_finisher").size(), _fired("f_cleave").size()], [1, 2, 6, 0, 0])
+	_check("a condition (SELF_HAS_STATUS test_trigger_tag) he doesn't meet: nothing", _fired("f_condition").size(), 0)
+	var d := dummies[0]
+	Audio.clear_log()
+	var hit := d.make_hit_context(1.0, knight)
+	hit.ability = load("res://data/abilities/knight_q_cleave.tres")
+	d.on_hit(hit)
+	await get_tree().physics_frame
+	var wave_hit := d.make_hit_context(1.0, knight)
+	wave_hit.ability = load("res://data/abilities/knight_q_cleave_wave.tres")
+	d.on_hit(wave_hit)
+	_check("ability_id knight_cleave: Cleave's hit and its variant Cleave Wave's; with include_variants off, Cleave's only",
+		[_fired("f_cleave").size(), _fired("f_cleave_only").size()], [2, 1])
+	await get_tree().physics_frame
+	Audio.clear_log()
+	var crit_hit := d.make_hit_context(1.0, knight)
+	crit_hit.is_crit = true
+	d.on_hit(crit_hit)
+	await get_tree().physics_frame
+	var tick := d.make_hit_context(1.0, knight)
+	tick.add_tag(&"dot")
+	d.on_hit(tick)
+	_check("a crit: crit_only; a DoT tick: only the trigger asking for `dot` (the others skip it)",
+		[_fired("f_crit").size(), _fired("f_dot").size(), _fired("f_each").size()], [1, 1, 1])
+	var empower := StatusEffect.new()
+	empower.id = &"test_trigger_empower"
+	empower.duration = 5.0
+	empower.tags = [&"empower", &"buff"]
+	empower.empower_consumed_by = StatusEffect.EmpowerTrigger.BASIC_ATTACK_HIT
+	await _ready_knight()
+	knight.status_component.apply_status(empower, knight)
+	Audio.clear_log()
+	knight.attack.try_swing(Vector2.LEFT)
+	await _wait_until(func() -> bool: return _fired("f_basic").size() > 0, 60)
+	_check("the swing that uses the empower: used_empower plays (HitContext.empowers_used), once", _fired("f_empower").size(), 1)
+	await _ready_knight()
+	Audio.clear_log()
+	knight.attack.try_swing(Vector2.LEFT)
+	await _wait_until(func() -> bool: return _fired("f_basic").size() > 0, 60)
+	_check("the next swing (no empower): not", _fired("f_empower").size(), 0)
+	Audio.clear_log()
+	var ctx_0 := CastContext.new()
+	var ctx_1 := CastContext.new()
+	ctx_1.part = 1
+	knight.abilities.cast_started.emit(&"q", knight.abilities.q, ctx_0)
+	knight.abilities.cast_started.emit(&"q", knight.abilities.q, ctx_1)
+	_check("part 1: only the recast part", _fired("f_part_1").size(), 1)
+	knight.abilities.cast_finished.emit(&"q", knight.abilities.q)
+	Audio.clear_log()
+	var stack := _mark("test_trigger_stack", 5.0, 5)
+	var tagged := _mark("test_trigger_tagged", 1.0, 1)
+	tagged.tags = [&"test_trigger_tag"]
+	knight.status_component.apply_status(tagged, knight)
+	var at: Array = []
+	for i in 4:
+		knight.status_component.apply_status(stack, knight)
+		at.append(_fired("f_three").size())
+	_check("by id and by tag; stacks 3: only as the 3rd stack comes (1, 2: no; 3: yes; 4: no)",
+		[_fired("f_status_id").size(), _fired("f_status_tag").size(), at], [4, 1, [0, 0, 1, 1]])
+	_check("the condition met (it holds a test_trigger_tag status): a swing plays it", await _swing_fires("f_condition"), 1)
+	await _wait_until(func() -> bool: return not knight.status_component.has_status(&"test_trigger_tagged"), 120)
+	_check("the tagged status ran out: EXPIRED, not CONSUMED", [_fired("f_expired").size(), _fired("f_consumed").size()], [1, 0])
+	Audio.clear_log()
+	knight.status_component.apply_status(load("res://data/statuses/status_shield.tres"), knight)
+	knight.status_component.absorb_damage(1000.0)
+	_check("a shield used up: CONSUMED, not EXPIRED", [_fired("f_consumed").size(), _fired("f_expired").size()], [1, 0])
+	Audio.clear_log()
+	var k_hit := d.make_hit_context(100000.0, knight)
+	d.on_hit(k_hit)
+	_check("a hit that kills: kill_only", _fired("f_kill").size(), 1)
+	knight.status_component.remove_status(&"test_trigger_stack")
+	sounds.unwatch(knight)
+	for x in dummies:
+		if is_instance_valid(x):
+			x.queue_free()
+	await _frames(2)
+
+
+func _test_trigger_places() -> void:
+	_section("A6a: places: the Player's sounds centered but his impact; an enemy's anywhere")
+	await _ready_knight()
+	var sounds := Audio.get_sound_triggers()
+	var dummy := _dummies_in_front(1)[0]
+	await get_tree().physics_frame
+	var default_hit := _trigger(SoundTrigger.Event.HIT_DEALT, "p_default")
+	var impact := _trigger(SoundTrigger.Event.HIT_DEALT, "p_impact")
+	impact.place = SoundTrigger.Place.AT_OTHER
+	var impact_on := _trigger(SoundTrigger.Event.HIT_DEALT, "p_impact_on")
+	impact_on.place = SoundTrigger.Place.ON_OTHER
+	var swing_at := _trigger(SoundTrigger.Event.SWING_START, "p_swing_at")
+	swing_at.place = SoundTrigger.Place.AT_OTHER
+	sounds.watch(knight, _sheet([default_hit, impact, impact_on, swing_at]))
+	Audio.clear_log()
+	var hit_at := [Vector2.INF]
+	var on_hit := func(ctx: HitContext) -> void:
+		if ctx.source == knight and hit_at[0] == Vector2.INF:
+			hit_at[0] = (ctx.target as Node2D).global_position
+	Events.unit_hit.connect(on_hit)
+	knight.attack.try_swing(Vector2.LEFT)
+	await _wait_until(func() -> bool: return _fired("p_impact").size() > 0, 60)
+	Events.unit_hit.disconnect(on_hit)
+	await get_tree().physics_frame
+	var hit_pos: Vector2 = hit_at[0]
+	var e_default := _first_fired("p_default")
+	var e_impact := _first_fired("p_impact")
+	var e_on := _first_fired("p_impact_on")
+	var p_on := Audio.get_player(int(e_on.get("handle", 0))) as AudioStreamPlayer2D
+	_check("his hit, DEFAULT: centered, HIGH", [e_default.get("positional"), e_default.get("priority")], [false, SoundEvent.Priority.HIGH])
+	_check("his impact, AT_OTHER: positional, where the slime was hit", [e_impact.get("positional"), (e_impact.get("position", Vector2.INF) as Vector2).distance_to(hit_pos) < 2.0], [true, true])
+	_check("his impact, ON_OTHER: positional, following the slime", [e_on.get("positional"), p_on != null and p_on.global_position.distance_to(dummy.global_position) < 2.0], [true, true])
+	_check("his swing, AT_OTHER: centered anyway (warned once: see the output)", _first_fired("p_swing_at").get("positional"), false)
+	sounds.unwatch(knight)
+	var on_self := _trigger(SoundTrigger.Event.HIT_TAKEN, "e_default")
+	var centered := _trigger(SoundTrigger.Event.HIT_TAKEN, "e_centered")
+	centered.place = SoundTrigger.Place.CENTERED
+	var at_aim := _trigger(SoundTrigger.Event.HIT_TAKEN, "e_aim")
+	at_aim.place = SoundTrigger.Place.AT_AIM
+	var at_other := _trigger(SoundTrigger.Event.HIT_TAKEN, "e_other")
+	at_other.place = SoundTrigger.Place.AT_OTHER
+	var gone := _trigger(SoundTrigger.Event.HIT_TAKEN, "e_gone")
+	gone.place = SoundTrigger.Place.ON_OTHER
+	gone.delay = 0.1
+	sounds.watch(dummy, _sheet([on_self, centered, at_aim, at_other, gone]))
+	var other := _dummies_in_front(1)[0]
+	_place(other, dummy.global_position + Vector2(0, 40))
+	await get_tree().physics_frame
+	var other_pos := other.global_position
+	Audio.clear_log()
+	dummy.on_hit(dummy.make_hit_context(1.0, other))
+	var e_self := _first_fired("e_default")
+	var p_self := Audio.get_player(int(e_self.get("handle", 0))) as AudioStreamPlayer2D
+	_check("a slime's DEFAULT: positional, following it; CENTERED: no position; AT_AIM with no cast: where it stood; AT_OTHER: where the hitter stood",
+		[e_self.get("positional"), p_self != null and p_self.global_position.distance_to(dummy.global_position) < 2.0, _first_fired("e_centered").get("positional"),
+			(_first_fired("e_aim").get("position", Vector2.INF) as Vector2).distance_to(dummy.global_position) < 2.0,
+			(_first_fired("e_other").get("position", Vector2.INF) as Vector2).distance_to(other_pos) < 2.0],
+		[true, true, false, true, true])
+	other.queue_free()
+	await _real_wait(0.2)
+	var e_gone := _first_fired("e_gone")
+	_check("ON_OTHER whose unit was freed before its 0.1 s delay: where it stood", [e_gone.get("positional"), (e_gone.get("position", Vector2.INF) as Vector2).distance_to(other_pos) < 2.0], [true, true])
+	sounds.unwatch(dummy)
+	dummy.queue_free()
+	await _frames(2)
+
+
+func _test_trigger_progress() -> void:
+	_section("A6a: at_progress: a point of the cast or swing, following it; a cancel drops it (A4's cues, folded in)")
+	await _ready_knight()
+	var sounds := Audio.get_sound_triggers()
+	var saved_w := knight.abilities.w
+	var slow := Ability.new()
+	slow.id = &"test_trigger_slow"
+	slow.targeting = Ability.Targeting.SELF
+	slow.cooldown = 0.1
+	slow.cast_time = 0.5
+	slow.dash_cancelable = true
+	knight.abilities.w = slow
+	var at_start := _trigger(SoundTrigger.Event.CAST_START, "pr_start")
+	at_start.at_progress = 0.0
+	var at_half := _trigger(SoundTrigger.Event.CAST_START, "pr_half")
+	at_half.at_progress = 0.5
+	var at_end := _trigger(SoundTrigger.Event.CAST_START, "pr_end")
+	at_end.at_progress = 1.0
+	var swing_half := _trigger(SoundTrigger.Event.SWING_START, "pr_swing")
+	swing_half.at_progress = 0.5
+	sounds.watch(knight, _sheet([at_start, at_half, at_end, swing_half]))
+	Audio.clear_log()
+	var f0 := Engine.get_physics_frames()
+	knight.abilities.try_cast(&"w", knight.global_position)
+	_check("0: at the press; not yet 0.5 or 1", [_fired("pr_start").size(), _fired("pr_half").size(), _fired("pr_end").size()], [1, 0, 0])
+	await _wait_until(func() -> bool: return _fired("pr_half").size() > 0, 60)
+	var half_frame: int = _first_fired("pr_half").get("frame", -100)
+	_check_near("0.5 of a 0.5 s cast: 0.25 s in (15 physics frames)", half_frame - f0, 15.0, 2.0)
+	await _wait_until(func() -> bool: return not knight.abilities.casting, 60)
+	_check("1: at its effect", _fired("pr_end").size(), 1)
+	await _game_wait(0.15)
+	Audio.clear_log()
+	knight.abilities.try_cast(&"w", knight.global_position)
+	await _frames(5)
+	knight.abilities.try_cancel_cast()
+	await _frames(40)
+	_check("cancelled 0.08 s in: 0 played, 0.5 and 1 never", [_fired("pr_start").size(), _fired("pr_half").size(), _fired("pr_end").size()], [1, 0, 0])
+	var quick := Ability.new()
+	quick.id = &"test_trigger_quick"
+	quick.targeting = Ability.Targeting.SELF
+	quick.cooldown = 0.1
+	quick.cast_time = 0.0
+	knight.abilities.w = quick
+	await _game_wait(0.15)
+	Audio.clear_log()
+	knight.abilities.try_cast(&"w", knight.global_position)
+	_check("a cast with no cast time: every point at the press", [_fired("pr_start").size(), _fired("pr_half").size(), _fired("pr_end").size()], [1, 1, 1])
+	knight.abilities.w = saved_w
+	await _ready_knight()
+	Audio.clear_log()
+	knight.attack.try_swing(Vector2.LEFT)
+	var swing_progress := [-1.0]
+	await _wait_until(func() -> bool:
+		if _fired("pr_swing").size() > 0 and swing_progress[0] < 0.0:
+			swing_progress[0] = knight.attack.get_swing_progress()
+		return _fired("pr_swing").size() > 0, 60)
+	_check_near("a swing's 0.5: mid-swing (its progress read the tick after: 0.5 plus at most two ticks)", swing_progress[0], 0.6, 0.1)
+	await _ready_knight()
+	Audio.clear_log()
+	knight.attack.try_swing(Vector2.LEFT)
+	await get_tree().physics_frame
+	knight.attack.cancel_swing()
+	await _frames(30)
+	_check("a swing cancelled at its start: its 0.5 never plays", _fired("pr_swing").size(), 0)
+	sounds.unwatch(knight)
+	await _frames(2)
+
+
+func _test_trigger_delays() -> void:
+	_section("A6a: delay: real time (a hitstop doesn't stretch it); it waits through the pause")
+	await _ready_knight()
+	var sounds := Audio.get_sound_triggers()
+	var later := _trigger(SoundTrigger.Event.STATUS_GAINED, "d_later")
+	later.delay = 0.2
+	sounds.watch(knight, _sheet([later]))
+	var mark := _mark("test_trigger_delay", 5.0, 1)
+	Audio.clear_log()
+	Engine.time_scale = 0.05
+	var t0 := Time.get_ticks_msec()
+	knight.status_component.apply_status(mark, knight)
+	var until := t0 + 1500
+	while _fired("d_later").is_empty() and Time.get_ticks_msec() < until:
+		await get_tree().process_frame
+	Engine.time_scale = 1.0
+	var fired := _first_fired("d_later")
+	_check_near("0.2 s at Engine.time_scale 0.05: 0.2 s of real time (ms), not 4 s", float(int(fired.get("time_ms", t0 + 99999)) - t0), 200.0, 60.0)
+	Audio.clear_log()
+	knight.status_component.apply_status(mark, knight)
+	get_tree().paused = true
+	await _real_wait(0.35)
+	var while_paused := _fired("d_later").size()
+	get_tree().paused = false
+	await _real_wait(0.3)
+	_check("paused 0.35 s: not played; unpaused: it plays", [while_paused, _fired("d_later").size()], [0, 1])
+	Audio.clear_log()
+	knight.status_component.apply_status(mark, knight)
+	Audio.stop_all()
+	await _real_wait(0.3)
+	_check("Audio.stop_all() (a scene restart) drops a waiting delay", _fired("d_later").size(), 0)
+	knight.status_component.remove_status(mark.id)
+	sounds.unwatch(knight)
+
+
+func _test_trigger_gates() -> void:
+	_section("A6a: once per frame, every Nth, cooldown, chance (seeded), off, no sound, volume and pitch")
+	await _ready_knight()
+	var sounds := Audio.get_sound_triggers()
+	var mark := _mark("test_trigger_gate", 5.0, 1)
+	var once := _trigger(SoundTrigger.Event.STATUS_GAINED, "g_once")
+	var nth := _trigger(SoundTrigger.Event.STATUS_GAINED, "g_nth")
+	nth.once_per_frame = false
+	nth.every_nth = 3
+	var cooled := _trigger(SoundTrigger.Event.STATUS_GAINED, "g_cooldown")
+	cooled.once_per_frame = false
+	cooled.cooldown = 0.3
+	var off := _trigger(SoundTrigger.Event.STATUS_GAINED, "g_off")
+	off.enabled = false
+	var silent := _trigger(SoundTrigger.Event.STATUS_GAINED, "g_silent")
+	silent.sound = null
+	var tuned := _trigger(SoundTrigger.Event.STATUS_GAINED, "g_tuned")
+	tuned.volume_db = 6.0
+	tuned.pitch = 1.5
+	sounds.watch(knight, _sheet([once, nth, cooled, off, silent, tuned]))
+	Audio.stop_all()
+	Audio.clear_log()
+	for i in 6:
+		knight.status_component.apply_status(mark, knight)
+	_check("6 applications in one frame: once per frame 1, every 3rd 2, cooldown 0.3 s 1, off 0, no sound nothing logged",
+		[_fired("g_once").size(), _fired("g_nth").size(), _fired("g_cooldown").size(), _fired("g_off").size(),
+			Audio.get_log().filter(func(e: Dictionary) -> bool: return e.trigger == "g_silent").size()], [1, 2, 1, 0, 0])
+	var e_tuned := _first_fired("g_tuned")
+	var player := Audio.get_player(int(e_tuned.get("handle", 0)))
+	_check("volume +6 dB and pitch x1.5 on top of the SoundEvent's (-18 dB, 1.0)",
+		[player.get(&"volume_db") if player else 0.0, player.get(&"pitch_scale") if player else 0.0], [-12.0, 1.5])
+	await _real_wait(0.35)
+	knight.status_component.apply_status(mark, knight)
+	_check("0.35 s later: the cooldown is over", _fired("g_cooldown").size(), 2)
+	sounds.unwatch(knight)
+	var lucky := _trigger(SoundTrigger.Event.STATUS_GAINED, "g_chance")
+	lucky.once_per_frame = false
+	lucky.chance = 0.5
+	sounds.watch(knight, _sheet([lucky]))
+	var counts: Array = []
+	for run in 2:
+		Audio.stop_all()
+		Audio.clear_log()
+		Audio.rng.seed = 4242
+		for i in 20:
+			knight.status_component.apply_status(mark, knight)
+		counts.append(_tried("g_chance").size())   # played or dropped by the instance limit: it matched
+	var expected := 0
+	var mirror := RandomNumberGenerator.new()
+	mirror.seed = 4242
+	for i in 20:
+		if mirror.randf() < 0.5:
+			expected += 1
+	_check("chance 0.5 over 20, Audio.rng seeded: the same count twice, the seed's own (%d)" % expected, counts, [expected, expected])
+	knight.status_component.remove_status(mark.id)
+	sounds.unwatch(knight)
+	Audio.stop_all()
+
+
+## A trigger on `event` named `trigger_name`, with its own quiet test sound
+## named after it.
+func _trigger(event: SoundTrigger.Event, trigger_name: String) -> SoundTrigger:
+	var t := SoundTrigger.new()
+	t.event = event
+	t.name = trigger_name
+	t.sound = _event(trigger_name, [_tone_short])
+	t.sound.max_instances = 6
+	t.sound.min_interval = 0.03
+	return t
+
+
+func _sheet(triggers: Array) -> SoundSheet:
+	var sheet := SoundSheet.new()
+	for t in triggers:
+		sheet.triggers.append(t)
+	return sheet
+
+
+## A plain test status: `max_stacks` stacks (STACK when above 1).
+func _mark(id: String, duration: float, max_stacks: int) -> StatusEffect:
+	var s := StatusEffect.new()
+	s.id = StringName(id)
+	s.duration = duration
+	s.max_stacks = max_stacks
+	s.stack_rule = StatusEffect.StackRule.STACK if max_stacks > 1 else StatusEffect.StackRule.REFRESH
+	return s
+
+
+## Played entries of the trigger named `trigger_name`.
+func _fired(trigger_name: String) -> Array[Dictionary]:
+	return Audio.get_log().filter(func(e: Dictionary) -> bool: return e.trigger == trigger_name and e.result == Audio.RESULT_PLAYED)
+
+
+## Every entry of the trigger named `trigger_name` (played, dropped...).
+func _tried(trigger_name: String) -> Array[Dictionary]:
+	return Audio.get_log().filter(func(e: Dictionary) -> bool: return e.trigger == trigger_name)
+
+
+func _first_fired(trigger_name: String) -> Dictionary:
+	var entries := _fired(trigger_name)
+	return entries[0] if not entries.is_empty() else {}
+
+
+## Swings once at the slimes in front and returns how often `trigger_name` played.
+func _swing_fires(trigger_name: String) -> int:
+	await _wait_until(func() -> bool: return knight.attack.can_swing(), 120)
+	var before := _fired(trigger_name).size()
+	knight.attack.try_swing(Vector2.LEFT)
+	await get_tree().physics_frame
+	return _fired(trigger_name).size() - before
 
 
 # --- Helpers ------------------------------------------------------------------

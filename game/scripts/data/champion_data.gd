@@ -71,6 +71,9 @@ extends Resource
 @export var hurt_sound: SoundEvent
 @export var death_sound: SoundEvent
 @export var low_health_sound: SoundEvent
+## Its sound triggers (AUDIO A6a): when, where and how its own sounds play,
+## on top of the slots. null = none. The Player watches it at load.
+@export var sound_sheet: SoundSheet
 
 @export_group("View")
 ## The champion's rigged 3D model (3D.md, Data, Models); the Player takes it

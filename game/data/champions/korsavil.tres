@@ -12,6 +12,7 @@
 [ext_resource type="Resource" path="res://data/statuses/status_empower_demise.tres" id="8_empower"]
 [ext_resource type="Resource" path="res://data/abilities/korsavil_q_blade_singer.tres" id="9_q"]
 [ext_resource type="Resource" path="res://data/statuses/status_blade_singer_sweep.tres" id="10_sweep"]
+[ext_resource type="Resource" path="res://data/sound_sheets/sound_sheet_korsavil.tres" id="12_2pmsd"]
 [ext_resource type="Script" uid="uid://bu2artg4nhd6d" path="res://scripts/data/talent.gd" id="13_ncjpc"]
 
 [sub_resource type="Resource" id="StatModifier_second_dash"]
@@ -40,3 +41,4 @@ resource_type = 1
 q = ExtResource("9_q")
 combo = ExtResource("3_combo")
 passive = SubResource("Passive_korsavil")
+sound_sheet = ExtResource("12_2pmsd")

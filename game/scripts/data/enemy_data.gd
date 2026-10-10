@@ -58,6 +58,8 @@ enum Rank { FODDER, REGULAR, ELITE, BOSS }
 ## rhythm (AttackCombo: its swings' timings, string_hits_min). null = no
 ## string: fodder, and an enemy not yet given one keeps AI1's commit.
 @export var attack_string: AttackCombo
+## Its sound triggers (AUDIO A6a), watched when it loads its data. null = none.
+@export var sound_sheet: SoundSheet
 
 
 ## The source id its twist goes under.

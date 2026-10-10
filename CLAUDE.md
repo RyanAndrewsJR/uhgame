@@ -47,6 +47,7 @@ data/enemies/           EnemyData .tres per enemy (enemy_slime.tres, enemy_slime
 data/enemy_behaviors/   EnemyBehavior .tres per role (enemy_behavior_brute.tres: the twelve sliders)
 data/enemy_ai_tables/   EnemyAITable (enemy_ai_table_default.tres: the ranks, respect, patience, the hold)
 data/pose_sets/         PoseSet .tres (pose_set_default.tres: enemy tells' capsule looks)
+data/sound_sheets/       SoundSheet .tres (sound_sheet_korsavil.tres: a champion's or enemy's sound triggers; AUDIO A6a)
 audio/                  audio files: sfx/ (WAV), music/ and ambience/ (OGG), LICENSES.md (CC0 placeholders only)
 default_bus_layout.tres the audio buses: Master, Music, SFX, UI, Ambience, Voice
 scenes/player|enemies|rooms|ui/
@@ -168,7 +169,7 @@ The game in `game/` is the **reference build**. It works, and changes build on i
   - Corner forgiveness, proposed (MOVEMENT.md); the pit step, unscheduled (WORLD_INTERACTION.md).
   - DUNGEONS D1 waits for the P-spike and WORLD_INTERACTION's unscheduled pieces; AI-D4 for ALLIES AL6.
   - AUDIO A4 and A5: approved, not started; CC0 files can replace the placeholders any time (AUDIO.md).
-  - AUDIO A6 (sound triggers and the live tuning panel): designed and approved 2026-10-10 with Ryan's changes; before A6a: his concern 4 (the Save guards) and his slices (AUDIO.md, Open questions).
+  - AUDIO A6a (sound triggers) built 2026-10-10, awaiting Ryan's play test (4,515/4,515); then Korsavil's sheet step 2, then A6b (the panel: needs his concern 4, the Save guards).
   - COMPANIONS CO1: any time, on Ryan's OK.
   - ALLIES' second champion (ranged/support, mana): still planned (ALLIES.md, Status).
   - Ryan's pre-L-M saves: `%APPDATA%/Godot/app_userdata/uhgame/backups/` (the 10:22 copy).

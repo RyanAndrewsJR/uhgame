@@ -100,6 +100,7 @@ static func add_empowers(ctx: HitContext, empowers: Array[StatusEffect]) -> void
 	if empowers.is_empty():
 		return
 	for e in empowers:
+		ctx.empowers_used.append(e)   # AUDIO A6a
 		ctx.base_damage += e.empower_base_damage
 		ctx.ad_ratio += e.empower_ad_ratio
 		ctx.poise_damage += e.empower_poise_damage   # PROTOTYPE (poise): the riposte's
